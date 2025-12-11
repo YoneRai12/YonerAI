@@ -1,0 +1,46 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.5, pytest-8.4.1, pluggy-1.6.0
+rootdir: C:\Users\YoneRai12\Desktop\ORADiscordBOT-main3
+configfile: pytest.ini
+plugins: anyio-4.9.0, asyncio-1.1.0
+asyncio: mode=Mode.AUTO, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 6 items / 2 errors
+
+=================================== ERRORS ====================================
+_____________________ ERROR collecting tests/test_api.py ______________________
+ImportError while importing test module 'C:\Users\YoneRai12\Desktop\ORADiscordBOT-main3\tests\test_api.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+..\..\AppData\Local\Programs\Python\Python313\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_api.py:12: in <module>
+    from src.web.app import app
+src\web\app.py:5: in <module>
+    from src.web import endpoints
+src\web\endpoints.py:4: in <module>
+    from google_auth_oauthlib.flow import Flow
+E   ModuleNotFoundError: No module named 'google_auth_oauthlib'
+____________________ ERROR collecting tests/test_smoke.py _____________________
+ImportError while importing test module 'C:\Users\YoneRai12\Desktop\ORADiscordBOT-main3\tests\test_smoke.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+..\..\AppData\Local\Programs\Python\Python313\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_smoke.py:4: in <module>
+    from src.bot import ORABot
+src\bot.py:23: in <module>
+    from .cogs.core import CoreCog
+src\cogs\__init__.py:4: in <module>
+    from .ora import ORACog
+src\cogs\ora.py:14: in <module>
+    from ..utils import flag_utils
+src\utils\flag_utils.py:3: in <module>
+    import pycountry
+E   ModuleNotFoundError: No module named 'pycountry'
+=========================== short test summary info ===========================
+ERROR tests/test_api.py
+ERROR tests/test_smoke.py
+!!!!!!!!!!!!!!!!!!! Interrupted: 2 errors during collection !!!!!!!!!!!!!!!!!!!
+============================== 2 errors in 1.18s ==============================

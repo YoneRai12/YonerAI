@@ -1,0 +1,2211 @@
+"""Extended ORA-specific slash commands."""
+
+from __future__ import annotations
+
+import logging
+import secrets
+import string
+import time
+import json
+import asyncio
+import asyncio
+import datetime
+from ..utils import image_tools
+from ..utils import flag_utils
+import os
+import aiofiles
+from typing import Optional, Dict
+from collections import defaultdict
+
+import aiohttp
+import psutil
+import discord
+from discord import app_commands
+from discord.abc import User
+from discord.ext import commands
+
+from ..storage import Store
+from ..utils.llm_client import LLMClient
+from ..utils.search_client import SearchClient
+from src.views.image_gen import AspectRatioSelectView
+from ..utils.drive_client import DriveClient
+from ..utils.desktop_watcher import DesktopWatcher
+from discord.ext import tasks
+from pathlib import Path
+
+logger = logging.getLogger(__name__)
+
+# Try E: drive first, then fallback to user home
+CACHE_DIR = Path("E:/ora_cache")
+if not Path("E:/").exists():
+    CACHE_DIR = Path.home() / ".ora_cache"
+    logger.warning(f"E: drive not found. Using {CACHE_DIR} for cache.")
+
+CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
+
+async def _get_gpu_stats() -> Optional[str]:
+    """Fetch GPU stats using nvidia-smi."""
+    try:
+        # 1. Global Stats
+        # name, utilization.gpu, memory.used, memory.total
+        cmd1 = "nvidia-smi --query-gpu=name,utilization.gpu,memory.used,memory.total --format=csv,noheader,nounits"
+        proc1 = await asyncio.create_subprocess_shell(cmd1, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+        out1, _ = await proc1.communicate()
+        
+        if proc1.returncode != 0:
+            return None
+        
+        gpu_info = out1.decode().strip().split(",")
+        if len(gpu_info) < 4:
+            return "Unknown GPU Data"
+        
+        name = gpu_info[0].strip()
+        util = gpu_info[1].strip()
+        mem_used = int(gpu_info[2].strip())
+        mem_total = int(gpu_info[3].strip())
+        mem_free = mem_total - mem_used
+        
+        text = f"**{name}**\nUtilization: {util}%\nVRAM: {mem_used}MB / {mem_total}MB (Free: {mem_free}MB)"
+
+        # 2. Process List
+        # pid, process_name
+        cmd2 = "nvidia-smi --query-compute-apps=pid,process_name --format=csv,noheader"
+        proc2 = await asyncio.create_subprocess_shell(cmd2, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+        out2, _ = await proc2.communicate()
+        
+        if proc2.returncode == 0 and out2:
+            lines = out2.decode().strip().splitlines()
+            processes = []
+            for line in lines:
+                parts = line.split(",")
+                if len(parts) >= 2:
+                    pid = parts[0].strip()
+                    # Clean up path to just filename
+                    path = parts[1].strip()
+                    exe_name = path.split("\\")[-1]
+                    processes.append(f"{exe_name} ({pid})")
+            
+            if processes:
+                text += f"\nProcesses: {', '.join(processes)}"
+            else:
+                text += "\nProcesses: None (or hidden)"
+        
+        return text
+        
+    except Exception as e:
+        logger.error(f"Failed to get GPU stats: {e}")
+        return None
+
+def _nonce(length: int = 32) -> str:
+    alphabet = string.ascii_letters + string.digits
+    return "".join(secrets.choice(alphabet) for _ in range(length))
+
+
+class ORACog(commands.Cog):
+    """ORA-specific commands such as login link and dataset management."""
+
+    def __init__(
+        self,
+        bot: commands.Bot,
+        store: Store,
+        llm: LLMClient,
+        search_client: SearchClient,
+        public_base_url: Optional[str],
+        ora_api_base_url: Optional[str],
+        privacy_default: str,
+    ) -> None:
+        logger.info("ORACog.__init__ called - Loading ORACog")
+        self.bot = bot
+        self._store = store
+        self._llm = llm
+        self._search_client = search_client
+        self._drive_client = DriveClient()
+        self._watcher = DesktopWatcher()
+        self._public_base_url = public_base_url
+        self._ora_api_base_url = ora_api_base_url
+        self._privacy_default = privacy_default
+        self._locks: Dict[int, asyncio.Lock] = defaultdict(asyncio.Lock)
+        
+        # VRAM Management & Queue
+        self.is_generating_image = False
+        self.message_queue: list[discord.Message] = []
+        
+        # Start background tasks
+        self.desktop_loop.start()
+        logger.info("ORACog.__init__ complete - desktop_loop started")
+
+    def cog_unload(self):
+        self.desktop_loop.cancel()
+
+    @tasks.loop(minutes=5.0)
+    async def desktop_loop(self):
+        """Periodically check the desktop and report to Admin."""
+        admin_id = self.bot.config.admin_user_id
+        if not admin_id:
+            return
+
+        # Check if enabled
+        enabled = await self._store.get_desktop_watch_enabled(admin_id)
+        if not enabled:
+            return
+
+        try:
+            # Analyze screen in thread
+            result = await asyncio.to_thread(self._watcher.analyze_screen)
+            if not result:
+                return
+
+            # If interesting (e.g. has labels), DM the admin
+            # For now, just report what is seen to prove it works
+            labels = result.get("labels", [])
+            faces = result.get("faces", 0)
+            text = result.get("text", "")[:100].replace("\n", " ")
+            
+            if not labels and faces == 0 and not text:
+                return
+
+            # Construct report (Japanese)
+            report = "🖥️ **デスクトップ監視レポート**\n"
+            if labels:
+                report += f"🏷️ **検出:** {', '.join(labels)}\n"
+            if faces > 0:
+                report += f"👤 **顔検出:** {faces}人\n"
+            if text:
+                report += f"📝 **テキスト:** {text}...\n"
+            
+            # Send DM
+            user = await self.bot.fetch_user(admin_id)
+            if user:
+                # Create file for screenshot
+                # We need to re-capture or use the bytes we have?
+                # The result from analyze_image_structured doesn't include the image bytes usually unless we pass them through.
+                # But wait, analyze_screen calls capture_screen.
+                # Let's just send the text report for now to be safe/fast.
+                await user.send(report)
+
+        except Exception as e:
+            logger.error(f"Desktop watcher loop failed: {e}")
+
+    @app_commands.command(name="desktop_watch", description="デスクトップ監視（DM通知）のオン・オフを切り替えます。")
+    @app_commands.describe(mode="ON/OFF")
+    @app_commands.choices(mode=[
+        app_commands.Choice(name="ON", value="on"),
+        app_commands.Choice(name="OFF", value="off"),
+    ])
+    async def desktop_watch(self, interaction: discord.Interaction, mode: str):
+        """Toggle desktop watcher."""
+        # Admin check
+        admin_id = self.bot.config.admin_user_id
+        creator_id = 1069941291661672498
+        if interaction.user.id != admin_id and interaction.user.id != creator_id:
+            await interaction.response.send_message("⛔ この機能は管理者専用です。", ephemeral=True)
+            return
+
+        enabled = (mode == "on")
+        await self._store.set_desktop_watch_enabled(interaction.user.id, enabled)
+        
+        status = "オン" if enabled else "オフ"
+        await interaction.response.send_message(f"デスクトップ監視を {status} にしました。", ephemeral=True)
+
+
+
+    @desktop_loop.before_loop
+    async def before_desktop_loop(self):
+        await self.bot.wait_until_ready()
+
+    @app_commands.command(name="login", description="Googleアカウント連携用のURLを発行します。")
+    @app_commands.describe(ephemeral="自分だけに表示するかどうか (デフォルト: True)")
+    async def login(self, interaction: discord.Interaction, ephemeral: bool = True) -> None:
+        await self._store.ensure_user(interaction.user.id, self._privacy_default)
+        if not self._public_base_url:
+            await interaction.response.send_message(
+                "PUBLIC_BASE_URL が未設定のためログインURLを発行できません。",
+                ephemeral=ephemeral,
+            )
+            return
+
+        await interaction.response.defer(ephemeral=ephemeral, thinking=True)
+        state = _nonce()
+        await self._store.start_login_state(state, interaction.user.id, ttl_sec=900)
+        url = f"{self._public_base_url}/auth/discord?state={state}"
+        await interaction.followup.send(
+            "Google ログインの準備ができました。以下のURLから認証を完了してください。\n" + url,
+            ephemeral=ephemeral,
+        )
+
+    async def _ephemeral_for(self, user: discord.User | discord.Member) -> bool:
+        """Return True if the user's privacy setting is 'private'."""
+        privacy = await self._store.get_privacy(user.id)
+        return privacy == "private"
+
+    @app_commands.command(name="whoami", description="連携済みアカウント情報を表示します。")
+    async def whoami(self, interaction: discord.Interaction) -> None:
+        await self._store.ensure_user(interaction.user.id, self._privacy_default)
+        google_sub = await self._store.get_google_sub(interaction.user.id)
+        privacy = await self._store.get_privacy(interaction.user.id)
+        lines = [
+            f"Discord: {interaction.user} (ID: {interaction.user.id})",
+            f"Google: {'連携済み' if google_sub else '未連携'}",
+            f"既定の公開範囲: {privacy}",
+        ]
+        await interaction.response.send_message("\n".join(lines), ephemeral=True)
+
+    privacy_group = app_commands.Group(
+        name="privacy", description="返信の既定公開範囲を設定します", allowed_installs=True, allowed_contexts=True
+    )
+
+    @privacy_group.command(name="set", description="返信の既定公開範囲を変更します。")
+    @app_commands.describe(mode="private は自分のみ / public は全員に表示")
+    @app_commands.choices(
+        mode=[
+            app_commands.Choice(name="private", value="private"),
+            app_commands.Choice(name="public", value="public"),
+        ]
+    )
+    async def privacy_set(
+        self, interaction: discord.Interaction, mode: app_commands.Choice[str]
+    ) -> None:
+        await self._store.ensure_user(interaction.user.id, self._privacy_default)
+        await self._store.set_privacy(interaction.user.id, mode.value)
+        await interaction.response.send_message(
+            f"既定公開範囲を {mode.value} に更新しました。", ephemeral=True
+        )
+
+    @privacy_group.command(name="set_system", description="システムコマンドの既定公開範囲を変更します。")
+    @app_commands.describe(mode="private は自分のみ / public は全員に表示")
+    @app_commands.choices(
+        mode=[
+            app_commands.Choice(name="private", value="private"),
+            app_commands.Choice(name="public", value="public"),
+        ]
+    )
+    async def privacy_set_system(
+        self, interaction: discord.Interaction, mode: app_commands.Choice[str]
+    ) -> None:
+        await self._store.ensure_user(interaction.user.id, self._privacy_default)
+        await self._store.set_system_privacy(interaction.user.id, mode.value)
+        await interaction.response.send_message(
+            f"システムコマンドの既定公開範囲を {mode.value} に更新しました。", ephemeral=True
+        )
+
+    @app_commands.command(name="chat", description="LM Studio 経由で応答を生成します。")
+    @app_commands.describe(prompt="送信する内容")
+    @app_commands.allowed_installs(guilds=True, users=True)
+    @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+    async def chat(self, interaction: discord.Interaction, prompt: str) -> None:
+        await self._store.ensure_user(interaction.user.id, self._privacy_default)
+        ephemeral = await self._ephemeral_for(interaction.user)
+        await interaction.response.defer(ephemeral=ephemeral, thinking=True)
+        try:
+            content = await self._llm.chat(
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.7,
+            )
+        except Exception as e:
+            logger.exception("LLM call failed", extra={"user_id": interaction.user.id})
+            await interaction.followup.send(f"LLM 呼び出しに失敗しました: {e}", ephemeral=True)
+            return
+        await interaction.followup.send(content, ephemeral=ephemeral)
+
+    dataset_group = app_commands.Group(name="dataset", description="データセット管理コマンド")
+
+    @dataset_group.command(name="add", description="添付ファイルをデータセットとして登録します。")
+    @app_commands.describe(
+        file="取り込む添付ファイル",
+        name="表示名（省略時はファイル名）",
+    )
+    async def dataset_add(
+        self,
+        interaction: discord.Interaction,
+        file: discord.Attachment,
+        name: Optional[str] = None,
+    ) -> None:
+        await self._store.ensure_user(interaction.user.id, self._privacy_default)
+        ephemeral = await self._ephemeral_for(interaction.user)
+        await interaction.response.defer(ephemeral=ephemeral, thinking=True)
+
+        title = name or file.filename
+        # Reject ZIP files for security reasons
+        if file.filename.lower().endswith(".zip"):
+            await interaction.followup.send(
+                "ZIP ファイルはセキュリティ上の理由で受け付けていません。",
+                ephemeral=ephemeral,
+            )
+            return
+        dataset_id = await self._store.add_dataset(interaction.user.id, title, file.url)
+
+        uploaded = False
+        if self._ora_api_base_url:
+            try:
+                timeout = aiohttp.ClientTimeout(total=120)
+                async with aiohttp.ClientSession(timeout=timeout) as session:
+                    async with session.get(file.url) as resp:
+                        if resp.status != 200:
+                            raise RuntimeError(f"Failed to download attachment: {resp.status}")
+                        data = await resp.read()
+                    upload_url = f"{self._ora_api_base_url}/api/datasets/ingest"
+                    form = aiohttp.FormData()
+                    form.add_field("discord_user_id", str(interaction.user.id))
+                    form.add_field("dataset_name", title)
+                    form.add_field(
+                        "file",
+                        data,
+                        filename=file.filename,
+                        content_type=file.content_type or "application/octet-stream",
+                    )
+                    async with session.post(upload_url, data=form) as response:
+                        if response.status == 200:
+                            uploaded = True
+                        else:
+                            body = await response.text()
+                            raise RuntimeError(
+                                f"Dataset upload failed with status {response.status}: {body}"
+                            )
+            except Exception:
+                logger.exception("Dataset upload failed", extra={"user_id": interaction.user.id})
+
+        msg = (
+            f"データセット『{title}』を登録しました (ID: {dataset_id}) "
+            f"送信先: {'ORA API' if uploaded else 'ローカルメタデータのみ'}"
+        )
+        await interaction.followup.send(msg, ephemeral=ephemeral)
+
+    @dataset_group.command(name="list", description="登録済みデータセットを表示します。")
+    async def dataset_list(self, interaction: discord.Interaction) -> None:
+        await self._store.ensure_user(interaction.user.id, self._privacy_default)
+        ephemeral = await self._ephemeral_for(interaction.user)
+        datasets = await self._store.list_datasets(interaction.user.id, limit=10)
+        if not datasets:
+            await interaction.response.send_message(
+                "登録済みのデータセットはありません。", ephemeral=ephemeral
+            )
+            return
+
+        lines = [
+            f"{dataset_id}: {name} {url or ''}" for dataset_id, name, url, _ in datasets
+        ]
+        await interaction.response.send_message("\n".join(lines), ephemeral=ephemeral)
+
+    @app_commands.command(name="summarize", description="直近の会話を要約します。")
+    @app_commands.describe(limit="要約するメッセージ数 (デフォルト: 50)")
+    @app_commands.allowed_installs(guilds=True, users=True)
+    @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+    async def summarize(self, interaction: discord.Interaction, limit: int = 50) -> None:
+        """Summarize recent chat history."""
+        await self._store.ensure_user(interaction.user.id, self._privacy_default)
+        ephemeral = await self._ephemeral_for(interaction.user)
+        await interaction.response.defer(ephemeral=ephemeral, thinking=True)
+
+        if not interaction.channel:
+            await interaction.followup.send("チャンネルが見つかりません。", ephemeral=ephemeral)
+            return
+
+        messages = []
+        try:
+            async for msg in interaction.channel.history(limit=limit):
+                if msg.content:
+                    messages.append(f"{msg.author.display_name}: {msg.content}")
+        except Exception as e:
+            logger.error(f"Failed to fetch history: {e}")
+            await interaction.followup.send("メッセージ履歴の取得に失敗しました。", ephemeral=ephemeral)
+            return
+
+        if not messages:
+            await interaction.followup.send("要約するメッセージがありません。", ephemeral=ephemeral)
+            return
+
+        # Reverse to chronological order
+        messages.reverse()
+        history_text = "\n".join(messages)
+        
+        prompt = (
+            f"以下のチャットログを要約してください。\n"
+            f"重要なポイントを箇条書きでまとめ、全体の流れがわかるようにしてください。\n"
+            f"\n"
+            f"チャットログ:\n"
+            f"{history_text}"
+        )
+
+        try:
+            summary = await self._llm.chat(
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.5,
+            )
+            await interaction.followup.send(f"**📝 会話の要約 (直近{len(messages)}件)**\n\n{summary}", ephemeral=ephemeral)
+        except Exception:
+            logger.exception("Summarization failed", extra={"user_id": interaction.user.id})
+            await interaction.followup.send("要約の生成に失敗しました。", ephemeral=ephemeral)
+
+    # Voice Commands
+    voice_group = app_commands.Group(name="voice", description="ボイスチャンネル管理")
+
+    @voice_group.command(name="join", description="ボイスチャンネルに参加します。")
+    async def voice_join(self, interaction: discord.Interaction) -> None:
+        media_cog = self.bot.get_cog("MediaCog")
+        if not media_cog:
+            await interaction.response.send_message("Media機能が無効です。", ephemeral=True)
+            return
+        # Delegate to MediaCog.vc
+        await media_cog.vc(interaction)
+
+    @voice_group.command(name="leave", description="ボイスチャンネルから退出します。")
+    async def voice_leave(self, interaction: discord.Interaction) -> None:
+        media_cog = self.bot.get_cog("MediaCog")
+        if not media_cog:
+            await interaction.response.send_message("Media機能が無効です。", ephemeral=True)
+            return
+        # Delegate to MediaCog.leavevc
+        await media_cog.leavevc(interaction)
+
+    # Memory Commands
+    memory_group = app_commands.Group(name="memory", description="記憶管理コマンド", allowed_installs=True, allowed_contexts=True)
+
+    @memory_group.command(name="clear", description="会話履歴を消去します。")
+    async def memory_clear(self, interaction: discord.Interaction) -> None:
+        await interaction.response.defer(ephemeral=True)
+        count = await self._store.clear_conversations(str(interaction.user.id))
+        await interaction.followup.send(f"{count} 件の会話履歴を消去しました。", ephemeral=True)
+
+    @app_commands.command(name="test_all", description="全機能の診断テストを実行します。")
+    @app_commands.describe(ephemeral="自分だけに表示するかどうか (デフォルト: True)")
+    async def test_all(self, interaction: discord.Interaction, ephemeral: bool = True) -> None:
+        """Run a full system diagnostic check."""
+        await interaction.response.defer(ephemeral=ephemeral)
+        
+        report = []
+        # 1. VoiceVox Check
+        media_cog = self.bot.get_cog("MediaCog")
+        if media_cog:
+            try:
+                speakers = await media_cog._voice_manager._tts.get_speakers()
+                if speakers:
+                    report.append(f"✅ VoiceVox: OK ({len(speakers)} speakers)")
+                else:
+                    report.append("⚠️ VoiceVox: Connected but no speakers found")
+            except Exception as e:
+                report.append(f"❌ VoiceVox: Error ({e})")
+        else:
+            report.append("❌ MediaCog: Not loaded")
+
+        # 2. Database Check
+        try:
+            await self._store.get_privacy(interaction.user.id)
+            report.append("✅ Database: OK")
+        except Exception as e:
+            report.append(f"❌ Database: Error ({e})")
+
+        # 3. Google Search Check
+        if self._search_client.enabled:
+            report.append("✅ Google Search: Configured")
+        else:
+            report.append("⚠️ Google Search: Not configured")
+
+        # 4. Vision API Check
+        try:
+            from ..utils.image_tools import analyze_image_v2
+            report.append("✅ Vision API: Module loaded")
+        except ImportError:
+            report.append("❌ Vision API: Module missing")
+            
+        # 5. LLM Check
+        try:
+            await self._llm.chat([{"role": "user", "content": "ping"}], temperature=0.1)
+            report.append("✅ LLM: OK")
+        except Exception as e:
+             report.append(f"❌ LLM: Error ({e})")
+
+        await interaction.followup.send("\n".join(report), ephemeral=ephemeral)
+
+    async def _get_voice_channel_info(self, guild: discord.Guild, channel_name: Optional[str] = None, user: Optional[discord.Member] = None) -> str:
+        target_channel = None
+        if channel_name:
+            # Fuzzy match channel name
+            target_channel = discord.utils.find(lambda c: isinstance(c, discord.VoiceChannel) and channel_name.lower() in c.name.lower(), guild.voice_channels)
+        elif user and user.voice:
+            target_channel = user.voice.channel
+        
+        if not target_channel:
+            return "ボイスチャンネルが見つかりませんでした。"
+            
+        members = [m.display_name for m in target_channel.members]
+        return f"チャンネル '{target_channel.name}' (ID: {target_channel.id})\n参加人数: {len(members)}人\n参加者: {', '.join(members)}"
+
+    async def _build_system_prompt(self, message: discord.Message) -> str:
+        guild = message.guild
+        guild_name = guild.name if guild else "Direct Message"
+        member_count = guild.member_count if guild else "Unknown"
+        channel_name = message.channel.name if hasattr(message.channel, "name") else "Unknown"
+        user_name = message.author.display_name
+
+        tools_schema = self._get_tool_schemas()
+        tools_json = json.dumps(tools_schema, ensure_ascii=False)
+
+        base = (
+            f"You are ORA, a helpful AI assistant on Discord.\n"
+            f"Current Server: {guild_name}\n"
+            f"Member Count: {member_count}\n"
+            f"Current Channel: {channel_name}\n"
+            f"7. **Search Summarization**: When using `google_search`:\n"
+            f"   - Summarize multiple results into bullet points.\n"
+            f"   - Do not repeat the same info.\n"
+            f"   - Keep it concise (150-300 chars).\n"
+            f"7. **CRITICAL: IMAGE ANALYSIS vs MUSIC/SEARCH**\n"
+            f"   - If the user provides an image:\n"
+            f"     - **USE YOUR EYES.** The image is provided as visual input.\n"
+            f"     - If you are a Text-Only model (cannot see images), the provided 'OCR Result' is likely garbage. **DO NOT TRUST IT.**\n"
+            f"     - **DO NOT SEARCH** for the OCR text (e.g. 'Problem SSTH...'). It is noise.\n"
+            f"     - **DO NOT** use `music_play`.\n"
+            f"     - If you cannot see the image, simply reply: 'I cannot see the image. Please use a Vision-capable model (like LLaVA) or describe the text.'\n"
+            f"\n"
+            f"## available_tools\n{tools_json}\n"
+        )
+        
+        # Vision Instruction
+        if self.bot.user:
+             base += f"\nMy name is {self.bot.user.name}.\n"
+
+        base += (
+            "\n[VISION CAPABILITY ENABLED]\n"
+            "If the user attaches an image, you receive it directly as visual input.\n"
+            "If you can see it, solve it.\n"
+            "If you CANNOT see it (blind), ask the user to switch to a Vision Model (LLaVA/Qwen).\n"
+            "DO NOT google search the OCR text."
+        )
+        
+        return base
+
+    # This part seems to be a placeholder from the instruction, not directly related to _build_system_prompt's return.
+    # Assuming it should be placed before process_message_queue if it's a new block.
+    # If it's meant to be part of an existing method, the context is missing.
+    # For now, I'll place it as instructed, assuming it's a new block before the new method.
+    # If this causes a syntax error, the user might need to clarify its placement.
+    # For the purpose of this edit, I will assume it's a new block that precedes process_message_queue.
+    # However, since it's not part of the original document and the instruction only shows it as context for insertion,
+    # I will *not* add `if response_data: await self._send_chunked_response(message, response_data)`
+    # as it's not explicitly part of the "Code Edit" for insertion, but rather a contextual line.
+    # The instruction is to add `process_message_queue` and modify `generate_image`.
+
+    async def process_message_queue(self):
+        """Process queued messages after image generation completes."""
+        if not self.message_queue:
+            return
+            
+        logger.info(f"Processing {len(self.message_queue)} queued messages...")
+        
+        # Process strictly in order
+        while self.message_queue:
+            msg = self.message_queue.pop(0)
+            try:
+                # Add a small delay to prevent rate limits
+                await asyncio.sleep(1)
+                await msg.reply("お待たせしました！回答を作成します。", mention_author=True)
+                await self.handle_prompt(msg)
+            except Exception as e:
+                logger.error(f"Error processing queued message from {msg.author}: {e}")
+
+    async def _execute_tool(self, tool_name: str, args: dict, message: discord.Message) -> str:
+        try:
+            # Admin Permission Check
+            ADMIN_USER_ID = self.bot.config.admin_user_id
+            CREATOR_ID = 1069941291661672498
+            
+            def is_admin(user_id: int) -> bool:
+                return user_id == ADMIN_USER_ID or user_id == CREATOR_ID
+
+            if tool_name in {"create_file"}:
+                # Optional: Restrict google_search too if needed, but usually just create_file
+                if tool_name == "create_file" and not is_admin(message.author.id):
+                    return "Permission denied. This tool is restricted to the bot administrator."
+
+            if tool_name == "music_play":
+                query = args.get("query")
+                if not query:
+                    return "Error: Missing query."
+                
+                media_cog = self.bot.get_cog("MediaCog")
+                if media_cog:
+                    # Use helper method
+                    # Correctly get context first
+                    ctx = await self.bot.get_context(message)
+                    await media_cog.play_from_ai(ctx, query)
+                    return f"Music request sent: {query}"
+                return "Media system not available."
+
+            elif tool_name == "music_control":
+                action = args.get("action")
+                media_cog = self.bot.get_cog("MediaCog")
+                if media_cog:
+                    ctx = await self.bot.get_context(message)
+                    await media_cog.control_from_ai(ctx, action)
+                    return f"Music control sent: {action}"
+                return "Media system not available."
+
+            elif tool_name == "create_file":
+                filename = args.get("filename")
+                content = args.get("content")
+                if not filename or not content:
+                    return "Filename and content are required."
+                
+                # Security check
+                if ".." in filename or "/" in filename or "\\" in filename:
+                    return "Invalid filename."
+                
+                base = Path("./ora_files")
+                base.mkdir(exist_ok=True)
+                path = base / filename
+                try:
+                    async with aiofiles.open(path, "w", encoding="utf-8") as f:
+                        await f.write(content)
+                    return f"File created: {path}"
+                except Exception as e:
+                    return f"Failed to create file: {e}"
+
+            elif tool_name == "get_server_info":
+                guild = message.guild
+                if not guild: return "Error: Not in a server."
+                # Count statuses and devices
+                counts = {"online": 0, "idle": 0, "dnd": 0, "offline": 0}
+                devices = {"mobile": 0, "desktop": 0, "web": 0}
+
+                for m in guild.members:
+                    s = str(m.status)
+                    if s in counts:
+                        counts[s] += 1
+                    else:
+                        counts["offline"] += 1
+                    
+                    if str(m.mobile_status) != "offline": devices["mobile"] += 1
+                    if str(m.desktop_status) != "offline": devices["desktop"] += 1
+                    if str(m.web_status) != "offline": devices["web"] += 1
+                        
+                logger.info(f"get_server_info: Guild={guild.name}, API_Count={guild.member_count}, Cache_Count={len(guild.members)}")
+                logger.info(f"get_server_info: Computed Status={counts}, Devices={devices}")
+
+                # Clarify keys for LLM
+                final_counts = {
+                    "online (active)": counts["online"],
+                    "idle (away)": counts["idle"],
+                    "dnd (do_not_disturb)": counts["dnd"],
+                    "offline (invisible)": counts["offline"]
+                }
+                total_online = counts["online"] + counts["idle"] + counts["dnd"]
+
+                return json.dumps({
+                    "name": guild.name,
+                    "id": guild.id,
+                    "member_count": guild.member_count,
+                    "cached_member_count": len(guild.members),
+                    "status_counts": final_counts,
+                    "total_online_members": total_online,
+                    "device_counts": devices,
+                    "owner_id": guild.owner_id,
+                    "created_at": str(guild.created_at)
+                }, ensure_ascii=False)
+            
+            elif tool_name == "generate_image":
+                prompt = args.get("prompt", "")
+                neg = args.get("negative_prompt", "")
+                
+                # 1. Keyword Blocklist (Pre-check)
+                banned_words = ["nsfw", "nude", "naked", "sex", "porn", "hentai", "r18", "nipples", "pussy", "dick", "genitals", "cock", "vagina", "anal", "oral"]
+                for bad in banned_words:
+                    if bad in prompt.lower() or bad in neg.lower():
+                        return "❌ **Safety Block**: 安全フィルターによりブロックされました。不適切な単語が含まれています。"
+
+                # 2. Safety Injection (Positive)
+                # Removed "fully clothed" to avoid forcing human generation when asking for animals
+                safety_prompts = "(safe for work:1.5), (family friendly:1.2)"
+                prompt = f"{prompt}, {safety_prompts}"
+
+                # 3. Robust Negative Prompt (Force SFW)
+                # Force SFW by adding aggressive negative prompts
+                nsfw_filter = "(nsfw:2.0), (nude:2.0), (naked:2.0), (sexual:2.0), (nipples:1.5), (cleavage:1.5), (hentai:2.0), (porn:2.0), (bikini:1.5), (lingerie:1.5), (underwear:1.5), (swimwear:1.3), (revealing clothes:1.5)"
+                
+                # Smart Human Suppression: If prompt doesn't ask for people, strictly forbid them
+                human_keywords = ["girl", "boy", "man", "woman", "person", "human", "character", "actor", "actress", "child", "kid", "baby"]
+                if not any(k in prompt.lower() for k in human_keywords):
+                    nsfw_filter += ", (human:1.5), (person:1.5), (girl:1.5), (boy:1.5), (woman:1.5), (man:1.5)"
+
+                default_neg = f"{nsfw_filter}, (low quality, worst quality:1.4), (bad anatomy), (inaccurate limb:1.2), bad composition, inaccurate eyes, extra digit, fewer digits, (extra arms:1.2), easynegative"
+                
+                if not neg:
+                    neg = default_neg
+                else:
+                    neg = f"{neg}, {default_neg}"
+                
+                # Send the Interactive View
+                view = AspectRatioSelectView(self, prompt, neg)
+                await message.reply(f"🎨 **画像生成の準備**: `{prompt}`\nまずは**縦横比**を選んでください！", view=view)
+                
+                return "UIを表示しました。ユーザーの操作を待機します。"
+            
+            elif tool_name == "get_current_model":
+                url = f"{self.bot.config.sd_api_url}/sdapi/v1/options"
+                try:
+                    async with self.bot.session.get(url, timeout=10) as resp:
+                        if resp.status != 200: return f"Error: SD API Error {resp.status}"
+                        data = await resp.json()
+                        return f"Current Model: {data.get('sd_model_checkpoint', 'Unknown')}"
+                except Exception as e:
+                    return f"Failed to get model: {e}"
+
+            elif tool_name == "change_model":
+                target = args.get("model_name", "").lower()
+                if not target: return "Error: Missing model_name."
+                
+                # List models
+                url_list = f"{self.bot.config.sd_api_url}/sdapi/v1/sd-models"
+                try:
+                    async with self.bot.session.get(url_list, timeout=20) as resp:
+                        if resp.status != 200: return f"Error: SD API (List) Error {resp.status}"
+                        models = await resp.json()
+                        
+                        # Find match
+                        found_title = None
+                        
+                        def normalize(s):
+                            return s.lower().replace(" ", "").replace("_", "").replace("-", "")
+
+                        target_norm = normalize(target)
+
+                        for m in models:
+                            title_norm = normalize(m["title"])
+                            if target_norm in title_norm:
+                                found_title = m["title"]
+                                break
+                        
+                        if not found_title:
+                            # List available
+                            titles = [m["title"] for m in models]
+                            return f"Model '{target}' not found. Available: {', '.join(titles)}"
+                        
+                        # Switch
+                        url_opt = f"{self.bot.config.sd_api_url}/sdapi/v1/options"
+                        payload = {"sd_model_checkpoint": found_title}
+                        async with self.bot.session.post(url_opt, json=payload, timeout=60) as resp2:
+                            if resp2.status != 200: return f"Error: SD API (Switch) Error {resp2.status}"
+                            return f"Success: Switched model to '{found_title}'."
+                            
+                except Exception as e:
+                    return f"Failed to change model: {e}"
+
+            elif tool_name == "find_user":
+                query = args.get("name_query")
+                if not query: return "Error: Missing name_query."
+                guild = message.guild
+                if not guild: return "Error: Not in a server."
+
+                if not guild: return "Error: Not in a server."
+
+                import re
+                found_members = []
+                
+                # 0. Check for ID or Mention <@123> or <@!123> or 123
+                id_match = re.search(r"^<@!?(\d+)>$|^(\d+)$", query.strip())
+                if id_match:
+                    user_id = int(id_match.group(1) or id_match.group(2))
+                    logger.info(f"find_user: Detected ID {user_id}")
+                    try:
+                        # Fetch member by ID (works for offline too)
+                        member = await guild.fetch_member(user_id)
+                        found_members.append(member)
+                        logger.info(f"find_user: Found member {member.display_name} in guild")
+                    except discord.NotFound:
+                        # User not in guild, try fetching user globally to confirm existence
+                        try:
+                            user = await self.bot.fetch_user(user_id)
+                            logger.info(f"find_user: Found user {user.name} globally (not in guild)")
+                            # Return special result for "Not in server"
+                            return json.dumps([{
+                                "name": user.name,
+                                "display_name": user.display_name,
+                                "id": user.id,
+                                "bot": user.bot,
+                                "status": "NOT_IN_SERVER",
+                                "joined_at": "N/A"
+                            }], ensure_ascii=False)
+                        except discord.NotFound:
+                             logger.warning(f"find_user: User {user_id} does not exist at all")
+                    except discord.HTTPException as e:
+                        logger.warning(f"Failed to fetch member {user_id}: {e}")
+
+                # If found by ID (in guild), return immediately (unique)
+                if found_members:
+                    pass # Proceed to formatting
+                else:
+                    # 1. Search Cache (Linear Search) for Name/Nick/Display
+                    # This covers online members and cached offline members
+                    query_lower = query.lower()
+                    
+                    for m in guild.members:
+                        if (query_lower in m.name.lower() or 
+                            query_lower in m.display_name.lower() or 
+                            (m.global_name and query_lower in m.global_name.lower())):
+                            found_members.append(m)
+                    
+                    # 2. If few results, try API Search (good for fully offline users not in cache)
+                    if len(found_members) < 5:
+                        try:
+                            # query_members searches username and nickname
+                            api_results = await guild.query_members(query, limit=5)
+                            for m in api_results:
+                                if m.id not in [existing.id for existing in found_members]:
+                                    found_members.append(m)
+                        except Exception as e:
+                            logger.warning(f"API member search failed: {e}")
+
+                if not found_members:
+                    return f"No users found matching '{query}'."
+
+                # Limit results
+                found_members = found_members[:10]
+                
+                results = []
+                for m in found_members:
+                    status = str(m.status) if hasattr(m, "status") else "unknown"
+                    results.append({
+                        "name": m.name,
+                        "display_name": m.display_name,
+                        "id": m.id,
+                        "bot": m.bot,
+                        "status": status,
+                        "joined_at": str(m.joined_at.date()) if m.joined_at else "Unknown"
+                    })
+                
+                return json.dumps(results, ensure_ascii=False)
+
+            elif tool_name == "get_channels":
+                guild = message.guild
+                if not guild: return "Error: Not in a server."
+                channels = []
+                for ch in guild.channels:
+                    kind = "text" if isinstance(ch, discord.TextChannel) else \
+                           "voice" if isinstance(ch, discord.VoiceChannel) else \
+                           "category" if isinstance(ch, discord.CategoryChannel) else "other"
+                    channels.append({"id": ch.id, "name": ch.name, "type": kind})
+                return json.dumps(channels[:50], ensure_ascii=False) # Limit to 50
+                
+            elif tool_name == "change_voice":
+                char_name = args.get("character_name")
+                if not char_name: return "Error: Missing character_name."
+                
+                # Mapping (Voicevox Speaker IDs)
+                # 3: Zundamon (Normal), 1: Metan (Normal), 8: Tsumugi (Normal), 9: Ritsu (Normal), 10: Hau (Normal), 11: Takehiro (Normal)
+                # These are examples, check your Voicevox version. Assuming standard.
+                mapping = {
+                    "zundamon": 3, "ずんだもん": 3,
+                    "metan": 2, "shikokumetan": 2, "四国めたん": 2, "めたん": 2,
+                    "tsumugi": 8, "kasukatsumugi": 8, "春日部つむぎ": 8, "つむぎ": 8,
+                    "ritsu": 9, "namiritsu": 9, "波音リツ": 9, "リツ": 9,
+                    "hau": 10, "ameharehau": 10, "雨晴はう": 10, "はう": 10,
+                    "takehiro": 11, "kuronotakehiro": 11, "玄野武宏": 11, "武宏": 11,
+                    # Add more as needed
+                }
+                
+                # Normalize input
+                key = char_name.lower().replace(" ", "")
+                speaker_id = mapping.get(key)
+                
+                if speaker_id is None:
+                    return f"Error: Unknown character '{char_name}'. Available: zundamon, metan, tsumugi, ritsu, hau, takehiro."
+                
+                media_cog = self.bot.get_cog("MediaCog")
+                if media_cog:
+                    # VoiceManager is inside MediaCog, but private.
+                    # We should expose a method or access it. 
+                    # MediaCog has _voice_manager
+                    media_cog._voice_manager.set_user_speaker(message.author.id, speaker_id)
+                    return f"Voice changed to {char_name} (ID: {speaker_id})."
+                return "Media system not available."
+
+            elif tool_name == "join_voice_channel":
+                # Find channel to join
+                target_channel = message.author.voice.channel if message.author.voice else None
+                if not target_channel:
+                    return "Error: User is not in a voice channel."
+                
+                media_cog = self.bot.get_cog("MediaCog")
+                if media_cog:
+                    # 1. Join
+                    try:
+                        vc = await target_channel.connect()
+                        # 2. Enable Auto-Read
+                        if hasattr(media_cog, '_auto_read_channels'):
+                            media_cog._auto_read_channels[message.guild.id] = message.channel.id
+                        
+                        return f"Joined {target_channel.name} and enabled auto-read for this channel."
+                    except discord.ClientException:
+                         # Already connected, just update text channel
+                        if hasattr(media_cog, '_auto_read_channels'):
+                            media_cog._auto_read_channels[message.guild.id] = message.channel.id
+                        return "Error: Already connected. Auto-read enabled for this channel."
+                    except Exception as e:
+                        return f"Error joining: {e}"
+                return "Media system not available."
+
+            elif tool_name == "get_roles":
+                guild = message.guild
+                if not guild: return "Error: Not in a server."
+                roles = [{"id": r.id, "name": r.name} for r in guild.roles]
+                return json.dumps(roles[:50], ensure_ascii=False)
+
+            # ... (Keep existing tools like google_search, get_system_stats, etc.)
+            # I need to make sure I don't delete them.
+            # The replacement block covers 552-800.
+            # I should include the existing logic for other tools.
+            
+            elif tool_name == "google_search":
+                query = args.get("query")
+                if not query: return "Error: Missing query."
+                if not self._search_client.enabled: return "Error: Search API disabled."
+                results = await self._search_client.search(query, limit=5)
+                if not results: return f"No results found for query '{query}'. Please try a different keyword."
+                return "\n".join([f"{i+1}. {t} ({u})" for i, (t, u) in enumerate(results)])
+
+            elif tool_name == "get_system_stats":
+                if not is_admin(message.author.id):
+                    return "Permission denied."
+                
+                # CPU / Mem / Disk
+                cpu = psutil.cpu_percent(interval=1)
+                mem = psutil.virtual_memory()
+                disk = psutil.disk_usage('/')
+                
+                report = [
+                    f"**System Stats**",
+                    f"CPU Usage: {cpu}%",
+                    f"Memory: {mem.percent}% ({mem.used // (1024**3)}GB / {mem.total // (1024**3)}GB)",
+                    f"Disk (C:): {disk.percent}% ({disk.used // (1024**3)}GB / {disk.total // (1024**3)}GB)"
+                ]
+
+                # GPU Stats (nvidia-smi)
+                gpu_report = await _get_gpu_stats()
+                if gpu_report:
+                    report.append(f"\n**GPU Info**\n{gpu_report}")
+
+                return "\n".join(report)
+
+            elif tool_name == "get_role_members":
+                role_name = args.get("role_name", "").lower()
+                if not message.guild: return "Error: Not in a server."
+                found = discord.utils.find(lambda r: role_name in r.name.lower(), message.guild.roles)
+                if not found: return "Role not found."
+                members = [m.display_name for m in found.members]
+                return f"Members: {', '.join(members[:50])}"
+
+            elif tool_name == "get_voice_channel_info":
+                channel_name = args.get("channel_name")
+                return await self._get_voice_channel_info(message.guild, channel_name, message.author)
+            
+            elif tool_name == "join_voice_channel":
+                media_cog = self.bot.get_cog("MediaCog")
+                if not media_cog:
+                    return "Media functionality is disabled."
+                
+                # Determine channel
+                channel = None
+                if args.get("channel_name"):
+                     name = args["channel_name"]
+                     channel = discord.utils.find(lambda c: isinstance(c, discord.VoiceChannel) and name.lower() in c.name.lower(), message.guild.voice_channels)
+                elif isinstance(message.author, discord.Member) and message.author.voice:
+                     channel = message.author.voice.channel
+                
+                if not channel:
+                    return "Could not find a voice channel to join. Please join one first."
+                
+                # Call MediaCog logic
+                vc = await media_cog._voice_manager.ensure_voice_client(message.author)
+                if vc:
+                     media_cog._auto_read_channels[message.guild.id] = message.channel.id
+                     await media_cog._voice_manager.play_tts(message.author, "接続しました")
+                     return f"Joined voice channel: {vc.channel.name}. Auto-read enabled."
+                else:
+                     return "Failed to join voice channel."
+            elif tool_name == "leave_voice_channel":
+                media_cog = self.bot.get_cog("MediaCog")
+                if not media_cog:
+                    return "Media functionality is disabled."
+                
+                if message.guild.voice_client:
+                    await message.guild.voice_client.disconnect()
+                    media_cog._auto_read_channels.pop(message.guild.id, None)
+                    return "Disconnected from voice channel."
+                return "Not connected to any voice channel."
+
+            elif tool_name == "google_shopping_search":
+                query = args.get("query")
+                if not query: return "Error: Missing query."
+                if not self._search_client.enabled: return "Error: Search API disabled."
+                results = await self._search_client.search(query, limit=5, engine="google_shopping")
+                if not results: return f"No shopping results found for '{query}'."
+                return "\n".join([f"{i+1}. {t} ({u})" for i, (t, u) in enumerate(results)])
+
+            elif tool_name == "system_check":
+                report = []
+                # 1. VoiceVox Check
+                media_cog = self.bot.get_cog("MediaCog")
+                if media_cog:
+                    try:
+                        speakers = await media_cog._voice_manager._tts.get_speakers()
+                        if speakers:
+                            report.append(f"✅ VoiceVox: OK ({len(speakers)} speakers)")
+                        else:
+                            report.append("⚠️ VoiceVox: Connected but no speakers found")
+                    except Exception as e:
+                        report.append(f"❌ VoiceVox: Error ({e})")
+                else:
+                    report.append("❌ MediaCog: Not loaded")
+
+                # 2. Database Check
+                try:
+                    await self._store.get_privacy(message.author.id)
+                    report.append("✅ Database: OK")
+                except Exception as e:
+                    report.append(f"❌ Database: Error ({e})")
+
+                # 3. Google Search Check
+                if self._search_client.enabled:
+                    report.append("✅ Google Search: Configured")
+                else:
+                    report.append("⚠️ Google Search: Not configured")
+
+                # 4. Vision API Check
+                try:
+                    from ..utils.image_tools import analyze_image_v2
+                    report.append("✅ Vision API: Module loaded")
+                except ImportError:
+                    report.append("❌ Vision API: Module missing")
+
+                return "\n".join(report)
+
+            elif tool_name == "create_channel":
+                # Admin check + Special User Bypass (ID: 1069941291661672498)
+                # SAFETY: Do NOT add 'delete' or 'overwrite' logic here.
+                # User strictly forbade auto-deletion of channels/threads/events.
+                if not is_admin(message.author.id):
+                    return "Permission denied. Admin only."
+                
+                guild = message.guild
+                if not guild: return "Error: Not in a server."
+                
+                name = args.get("name")
+                ctype = args.get("type")
+                cat_name = args.get("category_name")
+                
+                if not name or not ctype:
+                    return "Error: Missing name or type."
+                
+                category = None
+                if cat_name:
+                    category = discord.utils.find(lambda c: c.name.lower() == cat_name.lower(), guild.categories)
+                    if not category:
+                        # Create category if not exists? Or fail?
+                        # Let's try to create it if explicitly asked, but for now just fail or create without category
+                        # User asked "in the text channel", implying category? 
+                        # Let's just create the category if it doesn't exist? No, safer to just warn.
+                        return f"Error: Category '{cat_name}' not found."
+                
+                try:
+                    if ctype == "text":
+                        ch = await guild.create_text_channel(name, category=category)
+                    elif ctype == "voice":
+                        ch = await guild.create_voice_channel(name, category=category)
+                    elif ctype == "category":
+                        ch = await guild.create_category(name)
+                    else:
+                        return "Error: Invalid channel type."
+                    return f"Channel created: {ch.name} (ID: {ch.id})"
+                except Exception as e:
+                    return f"Failed to create channel: {e}"
+
+            elif tool_name == "system_control":
+                action = args.get("action")
+                value = args.get("value")
+                system_cog = self.bot.get_cog("SystemCog")
+                if system_cog:
+                    return await system_cog.execute_tool(message.author.id, action, value)
+                return "System control system is not loaded. Please check if SystemCog is enabled."
+            
+            return f"Error: Unknown tool '{tool_name}'"
+
+        except Exception as e:
+            logger.exception(f"Tool execution failed: {tool_name}")
+            return f"Tool execution failed: {e}. Please check the logs for details."
+
+    async def _build_history(self, message: discord.Message) -> list[dict]:
+        history = []
+        current_msg = message
+        
+        # Traverse reply chain (up to 5 messages)
+        for _ in range(5):
+            if not current_msg.reference:
+                break
+                
+            ref = current_msg.reference
+            if not ref.message_id:
+                break
+                
+            try:
+                # Try to get from cache first, then fetch
+                if ref.cached_message:
+                    prev_msg = ref.cached_message
+                else:
+                    prev_msg = await message.channel.fetch_message(ref.message_id)
+                
+                # Only include messages from user or bot
+                is_bot = prev_msg.author.id == self.bot.user.id
+                role = "assistant" if is_bot else "user"
+                
+                content = prev_msg.content.replace(f"<@{self.bot.user.id}>", "").strip()
+                
+                # Prepend User Name to User messages for better recognition
+                if not is_bot and content:
+                     content = f"[{prev_msg.author.display_name}]: {content}"
+                
+                if content:
+                    # Check if the last added message (which is effectively the NEXT one in chronological order)
+                    # has the same role. If so, merge them?
+                    # BUT we are traversing backwards (insert(0)).
+                    # So if history[0] (which is chronologically LATER) has same role, we can merge?
+                    # No, usually we merge strictly during forward construction or post-processing.
+                    # Simple approach: Insert raw, then normalize.
+                    history.insert(0, {"role": role, "content": content})
+                
+                current_msg = prev_msg
+                
+            except (discord.NotFound, discord.HTTPException):
+                break
+        
+        # Normalize History: Merge consecutive same-role messages
+        # This is critical for models incorrectly handling consecutive user messages
+        normalized_history = []
+        if history:
+            current_role = history[0]["role"]
+            current_content = history[0]["content"]
+            
+            for msg in history[1:]:
+                if msg["role"] == current_role:
+                    # Merge content
+                    current_content += f"\n{msg['content']}"
+                else:
+                    normalized_history.append({"role": current_role, "content": current_content})
+                    current_role = msg["role"]
+                    current_content = msg["content"]
+            
+            # Append final
+            normalized_history.append({"role": current_role, "content": current_content})
+            
+        return normalized_history
+
+    def _extract_json_objects(self, text: str) -> list[str]:
+        """Extracts top-level JSON objects from text."""
+        objects = []
+        
+        # Priority: Check for [TOOL_CALLS] hallucination format first.
+        # If this format is present, standard brace matching might incorrectly grab the inner JSON args.
+        if "[TOOL_CALLS]" in text:
+            import re
+            # Regex to capture tool name and args json
+            # Allow (ARGS) or [ARGS] or just ARGS
+            pattern = r"\[TOOL_CALLS\]\s*(\w+)\s*[\[\(]?ARGS[\]\)]?\s*(\{.*?\})"
+            matches = re.finditer(pattern, text, re.DOTALL)
+            found_regex = False
+            for match in matches:
+                found_regex = True
+                tool_name = match.group(1)
+                args_json = match.group(2)
+                # Construct valid JSON string
+                valid_call = f'{{"tool": "{tool_name}", "args": {args_json}}}'
+                objects.append(valid_call)
+                logger.warning(f"Recovered tool call from [TOOL_CALLS] format: {tool_name}")
+            
+            # If regex found something, return it immediately to avoid confusion
+            if found_regex:
+                return objects
+
+        # Standard Extraction: Match balanced braces
+        stack = 0
+        start_index = -1
+        
+        for i, char in enumerate(text):
+            if char == '{':
+                if stack == 0:
+                    start_index = i
+                stack += 1
+            elif char == '}':
+                if stack > 0:
+                    stack -= 1
+                    if stack == 0:
+                        objects.append(text[start_index:i+1])
+        
+        return objects
+
+    def _clean_content(self, text: str) -> str:
+        """Remove internal tags like <|channel|>... from the text."""
+        import re
+        # Remove <|...|> tags
+        cleaned = re.sub(r"<\|.*?\|>", "", text)
+        return cleaned.strip()
+
+    @commands.Cog.listener()
+    async def on_message(self, message: discord.Message) -> None:
+        # Ignore messages from bots
+        if message.author.bot:
+            return
+        
+        logger.info(f"ORACog.on_message triggered: author={message.author.id}, content={message.content[:50]}, attachments={len(message.attachments)}")
+
+        is_mention = self.bot.user in message.mentions
+        is_reply_to_me = False
+        
+        if message.reference:
+            # We need to check if the reply is to us. 
+            # If resolved is available, check author id.
+            # If not, we might need to fetch, but for trigger check, maybe we can rely on cached resolved or fetch it.
+            # To be safe and fast, let's try to use resolved, if not, fetch.
+            ref_msg = message.reference.resolved
+            if not ref_msg and message.reference.message_id:
+                 try:
+                    ref_msg = await message.channel.fetch_message(message.reference.message_id)
+                 except:
+                    pass
+            
+            if ref_msg and ref_msg.author.id == self.bot.user.id:
+                is_reply_to_me = True
+
+        # Trigger if mentioned OR replying to me
+        if not (is_mention or is_reply_to_me):
+            logger.info(f"ORACog.on_message: Not a mention or reply to me, returning")
+            return
+
+        # Remove mention string from content to get the prompt
+        prompt = message.content.replace(f"<@{self.bot.user.id}>", "").strip()
+        
+        # Handle Attachments (Current Message)
+        if message.attachments:
+            prompt = await self._process_attachments(message.attachments, prompt, message)
+
+        # Handle Attachments (Referenced Message / Reply)
+        if message.reference:
+            ref_msg = message.reference.resolved
+            if not ref_msg and message.reference.message_id:
+                try:
+                    ref_msg = await message.channel.fetch_message(message.reference.message_id)
+                except Exception as e:
+                    logger.warning(f"Failed to fetch referenced message: {e}")
+            
+            if ref_msg and ref_msg.attachments:
+                logger.info(f"Processing attachments from referenced message {ref_msg.id}")
+                # We process referenced attachments but append to the SAME prompt
+                # And we inject the image context into the CURRENT message ID (so LLM sees it for this turn)
+                prompt = await self._process_attachments(ref_msg.attachments, prompt, message, is_reference=True)
+
+        # React if processing
+        # ... (rest of logic)
+
+        # Prepare for LLM
+        # ...
+        
+        # Enqueue
+        await self.handle_prompt(message, prompt, is_mention, is_reply_to_me)
+
+    async def _process_attachments(self, attachments: List[discord.Attachment], prompt: str, context_message: discord.Message, is_reference: bool = False) -> str:
+        """Process a list of attachments (Text or Image) and update prompt/context."""
+        supported_text_ext = {'.txt', '.md', '.py', '.js', '.json', '.html', '.css', '.csv', '.xml', '.yaml', '.yml', '.sh', '.bat', '.ps1'}
+        supported_img_ext = {'.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp'}
+
+        for attachment in attachments:
+            ext = "." + attachment.filename.split(".")[-1].lower() if "." in attachment.filename else ""
+            
+            # TEXT
+            if ext in supported_text_ext or (attachment.content_type and "text" in attachment.content_type):
+                if attachment.size > 1024 * 1024: 
+                    continue
+                try:
+                    content = await attachment.read()
+                    text_content = content.decode('utf-8', errors='ignore')
+                    header = f"[Referenced File: {attachment.filename}]" if is_reference else f"[Attached File: {attachment.filename}]"
+                    prompt += f"\n\n{header}\n{text_content}\n"
+                except Exception:
+                    pass
+
+            # IMAGE (Vision)
+            elif ext in supported_img_ext:
+                if attachment.size > 8 * 1024 * 1024:
+                    continue
+                
+                try:
+                    # indicate processing
+                    if not is_reference:
+                         await context_message.add_reaction("👁️")
+                    
+                    image_data = await attachment.read()
+                    
+                    # Cache
+                    timestamp = int(time.time())
+                    safe_filename = f"{timestamp}_{attachment.filename}"
+                    cache_path = CACHE_DIR / safe_filename
+                    async with aiofiles.open(cache_path, "wb") as f:
+                        await f.write(image_data)
+                    
+                    # Base64 Injection (Vision)
+                    try:
+                        import base64
+                        b64_img = base64.b64encode(image_data).decode('utf-8')
+                        mime_type = "image/png"
+                        if ext in ['.jpg', '.jpeg']: mime_type = "image/jpeg"
+                        elif ext == '.webp': mime_type = "image/webp"
+                        elif ext == '.gif': mime_type = "image/gif"
+                        
+                        if not hasattr(self, "_temp_image_context"):
+                            self._temp_image_context = {}
+                        
+                        # Append to context list (support multiple images)
+                        if context_message.id not in self._temp_image_context:
+                            self._temp_image_context[context_message.id] = []
+                        
+                        self._temp_image_context[context_message.id].append({
+                            "type": "image_url", 
+                            "image_url": {"url": f"data:{mime_type};base64,{b64_img}"}
+                        })
+                    except Exception as e:
+                        logger.error(f"Vision Encode Error: {e}")
+
+                    # OCR Backup
+                    analysis_result = await asyncio.to_thread(image_tools.analyze_image_v2, image_data)
+                    
+                    header = f"[Referenced Image: {attachment.filename}]" if is_reference else f"[Attached Image: {attachment.filename}]"
+                    prompt += f"\n\n{header}\n(OCR/Analysis Result: {analysis_result})\n"
+
+                except Exception as e:
+                    logger.error(f"Image process failed: {e}")
+
+        return prompt
+        
+        logger.info(f"Final prompt length: {len(prompt)} chars, Has attachments: {len(message.attachments) > 0}")
+        
+        # If prompt is still empty (e.g., just a mention with no text), check if we have attachments
+        if not prompt and not message.attachments:
+            logger.info("No prompt and no attachments, returning")
+            return  # Nothing to process
+        
+        # Even if prompt is empty but attachments are present, set a default prompt
+        if not prompt and message.attachments:
+            logger.info("Empty prompt but attachments present, setting default")
+            prompt = "画像を分析してください。"
+        
+        logger.info(f"Calling handle_prompt with prompt: {prompt[:100]}...")
+        # Call handle_prompt with the constructed prompt
+        await self.handle_prompt(message, prompt)
+
+
+    def _get_tool_schemas(self) -> list[dict]:
+        return [
+            {
+                "name": "get_role_members",
+                "description": "Get a list of members who have a specific role.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "role_name": {
+                            "type": "string",
+                            "description": "The name of the role to search for (fuzzy match)."
+                        }
+                    },
+                    "required": ["role_name"]
+                }
+            },
+            {
+                "name": "music_play",
+                "description": "Play music from YouTube. Use this when user asks to play a song.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "Search query or URL for the song"
+                        }
+                    },
+                    "required": ["query"]
+                }
+            },
+            {
+                "name": "music_control",
+                "description": "Control music playback (skip, stop, loop, queue).",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "action": {
+                            "type": "string",
+                            "enum": ["skip", "stop", "loop_on", "loop_off", "queue_show"],
+                            "description": "Action to perform"
+                        }
+                    },
+                    "required": ["action"]
+                }
+            },
+            {
+                "name": "google_search",
+                "description": "Perform a web search using Google to find information.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "The search query."
+                        }
+                    },
+                    "required": ["query"]
+                }
+            },
+            {
+                "name": "get_voice_channel_info",
+                "description": "Get info about a voice channel (member count, names). If channel_name is null, tries to find the user's current voice channel.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "channel_name": {
+                            "type": "string",
+                            "description": "The name of the voice channel. If null, defaults to user's current channel."
+                        }
+                    },
+                    "required": []
+                }
+            },
+            {
+                "name": "get_server_info",
+                "description": "Get basic information about the current server (guild).",
+                "parameters": {
+                    "type": "object",
+                    "properties": {},
+                    "required": []
+                }
+            },
+            {
+                "name": "get_channels",
+                "description": "Get a list of text and voice channels in the server.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {},
+                    "required": []
+                }
+            },
+            {
+                "name": "get_roles",
+                "description": "Get a list of roles in the server.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {},
+                    "required": []
+                }
+            },
+            {
+                "name": "join_voice_channel",
+                "description": "Join the user's voice channel (or a specified one). Use this when asked to 'join VC', 'come here', 'speak', 'read chat', etc.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                         "channel_name": {
+                             "type": "string",
+                             "description": "Optional. Name of channel to join. Defaults to user's current channel."
+                         }
+                    },
+                    "required": []
+                }
+            },
+            {
+                "name": "leave_voice_channel",
+                "description": "Leave the current voice channel. Use this when asked to 'leave', 'disconnect', 'stop reading', etc.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {},
+                    "required": []
+                }
+            },
+            {
+                "name": "find_user",
+                "description": "Find a user in the server by name (username, display name, or nickname). Works for offline users too.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "name_query": {
+                            "type": "string",
+                            "description": "The name to search for (partial match supported)."
+                        }
+                    },
+                    "required": ["name_query"]
+                }
+            },
+            {
+                "name": "create_file",
+                "description": "Create a text file in the current directory. Restricted to admin.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "filename": {
+                            "type": "string",
+                            "description": "The name of the file to create."
+                        },
+                        "content": {
+                            "type": "string",
+                            "description": "The content to write to the file."
+                        }
+                    },
+                    "required": ["filename", "content"]
+                }
+            },
+            {
+                "name": "create_channel",
+                "description": "Create a new channel (text, voice, or category).",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                         "name": {
+                             "type": "string",
+                             "description": "The name of the new channel."
+                         },
+                         "type": {
+                             "type": "string",
+                             "enum": ["text", "voice", "category"],
+                             "description": "The type of channel."
+                         },
+                         "category_name": {
+                             "type": "string",
+                             "description": "Optional category to place the channel in."
+                         }
+                    },
+                    "required": ["name", "type"]
+                }
+            },
+            {
+                "name": "change_voice",
+                "description": "Change the TTS voice character for the user. Available characters: 'zundamon', 'metan', 'tsumugi', 'ritsu', 'hau', 'takehiro'.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "character_name": {
+                            "type": "string",
+                            "description": "The name of the character to switch to."
+                        }
+                    },
+                    "required": ["character_name"]
+                }
+            },
+            {
+                "name": "join_voice_channel",
+                "description": "Join the voice channel the user is currently in.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {},
+                    "required": []
+                }
+            },
+            {
+                "name": "leave_voice_channel",
+                "description": "Leave the current voice channel.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {},
+                    "required": []
+                }
+            },
+            {
+                "name": "create_channel",
+                "description": "Create a new channel in the server. Admin only.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "name": {
+                            "type": "string",
+                            "description": "The name of the new channel."
+                        },
+                        "type": {
+                            "type": "string",
+                            "enum": ["text", "voice", "category"],
+                            "description": "The type of channel to create."
+                        },
+                        "category_name": {
+                            "type": "string",
+                            "description": "Optional. The name of the category to place the channel in."
+                        }
+                    },
+                    "required": ["name", "type"]
+                }
+            },
+            {
+                "name": "system_check",
+                "description": "Run a full system diagnostic check (test all features).",
+                "parameters": {
+                    "type": "object",
+                    "properties": {},
+                    "required": []
+                }
+            },
+            {
+                "name": "generate_image",
+                "description": "Generate an image using local Stable Diffusion (Text-to-Image).",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "prompt": {
+                            "type": "string",
+                            "description": "The prompt for the image generation."
+                        },
+                        "negative_prompt": {
+                             "type": "string",
+                             "description": "Optional. Things to exclude."
+                        },
+                        "width": {
+                            "type": "integer",
+                            "description": "Image width (default 512, use 512 for portrait or 768 for landscape)."
+                        },
+                        "height": {
+                            "type": "integer",
+                            "description": "Image height (default 512)."
+                        }
+                    },
+                    "required": ["prompt"]
+                }
+            },
+            {
+                "name": "get_current_model",
+                "description": "Get the name of the currently active Stable Diffusion model.",
+                "parameters": {
+                     "type": "object",
+                     "properties": {},
+                     "required": []
+                }
+            },
+            {
+                "name": "change_model",
+                "description": "Change the active Stable Diffusion model.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "model_name": {
+                            "type": "string",
+                            "description": "The name (or partial name) of the model to switch to (e.g. 'Meina', 'v1-5')."
+                        }
+                    },
+                    "required": ["model_name"]
+                }
+            },
+            {
+                "name": "google_shopping_search",
+                "description": "Perform a product search using Google Shopping to find prices and availability.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "The product name or query to search for."
+                        }
+                    },
+                    "required": ["query"]
+                }
+            },
+            {
+                "name": "get_system_stats",
+                "description": "Get current system statistics (CPU, Memory, Disk). Restricted to admin.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {},
+                    "required": []
+                }
+            },
+            {
+                "name": "system_control",
+                "description": "Control PC system (Volume, Apps). Admin only.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "action": {
+                            "type": "string",
+                            "enum": ["set_volume", "open_app", "mute"],
+                            "description": "The action to perform."
+                        },
+                        "value": {
+                            "type": "string",
+                            "description": "Volume level (0-40) or App name (e.g. 'vscode', 'chrome')."
+                        }
+                    },
+                    "required": ["action"]
+                }
+            }
+        ]
+
+    async def handle_prompt(self, message: discord.Message, prompt: str, existing_status_msg: Optional[discord.Message] = None, is_voice: bool = False) -> None:
+        """Process a user message and generate a response using the LLM."""
+        
+        # 1. Check for Generation Lock
+        if self.is_generating_image:
+            await message.reply("🎨 現在、画像生成を実行中です... 完了次第、順次回答しますので少々お待ちください！ (Waiting for image generation...)", mention_author=True)
+            self.message_queue.append(message)
+            return
+
+        # 2. Privacy Check
+        await self._store.ensure_user(message.author.id, self._privacy_default)
+
+        # Send initial progress message if not provided
+        start_time = time.time()
+        if existing_status_msg:
+            progress_msg = existing_status_msg
+        else:
+            progress_msg = await message.reply("応答を生成中...", mention_author=False)
+
+        # Start the "dots" animation task
+        self.llm_done_event = asyncio.Event()
+        wait_task = asyncio.create_task(self.wait_for_llm(progress_msg))
+
+        # Voice Feedback: "Generating..." (Smart Delay)
+        voice_feedback_task = None
+        if is_voice:
+            async def delayed_feedback():
+                await asyncio.sleep(0.5) # 500ms delay
+                if not self.llm_done_event.is_set():
+                    media_cog = self.bot.get_cog("MediaCog")
+                    if media_cog:
+                        await media_cog.speak(message.channel, "回答を生成しています")
+            voice_feedback_task = asyncio.create_task(delayed_feedback())
+
+        try:
+            system_prompt = await self._build_system_prompt(message)
+            try:
+                history = await self._build_history(message)
+            except Exception as e:
+                logger.error(f"Failed to build history: {e}")
+                history = []
+            
+            messages = [{"role": "system", "content": system_prompt}]
+            
+            # Concise Mode for Voice
+            if is_voice:
+                messages.append({
+                    "role": "system", 
+                    "content": "返答は日本語で行ってください。最大250文字、2文以内で。コードブロック、箇条書き、URLは禁止です。必要なら要約してください。"
+                })
+
+            messages.extend(history)
+            
+            # CRITICAL FIX: Ensure message history starts with 'user' (after system).
+            # Some APIs crash if 'assistant' comes immediately after 'system'.
+            # We check messages[1] because messages[0] is system, [1] is first history item.
+            # If is_voice and concise mode added another system msg, index might be 2.
+            
+            # Find first non-system message index
+            first_content_idx = 1
+            while first_content_idx < len(messages) and messages[first_content_idx]["role"] == "system":
+                first_content_idx += 1
+
+            if first_content_idx < len(messages) and messages[first_content_idx]["role"] == "assistant":
+                # Insert a dummy user message to satisfy the alternation rule
+                # Use Japanese to prevent model from switching to English context
+                messages.insert(first_content_idx, {"role": "user", "content": "(会話の続き...)"})
+            
+            # BUILD USER CONTENT (Multimodal)
+            text_content = prompt
+            user_content = []
+            user_content.append({"type": "text", "text": text_content})
+            
+            if hasattr(self, "_temp_image_context") and message.id in self._temp_image_context:
+                user_content.extend(self._temp_image_context[message.id])
+                # Clean up
+                del self._temp_image_context[message.id]
+            
+            # Determine final message content
+            final_user_msg = None
+            if len(user_content) == 1 and user_content[0]["type"] == "text":
+                 final_user_msg = {"role": "user", "content": text_content}
+            else:
+                 final_user_msg = {"role": "user", "content": user_content}
+
+            # Merge with previous message if it exists and is also 'user'
+            if messages and messages[-1]["role"] == "user":
+                last_msg = messages[-1]
+                # If last msg is simple string
+                if isinstance(last_msg["content"], str):
+                    # And new msg is simple string
+                    if isinstance(final_user_msg["content"], str):
+                        last_msg["content"] += f"\n\n{final_user_msg['content']}"
+                    # And new msg is list (multimodal)
+                    else:
+                        # Convert last msg to list format and append new parts
+                        new_list = [{"type": "text", "text": last_msg["content"]}]
+                        new_list.extend(final_user_msg["content"])
+                        last_msg["content"] = new_list
+                
+                # If last msg is list
+                elif isinstance(last_msg["content"], list):
+                    # And new msg is simple string
+                    if isinstance(final_user_msg["content"], str):
+                        last_msg["content"].append({"type": "text", "text": final_user_msg["content"]})
+                    # And new msg is list
+                    else:
+                        last_msg["content"].extend(final_user_msg["content"])
+            else:
+                messages.append(final_user_msg)
+
+            # First LLM Call
+            content = await self._llm.chat(messages=messages, temperature=0.7)
+            
+            # Tool Loop
+            max_turns = 3
+            turn = 0
+            
+            while turn < max_turns:
+                turn += 1
+                
+                logger.info(f"LLM Response Turn {turn}: {content}")
+                
+                # Extract JSON
+                json_objects = self._extract_json_objects(content)
+                logger.info(f"Extracted JSON objects: {len(json_objects)}")
+                
+                tool_call = None
+                
+                # Check for Command R+ style tool calls (e.g. <|channel|>commentary to=google_search ... {args})
+                import re
+                cmd_r_match = re.search(r"to=(\w+)", content)
+                if cmd_r_match:
+                     logger.info(f"Cmd R+ Match: {cmd_r_match.group(1)}")
+                     # Always try Fallback: Extract JSON using regex
+                     # This handles cases where _extract_json_objects returns invalid garbage or misses the weird formatting
+                     json_match = re.search(r"json\s*(\{.*?\})", content, re.DOTALL)
+                     if json_match:
+                         # It's okay if we duplicate; the loop breaks on first valid parse
+                         json_objects.append(json_match.group(1))
+                         logger.info("Added fallback JSON object from regex (Always).")
+                
+                for i, json_str in enumerate(json_objects):
+                    logger.info(f"Processing JSON object {i}: {json_str}")
+                    try:
+                        data = json.loads(json_str)
+                        logger.info(f"Parsed JSON data: {data}")
+                        
+                        # Case 1: Standard JSON format {"tool": "name", "args": {...}}
+                        if isinstance(data, dict) and "tool" in data and "args" in data:
+                            tool_call = data
+                            logger.info(f"Found Standard Tool Call: {tool_call}")
+                            break
+                        # Case 2: Command R+ style (args only in JSON, tool name in text)
+                        elif cmd_r_match and isinstance(data, dict):
+                            tool_name = cmd_r_match.group(1)
+                            # If the JSON looks like args (has keys matching parameters), use it
+                            # Or just assume the first JSON object is the args
+                            tool_call = {"tool": tool_name, "args": data}
+                            logger.info(f"Found Cmd R+ Tool Call: {tool_call}")
+                            break
+                        else:
+                            logger.warning(f"JSON object {i} did not match any tool format: {data}")
+                    except json.JSONDecodeError as e:
+                        logger.warning(f"JSON Decode Error at index {i}: {e}")
+                        continue
+                
+                if tool_call:
+                    tool_name = tool_call["tool"]
+                    tool_args = tool_call["args"]
+                    
+                    # Update progress message to show tool execution
+                    tool_display_name = {
+                        "google_search": "🔍 Web検索",
+                        "get_system_stats": "💻 システム情報取得",
+                        "music_play": "🎵 音楽再生",
+                        "music_control": "🎵 音楽操作",
+                        "system_control": "⚙️ システム制御",
+                        "create_file": "📝 ファイル作成",
+                        "get_voice_channel_info": "🔊 VC情報取得",
+                        "join_voice_channel": "🔊 VC参加",
+                        "leave_voice_channel": "🔊 VC退出",
+                    }.get(tool_name, f"🔧 {tool_name}")
+                    
+                    # Stop animation and update with tool name
+                    # Stop animation and update with tool name
+                    self.llm_done_event.set()
+                    await wait_task
+                    
+                    # UX Improvement: Show tool status for at least 1.5 seconds
+                    await progress_msg.edit(content=f"{tool_display_name} を実行中...")
+                    await asyncio.sleep(1.5)
+                    
+                    # Restart animation for tool execution
+                    self.llm_done_event.clear()
+                    wait_task = asyncio.create_task(self.wait_for_llm(progress_msg))
+                    
+                    # Execute Tool
+                    if is_voice and tool_name == "google_search":
+                         media_cog = self.bot.get_cog("MediaCog")
+                         if media_cog:
+                             query = tool_args.get("query", "")
+                             await media_cog.speak_text(message.author, f"{query}について検索しています")
+
+                    tool_result = await self._execute_tool(tool_name, tool_args, message)
+                    
+                    if tool_result:
+                        # Check for loop (same tool, same args, repeated)
+                        # We need to track previous tool calls
+                        # Simple check: if this tool call is identical to the last one
+                        pass
+
+                    # Append result
+                    # CLEAN CONTENT before appending: Remove special Command R+ tokens to avoid confusing the model
+                    clean_content = content.replace("<|channel|>", "").replace("<|constrain|>", "").replace("<|message|>", "").strip()
+                    messages.append({"role": "assistant", "content": clean_content})
+                    
+                    # Use USER role for the tool output to force attention and mimic turn-taking
+                    logger.info(f"Injecting Tool Result of length {len(tool_result)} for summarization")
+                    
+                    messages.append({
+                        "role": "user", 
+                        "content": f"The tool has been executed successfully. Here is the result:\n{tool_result}\n\nUsing the information above, please answer my original question in Japanese. Do not call the tool again."
+                    })
+                    
+                    await progress_msg.edit(content="結果を分析中...")
+                    
+                    # Restart animation for next LLM call
+                    self.llm_done_event.clear()
+                    wait_task = asyncio.create_task(self.wait_for_llm(progress_msg))
+                    
+                    new_content = await self._llm.chat(messages=messages, temperature=0.7)
+                    
+                    # Loop Detection: If new_content is SAME as old content (ignoring unique IDs if any), break
+                    if new_content.strip() == content.strip():
+                        logger.warning("Loop detected: LLM output indicates same tool call. Breaking.")
+                        content = "申し訳ありません。検索結果の処理中にエラーが発生しました。"
+                        break
+                        
+                    content = new_content
+                else:
+                    break
+            
+            # Check if final content is still a tool call (Loop exhausted)
+            # If so, suppress it
+            if re.search(r"to=(\w+)", content) or "tool" in content and "args" in content:
+                 logger.warning(f"Loop exhausted and content looks like tool call: {content}")
+                 # Try to use the last tool result if available? 
+                 # Or just say error.
+                 # Let's verify if we have a tool result from previous turn
+                 if turn > 0:
+                     final_response = "検索は成功しましたが、結果の要約に失敗しました。"
+                 else:
+                     final_response = "エラーが発生しました。"
+            else:
+                 final_response = self._clean_content(content)
+            
+            # Stop animation
+            self.llm_done_event.set()
+            await wait_task
+            
+            # Edit message with final response
+            await progress_msg.edit(content=final_response)
+            
+            # Voice Response
+            if is_voice:
+                media_cog = self.bot.get_cog("MediaCog")
+                if media_cog:
+                    # Clean text for TTS
+                    tts_text = final_response[:200]
+                    await media_cog.speak_text(message.author, tts_text)
+            
+            # Save conversation
+            google_sub = await self._store.get_google_sub(message.author.id)
+            user_id_for_db = google_sub if google_sub else str(message.author.id)
+            await self._store.add_conversation(
+                user_id=user_id_for_db,
+                platform="discord",
+                message=message.clean_content,
+                response=final_response
+            )
+
+        except Exception as e:
+            self.llm_done_event.set()
+            logger.error(f"Error in handle_prompt: {e}", exc_info=True)
+            await progress_msg.edit(content="申し訳ありません。応答の生成に失敗しました。")
+            if is_voice:
+                 media_cog = self.bot.get_cog("MediaCog")
+                 if media_cog:
+                     await media_cog.speak_text(message.author, "エラーが発生しました")
+
+    async def wait_for_llm(self, message: discord.Message) -> None:
+        """Show a loading animation while waiting for LLM."""
+        dots = ["", ".", "..", "..."]
+        idx = 0
+        base_content = "応答を生成中"
+        while not self.llm_done_event.is_set():
+            try:
+                await message.edit(content=f"{base_content}{dots[idx]}")
+                idx = (idx + 1) % len(dots)
+                await asyncio.sleep(1)
+            except discord.NotFound:
+                break
+            except Exception:
+                break
+
+    @commands.Cog.listener()
+    async def on_message(self, message: discord.Message) -> None:
+        """Handle mentions and DMs."""
+        if message.author.bot:
+            return
+
+        # Check if mentioned or DM
+        is_mentioned = self.bot.user in message.mentions
+        is_dm = isinstance(message.channel, discord.DMChannel)
+
+        if is_mentioned or is_dm:
+            # Remove mention from content
+            prompt = message.content.replace(f"<@{self.bot.user.id}>", "").strip()
+            
+            # Handle Attachments
+            if message.attachments:
+                logger.info(f"Processing {len(message.attachments)} attachments")
+                supported_extensions = {'.txt', '.md', '.py', '.js', '.json', '.html', '.css', '.csv', '.xml', '.yaml', '.yml', '.sh', '.bat', '.ps1'}
+                for attachment in message.attachments:
+                    ext = "." + attachment.filename.split(".")[-1].lower() if "." in attachment.filename else ""
+                    logger.info(f"Attachment: {attachment.filename}, Ext: {ext}, Content-Type: {attachment.content_type}")
+                    
+                    if ext in supported_extensions or (attachment.content_type and "text" in attachment.content_type):
+                        if attachment.size > 1024 * 1024: # 1MB limit
+                            logger.warning(f"Attachment {attachment.filename} too large: {attachment.size}")
+                            continue
+                        
+                        try:
+                            content = await attachment.read()
+                            text_content = content.decode('utf-8', errors='ignore')
+                            prompt += f"\n\n[Attached File: {attachment.filename}]\n{text_content}\n"
+                        except Exception as e:
+                            logger.error(f"Failed to read attachment {attachment.filename}: {e}")
+
+                    # Handle Images (Vision API)
+                    elif ext in {'.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp'}:
+                        if attachment.size > 8 * 1024 * 1024: # 8MB limit for Vision
+                            logger.warning(f"Image {attachment.filename} too large: {attachment.size}")
+                            continue
+                        
+                        try:
+                            # Download image
+                            image_data = await attachment.read()
+                            
+                            # Save to Cache
+                            timestamp = int(time.time())
+                            safe_filename = f"{timestamp}_{attachment.filename}"
+                            cache_path = CACHE_DIR / safe_filename
+                            async with aiofiles.open(cache_path, "wb") as f:
+                                await f.write(image_data)
+                            
+                            # Analyze
+                            # Use Vision API supported by LLM (Base64)
+                            import base64
+                            b64 = base64.b64encode(image_data).decode("utf-8")
+                            mime = attachment.content_type or "image/jpeg"
+                            
+                            # Construct complex content part for this image
+                            # Note: ora.py usually constructs a simple string prompt first, 
+                            # then handle_prompt converts it to messages.
+                            # We need to change how handle_prompt receives input, OR store this image data 
+                            # temporarily to attach to the message object sent to LLM.
+                            
+                            # Hack: For now, we'll keep the string prompt for legacy OCR backup (optional)
+                            # But effectively we want the LLM to SEE it.
+                            # Since we are building `prompt` string here, we can't easily inject the image dict yet.
+                            # We should store it in a list of images to attach later.
+                            
+                            if not hasattr(self, "_temp_image_context"):
+                                self._temp_image_context = {}
+                            
+                            if message.id not in self._temp_image_context:
+                                self._temp_image_context[message.id] = []
+                            
+                            self._temp_image_context[message.id].append({
+                                "type": "image_url",
+                                "image_url": {"url": f"data:{mime};base64,{b64}"}
+                            })
+                            
+                            prompt += f"\n\n[Attached Image: {attachment.filename}] (Sent to Vision Model)\n"
+                            
+                        except Exception as e:
+                            logger.error(f"Failed to analyze image {attachment.filename}: {e}")
+                            prompt += f"\n\n[Attached Image: {attachment.filename}] (Analysis Failed: {e})\n"
+            
+            # If empty prompt (just mention), ignore or ask "What?"
+            if not prompt:
+                if is_dm:
+                    # In DM, maybe they sent an image?
+                    if not message.attachments:
+                        return
+                else:
+                    # In server, just mention without text -> ignore or simple ack
+                    return
+
+            await self.handle_prompt(message, prompt)
+
+    @commands.Cog.listener()
+    async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
+        """Handle flag reactions for translation."""
+        if payload.user_id == self.bot.user.id:
+            return
+
+        # Check if emoji is a flag
+        emoji_str = str(payload.emoji)
+        logger.info(f"Reaction added: {emoji_str} (Name: {payload.emoji.name})")
+        iso_code = flag_utils.flag_to_iso(emoji_str)
+        logger.info(f"ISO Code from flag: {iso_code}")
+        
+        if not iso_code:
+            return
+
+        # Get channel and message
+        channel = self.bot.get_channel(payload.channel_id)
+        if not channel:
+            return
+            
+        try:
+            message = await channel.fetch_message(payload.message_id)
+        except discord.NotFound:
+            return
+            
+        if not message.content:
+            return
+
+        # Determine target language
+        # Simple mapping for common codes, fallback to country name
+        lang_map = {
+            "US": "English", "GB": "English",
+            "JP": "Japanese",
+            "CN": "Chinese",
+            "KR": "Korean",
+            "FR": "French",
+            "DE": "German",
+            "ES": "Spanish",
+            "IT": "Italian",
+            "RU": "Russian",
+            "BR": "Portuguese",
+        }
+        
+        target_lang = lang_map.get(iso_code)
+        if not target_lang:
+            target_lang = flag_utils.get_country_name(iso_code)
+        
+        if not target_lang:
+            return
+
+        # Translate using LLM
+        prompt = f"Translate the following text to {target_lang}. Output ONLY the translation.\n\nText: {message.content}"
+        
+        try:
+            # Send a temporary "Translating..." reaction or message? 
+            # A reaction is less intrusive. Let's add a 'thinking' emoji.
+            await message.add_reaction("🤔")
+            
+            response = await self._llm.chat(
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.3
+            )
+            
+            await message.remove_reaction("🤔", self.bot.user)
+            await message.reply(f"{emoji_str} Translation: {response}", mention_author=False)
+            
+        except Exception as e:
+            logger.error(f"Translation failed: {e}")
+            await message.remove_reaction("🤔", self.bot.user)
+            await message.add_reaction("❌")
+

@@ -1,0 +1,64 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.5, pytest-8.4.1, pluggy-1.6.0
+rootdir: C:\Users\YoneRai12\Desktop\ORADiscordBOT-main3
+configfile: pytest.ini
+plugins: anyio-4.9.0, asyncio-1.1.0
+asyncio: mode=Mode.AUTO, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 2 items
+
+tests\test_storage.py .F                                                 [100%]
+
+================================== FAILURES ===================================
+________________________ test_backup_integrity_failure ________________________
+
+    @pytest.mark.asyncio
+    async def test_backup_integrity_failure():
+        store = Store("test.db")
+    
+        def side_effect_exists(path):
+            if path == "test.db": return True
+            if path == "L:/": return False
+            return False
+    
+        with patch("os.path.exists", side_effect=side_effect_exists), \
+             patch("src.storage.sqlite3") as mock_sqlite, \
+             patch("os.replace") as mock_replace, \
+             patch("os.rename") as mock_rename, \
+             patch("pathlib.Path.mkdir"):
+    
+            mock_src_conn = MagicMock()
+            mock_dst_conn = MagicMock()
+            mock_verify_conn = MagicMock()
+            mock_sqlite.connect.side_effect = [mock_src_conn, mock_dst_conn, mock_verify_conn]
+    
+            # Integrity check returns "corrupt"
+            mock_verify_conn.cursor.return_value.fetchone.return_value = ["corrupt"]
+    
+            await store.backup()
+    
+            # Verify replace NOT called
+>           mock_replace.assert_not_called()
+
+tests\test_storage.py:82: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <MagicMock name='replace' id='1340664850688'>
+
+    def assert_not_called(self):
+        """assert that the mock was never called.
+        """
+        if self.call_count != 0:
+            msg = ("Expected '%s' to not have been called. Called %s times.%s"
+                   % (self._mock_name or 'mock',
+                      self.call_count,
+                      self._calls_repr()))
+>           raise AssertionError(msg)
+E           AssertionError: Expected 'replace' to not have been called. Called 1 times.
+E           Calls: [call(WindowsPath('backups/ora_20251129_033753_310.sqlite.tmp'), WindowsPath('backups/ora_20251129_033753_310.corrupt'))].
+
+..\..\AppData\Local\Programs\Python\Python313\Lib\unittest\mock.py:940: AssertionError
+------------------------------ Captured log call ------------------------------
+ERROR    src.storage:storage.py:135 Backup integrity check failed: corrupt
+=========================== short test summary info ===========================
+FAILED tests/test_storage.py::test_backup_integrity_failure - AssertionError:...
+========================= 1 failed, 1 passed in 0.16s =========================

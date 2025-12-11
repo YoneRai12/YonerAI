@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Environment Variables
+.env
+
+# Google Cloud
+service-account.json
+client_secret_*.json
+
+# IDEs
+.vscode/
+.idea/
+
+# Local Data
+data/
+ora_bot.db
+*.log
+*.mp3
+*.wav
+
+# Node.js
+node_modules/
+.next/
+out/
+build/
+dist/
+
+tigauno
