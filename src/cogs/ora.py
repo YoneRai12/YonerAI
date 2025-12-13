@@ -143,6 +143,7 @@ class ORACog(commands.Cog):
 
     # --- PERMISSION SYSTEM ---
     SUB_ADMIN_IDS = {1307345055924617317}
+    VC_ADMIN_IDS = {1156215844834123857}
 
     def _check_permission(self, user_id: int, level: str = "owner") -> bool:
         """
@@ -150,11 +151,12 @@ class ORACog(commands.Cog):
         Levels:
         - 'owner': Only the Bot Owner (Config Admin ID).
         - 'sub_admin': Owner OR Sub-Admins.
+        - 'vc_admin': Owner OR Sub-Admins OR VC Admins.
         """
         owner_id = self.bot.config.admin_user_id
         CREATOR_ID = 1069941291661672498
         
-        # Owner always has access
+        # Owner & Creator always have access (Root)
         if user_id == owner_id or user_id == CREATOR_ID:
             return True
         
@@ -166,9 +168,14 @@ class ORACog(commands.Cog):
         if level == "owner":
             return user_id == owner_id or user_id == CREATOR_ID
         
-        # Sub-Admin Level
+        # Sub-Admin Level (includes owner/creator)
         if level == "sub_admin":
             if user_id in self.SUB_ADMIN_IDS:
+                return True
+        
+        # VC Admin Level (includes sub_admin/owner/creator)
+        if level == "vc_admin":
+            if user_id in self.VC_ADMIN_IDS or user_id in self.SUB_ADMIN_IDS:
                 return True
                 
         return False
@@ -1005,6 +1012,13 @@ class ORACog(commands.Cog):
                 if not target_channel:
                     return "Error: User is not in a voice channel."
                 
+                # Check User Limit
+                if target_channel.user_limit > 0 and len(target_channel.members) >= target_channel.user_limit:
+                     # Check if bot has "Move Members" or "Administrator" to bypass? 
+                     # Discord API allows bots to connect if they have "Move Members" I think?
+                     # But user requested "Cannot join", so let's be strict.
+                     return f"Error: The voice channel '{target_channel.name}' is full (Limit: {target_channel.user_limit})."
+
                 media_cog = self.bot.get_cog("MediaCog")
                 if media_cog:
                     # 1. Join
@@ -1212,9 +1226,9 @@ class ORACog(commands.Cog):
                 return "\n".join(report)
 
             elif tool_name == "create_channel":
-                # Permission: Owner + Sub-Admin
-                if not self._check_permission(message.author.id, "sub_admin"):
-                    return "Permission denied. Admin/Sub-Admin only."
+                # Permission: Owner + Sub-Admin + VC Admin (Server Authority)
+                if not self._check_permission(message.author.id, "vc_admin"):
+                    return "Permission denied. Admin/VC Authority only."
                 
                 guild = message.guild
                 if not guild: return "Error: Not in a server."
@@ -1259,8 +1273,70 @@ class ORACog(commands.Cog):
                 system_cog = self.bot.get_cog("SystemCog")
                 if system_cog:
                     return await system_cog.execute_tool(message.author.id, action, value)
-                return "System control system is not loaded. Please check if SystemCog is enabled."
-            
+            elif tool_name == "manage_user_voice":
+                target_str = args.get("target_user")
+                action = args.get("action")
+                channel_str = args.get("channel_name")
+                
+                if not target_str or not action: return "Error: Missing arguments."
+                
+                guild = message.guild
+                if not guild: return "Error: Not in a server."
+
+                # Find Member
+                import re
+                target_member = None
+                id_match = re.search(r"^<@!?(\d+)>$|^(\d+)$", target_str.strip())
+                if id_match:
+                    uid = int(id_match.group(1) or id_match.group(2))
+                    target_member = guild.get_member(uid)
+                if not target_member:
+                    target_member = discord.utils.find(lambda m: target_str.lower() in m.name.lower() or target_str.lower() in m.display_name.lower(), guild.members)
+                
+                if not target_member:
+                    return f"User '{target_str}' not found."
+
+                # Permission Check (Modified)
+                # Allow if: Creator OR Server Admin OR VC Admin OR Self-Target
+                is_creator = self._check_permission(message.author.id, "creator")
+                is_vc_admin = self._check_permission(message.author.id, "vc_admin")
+                is_server_admin = message.author.guild_permissions.administrator if hasattr(message.author, "guild_permissions") else False
+                is_self = (target_member.id == message.author.id)
+                
+                if not (is_creator or is_vc_admin or is_server_admin or is_self):
+                    return "Permission denied. You can only manage yourself, or require VC Authority."
+
+                if not target_member.voice:
+                    return f"{target_member.display_name} is not in a voice channel."
+                    return f"{target_member.display_name} is not in a voice channel."
+                
+                try:
+                    if action == "disconnect":
+                        await target_member.move_to(None)
+                        return f"Disconnected {target_member.display_name} from voice channel."
+                    
+                    elif action == "move":
+                        if not channel_str: return "Error: Destination channel required for move."
+                        # Find Channel
+                        dest_channel = discord.utils.find(lambda c: isinstance(c, discord.VoiceChannel) and channel_str.lower() in c.name.lower(), guild.voice_channels)
+                        if not dest_channel:
+                             return f"Voice channel '{channel_str}' not found."
+                        
+                        # Check User Limit
+                        if dest_channel.user_limit > 0 and len(dest_channel.members) >= dest_channel.user_limit:
+                            return f"Error: Destination '{dest_channel.name}' is full ({dest_channel.user_limit} users)."
+                        
+                        await target_member.move_to(dest_channel)
+                        return f"Moved {target_member.display_name} to {dest_channel.name}."
+                    
+                    else:
+                        return f"Unknown action: {action}"
+
+                except discord.Forbidden:
+                    return "Error: Permission denied (Move Members required)."
+                except Exception as e:
+                    return f"Failed to manage user voice: {e}"
+
             return f"Error: Unknown tool '{tool_name}'"
 
         except Exception as e:
@@ -1967,6 +2043,29 @@ class ORACog(commands.Cog):
                         }
                     },
                     "required": ["action"]
+                }
+            },
+            {
+                "name": "manage_user_voice",
+                "description": "Disconnect or Move a specific user in voice channels. Admin or Creator only.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                         "target_user": {
+                             "type": "string",
+                             "description": "The user ID, mention (<@ID>), or name of the user."
+                         },
+                         "action": {
+                             "type": "string",
+                             "enum": ["disconnect", "move"],
+                             "description": "Action to perform."
+                         },
+                         "channel_name": {
+                             "type": "string",
+                             "description": "Destination channel name (for 'move' action)."
+                         }
+                    },
+                    "required": ["target_user", "action"]
                 }
             }
         ]

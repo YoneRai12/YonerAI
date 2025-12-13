@@ -582,14 +582,12 @@ class MediaCog(commands.Cog):
         if channel_id and channel_id == message.channel.id:
             should_read = True
             
-        # 2. Check Co-location (If not explicitly mapped or mapped elsewhere, we still read if in same VC?)
-        # Let's say Co-location overrides mapping restrictions for CONVENIENCE.
-        if not should_read and message.author.voice and message.author.voice.channel:
-             vc = guild.voice_client
-             if vc and vc.is_connected() and vc.channel == message.author.voice.channel:
-                 should_read = True
-                 # Optional: Auto-update mapping to current channel for convenience?
-                 # No, that might be confusing. Just read.
+        # 2. Check Co-location (Removed by User Request)
+        # Users want strict separation. Only read from the channel where usage was started.
+        # if not should_read and message.author.voice and message.author.voice.channel:
+        #      vc = guild.voice_client
+        #      if vc and vc.is_connected() and vc.channel == message.author.voice.channel:
+        #          should_read = True
 
         if not should_read:
             return
