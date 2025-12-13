@@ -1,0 +1,222 @@
+2025-12-13 09:41:38,987.987Z INFO src.bot Starting ORA Discord bot
+2025-12-13 09:41:39,003.003Z INFO src.bot FFmpeg found.
+2025-12-13 09:41:39,018.018Z INFO src.storage Backup successful: L:\Backups\ORADiscordBOT\ora_20251213_184139_006.sqlite
+2025-12-13 09:41:39,020.020Z INFO src.storage Rotated old backup: ora_20251213_183616_867.sqlite
+2025-12-13 09:41:39,020.020Z WARNING src.bot Signal handlers are not supported on this platform.
+2025-12-13 09:41:39,021.021Z INFO discord.client logging in using static token
+2025-12-13 09:41:39,864.864Z INFO src.cogs.ora ORACog.__init__ called - Loading ORACog
+2025-12-13 09:41:39,864.864Z INFO src.cogs.ora ORACog.__init__ complete - desktop_loop started
+2025-12-13 09:41:39,865.865Z INFO src.cogs.media PyNaCl available: 1.5.0
+2025-12-13 09:41:39,866.866Z INFO src.cogs.media Opus loaded successfully from C:\Users\YoneRai12\Desktop\ORADiscordBOT-main3\libopus-0.dll
+2025-12-13 09:41:39,886.886Z INFO src.cogs.voice_recv Loading Whisper model (small)...
+2025-12-13 09:41:41,175.175Z INFO src.cogs.voice_recv Whisper model loaded.
+2025-12-13 09:41:41,446.446Z WARNING src.cogs.system Failed to initialize system audio control: 'AudioDevice' object has no attribute 'Activate'
+2025-12-13 09:41:41,446.446Z INFO src.bot DEBUG: Inspecting commands before sync...
+2025-12-13 09:41:41,447.447Z INFO src.bot Command: ping (Type: <class 'discord.app_commands.commands.Command'>)
+2025-12-13 09:41:41,448.448Z INFO src.bot   - Contexts: None (Type: <class 'NoneType'>)
+2025-12-13 09:41:41,448.448Z INFO src.bot   - Installs: None (Type: <class 'NoneType'>)
+2025-12-13 09:41:41,448.448Z INFO src.bot Command: say (Type: <class 'discord.app_commands.commands.Command'>)
+2025-12-13 09:41:41,448.448Z INFO src.bot   - Contexts: None (Type: <class 'NoneType'>)
+2025-12-13 09:41:41,449.449Z INFO src.bot   - Installs: None (Type: <class 'NoneType'>)
+2025-12-13 09:41:41,449.449Z INFO src.bot Command: link (Type: <class 'discord.app_commands.commands.Command'>)
+2025-12-13 09:41:41,450.450Z INFO src.bot   - Contexts: None (Type: <class 'NoneType'>)
+2025-12-13 09:41:41,450.450Z INFO src.bot   - Installs: None (Type: <class 'NoneType'>)
+2025-12-13 09:41:41,450.450Z INFO src.bot Command: health (Type: <class 'discord.app_commands.commands.Command'>)
+2025-12-13 09:41:41,450.450Z INFO src.bot   - Contexts: <AppCommandContext guild=True dm_channel=True private_channel=True> (Type: <class 'discord.app_commands.installs.AppCommandContext'>)
+2025-12-13 09:41:41,451.451Z INFO src.bot   - Installs: <AppInstallationType guild=True user=True> (Type: <class 'discord.app_commands.installs.AppInstallationType'>)
+2025-12-13 09:41:41,451.451Z INFO src.bot Command: help (Type: <class 'discord.app_commands.commands.Command'>)
+2025-12-13 09:41:41,452.452Z INFO src.bot   - Contexts: <AppCommandContext guild=True dm_channel=True private_channel=True> (Type: <class 'discord.app_commands.installs.AppCommandContext'>)
+2025-12-13 09:41:41,452.452Z INFO src.bot   - Installs: <AppInstallationType guild=True user=True> (Type: <class 'discord.app_commands.installs.AppInstallationType'>)
+2025-12-13 09:41:41,452.452Z INFO src.bot Command: avatar (Type: <class 'discord.app_commands.commands.Command'>)
+2025-12-13 09:41:41,453.453Z INFO src.bot   - Contexts: None (Type: <class 'NoneType'>)
+2025-12-13 09:41:41,453.453Z INFO src.bot   - Installs: None (Type: <class 'NoneType'>)
+2025-12-13 09:41:41,454.454Z INFO src.bot Command: cleanup (Type: <class 'discord.app_commands.commands.Command'>)
+2025-12-13 09:41:41,454.454Z INFO src.bot   - Contexts: None (Type: <class 'NoneType'>)
+2025-12-13 09:41:41,455.455Z INFO src.bot   - Installs: None (Type: <class 'NoneType'>)
+2025-12-13 09:41:41,455.455Z INFO src.bot Command: remind (Type: <class 'discord.app_commands.commands.Command'>)
+2025-12-13 09:41:41,455.455Z INFO src.bot   - Contexts: <AppCommandContext guild=True dm_channel=True private_channel=True> (Type: <class 'discord.app_commands.installs.AppCommandContext'>)
+2025-12-13 09:41:41,455.455Z INFO src.bot   - Installs: <AppInstallationType guild=True user=True> (Type: <class 'discord.app_commands.installs.AppInstallationType'>)
+2025-12-13 09:41:41,456.456Z INFO src.bot Command: utility (Type: <class 'discord.app_commands.commands.Group'>)
+2025-12-13 09:41:41,456.456Z INFO src.bot   - Contexts: True (Type: <class 'bool'>)
+2025-12-13 09:41:41,457.457Z INFO src.bot   - Installs: True (Type: <class 'bool'>)
+2025-12-13 09:41:41,457.457Z INFO src.bot   - Group detected. Walking children...
+2025-12-13 09:41:41,458.458Z INFO src.bot     - Child: calc
+2025-12-13 09:41:41,458.458Z INFO src.bot       - Contexts: None
+2025-12-13 09:41:41,459.459Z INFO src.bot       - Installs: None
+2025-12-13 09:41:41,459.459Z INFO src.bot     - Child: dice
+2025-12-13 09:41:41,460.460Z INFO src.bot       - Contexts: None
+2025-12-13 09:41:41,460.460Z INFO src.bot       - Installs: None
+2025-12-13 09:41:41,460.460Z INFO src.bot     - Child: userinfo
+2025-12-13 09:41:41,461.461Z INFO src.bot       - Contexts: None
+2025-12-13 09:41:41,461.461Z INFO src.bot       - Installs: None
+2025-12-13 09:41:41,461.461Z INFO src.bot Command: system (Type: <class 'discord.app_commands.commands.Group'>)
+2025-12-13 09:41:41,462.462Z INFO src.bot   - Contexts: True (Type: <class 'bool'>)
+2025-12-13 09:41:41,462.462Z INFO src.bot   - Installs: True (Type: <class 'bool'>)
+2025-12-13 09:41:41,463.463Z INFO src.bot   - Group detected. Walking children...
+2025-12-13 09:41:41,463.463Z INFO src.bot     - Child: info
+2025-12-13 09:41:41,464.464Z INFO src.bot       - Contexts: None
+2025-12-13 09:41:41,464.464Z INFO src.bot       - Installs: None
+2025-12-13 09:41:41,464.464Z INFO src.bot     - Child: process_list
+2025-12-13 09:41:41,464.464Z INFO src.bot       - Contexts: None
+2025-12-13 09:41:41,465.465Z INFO src.bot       - Installs: None
+2025-12-13 09:41:41,466.466Z INFO src.bot Command: desktop_watch (Type: <class 'discord.app_commands.commands.Command'>)
+2025-12-13 09:41:41,466.466Z INFO src.bot   - Contexts: None (Type: <class 'NoneType'>)
+2025-12-13 09:41:41,466.466Z INFO src.bot   - Installs: None (Type: <class 'NoneType'>)
+2025-12-13 09:41:41,467.467Z INFO src.bot Command: login (Type: <class 'discord.app_commands.commands.Command'>)
+2025-12-13 09:41:41,467.467Z INFO src.bot   - Contexts: None (Type: <class 'NoneType'>)
+2025-12-13 09:41:41,468.468Z INFO src.bot   - Installs: None (Type: <class 'NoneType'>)
+2025-12-13 09:41:41,468.468Z INFO src.bot Command: whoami (Type: <class 'discord.app_commands.commands.Command'>)
+2025-12-13 09:41:41,468.468Z INFO src.bot   - Contexts: None (Type: <class 'NoneType'>)
+2025-12-13 09:41:41,468.468Z INFO src.bot   - Installs: None (Type: <class 'NoneType'>)
+2025-12-13 09:41:41,469.469Z INFO src.bot Command: privacy (Type: <class 'discord.app_commands.commands.Group'>)
+2025-12-13 09:41:41,470.470Z INFO src.bot   - Contexts: None (Type: <class 'NoneType'>)
+2025-12-13 09:41:41,470.470Z INFO src.bot   - Installs: None (Type: <class 'NoneType'>)
+2025-12-13 09:41:41,470.470Z INFO src.bot   - Group detected. Walking children...
+2025-12-13 09:41:41,471.471Z INFO src.bot     - Child: set
+2025-12-13 09:41:41,471.471Z INFO src.bot       - Contexts: None
+2025-12-13 09:41:41,471.471Z INFO src.bot       - Installs: None
+2025-12-13 09:41:41,472.472Z INFO src.bot     - Child: set_system
+2025-12-13 09:41:41,472.472Z INFO src.bot       - Contexts: None
+2025-12-13 09:41:41,472.472Z INFO src.bot       - Installs: None
+2025-12-13 09:41:41,473.473Z INFO src.bot Command: chat (Type: <class 'discord.app_commands.commands.Command'>)
+2025-12-13 09:41:41,473.473Z INFO src.bot   - Contexts: None (Type: <class 'NoneType'>)
+2025-12-13 09:41:41,473.473Z INFO src.bot   - Installs: None (Type: <class 'NoneType'>)
+2025-12-13 09:41:41,474.474Z INFO src.bot Command: dataset (Type: <class 'discord.app_commands.commands.Group'>)
+2025-12-13 09:41:41,474.474Z INFO src.bot   - Contexts: None (Type: <class 'NoneType'>)
+2025-12-13 09:41:41,474.474Z INFO src.bot   - Installs: None (Type: <class 'NoneType'>)
+2025-12-13 09:41:41,475.475Z INFO src.bot   - Group detected. Walking children...
+2025-12-13 09:41:41,475.475Z INFO src.bot     - Child: add
+2025-12-13 09:41:41,475.475Z INFO src.bot       - Contexts: None
+2025-12-13 09:41:41,475.475Z INFO src.bot       - Installs: None
+2025-12-13 09:41:41,475.475Z INFO src.bot     - Child: list
+2025-12-13 09:41:41,476.476Z INFO src.bot       - Contexts: None
+2025-12-13 09:41:41,476.476Z INFO src.bot       - Installs: None
+2025-12-13 09:41:41,477.477Z INFO src.bot Command: summarize (Type: <class 'discord.app_commands.commands.Command'>)
+2025-12-13 09:41:41,477.477Z INFO src.bot   - Contexts: None (Type: <class 'NoneType'>)
+2025-12-13 09:41:41,478.478Z INFO src.bot   - Installs: None (Type: <class 'NoneType'>)
+2025-12-13 09:41:41,478.478Z INFO src.bot Command: voice (Type: <class 'discord.app_commands.commands.Group'>)
+2025-12-13 09:41:41,478.478Z INFO src.bot   - Contexts: None (Type: <class 'NoneType'>)
+2025-12-13 09:41:41,479.479Z INFO src.bot   - Installs: None (Type: <class 'NoneType'>)
+2025-12-13 09:41:41,479.479Z INFO src.bot   - Group detected. Walking children...
+2025-12-13 09:41:41,479.479Z INFO src.bot     - Child: join
+2025-12-13 09:41:41,480.480Z INFO src.bot       - Contexts: None
+2025-12-13 09:41:41,480.480Z INFO src.bot       - Installs: None
+2025-12-13 09:41:41,481.481Z INFO src.bot     - Child: leave
+2025-12-13 09:41:41,481.481Z INFO src.bot       - Contexts: None
+2025-12-13 09:41:41,481.481Z INFO src.bot       - Installs: None
+2025-12-13 09:41:41,481.481Z INFO src.bot Command: memory (Type: <class 'discord.app_commands.commands.Group'>)
+2025-12-13 09:41:41,481.481Z INFO src.bot   - Contexts: None (Type: <class 'NoneType'>)
+2025-12-13 09:41:41,481.481Z INFO src.bot   - Installs: None (Type: <class 'NoneType'>)
+2025-12-13 09:41:41,482.482Z INFO src.bot   - Group detected. Walking children...
+2025-12-13 09:41:41,483.483Z INFO src.bot     - Child: clear
+2025-12-13 09:41:41,483.483Z INFO src.bot       - Contexts: None
+2025-12-13 09:41:41,484.484Z INFO src.bot       - Installs: None
+2025-12-13 09:41:41,484.484Z INFO src.bot Command: test_all (Type: <class 'discord.app_commands.commands.Command'>)
+2025-12-13 09:41:41,484.484Z INFO src.bot   - Contexts: None (Type: <class 'NoneType'>)
+2025-12-13 09:41:41,484.484Z INFO src.bot   - Installs: None (Type: <class 'NoneType'>)
+2025-12-13 09:41:41,485.485Z INFO src.bot Command: speak (Type: <class 'discord.app_commands.commands.Command'>)
+2025-12-13 09:41:41,485.485Z INFO src.bot   - Contexts: None (Type: <class 'NoneType'>)
+2025-12-13 09:41:41,485.485Z INFO src.bot   - Installs: None (Type: <class 'NoneType'>)
+2025-12-13 09:41:41,486.486Z INFO src.bot Command: search (Type: <class 'discord.app_commands.commands.Group'>)
+2025-12-13 09:41:41,486.486Z INFO src.bot   - Contexts: None (Type: <class 'NoneType'>)
+2025-12-13 09:41:41,486.486Z INFO src.bot   - Installs: None (Type: <class 'NoneType'>)
+2025-12-13 09:41:41,487.487Z INFO src.bot   - Group detected. Walking children...
+2025-12-13 09:41:41,487.487Z INFO src.bot     - Child: query
+2025-12-13 09:41:41,487.487Z INFO src.bot       - Contexts: None
+2025-12-13 09:41:41,488.488Z INFO src.bot       - Installs: None
+2025-12-13 09:41:41,488.488Z INFO src.bot     - Child: notify
+2025-12-13 09:41:41,489.489Z INFO src.bot       - Contexts: None
+2025-12-13 09:41:41,490.490Z INFO src.bot       - Installs: None
+2025-12-13 09:41:41,490.490Z INFO src.bot Command: image (Type: <class 'discord.app_commands.commands.Group'>)
+2025-12-13 09:41:41,491.491Z INFO src.bot   - Contexts: None (Type: <class 'NoneType'>)
+2025-12-13 09:41:41,491.491Z INFO src.bot   - Installs: None (Type: <class 'NoneType'>)
+2025-12-13 09:41:41,491.491Z INFO src.bot   - Group detected. Walking children...
+2025-12-13 09:41:41,492.492Z INFO src.bot     - Child: ocr
+2025-12-13 09:41:41,492.492Z INFO src.bot       - Contexts: None
+2025-12-13 09:41:41,492.492Z INFO src.bot       - Installs: None
+2025-12-13 09:41:41,493.493Z INFO src.bot     - Child: classify
+2025-12-13 09:41:41,493.493Z INFO src.bot       - Contexts: None
+2025-12-13 09:41:41,494.494Z INFO src.bot       - Installs: None
+2025-12-13 09:41:41,494.494Z INFO src.bot Command: ytplay (Type: <class 'discord.app_commands.commands.Command'>)
+2025-12-13 09:41:41,495.495Z INFO src.bot   - Contexts: None (Type: <class 'NoneType'>)
+2025-12-13 09:41:41,495.495Z INFO src.bot   - Installs: None (Type: <class 'NoneType'>)
+2025-12-13 09:41:41,495.495Z INFO src.bot Command: queue (Type: <class 'discord.app_commands.commands.Command'>)
+2025-12-13 09:41:41,496.496Z INFO src.bot   - Contexts: None (Type: <class 'NoneType'>)
+2025-12-13 09:41:41,497.497Z INFO src.bot   - Installs: None (Type: <class 'NoneType'>)
+2025-12-13 09:41:41,497.497Z INFO src.bot Command: loop (Type: <class 'discord.app_commands.commands.Command'>)
+2025-12-13 09:41:41,497.497Z INFO src.bot   - Contexts: None (Type: <class 'NoneType'>)
+2025-12-13 09:41:41,498.498Z INFO src.bot   - Installs: None (Type: <class 'NoneType'>)
+2025-12-13 09:41:41,498.498Z INFO src.bot Command: skip (Type: <class 'discord.app_commands.commands.Command'>)
+2025-12-13 09:41:41,498.498Z INFO src.bot   - Contexts: None (Type: <class 'NoneType'>)
+2025-12-13 09:41:41,498.498Z INFO src.bot   - Installs: None (Type: <class 'NoneType'>)
+2025-12-13 09:41:41,500.500Z INFO src.bot Command: stop (Type: <class 'discord.app_commands.commands.Command'>)
+2025-12-13 09:41:41,500.500Z INFO src.bot   - Contexts: None (Type: <class 'NoneType'>)
+2025-12-13 09:41:41,500.500Z INFO src.bot   - Installs: None (Type: <class 'NoneType'>)
+2025-12-13 09:41:41,501.501Z INFO src.bot Command: flag (Type: <class 'discord.app_commands.commands.Command'>)
+2025-12-13 09:41:41,501.501Z INFO src.bot   - Contexts: None (Type: <class 'NoneType'>)
+2025-12-13 09:41:41,501.501Z INFO src.bot   - Installs: None (Type: <class 'NoneType'>)
+2025-12-13 09:41:41,502.502Z INFO src.bot Command: vc (Type: <class 'discord.app_commands.commands.Command'>)
+2025-12-13 09:41:41,502.502Z INFO src.bot   - Contexts: None (Type: <class 'NoneType'>)
+2025-12-13 09:41:41,502.502Z INFO src.bot   - Installs: None (Type: <class 'NoneType'>)
+2025-12-13 09:41:41,503.503Z INFO src.bot Command: leavevc (Type: <class 'discord.app_commands.commands.Command'>)
+2025-12-13 09:41:41,503.503Z INFO src.bot   - Contexts: None (Type: <class 'NoneType'>)
+2025-12-13 09:41:41,503.503Z INFO src.bot   - Installs: None (Type: <class 'NoneType'>)
+2025-12-13 09:41:41,504.504Z INFO src.bot Command: listen (Type: <class 'discord.app_commands.commands.Command'>)
+2025-12-13 09:41:41,504.504Z INFO src.bot   - Contexts: None (Type: <class 'NoneType'>)
+2025-12-13 09:41:41,504.504Z INFO src.bot   - Installs: None (Type: <class 'NoneType'>)
+2025-12-13 09:41:41,505.505Z INFO src.bot Command: conversation (Type: <class 'discord.app_commands.commands.Command'>)
+2025-12-13 09:41:41,505.505Z INFO src.bot   - Contexts: None (Type: <class 'NoneType'>)
+2025-12-13 09:41:41,505.505Z INFO src.bot   - Installs: None (Type: <class 'NoneType'>)
+2025-12-13 09:41:41,505.505Z INFO src.bot Command: stop_listen (Type: <class 'discord.app_commands.commands.Command'>)
+2025-12-13 09:41:41,506.506Z INFO src.bot   - Contexts: None (Type: <class 'NoneType'>)
+2025-12-13 09:41:41,506.506Z INFO src.bot   - Installs: None (Type: <class 'NoneType'>)
+2025-12-13 09:41:41,506.506Z INFO src.bot Command: pc_control (Type: <class 'discord.app_commands.commands.Command'>)
+2025-12-13 09:41:41,506.506Z INFO src.bot   - Contexts: None (Type: <class 'NoneType'>)
+2025-12-13 09:41:41,507.507Z INFO src.bot   - Installs: None (Type: <class 'NoneType'>)
+2025-12-13 09:41:41,508.508Z ERROR src.bot Bot stopped due to an error.
+NoneType: None
+2025-12-13 09:41:41,508.508Z INFO src.bot Closing bot...
+2025-12-13 09:41:41,509.509Z INFO src.bot Performing final backup...
+2025-12-13 09:41:41,522.522Z INFO src.storage Backup successful: L:\Backups\ORADiscordBOT\ora_20251213_184141_510.sqlite
+2025-12-13 09:41:41,523.523Z INFO src.storage Rotated old backup: ora_20251213_183953_533.sqlite
+Traceback (most recent call last):
+  File "C:\Users\YoneRai12\Desktop\ORADiscordBOT-main3\main.py", line 13, in <module>
+    asyncio.run(main())
+  File "C:\Users\YoneRai12\AppData\Local\Programs\Python\Python311\Lib\asyncio\runners.py", line 190, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "C:\Users\YoneRai12\AppData\Local\Programs\Python\Python311\Lib\asyncio\runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\YoneRai12\AppData\Local\Programs\Python\Python311\Lib\asyncio\base_events.py", line 654, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "C:\Users\YoneRai12\Desktop\ORADiscordBOT-main3\src\bot.py", line 346, in main
+    await run_bot()
+  File "C:\Users\YoneRai12\Desktop\ORADiscordBOT-main3\src\bot.py", line 332, in run_bot
+    raise exc
+  File "C:\Users\YoneRai12\AppData\Local\Programs\Python\Python311\Lib\site-packages\discord\client.py", line 846, in start
+    await self.login(token)
+  File "C:\Users\YoneRai12\AppData\Local\Programs\Python\Python311\Lib\site-packages\discord\client.py", line 689, in login
+    await self.setup_hook()
+  File "C:\Users\YoneRai12\Desktop\ORADiscordBOT-main3\src\bot.py", line 123, in setup_hook
+    await self._sync_commands()
+  File "C:\Users\YoneRai12\Desktop\ORADiscordBOT-main3\src\bot.py", line 174, in _sync_commands
+    synced = await self.tree.sync()
+             ^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\YoneRai12\AppData\Local\Programs\Python\Python311\Lib\site-packages\discord\app_commands\tree.py", line 1112, in sync
+    payload = [command.to_dict(self) for command in commands]
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\YoneRai12\AppData\Local\Programs\Python\Python311\Lib\site-packages\discord\app_commands\tree.py", line 1112, in <listcomp>
+    payload = [command.to_dict(self) for command in commands]
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\YoneRai12\AppData\Local\Programs\Python\Python311\Lib\site-packages\discord\app_commands\commands.py", line 1760, in to_dict
+    base['contexts'] = tree.allowed_contexts._merge_to_array(self.allowed_contexts)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\YoneRai12\AppData\Local\Programs\Python\Python311\Lib\site-packages\discord\app_commands\installs.py", line 188, in _merge_to_array
+    result = self.merge(other) if other is not None else self
+             ^^^^^^^^^^^^^^^^^
+  File "C:\Users\YoneRai12\AppData\Local\Programs\Python\Python311\Lib\site-packages\discord\app_commands\installs.py", line 179, in merge
+    guild = self._guild if other._guild is None else other._guild
+                           ^^^^^^^^^^^^
+AttributeError: 'bool' object has no attribute '_guild'

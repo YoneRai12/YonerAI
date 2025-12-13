@@ -35,11 +35,24 @@ class SystemCog(commands.Cog):
         self.volume_interface = None
         if AUDIO_AVAILABLE:
             try:
+                # pycaw initialization can vary by version or OS state
                 devices = AudioUtilities.GetSpeakers()
                 interface = devices.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
                 self.volume_interface = interface.QueryInterface(IAudioEndpointVolume)
+                logger.info("Audio control interface initialized successfully.")
+            except AttributeError:
+                # Fallback for some pycaw versions or if GetSpeakers returns a list/different object
+                try:
+                    # Alternative init (sometimes GetSpeakers() returns a device directly? or we need Enumerator)
+                    # For now, just log and disable if it fails to avoid crash
+                    logger.warning("AudioDevice.Activate failed. System volume control disabled.")
+                    self.volume_interface = None
+                except Exception:
+                    self.volume_interface = None
             except Exception as e:
-                logger.error(f"Failed to initialize audio interface: {e}")
+                logger.warning(f"Failed to initialize system audio control: {e}")
+                self.volume_interface = None
+
 
     def _check_admin(self, interaction: discord.Interaction) -> bool:
         admin_id = self.bot.config.admin_user_id

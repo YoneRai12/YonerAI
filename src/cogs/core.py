@@ -59,8 +59,9 @@ class CoreCog(commands.Cog):
             await asyncio.sleep(30)
 
     @app_commands.command(name="ping", description="Botのレイテンシを確認します。")
-    @app_commands.allowed_installs(guilds=True, users=True)
-    @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+    # REMOVED due to AttributeError crash on sync
+    # @app_commands.allowed_installs(guilds=True, users=True)
+    # @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
     async def ping(self, interaction: discord.Interaction) -> None:
         """Return the websocket latency."""
 
@@ -208,7 +209,7 @@ class CoreCog(commands.Cog):
             await interaction.channel.send(f"{interaction.user.mention} ⏰ リマインダー: {message}")
 
     # Utility Commands
-    utility_group = app_commands.Group(name="utility", description="便利なツールコマンド", allowed_installs=True, allowed_contexts=True)
+    utility_group = app_commands.Group(name="utility", description="便利なツールコマンド")
 
     @utility_group.command(name="calc", description="計算を行います。")
     @app_commands.describe(expression="計算式 (例: 1+1)")
@@ -241,7 +242,7 @@ class CoreCog(commands.Cog):
         await interaction.response.send_message(embed=embed, ephemeral=await self._get_privacy(interaction.user.id))
 
     # System Commands
-    system_group = app_commands.Group(name="system", description="システム情報コマンド", allowed_installs=True, allowed_contexts=True)
+    system_group = app_commands.Group(name="system", description="システム情報コマンド")
 
     @system_group.command(name="info", description="詳細なシステム情報を表示します。")
     async def system_info(self, interaction: discord.Interaction) -> None:
