@@ -10,6 +10,13 @@
 
 ---
 
+## ✨ v2.0 Update Highlights (最新アップデート)
+*   **💳 Visual Card Responses**: 全ての回答が美しい「カード形式 (Discord Embed)」に進化しました。文字だけの地味なBotとはおさらばです。
+*   **💭 Interactive Thoughts**: 「思考中...」「検索中...」といったBotの内部状態がアニメーションアイコンでリアルタイムに表示されます。
+*   **👀 Reply Vision**: Botが生成した画像や、過去のメッセージに含まれる画像に対し、返信機能を使って「これ見て」と言うだけで認識できるようになりました。
+
+---
+
 ## 🌟 What makes ORA Amazing? (ORAの何が凄いの？)
 
 ORAは単なる「チャットボット」ではありません。あなたのPCの中に住む、**独立した人格を持つパートナー**です。
@@ -24,16 +31,17 @@ ChatGPTやGeminiのAPIに依存せず、あなたのPC内にある **LM Studio**
 ORAは画像を「文字」としてではなく「映像」として理解します。
 *   「このエラー何？」と画面写真を送れば、ログを読んで解決策を提示します。
 *   「このグラフを分析して」と言えば、トレンドを読み解きます。
-*   ゲーム画面を見せてアドバイスを求めたり、イラストの感想を言い合うことも可能です。
+*   **Replay Vision**: メッセージの返信先にある画像も自動で認識します。
 
 ### 3. 🔊 感情を持つ声 (Neural Voice)
 ただの機械音声ではありません。**VoiceVox** エンジンと連携し、感情豊かに喋ります。
 まるで隣にいるかのようなレスポンス速度で、あなたのDiscord通話に参加し、読み上げや雑談を行います。
 
-### 4. 🛡️ 鉄壁の守り (The Guardian)
+### 4. 🛡️ 鉄壁の守り (The Guardian & Lockdown)
 「AIにPCを乗っ取られるのでは？」という心配は無用です。
-ORAは **Sandbox (砂場)** アーキテクチャを採用しており、許可されたアプリ（メモ帳、電卓、ブラウザ等）以外には指一本触れることができません。
-さらに、重要な操作には **管理者権限 (Owner Permission)** が必須となる二重ロックシステムを搭載しています。
+*   **Sandbox**: 許可されたアプリ（メモ帳、電卓等）以外には指一本触れることができません。
+*   **Creator Lockdown**: ファイル作成やシステム操作といった危険な権限は、**制作者 (Creator)** という特別なIDを持つ人間（あなた）のみに限定されています。たとえサーバー管理者であっても、制作者以外はこれらの機能を使えません。
+*   **Loop Breaker**: 万が一AIが暴走してツールを連打しても、自動で検知して緊急停止する「自己防衛回路」を搭載しています。
 
 ---
 
@@ -58,7 +66,7 @@ graph TD
         Body -->|Action| Guardian[🛡️ Guardian Sandbox]
         
         Guardian -->|Safe Exec| Apps[📂 Allowed Apps\n(Notepad/Chrome)]
-        Guardian -.->|Block| Dangerous[❌ Dangerous Ops\n(System/Delete)]
+        Guardian -.->|Block| Dangerous[❌ Dangerous Ops\n(Creator Only)]
     end
     
     Brain -->|Store Memory| DB[(🗄️ SQLite Database)]
@@ -66,16 +74,15 @@ graph TD
 
 ### 1. The BRAIN (思考中枢)
 *   **Engine**: LM Studio (OpenAI-compatible Server)
-*   **Context Management**: 会話履歴を自動で要約・圧縮し、長期記憶として保持します。これにより「さっきの話だけど」が通じます。
-*   **Fallback**: 画像認識ができないモデル（Mistral等）を使用している場合、自動でGoogle Cloud Vision APIやOCRエンジンに切り替える「自動判断機能」を持っています。
+*   **Context Management**: 会話履歴を自動で要約・圧縮し、長期記憶として保持します。
 
 ### 2. The BODY (身体)
 *   **Event-Driven**: Discordからのイベント（発言、入室、リアクション）を0.1秒単位で検知・反応します。
-*   **Voice Pipeline**: 音声を「受信(Whisper)」→「思考(LLM)」→「発話(VoiceVox)」のパイプラインで処理し、リアルタイムに近い対話を実現しています。
+*   **Interactive UI**: ステータスマネージャが思考プロセスをリアルタイムでDiscord上に描画します。
 
 ### 3. The GUARDIAN (管理者)
 *   **Scope Checking**: 全てのコマンド実行前にユーザーのIDと権限レベルを確認します。
-*   **Whitelist Execution**: 事前にコード内で定義された `ALLOWED_APPS` リストにあるプログラムしか起動できません。これにより、AIハルシネーションによる誤操作を物理的に防いでいます。
+*   **Creator Lockdown Mode**: デフォルトで最強のセキュリティ設定が有効になっており、重要なコマンドは制作者ID以外からは一切受け付けません。
 
 ---
 
@@ -110,6 +117,7 @@ ORAは現在も進化の途中です。Discordという「窓」を通して、W
 | **Voice** | VoiceVox Engine | Neural TTS |
 | **Database** | SQLite3 (aiobos) | Asynchronous Data Persistence |
 | **Audio** | PyNaCl / Opus | Voice Encoding |
+| **UI** | Discord Embeds & Views | Interactive Frontend |
 
 ---
 

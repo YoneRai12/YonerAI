@@ -794,11 +794,28 @@ class MediaCog(commands.Cog):
         import asyncio
         try:
             idle = 0
+            empty_timer = 0
             while True:
                 await asyncio.sleep(1)
                 vc = voice_client
                 if vc is None or not vc.is_connected():
                     return
+
+                # EMPTY CHANNEL CHECK (Backup for on_voice_state_update)
+                # If only bots are present, start counting
+                channel = vc.channel
+                if channel:
+                    non_bots = [m for m in channel.members if not m.bot]
+                    if len(non_bots) == 0:
+                        empty_timer += 1
+                        if empty_timer >= 10: # 10 seconds grace period
+                            logger.info(f"Auto-disconnecting from guild {guild_id} - Channel empty (Poller protection)")
+                            await vc.disconnect()
+                            self._auto_read_channels.pop(guild_id, None)
+                            return
+                    else:
+                        empty_timer = 0 # Reset if someone joins
+                
                 playing = vc.is_playing()
                 paused = vc.is_paused()
                 

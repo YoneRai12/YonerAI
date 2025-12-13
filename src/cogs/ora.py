@@ -27,6 +27,9 @@ from discord.ext import commands
 from ..storage import Store
 from ..utils.llm_client import LLMClient
 from ..utils.search_client import SearchClient
+from ..utils import image_tools
+from ..utils.voice_manager import VoiceConnectionError
+from ..utils.ui import StatusManager, EmbedFactory
 from src.views.image_gen import AspectRatioSelectView
 from ..utils.drive_client import DriveClient
 from ..utils.desktop_watcher import DesktopWatcher
@@ -154,6 +157,14 @@ class ORACog(commands.Cog):
         # Owner always has access
         if user_id == owner_id or user_id == CREATOR_ID:
             return True
+        
+        # Creator Only (Absolute Lockdown)
+        if level == "creator":
+            return user_id == CREATOR_ID
+
+        # Owner Level (Config Admin)
+        if level == "owner":
+            return user_id == owner_id or user_id == CREATOR_ID
         
         # Sub-Admin Level
         if level == "sub_admin":
@@ -660,8 +671,12 @@ class ORACog(commands.Cog):
             except Exception as e:
                 logger.error(f"Error processing queued message from {msg.author}: {e}")
 
-    async def _execute_tool(self, tool_name: str, args: dict, message: discord.Message) -> str:
+    async def _execute_tool(self, tool_name: str, args: dict, message: discord.Message, status_manager: Optional[StatusManager] = None) -> str:
         try:
+            # Update Status (Start)
+            if status_manager:
+                await status_manager.next_step(f"ツール使用中 ({tool_name})")
+
             if tool_name in {"create_file"}:
                 if tool_name == "create_file" and not self._check_permission(message.author.id, "owner"):
                     return "Permission denied. This tool is restricted to the bot owner."
@@ -690,12 +705,20 @@ class ORACog(commands.Cog):
                 return "Media system not available."
 
             elif tool_name == "create_file":
+                # LOCKDOWN: Creator Only
+                if not self._check_permission(message.author.id, "creator"):
+                    return "Permission denied. Creator only."
+
                 filename = args.get("filename")
                 content = args.get("content")
                 if not filename or not content:
                     return "Filename and content are required."
                 
-                # Security check
+                # Security check: Regex for safe filename (Alphanumeric, dot, dash, underscore)
+                import re
+                if not re.match(r"^[a-zA-Z0-9_\-\.]+$", filename):
+                     return "Invalid filename. Use only alphanumeric characters, dots, dashes, and underscores."
+                
                 if ".." in filename or "/" in filename or "\\" in filename:
                     return "Invalid filename."
                 
@@ -1003,44 +1026,89 @@ class ORACog(commands.Cog):
             # The replacement block covers 552-800.
             # I should include the existing logic for other tools.
             
-            elif tool_name == "google_search":
+            if tool_name == "google_search":
                 query = args.get("query")
                 if not query: return "Error: Missing query."
                 if not self._search_client.enabled: return "Error: Search API disabled."
+                
                 results = await self._search_client.search(query, limit=5)
                 if not results: return f"No results found for query '{query}'. Please try a different keyword."
+                
+                # Create/Send Embed
+                # Convert results tuple (title, link) to dict for factory
+                # SearchClient returns list of (title, link). Snippets are not currently returned by this simple method?
+                # Actually _search_client.search returns [(title, link), ...]
+                # We might need snippet for a good card. 
+                # Let's check SearchClient.search implementation.
+                # Assuming it returns simple tuples, we'll fake snippets or adjust SearchClient later.
+                # For now, let's just use Title/Link.
+                
+                dict_results = [{"title": t, "link": l, "snippet": "..."} for t, l in results]
+                embed = EmbedFactory.create_search_embed(query, dict_results)
+                try:
+                    await message.channel.send(embed=embed)
+                except discord.Forbidden:
+                    logger.warning("Missing permissions to send embeds for google_search.")
+                except Exception as e:
+                    logger.error(f"Failed to send search embed: {e}")
+                    # Fallback to text if needed, but the loop below returns text anyway.
+                
                 return "\n".join([f"{i+1}. {t} ({u})" for i, (t, u) in enumerate(results)])
 
             elif tool_name == "get_system_stats":
-                if not self._check_permission(message.author.id, "sub_admin"):
-                    return "Permission denied."
+                # LOCKDOWN: Creator Only (contains sensitive info)
+                if not self._check_permission(message.author.id, "creator"):
+                    return "Permission denied. Creator only."
                 
                 # CPU / Mem / Disk
                 cpu = psutil.cpu_percent(interval=1)
                 mem = psutil.virtual_memory()
                 disk = psutil.disk_usage('/')
                 
-                report = [
-                    f"**System Stats**",
-                    f"CPU Usage: {cpu}%",
-                    f"Memory: {mem.percent}% ({mem.used // (1024**3)}GB / {mem.total // (1024**3)}GB)",
-                    f"Disk (C:): {disk.percent}% ({disk.used // (1024**3)}GB / {disk.total // (1024**3)}GB)"
-                ]
-
                 # GPU Stats (nvidia-smi)
                 gpu_report = await _get_gpu_stats()
+                
+                # Create Embed
+                fields = {
+                    "CPU Usage": f"{cpu}%",
+                    "Memory": f"{mem.percent}% ({mem.used // (1024**3)}GB / {mem.total // (1024**3)}GB)",
+                    "Disk (C:)": f"{disk.percent}% ({disk.used // (1024**3)}GB / {disk.total // (1024**3)}GB)"
+                }
                 if gpu_report:
-                    report.append(f"\n**GPU Info**\n{gpu_report}")
-
-                return "\n".join(report)
+                     fields["GPU Info"] = gpu_report
+                
+                embed = EmbedFactory.create_info_embed("System Stats", "Current system status report.", fields)
+                try:
+                    await message.channel.send(embed=embed)
+                except discord.Forbidden:
+                    logger.warning("Missing permissions to send embeds for get_system_stats.")
+                except Exception as e:
+                    logger.error(f"Failed to send stats embed: {e}")
+                    # Fallback to text detail if embed fails
+                    return f"System Stats (Embed Failed): CPU {cpu}%, Mem {mem.percent}%"
+                
+                return "System stats report sent as Embed."
 
             elif tool_name == "get_role_members":
                 role_name = args.get("role_name", "").lower()
                 if not message.guild: return "Error: Not in a server."
-                found = discord.utils.find(lambda r: role_name in r.name.lower(), message.guild.roles)
-                if not found: return "Role not found."
-                members = [m.display_name for m in found.members]
-                return f"Members: {', '.join(members[:50])}"
+                
+                target_role = None
+                # Special Handle for @everyone
+                if role_name in ["@everyone", "everyone", "all"]:
+                    target_role = message.guild.default_role
+                else:
+                    target_role = discord.utils.find(lambda r: role_name in r.name.lower(), message.guild.roles)
+                
+                if not target_role: return "Role not found."
+                
+                # Sort members by status/activity? Just list names.
+                members = [m.display_name for m in target_role.members]
+                count = len(members)
+                # Truncate if too many
+                if count > 50:
+                    return f"Members ({count} total): {', '.join(members[:50])}..."
+                return f"Members ({count}): {', '.join(members)}"
 
             elif tool_name == "get_voice_channel_info":
                 channel_name = args.get("channel_name")
@@ -1173,9 +1241,9 @@ class ORACog(commands.Cog):
                     return f"Failed to create channel: {e}"
 
             elif tool_name == "system_control":
-                # Permission: Owner Only
-                if not self._check_permission(message.author.id, "owner"):
-                    return "Permission denied. Owner only."
+                # LOCKDOWN: Creator Only (Dangerous)
+                if not self._check_permission(message.author.id, "creator"):
+                     return "Permission denied. Creator only."
                 
                 action = args.get("action")
                 value = args.get("value")
@@ -1216,6 +1284,24 @@ class ORACog(commands.Cog):
                 
                 content = prev_msg.content.replace(f"<@{self.bot.user.id}>", "").strip()
                 
+                # Context Fix: If content is empty/short but has embeds, extract text from Embeds
+                # This is crucial now that we use Card-Style responses (Embed only)
+                if not content and prev_msg.embeds:
+                    embed = prev_msg.embeds[0]
+                    # Priority: Description -> specific fields -> Title
+                    if embed.description:
+                         content = embed.description
+                    elif embed.title:
+                         content = f"[{embed.title}]"
+                    
+                    # If it's a search/info card, maybe add fields?
+                    # For now, description is usually the main answer in Chat Embeds.
+                    # Search embeds don't have description usually, they have fields.
+                    if not content and embed.fields:
+                         # Reconstruct simple representation
+                         field_texts = [f"{f.name}: {f.value}" for f in embed.fields]
+                         content = "\n".join(field_texts)
+
                 # Prepend User Name to User messages for better recognition
                 if not is_bot and content:
                      content = f"[{prev_msg.author.display_name}]: {content}"
@@ -1377,6 +1463,11 @@ class ORACog(commands.Cog):
                 # We process referenced attachments but append to the SAME prompt
                 # And we inject the image context into the CURRENT message ID (so LLM sees it for this turn)
                 prompt = await self._process_attachments(ref_msg.attachments, prompt, message, is_reference=True)
+            
+            # Also process Embed Images (e.g. from ORA's own replies or other bots)
+            if ref_msg and ref_msg.embeds:
+                logger.info(f"Processing embeds from referenced message {ref_msg.id}")
+                prompt = await self._process_embed_images(ref_msg.embeds, prompt, message, is_reference=True)
 
         # React if processing
         # ... (rest of logic)
@@ -1385,6 +1476,16 @@ class ORACog(commands.Cog):
         # ...
         
         # Enqueue
+        # Initialize StatusManager here? Or in handle_prompt?
+        # handle_prompt puts it in queue. The actual processing happens in `desktop_loop` -> `_process_response`.
+        # We should pass the StatusManager to handle_prompt? Or creating it inside the worker?
+        # Creating inside the worker is safer for thread/async context.
+        # But we want to start "Thinking" IMMEDIATELY?
+        # If queue is long, immediate feedback is good.
+        
+        # Let's start "Thinking" here if it's a direct interaction?
+        # No, let's keep it clean. The worker will pick it up and show status.
+        # We just need to ensure the worker CAN create/manage it.
         await self.handle_prompt(message, prompt, is_mention, is_reply_to_me)
 
     async def _process_attachments(self, attachments: List[discord.Attachment], prompt: str, context_message: discord.Message, is_reference: bool = False) -> str:
@@ -1457,6 +1558,55 @@ class ORACog(commands.Cog):
 
                 except Exception as e:
                     logger.error(f"Image process failed: {e}")
+
+        return prompt
+
+    async def _process_embed_images(self, embeds: List[discord.Embed], prompt: str, context_message: discord.Message, is_reference: bool = False) -> str:
+        """Process images found in Embeds (Thumbnail or Image field)."""
+        import aiohttp
+        import base64
+        
+        for embed in embeds:
+            image_url = None
+            if embed.image and embed.image.url:
+                image_url = embed.image.url
+            elif embed.thumbnail and embed.thumbnail.url:
+                image_url = embed.thumbnail.url
+            
+            if not image_url:
+                continue
+                
+            try:
+                # Download Image
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(image_url) as resp:
+                        if resp.status != 200:
+                            logger.warning(f"Failed to download embed image: {resp.status}")
+                            continue
+                        image_data = await resp.read()
+                
+                # Encode (Vision)
+                b64_img = base64.b64encode(image_data).decode('utf-8')
+                mime_type = "image/png" # Default to png, actual type detection might be better but base64 usually works
+                
+                if not hasattr(self, "_temp_image_context"):
+                    self._temp_image_context = {}
+                
+                if context_message.id not in self._temp_image_context:
+                    self._temp_image_context[context_message.id] = []
+                    
+                self._temp_image_context[context_message.id].append({
+                    "type": "image_url", 
+                    "image_url": {"url": f"data:{mime_type};base64,{b64_img}"}
+                })
+                
+                header = "[Referenced Embed Image]" if is_reference else "[Embed Image]"
+                prompt += f"\n\n{header}\n(Image URL: {image_url})\n"
+                
+                # OCR Backup (Optional - skipping for speed/complexity, relying on Vision)
+                
+            except Exception as e:
+                logger.error(f"Failed to process embed image: {e}")
 
         return prompt
         
@@ -1826,21 +1976,26 @@ class ORACog(commands.Cog):
 
         # Send initial progress message if not provided
         start_time = time.time()
+        # Send initial status
+        start_time = time.time()
+        status_manager = StatusManager(message.channel)
         if existing_status_msg:
-            progress_msg = existing_status_msg
-        else:
-            progress_msg = await message.reply("応答を生成中...", mention_author=False)
-
-        # Start the "dots" animation task
-        self.llm_done_event = asyncio.Event()
-        wait_task = asyncio.create_task(self.wait_for_llm(progress_msg))
+             try:
+                 await existing_status_msg.delete()
+             except:
+                 pass
+        
+        await status_manager.start("思考中...")
 
         # Voice Feedback: "Generating..." (Smart Delay)
         voice_feedback_task = None
         if is_voice:
             async def delayed_feedback():
                 await asyncio.sleep(0.5) # 500ms delay
-                if not self.llm_done_event.is_set():
+            async def delayed_feedback():
+                await asyncio.sleep(0.5) # 500ms delay
+                # If status message exists (implicit check for done)
+                if status_manager.message:
                     media_cog = self.bot.get_cog("MediaCog")
                     if media_cog:
                         await media_cog.speak(message.channel, "回答を生成しています")
@@ -1938,6 +2093,8 @@ class ORACog(commands.Cog):
             # Tool Loop
             max_turns = 3
             turn = 0
+            executed_tools = []
+            tool_counts = {}
             
             while turn < max_turns:
                 turn += 1
@@ -1991,6 +2148,30 @@ class ORACog(commands.Cog):
                 if tool_call:
                     tool_name = tool_call["tool"]
                     tool_args = tool_call["args"]
+
+                    # --- LOOP BREAKER / SPAM PROTECTION ---
+                    if tool_name not in tool_counts:
+                        tool_counts[tool_name] = 0
+                    tool_counts[tool_name] += 1
+                    
+                    # 1. Block excessive 'create_file' (Max 1)
+                    if tool_name == "create_file" and tool_counts[tool_name] > 1:
+                        logger.warning("Spam Protection: Blocked extra create_file call.")
+                        messages.append({"role": "user", "content": "Tool Error: 'create_file' can only be used once per turn."})
+                        continue
+
+                    # 2. Block excessive same tool (Max 3)
+                    if tool_counts[tool_name] > 3:
+                        logger.warning(f"Spam Protection: Blocked excessive {tool_name} calls.")
+                        break # Break loop, force answer
+                        
+                    # 3. Block total tool calls (Max 5)
+                    if len(executed_tools) >= 5:
+                         logger.warning("Spam Protection: Max total tool calls reached.")
+                         break
+
+                    executed_tools.append(tool_name)
+                    # --------------------------------------
                     
                     # Update progress message to show tool execution
                     tool_display_name = {
@@ -2005,18 +2186,6 @@ class ORACog(commands.Cog):
                         "leave_voice_channel": "🔊 VC退出",
                     }.get(tool_name, f"🔧 {tool_name}")
                     
-                    # Stop animation and update with tool name
-                    # Stop animation and update with tool name
-                    self.llm_done_event.set()
-                    await wait_task
-                    
-                    # UX Improvement: Show tool status for at least 1.5 seconds
-                    await progress_msg.edit(content=f"{tool_display_name} を実行中...")
-                    await asyncio.sleep(1.5)
-                    
-                    # Restart animation for tool execution
-                    self.llm_done_event.clear()
-                    wait_task = asyncio.create_task(self.wait_for_llm(progress_msg))
                     
                     # Execute Tool
                     if is_voice and tool_name == "google_search":
@@ -2025,7 +2194,7 @@ class ORACog(commands.Cog):
                              query = tool_args.get("query", "")
                              await media_cog.speak_text(message.author, f"{query}について検索しています")
 
-                    tool_result = await self._execute_tool(tool_name, tool_args, message)
+                    tool_result = await self._execute_tool(tool_name, tool_args, message, status_manager=status_manager)
                     
                     if tool_result:
                         # Check for loop (same tool, same args, repeated)
@@ -2046,11 +2215,8 @@ class ORACog(commands.Cog):
                         "content": f"The tool has been executed successfully. Here is the result:\n{tool_result}\n\nUsing the information above, please answer my original question in Japanese. Do not call the tool again."
                     })
                     
-                    await progress_msg.edit(content="結果を分析中...")
-                    
-                    # Restart animation for next LLM call
-                    self.llm_done_event.clear()
-                    wait_task = asyncio.create_task(self.wait_for_llm(progress_msg))
+                    # Update Status for Next Think
+                    await status_manager.next_step("回答生成中...")
                     
                     new_content = await self._llm.chat(messages=messages, temperature=0.7)
                     
@@ -2078,12 +2244,20 @@ class ORACog(commands.Cog):
             else:
                  final_response = self._clean_content(content)
             
-            # Stop animation
-            self.llm_done_event.set()
-            await wait_task
+            # Stop animation / Delete Status
+            await status_manager.finish()
             
-            # Edit message with final response
-            await progress_msg.edit(content=final_response)
+            # Edit message with final response -> Send NEW message (Embed)
+            # User requested to "Delete all status and send text" -> Now "Send Embed"
+            embed = EmbedFactory.create_chat_embed(final_response, footer_text="ORA AI System")
+            try:
+                await message.reply(embed=embed, mention_author=False)
+            except discord.Forbidden:
+                # Fallback to text if Embeds are disabled
+                await message.reply(final_response, mention_author=False)
+            except Exception as e:
+                logger.error(f"Failed to send final embed: {e}")
+                await message.reply(final_response, mention_author=False)
             
             # Voice Response
             if is_voice:
@@ -2104,9 +2278,9 @@ class ORACog(commands.Cog):
             )
 
         except Exception as e:
-            self.llm_done_event.set()
+            await status_manager.finish()
             logger.error(f"Error in handle_prompt: {e}", exc_info=True)
-            await progress_msg.edit(content="申し訳ありません。応答の生成に失敗しました。")
+            await message.reply("申し訳ありません。応答の生成に失敗しました。", mention_author=False)
             if is_voice:
                  media_cog = self.bot.get_cog("MediaCog")
                  if media_cog:
