@@ -3,83 +3,113 @@
 ![ORA Banner](https://img.shields.io/badge/ORA-Universal_AI-7d5bf6?style=for-the-badge&logo=openai)
 ![Status](https://img.shields.io/badge/Status-Operational-brightgreen?style=for-the-badge&logo=discord)
 ![Python](https://img.shields.io/badge/Python-3.11+-blue?style=for-the-badge&logo=python)
-![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
+![Architecture](https://img.shields.io/badge/Architecture-Event--Driven-orange?style=for-the-badge)
 
-**ORA** は、単なるDiscord Botではありません。あなたのPC上で動作し、**視覚（Vision）**、**聴覚（Voice）**、そして **システム制御（Control）** を兼ね備えた、次世代のパーソナルAIアシスタント（Universal Interface）です。
-ローカルLLM (LM Studio) と連携し、プライバシーを守りながら「あなただけの最強の秘書」として機能します。
-
----
-
-## 🌌 Core Architecture (アーキテクチャ)
-
-ORAは3つの要素で構成される「エコシステム」です。
-
-### 1. 🧠 The BRAIN (思考中枢)
-*   **Local LLM Integration**: LM Studio (Mistral, LLaMA 3, Qwen) を脳として使用。API代を気にせず無限に思考できます。
-*   **Universal Memory (SQL)**: 会話履歴、生成された画像、ユーザー情報をSQLデータベースで一元管理。
-*   **True Vision**: 画像を直接「見る」能力を持ち、グラフの解析やゲーム画面のアドバイスが可能です。
-
-### 2. 🗣️ The BODY (身体・インターフェース)
-*   **Neural Voice**: VoiceVoxエンジンを使用し、遅延を感じさせない自然な日本語で対話します。
-*   **Automatic Deafening**: 接続安定化のため、Discord Gatewayに対し適切なステータス管理を行います。
-*   **Ear (Whisper)**: あなたの話す言葉をリアルタイムでテキスト化し、聞き取ります。
-
-### 3. 🛡️ The GUARDIAN (システム制御)
-*   **Admin Sandbox**: PCの操作権限を持ちながらも、安全なサンドボックス内で動作（許可アプリのみ起動可能）。
-*   **Self-Healing**: 自身のコードにエラーが発生した場合、自律的に修復を試みる「自己修復機能」を搭載。
+> **"Your PC, Your Data, Your AI."**
+> ORAは、クラウドAIの制約からあなたを解放する、完全ローカル指向の次世代AIアシスタントです。
 
 ---
 
-## 🚀 Roadmap & Future Features (今後の展望)
+## 🌟 What makes ORA Amazing? (ORAの何が凄いの？)
 
-現在、以下の機能を開発・計画中です。これにより、ORAはDiscordの枠を超えた「Webプラットフォーム」へと進化します。
+ORAは単なる「チャットボット」ではありません。あなたのPCの中に住む、**独立した人格を持つパートナー**です。
+
+### 1. 🧠 完全ローカル思考 (Local Brain)
+ChatGPTやGeminiのAPIに依存せず、あなたのPC内にある **LM Studio** を脳として使用します。
+*   **プライバシー完全保護**: あなたの会話内容が外部サーバーに送信され、学習に使われることはありません。
+*   **検閲なし**: 商用AIのような厳しいフィルタリングがなく、あなたが望む通りの自由な会話が可能です。
+*   **コストゼロ**: どれだけ会話しても、どれだけ画像を解析しても、API料金は一切かかりません。
+
+### 2. 👁️ 真の視覚能力 (True Vision)
+ORAは画像を「文字」としてではなく「映像」として理解します。
+*   「このエラー何？」と画面写真を送れば、ログを読んで解決策を提示します。
+*   「このグラフを分析して」と言えば、トレンドを読み解きます。
+*   ゲーム画面を見せてアドバイスを求めたり、イラストの感想を言い合うことも可能です。
+
+### 3. 🔊 感情を持つ声 (Neural Voice)
+ただの機械音声ではありません。**VoiceVox** エンジンと連携し、感情豊かに喋ります。
+まるで隣にいるかのようなレスポンス速度で、あなたのDiscord通話に参加し、読み上げや雑談を行います。
+
+### 4. 🛡️ 鉄壁の守り (The Guardian)
+「AIにPCを乗っ取られるのでは？」という心配は無用です。
+ORAは **Sandbox (砂場)** アーキテクチャを採用しており、許可されたアプリ（メモ帳、電卓、ブラウザ等）以外には指一本触れることができません。
+さらに、重要な操作には **管理者権限 (Owner Permission)** が必須となる二重ロックシステムを搭載しています。
+
+---
+
+## ⚙️ Architecture & Mechanism (仕組み)
+
+ORAは3つの独立したモジュールが連携して動く **分散型アーキテクチャ** を採用しています。
+
+```mermaid
+graph TD
+    User[👤 User] -->|Voice/Chat| Discord[🎮 Discord Gateway]
+    
+    subgraph "ORA Core System (Your PC)"
+        Discord -->|Event| Body[🗣️ The BODY\n(Discord.py Client)]
+        
+        Body -->|See Image| Vision[👁️ Vision Module]
+        Body -->|Hear Audio| Ears[👂 Whisper STT]
+        
+        Body -->|Think| Brain[🧠 The BRAIN\n(LM Studio / Local LLM)]
+        Brain -->|Response| Body
+        
+        Body -->|Speak| Mouth[🔊 VoiceVox Engine]
+        Body -->|Action| Guardian[🛡️ Guardian Sandbox]
+        
+        Guardian -->|Safe Exec| Apps[📂 Allowed Apps\n(Notepad/Chrome)]
+        Guardian -.->|Block| Dangerous[❌ Dangerous Ops\n(System/Delete)]
+    end
+    
+    Brain -->|Store Memory| DB[(🗄️ SQLite Database)]
+```
+
+### 1. The BRAIN (思考中枢)
+*   **Engine**: LM Studio (OpenAI-compatible Server)
+*   **Context Management**: 会話履歴を自動で要約・圧縮し、長期記憶として保持します。これにより「さっきの話だけど」が通じます。
+*   **Fallback**: 画像認識ができないモデル（Mistral等）を使用している場合、自動でGoogle Cloud Vision APIやOCRエンジンに切り替える「自動判断機能」を持っています。
+
+### 2. The BODY (身体)
+*   **Event-Driven**: Discordからのイベント（発言、入室、リアクション）を0.1秒単位で検知・反応します。
+*   **Voice Pipeline**: 音声を「受信(Whisper)」→「思考(LLM)」→「発話(VoiceVox)」のパイプラインで処理し、リアルタイムに近い対話を実現しています。
+
+### 3. The GUARDIAN (管理者)
+*   **Scope Checking**: 全てのコマンド実行前にユーザーのIDと権限レベルを確認します。
+*   **Whitelist Execution**: 事前にコード内で定義された `ALLOWED_APPS` リストにあるプログラムしか起動できません。これにより、AIハルシネーションによる誤操作を物理的に防いでいます。
+
+---
+
+## 🚀 Roadmap & Future (今後の展望)
+
+ORAは現在も進化の途中です。Discordという「窓」を通して、Webやモバイルまで世界を広げようとしています。
 
 ### 🔐 Google OAuth Integration (実装予定)
-*   **Secure Login**: Googleアカウントを使用した安全なシングルサインオン(SSO)を実装します。
-*   **Personalized Experience**: ユーザーごとの設定や履歴をクラウドレベルで同期・管理可能にします。
+*   **概要**: Googleアカウントによる安全なログイン。
+*   **目的**: 家族や友人がORAを使う際、それぞれの「専用設定」や「専用の記憶」を持てるようにします。
 
 ### 📊 SQL Web Dashboard (実装予定)
-*   **Web UI**: ブラウザから直接アクセスできる管理画面を提供します。
-*   **Data Visualization**: 会話統計、トークン使用量、サーバー負荷などをグラフで可視化します。
-*   **Log Explorer**: SQLデータベースに蓄積された過去の会話ログやエラーログを、Web上で検索・閲覧可能にします。
+*   **概要**: ブラウザで見れる管理画面。
+*   **目的**: 「今日ORAと何話したっけ？」をカレンダー形式で見返したり、生成した画像のコレクションアルバムをWebで見れるようにします。
 
-### 🖼️ Web Gallery & Chat Interface (実装予定)
-*   **Image Gallery**: 生成した画像（Stable Diffusion）をWeb上で一覧表示・管理・ダウンロードできるギャラリー機能。
-*   **Web Chat**: Discordを開かなくても、ブラウザからORAと直接会話できるインターフェース。
-*   **Cross-Platform**: スマホやタブレットのブラウザからも、自宅のPCで動くORAを操作可能にします。
+### 🖼️ Web Gallery & Chat (実装予定)
+*   **概要**: Discord不要のWebインターフェース。
+*   **目的**: スマホのブラウザから直接ORAに話しかけたり、外出先から家のPCのORAに指示を出せるようになります。
 
 ---
 
-## 🎮 Command Reference (コマンド一覧)
+## 🛠️ Tech Stack (技術スタック)
 
-### 🗣️ Voice & Music
-| コマンド | 動作 | 詳細 |
+エンジニア向けの技術情報です。
+
+| Component | Technology | Role |
 | :--- | :--- | :--- |
-| `join_voice_channel` | VC参加 | 読み上げを開始します。 |
-| `music_play` | 音楽再生 | YouTubeからストリーミング再生します（メモリバッファリング）。 |
-| `skip` / `stop` | 制御 | 曲のスキップ・停止。 |
-| `change_voice` | 声変更 | 「ずんだもん」「四国めたん」などに変更。 |
-| **「さっきの曲戻して」** | リプレイ | 履歴から1つ前の曲を再生します。 |
-
-### 🛠️ System & Admin
-| ツール名 | 動作 | 詳細 |
-| :--- | :--- | :--- |
-| `get_system_stats` | 監視 | CPU/GPU/VRAMの状態を表示。 |
-| `system_control` | PC操作 | 音量調整、メモ帳起動など（管理者のみ）。 |
-| `create_channel` | 管理 | チャンネル作成（Sub-Admin以上）。 |
-
----
-
-## ⚠️ Setup Guide (導入手順)
-
-### 必須要件
-*   **OS**: Windows 10 / 11
-*   **VoiceVox**: 音声合成エンジン
-*   **LM Studio**: ローカルLLMサーバー
-*   **Stable Diffusion (A1111)**: 画像生成用（API有効化必須）
-
-### 重要: 依存ファイル
-`libopus-0.x64.dll` がルートディレクトリに必須です。これがないとVC接続がタイムアウトします。
+| **Language** | Python 3.11 | Core Logic |
+| **Bot Framework** | discord.py 2.3+ | Discord API Wrapper |
+| **LLM Server** | LM Studio / Ollama | Local Inference Server |
+| **Vision** | Pillow / OpenCV / Tesseract | Image Processing & OCR |
+| **Voice** | VoiceVox Engine | Neural TTS |
+| **Database** | SQLite3 (aiobos) | Asynchronous Data Persistence |
+| **Audio** | PyNaCl / Opus | Voice Encoding |
 
 ---
 
