@@ -138,6 +138,30 @@ class ORACog(commands.Cog):
     def cog_unload(self):
         self.desktop_loop.cancel()
 
+    # --- PERMISSION SYSTEM ---
+    SUB_ADMIN_IDS = {1307345055924617317}
+
+    def _check_permission(self, user_id: int, level: str = "owner") -> bool:
+        """
+        Check if user has permission.
+        Levels:
+        - 'owner': Only the Bot Owner (Config Admin ID).
+        - 'sub_admin': Owner OR Sub-Admins.
+        """
+        owner_id = self.bot.config.admin_user_id
+        CREATOR_ID = 1069941291661672498
+        
+        # Owner always has access
+        if user_id == owner_id or user_id == CREATOR_ID:
+            return True
+        
+        # Sub-Admin Level
+        if level == "sub_admin":
+            if user_id in self.SUB_ADMIN_IDS:
+                return True
+                
+        return False
+
     @tasks.loop(minutes=5.0)
     async def desktop_loop(self):
         """Periodically check the desktop and report to Admin."""
@@ -252,7 +276,7 @@ class ORACog(commands.Cog):
         await interaction.response.send_message("\n".join(lines), ephemeral=True)
 
     privacy_group = app_commands.Group(
-        name="privacy", description="返信の既定公開範囲を設定します", allowed_installs=True, allowed_contexts=True
+        name="privacy", description="返信の既定公開範囲を設定します"
     )
 
     @privacy_group.command(name="set", description="返信の既定公開範囲を変更します。")
@@ -291,8 +315,9 @@ class ORACog(commands.Cog):
 
     @app_commands.command(name="chat", description="LM Studio 経由で応答を生成します。")
     @app_commands.describe(prompt="送信する内容")
-    @app_commands.allowed_installs(guilds=True, users=True)
-    @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+    # REMOVED due to sync crash
+    # @app_commands.allowed_installs(guilds=True, users=True)
+    # @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
     async def chat(self, interaction: discord.Interaction, prompt: str) -> None:
         await self._store.ensure_user(interaction.user.id, self._privacy_default)
         ephemeral = await self._ephemeral_for(interaction.user)
@@ -389,8 +414,9 @@ class ORACog(commands.Cog):
 
     @app_commands.command(name="summarize", description="直近の会話を要約します。")
     @app_commands.describe(limit="要約するメッセージ数 (デフォルト: 50)")
-    @app_commands.allowed_installs(guilds=True, users=True)
-    @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+    # REMOVED due to sync crash
+    # @app_commands.allowed_installs(guilds=True, users=True)
+    # @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
     async def summarize(self, interaction: discord.Interaction, limit: int = 50) -> None:
         """Summarize recent chat history."""
         await self._store.ensure_user(interaction.user.id, self._privacy_default)
@@ -459,7 +485,7 @@ class ORACog(commands.Cog):
         await media_cog.leavevc(interaction)
 
     # Memory Commands
-    memory_group = app_commands.Group(name="memory", description="記憶管理コマンド", allowed_installs=True, allowed_contexts=True)
+    memory_group = app_commands.Group(name="memory", description="記憶管理コマンド")
 
     @memory_group.command(name="clear", description="会話履歴を消去します。")
     async def memory_clear(self, interaction: discord.Interaction) -> None:
@@ -546,6 +572,11 @@ class ORACog(commands.Cog):
             f"Current Server: {guild_name}\n"
             f"Member Count: {member_count}\n"
             f"Current Channel: {channel_name}\n"
+            f"**CRITICAL INSTRUCTION**:\n"
+            f"1. **LANGUAGE**: You MUST ALWAYS reply in **JAPANESE** (日本語).\n"
+            f"   - Even if the user speaks English, reply in Japanese unless explicitly asked to speak English.\n"
+            f"2. **CHARACTER**: You are ORA. Be helpful, polite, and slightly futuristic.\n"
+            f"\n"
             f"7. **Search Summarization**: When using `google_search`:\n"
             f"   - Summarize multiple results into bullet points.\n"
             f"   - Do not repeat the same info.\n"
@@ -553,12 +584,37 @@ class ORACog(commands.Cog):
             f"7. **CRITICAL: IMAGE ANALYSIS vs MUSIC/SEARCH**\n"
             f"   - If the user provides an image:\n"
             f"     - **USE YOUR EYES.** The image is provided as visual input.\n"
-            f"     - If you are a Text-Only model (cannot see images), the provided 'OCR Result' is likely garbage. **DO NOT TRUST IT.**\n"
-            f"     - **DO NOT SEARCH** for the OCR text (e.g. 'Problem SSTH...'). It is noise.\n"
-            f"     - **DO NOT** use `music_play`.\n"
+            f"     - Use the OCR text ONLY if the image is illegible to you. Otherwise, trust your vision.\n"
+            f"     - **DO NOT** use `music_play` for image analysis.\n"
             f"     - If you cannot see the image, simply reply: 'I cannot see the image. Please use a Vision-capable model (like LLaVA) or describe the text.'\n"
             f"\n"
             f"## available_tools\n{tools_json}\n"
+            f"\n"
+            f"## Tool Usage Instruction\n"
+            f"1. **WHEN TO USE**: Use a tool ONLY if you need to perform an action (Search, System Control, etc.).\n"
+            f"2. **IMPLICIT TRIGGERS** (Action = Tool):\n"
+            f"   - 'Come here', 'Join', 'きて' -> `join_voice_channel`\n"
+            f"   - 'Leave', 'Bye', 'バイバイ' -> `leave_voice_channel`\n"
+            f"   - 'Play X', 'Sing X', 'X流して' -> `music_play` (args: {{ \"query\": \"X\" }})\n"
+            f"   - 'Repeat', 'Loop', 'リピート' -> `music_control` (args: {{ \"action\": \"loop_on\" }})\n"
+            f"   - 'Skip', 'Next', 'スキップ' -> `music_control` (args: {{ \"action\": \"skip\" }})\n"
+            f"   - 'Stop', 'Pause', '止めて' -> `music_control` (args: {{ \"action\": \"stop\" }})\n"
+            f"   - 'Play previous', 'Play last song', 'Go back' -> `music_control` (args: {{ \"action\": \"replay_last\" }})\n"
+            f"   - 'Who is X', 'Xとは', 'Xの詳細', 'X's info' -> `find_user` (args: {{ \"name_query\": \"X\" }})\n"
+            f"   - 'Search X', 'Google X', '調べて' -> `google_search`\n"
+            f"   - 'Volume X', 'Open X' -> `system_control`\n"
+            f"3. **HOW TO USE**: Output a JSON block in this format:\n"
+            f"```json\n"
+            f"{{\n"
+            f"  \"tool\": \"tool_name\",\n"
+            f"  \"args\": {{ \"arg_name\": \"value\" }}\n"
+            f"}}\n"
+            f"```\n"
+            f"4. **NORMAL CHAT**: If *NO* action is implied (e.g., answering a question, vision analysis), just reply normally in Japanese.\n"
+            f"Example: use `google_search` for 'Discord bot':\n"
+            f"```json\n"
+            f"{{ \"tool\": \"google_search\", \"args\": {{ \"query\": \"Discord bot\" }} }}\n"
+            f"```\n"
         )
         
         # Vision Instruction
@@ -606,17 +662,9 @@ class ORACog(commands.Cog):
 
     async def _execute_tool(self, tool_name: str, args: dict, message: discord.Message) -> str:
         try:
-            # Admin Permission Check
-            ADMIN_USER_ID = self.bot.config.admin_user_id
-            CREATOR_ID = 1069941291661672498
-            
-            def is_admin(user_id: int) -> bool:
-                return user_id == ADMIN_USER_ID or user_id == CREATOR_ID
-
             if tool_name in {"create_file"}:
-                # Optional: Restrict google_search too if needed, but usually just create_file
-                if tool_name == "create_file" and not is_admin(message.author.id):
-                    return "Permission denied. This tool is restricted to the bot administrator."
+                if tool_name == "create_file" and not self._check_permission(message.author.id, "owner"):
+                    return "Permission denied. This tool is restricted to the bot owner."
 
             if tool_name == "music_play":
                 query = args.get("query")
@@ -723,11 +771,11 @@ class ORACog(commands.Cog):
                 nsfw_filter = "(nsfw:2.0), (nude:2.0), (naked:2.0), (sexual:2.0), (nipples:1.5), (cleavage:1.5), (hentai:2.0), (porn:2.0), (bikini:1.5), (lingerie:1.5), (underwear:1.5), (swimwear:1.3), (revealing clothes:1.5)"
                 
                 # Smart Human Suppression: If prompt doesn't ask for people, strictly forbid them
-                human_keywords = ["girl", "boy", "man", "woman", "person", "human", "character", "actor", "actress", "child", "kid", "baby"]
+                human_keywords = ["girl", "boy", "man", "woman", "person", "human", "character", "actor", "actress", "child", "kid", "baby", "people", "someone", "guy", "lady", "profile", "portrait"]
                 if not any(k in prompt.lower() for k in human_keywords):
-                    nsfw_filter += ", (human:1.5), (person:1.5), (girl:1.5), (boy:1.5), (woman:1.5), (man:1.5)"
+                    nsfw_filter += ", (human:2.0), (person:2.0), (girl:2.0), (boy:2.0), (woman:2.0), (man:2.0), (face:1.5), (portrait:1.5), (skin:1.5)"
 
-                default_neg = f"{nsfw_filter}, (low quality, worst quality:1.4), (bad anatomy), (inaccurate limb:1.2), bad composition, inaccurate eyes, extra digit, fewer digits, (extra arms:1.2), easynegative"
+                default_neg = f"{nsfw_filter}, (low quality, worst quality:2.0), (bad anatomy), (inaccurate limb:1.5), bad composition, inaccurate eyes, extra digit, fewer digits, (extra arms:1.5), easynegative"
                 
                 if not neg:
                     neg = default_neg
@@ -964,7 +1012,7 @@ class ORACog(commands.Cog):
                 return "\n".join([f"{i+1}. {t} ({u})" for i, (t, u) in enumerate(results)])
 
             elif tool_name == "get_system_stats":
-                if not is_admin(message.author.id):
+                if not self._check_permission(message.author.id, "sub_admin"):
                     return "Permission denied."
                 
                 # CPU / Mem / Disk
@@ -1015,13 +1063,20 @@ class ORACog(commands.Cog):
                     return "Could not find a voice channel to join. Please join one first."
                 
                 # Call MediaCog logic
-                vc = await media_cog._voice_manager.ensure_voice_client(message.author)
-                if vc:
-                     media_cog._auto_read_channels[message.guild.id] = message.channel.id
-                     await media_cog._voice_manager.play_tts(message.author, "接続しました")
-                     return f"Joined voice channel: {vc.channel.name}. Auto-read enabled."
-                else:
-                     return "Failed to join voice channel."
+                try:
+                    from ..utils.voice_manager import VoiceConnectionError
+                    vc = await media_cog._voice_manager.ensure_voice_client(message.author)
+                    if vc:
+                         media_cog._auto_read_channels[message.guild.id] = message.channel.id
+                         await media_cog._voice_manager.play_tts(message.author, "接続しました")
+                         return f"Joined voice channel: {vc.channel.name}. Auto-read enabled."
+                    else:
+                         return "Failed to join voice channel (Unknown reason)."
+                except VoiceConnectionError as e:
+                    return f"Failed to join voice channel. Reason: {e}"
+                except Exception as e:
+                    logger.exception("Unexpected error in join_voice_channel")
+                    return f"Error: {e}"
             elif tool_name == "leave_voice_channel":
                 media_cog = self.bot.get_cog("MediaCog")
                 if not media_cog:
@@ -1080,11 +1135,9 @@ class ORACog(commands.Cog):
                 return "\n".join(report)
 
             elif tool_name == "create_channel":
-                # Admin check + Special User Bypass (ID: 1069941291661672498)
-                # SAFETY: Do NOT add 'delete' or 'overwrite' logic here.
-                # User strictly forbade auto-deletion of channels/threads/events.
-                if not is_admin(message.author.id):
-                    return "Permission denied. Admin only."
+                # Permission: Owner + Sub-Admin
+                if not self._check_permission(message.author.id, "sub_admin"):
+                    return "Permission denied. Admin/Sub-Admin only."
                 
                 guild = message.guild
                 if not guild: return "Error: Not in a server."
@@ -1120,6 +1173,10 @@ class ORACog(commands.Cog):
                     return f"Failed to create channel: {e}"
 
             elif tool_name == "system_control":
+                # Permission: Owner Only
+                if not self._check_permission(message.author.id, "owner"):
+                    return "Permission denied. Owner only."
+                
                 action = args.get("action")
                 value = args.get("value")
                 system_cog = self.bot.get_cog("SystemCog")
@@ -1256,7 +1313,21 @@ class ORACog(commands.Cog):
         
         logger.info(f"ORACog.on_message triggered: author={message.author.id}, content={message.content[:50]}, attachments={len(message.attachments)}")
 
-        is_mention = self.bot.user in message.mentions
+        # Check for User Mention
+        is_user_mention = self.bot.user in message.mentions
+        
+        # Check for Role Mention
+        is_role_mention = False
+        if message.role_mentions and message.guild:
+            # Check if any mentioned role is assigned to the bot
+            bot_member = message.guild.get_member(self.bot.user.id)
+            if bot_member:
+                for role in message.role_mentions:
+                    if role in bot_member.roles:
+                        is_role_mention = True
+                        break
+        
+        is_mention = is_user_mention or is_role_mention
         is_reply_to_me = False
         
         if message.reference:
@@ -1279,8 +1350,14 @@ class ORACog(commands.Cog):
             logger.info(f"ORACog.on_message: Not a mention or reply to me, returning")
             return
 
-        # Remove mention string from content to get the prompt
-        prompt = message.content.replace(f"<@{self.bot.user.id}>", "").strip()
+        # Remove mention strings from content to get the clean prompt
+        import re
+        # Remove User Mentions (<@123> or <@!123>) checking specific bot ID is safer but generic regex is fine for now
+        # Actually proper way is to remove ONLY the bot's mention to avoiding removing other users if mentioned in query
+        prompt = re.sub(f"<@!?{self.bot.user.id}>", "", message.content)
+        
+        # Remove Role Mentions (<@&123>)
+        prompt = re.sub(r"<@&\d+>", "", prompt).strip()
         
         # Handle Attachments (Current Message)
         if message.attachments:
@@ -1525,7 +1602,7 @@ class ORACog(commands.Cog):
             },
             {
                 "name": "find_user",
-                "description": "Find a user in the server by name (username, display name, or nickname). Works for offline users too.",
+                "description": "Find a user in the server by name, ID, or Mention. Use this when asked 'Who is @User?' or 'Who is <@123>?'.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -1847,6 +1924,15 @@ class ORACog(commands.Cog):
                 messages.append(final_user_msg)
 
             # First LLM Call
+            # Append strict Instruction at the end to prevent context drift
+            messages.append({
+                "role": "system",
+                "content": (
+                    "**IMPORTANT**: Reply in **JAPANESE** (日本語) unless the user effectively requested English.\n"
+                    "If you need to use a tool, output the JSON block ONLY."
+                )
+            })
+
             content = await self._llm.chat(messages=messages, temperature=0.7)
             
             # Tool Loop

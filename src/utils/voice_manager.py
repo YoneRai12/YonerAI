@@ -18,6 +18,10 @@ from .edge_tts_client import EdgeTTSClient
 from .gtts_client import GTTSClient
 import audioop
 
+class VoiceConnectionError(Exception):
+    """Raised when the bot fails to connect to a voice channel."""
+    pass
+
 
 logger = logging.getLogger(__name__)
 
@@ -165,6 +169,7 @@ class GuildMusicState:
         self.current = None  # (url_or_path, title, is_stream)
         self.volume = 0.06
         self.voice_client: Optional[discord.VoiceClient] = None
+        self.history = [] # List of (url_or_path, title, is_stream)
 
 class VoiceManager:
     """Manages Discord voice clients for playback, recording, and music queue."""
@@ -191,33 +196,63 @@ class VoiceManager:
 
     async def ensure_voice_client(self, member: discord.Member) -> Optional[discord.VoiceClient]:
         if member.voice is None or member.voice.channel is None:
-            return None
+            raise VoiceConnectionError("ユーザーがボイスチャンネルに参加していません。")
 
         channel = member.voice.channel
         guild = member.guild
         voice_client = guild.voice_client
 
-        try:
-            if voice_client and voice_client.channel != channel:
-                await voice_client.move_to(channel)
-            elif not voice_client:
-                # IMPORTANT: self_deaf=True is often required for bots to connect successfully
-                voice_client = await channel.connect(timeout=15.0, reconnect=True, self_deaf=True)
-        except (asyncio.TimeoutError, discord.ClientException) as e:
-            logger.error(f"Failed to connect/move voice channel: {e}")
-            # Try to recover or return None
-            # If ClientException (already connected), we should try to grab stats
-            if guild.voice_client:
-                 voice_client = guild.voice_client
-            else:
-                 return None
-        except Exception as e:
-            logger.exception(f"Unexpected voice error: {e}")
-            return None
+        # Retry attempts for voice connection
+        last_error = None
+        for attempt in range(1, 4):
+            try:
+                # Force cleanup of zombies
+                if attempt > 1 and voice_client and voice_client.is_connected():
+                     await voice_client.disconnect(force=True)
+                     voice_client = None
 
-        # Update state
-        self._music_states[guild.id].voice_client = voice_client
-        return voice_client
+                if voice_client and voice_client.channel != channel:
+                    await voice_client.move_to(channel)
+                elif not voice_client or not voice_client.is_connected():
+                    # IMPORTANT: self_deaf=True helps stability
+                    try:
+                        voice_client = await channel.connect(timeout=30.0, reconnect=True, self_deaf=True)
+                    except discord.ClientException:
+                        # Race condition: already connected
+                        voice_client = guild.voice_client
+                
+                # Success
+                self._music_states[guild.id].voice_client = voice_client
+                return voice_client
+
+            except asyncio.TimeoutError as e:
+                logger.warning(f"Voice connection attempt {attempt}/3 timed out. Retrying...")
+                last_error = e
+                # Try to force disconnect if it exists
+                if guild.voice_client:
+                    try:
+                        await guild.voice_client.disconnect(force=True)
+                    except:
+                        pass
+                await asyncio.sleep(2)
+                # Refresh voice client state
+                voice_client = guild.voice_client
+            except discord.ClientException as e:
+                # Already connected?
+                if guild.voice_client and guild.voice_client.is_connected():
+                     voice_client = guild.voice_client
+                     break
+                else:
+                    logger.error(f"Voice ClientException: {e}")
+                    raise VoiceConnectionError(f"接続エラー (ClientException): {e}")
+            except Exception as e:
+                logger.exception(f"Unexpected voice error attempt {attempt}: {e}")
+                last_error = e
+                await asyncio.sleep(1)
+
+        # If we get here, we failed
+        logger.error("Failed to connect to voice after 3 attempts.")
+        raise VoiceConnectionError(f"ボイスチャンネルへの接続に失敗しました (タイムアウト/エラー): {last_error}")
 
     async def play_tts(self, member: discord.Member, text: str) -> bool:
         if not text or not text.strip():
@@ -370,11 +405,21 @@ class VoiceManager:
             # Replay current
             url_or_path, title, is_stream = state.current
         elif state.queue:
+            # Save current to history before switching
+            if state.current:
+                state.history.insert(0, state.current)
+                if len(state.history) > 20: # Limit history
+                    state.history.pop()
+            
             # Get next from queue
             url_or_path, title, is_stream = state.queue.pop(0)
             state.current = (url_or_path, title, is_stream)
         else:
             # Queue empty
+            if state.current:
+                state.history.insert(0, state.current)
+                if len(state.history) > 20: 
+                    state.history.pop()
             state.current = None
             return
 
@@ -435,6 +480,35 @@ class VoiceManager:
         
         if state.voice_client and state.voice_client.is_playing():
             state.voice_client.stop() # This triggers after_callback -> _play_next
+
+    def replay_previous(self, guild_id: int) -> bool:
+        """Play the last song from history."""
+        state = self.get_music_state(guild_id)
+        if not state.history:
+            return False
+        
+        # Get last track
+        last_track = state.history.pop(0)
+        
+        # If currently playing, we want to play this NOW.
+        # So we push current to queue (front), push last_track to queue (front), then skip?
+        # Or simpler: Push last_track to FRONT of queue, then skip current.
+        
+        # Wait, if we are playing song A. History has B.
+        # User says "Play prev".
+        # We want to play B.
+        # Should A go to history? Yes, skip() handles that naturally via _play_next logic we just added?
+        # Wait, our _play_next logic saves current to history ONLY if queue pop happens or queue empty.
+        # If we skip, `stop()` triggers `_play_next`.
+        # correct.
+        
+        state.queue.insert(0, last_track)
+        if state.voice_client and state.voice_client.is_playing():
+            state.voice_client.stop() # Triggers _play_next which picks up the text track
+        else:
+            self._play_next(guild_id)
+            
+        return True
 
     def stop_playback(self, guild_id: int):
         """Stop current playback without clearing queue (for Barge-in)."""

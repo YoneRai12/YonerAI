@@ -24,7 +24,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from ..storage import Store
-from ..utils.voice_manager import VoiceManager, HotwordCallback
+from ..utils.voice_manager import VoiceManager, HotwordCallback, VoiceConnectionError
 # Import helper utilities for YouTube playback and flag translation
 from ..utils.youtube import get_youtube_audio_stream_url, download_youtube_audio
 from ..utils.flag_utils import flag_to_iso, iso_to_flag, country_to_flag, get_country_name
@@ -78,13 +78,21 @@ class MediaCog(commands.Cog):
             logger.critical("PyNaCl is MISSING. Voice will FAIL.")
 
         if not discord.opus.is_loaded():
+            import os
             try:
-                # Try common Windows filename if not found automatically
-                discord.opus.load_opus('libopus-0.x64.dll')
-                logger.info("Opus loaded successfully via local DLL.")
+                # Try common Windows filenames with ABSOLUTE paths (Critical for Python 3.8+)
+                try:
+                    dll_path = os.path.abspath('libopus-0.x64.dll')
+                    discord.opus.load_opus(dll_path)
+                    logger.info(f"Opus loaded successfully from {dll_path}")
+                except Exception:
+                    # Fallback to standard filename
+                    dll_path = os.path.abspath('libopus-0.dll')
+                    discord.opus.load_opus(dll_path)
+                    logger.info(f"Opus loaded successfully from {dll_path}")
             except Exception as e:
                 logger.critical(f"Opus Library NOT FOUND. Voice will TIMEOUT. error={e}")
-                logger.critical("Please download 'libopus-0.x64.dll' to the bot root directory.")
+                logger.critical("Please download 'libopus-0.dll' (64-bit) to the bot root directory.")
 
 
     async def _ephemeral_for(self, user: discord.abc.User, override: Optional[bool] = None) -> bool:
@@ -504,10 +512,12 @@ class MediaCog(commands.Cog):
         send_ephemeral = await self._ephemeral_for(interaction.user, ephem)
         await interaction.response.defer(ephemeral=send_ephemeral)
         # Ensure voice client exists
-        voice_client = await self._voice_manager.ensure_voice_client(interaction.user)
-        if voice_client is None:
+        try:
+            from ..utils.voice_manager import VoiceConnectionError
+            voice_client = await self._voice_manager.ensure_voice_client(interaction.user)
+        except VoiceConnectionError as e:
             await interaction.followup.send(
-                "ボイスチャンネルに参加していないため、自動読み上げを開始できません。",
+                f"ボイスチャンネルへの参加に失敗しました。\n理由: {e}",
                 ephemeral=send_ephemeral,
             )
             return
@@ -565,11 +575,23 @@ class MediaCog(commands.Cog):
             return
         channel_id = self._auto_read_channels.get(guild.id)
         
-        # Debug logging
-        # Debug logging
-        logger.info(f"on_message: content='{message.content}', author_id={message.author.id}, channel={message.channel.id}, mapped={channel_id}")
+        # Logic: Read if (Mapped Channel) OR (User in same Voice Channel)
+        should_read = False
+        
+        # 1. Check strict mapping
+        if channel_id and channel_id == message.channel.id:
+            should_read = True
+            
+        # 2. Check Co-location (If not explicitly mapped or mapped elsewhere, we still read if in same VC?)
+        # Let's say Co-location overrides mapping restrictions for CONVENIENCE.
+        if not should_read and message.author.voice and message.author.voice.channel:
+             vc = guild.voice_client
+             if vc and vc.is_connected() and vc.channel == message.author.voice.channel:
+                 should_read = True
+                 # Optional: Auto-update mapping to current channel for convenience?
+                 # No, that might be confusing. Just read.
 
-        if channel_id is None or channel_id != message.channel.id:
+        if not should_read:
             return
         
         logger.info(f"Reading message: {message.clean_content}")
@@ -748,6 +770,12 @@ class MediaCog(commands.Cog):
             if state["queue"]:
                 msg += "**キュー:**\n" + "\n".join([f"{i+1}. {t}" for i, t in enumerate(state["queue"], 1)])
             await ctx.send(msg)
+        elif action == "replay_last":
+            success = self._voice_manager.replay_previous(guild_id)
+            if success:
+                await ctx.send("前の曲を再生します ⏮️")
+            else:
+                await ctx.send("履歴がありません")
 
     # ------------------------------------------------------------------
     # Safe Auto-Disconnect Logic

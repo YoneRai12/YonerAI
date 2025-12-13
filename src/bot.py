@@ -118,7 +118,8 @@ class ORABot(commands.Bot):
         self.tree.on_error = self.on_app_command_error
         
         # Only sync if explicitly requested or in Dev environment
-        if os.getenv("SYNC_COMMANDS", "false").lower() == "true":
+        # CHANGED: Default to "true" to ensure commands appear for the user
+        if os.getenv("SYNC_COMMANDS", "true").lower() == "true":
             await self._sync_commands()
         else:
             logger.info("Skipping command sync (SYNC_COMMANDS != true)")
@@ -318,12 +319,16 @@ async def run_bot() -> None:
                 await asyncio.gather(*pending, return_exceptions=True)
 
 
-def main() -> None:
+async def main() -> None:
     try:
-        asyncio.run(run_bot())
+        await run_bot()
+    except asyncio.CancelledError:
+        pass
     except KeyboardInterrupt:
         logger.info("Interrupted by user. Exiting.")
 
-
 if __name__ == "__main__":
-    main()
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        pass
