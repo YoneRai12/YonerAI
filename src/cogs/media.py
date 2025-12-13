@@ -65,6 +65,9 @@ class MediaCog(commands.Cog):
         # (title, stream_url_or_path) tuples. This simple queue allows users to
         # enqueue multiple tracks which will play sequentially.
         self._music_queues: dict[int, list[tuple[str, str]]] = {}
+        
+        # VC Points Tracking (User ID -> Start Timestamp)
+        self.vc_start_times: dict[int, float] = {}
 
         # Check for Voice Dependencies
         self.check_voice_dependencies()
@@ -634,6 +637,23 @@ class MediaCog(commands.Cog):
                  # User Left Bot's Channel
                  elif before.channel and before.channel.id == bot_channel.id and (not after.channel or after.channel.id != bot_channel.id):
                       await self._voice_manager.play_tts(member, f"{member.display_name}さんが退出しました")
+
+        # 3. VC Points Logic
+        import time
+        # Join Event (or Switch to new channel)
+        if after.channel is not None and (before.channel is None or before.channel.id != after.channel.id):
+            if not member.bot:
+                 self.vc_start_times[member.id] = time.time()
+        
+        # Leave Event (or Switch away from channel)
+        if before.channel is not None and (after.channel is None or after.channel.id != before.channel.id):
+             if not member.bot and member.id in self.vc_start_times:
+                 start_time = self.vc_start_times.pop(member.id)
+                 duration = time.time() - start_time
+                 minutes = int(duration / 60)
+                 if minutes > 0:
+                     await self._store.add_points(member.id, minutes)
+                     logger.info(f"Awarded {minutes} points to {member.display_name} for VC duration.")
 
         # 2. Auto-Disconnect Logic (existing)
         # Only care about users leaving a channel

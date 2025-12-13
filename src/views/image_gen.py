@@ -30,9 +30,21 @@ class ResolutionSelectView(View):
         # We use 'enable_hr' and 'hr_scale'
         # Base size is what we start with (512 or 768)
         
+        # SAFETY ENFORCEMENT
+        # Inject strong safety guidelines
+        safe_prompt = f"{self.prompt}, (safe for work:1.2)"
+        
+        # Explicitly ban NSFW concepts with high weight
+        hidden_negative = (
+            ", (nsfw:2.0), (nude:2.0), (naked:2.0), (sexual:2.0), (porn:2.0), (hentai:2.0), "
+            "(exposed:2.0), (breasts:2.0), (genitals:2.0), (penis:2.0), (vagina:2.0), "
+            "(sexual act:2.0), (nsfw content:2.0)"
+        )
+        safe_negative = f"{self.negative_prompt}{hidden_negative}"
+
         payload = {
-            "prompt": self.prompt,
-            "negative_prompt": self.negative_prompt,
+            "prompt": safe_prompt,
+            "negative_prompt": safe_negative,
             "steps": 30,
             "width": self.width,
             "height": self.height,

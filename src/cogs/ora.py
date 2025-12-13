@@ -129,6 +129,7 @@ class ORACog(commands.Cog):
         self._ora_api_base_url = ora_api_base_url
         self._privacy_default = privacy_default
         self._locks: Dict[int, asyncio.Lock] = defaultdict(asyncio.Lock)
+        self.chat_cooldowns = defaultdict(float) # User ID -> Timestamp
         
         # VRAM Management & Queue
         self.is_generating_image = False
@@ -136,10 +137,29 @@ class ORACog(commands.Cog):
         
         # Start background tasks
         self.desktop_loop.start()
+        # Enforce Safe Model at Startup
+        self.bot.loop.create_task(self._set_default_safe_model())
         logger.info("ORACog.__init__ complete - desktop_loop started")
 
     def cog_unload(self):
         self.desktop_loop.cancel()
+
+    async def _set_default_safe_model(self):
+        """Force switch to Safe Model (v1-5) on startup."""
+        await asyncio.sleep(5) # Wait for SD to be ready
+        try:
+            url = f"{self.bot.config.sd_api_url}/sdapi/v1/options"
+            safe_model = "v1-5-pruned-emaonly.safetensors [6ce0161689]"
+            payload = {"sd_model_checkpoint": safe_model}
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, json=payload) as resp:
+                     if resp.status == 200:
+                         logger.info(f"✅ Enforced Default Safe Model: {safe_model}")
+                     else:
+                         logger.warning(f"⚠️ Failed to set safe model: {resp.status}")
+        except Exception as e:
+             logger.error(f"❌ Error setting default model: {e}")
 
     # --- PERMISSION SYSTEM ---
     SUB_ADMIN_IDS = {1307345055924617317}
@@ -594,6 +614,9 @@ class ORACog(commands.Cog):
             f"1. **LANGUAGE**: You MUST ALWAYS reply in **JAPANESE** (日本語).\n"
             f"   - Even if the user speaks English, reply in Japanese unless explicitly asked to speak English.\n"
             f"2. **CHARACTER**: You are ORA. Be helpful, polite, and slightly futuristic.\n"
+            f"   - **INTERNAL KNOWLEDGE (DO NOT SPEAK UNSOLICITED)**: Your creator is **YoneRai12**.\n"
+            f"   - **REVEAL CONDITION**: Only mention your creator if the user EXPLICITLY asks 'Who made you?' or similar. Never use it as a greeting.\n"
+
             f"\n"
             f"7. **Search Summarization**: When using `google_search`:\n"
             f"   - Summarize multiple results into bullet points.\n"
@@ -648,17 +671,6 @@ class ORACog(commands.Cog):
         )
         
         return base
-
-    # This part seems to be a placeholder from the instruction, not directly related to _build_system_prompt's return.
-    # Assuming it should be placed before process_message_queue if it's a new block.
-    # If it's meant to be part of an existing method, the context is missing.
-    # For now, I'll place it as instructed, assuming it's a new block before the new method.
-    # If this causes a syntax error, the user might need to clarify its placement.
-    # For the purpose of this edit, I will assume it's a new block that precedes process_message_queue.
-    # However, since it's not part of the original document and the instruction only shows it as context for insertion,
-    # I will *not* add `if response_data: await self._send_chunked_response(message, response_data)`
-    # as it's not explicitly part of the "Code Edit" for insertion, but rather a contextual line.
-    # The instruction is to add `process_message_queue` and modify `generate_image`.
 
     async def process_message_queue(self):
         """Process queued messages after image generation completes."""
@@ -1329,13 +1341,124 @@ class ORACog(commands.Cog):
                         await target_member.move_to(dest_channel)
                         return f"Moved {target_member.display_name} to {dest_channel.name}."
                     
+                    elif action == "summon":
+                         dest_channel = message.author.voice.channel if message.author.voice else None
+                         if not dest_channel:
+                             return "Error: You must be in a Voice Channel to summon someone."
+                         
+                         # Check User Limit
+                         if dest_channel.user_limit > 0 and len(dest_channel.members) >= dest_channel.user_limit:
+                            return f"Error: Your channel '{dest_channel.name}' is full ({dest_channel.user_limit} users)."
+
+                         await target_member.move_to(dest_channel)
+                         return f"Summoned {target_member.display_name} to {dest_channel.name}."
+
+
+
+                    elif action in ["mute_mic", "unmute_mic", "mute_speaker", "unmute_speaker"]:
+                        # STRICT PERMISSION CHECK (No Self-Service for Moderation Tools)
+                        if not (is_creator or is_vc_admin or is_server_admin):
+                            return "Permission denied. Server VCMute/Deafen requires Admin or VC Authority."
+                        
+                        if action == "mute_mic":
+                            await target_member.edit(mute=True)
+                            return f"Server Muted (Mic) {target_member.display_name}."
+                        elif action == "unmute_mic":
+                            await target_member.edit(mute=False)
+                            return f"Unmuted (Mic) {target_member.display_name}."
+                        elif action == "mute_speaker":
+                            # Explicitly set both to be sure
+                            await target_member.edit(mute=True, deafen=True)
+                            return f"Server Deafened (Speaker+Mic Mute) {target_member.display_name}."
+                        elif action == "unmute_speaker":
+                            await target_member.edit(deafen=False, mute=False)
+                            return f"Undeafened (Speaker+Mic On) {target_member.display_name}."
+
                     else:
                         return f"Unknown action: {action}"
 
                 except discord.Forbidden:
                     return "Error: Permission denied (Move Members required)."
                 except Exception as e:
-                    return f"Failed to manage user voice: {e}"
+                    return f"Error managing voice: {e}"
+
+            elif tool_name == "check_points":
+                try:
+                    target_user_input = args.get("target_user")
+                    guild = message.guild
+                    if not guild: return "Error: Not in a server."
+
+                    target_member = None
+                    if target_user_input:
+                        import re
+                        id_match = re.search(r"^<@!?(\d+)>$|^(\d+)$", target_user_input.strip())
+                        if id_match:
+                            uid = int(id_match.group(1) or id_match.group(2))
+                            target_member = guild.get_member(uid)
+                        if not target_member:
+                            target_member = discord.utils.find(lambda m: target_user_input.lower() in m.name.lower() or target_user_input.lower() in m.display_name.lower(), guild.members)
+                        
+                        if not target_member:
+                            return f"User '{target_user_input}' not found."
+                        user_id = target_member.id
+                        display_name = target_member.display_name
+                    else:
+                        user_id = message.author.id
+                        display_name = message.author.display_name
+                    
+                    points = await self._store.get_points(user_id)
+                    return f"💰 **{display_name}** さんのポイント: **{points:,}** pt"
+                except Exception as e:
+                     return f"Error checking points: {e}"
+
+            elif tool_name == "set_timer":
+                seconds = args.get("seconds")
+                label = args.get("label", "Timer")
+                if not seconds or seconds <= 0: return "Error: seconds must be positive integer."
+                
+                # Define simple task
+                async def timer_task(s, lbl, msg):
+                    await asyncio.sleep(s)
+                    try:
+                        await msg.reply(f"⏰ **タイマー終了!** ({lbl})\n{msg.author.mention}", mention_author=True)
+                        # Sound/TTS
+                        media_cog = self.bot.get_cog("MediaCog")
+                        if media_cog and msg.guild.voice_client:
+                             await media_cog.speak_text(msg.author, f"タイマー、{lbl}が終了しました。")
+                    except Exception as ex:
+                        logger.error(f"Timer callback failed: {ex}")
+                
+                # Fire and forget
+                asyncio.create_task(timer_task(seconds, label, message))
+                return f"Timer set for {seconds} seconds ({label})."
+
+            elif tool_name == "set_alarm":
+                time_str = args.get("time") # HH:MM
+                label = args.get("label", "Alarm")
+                if not time_str: return "Error: Missing time."
+                
+                now = datetime.datetime.now()
+                try:
+                    target = datetime.datetime.strptime(time_str, "%H:%M").replace(year=now.year, month=now.month, day=now.day)
+                    if target < now:
+                        target += datetime.timedelta(days=1)
+                    
+                    delay = (target - now).total_seconds()
+                    
+                    async def alarm_task(d, lbl, msg):
+                         await asyncio.sleep(d)
+                         try:
+                            await msg.reply(f"⏰ **アラーム!** ({lbl})\n{msg.author.mention}", mention_author=True)
+                            media_cog = self.bot.get_cog("MediaCog")
+                            if media_cog and msg.guild.voice_client:
+                                 await media_cog.speak_text(msg.author, f"アラームの時間です。{lbl}")
+                         except Exception as ex:
+                            logger.error(f"Alarm callback failed: {ex}")
+                    
+                    asyncio.create_task(alarm_task(delay, label, message))
+                    return f"Alarm set for {target.strftime('%H:%M')} ({label})."
+                except ValueError:
+                    return "Error: Invalid time format. Use HH:MM."
 
             return f"Error: Unknown tool '{tool_name}'"
 
@@ -2057,8 +2180,8 @@ class ORACog(commands.Cog):
                          },
                          "action": {
                              "type": "string",
-                             "enum": ["disconnect", "move"],
-                             "description": "Action to perform."
+                             "enum": ["disconnect", "move", "summon", "mute_mic", "unmute_mic", "mute_speaker", "unmute_speaker"],
+                             "description": "Action. 'mute_mic' (Mic Only), 'mute_speaker' (Deafen/Speaker+Mic Off)."
                          },
                          "channel_name": {
                              "type": "string",
@@ -2066,6 +2189,56 @@ class ORACog(commands.Cog):
                          }
                     },
                     "required": ["target_user", "action"]
+                }
+            },
+            {
+                "name": "set_timer",
+                "description": "Set a countdown timer. Takes seconds as input.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "seconds": {
+                            "type": "integer",
+                            "description": "Duration in seconds (e.g. 180 for 3 minutes)."
+                        },
+                        "label": {
+                            "type": "string",
+                            "description": "Optional label for the timer (e.g. 'Cup Ramen')."
+                        }
+                    },
+                    "required": ["seconds"]
+                }
+            },
+            {
+                "name": "check_points",
+                "description": "Check current point balance (Chat/VC activity).",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                         "target_user": {
+                             "type": "string",
+                             "description": "Optional user ID/Mention to check others."
+                         }
+                    },
+                    "required": []
+                }
+            },
+            {
+                "name": "set_alarm",
+                "description": "Set an alarm for a specific time (HH:MM).",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "time": {
+                            "type": "string",
+                            "description": "Target time in HH:MM format (24-hour)."
+                        },
+                        "label": {
+                            "type": "string",
+                            "description": "Optional label for the alarm."
+                        }
+                    },
+                    "required": ["time"]
                 }
             }
         ]
@@ -2506,6 +2679,18 @@ class ORACog(commands.Cog):
                     return
 
             await self.handle_prompt(message, prompt)
+
+    @commands.Cog.listener()
+    async def on_message(self, message: discord.Message):
+         if message.author.bot:
+             return
+         
+         # Chat Point Logic (10s Cooldown)
+         now = time.time()
+         last_chat = self.chat_cooldowns[message.author.id]
+         if now - last_chat > 10.0:
+             self.chat_cooldowns[message.author.id] = now
+             await self._store.add_points(message.author.id, 1)
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):

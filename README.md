@@ -10,7 +10,10 @@
 
 ---
 
-## ✨ v2.0 Update Highlights (最新アップデート)
+## ✨ v2.1 Update Highlights (最新アップデート)
+*   **💰 Points System**: チャットや通話をするだけで勝手にポイントが貯まる「ポイ活」機能を実装。`check_points` で確認可能。
+*   **🛡️ Safety First**: 画像生成のデフォルトモデルを「標準 (Safe)」に固定し、強力なNSFWフィルターを搭載。家族の前でも安心して使えます。
+*   **🔊 Voice Utilities**: VCへの「召喚 (Summon)」、サーバーミュート・スピーカーミュート操作、タイマー・アラーム機能を追加。
 *   **💳 Visual Card Responses**: 全ての回答が美しい「カード形式 (Discord Embed)」に進化しました。文字だけの地味なBotとはおさらばです。
 *   **💭 Interactive Thoughts**: 「思考中」「検索中」といったBotの内部状態が**アニメーションアイコン**でリアルタイムに表示されます。
 *   **🧠 Smart VRAM Management**: 画像生成時にはLLMを自動的にVRAMから退避させ、Stable Diffusionのパフォーマンスを最大化する機能を搭載しました。
