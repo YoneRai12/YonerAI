@@ -60,6 +60,13 @@ class Store:
         Path(self._db_path).parent.mkdir(parents=True, exist_ok=True)
         async with aiosqlite.connect(self._db_path) as db:
             await db.executescript(SCHEMA)
+            
+            # Migration: Ensure points column exists
+            try:
+                await db.execute("ALTER TABLE users ADD COLUMN points INTEGER DEFAULT 0")
+            except Exception:
+                pass # Column likely exists or other error (ignored for now as we want to proceed)
+
             await db.commit()
 
     async def backup(self) -> None:
@@ -514,4 +521,45 @@ class Store:
                     "INSERT INTO users(discord_user_id, google_sub, created_at) VALUES(?, ?, ?)",
                     (str(discord_user_id), google_sub, int(time.time())),
                 )
+            await db.commit()
+
+            await db.commit()
+
+    async def get_points(self, discord_user_id: int) -> int:
+        """Get the current point balance for a user."""
+        async with aiosqlite.connect(self._db_path) as db:
+            cursor = await db.execute("SELECT points FROM users WHERE discord_user_id=?", (str(discord_user_id),))
+            row = await cursor.fetchone()
+            if row:
+                return row[0] if row[0] is not None else 0
+            return 0
+
+    async def add_points(self, discord_user_id: int, amount: int) -> int:
+        """Add points to a user. Returns new balance."""
+        async with aiosqlite.connect(self._db_path) as db:
+            # Upsert User if not exists
+            await db.execute(
+                "INSERT INTO users(discord_user_id, created_at, points) VALUES(?, ?, 0) ON CONFLICT(discord_user_id) DO NOTHING",
+                (str(discord_user_id), int(time.time()))
+            )
+
+            # Atomic Add
+            await db.execute(
+                "UPDATE users SET points = points + ? WHERE discord_user_id=?",
+                (amount, str(discord_user_id))
+            )
+            await db.commit()
+            
+            # Fetch new balance
+            async with db.execute("SELECT points FROM users WHERE discord_user_id=?", (str(discord_user_id),)) as cursor:
+                 row = await cursor.fetchone()
+                 return row[0] if row else 0
+
+    async def set_points(self, discord_user_id: int, amount: int) -> None:
+        """Set absolute point balance."""
+        async with aiosqlite.connect(self._db_path) as db:
+            await db.execute(
+                "INSERT INTO users(discord_user_id, created_at, points) VALUES(?, ?, ?) ON CONFLICT(discord_user_id) DO UPDATE SET points=?",
+                (str(discord_user_id), int(time.time()), amount, amount)
+            )
             await db.commit()

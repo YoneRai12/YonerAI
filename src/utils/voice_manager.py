@@ -370,7 +370,17 @@ class VoiceManager:
         source = discord.FFmpegPCMAudio(path)
         if voice_client.is_playing():
             voice_client.stop()
-        voice_client.play(source, after=cleanup)
+        
+        try:
+            if not voice_client.is_connected():
+                 logger.warning("Attempted to play audio on disconnected client.")
+                 return
+
+            voice_client.play(source, after=cleanup)
+        except Exception as e:
+            logger.error(f"Failed to play audio: {e}")
+            # Ensure cleanup happens even if play fails
+            cleanup(e)
 
     async def play_music(self, member: discord.Member, url_or_path: str, title: str, is_stream: bool) -> bool:
         """Add music to queue and start playing if idle."""
