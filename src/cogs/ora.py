@@ -9,9 +9,12 @@ import time
 import json
 import asyncio
 import asyncio
+import io
+from PIL import Image
 import datetime
 from ..utils import image_tools
 from ..utils import flag_utils
+from ..utils.games import ShiritoriGame
 import os
 import aiofiles
 from typing import Optional, Dict
@@ -135,6 +138,9 @@ class ORACog(commands.Cog):
         self.is_generating_image = False
         self.message_queue: list[discord.Message] = []
         
+        # Game State: channel_id -> ShiritoriGame
+        self.shiritori_games: Dict[int, ShiritoriGame] = defaultdict(ShiritoriGame)
+
         # Start background tasks
         self.desktop_loop.start()
         # Enforce Safe Model at Startup
@@ -145,21 +151,29 @@ class ORACog(commands.Cog):
         self.desktop_loop.cancel()
 
     async def _set_default_safe_model(self):
-        """Force switch to Safe Model (v1-5) on startup."""
-        await asyncio.sleep(5) # Wait for SD to be ready
-        try:
-            url = f"{self.bot.config.sd_api_url}/sdapi/v1/options"
-            safe_model = "v1-5-pruned-emaonly.safetensors [6ce0161689]"
-            payload = {"sd_model_checkpoint": safe_model}
+        """Force switch to Safe Model (v1-5) on startup with Retry."""
+        url = f"{self.bot.config.sd_api_url}/sdapi/v1/options"
+        safe_model = "v1-5-pruned-emaonly.safetensors [6ce0161689]"
+        payload = {"sd_model_checkpoint": safe_model}
+        
+        # Retry up to 12 times (60 seconds)
+        for i in range(12):
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.post(url, json=payload, timeout=5) as resp:
+                         if resp.status == 200:
+                             logger.info(f"✅ Enforced Default Safe Model: {safe_model}")
+                             return
+                         else:
+                             logger.warning(f"⚠️ Failed to set safe model (Status {resp.status}). Retrying... ({i+1}/12)")
+            except Exception as e:
+                 # Connection Refused etc.
+                 if i % 2 == 0: # Log every other attempt to reduce spam
+                    logger.warning(f"⏳ Waiting for SD WebUI to start... ({e}) ({i+1}/12)")
             
-            async with aiohttp.ClientSession() as session:
-                async with session.post(url, json=payload) as resp:
-                     if resp.status == 200:
-                         logger.info(f"✅ Enforced Default Safe Model: {safe_model}")
-                     else:
-                         logger.warning(f"⚠️ Failed to set safe model: {resp.status}")
-        except Exception as e:
-             logger.error(f"❌ Error setting default model: {e}")
+            await asyncio.sleep(5)
+        
+        logger.error("❌ Could not connect to SD WebUI after 60 seconds. Model not enforced.")
 
     # --- PERMISSION SYSTEM ---
     SUB_ADMIN_IDS = {1307345055924617317}
@@ -625,9 +639,9 @@ class ORACog(commands.Cog):
             f"7. **CRITICAL: IMAGE ANALYSIS vs MUSIC/SEARCH**\n"
             f"   - If the user provides an image:\n"
             f"     - **USE YOUR EYES.** The image is provided as visual input.\n"
-            f"     - Use the OCR text ONLY if the image is illegible to you. Otherwise, trust your vision.\n"
+            f"     - Use the OCR text (`[VISUAL CONTEXT]`) as supplemental data, but prioritize your own vision.\n"
             f"     - **DO NOT** use `music_play` for image analysis.\n"
-            f"     - If you cannot see the image, simply reply: 'I cannot see the image. Please use a Vision-capable model (like LLaVA) or describe the text.'\n"
+            f"     - If the image is unclear, ask for clarification. Do NOT say 'I cannot see'.\n"
             f"\n"
             f"## available_tools\n{tools_json}\n"
             f"\n"
@@ -644,6 +658,17 @@ class ORACog(commands.Cog):
             f"   - 'Who is X', 'Xとは', 'Xの詳細', 'X's info' -> `find_user` (args: {{ \"name_query\": \"X\" }})\n"
             f"   - 'Search X', 'Google X', '調べて' -> `google_search`\n"
             f"   - 'Volume X', 'Open X' -> `system_control`\n"
+            f"   - 'Shiritori', 'しりとりしよう' -> `shiritori` (args: {{ \"action\": \"start\" }})\n"
+            f"   - **SHIRITORI GAME RULES**:\n"
+            f"     - ALWAYS use the `shiritori` tool when the user plays a word. Args: `action='play'`, `word`, `reading`.\n"
+            f"     - If the tool says 'User Move Valid', YOU MUST generate a response word starting with the specified character.\n"
+            f"     - BEFORE replying, you MUST verify your own word using `shiritori` tool with `action='check_bot'`.\n"
+            f"     - If 'check_bot' returns Invalid, pick a different word and check again.\n"
+            f"     - Only reply to the user once 'check_bot' returns Valid.\n"
+            f"   - **SINGING/HUMMING DETECTION**: \n"
+            f"     - If the user's input looks like song lyrics (e.g., 'Never gonna give you up...'), **DO NOT** just reply with text.\n"
+            f"     - Instead, ASK: 'Is that [Song Name]? Shall I play it?' (e.g., '今の曲は[Song Name]ですか？流しますか？')\n"
+            f"     - If the user says 'Yes' or 'Play', THEN use `music_play`.\n"
             f"3. **HOW TO USE**: Output a JSON block in this format:\n"
             f"```json\n"
             f"{{\n"
@@ -1070,25 +1095,23 @@ class ORACog(commands.Cog):
                 if not results: return f"No results found for query '{query}'. Please try a different keyword."
                 
                 # Create/Send Embed
-                # Convert results tuple (title, link) to dict for factory
-                # SearchClient returns list of (title, link). Snippets are not currently returned by this simple method?
-                # Actually _search_client.search returns [(title, link), ...]
-                # We might need snippet for a good card. 
-                # Let's check SearchClient.search implementation.
-                # Assuming it returns simple tuples, we'll fake snippets or adjust SearchClient later.
-                # For now, let's just use Title/Link.
+                # SearchClient now returns list of dicts: title, link, snippet, thumbnail
                 
-                dict_results = [{"title": t, "link": l, "snippet": "..."} for t, l in results]
-                embed = EmbedFactory.create_search_embed(query, dict_results)
+                embed = EmbedFactory.create_search_embed(query, results)
                 try:
                     await message.channel.send(embed=embed)
                 except discord.Forbidden:
                     logger.warning("Missing permissions to send embeds for google_search.")
                 except Exception as e:
                     logger.error(f"Failed to send search embed: {e}")
-                    # Fallback to text if needed, but the loop below returns text anyway.
                 
-                return "\n".join([f"{i+1}. {t} ({u})" for i, (t, u) in enumerate(results)])
+                # IMPORTANT: Return the snippet content to the LLM so it can answer the user's question!
+                # The user complain about "just showing links".
+                lines = []
+                for i, r in enumerate(results):
+                    lines.append(f"{i+1}. {r.get('title')}\n   URL: {r.get('link')}\n   Content: {r.get('snippet')}")
+                
+                return "\n\n".join(lines)
 
             elif tool_name == "get_system_stats":
                 # LOCKDOWN: Creator Only (contains sensitive info)
@@ -1197,7 +1220,8 @@ class ORACog(commands.Cog):
                 if not self._search_client.enabled: return "Error: Search API disabled."
                 results = await self._search_client.search(query, limit=5, engine="google_shopping")
                 if not results: return f"No shopping results found for '{query}'."
-                return "\n".join([f"{i+1}. {t} ({u})" for i, (t, u) in enumerate(results)])
+                # results is list of dicts
+                return "\n".join([f"{i+1}. {r.get('title')} ({r.get('link')})" for i, r in enumerate(results)])
 
             elif tool_name == "system_check":
                 report = []
@@ -1460,6 +1484,41 @@ class ORACog(commands.Cog):
                 except ValueError:
                     return "Error: Invalid time format. Use HH:MM."
 
+            elif tool_name == "shiritori":
+                action = args.get("action")
+                word = args.get("word")
+                reading = args.get("reading")
+            
+            # channel.id can be text or voice
+            game = self.shiritori_games[message.channel.id]
+            
+            if action == "start":
+                return game.start()
+            
+            elif action == "play":
+                if not word or not reading:
+                     return "Error: arguments 'word' and 'reading' are required."
+                
+                is_valid, msg, next_char = game.check_move(word, reading)
+                if not is_valid:
+                    return f"User Move Invalid: {msg}"
+                else:
+                    return f"User Move Valid! History updated. Next character must start with: 「{next_char}」. Now, YOU (AI) must generate a word starting with '{next_char}' and call this tool with action='check_bot', word='YOUR_WORD', reading='YOUR_READING' to verify it."
+            
+            elif action == "check_bot":
+                if not word or not reading:
+                     return "Error: arguments 'word' and 'reading' are required."
+                
+                # Check Bot Move
+                is_valid, msg, next_char = game.check_move(word, reading)
+                if not is_valid:
+                    # Bot failed! ReAct loop allows it to see this error and try again.
+                    return f"YOUR (AI) Move Invalid: {msg}. Please pick a DIFFERENT word starting with the correct character."
+                else:
+                    return f"Bot Move Valid! History updated. You can now reply to the user with: '{word} ({reading})! Next is {next_char}.'"
+            
+            return "Unknown action"
+
             return f"Error: Unknown tool '{tool_name}'"
 
         except Exception as e:
@@ -1694,14 +1753,14 @@ class ORACog(commands.Cog):
         # Let's start "Thinking" here if it's a direct interaction?
         # No, let's keep it clean. The worker will pick it up and show status.
         # We just need to ensure the worker CAN create/manage it.
-        await self.handle_prompt(message, prompt, is_mention, is_reply_to_me)
+        await self.handle_prompt(message, prompt)
 
     async def _process_attachments(self, attachments: List[discord.Attachment], prompt: str, context_message: discord.Message, is_reference: bool = False) -> str:
         """Process a list of attachments (Text or Image) and update prompt/context."""
         supported_text_ext = {'.txt', '.md', '.py', '.js', '.json', '.html', '.css', '.csv', '.xml', '.yaml', '.yml', '.sh', '.bat', '.ps1'}
         supported_img_ext = {'.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp'}
 
-        for attachment in attachments:
+        for i, attachment in enumerate(attachments):
             ext = "." + attachment.filename.split(".")[-1].lower() if "." in attachment.filename else ""
             
             # TEXT
@@ -1738,11 +1797,26 @@ class ORACog(commands.Cog):
                     # Base64 Injection (Vision)
                     try:
                         import base64
-                        b64_img = base64.b64encode(image_data).decode('utf-8')
-                        mime_type = "image/png"
-                        if ext in ['.jpg', '.jpeg']: mime_type = "image/jpeg"
-                        elif ext == '.webp': mime_type = "image/webp"
-                        elif ext == '.gif': mime_type = "image/gif"
+                        
+                        # OPTIMIZATON: Resize for Vision Model
+                        # Load image with PIL
+                        with Image.open(io.BytesIO(image_data)) as img:
+                            # Convert to RGB (in case of RGBA/PNG)
+                            if img.mode in ("RGBA", "P"):
+                                img = img.convert("RGB")
+                            
+                            # Resize if too large (Max 1024x1024)
+                            max_size = 1024
+                            if max(img.size) > max_size:
+                                img.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
+                            
+                            # Save to buffer as JPEG
+                            buffer = io.BytesIO()
+                            img.save(buffer, format="JPEG", quality=85)
+                            optimized_data = buffer.getvalue()
+                        
+                        b64_img = base64.b64encode(optimized_data).decode('utf-8')
+                        mime_type = "image/jpeg" # Always send as JPEG
                         
                         if not hasattr(self, "_temp_image_context"):
                             self._temp_image_context = {}
@@ -1761,8 +1835,9 @@ class ORACog(commands.Cog):
                     # OCR Backup
                     analysis_result = await asyncio.to_thread(image_tools.analyze_image_v2, image_data)
                     
-                    header = f"[Referenced Image: {attachment.filename}]" if is_reference else f"[Attached Image: {attachment.filename}]"
-                    prompt += f"\n\n{header}\n(OCR/Analysis Result: {analysis_result})\n"
+                    
+                    header = f"[Referenced Image: {attachment.filename}]" if is_reference else f"[Attached Image {i+1}: {attachment.filename}]"
+                    prompt += f"\n\n{header}\n[VISUAL CONTEXT (Use this as your eyes)]:\n{analysis_result}\n"
 
                 except Exception as e:
                     logger.error(f"Image process failed: {e}")
@@ -2011,6 +2086,29 @@ class ORACog(commands.Cog):
                          }
                     },
                     "required": ["name", "type"]
+                }
+            },
+            {
+                "name": "shiritori",
+                "description": "Play Shiritori (Word Chain) game. Manage game state and validate moves.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                         "action": {
+                             "type": "string",
+                             "enum": ["start", "play", "check_bot"],
+                             "description": "'start' to begin. 'play' to validate user's word. 'check_bot' to validate YOUR (AI) word before replying."
+                         },
+                         "word": {
+                             "type": "string", 
+                             "description": "The word (Kanji/Kana)."
+                         },
+                         "reading": {
+                             "type": "string", 
+                             "description": "The reading in Hiragana/Katakana (Required for validation)."
+                         }
+                    },
+                    "required": ["action"]
                 }
             },
             {
@@ -2589,13 +2687,40 @@ class ORACog(commands.Cog):
         if message.author.bot:
             return
 
+        # Chat Point Logic (10s Cooldown)
+        try:
+            now = time.time()
+            last_chat = self.chat_cooldowns[message.author.id]
+            if now - last_chat > 10.0:
+                self.chat_cooldowns[message.author.id] = now
+                # Use create_task to avoid blocking potential response logic
+                asyncio.create_task(self._store.add_points(message.author.id, 1))
+        except Exception as e:
+            logger.error(f"Error adding points: {e}")
+
         # Check if mentioned or DM
-        is_mentioned = self.bot.user in message.mentions
+        # Check if mentioned or DM
+        is_user_mentioned = self.bot.user in message.mentions
+        is_role_mentioned = False
+        if message.guild and message.role_mentions:
+            me = message.guild.me
+            # Check if any mentioned role is held by the bot
+            for role in message.role_mentions:
+                if role in me.roles:
+                    is_role_mentioned = True
+                    break
+        
+        is_mentioned = is_user_mentioned or is_role_mentioned
         is_dm = isinstance(message.channel, discord.DMChannel)
 
         if is_mentioned or is_dm:
             # Remove mention from content
+            import re
             prompt = message.content.replace(f"<@{self.bot.user.id}>", "").strip()
+            # Remove Nickname Mention
+            prompt = prompt.replace(f"<@!{self.bot.user.id}>", "").strip()
+            # Remove Role Mentions
+            prompt = re.sub(r"<@&(\d+)>", "", prompt).strip()
             
             # Handle Attachments
             if message.attachments:
@@ -2680,17 +2805,7 @@ class ORACog(commands.Cog):
 
             await self.handle_prompt(message, prompt)
 
-    @commands.Cog.listener()
-    async def on_message(self, message: discord.Message):
-         if message.author.bot:
-             return
-         
-         # Chat Point Logic (10s Cooldown)
-         now = time.time()
-         last_chat = self.chat_cooldowns[message.author.id]
-         if now - last_chat > 10.0:
-             self.chat_cooldowns[message.author.id] = now
-             await self._store.add_points(message.author.id, 1)
+
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):

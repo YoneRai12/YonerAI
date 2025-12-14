@@ -30,7 +30,7 @@ class SearchClient:
     def enabled(self) -> bool:
         return bool(self._api_key and GoogleSearch is not None)
 
-    async def search(self, query: str, *, limit: int = 5, engine: Optional[str] = None, gl: str = "jp", hl: str = "ja") -> Sequence[SearchResult]:
+    async def search(self, query: str, *, limit: int = 5, engine: Optional[str] = None, gl: str = "jp", hl: str = "ja") -> Sequence[dict]:
         start_time = time.monotonic()
         deadline = start_time + 30.0 # Total budget 30s
 
@@ -52,10 +52,10 @@ class SearchClient:
                             "hl": hl,
                         }
 
-                        def _request() -> List[SearchResult]:
+                        def _request() -> List[dict]:
                             search = GoogleSearch(params)
                             response = search.get_dict()
-                            results: List[SearchResult] = []
+                            results: List[dict] = []
                             
                             # Handle Shopping Results
                             if params["engine"] == "google_shopping":
@@ -63,13 +63,33 @@ class SearchClient:
                                     title = item.get("title") or "(no title)"
                                     price = item.get("price") or ""
                                     link = item.get("link") or ""
-                                    results.append((f"{title} ({price})", link))
+                                    thumb = item.get("thumbnail") or ""
+                                    results.append({
+                                        "title": f"{title} ({price})",
+                                        "link": link,
+                                        "snippet": price, # Use price as snippet for shopping
+                                        "thumbnail": thumb
+                                    })
                             else:
                                 # Handle Organic Results
                                 for item in response.get("organic_results", [])[:limit]:
                                     title = item.get("title") or "(no title)"
                                     link = item.get("link") or ""
-                                    results.append((title, link))
+                                    snippet = item.get("snippet") or ""
+                                    thumb = item.get("thumbnail") or ""
+                                    # Fallback for thumbnail if not direct
+                                    if not thumb and "pagemap" in item and "cse_image" in item["pagemap"]:
+                                        try:
+                                            thumb = item["pagemap"]["cse_image"][0]["src"]
+                                        except (IndexError, KeyError):
+                                            pass
+                                            
+                                    results.append({
+                                        "title": title,
+                                        "link": link,
+                                        "snippet": snippet,
+                                        "thumbnail": thumb
+                                    })
                             return results
 
                         # Enforce per-attempt timeout (min 10s or remaining)
@@ -91,15 +111,21 @@ class SearchClient:
             try:
                 from duckduckgo_search import DDGS
                 
-                def _ddg_request() -> List[SearchResult]:
-                    results: List[SearchResult] = []
+                def _ddg_request() -> List[dict]:
+                    results: List[dict] = []
                     with DDGS() as ddgs:
                         # region="jp-jp" for Japan
                         ddg_results = list(ddgs.text(query, region="jp-jp", max_results=limit))
                         for item in ddg_results:
                             title = item.get("title") or "(no title)"
                             link = item.get("href") or ""
-                            results.append((title, link))
+                            snippet = item.get("body") or ""
+                            results.append({
+                                "title": title, 
+                                "link": link, 
+                                "snippet": snippet,
+                                "thumbnail": "" # DDG text search doesn't easily give thumbnails
+                            })
                     return results
 
                 timeout = min(10.0, remaining)

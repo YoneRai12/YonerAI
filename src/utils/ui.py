@@ -98,18 +98,25 @@ class EmbedFactory:
             timestamp=discord.utils.utcnow()
         )
         
+        # Set Thumbnail from First Result if available
+        if results and "thumbnail" in results[0] and results[0]["thumbnail"]:
+             embed.set_thumbnail(url=results[0]["thumbnail"])
+
         # Add Top 3-5 Results
         for i, res in enumerate(results[:5]):
             title = res.get("title", "No Title")
             link = res.get("link", "")
             snippet = res.get("snippet", "")
             
-            # Format: [Title](Link)
-            #         Snippet...
-            field_val = f"{snippet[:100]}..." if len(snippet) > 100 else snippet
+            # Format: Snippet...
+            #         [🔗 サイトを見る](Link)
+            field_val = f"{snippet[:150]}..." if len(snippet) > 150 else snippet
+            if link:
+                field_val += f"\n[🔗 サイトを見る]({link})"
+            
             embed.add_field(
                 name=f"{i+1}. {title}",
-                value=f"[{field_val}]({link})",
+                value=field_val,
                 inline=False
             )
             
