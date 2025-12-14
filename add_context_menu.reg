@@ -1,0 +1,8 @@
+Windows Registry Editor Version 5.00
+
+[HKEY_CLASSES_ROOT\Directory\Background\shell\ORABot]
+@="Start ORA Bot"
+"Icon"="SHELL32.dll,71"
+
+[HKEY_CLASSES_ROOT\Directory\Background\shell\ORABot\command]
+@="\"C:\\Users\\YoneRai12\\Desktop\\ORADiscordBOT-main3\\run_l.bat\""

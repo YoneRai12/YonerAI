@@ -17,51 +17,54 @@ except ImportError:
     WHISPER_AVAILABLE = False
     logger.warning("openai-whisper not installed. Voice recognition will be disabled.")
 
-class VoiceSink(voice_recv.AudioSink):
-    def __init__(self, cog, user_id: int):
-        super().__init__()
-        self.cog = cog
-        self.user_id = user_id
+from collections import defaultdict
+
+class UserVoiceBuffer:
+    def __init__(self):
         self.buffer = bytearray()
         self.last_packet_time = time.time()
         self.speaking = False
+        self.speaking_frames = 0
+        self.last_stop_time = 0
+
+class VoiceSink(voice_recv.AudioSink):
+    def __init__(self, cog):
+        super().__init__()
+        self.cog = cog
+        self.user_data = defaultdict(UserVoiceBuffer)
         self.sample_rate = 48000
         self.channels = 2 # Discord sends stereo
         self.sample_width = 2 # 16-bit PCM
+        self.conversation_mode = False
 
     def wants_opus(self) -> bool:
         return False
 
     def write(self, user: discord.User, data: voice_recv.VoiceData):
-        if user is None or user.id != self.user_id:
+        if user is None:
             return
 
-        self.last_packet_time = time.time()
-        self.buffer.extend(data.pcm)
+        ud = self.user_data[user.id]
+        ud.last_packet_time = time.time()
+        ud.buffer.extend(data.pcm)
         
         # Barge-in Logic
-        # Count consecutive frames to avoid noise trigger
-        # We don't have a frame counter here, but we can use a simple counter on the sink
-        if not hasattr(self, "speaking_frames"):
-             self.speaking_frames = 0
-             self.last_stop_time = 0
-
-        self.speaking_frames += 1
+        ud.speaking_frames += 1
         
         # Threshold: 5 frames (~100ms)
-        if self.speaking_frames >= 5:
-            if not self.speaking:
-                self.speaking = True
+        if ud.speaking_frames >= 5:
+            if not ud.speaking:
+                ud.speaking = True
                 logger.info(f"User {user.name} started speaking.")
                 
                 # Trigger Barge-in (Stop TTS)
                 # Check cooldown (500ms)
-                if time.time() - self.last_stop_time > 0.5:
+                if time.time() - ud.last_stop_time > 0.5:
                     media_cog = self.cog.bot.get_cog("MediaCog")
                     if media_cog:
-                        # Stop playback only
+                        # Stop playback
                         media_cog._voice_manager.stop_playback(user.guild.id)
-                        self.last_stop_time = time.time()
+                        ud.last_stop_time = time.time()
                         logger.info("Barge-in triggered: Stopped playback.")
 
     def cleanup(self):
@@ -75,18 +78,26 @@ class VoiceRecvCog(commands.Cog):
         self.processing_tasks = {} # guild_id -> Task
 
         if WHISPER_AVAILABLE:
-            # Load small model for speed/accuracy balance on RTX 5080
-            # 'base' or 'small' is usually fast enough for real-time
-            logger.info("Loading Whisper model (small)...")
-            self.model = whisper.load_model("small")
-            logger.info("Whisper model loaded.")
+            try:
+                # Try loading on GPU first
+                logger.info("Loading Whisper model (small) on GPU...")
+                self.model = whisper.load_model("small")
+                logger.info("Whisper model loaded on GPU.")
+            except Exception as e:
+                logger.warning(f"Failed to load Whisper on GPU: {e}")
+                logger.info("Falling back to CPU (small model)...")
+                self.model = whisper.load_model("small", device="cpu")
+                logger.info("Whisper model loaded on CPU.")
+            
+            # Suppress RTCP spam from voice_recv
+            logging.getLogger("discord.ext.voice_recv").setLevel(logging.WARNING)
 
-    @app_commands.command(name="listen", description="ボイスチャンネルであなたの声を聞き取ります。")
+    @app_commands.command(name="listen", description="ボイスチャンネルで全員の声を聞き取ります。")
     async def listen(self, interaction: discord.Interaction):
         # Admin check
-        if self.bot.config.admin_user_id and interaction.user.id != self.bot.config.admin_user_id:
-            await interaction.response.send_message("この機能は管理者専用です。", ephemeral=True)
-            return
+        # if self.bot.config.admin_user_id and interaction.user.id != self.bot.config.admin_user_id:
+        #     await interaction.response.send_message("この機能は管理者専用です。", ephemeral=True)
+        #     return
 
         if not interaction.user.voice:
             await interaction.response.send_message("ボイスチャンネルに参加してから実行してください。", ephemeral=True)
@@ -111,14 +122,14 @@ class VoiceRecvCog(commands.Cog):
                 await interaction.followup.send("既に通常の接続がされています。一度切断してから再実行してください。")
                 return
 
-        # Start listening
-        sink = VoiceSink(self, interaction.user.id)
+        # Start listening (Multi-User)
+        sink = VoiceSink(self)
         self.active_sinks[interaction.guild.id] = sink
         vc.listen(sink)
         
         self.processing_tasks[interaction.guild.id] = asyncio.create_task(self.process_audio_loop(interaction.guild.id, interaction.channel))
 
-        await interaction.followup.send(f"👂 {interaction.user.display_name} さんの声を聞き取っています...", ephemeral=True)
+        await interaction.followup.send(f"👂 チャンネル内の全員の声を聞き取っています...", ephemeral=True)
         
         # Announce
         media_cog = self.bot.get_cog("MediaCog")
@@ -142,7 +153,7 @@ class VoiceRecvCog(commands.Cog):
         sink.conversation_mode = (mode == "on")
         
         status = "ON" if sink.conversation_mode else "OFF"
-        await interaction.response.send_message(f"会話モードを {status} にしました。{'ウェイクワードなしで応答します。' if sink.conversation_mode else 'ORAと呼びかけた時だけ応答します。'}", ephemeral=True)
+        await interaction.response.send_message(f"会話モードを {status} にしました。{'ウェイクワードなしで全員の会話に応答します。' if sink.conversation_mode else 'ORAと呼びかけた時だけ応答します。'}", ephemeral=True)
 
 
     @app_commands.command(name="stop_listen", description="音声認識を終了します。")
@@ -172,55 +183,59 @@ class VoiceRecvCog(commands.Cog):
             if not sink:
                 break
                 
-            # Check for silence (no packets for 1.0 second)
-            # Check for silence (no packets for 1.0 second)
-            if sink.speaking and (time.time() - sink.last_packet_time > 1.0):
-                logger.info("Silence detected. Transcribing...")
-                sink.speaking = False
-                if hasattr(sink, "speaking_frames"):
-                    sink.speaking_frames = 0
-                
-                # Get data and clear buffer
-                audio_data = bytes(sink.buffer)
-                sink.buffer = bytearray()
-                
-                if len(audio_data) < 48000 * 2 * 0.5: # Ignore < 0.5s
-                    continue
+            # Iterate over all users in the sink
+            # Create a list of items to avoid runtime error if dict changes during iteration
+            # But keys (users) change rarely.
+            user_items = list(sink.user_data.items())
+            
+            for user_id, ud in user_items:
+                # Check for silence (no packets for 1.0 second)
+                if ud.speaking and (time.time() - ud.last_packet_time > 1.0):
+                    # Silence detected for this user
+                    ud.speaking = False
+                    ud.speaking_frames = 0
+                    
+                    # Get data and clear buffer
+                    audio_data = bytes(ud.buffer)
+                    ud.buffer = bytearray()
+                    
+                    if len(audio_data) < 48000 * 2 * 0.5: # Ignore < 0.5s
+                        continue
 
-                # Transcribe in thread
-                text = await asyncio.to_thread(self.transcribe, audio_data)
-                
-                if text:
-                    logger.info(f"Transcribed: {text}")
-                    # Broadcast to Web UI
-                    await manager.broadcast(f"TRANSCRIPTION:{text}")
+                    # Transcribe in thread (Concurrent for each user)
+                    asyncio.create_task(self._handle_transcription(user_id, audio_data, sink, text_channel, manager))
 
-                    # Wake Word Check (Simple)
-                    keywords = ["ORA", "オラ", "おら", "オーラ"]
-                    is_wake = any(k in text for k in keywords)
-                    
-                    # Check conversation mode
-                    is_conversation = getattr(sink, "conversation_mode", False)
-                    
-                    should_respond = is_wake or is_conversation
-                    
-                    if should_respond:
-                        # Send to ORA
-                        ora_cog = self.bot.get_cog("ORACog")
-                        if ora_cog:
-                            member = text_channel.guild.get_member(sink.user_id)
-                            if member:
-                                # Create dummy message
-                                dummy_message = await text_channel.send(f"🎤 {member.display_name}: {text}")
-                                dummy_message.author = member
-                                dummy_message.content = text
-                                
-                                # Trigger ORA
-                                # Trigger ORA
-                                await ora_cog.handle_prompt(dummy_message, text, is_voice=True)
-                    else:
-                        # Just log/stream, don't respond
-                        pass
+    async def _handle_transcription(self, user_id, audio_data, sink, text_channel, manager):
+        """Handle transcription for a single user."""
+        text = await asyncio.to_thread(self.transcribe, audio_data)
+        
+        if text:
+            # Broadcast to Web UI
+            await manager.broadcast(f"TRANSCRIPTION({user_id}):{text}")
+
+            # Wake Word Check (Simple)
+            keywords = ["ORA", "オラ", "おら", "オーラ"]
+            is_wake = any(k in text for k in keywords)
+            
+            # Check conversation mode
+            is_conversation = getattr(sink, "conversation_mode", False)
+            
+            should_respond = is_wake or is_conversation
+            
+            if should_respond:
+                # Send to ORA
+                ora_cog = self.bot.get_cog("ORACog")
+                if ora_cog:
+                    member = text_channel.guild.get_member(user_id)
+                    if member:
+                        logger.info(f"Recognized speech from {member.display_name}: {text}")
+                        # Create dummy message
+                        dummy_message = await text_channel.send(f"🎤 {member.display_name}: {text}")
+                        dummy_message.author = member
+                        dummy_message.content = text
+                        
+                        # Trigger ORA (Voice Mode)
+                        await ora_cog.handle_prompt(dummy_message, text, is_voice=True)
 
     def transcribe(self, pcm_data: bytes) -> str:
         """Convert PCM to float32 and transcribe with Whisper."""
@@ -230,19 +245,16 @@ class VoiceRecvCog(commands.Cog):
             # Convert PCM 16-bit stereo to float32 mono
             audio_np = np.frombuffer(pcm_data, dtype=np.int16).flatten().astype(np.float32) / 32768.0
             
-            # Stereo to Mono (take average or just left channel? Whisper expects mono)
-            # Data is L, R, L, R...
-            # Reshape to (N, 2)
+            # Stereo to Mono
             audio_np = audio_np.reshape(-1, 2)
-            # Mean of channels
             audio_np = audio_np.mean(axis=1)
             
-            # Whisper expects 16kHz
-            # We have 48kHz. Simple decimation (take every 3rd sample) is crude but might work for speech.
-            # Better to use scipy.signal.resample, but let's try simple slicing first to avoid dependency.
+            # Resample to 16kHz (Simple decimation)
             audio_16k = audio_np[::3]
             
-            result = self.model.transcribe(audio_16k, language="ja")
+            # Use FP16 on GPU for speed, disable on CPU to avoid warnings
+            is_cpu = self.model.device.type == "cpu"
+            result = self.model.transcribe(audio_16k, language="ja", fp16=not is_cpu)
             return result["text"].strip()
         except Exception as e:
             logger.error(f"Transcription failed: {e}")
