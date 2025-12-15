@@ -163,32 +163,77 @@ class LLMClient:
                     raise RuntimeError("LLM応答の形式が不正です。") from exc
 
     async def unload_model(self) -> None:
-        """Attempt to unload the model from VRAM (Ollama specific)."""
-        url = f"{self._base_url}/chat/completions"
+        """Attempt to unload the model from VRAM (LM Studio / Ollama)."""
+        # Try LM Studio specific endpoint first
+        urls = [
+            f"{self._base_url}/internal/model/unload", # LM Studio
+            f"{self._base_url}/chat/completions"       # Ollama fallback (keep_alive=0)
+        ]
+        
         headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self._api_key}",
         }
-        # Ollama 'keep_alive': 0 forces unload
-        payload = {
+        
+        # Ollama payload
+        ollama_payload = {
             "model": self._model,
             "keep_alive": 0
         }
+
+        # Use throw-away session or existing
+        ctx = self._session if self._session else aiohttp.ClientSession()
         
         try:
-            # We use a throw-away session or the existing one
-            ctx = self._session if self._session else aiohttp.ClientSession()
-            if self._session:
-                 # Use existing session
-                 async with self._session.post(url, headers=headers, json=payload, timeout=5) as resp:
-                     # We don't care about the response really, as long as it hit the server
-                     pass
-            else:
-                 # Use temporary session
-                 async with ctx as session:
-                     async with session.post(url, headers=headers, json=payload, timeout=5) as resp:
-                         pass
-            
-            logger.info("Sent unload request (keep_alive=0) to LLM server.")
+            # We need to handle session context manager manually depending on if we own it
+            session = ctx
+            if not self._session:
+                 await session.__aenter__()
+
+            try:
+                # 1. Try LM Studio Unload
+                try:
+                    async with session.post(urls[0], headers=headers, json={}, timeout=2) as resp:
+                        if resp.status == 200:
+                            logger.info("✅ LM Studio Model Unloaded.")
+                            return
+                except:
+                    pass
+
+                # 2. Try Ollama Unload
+                try:
+                    async with session.post(urls[1], headers=headers, json=ollama_payload, timeout=2) as resp:
+                        if resp.status == 200:
+                            logger.info("✅ Ollama Model Unloaded (keep_alive=0).")
+                            return
+                except:
+                    pass
+                
+                
+                logger.warning("Could not unload model (API did not respond to known offload commands).")
+
+            finally:
+                if not self._session:
+                    await session.__aexit__(None, None, None)
+
+            # 3. Try 'lms' CLI (Definitive Fix for LM Studio 0.3+)
+            try:
+                # Run 'lms unload --all' asynchronously
+                proc = await asyncio.create_subprocess_exec(
+                    "lms", "unload", "--all",
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                stdout, stderr = await proc.communicate()
+                
+                if proc.returncode == 0:
+                     logger.info("✅ 'lms unload --all' executed successfully.")
+                else:
+                     logger.warning(f"'lms' CLI failed with code {proc.returncode}: {stderr.decode()}")
+            except Exception as cli_e:
+                logger.warning(f"Failed to run 'lms' CLI: {cli_e}. Is it in PATH?")
+
         except Exception as e:
             logger.warning(f"Failed to unload model: {e}")
+
+

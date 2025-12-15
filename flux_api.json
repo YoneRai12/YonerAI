@@ -1,0 +1,132 @@
+{
+    "1": {
+        "inputs": {
+            "unet_name": "flux2_dev_fp8mixed.safetensors",
+            "weight_dtype": "default"
+        },
+        "class_type": "UNETLoader",
+        "_meta": {
+            "title": "UNETLoader"
+        }
+    },
+    "2": {
+        "inputs": {
+            "clip_name": "mistral_3_small_flux2_fp8.safetensors",
+            "type": "flux2",
+            "device": "default"
+        },
+        "class_type": "CLIPLoader",
+        "_meta": {
+            "title": "CLIPLoader"
+        }
+    },
+    "3": {
+        "inputs": {
+            "vae_name": "flux2-vae.safetensors"
+        },
+        "class_type": "VAELoader",
+        "_meta": {
+            "title": "VAELoader"
+        }
+    },
+    "4": {
+        "inputs": {
+            "text": "a majestic fluffy cat sitting in a bioluminescent forest, futuristic city in background, 8k, masterpiece, highly detailed, cinematic lighting, national geographic photo",
+            "clip": [
+                "2",
+                0
+            ]
+        },
+        "class_type": "CLIPTextEncode",
+        "_meta": {
+            "title": "CLIPTextEncode (Positive)"
+        }
+    },
+    "5": {
+        "inputs": {
+            "text": "text, watermark, low quality, blurry, human, person, girl, boy, woman, man",
+            "clip": [
+                "2",
+                0
+            ]
+        },
+        "class_type": "CLIPTextEncode",
+        "_meta": {
+            "title": "CLIPTextEncode (Negative)"
+        }
+    },
+    "6": {
+        "inputs": {
+            "width": 1024,
+            "height": 1024,
+            "batch_size": 1
+        },
+        "class_type": "EmptyLatentImage",
+        "_meta": {
+            "title": "EmptyLatentImage"
+        }
+    },
+    "7": {
+        "inputs": {
+            "seed": 0,
+            "steps": 20,
+            "cfg": 3.5,
+            "sampler_name": "euler",
+            "scheduler": "simple",
+            "denoise": 1.0,
+            "model": [
+                "1",
+                0
+            ],
+            "positive": [
+                "4",
+                0
+            ],
+            "negative": [
+                "5",
+                0
+            ],
+            "latent_image": [
+                "6",
+                0
+            ]
+        },
+        "class_type": "KSampler",
+        "_meta": {
+            "title": "KSampler"
+        }
+    },
+    "8": {
+        "inputs": {
+            "samples": [
+                "7",
+                0
+            ],
+            "vae": [
+                "3",
+                0
+            ],
+            "tile_size": 512,
+            "overlap": 64,
+            "temporal_size": 8,
+            "temporal_overlap": 4
+        },
+        "class_type": "VAEDecodeTiled",
+        "_meta": {
+            "title": "VAEDecode"
+        }
+    },
+    "9": {
+        "inputs": {
+            "filename_prefix": "ComfyUI",
+            "images": [
+                "8",
+                0
+            ]
+        },
+        "class_type": "SaveImage",
+        "_meta": {
+            "title": "SaveImage"
+        }
+    }
+}

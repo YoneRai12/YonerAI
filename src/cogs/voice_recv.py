@@ -11,11 +11,11 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 try:
-    import whisper
+    from faster_whisper import WhisperModel
     WHISPER_AVAILABLE = True
 except ImportError:
     WHISPER_AVAILABLE = False
-    logger.warning("openai-whisper not installed. Voice recognition will be disabled.")
+    logger.warning("faster-whisper not installed. Voice recognition will be disabled.")
 
 from collections import defaultdict
 
@@ -79,15 +79,16 @@ class VoiceRecvCog(commands.Cog):
 
         if WHISPER_AVAILABLE:
             try:
-                # Try loading on GPU first
-                logger.info("Loading Whisper model (small) on GPU...")
-                self.model = whisper.load_model("small")
-                logger.info("Whisper model loaded on GPU.")
+                # Try to load on GPU first (using CTranslate2's auto detection)
+                logger.info("Loading Faster-Whisper model (small) on GPU...")
+                self.model = WhisperModel("small", device="cuda", compute_type="float16")
+                logger.info("✅ Faster-Whisper model loaded on GPU.")
             except Exception as e:
                 logger.warning(f"Failed to load Whisper on GPU: {e}")
-                logger.info("Falling back to CPU (small model)...")
-                self.model = whisper.load_model("small", device="cpu")
-                logger.info("Whisper model loaded on CPU.")
+                logger.info("Falling back to CPU (small model, int8 quantization for efficiency)...")
+                # Fallback to CPU
+                self.model = WhisperModel("small", device="cpu", compute_type="int8")
+                logger.info("⚠️ Faster-Whisper model loaded on CPU (int8).")
             
             # Suppress RTCP spam from voice_recv
             logging.getLogger("discord.ext.voice_recv").setLevel(logging.WARNING)
@@ -229,7 +230,9 @@ class VoiceRecvCog(commands.Cog):
                     member = text_channel.guild.get_member(user_id)
                     if member:
                         logger.info(f"Recognized speech from {member.display_name}: {text}")
-                        # Create dummy message
+                        # Create dummy message for context
+                        # We send a message so the user sees what was recognized.
+                        # This also acts as the "Tool" invocation if needed.
                         dummy_message = await text_channel.send(f"🎤 {member.display_name}: {text}")
                         dummy_message.author = member
                         dummy_message.content = text
@@ -238,7 +241,7 @@ class VoiceRecvCog(commands.Cog):
                         await ora_cog.handle_prompt(dummy_message, text, is_voice=True)
 
     def transcribe(self, pcm_data: bytes) -> str:
-        """Convert PCM to float32 and transcribe with Whisper."""
+        """Convert PCM to float32 and transcribe with Faster-Whisper."""
         if not pcm_data:
             return ""
         try:
@@ -252,10 +255,13 @@ class VoiceRecvCog(commands.Cog):
             # Resample to 16kHz (Simple decimation)
             audio_16k = audio_np[::3]
             
-            # Use FP16 on GPU for speed, disable on CPU to avoid warnings
-            is_cpu = self.model.device.type == "cpu"
-            result = self.model.transcribe(audio_16k, language="ja", fp16=not is_cpu)
-            return result["text"].strip()
+            # Faster-Whisper takes numpy array directly
+            # Returns segments generator and info
+            segments, info = self.model.transcribe(audio_16k, language="ja", beam_size=5)
+            
+            # Use list() to consume generator and get all text
+            text = " ".join([segment.text for segment in segments])
+            return text.strip()
         except Exception as e:
             logger.error(f"Transcription failed: {e}")
             return ""

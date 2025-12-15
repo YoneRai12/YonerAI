@@ -130,7 +130,7 @@ class Config:
                 pass
                 
         # Stable Diffusion API
-        sd_api_url = os.getenv("SD_API_URL", "http://127.0.0.1:7860").rstrip("/")
+        sd_api_url = "http://127.0.0.1:8188" # Force ComfyUI Port
 
         return cls(
             token=token,

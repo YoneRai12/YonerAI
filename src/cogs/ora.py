@@ -125,6 +125,7 @@ class ORACog(commands.Cog):
         self.bot = bot
         self._store = store
         self._llm = llm
+        self.llm = llm # Public Alias for Views
         self._search_client = search_client
         self._drive_client = DriveClient()
         self._watcher = DesktopWatcher()
@@ -144,36 +145,34 @@ class ORACog(commands.Cog):
         # Start background tasks
         self.desktop_loop.start()
         # Enforce Safe Model at Startup
-        self.bot.loop.create_task(self._set_default_safe_model())
+        self.bot.loop.create_task(self._check_comfy_connection())
         logger.info("ORACog.__init__ complete - desktop_loop started")
 
     def cog_unload(self):
         self.desktop_loop.cancel()
 
-    async def _set_default_safe_model(self):
-        """Force switch to Safe Model (v1-5) on startup with Retry."""
-        url = f"{self.bot.config.sd_api_url}/sdapi/v1/options"
-        safe_model = "v1-5-pruned-emaonly.safetensors [6ce0161689]"
-        payload = {"sd_model_checkpoint": safe_model}
+    async def _check_comfy_connection(self):
+        """Check if ComfyUI is reachable on startup."""
+        url = f"{self.bot.config.sd_api_url}/system_stats"
         
         # Retry up to 12 times (60 seconds)
         for i in range(12):
             try:
                 async with aiohttp.ClientSession() as session:
-                    async with session.post(url, json=payload, timeout=5) as resp:
+                    async with session.get(url, timeout=5) as resp:
                          if resp.status == 200:
-                             logger.info(f"✅ Enforced Default Safe Model: {safe_model}")
+                             logger.info(f"✅ ComfyUI Connected at {self.bot.config.sd_api_url}")
                              return
                          else:
-                             logger.warning(f"⚠️ Failed to set safe model (Status {resp.status}). Retrying... ({i+1}/12)")
+                             logger.warning(f"⚠️ ComfyUI returned status {resp.status}. Retrying... ({i+1}/12)")
             except Exception as e:
                  # Connection Refused etc.
-                 if i % 2 == 0: # Log every other attempt to reduce spam
-                    logger.warning(f"⏳ Waiting for SD WebUI to start... ({e}) ({i+1}/12)")
+                 if i % 2 == 0: 
+                    logger.warning(f"⏳ Waiting for ComfyUI to start... ({e}) ({i+1}/12)")
             
             await asyncio.sleep(5)
         
-        logger.error("❌ Could not connect to SD WebUI after 60 seconds. Model not enforced.")
+        logger.error("❌ Could not connect to ComfyUI after 60 seconds.")
 
     # --- PERMISSION SYSTEM ---
     SUB_ADMIN_IDS = {1307345055924617317}
@@ -658,7 +657,13 @@ class ORACog(commands.Cog):
             f"   - 'Who is X', 'Xとは', 'Xの詳細', 'X's info' -> `find_user` (args: {{ \"name_query\": \"X\" }})\n"
             f"   - 'Search X', 'Google X', '調べて' -> `google_search`\n"
             f"   - 'Volume X', 'Open X' -> `system_control`\n"
+            f"   - 'Volume X', 'Open X' -> `system_control`\n"
             f"   - 'Shiritori', 'しりとりしよう' -> `shiritori` (args: {{ \"action\": \"start\" }})\n"
+            f"   - **IMAGE GENERATION RULE (STRICT)**:\n"
+            f"     - **KEYWORD REQUIRED**: You MUST ONLY use `generate_image` if the user's message contains the Japanese keyword '画像生成'.\n"
+            f"     - **VISION PRIORITY**: If the user attaches an image, DO NOT generate an image. Use your vision capabilities to analyze it instead.\n"
+            f"     - **TRANSLATION**: If triggered, translate the prompt to English.\n"
+            f"     - Example: '画像生成 猫' -> args: {{ \"prompt\": \"cat, masterpiece...\" }}\n"
             f"   - **SHIRITORI GAME RULES**:\n"
             f"     - ALWAYS use the `shiritori` tool when the user plays a word. Args: `action='play'`, `word`, `reading`.\n"
             f"     - If the tool says 'User Move Valid', YOU MUST generate a response word starting with the specified character.\n"
@@ -832,87 +837,24 @@ class ORACog(commands.Cog):
                 neg = args.get("negative_prompt", "")
                 
                 # 1. Keyword Blocklist (Pre-check)
-                banned_words = ["nsfw", "nude", "naked", "sex", "porn", "hentai", "r18", "nipples", "pussy", "dick", "genitals", "cock", "vagina", "anal", "oral"]
-                for bad in banned_words:
-                    if bad in prompt.lower() or bad in neg.lower():
-                        return "❌ **Safety Block**: 安全フィルターによりブロックされました。不適切な単語が含まれています。"
-
-                # 2. Safety Injection (Positive)
-                # Removed "fully clothed" to avoid forcing human generation when asking for animals
-                safety_prompts = "(safe for work:1.5), (family friendly:1.2)"
-                prompt = f"{prompt}, {safety_prompts}"
-
-                # 3. Robust Negative Prompt (Force SFW)
-                # Force SFW by adding aggressive negative prompts
-                nsfw_filter = "(nsfw:2.0), (nude:2.0), (naked:2.0), (sexual:2.0), (nipples:1.5), (cleavage:1.5), (hentai:2.0), (porn:2.0), (bikini:1.5), (lingerie:1.5), (underwear:1.5), (swimwear:1.3), (revealing clothes:1.5)"
-                
-                # Smart Human Suppression: If prompt doesn't ask for people, strictly forbid them
-                human_keywords = ["girl", "boy", "man", "woman", "person", "human", "character", "actor", "actress", "child", "kid", "baby", "people", "someone", "guy", "lady", "profile", "portrait"]
-                if not any(k in prompt.lower() for k in human_keywords):
-                    nsfw_filter += ", (human:2.0), (person:2.0), (girl:2.0), (boy:2.0), (woman:2.0), (man:2.0), (face:1.5), (portrait:1.5), (skin:1.5)"
-
-                default_neg = f"{nsfw_filter}, (low quality, worst quality:2.0), (bad anatomy), (inaccurate limb:1.5), bad composition, inaccurate eyes, extra digit, fewer digits, (extra arms:1.5), easynegative"
-                
-                if not neg:
-                    neg = default_neg
-                else:
-                    neg = f"{neg}, {default_neg}"
-                
-                # Send the Interactive View
-                view = AspectRatioSelectView(self, prompt, neg)
-                await message.reply(f"🎨 **画像生成の準備**: `{prompt}`\nまずは**縦横比**を選んでください！", view=view)
-                
-                return "UIを表示しました。ユーザーの操作を待機します。"
+                # Legacy Handler Redirect
+                # The actual handler is unified below, but we keep this block clean to avoid errors.
+                # Just call the new logic directly here to consolidate.
+                try:
+                    from ..views.image_gen import AspectRatioSelectView
+                    # Force FLUX
+                    view = AspectRatioSelectView(self, prompt, neg, model_name="FLUX.2")
+                    await message.reply(f"🎨 **画像生成アシスタント**\nLLMが生成意図を検出しました。\nPrompt: `{prompt}`\nアスペクト比を選択して生成を開始してください。", view=view)
+                    return "Image Generation Menu Displayed."
+                except Exception as e:
+                    logger.error(f"Failed to launch image gen view: {e}")
+                    return f"Error: {e}"
             
             elif tool_name == "get_current_model":
-                url = f"{self.bot.config.sd_api_url}/sdapi/v1/options"
-                try:
-                    async with self.bot.session.get(url, timeout=10) as resp:
-                        if resp.status != 200: return f"Error: SD API Error {resp.status}"
-                        data = await resp.json()
-                        return f"Current Model: {data.get('sd_model_checkpoint', 'Unknown')}"
-                except Exception as e:
-                    return f"Failed to get model: {e}"
+                return "Current Model: FLUX.2 (ComfyUI backend)"
 
             elif tool_name == "change_model":
-                target = args.get("model_name", "").lower()
-                if not target: return "Error: Missing model_name."
-                
-                # List models
-                url_list = f"{self.bot.config.sd_api_url}/sdapi/v1/sd-models"
-                try:
-                    async with self.bot.session.get(url_list, timeout=20) as resp:
-                        if resp.status != 200: return f"Error: SD API (List) Error {resp.status}"
-                        models = await resp.json()
-                        
-                        # Find match
-                        found_title = None
-                        
-                        def normalize(s):
-                            return s.lower().replace(" ", "").replace("_", "").replace("-", "")
-
-                        target_norm = normalize(target)
-
-                        for m in models:
-                            title_norm = normalize(m["title"])
-                            if target_norm in title_norm:
-                                found_title = m["title"]
-                                break
-                        
-                        if not found_title:
-                            # List available
-                            titles = [m["title"] for m in models]
-                            return f"Model '{target}' not found. Available: {', '.join(titles)}"
-                        
-                        # Switch
-                        url_opt = f"{self.bot.config.sd_api_url}/sdapi/v1/options"
-                        payload = {"sd_model_checkpoint": found_title}
-                        async with self.bot.session.post(url_opt, json=payload, timeout=60) as resp2:
-                            if resp2.status != 200: return f"Error: SD API (Switch) Error {resp2.status}"
-                            return f"Success: Switched model to '{found_title}'."
-                            
-                except Exception as e:
-                    return f"Failed to change model: {e}"
+                return "Model switching is managed via ComfyUI workflows. Please use Style Selector."
 
             elif tool_name == "find_user":
                 query = args.get("name_query")
@@ -1309,6 +1251,37 @@ class ORACog(commands.Cog):
                 system_cog = self.bot.get_cog("SystemCog")
                 if system_cog:
                     return await system_cog.execute_tool(message.author.id, action, value)
+            elif tool_name == "generate_image":
+                # GUARD: Vision Priority (Attachments present -> No Gen)
+                if message.attachments:
+                    return "ABORT: Attachments detected. Priority: Vision Analysis. Do NOT generate an image."
+
+                # GUARD: Strict Keyword Check ("画像生成")
+                # We check the raw content (ignoring mentions slightly, but safest to lookat message.content)
+                if "画像生成" not in message.content:
+                    logger.info("Blocked generation: Missing '画像生成' keyword.")
+                    return "ABORT: User requires strict keyword '画像生成' to trigger generation."
+
+                prompt = args.get("prompt")
+                negative_prompt = args.get("negative_prompt", "")
+                
+                if not prompt: return "Error: Missing prompt."
+                
+                try:
+                    # Unload LLM to free VRAM for ComfyUI
+                    if self.llm:
+                        asyncio.create_task(self.llm.unload_model())
+                        await asyncio.sleep(3) # Wait for VRAM release
+                        
+                    from ..views.image_gen import AspectRatioSelectView
+                    # Defaulting to FLUX model logic since we are in ComfyUI mode
+                    view = AspectRatioSelectView(self, prompt, negative_prompt, model_name="FLUX.2")
+                    await message.reply(f"🎨 **画像生成アシスタント**\nLLMが生成意図を検出しました。\nPrompt: `{prompt}`\nアスペクト比を選択して生成を開始してください。", view=view)
+                    return "[SILENT_COMPLETION]"
+                except Exception as e:
+                    logger.error(f"Failed to launch image gen view: {e}")
+                    return f"Error launching image generator: {e}"
+
             elif tool_name == "manage_user_voice":
                 target_str = args.get("target_user")
                 action = args.get("action")
@@ -1664,6 +1637,16 @@ class ORACog(commands.Cog):
         if message.author.bot:
             return
         
+        # Chat Point Logic (10s Cooldown) - Moved from legacy listener
+        try:
+            now = time.time()
+            last_chat = self.chat_cooldowns[message.author.id]
+            if now - last_chat > 10.0:
+                self.chat_cooldowns[message.author.id] = now
+                asyncio.create_task(self._store.add_points(message.author.id, 1))
+        except Exception as e:
+            logger.error(f"Error adding points: {e}")
+
         logger.info(f"ORACog.on_message triggered: author={message.author.id}, content={message.content[:50]}, attachments={len(message.attachments)}")
 
         # Check for User Mention
@@ -2351,6 +2334,22 @@ class ORACog(commands.Cog):
             self.message_queue.append((message, prompt))
             return
 
+        # 1.5 DIRECT BYPASS: "画像生成" Trigger (Zero-Shot UI Launch)
+        if prompt and (prompt.startswith("画像生成") or "画像生成" in prompt[:10]):
+            gen_prompt = prompt.replace("画像生成", "", 1).strip()
+            if not gen_prompt: gen_prompt = "artistic masterpiece" 
+            
+            try:
+                 from ..views.image_gen import AspectRatioSelectView
+                 logger.info(f"Directly accessing image gen for prompt: {gen_prompt}")
+                 # NOTE: Model name is Flux.2 by default
+                 view = AspectRatioSelectView(self, gen_prompt, "", model_name="FLUX.2")
+                 await message.reply(f"🎨 **画像生成アシスタント (Direct)**\nPrompt: `{gen_prompt}`\nアスペクト比を選択して生成を開始してください。", view=view)
+                 return # STOP HERE. NO LLM CHAT.
+            except Exception as e:
+                 logger.error(f"Direct bypass failed: {e}")
+                 # Fallback to normal flow
+
         # 2. Privacy Check
         await self._store.ensure_user(message.author.id, self._privacy_default)
 
@@ -2576,6 +2575,11 @@ class ORACog(commands.Cog):
 
                     tool_result = await self._execute_tool(tool_name, tool_args, message, status_manager=status_manager)
                     
+                    if tool_result and "[SILENT_COMPLETION]" in str(tool_result):
+                        logger.info("Silent tool completion detected. Stopping generation loop.")
+                        await status_manager.finish()
+                        return
+
                     if tool_result:
                         # Check for loop (same tool, same args, repeated)
                         # We need to track previous tool calls
@@ -2681,129 +2685,7 @@ class ORACog(commands.Cog):
             except Exception:
                 break
 
-    @commands.Cog.listener()
-    async def on_message(self, message: discord.Message) -> None:
-        """Handle mentions and DMs."""
-        if message.author.bot:
-            return
 
-        # Chat Point Logic (10s Cooldown)
-        try:
-            now = time.time()
-            last_chat = self.chat_cooldowns[message.author.id]
-            if now - last_chat > 10.0:
-                self.chat_cooldowns[message.author.id] = now
-                # Use create_task to avoid blocking potential response logic
-                asyncio.create_task(self._store.add_points(message.author.id, 1))
-        except Exception as e:
-            logger.error(f"Error adding points: {e}")
-
-        # Check if mentioned or DM
-        # Check if mentioned or DM
-        is_user_mentioned = self.bot.user in message.mentions
-        is_role_mentioned = False
-        if message.guild and message.role_mentions:
-            me = message.guild.me
-            # Check if any mentioned role is held by the bot
-            for role in message.role_mentions:
-                if role in me.roles:
-                    is_role_mentioned = True
-                    break
-        
-        is_mentioned = is_user_mentioned or is_role_mentioned
-        is_dm = isinstance(message.channel, discord.DMChannel)
-
-        if is_mentioned or is_dm:
-            # Remove mention from content
-            import re
-            prompt = message.content.replace(f"<@{self.bot.user.id}>", "").strip()
-            # Remove Nickname Mention
-            prompt = prompt.replace(f"<@!{self.bot.user.id}>", "").strip()
-            # Remove Role Mentions
-            prompt = re.sub(r"<@&(\d+)>", "", prompt).strip()
-            
-            # Handle Attachments
-            if message.attachments:
-                logger.info(f"Processing {len(message.attachments)} attachments")
-                supported_extensions = {'.txt', '.md', '.py', '.js', '.json', '.html', '.css', '.csv', '.xml', '.yaml', '.yml', '.sh', '.bat', '.ps1'}
-                for attachment in message.attachments:
-                    ext = "." + attachment.filename.split(".")[-1].lower() if "." in attachment.filename else ""
-                    logger.info(f"Attachment: {attachment.filename}, Ext: {ext}, Content-Type: {attachment.content_type}")
-                    
-                    if ext in supported_extensions or (attachment.content_type and "text" in attachment.content_type):
-                        if attachment.size > 1024 * 1024: # 1MB limit
-                            logger.warning(f"Attachment {attachment.filename} too large: {attachment.size}")
-                            continue
-                        
-                        try:
-                            content = await attachment.read()
-                            text_content = content.decode('utf-8', errors='ignore')
-                            prompt += f"\n\n[Attached File: {attachment.filename}]\n{text_content}\n"
-                        except Exception as e:
-                            logger.error(f"Failed to read attachment {attachment.filename}: {e}")
-
-                    # Handle Images (Vision API)
-                    elif ext in {'.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp'}:
-                        if attachment.size > 8 * 1024 * 1024: # 8MB limit for Vision
-                            logger.warning(f"Image {attachment.filename} too large: {attachment.size}")
-                            continue
-                        
-                        try:
-                            # Download image
-                            image_data = await attachment.read()
-                            
-                            # Save to Cache
-                            timestamp = int(time.time())
-                            safe_filename = f"{timestamp}_{attachment.filename}"
-                            cache_path = CACHE_DIR / safe_filename
-                            async with aiofiles.open(cache_path, "wb") as f:
-                                await f.write(image_data)
-                            
-                            # Analyze
-                            # Use Vision API supported by LLM (Base64)
-                            import base64
-                            b64 = base64.b64encode(image_data).decode("utf-8")
-                            mime = attachment.content_type or "image/jpeg"
-                            
-                            # Construct complex content part for this image
-                            # Note: ora.py usually constructs a simple string prompt first, 
-                            # then handle_prompt converts it to messages.
-                            # We need to change how handle_prompt receives input, OR store this image data 
-                            # temporarily to attach to the message object sent to LLM.
-                            
-                            # Hack: For now, we'll keep the string prompt for legacy OCR backup (optional)
-                            # But effectively we want the LLM to SEE it.
-                            # Since we are building `prompt` string here, we can't easily inject the image dict yet.
-                            # We should store it in a list of images to attach later.
-                            
-                            if not hasattr(self, "_temp_image_context"):
-                                self._temp_image_context = {}
-                            
-                            if message.id not in self._temp_image_context:
-                                self._temp_image_context[message.id] = []
-                            
-                            self._temp_image_context[message.id].append({
-                                "type": "image_url",
-                                "image_url": {"url": f"data:{mime};base64,{b64}"}
-                            })
-                            
-                            prompt += f"\n\n[Attached Image: {attachment.filename}] (Sent to Vision Model)\n"
-                            
-                        except Exception as e:
-                            logger.error(f"Failed to analyze image {attachment.filename}: {e}")
-                            prompt += f"\n\n[Attached Image: {attachment.filename}] (Analysis Failed: {e})\n"
-            
-            # If empty prompt (just mention), ignore or ask "What?"
-            if not prompt:
-                if is_dm:
-                    # In DM, maybe they sent an image?
-                    if not message.attachments:
-                        return
-                else:
-                    # In server, just mention without text -> ignore or simple ack
-                    return
-
-            await self.handle_prompt(message, prompt)
 
 
 

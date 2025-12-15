@@ -10,18 +10,19 @@
 
 ---
 
-## ✨ v2.2 Update Highlights (最新アップデート)
-*   **🛠️ Hardware Resilience (RTX 5090 Ready)**: 最新のGPU(RTX 5090等)とPyTorchの互換性問題を解決するため、GPU起動失敗時に自動でCPUモードへフォールバックする「安全装置」を実装しました。どんな環境でも確実にBotが起動します。
-*   **🔍 Enhanced Search Visualization**: Google検索機能が大幅進化。検索結果に「サムネイル画像」が表示され、クリックしやすいボタンリンクに変更。さらに「スニペット（要約文）」をAIが読み取ることで、リンクを開かずに質問に答えるRAG的な挙動が可能になりました。
-*   **🎮 Shiritori Game**: AIとしりとり対決ができるようになりました！Botは自分の回答が「ん」で終わっていないか、ルール違反がないかを自ら検証してから発言します。(`shiritori` ツール)
-*   **👥 Multi-User Voice Support**: 複数人が同時に喋っても、それぞれの声を個別に認識・処理できるようになりました。会議やコラボ通話でも快適です。
-*   **💰 Points System**: チャットや通話をするだけで勝手にポイントが貯まる「ポイ活」機能を実装。`check_points` で確認可能。
-*   **🛡️ Safety First**: 画像生成のデフォルトモデルを「標準 (Safe)」に固定し、強力なNSFWフィルターを搭載。家族の前でも安心して使えます。
-*   **🔊 Voice Utilities**: VCへの「召喚 (Summon)」、サーバーミュート・スピーカーミュート操作、タイマー・アラーム機能を追加。
-*   **💳 Visual Card Responses**: 全ての回答が美しい「カード形式 (Discord Embed)」に進化しました。文字だけの地味なBotとはおさらばです。
-*   **💭 Interactive Thoughts**: 「思考中」「検索中」といったBotの内部状態が**アニメーションアイコン**でリアルタイムに表示されます。
-*   **🧠 Smart VRAM Management**: 画像生成時にはLLMを自動的にVRAMから退避させ、Stable Diffusionのパフォーマンスを最大化する機能を搭載しました。
-*   **👀 Reply Vision**: Botが生成した画像や、過去のメッセージに含まれる画像に対し、返信機能を使って「これ見て」と言うだけで認識できるようになりました。
+## ✨ v2.3 Update Highlights (最新アップデート)
+*   **🎨 FLUX.2 & FLUX.1 Integration**: 最新鋭の画像生成モデル **FLUX.2** および **FLUX.1 dev** に完全対応。サーバーグレードの超高画質生成が可能になりました。
+*   **🚀 RTX 5090 Optimized**: 次世代GPU **RTX 5090** のパワーを最大限引き出す **Normal/Low VRAMハイブリッド制御** を搭載。32GB VRAMを効率的に使い切り、巨大モデルでもクラッシュしません。
+*   **🧠 Auto-Healing Workflow**: ComfyUIの接続エラーやメモリ不足（OOM）を自動検知。必要に応じて設定を自動調整し、ユーザーの手を煩わせることなく復旧します。
+*   **🔍 Enhanced Search Visualization**: Google検索機能が進化。サムネイル画像とスニペット要約を表示し、リンクを開かずに情報を把握できます。
+*   **🎮 Shiritori Game**: AIとしりとり対決が可能。Botはルールを自律的に判定します。
+*   **🛠️ Diagnostic Tools**: 接続やクラッシュの原因を特定する診断ツール (`diagnose_connection.ps1`, `debug_comfy_trace.ps1`) を標準同梱しました。
+*   **👥 Multi-User Voice Support**: 複数人の同時発話を個別に認識・処理可能です。
+*   **💰 Points System**: チャットでポイントが貯まるシステムを搭載。
+*   **🛡️ Safety First**: NSFWフィルターと標準モデル固定により安全性を確保。
+*   **🔊 Voice Utilities**: 召喚、ミュート操作、タイマー機能などを追加。
+*   **💳 Visual Card Responses**: 美しいEmbed形式での応答。
+*   **💭 Interactive Thoughts**: 思考中のリアルタイムアニメーション表示。
 
 ---
 

@@ -1,11 +1,13 @@
 
 import discord
 from discord.ui import View, Button
-import json
 import asyncio
+import io
+from src.utils.comfy_client import ComfyWorkflow
 
-class ResolutionSelectView(View):
-    def __init__(self, cog, interaction, prompt, negative_prompt, width, height):
+
+class StyleSelectView(View):
+    def __init__(self, cog, interaction, prompt, negative_prompt, width, height, is_flux=True, is_high_quality=False):
         super().__init__(timeout=None)
         self.cog = cog
         self.original_interaction = interaction
@@ -13,8 +15,10 @@ class ResolutionSelectView(View):
         self.negative_prompt = negative_prompt
         self.width = width
         self.height = height
+        self.is_flux = is_flux
+        self.is_high_quality = is_high_quality
 
-    async def start_generation(self, interaction: discord.Interaction, scale: float):
+    async def start_generation(self, interaction: discord.Interaction, style: str):
         await interaction.response.defer()
         
         # Disable buttons
@@ -22,130 +26,226 @@ class ResolutionSelectView(View):
             child.disabled = True
         await self.original_interaction.edit_original_response(view=self)
 
-        # Calculate Highres Fix dimensions
-        # scale 1.5 -> FHD ish
-        # scale 2.0 -> WQHD
-        # scale 3.0 -> 4K
+        # Apply Style Modifiers
+        final_prompt = self.prompt
+        style_suffix = ""
         
-        # We use 'enable_hr' and 'hr_scale'
-        # Base size is what we start with (512 or 768)
+        if style == "natural":
+            style_suffix = ", beautiful mountain landscape, nature, national geographic photo, 8k, masterpiece"
+        elif style == "future":
+            style_suffix = ", futuristic cyberpunk city, neon lights, scifi, highly detailed, 8k"
+        elif style == "animal":
+            style_suffix = ", cute fluffy, soft lighting, depth of field, studio photography, 8k"
+        elif style == "real":
+            style_suffix = ", photorealistic, cinematic lighting, 8k, masterpiece, highly detailed"
         
+        if style != "raw":
+            final_prompt += style_suffix
+
+        # Quality Modifiers
+        if self.is_high_quality:
+            final_prompt += ", best quality, ultra detailed, 8k, highres, sharp focus"
+
         # SAFETY ENFORCEMENT
-        # Inject strong safety guidelines
-        safe_prompt = f"{self.prompt}, (safe for work:1.2)"
-        
-        # Explicitly ban NSFW concepts with high weight
-        hidden_negative = (
-            ", (nsfw:2.0), (nude:2.0), (naked:2.0), (sexual:2.0), (porn:2.0), (hentai:2.0), "
-            "(exposed:2.0), (breasts:2.0), (genitals:2.0), (penis:2.0), (vagina:2.0), "
-            "(sexual act:2.0), (nsfw content:2.0)"
-        )
-        safe_negative = f"{self.negative_prompt}{hidden_negative}"
+        safe_negative = "nsfw, nude, naked, porn, hentai, sexual, exposed, breasts, genitals, low quality, bad anatomy"
+        if self.negative_prompt:
+            safe_negative = f"{self.negative_prompt}, {safe_negative}"
 
-        payload = {
-            "prompt": safe_prompt,
-            "negative_prompt": safe_negative,
-            "steps": 30,
-            "width": self.width,
-            "height": self.height,
-            "sampler_name": "DPM++ 2M Karras",
-            "cfg_scale": 7,
-            "enable_hr": True,
-            "hr_scale": scale,
-            "hr_upscaler": "R-ESRGAN 4x+", 
-            "hr_second_pass_steps": 15,
-            "denoising_strength": 0.55
-        }
-
-        # Lock Bot
+        # Lock Bot & Unload LLM
         self.cog.is_generating_image = True
-        await interaction.followup.send(f"🎨 **画像生成を開始します...**\nプロンプト: `{self.prompt}`\n設定: `{self.width}x{self.height}` -> `Scalar x{scale}`\n(生成中は他の会話が待機状態になります)")
         
-        # Offload LLM to save VRAM
-        try:
-            await self.cog._llm.unload_model() # Using _llm since it's private in cog usually, or public?
-            # Cog init: self._llm = llm. So it's _llm.
-            # But wait, looking at ora.py: self._llm = llm
-            # But standard public access? Let's check if it has a property.
-            # Usually cogs don't expose it.
-            # Accessing privates in Python is fine.
-        except Exception as e:
-            print(f"Failed to offload LLM: {e}")
+        # OFF-LOAD LLM FROM VRAM (Critical)
+        if self.cog.llm:
+             asyncio.create_task(self.cog.llm.unload_model())
+             # Extended buffer to ensure VRAM is fully released before giant Flux load
+             await asyncio.sleep(8) 
 
-        try:
-            # Call API
-            url = f"{self.cog.bot.config.sd_api_url}/sdapi/v1/txt2img"
-            async with self.cog.bot.session.post(url, json=payload, timeout=300) as resp:
-                if resp.status != 200:
-                    text = await resp.text()
-                    await interaction.followup.send(f"❌ エラーが発生しました: {resp.status}\n{text[:100]}")
-                    return
+        steps = 30 if self.is_high_quality else 20
+        mode_label = "High Quality" if self.is_high_quality else "Standard"
 
-                data = await resp.json()
-                if "images" in data:
-                    from src.utils.image_tools import decode_base64_image
-                    
-                    files = []
-                    for i, img_str in enumerate(data["images"]):
-                        img_data = decode_base64_image(img_str)
-                        files.append(discord.File(img_data, filename=f"gen_{i}.png"))
-                    
-                    await interaction.followup.send(f"✅ **生成完了!**", files=files)
-                else:
-                    await interaction.followup.send("❌ 画像データが含まれていませんでした。")
+        await interaction.followup.send(f"🎨 **生成開始 (Flux Engine)**\nMode: `{mode_label}`\nStyle: `{style.upper()}`\nPrompt: `{final_prompt[:50]}...`\n(生成中... VRAM解放待機含む)")
+        
+        try:
+            # Initialize Comfy Client
+            workflow = ComfyWorkflow(server_address=self.cog.bot.config.sd_api_url.replace("http://", "").replace("/", ""))
+            
+            # Execute Generation in Thread
+            image_data = await asyncio.to_thread(
+                workflow.generate_image, 
+                positive_prompt=final_prompt, 
+                negative_prompt=safe_negative,
+                steps=steps # Pass steps if supported
+            )
+
+            if image_data:
+                file = discord.File(io.BytesIO(image_data), filename=f"flux_gen_{style}.png")
+                await interaction.followup.send(f"✅ **生成完了!**", file=file)
+            else:
+                await interaction.followup.send("❌ 生成に失敗しました (ComfyUIからのデータなし)")
 
         except Exception as e:
-            await interaction.followup.send(f"❌ 予期せぬエラー: {e}")
+            await interaction.followup.send(f"❌ エラー: {e}")
         
         finally:
-            # Unlock Bot and Process Queue
             self.cog.is_generating_image = False
-            await interaction.followup.send("🔓 **生成終了: 待機していた会話を再開します。**")
-            # Process queue in background
             asyncio.create_task(self.cog.process_message_queue())
 
-    @discord.ui.button(label="FHD (10s)", style=discord.ButtonStyle.primary, custom_id="res_fhd")
-    async def fhd_button(self, interaction: discord.Interaction, button: Button):
-        await self.start_generation(interaction, 1.5) # approx 1.5x upscaling
+    @discord.ui.button(label="おまかせ (Auto)", style=discord.ButtonStyle.primary)
+    async def style_auto(self, interaction: discord.Interaction, button: Button):
+        await interaction.response.defer()
+        
+        # Disable buttons temporarily
+        for child in self.children:
+            child.disabled = True
+        await self.original_interaction.edit_original_response(view=self)
 
-    @discord.ui.button(label="WQHD (30s)", style=discord.ButtonStyle.success, custom_id="res_wqhd")
-    async def wqhd_button(self, interaction: discord.Interaction, button: Button):
-        await self.start_generation(interaction, 2.0) # 2x upscaling
+        determined_style = "real" # Fallback
+        
+        # Use LLM to decide style if available (Before Unload)
+        if self.cog.llm:
+            try:
+                classification_prompt = (
+                    f"Classify the following image prompt into one of these styles: 'natural', 'future', 'animal', 'real'. "
+                    f"Output ONLY the style name (lowercase). If unsure, output 'real'.\n\nPrompt: {self.prompt}"
+                )
+                
+                response = await self.cog.llm.chat(
+                    messages=[{"role": "user", "content": classification_prompt}],
+                    temperature=0.1
+                )
+                
+                clean_style = response.strip().lower()
+                valid_styles = ["natural", "future", "animal", "real"]
+                
+                for vs in valid_styles:
+                    if vs in clean_style:
+                        determined_style = vs
+                        break
+                        
+                await interaction.followup.send(f"🤖 **AI判断**: `{determined_style}` スタイルで生成します...", ephemeral=True)
+                
+            except Exception as e:
+                # Fallback to simple heuristic
+                p = self.prompt.lower()
+                if "cat" in p or "dog" in p or "animal" in p: determined_style = "animal"
+                elif "city" in p or "robot" in p or "cyber" in p: determined_style = "future"
+                elif "forest" in p or "mountain" in p or "sky" in p: determined_style = "natural"
+        
+        # Proceed with generation (Unload happens inside start_generation)
+        await self.start_generation(interaction, determined_style)
 
-    @discord.ui.button(label="4K (60s)", style=discord.ButtonStyle.danger, custom_id="res_4k")
-    async def four_k_button(self, interaction: discord.Interaction, button: Button):
-        await self.start_generation(interaction, 3.0) # 3x upscaling
+    @discord.ui.button(label="自然 (Nature)", style=discord.ButtonStyle.secondary)
+    async def style_nature(self, interaction: discord.Interaction, button: Button):
+        await self.start_generation(interaction, "natural")
+
+    @discord.ui.button(label="未来 (Future)", style=discord.ButtonStyle.secondary)
+    async def style_future(self, interaction: discord.Interaction, button: Button):
+        await self.start_generation(interaction, "future")
+
+    @discord.ui.button(label="動物 (Animal)", style=discord.ButtonStyle.secondary)
+    async def style_animal(self, interaction: discord.Interaction, button: Button):
+        await self.start_generation(interaction, "animal")
+
+    @discord.ui.button(label="リアル (Real)", style=discord.ButtonStyle.secondary)
+    async def style_real(self, interaction: discord.Interaction, button: Button):
+        await self.start_generation(interaction, "real")
+
+
+
+
+class QualitySelectView(View):
+    def __init__(self, cog, interaction, prompt, negative_prompt, width, height):
+        super().__init__(timeout=None)
+        self.cog = cog
+        self.original_interaction = interaction
+        self.prompt = prompt
+        self.negative_prompt = negative_prompt
+        self.base_width = width
+        self.base_height = height
+
+    def _calculate_res(self, scale_keyword: str):
+        # Calculate Aspect Ratio
+        ratio = self.base_width / self.base_height
+        
+        # Define Target Long Edge (Approximate for 16:9)
+        # FHD: 1920, WQHD: 2560, 4K: 3840
+        if scale_keyword == "FHD":
+            target_long = 1920 if ratio >= 1 else 1080
+        elif scale_keyword == "WQHD":
+            target_long = 2560 if ratio >= 1 else 1440
+        elif scale_keyword == "4KUHD":
+            target_long = 3840 if ratio >= 1 else 2160
+        else:
+            return self.base_width, self.base_height
+            
+        if ratio >= 1: # Landscape or Square
+            w = target_long
+            h = int(w / ratio)
+        else: # Portrait
+            h = target_long
+            w = int(h * ratio)
+            
+        # Ensure divisible by 64 (Flux requirement)
+        w = ((w + 32) // 64) * 64
+        h = ((h + 32) // 64) * 64
+        return w, h
+
+    async def proceed(self, interaction: discord.Interaction, label: str):
+        w, h = self._calculate_res(label)
+        
+        # High Quality flag is True for WQHD/4K to increase steps
+        is_high_quality = label in ["WQHD", "4KUHD"]
+        
+        view = StyleSelectView(self.cog, interaction, self.prompt, self.negative_prompt, w, h, is_high_quality=is_high_quality)
+        await interaction.response.edit_message(content=f"✅ 画質: **{label}** ({w}x{h})\n最後に**スタイル**を選んでください。", view=view)
+
+    @discord.ui.button(label="FHD (約20秒)", style=discord.ButtonStyle.secondary)
+    async def fhd(self, interaction: discord.Interaction, button: Button):
+        await self.proceed(interaction, "FHD")
+
+    @discord.ui.button(label="WQHD (約40秒)", style=discord.ButtonStyle.primary)
+    async def wqhd(self, interaction: discord.Interaction, button: Button):
+        await self.proceed(interaction, "WQHD")
+
+    @discord.ui.button(label="4KUHD (約80秒)", style=discord.ButtonStyle.danger)
+    async def uhd(self, interaction: discord.Interaction, button: Button):
+         await self.proceed(interaction, "4KUHD")
+
 
 
 class AspectRatioSelectView(View):
-    def __init__(self, cog, prompt, negative_prompt):
+    def __init__(self, cog, prompt, negative_prompt, model_name=""):
         super().__init__(timeout=None)
         self.cog = cog
         self.prompt = prompt
         self.negative_prompt = negative_prompt
+        self.model_name = "FLUX.2"
 
     async def proceed(self, interaction: discord.Interaction, w, h, label):
-        await interaction.response.edit_message(content=f"✅ 比率を選択: **{label}**\n次は画質(解像度)を選んでください。", view=ResolutionSelectView(self.cog, interaction, self.prompt, self.negative_prompt, w, h))
+        # Next Step: Quality Selection
+        view = QualitySelectView(self.cog, interaction, self.prompt, self.negative_prompt, w, h)
+        await interaction.response.edit_message(content=f"✅ 比率: **{label}**\n次は**画質**を選んでください。", view=view)
 
     @discord.ui.button(label="正方形 (1:1)", style=discord.ButtonStyle.secondary)
     async def square(self, interaction: discord.Interaction, button: Button):
-        await self.proceed(interaction, 512, 512, "正方形")
+        await self.proceed(interaction, 1024, 1024, "正方形 1:1")
 
     @discord.ui.button(label="縦長 (2:3)", style=discord.ButtonStyle.secondary)
     async def portrait(self, interaction: discord.Interaction, button: Button):
-        await self.proceed(interaction, 512, 768, "縦長")
+        await self.proceed(interaction, 832, 1216, "縦長 2:3")
 
     @discord.ui.button(label="横長 (3:2)", style=discord.ButtonStyle.secondary)
     async def landscape(self, interaction: discord.Interaction, button: Button):
-        await self.proceed(interaction, 768, 512, "横長 (3:2)")
+        await self.proceed(interaction, 1216, 832, "横長 3:2")
 
-    @discord.ui.button(label="ワイド (16:9)", style=discord.ButtonStyle.secondary, row=1)
+    @discord.ui.button(label="PC/TV (16:9)", style=discord.ButtonStyle.success)
     async def wide(self, interaction: discord.Interaction, button: Button):
-        # 16:9 -> 912x512 is close to 16:9 (1.78) for SD1.5
-        # Or 854x480? Let's use 912x512.
-        await self.proceed(interaction, 912, 512, "ワイド (16:9)")
+        await self.proceed(interaction, 1344, 768, "ワイド 16:9")
 
-    @discord.ui.button(label="スマホ縦 (9:16)", style=discord.ButtonStyle.secondary, row=1)
-    async def mobile_portrait(self, interaction: discord.Interaction, button: Button):
-        # 9:16 -> 512x912
-        await self.proceed(interaction, 512, 912, "スマホ縦 (9:16)")
+    @discord.ui.button(label="映画 (21:9)", style=discord.ButtonStyle.success)
+    async def cinema(self, interaction: discord.Interaction, button: Button):
+        await self.proceed(interaction, 1536, 640, "シネマ 21:9")
+
+    @discord.ui.button(label="スマホ (9:16)", style=discord.ButtonStyle.success)
+    async def mobile(self, interaction: discord.Interaction, button: Button):
+        await self.proceed(interaction, 768, 1344, "スマホ 9:16")
