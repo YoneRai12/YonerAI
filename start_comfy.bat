@@ -2,20 +2,8 @@
 title ORA ComfyUI Launcher
 echo [ORA] Launching ComfyUI for Image Generation...
 
-:: Try L Drive (Migrated)
-if exist "L:\ComfyUI\run_nvidia_gpu.bat" (
-    cd /d L:\ComfyUI
-    call run_nvidia_gpu.bat
-    exit /b
-)
+:: Use the proven command from start_vllm.bat
+cd /d L:\ComfyUI
+L:\ORADiscordBOT_Env\Scripts\python.exe main.py --listen 127.0.0.1 --port 8188 --normalvram --disable-cuda-malloc --enable-cors-header * --force-fp16
 
-:: Try Desktop (Old)
-if exist "..\ComfyUI_windows_portable\ComfyUI\run_nvidia_gpu.bat" (
-    cd /d ..\ComfyUI_windows_portable\ComfyUI
-    call run_nvidia_gpu.bat
-    exit /b
-)
-
-echo [ERROR] ComfyUI run_nvidia_gpu.bat not found in L:\ComfyUI or standard paths.
-echo Please edit start_comfy.bat to point to your ComfyUI folder.
 pause

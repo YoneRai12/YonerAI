@@ -105,38 +105,64 @@ class ResourceManager:
 
     async def kill_process_on_port(self, port: int):
         """
-        Terminates any process listening on the given port using Windows 'netstat' & 'taskkill'.
+        Kills the process listening on a port.
+        CRITICAL UPDATE: Also kills WSL2 processes if port is 8001.
         """
-        logger.info(f"🔫 Killing process on port {port}...")
-        try:
-            # Find PID
-            # netstat -ano | findstr :PORT
-            cmd = f"netstat -ano | findstr :{port}"
-            process = await asyncio.create_subprocess_shell(
-                cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-            )
-            stdout, _ = await process.communicate()
-            
-            if not stdout:
-                logger.info(f"No process found on port {port}.")
-                return
+        logger.info(f"🔪 Attempting to kill process on port {port}...")
 
-            # Parse PIDs (lines look like: "TCP 0.0.0.0:8000 ... LISTENING 1234")
-            lines = stdout.decode().strip().split('\n')
-            pids = set()
-            for line in lines:
-                parts = line.split()
-                if len(parts) > 4:
-                    pid = parts[-1]
-                    if pid.isdigit() and int(pid) > 0:
-                        pids.add(pid)
-            
-            for pid in pids:
-                logger.info(f"Found PID {pid}. Terminating...")
-                subprocess.run(f"taskkill /F /PID {pid}", shell=True, check=False)
+        # 1. Kill Windows Process (Standard)
+        cmd = f'netstat -ano | findstr :{port}'
+        try:
+            # We use synchronous popen/run here for simplicity in utility
+            proc = subprocess.run(cmd, shell=True, capture_output=True)
+            if proc.stdout:
+                lines = proc.stdout.decode().strip().split('\n')
+                pids = set()
+                for line in lines:
+                    parts = line.split()
+                    if len(parts) > 4:
+                        pid = parts[-1]
+                        if pid.isdigit() and int(pid) > 0:
+                            pids.add(pid)
                 
+                for pid in pids:
+                    logger.info(f"Found Windows PID {pid}. Terminating...")
+                    subprocess.run(f"taskkill /F /PID {pid}", shell=True, check=False)
         except Exception as e:
-            logger.error(f"Error killing process on port {port}: {e}")
+            logger.error(f"Error killing Windows process: {e}")
+
+        # 2. Kill WSL2 vLLM (Force VRAM Release)
+        if port == 8001:
+            try:
+                logger.info("🐧 Scanning WSL distros to kill vLLM...")
+                # Get list of distros
+                proc_list = subprocess.run('wsl -l -q', shell=True, capture_output=True)
+                # Decode properly: UTF-16LE is standard for WSL output
+                raw_output = proc_list.stdout.decode('utf-16-le', errors='ignore')
+                distros = [d.strip() for d in raw_output.split() if d.strip()]
+                
+                if not distros:
+                    distros = ["Ubuntu", "Ubuntu-22.04", "Debian"]
+
+                for distro in distros:
+                    logger.info(f"🐧 Check/Kill in [{distro}]...")
+                    try:
+                        # Command 1: pkill via full path (most reliable)
+                        # We use || true to prevent exit code 1 if no process found
+                        kill_cmd = 'wsl -d {} bash -c "/usr/bin/pkill -9 -f vllm || /usr/bin/pkill -9 -f python3 || true"'.format(distro)
+                        res = subprocess.run(kill_cmd, shell=True, capture_output=True, text=True)
+                        if res.returncode != 0:
+                             logger.warning(f"  Result: {res.stderr.strip()}")
+                        else:
+                             # Also try fuser just in case pkill missed
+                             subprocess.run(f'wsl -d {distro} bash -c "fuser -k -9 8001/tcp || true"', shell=True, check=False)
+                             logger.info("  Signal sent.")
+                             
+                    except Exception as e:
+                        logger.warning(f"Failed to kill in {distro}: {e}")
+
+            except Exception as e:
+                logger.error(f"Error enumerating WSL processes: {e}")
 
     async def start_llm(self, specific_mode: str = None):
         """
@@ -213,15 +239,15 @@ class ResourceManager:
                     _, writer = await asyncio.open_connection('127.0.0.1', port)
                     writer.close()
                     await writer.wait_closed()
-                    logger.info(f"Port {port} is active!")
+                    logger.info(f"✅ Port {port} is active.")
                     return True
-                except (ConnectionRefusedError, OSError):
+                except (ConnectionRefusedError, asyncio.TimeoutError):
                     await asyncio.sleep(1)
-            except Exception:
-                await asyncio.sleep(1)
+            except Exception as e:
+                 logger.debug(f"Wait check error: {e}")
+                 await asyncio.sleep(1)
         
-        
-        logger.warning(f"Timed out waiting for port {port}!")
+        logger.error(f"❌ Port {port} did not open after {timeout} seconds.")
         return False
 
     async def set_gaming_mode(self, enabled: bool):

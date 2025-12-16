@@ -188,10 +188,10 @@ class Config:
         logger = logging.getLogger(__name__)
         
         if not self.admin_user_id:
-            logger.warning("ADMIN_USER_ID is not set. Admin-only commands will be unavailable.")
+            logger.debug("ADMIN_USER_ID is not set. Admin-only commands will be unavailable.")
         
         if not self.search_api_key:
-            logger.warning("SEARCH_API_KEY is not set. Web search will use DuckDuckGo (slower/rate-limited).")
+            logger.debug("SEARCH_API_KEY is not set. Web search will use DuckDuckGo (slower/rate-limited).")
             
         if not self.dev_guild_id:
             logger.info("ORA_DEV_GUILD_ID is not set. Commands will be synced globally (can take up to 1 hour).")

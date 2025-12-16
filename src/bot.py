@@ -66,42 +66,36 @@ class ORABot(commands.Bot):
     async def setup_hook(self) -> None:
         # 1. Initialize Shared Resources
         # Search client using SerpApi or similar
-        search_client = SearchClient(self.config.search_api_key, self.config.search_engine)
+        self.search_client = SearchClient(self.config.search_api_key, self.config.search_engine)
         
         # VOICEVOX text-to-speech
         vv_client = VoiceVoxClient(self.config.voicevox_api_url, self.config.voicevox_speaker_id)
         # Whisper speech-to-text
         stt_client = WhisperClient(model=self.config.stt_model)
         # Voice manager handles VC connections and hotword detection
-        voice_manager = VoiceManager(self, vv_client, stt_client)
+        self.voice_manager = VoiceManager(self, vv_client, stt_client)
 
         # 2. Register Core Cogs
         await self.add_cog(CoreCog(self, self.link_client, self.store))
         
         # 3. Register ORA Cog (Main Logic)
+        # Note: We keep ORACog as manual add for now, or convert it later. 
+        # Using self.search_client instead of local var.
         await self.add_cog(
             ORACog(
                 self,
                 store=self.store,
                 llm=self.llm_client,
-                search_client=search_client,
+                search_client=self.search_client,
                 public_base_url=self.config.public_base_url,
                 ora_api_base_url=self.config.ora_api_base_url,
                 privacy_default=self.config.privacy_default,
             )
         )
         
-        # 4. Register Media Cog (Depends on VoiceManager)
-        await self.add_cog(
-            MediaCog(
-                self,
-                store=self.store,
-                voice_manager=voice_manager,
-                search_client=search_client,
-                llm_client=self.llm_client,
-                speak_search_default=self.config.speak_search_progress_default,
-            )
-        )
+        # 4. Register Media Cog (Loaded as Extension for Hot Reloading)
+        # Depends on self.voice_manager which is now attached to bot
+        await self.load_extension("src.cogs.media")
         
         # 5. Load Extensions
         extensions = [

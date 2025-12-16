@@ -21,8 +21,8 @@ echo     - Model: Qwen2.5-VL-7B
 echo     - Best for: Low Lag, Background use
 echo.
 echo ===================================================
-echo Auto-starting Default (Instruct) in 3 seconds...
-choice /c 123 /t 3 /d 1 /m "Enter choice"
+echo Auto-starting Default (Gaming) in 1 second...
+choice /c 123 /t 1 /d 3 /m "Enter choice"
 
 if errorlevel 3 (
     set "ORA_STARTUP_MODE=gaming"
@@ -37,7 +37,6 @@ if errorlevel 3 (
 
 echo.
 echo Starting other services... (ComfyUI, Bot, API, Vision UI)
-timeout /t 2 /nobreak >nul
 
 :: Start ComfyUI
 start "ComfyUI" cmd /k "cd /d L:\ComfyUI && L:\ORADiscordBOT_Env\Scripts\python.exe main.py --listen 127.0.0.1 --port 8188 --normalvram --disable-cuda-malloc --enable-cors-header * --force-fp16"

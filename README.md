@@ -71,7 +71,7 @@ graph TD
     VoiceRouter -- "Human-like" --> T5["T5Gemma-TTS<br>(Resources Loaded)"]
 
     %% Future/Reserved
-    Router -- "Video Gen?" --> VideoGen[Reserved / Future<br>(Port 8189)]
+    Router -- "Video Gen?" --> VideoGen["Reserved / Future<br>(Port 8189)"]
 
     %% Styling
     style Router fill:#f9f,stroke:#333,stroke-width:2px

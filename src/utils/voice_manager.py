@@ -183,6 +183,8 @@ class VoiceManager:
         self._music_states: Dict[int, GuildMusicState] = defaultdict(GuildMusicState)
         self._listener = HotwordListener(stt, bot.loop)
         self._user_speakers: Dict[int, int] = {}  # user_id -> speaker_id
+        # Persist auto-read channels here so they survive MediaCog reloads
+        self.auto_read_channels: Dict[int, int] = {}  # guild_id -> channel_id
 
     def get_music_state(self, guild_id: int) -> GuildMusicState:
         return self._music_states[guild_id]
@@ -212,7 +214,10 @@ class VoiceManager:
                      voice_client = None
 
                 if voice_client and voice_client.channel != channel:
+                    # Automatically move to the user's channel
+                    logger.info(f"Moving voice client from {voice_client.channel.name} to {channel.name}")
                     await voice_client.move_to(channel)
+
                 elif not voice_client or not voice_client.is_connected():
                     # IMPORTANT: self_deaf=True helps stability
                     try:

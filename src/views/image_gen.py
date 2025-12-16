@@ -109,13 +109,13 @@ class StyleSelectView(View):
             self.cog.is_generating_image = False
             
             # 2. SWITCH BACK TO LLM CONTEXT (Kills Comfy, Starts vLLM)
+            await interaction.followup.send("🔄 **処理完了**: 脳神経(LLM)を再起動して復帰します... (少々お待ちください)")
             logger.info("🔄 Switching back to LLM Context...")
             try:
                 await self.cog.resource_manager.switch_context("llm")
             except Exception as e:
                 logger.error(f"Failed to restore LLM context: {e}")
-            
-            asyncio.create_task(self.cog.process_message_queue())
+                await interaction.followup.send(f"⚠️ LLM復帰に失敗しました: {e}")
             
             asyncio.create_task(self.cog.process_message_queue())
 

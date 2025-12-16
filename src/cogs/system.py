@@ -151,6 +151,29 @@ class SystemCog(commands.Cog):
         self._log_audit(interaction.user, action, f"value={value}", success)
         await interaction.followup.send(msg, ephemeral=True)
 
+    @app_commands.command(name="reload", description="Bot拡張機能(Cog)を再読み込みします (Admin Only)")
+    @app_commands.describe(extension="再読み込みする拡張機能名 (例: media, system)")
+    async def reload_cog(self, interaction: discord.Interaction, extension: str):
+        if not self._check_admin(interaction):
+            await interaction.response.send_message("⛔ 権限がありません。", ephemeral=True)
+            return
+        
+        await interaction.response.defer(ephemeral=True)
+        
+        # Normalize name
+        if not extension.startswith("src.cogs."):
+            target = f"src.cogs.{extension}"
+        else:
+            target = extension
+            
+        try:
+            await self.bot.reload_extension(target)
+            await interaction.followup.send(f"✅ `{target}` を再読み込みしました！\n音楽再生等は継続されます (MediaCogの場合)。")
+            logger.info(f"Reloaded extension: {target} by {interaction.user}")
+        except Exception as e:
+            logger.exception(f"Failed to reload {target}")
+            await interaction.followup.send(f"❌ 再読み込みに失敗しました: {e}", ephemeral=True)
+
     def _clamp_int(self, value: int, lo: int, hi: int) -> int:
         try:
             v = int(value)

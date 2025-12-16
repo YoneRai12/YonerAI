@@ -57,14 +57,8 @@ class MediaCog(commands.Cog):
         self._voice_manager.set_hotword_callback(self._on_hotword)
 
         # Mapping of guild_id -> text_channel_id where auto-read is enabled
-        # When a guild is present in this dict, incoming messages in the mapped
-        # text channel will be read aloud in the user's current voice channel.
-        self._auto_read_channels: dict[int, int] = {}
-
-        # Per-guild music queues for YouTube playback. Each value is a list of
-        # (title, stream_url_or_path) tuples. This simple queue allows users to
-        # enqueue multiple tracks which will play sequentially.
-        self._music_queues: dict[int, list[tuple[str, str]]] = {}
+        # We now delegate this to VoiceManager to support Hot Reloading.
+        # self._voice_manager.auto_read_channels is used directly.
         
         # VC Points Tracking (User ID -> Start Timestamp)
         self.vc_start_times: dict[int, float] = {}
@@ -132,7 +126,7 @@ class MediaCog(commands.Cog):
         played = await self._voice_manager.play_tts(interaction.user, text)
         # Enable auto-read for this guild + channel
         if interaction.guild:
-             self._auto_read_channels[interaction.guild.id] = interaction.channel_id
+             self._voice_manager.auto_read_channels[interaction.guild.id] = interaction.channel_id
         if played:
             await interaction.followup.send(text, ephemeral=send_ephemeral)
         else:
@@ -529,7 +523,7 @@ class MediaCog(commands.Cog):
         if guild_id is None:
             await interaction.followup.send("ギルドが取得できませんでした。", ephemeral=send_ephemeral)
             return
-        self._auto_read_channels[guild_id] = interaction.channel.id
+        self._voice_manager.auto_read_channels[guild_id] = interaction.channel.id
         await interaction.followup.send("メッセージの自動読み上げを開始しました。", ephemeral=send_ephemeral)
         
         # Announce connection via TTS
@@ -547,8 +541,8 @@ class MediaCog(commands.Cog):
         send_ephemeral = await self._ephemeral_for(interaction.user, ephem)
         await interaction.response.defer(ephemeral=send_ephemeral)
         guild_id = interaction.guild.id if interaction.guild else None
-        if guild_id and guild_id in self._auto_read_channels:
-            del self._auto_read_channels[guild_id]
+        if guild_id and guild_id in self._voice_manager.auto_read_channels:
+            del self._voice_manager.auto_read_channels[guild_id]
         # Disconnect voice client if connected
         voice_client = interaction.guild.voice_client if interaction.guild else None
         if voice_client:
@@ -576,7 +570,7 @@ class MediaCog(commands.Cog):
         guild = message.guild
         if guild is None:
             return
-        channel_id = self._auto_read_channels.get(guild.id)
+        channel_id = self._voice_manager.auto_read_channels.get(guild.id)
         
         # Logic: Read if (Mapped Channel) OR (User in same Voice Channel)
         should_read = False
@@ -676,7 +670,7 @@ class MediaCog(commands.Cog):
             logger.info(f"Auto-disconnecting from {bot_channel.name} - no users left")
             await member.guild.voice_client.disconnect()
             # Also clear auto-read for this guild
-            self._auto_read_channels.pop(member.guild.id, None)
+            self._voice_manager.auto_read_channels.pop(member.guild.id, None)
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent) -> None:
@@ -829,7 +823,7 @@ class MediaCog(commands.Cog):
                         if empty_timer >= 10: # 10 seconds grace period
                             logger.info(f"Auto-disconnecting from guild {guild_id} - Channel empty (Poller protection)")
                             await vc.disconnect()
-                            self._auto_read_channels.pop(guild_id, None)
+                            self._voice_manager.auto_read_channels.pop(guild_id, None)
                             return
                     else:
                         empty_timer = 0 # Reset if someone joins
@@ -847,7 +841,7 @@ class MediaCog(commands.Cog):
                     continue
                 
                 # Check if Auto-Read (TTS) is active. If so, do not disconnect.
-                if guild_id in self._auto_read_channels:
+                if guild_id in self._voice_manager.auto_read_channels:
                     idle = 0
                     continue
 
@@ -856,10 +850,23 @@ class MediaCog(commands.Cog):
                     logger.info(f"Auto-disconnecting from guild {guild_id} due to inactivity")
                     await vc.disconnect(force=False)
                     # Clear auto-read mapping
-                    self._auto_read_channels.pop(guild_id, None)
+                    self._voice_manager.auto_read_channels.pop(guild_id, None)
                     return
         except asyncio.CancelledError:
             return
         except Exception:
             logger.exception("auto_disconnect_worker crashed", extra={"guild_id": guild_id})
             return
+
+async def setup(bot: commands.Bot) -> None:
+    """Load the MediaCog extension."""
+    await bot.add_cog(
+        MediaCog(
+            bot,
+            store=bot.store,
+            voice_manager=bot.voice_manager,
+            search_client=bot.search_client,
+            llm_client=bot.llm_client,
+            speak_search_default=bot.config.speak_search_progress_default,
+        )
+    )

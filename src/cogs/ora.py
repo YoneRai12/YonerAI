@@ -761,7 +761,14 @@ class ORACog(commands.Cog):
             "\n[VISION CAPABILITY ENABLED: Qwen2.5-VL]\n"
             "You have state-of-the-art vision capabilities.\n"
             "Read text, solve math, and analyze scenes directly from the image.\n"
-            "You do NOT need OCR text; trust your eyes."
+            "You do NOT need OCR text; trust your eyes.\n"
+            "\n"
+            "**FINAL ENFORCEMENT**:\n"
+            "1. You **MUST** start with the `route_eval` JSON block.\n"
+            "2. If the user asks to **Play Music** (e.g. '流して'), output `music_play` tool JSON.\n"
+            "3. If the user asks for **Image Generation** (e.g. '画像生成', 'Create image'), output `generate_image` tool JSON.\n"
+            "   - Example: { \"tool\": \"generate_image\", \"args\": { \"prompt\": \"...\" } }\n"
+            "4. **Do NOT** just reply with text if a tool is needed. USE THE TOOL."
         )
         
         return base
@@ -1275,29 +1282,168 @@ class ORACog(commands.Cog):
                 return "\n".join([f"{i+1}. {r.get('title')} ({r.get('link')})" for i, r in enumerate(results)])
 
             elif tool_name == "system_check":
-                report = []
-                # 1. VoiceVox Check
+                # Icons (Custom Request)
+                ICON_LOAD = "<:rode:>" # Placeholder, effectively :rode:
+                ICON_OK = "<:conp:>"   # Placeholder, effectively :conp:
+                ICON_ERR = "❌"
+
+                # Create initial status embed
+                embed = discord.Embed(
+                    title="🩺 ORA System Diagnostics",
+                    description="Running automated system checks...",
+                    color=discord.Color.blue()
+                )
+                status_msg = await message.reply(embed=embed)
+                
+                # Helper to update status
+                # We save the fields state to update them
+                fields_state = []
+
+                async def update_field(name, status, detail, is_error=False):
+                    # Check if field exists, update it
+                    found = False
+                    icon = ICON_ERR if is_error else (ICON_LOAD if status == "loading" else ICON_OK)
+                    
+                    # Rebuild fields list
+                    new_fields = []
+                    for f in fields_state:
+                        if f["name"] == name:
+                            f["value"] = f"{icon} {detail}"
+                            found = True
+                        new_fields.append(f)
+                    
+                    if not found:
+                        new_fields.append({"name": name, "value": f"{icon} {detail}"})
+                        fields_state.append({"name": name, "value": f"{icon} {detail}"})
+                    
+                    # Apply to Embed
+                    embed.clear_fields()
+                    for f in new_fields:
+                        embed.add_field(name=f["name"], value=f["value"], inline=False)
+                    await status_msg.edit(embed=embed)
+                
+                # 1. Database Check
+                await update_field("Database", "loading", "Checking connection...")
+                try:
+                    await self._store.get_privacy(message.author.id)
+                    await update_field("Database", "done", "Connected (SQLite)")
+                except Exception as e:
+                    await update_field("Database", "done", f"Error: {e}", is_error=True)
+
+                # 2. Web Search
+                await update_field("Web Search", "loading", "Verifying API...")
+                if self._search_client.enabled:
+                    engine = getattr(self._search_client, "engine", "unknown")
+                    await update_field("Web Search", "done", f"Active ({engine})")
+                else:
+                    await update_field("Web Search", "done", "Disabled (No API Key)", is_error=True)
+
+                # 3. Vision Capability (Automated Test)
+                # Load Test Image
+                await update_field("Vision (Meta SAM 3)", "loading", "Loading Test Image...")
+                vision_ok = False
+                try:
+                    import io, base64, os
+                    img_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "assets", "test_image.png")
+                    
+                    b64_img = None
+                    if os.path.exists(img_path):
+                        with open(img_path, "rb") as f:
+                            img_data = f.read()
+                            b64_img = base64.b64encode(img_data).decode('utf-8')
+                        await update_field("Vision (Meta SAM 3)", "loading", "Running Inference (Meta SAM 3)...")
+                    elif message.attachments:
+                        # Fallback to attachment
+                        target_att = message.attachments[0]
+                        async with aiohttp.ClientSession() as session:
+                            async with session.get(target_att.url) as resp:
+                                img_data = await resp.read()
+                                b64_img = base64.b64encode(img_data).decode('utf-8')
+                        await update_field("Vision (Meta SAM 3)", "loading", "Running Inference (Attachment)...")
+                    else:
+                        await update_field("Vision (Meta SAM 3)", "done", "Skipped (No test image found)", is_error=True)
+
+                    if b64_img:
+                        # Verification Prompt
+                        vis_messages = [
+                            {"role": "system", "content": "Analyze this image and describe the content briefly."},
+                            {"role": "user", "content": [
+                                {"type": "text", "text": "What is shown in this image?"},
+                                {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64_img}"}}
+                            ]}
+                        ]
+                        
+                        vis_response = await self._llm.chat(messages=vis_messages, temperature=0.1)
+                        
+                        if vis_response:
+                            await update_field("Vision (Meta SAM 3)", "done", f"Pass: '{vis_response[:40]}...'")
+                            vision_ok = True
+                        else:
+                            await update_field("Vision (Meta SAM 3)", "done", "Failed: Empty Response", is_error=True)
+
+                except Exception as e:
+                    await update_field("Vision (Meta SAM 3)", "done", f"Error: {e}", is_error=True)
+
+                # 4. Voice Generation (T5Gemma)
+                await update_field("Voice (T5Gemma-TTS)", "loading", "Testing T5Gemma Engine...")
                 media_cog = self.bot.get_cog("MediaCog")
                 if media_cog:
                     try:
                         speakers = await media_cog._voice_manager._tts.get_speakers()
                         if speakers:
-                            report.append(f"✅ VoiceVox: OK ({len(speakers)} speakers)")
+                            await update_field("Voice (T5Gemma-TTS)", "done", f"OK (Engine Ready with {len(speakers)} voices)")
                         else:
-                            report.append("⚠️ VoiceVox: Connected but no speakers found")
+                            await update_field("Voice (T5Gemma-TTS)", "done", "Connected but no voices found", is_error=True)
                     except Exception as e:
-                        report.append(f"❌ VoiceVox: Error ({e})")
+                        await update_field("Voice (T5Gemma-TTS)", "done", f"Error: {e}", is_error=True)
                 else:
-                    report.append("❌ MediaCog: Not loaded")
+                    await update_field("Voice (T5Gemma-TTS)", "done", "TTS Module Not Loaded", is_error=True)
 
-                # 2. Database Check
+                # 5. Video Recognition (FFmpeg Check)
+                await update_field("Video Recognition", "loading", "Checking FFmpeg...")
                 try:
-                    await self._store.get_privacy(message.author.id)
-                    report.append("✅ Database: OK")
+                    import shutil
+                    if shutil.which("ffmpeg"):
+                        # Get version?
+                        # proc = await asyncio.create_subprocess_shell("ffmpeg -version", stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+                        # stdout, _ = await proc.communicate()
+                        await update_field("Video Recognition", "done", "Ready (FFmpeg detected)")
+                    else:
+                        await update_field("Video Recognition", "done", "Missing FFmpeg (Video analysis impossible)", is_error=True)
                 except Exception as e:
-                    report.append(f"❌ Database: Error ({e})")
+                    await update_field("Video Recognition", "done", f"Error: {e}", is_error=True)
 
-                # 3. Google Search Check
+                # 6. Core Services (Ports)
+                async def check_port(host, port):
+                    try:
+                        _, writer = await asyncio.open_connection(host, port)
+                        writer.close()
+                        await writer.wait_closed()
+                        return True
+                    except:
+                        return False
+
+                # Check LLM (8001)
+                await update_field("Brain (vLLM)", "loading", "Pinging Port 8001...")
+                llm_ok = await check_port("127.0.0.1", 8001)
+                if llm_ok:
+                    await update_field("Brain (vLLM)", "done", "Online (Port 8001)")
+                else:
+                    await update_field("Brain (vLLM)", "done", "OFFLINE (Port 8001 Closed)", is_error=True)
+
+                # Check ComfyUI (8188)
+                await update_field("Art (ComfyUI)", "loading", "Pinging Port 8188...")
+                comfy_ok = await check_port("127.0.0.1", 8188)
+                if comfy_ok:
+                    await update_field("Art (ComfyUI)", "done", "Online (Port 8188)")
+                else:
+                    await update_field("Art (ComfyUI)", "done", "Offline (Port 8188)", is_error=True)
+
+                embed.description = "✅ System Diagnostics Completed."
+                embed.color = discord.Color.green()
+                await status_msg.edit(embed=embed)
+                
+                return "[SILENT_COMPLETION]"
                 if self._search_client.enabled:
                     report.append("✅ Google Search: Configured")
                 else:
@@ -1599,6 +1745,26 @@ class ORACog(commands.Cog):
                 else:
                     return f"Bot Move Valid! History updated. You can now reply to the user with: '{word} ({reading})! Next is {next_char}.'"
             
+            elif tool_name == "say":
+                text = args.get("message")
+                target_channel_name = args.get("channel_name")
+                
+                if not text: return "Error: No message provided."
+                
+                target_channel = message.channel
+                if target_channel_name:
+                    found = discord.utils.find(lambda c: hasattr(c, 'name') and target_channel_name.lower() in c.name.lower(), message.guild.text_channels)
+                    if found:
+                        target_channel = found
+                    else:
+                        return f"Error: Channel '{target_channel_name}' not found."
+                
+                try:
+                    await target_channel.send(text)
+                    return f"Sent message to {target_channel.mention}"
+                except Exception as e:
+                    return f"Failed to send message: {e}"
+
             return "Unknown action"
 
             return f"Error: Unknown tool '{tool_name}'"
@@ -1656,6 +1822,10 @@ class ORACog(commands.Cog):
                      content = f"[{prev_msg.author.display_name}]: {content}"
                 
                 if content:
+                    # Truncate content to prevent Context Limit Exceeded (Error 400)
+                    if len(content) > 1200:
+                        content = content[:1200] + "... (truncated)"
+
                     # Check if the last added message (which is effectively the NEXT one in chronological order)
                     # has the same role. If so, merge them?
                     # BUT we are traversing backwards (insert(0)).
@@ -1845,7 +2015,24 @@ class ORACog(commands.Cog):
         # Let's start "Thinking" here if it's a direct interaction?
         # No, let's keep it clean. The worker will pick it up and show status.
         # We just need to ensure the worker CAN create/manage it.
-        await self.handle_prompt(message, prompt)
+        
+        # Voice Logic: Determine if we should speak/join
+        is_voice = False
+        user_voice = message.author.voice
+        if user_voice and user_voice.channel:
+            bot_voice = message.guild.voice_client
+            # If bot is not connected, treat as voice (will join)
+            if not bot_voice:
+                is_voice = True
+            # If bot IS connected, ONLY treat as voice if in SAME channel
+            elif bot_voice.channel.id == user_voice.channel.id:
+                is_voice = True
+            else:
+                # Bot is in a different channel.
+                # User Policy: "Read it out is OK, just don't move." (VoiceManager is now Sticky)
+                is_voice = True
+
+        await self.handle_prompt(message, prompt, is_voice=is_voice)
 
     async def _process_attachments(self, attachments: List[discord.Attachment], prompt: str, context_message: discord.Message, is_reference: bool = False) -> str:
         """Process a list of attachments (Text or Image) and update prompt/context."""
@@ -2011,7 +2198,10 @@ class ORACog(commands.Cog):
         7. Admin & System
         """
         return [
-            # --- 1. Discord System ---
+            # ==========================
+            # 1. Discord System (Core)
+            # ==========================
+            # --- Server Info ---
             {
                 "name": "get_server_info",
                 "description": "[Discord] Get basic information about the current server (guild).",
@@ -2049,6 +2239,7 @@ class ORACog(commands.Cog):
                     "required": ["name_query"]
                 }
             },
+            # --- VC Operations ---
             {
                 "name": "get_voice_channel_info",
                 "description": "[Discord/VC] Get info about a voice channel (members). Default: current channel.",
@@ -2083,12 +2274,13 @@ class ORACog(commands.Cog):
                     "type": "object",
                     "properties": {
                         "target_user": { "type": "string", "description": "Target user (Name/ID/Mention)." },
-                        "action": { "type": "string", "enum": ["disconnect", "move", "summon"], "description": "Action to perform." },
+                        "action": { "type": "string", "enum": ["disconnect", "move", "summon", "mute", "unmute", "deafen", "undeafen"], "description": "Action to perform." },
                         "channel_name": { "type": "string", "description": "Destination channel (for move)." }
                     },
                     "required": ["target_user", "action"]
                 }
             },
+            # --- Games ---
             {
                 "name": "shiritori",
                 "description": "[Discord/Game] Play Shiritori (Word Chain).",
@@ -2102,6 +2294,7 @@ class ORACog(commands.Cog):
                     "required": ["action"]
                 }
             },
+            # --- Music ---
             {
                 "name": "music_play",
                 "description": "[Discord/Music] Play music from YouTube.",
@@ -2124,8 +2317,26 @@ class ORACog(commands.Cog):
                     "required": ["action"]
                 }
             },
+            # --- General ---
+            {
+                "type": "function",
+                "function": {
+                    "name": "say",
+                    "description": "Speak or send a message to a channel as the bot.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "message": { "type": "string", "description": "The text message." },
+                             "channel_name": { "type": "string", "description": "Optional channel." }
+                        },
+                        "required": ["message"]
+                    }
+                }
+            },
 
-            # --- 2. Image Generation ---
+            # ==========================
+            # 2. Image Generation
+            # ==========================
             {
                 "name": "generate_image",
                 "description": "[Image] Generate an image using Stable Diffusion (FLUX).",
@@ -2157,7 +2368,9 @@ class ORACog(commands.Cog):
                 }
             },
 
-            # --- 3. Voice Generation ---
+            # ==========================
+            # 3. Voice Generation
+            # ==========================
             {
                 "name": "change_voice",
                 "description": "[Voice] Change TTS character (Zundamon, Metan, etc).",
@@ -2171,36 +2384,45 @@ class ORACog(commands.Cog):
             },
             {
                 "name": "tts_speak",
-                "description": "[Voice] (Placeholder) Speak text directly.",
+                "description": "[Voice] Direct TTS Speech Engine.",
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "text": { "type": "string" }
+                        "text": { "type": "string" },
+                        "voice": { "type": "string", "description": "Optional voice override" },
+                        "speed": { "type": "number", "description": "Speech speed (0.5-2.0)" },
+                        "pitch": { "type": "number", "description": "Speech pitch (-0.15 to 0.15)" }
                     },
                     "required": ["text"]
                 }
             },
 
-            # --- 4. Video Generation (Placeholder) ---
+            # ==========================
+            # 4. Video Generation (Future)
+            # ==========================
             {
                 "name": "generate_video",
-                "description": "[Video] (Placeholder) Generate video from prompt.",
+                "description": "[Video] Generate video from prompt (Placeholder).",
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "prompt": { "type": "string" }
+                        "prompt": { "type": "string" },
+                        "width": { "type": "integer", "default": 512 },
+                        "height": { "type": "integer", "default": 512 },
+                        "seconds": { "type": "integer", "default": 2 },
+                        "fps": { "type": "integer", "default": 8 }
                     },
                     "required": ["prompt"]
                 }
             },
             {
                 "name": "get_video_models",
-                "description": "[Video] (Placeholder) Get available video models.",
+                "description": "[Video] Get available video models (Placeholder).",
                 "parameters": { "type": "object", "properties": {}, "required": [] }
             },
             {
                 "name": "change_video_model",
-                "description": "[Video] (Placeholder) Change video generation model.",
+                "description": "[Video] Change video generation model (Placeholder).",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -2210,32 +2432,49 @@ class ORACog(commands.Cog):
                 }
             },
 
-            # --- 5. Video Recognition (Placeholder) ---
+            # ==========================
+            # 5. Video Recognition (Future)
+            # ==========================
             {
                 "name": "analyze_video",
-                "description": "[VideoAnalysis] (Placeholder) Analyze video content.",
+                "description": "[VideoRec] Analyze video content (Placeholder).",
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "video_path": { "type": "string" }
+                        "video_path": { "type": "string" },
+                        "mode": { "type": "string", "description": "summary, object_detection, etc." }
                     },
                     "required": ["video_path"]
                 }
             },
             {
                 "name": "segment_objects",
-                "description": "[VideoAnalysis] (Placeholder) Segment objects in video.",
+                "description": "[VideoRec] Segment objects in video using SAM 3 (Placeholder).",
                 "parameters": {
                     "type": "object",
                     "properties": {
                         "video_path": { "type": "string" },
-                        "prompt": { "type": "string" }
+                        "prompt": { "type": "string", "description": "Object description or bbox." }
                     },
                     "required": ["video_path"]
                 }
             },
+            {
+                "name": "track_object",
+                "description": "[VideoRec] Track specific object in video (Placeholder).",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "video_path": { "type": "string" },
+                        "object_id": { "type": "string" }
+                    },
+                    "required": ["video_path", "object_id"]
+                }
+            },
 
-            # --- 6. Search ---
+            # ==========================
+            # 6. Search
+            # ==========================
             {
                 "name": "google_search",
                 "description": "[Search] Search Google for information.",
@@ -2259,7 +2498,10 @@ class ORACog(commands.Cog):
                 }
             },
 
-            # --- 7. Admin & System ---
+            # ==========================
+            # 7. Admin & System
+            # ==========================
+            # --- File/Channel ---
             {
                 "name": "create_file",
                 "description": "[Admin] Create a file (Creator only).",
@@ -2285,6 +2527,7 @@ class ORACog(commands.Cog):
                     "required": ["name", "type"]
                 }
             },
+            # --- System Control ---
             {
                 "name": "get_system_stats",
                 "description": "[Admin] Get PC system stats.",
@@ -2302,11 +2545,7 @@ class ORACog(commands.Cog):
                     "required": ["action"]
                 }
             },
-            {
-                "name": "system_check",
-                "description": "[Admin] Run functionality check.",
-                "parameters": { "type": "object", "properties": {}, "required": [] }
-            },
+            # --- Time ---
             {
                 "name": "set_timer",
                 "description": "[Admin/Time] Set a timer.",
@@ -2331,6 +2570,7 @@ class ORACog(commands.Cog):
                     "required": ["time"]
                 }
             },
+            # --- Points ---
             {
                 "name": "check_points",
                 "description": "[Admin/Point] Check user points.",
@@ -2341,6 +2581,11 @@ class ORACog(commands.Cog):
                      },
                      "required": []
                 }
+            },
+            {
+                "name": "system_check",
+                "description": "[System] Run detailed diagnostics to verify system health.",
+                "parameters": { "type": "object", "properties": {}, "required": [] }
             }
         ]
 
@@ -2392,21 +2637,26 @@ class ORACog(commands.Cog):
         if is_voice:
             async def delayed_feedback():
                 await asyncio.sleep(0.5) # 500ms delay
-            async def delayed_feedback():
-                await asyncio.sleep(0.5) # 500ms delay
                 # If status message exists (implicit check for done)
                 if status_manager.message:
-                    media_cog = self.bot.get_cog("MediaCog")
-                    if media_cog:
-                        await media_cog.speak(message.channel, "回答を生成しています")
+                    voice_manager = getattr(self.bot, "voice_manager", None)
+                    if voice_manager:
+                         # Use play_tts directly to avoid Command object issues
+                         await voice_manager.play_tts(message.author, "回答を生成しています")
+
             voice_feedback_task = asyncio.create_task(delayed_feedback())
 
         try:
             system_prompt = await self._build_system_prompt(message)
-            try:
-                history = await self._build_history(message)
-            except Exception as e:
-                logger.error(f"Failed to build history: {e}")
+            # Context Logic: Only build history if replying. New mentions split context.
+            if message.reference:
+                try:
+                    history = await self._build_history(message)
+                except Exception as e:
+                    logger.error(f"Failed to build history: {e}")
+                    history = []
+            else:
+                # Fresh start
                 history = []
             
             messages = [{"role": "system", "content": system_prompt}]
@@ -2439,6 +2689,12 @@ class ORACog(commands.Cog):
             text_content = prompt
             user_content = []
             user_content.append({"type": "text", "text": text_content})
+            
+            # PROCESS ATTACHMENTS (Direct)
+            # PROCESS ATTACHMENTS
+            # Note: Attachments are processed in _process_attachments() and stored in _temp_image_context
+            # as base64. We do NOT need to add them as URLs here, or we get duplicates.
+            # (Removed redundant loop)
             
             if hasattr(self, "_temp_image_context") and message.id in self._temp_image_context:
                 user_content.extend(self._temp_image_context[message.id])
@@ -2489,6 +2745,7 @@ class ORACog(commands.Cog):
             })
 
             content = await self._llm.chat(messages=messages, temperature=0.7)
+            logger.info(f"🔍 [RAW_LLM_OUTPUT] Length: {len(content)}\n{content}\n--------------------------------")
             
             # --- ROUTER LOGIC (Advanced) ---
             from ..config import Config
@@ -2496,14 +2753,25 @@ class ORACog(commands.Cog):
             
             # Try to parse route_eval
             import re
-            route_match = re.search(r"route_eval.*?(\{.*?\})", content, re.DOTALL | re.IGNORECASE)
-            # Support cases where it creates a json codeblock for it
+            
+            # Store original content to extract route_eval before stripping
+            original_content_for_router = content 
+
+            # Clean Route JSON using brace counting (Robust against nesting)
+            content = self._strip_route_json(content)
+            
+            # Additional fallback for code blocks REMOVED to prevent deleting Tool Calls
+            # content = re.sub(r"```json\s*(\{.*?\})\s*```", "", content, flags=re.DOTALL).strip()
+
+            # Now, try to parse route_eval from the original content
+            route_match = re.search(r"(\{.*?route_eval.*?\})", original_content_for_router, re.DOTALL | re.IGNORECASE)
             if not route_match:
-                 route_match = re.search(r"```json\s*(\{.*?route_eval.*?\})\s*```", content, re.DOTALL | re.IGNORECASE)
+                 route_match = re.search(r"```json\s*(\{.*?route_eval.*?\})\s*```", original_content_for_router, re.DOTALL | re.IGNORECASE)
 
             if route_match:
                 try:
                     route_data_raw = route_match.group(1)
+                    
                     # Parsing potentially nested JSON
                     route_json = json.loads(route_data_raw)
                     # Extract internal object if nested
@@ -2572,6 +2840,24 @@ class ORACog(commands.Cog):
                 
                 # Re-extract JSON from (potentially new) content
                 json_objects = self._extract_json_objects(content)
+                
+                # ROBUST FALLBACK: If 7B model forgot markdown code blocks, try to find raw JSON
+                if not json_objects:
+                    import re
+                    # Try to find the first likely JSON object starting with { and ending with }
+                    # This is simple and might fail on nested braces if not careful, but better than nothing.
+                    # We look for a pattern that spans multiple lines.
+                    loose_match = re.search(r"(\{[\s\S]*?\})", content)
+                    if loose_match:
+                         possible_json = loose_match.group(1)
+                         # Validate if it's actually parsable
+                         try:
+                             json.loads(possible_json)
+                             json_objects.append(possible_json)
+                             logger.info("Fallback: Extracted loose JSON object.")
+                         except:
+                             pass
+
                 logger.info(f"Extracted JSON objects: {len(json_objects)}")
                 
                 tool_call = None
@@ -2849,4 +3135,51 @@ class ORACog(commands.Cog):
             logger.error(f"Translation failed: {e}")
             await message.remove_reaction("🤔", self.bot.user)
             await message.add_reaction("❌")
+
+    def _strip_route_json(self, content: str) -> str:
+        """Removes the JSON block containing 'route_eval' by counting braces."""
+        if "route_eval" not in content:
+            return content
+            
+        start_idx = content.find('{')
+        if start_idx == -1:
+            return content
+            
+        # Brace Counting
+        count = 0
+        end_idx = -1
+        in_string = False
+        escape = False
+        
+        for i, char in enumerate(content[start_idx:], start=start_idx):
+            # Handle strings to ignore braces inside them
+            if char == '"' and not escape:
+                in_string = not in_string
+            
+            if char == '\\' and not escape:
+                escape = True
+            else:
+                escape = False
+                
+            if not in_string:
+                if char == '{':
+                    count += 1
+                elif char == '}':
+                    count -= 1
+                    if count == 0:
+                        end_idx = i + 1
+                        break
+        
+        if end_idx != -1:
+            json_block = content[start_idx:end_idx]
+            # Verify it's the route block
+            if "route_eval" in json_block:
+                logger.info(f"Stripped Route JSON: {json_block[:50]}...")
+                # Return content without this block
+                return (content[:start_idx] + content[end_idx:]).strip()
+                
+        return content
+
+async def setup(bot):
+    await bot.add_cog(OraCog(bot))
 

@@ -28,7 +28,15 @@ class SearchClient:
 
     @property
     def enabled(self) -> bool:
-        return bool(self._api_key and GoogleSearch is not None)
+        # Check SerpApi first
+        if self._api_key and GoogleSearch is not None:
+            return True
+        # Check DuckDuckGo
+        try:
+            from duckduckgo_search import DDGS
+            return True
+        except ImportError:
+            return False
 
     async def search(self, query: str, *, limit: int = 5, engine: Optional[str] = None, gl: str = "jp", hl: str = "ja") -> Sequence[dict]:
         start_time = time.monotonic()
