@@ -14,15 +14,12 @@
 
 ---
 
-## 🚀 Overview: Why ORA is Amazing
+## 🚀 Overview
 
-ORA is not just a chatbot. It is a **fully autonomous AI Operating System** running locally on your high-end hardware.
-It integrates the world's most advanced open-source models into a seamless, unified experience inside Discord.
-
-Unlike standard bots that just "reply", ORA **sees, hears, draws, thinks, and acts**.
+ORA is a **fully autonomous AI Operating System** running locally on your hardware. It integrates the world's most advanced open-source models into a seamless, unified experience inside Discord.
 
 ### ✨ Highlights
-- **🧠 Dual-Brain Architecture**: Automatically switches between a fast "Instruct Model" for chat and a deep "Reasoning Model" (Thinker) for math/logic.
+- **🧠 Dual-Brain Architecture**: Automatically switches between a fast "Instruct Model" (Qwen3-VL-30B) for chat/vision and a deep "Reasoning Model" (Thinker) for math/logic.
 - **👁️ True Vision (Multimodal)**: Can see video and images with human-level understanding (powered by Qwen & SAM 3).
 - **🎨 Hollywood-Grade Art**: Generates 4K images using **FLUX.2** ensuring photo-realism and style adherence.
 - **🗣️ Human-Like Voice**: Listens to you in VC (Faster-Whisper) and speaks back (T5Gemma/VoiceVox).
@@ -30,97 +27,105 @@ Unlike standard bots that just "reply", ORA **sees, hears, draws, thinks, and ac
 
 ---
 
-## 🧠 The "Dual Core" Intelligence System
+## 🛠️ System Architecture
 
-ORA doesn't just use one model. It uses a sophisticated **Router** to decide *how* to answer you.
+ORA operates on a sophisticated **5-Layer Stack** designed for the RTX 5090 (32GB VRAM).
 
-| Mode | Model Engine | Description |
-| :--- | :--- | :--- |
-| **Instruct Core** | `Qwen3-VL-30B-Instruct` | The daily driver. Handles chat, tools, vision, and general queries. Fast and witty. |
-| **Thinking Core** | `Qwen3-VL-30B-Thinking` | The genius. Activated automatically for Math, Code, logic puzzles, or complex reasoning. It "thinks" before speaking. |
+```mermaid
+graph TD
+    Launcher[Start ORA Bot] --> ResourceManager
+    ResourceManager -->| Allocates VRAM | vLLM[vLLM Inference Server]
+    ResourceManager -->| Allocates VRAM | Comfy[ComfyUI Server]
+    vLLM --> Bot[Discord Bot Output]
+    Comfy --> Bot
+    User -->|Discord| Bot
+```
 
-> **How it works:** If you ask "Hello", the Instruct Core replies. If you ask "Solve this integral", the Router detects complexity and wakes up the Thinking Core seamlessly.
-
----
-
-## 🎨 Creative Studio (ComfyUI Integration)
-
-ORA comes with a built-in **ComfyUI** backend, completely hidden behind a simple command.
-
-- **Engine**: FLUX.2 (FP8 Quantized)
-- **Features**:
-    - **Smart Style**: "Draw a futuristic city" -> ORA automatically applies "Cyberpunk" styling.
-    - **Safety Guard**: LLM-based filtering ensures no unsafe content is generated.
-    - **High-Res Fix**: Native 4K upscaling support.
-
----
-
-## 👁️ perception System (Vision & Audio)
-
-ORA's senses are powered by specialized State-of-the-Art models:
-
-### Visual (Eyes)
-- **Qwen3-VL**: Understands memes, reads text in images, and analyzes scenes.
-- **SAM 3 (Segment Anything Model)**: Can identify and cut out specific objects from video/images with pixel-perfect precision.
-
-### Audio (Ears & Voice)
-- **Hearing**: Uses `faster-whisper` (Large-v3) running on GPU for real-time transcription of Voice Chat.
-- **Speaking**: Uses `T5Gemma-TTS` (Experimental) and `VoiceVox` for high-quality Japanese speech.
-
----
-
-## 🛠️ Architecture: The 5-Layer Stack
-
-ORA is built like a modern OS, optimized for the **NVIDIA RTX 5090 (32GB)**.
-
-1.  **Launcher Layer** (`start_vllm.bat`):
-    -   Orchestrates the entire boot process. Checks environment, sets modes, and handles crash recovery.
-2.  **Resource Layer** (`ResourceManager`):
-    -   The "Guard Dog". It monitors VRAM and kills/starts processes.
-    -   Ensures you never run out of memory by enforcing **Exclusive Context** (Chat OR Image OR Game).
+1.  **Launcher Layer** (`start_vllm.bat`): Orchestrates boot, environment checks, and crash recovery.
+2.  **Resource Layer** (`ResourceManager`): The "Guard Dog". Monitors VRAM and enforces **Exclusive Context** to prevent OOM.
 3.  **Inference Layer**:
-    -   **vLLM Server**: High-throughput LLM serving.
-    -   **ComfyUI Server**: Visual generation pipeline.
-4.  **Application Layer**:
-    -   **Discord Bot**: The main brain managing events and user interaction.
-    -   **FastAPI**: Provides a Web Interface for integration.
-5.  **Interface Layer**:
-    -   **Discord**: Where you talk.
-    -   **ORA UI**: A web dashboard for monitoring status.
+    -   **vLLM**: Serving Qwen3-VL-30B (A3B/AWQ).
+    -   **ComfyUI**: Serving FLUX.2 (FP8).
+4.  **Application Layer**: Python Discord Bot & FastAPI.
+5.  **Interface Layer**: Discord Client & Web Dashboard (`ora-ui`).
 
 ---
 
 ## 💻 Installation & Usage
 
-### 1. One-Click Start
-No command line needed. Just run the **Launch Shortcut**:
-```
-[ Right-Click Desktop ] -> [ Start ORA Bot ]
-```
-Wait 3 seconds. The system will auto-initialize:
-1.  **vLLM** starts (Blue Screen).
-2.  **ComfyUI** starts (Background).
-3.  **Bot** connects to Discord.
+### One-Click Launch
+1.  **Right-Click** on your Desktop -> **"Start ORA Bot"**.
+2.  Wait 3 seconds. The system auto-initializes all 5 layers.
 
-### 2. Modes
-When launching manually, you can choose:
+### Manual Modes
+If launching via `start_vllm.bat`:
 - **[1] Normal**: Full power (30B Model). Best for everything.
 - **[2] Thinking**: Forces the Reasoning model.
 - **[3] Gaming**: Low-VRAM mode (7B Model) for playing heavy games.
 
 ---
 
-## 📜 Full Command List
+## ⚙️ Configuration & Customization
 
-| Command | Usage | Effect |
+You can tweak ORA's behavior in `src/config.py` or `.env`.
+
+### Environment Variables
+| Variable | Description | Default |
 | :--- | :--- | :--- |
-| **/join** | `/join` | ORA joins your VC and starts listening. |
-| **/imagine** | `/imagine prompt: cat` | Generates a high-quality image. |
-| **/analyze** | `/analyze [image]` | deeply analyzes the attached image. |
-| **/search** | `/search query: weather` | Googles the internet for live info. |
-| **/shiritori** | `/shiritori` | Challenges you to a word game. |
-| **/system** | `/system status` | Shows VRAM / GPU usage and temperatures. |
-| **/timer** | `/timer 3m` | Sets a timer. |
+| `ORA_DEV_GUILD_ID` | Server ID for Slash Commands (Global if empty) | None |
+| `SD_API_URL` | URL for ComfyUI/SD Backend | `http://localhost:8188` |
+| `LLM_API_URL` | URL for vLLM Backend | `http://localhost:8001/v1` |
+| `VOICEVOX_URL` | URL for TTS Engine | `http://localhost:50021` |
+
+### Specialized Models
+ORA supports "Lazy Loading" for these heavy models (only loaded when used):
+- **SAM 3 (Segment Anything)**: Place official repo in `L:\ai_models\github\sam3`.
+- **T5Gemma TTS**: Place resources in `L:\ai_models\huggingface\Aratako_...`.
+
+---
+
+## 📚 Detailed Command List
+
+### 🎨 Image Generation
+`/imagine [prompt] [style] [resolution]`
+-   **Prompt**: "A cyberpunk city at night".
+-   **Style**: "Anime", "Photo", "Oil Painting" (Auto-detected if omitted).
+-   **Resolution**: FHD, 4K, Ultrawide.
+> **Note**: ORA uses FLUX.2, which follows prompts *exactly*.
+
+### 👁️ Vision Analysis
+`/analyze [image/video]`
+-   Upload a file and ask "What is happening here?".
+-   Use "Solve this" for math homework.
+-   Use "Who is this?" for character recognition.
+
+### 🗣️ Voice System
+`/join` / `/leave`
+-   Bot joins Voice Chat.
+-   **Auto-Read**: Reads chat messages via TTS.
+-   **Listen Mode**: (`/listen`) Talk to ORA directly. She hears you!
+
+### 🔧 Tools & Utilities
+-   `/search`: Google Search.
+-   `/timer`: Set alarms.
+-   `/system`: VRAM/Temp monitor.
+-   `/shiritori`: Play games.
+
+---
+
+## ❓ Troubleshooting
+
+### "System Swapping / Laggy"
+-   **Cause**: vLLM default VRAM reservation (90%) leaves no room for Windows.
+-   **Fix**: Launcher sets `gpu-memory-utilization` to 0.60 (60%), fixing this. Restart the bot.
+
+### "Bot starts but vLLM stops"
+-   **Cause**: Port conflict. Bot tries to start its own vLLM.
+-   **Fix**: Fixed in `ResourceManager` (Startup Adoption). Restart the bot.
+
+### "Image Generation Failed"
+-   **Cause**: ComfyUI not running.
+-   **Fix**: Use the "Start ORA Bot" launcher (it starts Comfy automatically).
 
 ---
 
