@@ -57,18 +57,18 @@ This system uses an **Automatic Semantic Router** to dynamically assign tasks to
 
 ```mermaid
 graph TD
-    User[User Input (Discord)] --> Router{Auto Router<br>(Context Analysis)}
+    User["User Input (Discord)"] --> Router{"Auto Router<br>(Context Analysis)"}
 
     %% Routing Logic
-    Router -- "Chat / Logic" --> LLM[Qwen3-VL-30B-Instruct<br>(vLLM - Port 8001)]
-    Router -- "Image Upload" --> Vision[Qwen3-VL (Vision)<br>(Native Analysis)]
-    Router -- "Generate Image" --> ImageGen[Flux.1-dev<br>(ComfyUI - Port 8188)]
-    Router -- "Video/Object Search" --> SAM2[SAM 2 (Meta)<br>(Object Segmentation)]
+    Router -- "Chat / Logic" --> LLM["Qwen3-VL-30B-Instruct<br>(vLLM - Port 8001)"]
+    Router -- "Image Upload" --> Vision["Qwen3-VL (Vision)<br>(Native Analysis)"]
+    Router -- "Generate Image" --> ImageGen["Flux.1-dev<br>(ComfyUI - Port 8188)"]
+    Router -- "Video/Object Search" --> SAM2["SAM 2 (Meta)<br>(Object Segmentation)"]
     
     %% Voice Path
-    Router -- "Speak/TTS" --> VoiceRouter{Voice Selector}
-    VoiceRouter -- "Standard" --> VV[VOICEVOX<br>(Port 50021)]
-    VoiceRouter -- "Human-like" --> T5[T5Gemma-TTS<br>(Resources Loaded)]
+    Router -- "Speak/TTS" --> VoiceRouter{"Voice Selector"}
+    VoiceRouter -- "Standard" --> VV["VOICEVOX<br>(Port 50021)"]
+    VoiceRouter -- "Human-like" --> T5["T5Gemma-TTS<br>(Resources Loaded)"]
 
     %% Future/Reserved
     Router -- "Video Gen?" --> VideoGen[Reserved / Future<br>(Port 8189)]

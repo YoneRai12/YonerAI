@@ -58,18 +58,18 @@ ORAは、あなたのハードウェア上でローカル動作する **完全�
 
 ```mermaid
 graph TD
-    User[ユーザー入力 (Discord)] --> Router{自動ルーター<br>(文脈分析)}
+    User["ユーザー入力 (Discord)"] --> Router{"自動ルーター<br>(文脈分析)"}
 
     %% Routing Logic
-    Router -- "会話 / ロジック" --> LLM[Qwen3-VL-30B-Instruct<br>(vLLM - Port 8001)]
-    Router -- "画像アップロード" --> Vision[Qwen3-VL (Vision)<br>(ネイティブ解析)]
-    Router -- "画像生成" --> ImageGen[Flux.1-dev<br>(ComfyUI - Port 8188)]
-    Router -- "動画/物体検索" --> SAM2[SAM 2 (Meta)<br>(物体セグメンテーション)]
+    Router -- "会話 / ロジック" --> LLM["Qwen3-VL-30B-Instruct<br>(vLLM - Port 8001)"]
+    Router -- "画像アップロード" --> Vision["Qwen3-VL (Vision)<br>(ネイティブ解析)"]
+    Router -- "画像生成" --> ImageGen["Flux.1-dev<br>(ComfyUI - Port 8188)"]
+    Router -- "動画/物体検索" --> SAM2["SAM 2 (Meta)<br>(物体セグメンテーション)"]
     
     %% Voice Path
-    Router -- "発話 / TTS" --> VoiceRouter{音声セレクター}
-    VoiceRouter -- "標準ボイス" --> VV[VOICEVOX<br>(Port 50021)]
-    VoiceRouter -- "人間品質" --> T5[T5Gemma-TTS<br>(動的ロード)]
+    Router -- "発話 / TTS" --> VoiceRouter{"音声セレクター"}
+    VoiceRouter -- "標準ボイス" --> VV["VOICEVOX<br>(Port 50021)"]
+    VoiceRouter -- "人間品質" --> T5["T5Gemma-TTS<br>(動的ロード)"]
 
     %% Future/Reserved
     Router -- "動画生成?" --> VideoGen[予約 / 実装予定<br>(Port 8189)]
