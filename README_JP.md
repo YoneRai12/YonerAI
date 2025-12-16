@@ -58,15 +58,33 @@ ORAは、あなたのハードウェア上でローカル動作する **完全�
 
 ### 🔄 ロジックフロー (処理の流れ)
 
-**ユーザー入力** は **自動ルーター** によって分析され、最適なAIへ振り分けられます：
+```mermaid
+graph TD
+    User["ユーザー入力 (Discord)"] --> Router["自動ルーター<br>(文脈分析)"]
 
-| 入力タイプ | 判定 (Router) | 担当モデル / コンポーネント |
-| :--- | :--- | :--- |
-| **💬 会話・ロジック** | `Chat`, `Math` | **LLM** (Qwen3-VL-30B - vLLM) |
-| **🖼️ 画像のアップロード** | `Vision` | **Vision** (Qwen3-VL - Native) |
-| **🎨 画像を作って** | `Image Generation` | **ImageGen** (Flux.1-dev - ComfyUI) |
-| **📹 動画を見せて** | `Object Search` | **SAM 2** (Segment Anything - Meta) |
-| **🗣️ (ボイスチャット)** | `Speech` | **TTS** (VOICEVOX / T5Gemma) |
+    %% Routing Logic
+    Router --> "会話 / ロジック" --> LLM["Qwen3-VL-30B-Instruct<br>(vLLM - Port 8001)"]
+    Router --> "画像アップロード" --> Vision["Qwen3-VL (Vision)<br>(ネイティブ解析)"]
+    Router --> "画像生成" --> ImageGen["Flux.1-dev<br>(ComfyUI - Port 8188)"]
+    Router --> "動画/物体検索" --> SAM2["SAM 2 (Meta)<br>(物体セグメンテーション)"]
+
+    %% Voice Path
+    VoiceRouter --> "発話 / TTS" --> VV["VOICEVOX<br>(Port 50021)"]
+    VoiceRouter --> "人間品質" --> T5["T5Gemma-TTS<br>(動的ロード)"]
+
+    %% Future/Reserved
+    Router --> "動画生成?" --> VideoGen["予約 / 実装予定<br>(Port 8189)"]
+
+    %% Styling
+    style Router fill:#f9f,stroke:#333,stroke-width:2px
+    style LLM fill:#ccf,stroke:#333
+    style ImageGen fill:#cfc,stroke:#333
+    style SAM2 fill:#fcf,stroke:#333
+    style VoiceRouter fill:#fcc,stroke:#333
+    style VV fill:#ccf,stroke:#333
+    style T5 fill:#fcf,stroke:#333
+    style VideoGen fill:#cff,stroke:#333
+```
 
 ### 🧩 コンポーネント構成
 
