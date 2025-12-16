@@ -77,7 +77,6 @@
                 0
             ],
             "tile_size": 512,
-            "overlap": 64,
             "temporal_size": 8,
             "temporal_overlap": 4
         },

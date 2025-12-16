@@ -1,0 +1,8 @@
+Windows Registry Editor Version 5.00
+
+[HKEY_CLASSES_ROOT\Directory\Background\shell\ORA]
+@="Start ORA Bot"
+"Icon"="cmd.exe"
+
+[HKEY_CLASSES_ROOT\Directory\Background\shell\ORA\command]
+@="\"C:\\Users\\YoneRai12\\Desktop\\ORADiscordBOT-main3\\start_vllm.bat\""

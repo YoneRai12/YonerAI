@@ -42,6 +42,22 @@ class StyleSelectView(View):
         if style != "raw":
             final_prompt += style_suffix
 
+        # Translate to English if needed (Simple heuristic: Non-ASCII)
+        if self.cog.llm and any(ord(c) > 128 for c in final_prompt):
+            try:
+                translation_prompt = (
+                    f"Translate the following image prompt to English for Stable Diffusion. "
+                    f"Output ONLY the translated English text, no explanations.\n\nPrompt: {final_prompt}"
+                )
+                translated = await self.cog.llm.chat(
+                    messages=[{"role": "user", "content": translation_prompt}],
+                    temperature=0.1
+                )
+                final_prompt = translated.strip()
+            except Exception as e:
+                # Log error but proceed with original
+                print(f"Translation failed: {e}")
+
         # Quality Modifiers
         if self.is_high_quality:
             final_prompt += ", best quality, ultra detailed, 8k, highres, sharp focus"
@@ -51,19 +67,18 @@ class StyleSelectView(View):
         if self.negative_prompt:
             safe_negative = f"{self.negative_prompt}, {safe_negative}"
 
-        # Lock Bot & Unload LLM
+        # Lock Bot & Switch Context
         self.cog.is_generating_image = True
         
-        # OFF-LOAD LLM FROM VRAM (Critical)
-        if self.cog.llm:
-             asyncio.create_task(self.cog.llm.unload_model())
-             # Extended buffer to ensure VRAM is fully released before giant Flux load
-             await asyncio.sleep(8) 
-
-        steps = 30 if self.is_high_quality else 20
-        mode_label = "High Quality" if self.is_high_quality else "Standard"
-
-        await interaction.followup.send(f"🎨 **生成開始 (Flux Engine)**\nMode: `{mode_label}`\nStyle: `{style.upper()}`\nPrompt: `{final_prompt[:50]}...`\n(生成中... VRAM解放待機含む)")
+        # 1. SWITCH TO IMAGE CONTEXT (Kills vLLM, Starts Comfy)
+        await interaction.followup.send(f"🎨 **生成開始 (Flux Engine)**\nMode: `{mode_label}`\nStyle: `{style.upper()}`\nSize: `{self.width}x{self.height}`\nPrompt(Eng): `{final_prompt[:100]}...`\n(🚀 GPUコンテキスト切替中... vLLM停止 -> Comfy起動)")
+        
+        try:
+            await self.cog.resource_manager.switch_context("image")
+        except Exception as e:
+            await interaction.followup.send(f"❌ コンテキスト切替エラー: {e}")
+            self.cog.is_generating_image = False
+            return
         
         try:
             # Initialize Comfy Client
@@ -74,7 +89,9 @@ class StyleSelectView(View):
                 workflow.generate_image, 
                 positive_prompt=final_prompt, 
                 negative_prompt=safe_negative,
-                steps=steps # Pass steps if supported
+                steps=steps,
+                width=self.width,
+                height=self.height
             )
 
             if image_data:
@@ -88,6 +105,16 @@ class StyleSelectView(View):
         
         finally:
             self.cog.is_generating_image = False
+            
+            # 2. SWITCH BACK TO LLM CONTEXT (Kills Comfy, Starts vLLM)
+            logger.info("🔄 Switching back to LLM Context...")
+            try:
+                await self.cog.resource_manager.switch_context("llm")
+            except Exception as e:
+                logger.error(f"Failed to restore LLM context: {e}")
+            
+            asyncio.create_task(self.cog.process_message_queue())
+            
             asyncio.create_task(self.cog.process_message_queue())
 
     @discord.ui.button(label="おまかせ (Auto)", style=discord.ButtonStyle.primary)

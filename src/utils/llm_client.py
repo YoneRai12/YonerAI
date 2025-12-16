@@ -231,9 +231,69 @@ class LLMClient:
                 else:
                      logger.warning(f"'lms' CLI failed with code {proc.returncode}: {stderr.decode()}")
             except Exception as cli_e:
-                logger.warning(f"Failed to run 'lms' CLI: {cli_e}. Is it in PATH?")
+                 logger.warning(f"Failed to run 'lms' CLI: {cli_e}")
 
+            # 4. NUCLEAR OPTION: Taskkill
+            # User request: "VRAMからkillしてよ" (Kill from VRAM)
+            try:
+                proc = await asyncio.create_subprocess_exec(
+                    "taskkill", "/F", "/IM", "LM Studio.exe",
+                    stdout=asyncio.subprocess.PIPE, 
+                    stderr=asyncio.subprocess.PIPE
+                )
+                await proc.communicate()
+                logger.info("☢️ Nuclear Option Executed: Killed 'LM Studio.exe'")
+            except Exception as tk_e:
+                logger.warning(f"Failed to taskkill: {tk_e}")
+                
         except Exception as e:
             logger.warning(f"Failed to unload model: {e}")
+
+    async def start_service(self) -> None:
+        """Starts the LLM service (vLLM on WSL2)."""
+        try:
+            logger.info("🚀 Starting vLLM Service (WSL2)...")
+            
+            # Use 'wsl' command to launch vLLM in background (nohup or detached)
+            # We use 'start' to detach from Python process
+            cmd = (
+                "wsl -d Ubuntu-22.04 nohup python3 -m vllm.entrypoints.openai.api_server "
+                "--model Qwen/Qwen2.5-VL-32B-Instruct-AWQ --quantization awq --dtype half --gpu-memory-utilization 0.90 "
+                "--max-model-len 2048 --enforce-eager --disable-custom-all-reduce --tensor-parallel-size 1 --port 8000 "
+                "--trust-remote-code > vllm.log 2>&1 &"
+            )
+            
+            proc = await asyncio.create_subprocess_shell(
+                cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            # Wait for it to spin up? (It takes ~20s)
+            # We won't block here, the first request will just fail/retry.
+            # But we should give it a head start.
+            logger.info("⏳ Waiting 10s for vLLM to initialize...")
+            await asyncio.sleep(10) 
+            logger.info("✅ vLLM Launch signal sent.")
+            
+        except Exception as e:
+            logger.error(f"Failed to start LLM service: {e}")
+
+    async def unload_model(self):
+        """Stops the LLM service (vLLM) to free VRAM."""
+        try:
+            logger.info("🛑 Stopping vLLM Service (pkill)...")
+            # Kill python3 process running vllm
+            cmd = "wsl -d Ubuntu-22.04 pkill -f vllm"
+            
+            proc = await asyncio.create_subprocess_shell(
+                cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            await proc.communicate()
+            logger.info("✅ vLLM Stopped.")
+            
+        except Exception as e:
+            logger.warning(f"Failed to stop vLLM: {e}")
 
 

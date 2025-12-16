@@ -40,6 +40,13 @@ class Config:
     admin_user_id: Optional[int]
     # Stable Diffusion Configuration
     sd_api_url: str
+    
+    # Gaming Mode
+    gaming_processes: list[str]
+
+    # Model Modes (Router)
+    model_modes: dict[str, str]
+    router_thresholds: dict[str, float]
 
     @classmethod
     def load(cls) -> "Config":
@@ -86,9 +93,9 @@ class Config:
 
         db_path = os.getenv("ORA_BOT_DB", "ora_bot.db")
 
-        llm_base_url = os.getenv("LLM_BASE_URL", "http://127.0.0.1:1234/v1").rstrip("/")
-        llm_api_key = os.getenv("LLM_API_KEY", "lm-studio")
-        llm_model = os.getenv("LLM_MODEL", "mistralai/ministral-3-14b-reasoning")
+        llm_base_url = os.getenv("LLM_BASE_URL", "http://localhost:8001/v1").rstrip("/")
+        llm_api_key = os.getenv("LLM_API_KEY", "EMPTY") 
+        llm_model = os.getenv("LLM_MODEL", "Qwen/Qwen2.5-VL-32B-Instruct-AWQ")
 
         privacy_default = os.getenv("PRIVACY_DEFAULT", "private").lower()
         if privacy_default not in {"private", "public"}:
@@ -131,6 +138,24 @@ class Config:
                 
         # Stable Diffusion API
         sd_api_url = "http://127.0.0.1:8188" # Force ComfyUI Port
+        
+        # Gaming Processes
+        gaming_processes_str = os.getenv("GAMING_PROCESSES", "valorant.exe,javaw.exe,ffxiv_dx11.exe,osu!.exe")
+        gaming_processes = [p.strip() for p in gaming_processes_str.split(",") if p.strip()]
+
+        # Model Modes Configuration
+        # Maps mode name to batch file name
+        model_modes = {
+            "instruct": "start_vllm_instruct.bat",
+            "thinking": "start_vllm_thinking.bat",
+            "gaming": "start_vllm_gaming.bat"
+        }
+        
+        # Router Thresholds
+        router_thresholds = {
+            "confidence_cutoff": 0.72,
+            "sticky_duration": 180.0  # seconds
+        }
 
         return cls(
             token=token,
@@ -152,6 +177,9 @@ class Config:
             speak_search_progress_default=speak_search_progress_default,
             admin_user_id=admin_user_id,
             sd_api_url=sd_api_url,
+            gaming_processes=gaming_processes,
+            model_modes=model_modes,
+            router_thresholds=router_thresholds,
         )
 
     def validate(self) -> None:

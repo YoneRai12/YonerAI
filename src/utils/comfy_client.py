@@ -45,7 +45,7 @@ class ComfyWorkflow:
         with urllib.request.urlopen(f"http://{self.server_address}/view?{url_values}") as response:
             return response.read()
 
-    def generate_image(self, positive_prompt: str, negative_prompt: str = "", seed: int = None, steps: int = 20) -> Optional[bytes]:
+    def generate_image(self, positive_prompt: str, negative_prompt: str = "", seed: int = None, steps: int = 20, width: int = 1024, height: int = 1024) -> Optional[bytes]:
         """
         Executes the workflow with the given prompts using WebSocket.
         Returns the raw image bytes of the first generated image.
@@ -60,6 +60,7 @@ class ComfyWorkflow:
         # ID Mapping based on my manual flux_api.json construction:
         # 4: Positive Prompt (CLIPTextEncode)
         # 5: Negative Prompt (CLIPTextEncode)
+        # 6: Empty Latent Image (Width, Height)
         # 7: KSampler (Seed, Steps)
         
         # 1. Update Positive Prompt
@@ -73,9 +74,16 @@ class ComfyWorkflow:
         if "5" in prompt_workflow and "inputs" in prompt_workflow["5"]:
             prompt_workflow["5"]["inputs"]["text"] = negative_prompt
         else:
-             logger.warning("Node 5 (Negative Prompt) not found. Skipping.")
+            logger.warning("Node 5 (Negative Prompt) not found. Skipping.")
 
-        # 3. Update Seed & Steps
+        # 3. Update Dimensions (Node 6)
+        if "6" in prompt_workflow and "inputs" in prompt_workflow["6"]:
+            prompt_workflow["6"]["inputs"]["width"] = width
+            prompt_workflow["6"]["inputs"]["height"] = height
+        else:
+            logger.warning("Node 6 (EmptyLatentImage) not found. Using default dimensions.")
+
+        # 4. Update Seed & Steps
         if seed is None:
             seed = random.randint(0, 1000000000)
         
@@ -173,3 +181,36 @@ class ComfyWorkflow:
         except Exception as e:
             logger.error(f"ComfyUI Generation Error: {e}")
             return None
+
+
+    async def unload_models(self):
+        """Attempts to unload models from ComfyUI VRAM."""
+        try:
+            # Strategies for Unloading (based on ComfyUI versions/branches)
+            # 1. Official/Manager /free endpoint (Most reliable if available)
+            # Payload keys: unload_models, free_memory
+            payload = {"unload_models": True, "free_memory": True}
+            endpoints = ["/free", "/api/free", "/manager/free", "/internal/model/unload"]
+            
+            async with aiohttp.ClientSession() as session:
+                for ep in endpoints:
+                    try:
+                        url = f"http://{self.server_address}{ep}"
+                        async with session.post(url, json=payload, timeout=2) as resp:
+                            if resp.status == 200:
+                                logger.info(f"✅ ComfyUI VRAM Freed via {ep}")
+                                return
+                            elif resp.status != 404: # If 500/405, it might be the wrong method or error
+                                text = await resp.text()
+                                logger.warning(f"Failed to free via {ep}: {resp.status} - {text[:50]}")
+                    except Exception as e:
+                         # logger.debug(f"Endpoint {ep} failed: {e}")
+                         pass
+            
+            logger.warning("⚠️ Could not explicitly free ComfyUI VRAM (All endpoints failed).")
+
+        except Exception as e:
+            logger.warning(f"Failed to unload ComfyUI models: {e}")
+
+        except Exception as e:
+            logger.warning(f"Failed to unload ComfyUI models: {e}")

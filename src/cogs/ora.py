@@ -18,6 +18,13 @@ from ..utils.games import ShiritoriGame
 import os
 import aiofiles
 from typing import Optional, Dict
+
+import torch
+# Transformers for SAM 2 / T5Gemma
+try:
+    from transformers import AutoProcessor, Sam2Model, AutoModelForCausalLM, AutoTokenizer, pipeline
+except ImportError:
+    pass # Handled in tool execution
 from collections import defaultdict
 
 import aiohttp
@@ -108,6 +115,8 @@ def _nonce(length: int = 32) -> str:
     return "".join(secrets.choice(alphabet) for _ in range(length))
 
 
+from ..managers.resource_manager import ResourceManager
+
 class ORACog(commands.Cog):
     """ORA-specific commands such as login link and dataset management."""
 
@@ -135,21 +144,68 @@ class ORACog(commands.Cog):
         self._locks: Dict[int, asyncio.Lock] = defaultdict(asyncio.Lock)
         self.chat_cooldowns = defaultdict(float) # User ID -> Timestamp
         
+        # Layer 2: Resource Manager (The Guard Dog)
+        self.resource_manager = ResourceManager()
+
         # VRAM Management & Queue
         self.is_generating_image = False
         self.message_queue: list[discord.Message] = []
         
+        
         # Game State: channel_id -> ShiritoriGame
         self.shiritori_games: Dict[int, ShiritoriGame] = defaultdict(ShiritoriGame)
+        
+        # Gaming Mode Watcher
+        from ..managers.game_watcher import GameWatcher
+        self.game_watcher = GameWatcher(
+            target_processes=self.bot.config.gaming_processes,
+            on_game_start=self._on_game_start,
+            on_game_end=self._on_game_end
+        )
+        self._gaming_restore_task: Optional[asyncio.Task] = None
 
         # Start background tasks
         self.desktop_loop.start()
-        # Enforce Safe Model at Startup
-        self.bot.loop.create_task(self._check_comfy_connection())
+        self.game_watcher.start()
+        # Enforce Safe Model at Startup (Start LLM Context)
+        self.bot.loop.create_task(self.resource_manager.switch_context("llm"))
         logger.info("ORACog.__init__ complete - desktop_loop started")
 
     def cog_unload(self):
         self.desktop_loop.cancel()
+        if self._gaming_restore_task:
+            self._gaming_restore_task.cancel()
+        if self.game_watcher:
+            self.game_watcher.stop()
+
+    def _on_game_start(self):
+        """Callback when game starts: Switch to Gaming Mode IMMEDIATELY."""
+        # Cancel any pending restore task
+        if self._gaming_restore_task:
+            self._gaming_restore_task.cancel()
+            self._gaming_restore_task = None
+            logger.info("🚫 Cancelled pending Normal Mode restoration.")
+
+        self.bot.loop.create_task(self.resource_manager.set_gaming_mode(True))
+
+    def _on_game_end(self):
+        """Callback when game ends: Schedule switch to Normal Mode after 5 minutes."""
+        if self._gaming_restore_task:
+            self._gaming_restore_task.cancel()
+        
+        self._gaming_restore_task = self.bot.loop.create_task(self._restore_normal_mode_delayed())
+
+    async def _restore_normal_mode_delayed(self):
+        """Wait 5 minutes then restore Normal Mode."""
+        logger.info("⏳ Game closed. Waiting 5 minutes before restoring Normal Mode...")
+        try:
+            await asyncio.sleep(300) # 5 minutes
+            logger.info("⏰ 5 minutes passed. Restoring Normal Mode.")
+            await self.resource_manager.set_gaming_mode(False)
+        except asyncio.CancelledError:
+            logger.info("🛑 Restore task cancelled (Game restarted?).")
+        finally:
+            self._gaming_restore_task = None
 
     async def _check_comfy_connection(self):
         """Check if ComfyUI is reachable on startup."""
@@ -638,9 +694,18 @@ class ORACog(commands.Cog):
             f"7. **CRITICAL: IMAGE ANALYSIS vs MUSIC/SEARCH**\n"
             f"   - If the user provides an image:\n"
             f"     - **USE YOUR EYES.** The image is provided as visual input.\n"
-            f"     - Use the OCR text (`[VISUAL CONTEXT]`) as supplemental data, but prioritize your own vision.\n"
+            f"     - **USE YOUR EYES.** The image is provided as visual input (Qwen2.5-VL-32B).\n"
+            f"     - Analyze every detail: text, charts, handwriting, and layout.\n"
             f"     - **DO NOT** use `music_play` for image analysis.\n"
-            f"     - If the image is unclear, ask for clarification. Do NOT say 'I cannot see'.\n"
+            f"     - If the image is unclear, ask for clarification.\n"
+            f"\n"
+            f"4. **ROUTING EVALUATION (MANDATORY)**:\n"
+            f"   - You act as the 'Router'. Before answering, EVALUATE the user's request.\n"
+            f"   - If the task requires complex reasoning (Math, Graphs, Proofs, Long Logic), set `needs_thinking: true`.\n"
+            f"   - **JSON FORMAT**: You MUST output this classification JSON as the VERY FIRST line of your response.\n"
+            f"   ```json\n"
+            f"   {{ \"route_eval\": {{ \"needs_thinking\": false, \"confidence\": 0.95, \"detected_task\": [\"chat\"] }} }}\n"
+            f"   ```\n"
             f"\n"
             f"## available_tools\n{tools_json}\n"
             f"\n"
@@ -693,11 +758,10 @@ class ORACog(commands.Cog):
              base += f"\nMy name is {self.bot.user.name}.\n"
 
         base += (
-            "\n[VISION CAPABILITY ENABLED]\n"
-            "If the user attaches an image, you receive it directly as visual input.\n"
-            "If you can see it, solve it.\n"
-            "If you CANNOT see it (blind), ask the user to switch to a Vision Model (LLaVA/Qwen).\n"
-            "DO NOT google search the OCR text."
+            "\n[VISION CAPABILITY ENABLED: Qwen2.5-VL]\n"
+            "You have state-of-the-art vision capabilities.\n"
+            "Read text, solve math, and analyze scenes directly from the image.\n"
+            "You do NOT need OCR text; trust your eyes."
         )
         
         return base
@@ -761,6 +825,51 @@ class ORACog(commands.Cog):
                     await media_cog.control_from_ai(ctx, action)
                     return f"Music control sent: {action}"
                 return "Media system not available."
+
+            # --- Video / Vision / Voice (Placeholders) ---
+            # --- 3. Specialized Tools (TTS / Vision) ---
+            elif tool_name == "tts_speak":
+                text = args.get("text")
+                if not text: return "Error: No text provided."
+                
+                # Check for T5Gemma Resources
+                # Note: Actual inference requires loading the model with XCodec2. 
+                # For now, we confirm files exist and fallback to system voice to keep bot stable.
+                t5_res_path = r"L:\ai_models\huggingface\Aratako_T5Gemma-TTS-2b-2b-resources"
+                if os.path.exists(t5_res_path):
+                     logger.info("T5Gemma Resources detected.")
+                
+                # Fallback to MediaCog (VoiceVox/System) - Safest for now
+                media_cog = self.bot.get_cog("MediaCog")
+                if media_cog:
+                    ctx = await self.bot.get_context(message)
+                    await media_cog.speak(ctx, text)
+                    return f"Spoken via System Voice (T5Gemma model ready, integration pending): {text}"
+                return "Voice system not available."
+
+            elif tool_name == "segment_objects":
+                # SAM 3 Implementation (Official Repo)
+                try:
+                    sam3_path = r"L:\ai_models\github\sam3"
+                    if os.path.exists(sam3_path):
+                         # In a real scenario, we would sys.path.append(sam3_path) and import sam3
+                         # For now, we signify it marks as available.
+                         return f"SAM 3 (Official) detected at {sam3_path}. Ready for inference tasks."
+                    
+                    # Fallback to SAM 2
+                    sam2_path = r"L:\ai_models\huggingface\facebook_sam2_hiera_large"
+                    if os.path.exists(sam2_path):
+                         return "SAM 3 not found, but SAM 2 is ready."
+                    
+                    return "Vision models not found."
+                    
+                except Exception as e:
+                    return f"Vision Error: {e}"
+
+            # --- 4. Video Generation (Placeholder) ---
+            elif tool_name in ["generate_video", "get_video_models", "change_video_model", "analyze_video"]:
+                return f"⚠️ Feature '{tool_name}' is currently under development. Coming soon!"
+
 
             elif tool_name == "create_file":
                 # LOCKDOWN: Creator Only
@@ -1815,12 +1924,8 @@ class ORACog(commands.Cog):
                     except Exception as e:
                         logger.error(f"Vision Encode Error: {e}")
 
-                    # OCR Backup
-                    analysis_result = await asyncio.to_thread(image_tools.analyze_image_v2, image_data)
-                    
-                    
                     header = f"[Referenced Image: {attachment.filename}]" if is_reference else f"[Attached Image {i+1}: {attachment.filename}]"
-                    prompt += f"\n\n{header}\n[VISUAL CONTEXT (Use this as your eyes)]:\n{analysis_result}\n"
+                    prompt += f"\n\n{header}\n(Image loaded into Qwen2.5-VL Vision Context)\n"
 
                 except Exception as e:
                     logger.error(f"Image process failed: {e}")
@@ -1894,435 +1999,351 @@ class ORACog(commands.Cog):
 
 
     def _get_tool_schemas(self) -> list[dict]:
+        """
+        Returns the list of available tools, organized by Category.
+        Structure:
+        1. Discord System
+        2. Image Generation
+        3. Voice Generation
+        4. Video Generation (Placeholder)
+        5. Video Recognition (Placeholder)
+        6. Search
+        7. Admin & System
+        """
         return [
+            # --- 1. Discord System ---
+            {
+                "name": "get_server_info",
+                "description": "[Discord] Get basic information about the current server (guild).",
+                "parameters": { "type": "object", "properties": {}, "required": [] }
+            },
+            {
+                "name": "get_channels",
+                "description": "[Discord] Get a list of text and voice channels in the server.",
+                "parameters": { "type": "object", "properties": {}, "required": [] }
+            },
+            {
+                "name": "get_roles",
+                "description": "[Discord] Get a list of roles in the server.",
+                "parameters": { "type": "object", "properties": {}, "required": [] }
+            },
             {
                 "name": "get_role_members",
-                "description": "Get a list of members who have a specific role.",
+                "description": "[Discord] Get members who have a specific role.",
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "role_name": {
-                            "type": "string",
-                            "description": "The name of the role to search for (fuzzy match)."
-                        }
+                        "role_name": { "type": "string", "description": "Role name to search for." }
                     },
                     "required": ["role_name"]
                 }
             },
             {
-                "name": "music_play",
-                "description": "Play music from YouTube. Use this when user asks to play a song.",
+                "name": "find_user",
+                "description": "[Discord] Find a user by name, ID, or mention.",
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "query": {
-                            "type": "string",
-                            "description": "Search query or URL for the song"
-                        }
+                        "name_query": { "type": "string", "description": "Name, ID, or Mention." }
+                    },
+                    "required": ["name_query"]
+                }
+            },
+            {
+                "name": "get_voice_channel_info",
+                "description": "[Discord/VC] Get info about a voice channel (members). Default: current channel.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "channel_name": { "type": "string", "description": "Optional channel name." }
+                    },
+                    "required": []
+                }
+            },
+            {
+                "name": "join_voice_channel",
+                "description": "[Discord/VC] Join a voice channel.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "channel_name": { "type": "string", "description": "Optional channel to join." }
+                    },
+                    "required": []
+                }
+            },
+            {
+                "name": "leave_voice_channel",
+                "description": "[Discord/VC] Leave the current voice channel.",
+                "parameters": { "type": "object", "properties": {}, "required": [] }
+            },
+            {
+                "name": "manage_user_voice",
+                "description": "[Discord/VC] Disconnect, Move, or Summon a user. (Admin/Self only)",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "target_user": { "type": "string", "description": "Target user (Name/ID/Mention)." },
+                        "action": { "type": "string", "enum": ["disconnect", "move", "summon"], "description": "Action to perform." },
+                        "channel_name": { "type": "string", "description": "Destination channel (for move)." }
+                    },
+                    "required": ["target_user", "action"]
+                }
+            },
+            {
+                "name": "shiritori",
+                "description": "[Discord/Game] Play Shiritori (Word Chain).",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "action": { "type": "string", "enum": ["start", "play", "check_bot"] },
+                        "word": { "type": "string" },
+                        "reading": { "type": "string" }
+                    },
+                    "required": ["action"]
+                }
+            },
+            {
+                "name": "music_play",
+                "description": "[Discord/Music] Play music from YouTube.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": { "type": "string", "description": "Song name or URL." }
                     },
                     "required": ["query"]
                 }
             },
             {
                 "name": "music_control",
-                "description": "Control music playback (skip, stop, loop, queue).",
+                "description": "[Discord/Music] Control playback (skip, stop, loop, queue).",
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "action": {
-                            "type": "string",
-                            "enum": ["skip", "stop", "loop_on", "loop_off", "queue_show"],
-                            "description": "Action to perform"
-                        }
+                        "action": { "type": "string", "enum": ["skip", "stop", "loop_on", "loop_off", "queue_show", "replay_last"] }
                     },
                     "required": ["action"]
                 }
             },
-            {
-                "name": "google_search",
-                "description": "Perform a web search using Google to find information.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "query": {
-                            "type": "string",
-                            "description": "The search query."
-                        }
-                    },
-                    "required": ["query"]
-                }
-            },
-            {
-                "name": "get_voice_channel_info",
-                "description": "Get info about a voice channel (member count, names). If channel_name is null, tries to find the user's current voice channel.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "channel_name": {
-                            "type": "string",
-                            "description": "The name of the voice channel. If null, defaults to user's current channel."
-                        }
-                    },
-                    "required": []
-                }
-            },
-            {
-                "name": "get_server_info",
-                "description": "Get basic information about the current server (guild).",
-                "parameters": {
-                    "type": "object",
-                    "properties": {},
-                    "required": []
-                }
-            },
-            {
-                "name": "get_channels",
-                "description": "Get a list of text and voice channels in the server.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {},
-                    "required": []
-                }
-            },
-            {
-                "name": "get_roles",
-                "description": "Get a list of roles in the server.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {},
-                    "required": []
-                }
-            },
-            {
-                "name": "join_voice_channel",
-                "description": "Join the user's voice channel (or a specified one). Use this when asked to 'join VC', 'come here', 'speak', 'read chat', etc.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                         "channel_name": {
-                             "type": "string",
-                             "description": "Optional. Name of channel to join. Defaults to user's current channel."
-                         }
-                    },
-                    "required": []
-                }
-            },
-            {
-                "name": "leave_voice_channel",
-                "description": "Leave the current voice channel. Use this when asked to 'leave', 'disconnect', 'stop reading', etc.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {},
-                    "required": []
-                }
-            },
-            {
-                "name": "find_user",
-                "description": "Find a user in the server by name, ID, or Mention. Use this when asked 'Who is @User?' or 'Who is <@123>?'.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "name_query": {
-                            "type": "string",
-                            "description": "The name to search for (partial match supported)."
-                        }
-                    },
-                    "required": ["name_query"]
-                }
-            },
-            {
-                "name": "create_file",
-                "description": "Create a text file in the current directory. Restricted to admin.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "filename": {
-                            "type": "string",
-                            "description": "The name of the file to create."
-                        },
-                        "content": {
-                            "type": "string",
-                            "description": "The content to write to the file."
-                        }
-                    },
-                    "required": ["filename", "content"]
-                }
-            },
-            {
-                "name": "create_channel",
-                "description": "Create a new channel (text, voice, or category).",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                         "name": {
-                             "type": "string",
-                             "description": "The name of the new channel."
-                         },
-                         "type": {
-                             "type": "string",
-                             "enum": ["text", "voice", "category"],
-                             "description": "The type of channel."
-                         },
-                         "category_name": {
-                             "type": "string",
-                             "description": "Optional category to place the channel in."
-                         }
-                    },
-                    "required": ["name", "type"]
-                }
-            },
-            {
-                "name": "shiritori",
-                "description": "Play Shiritori (Word Chain) game. Manage game state and validate moves.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                         "action": {
-                             "type": "string",
-                             "enum": ["start", "play", "check_bot"],
-                             "description": "'start' to begin. 'play' to validate user's word. 'check_bot' to validate YOUR (AI) word before replying."
-                         },
-                         "word": {
-                             "type": "string", 
-                             "description": "The word (Kanji/Kana)."
-                         },
-                         "reading": {
-                             "type": "string", 
-                             "description": "The reading in Hiragana/Katakana (Required for validation)."
-                         }
-                    },
-                    "required": ["action"]
-                }
-            },
-            {
-                "name": "change_voice",
-                "description": "Change the TTS voice character for the user. Available characters: 'zundamon', 'metan', 'tsumugi', 'ritsu', 'hau', 'takehiro'.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "character_name": {
-                            "type": "string",
-                            "description": "The name of the character to switch to."
-                        }
-                    },
-                    "required": ["character_name"]
-                }
-            },
-            {
-                "name": "join_voice_channel",
-                "description": "Join the voice channel the user is currently in.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {},
-                    "required": []
-                }
-            },
-            {
-                "name": "leave_voice_channel",
-                "description": "Leave the current voice channel.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {},
-                    "required": []
-                }
-            },
-            {
-                "name": "create_channel",
-                "description": "Create a new channel in the server. Admin only.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "name": {
-                            "type": "string",
-                            "description": "The name of the new channel."
-                        },
-                        "type": {
-                            "type": "string",
-                            "enum": ["text", "voice", "category"],
-                            "description": "The type of channel to create."
-                        },
-                        "category_name": {
-                            "type": "string",
-                            "description": "Optional. The name of the category to place the channel in."
-                        }
-                    },
-                    "required": ["name", "type"]
-                }
-            },
-            {
-                "name": "system_check",
-                "description": "Run a full system diagnostic check (test all features).",
-                "parameters": {
-                    "type": "object",
-                    "properties": {},
-                    "required": []
-                }
-            },
+
+            # --- 2. Image Generation ---
             {
                 "name": "generate_image",
-                "description": "Generate an image using local Stable Diffusion (Text-to-Image).",
+                "description": "[Image] Generate an image using Stable Diffusion (FLUX).",
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "prompt": {
-                            "type": "string",
-                            "description": "The prompt for the image generation."
-                        },
-                        "negative_prompt": {
-                             "type": "string",
-                             "description": "Optional. Things to exclude."
-                        },
-                        "width": {
-                            "type": "integer",
-                            "description": "Image width (default 512, use 512 for portrait or 768 for landscape)."
-                        },
-                        "height": {
-                            "type": "integer",
-                            "description": "Image height (default 512)."
-                        }
+                        "prompt": { "type": "string", "description": "English prompt for generation." },
+                        "negative_prompt": { "type": "string" },
+                        "width": { "type": "integer", "default": 512 },
+                        "height": { "type": "integer", "default": 512 }
                     },
                     "required": ["prompt"]
                 }
             },
             {
                 "name": "get_current_model",
-                "description": "Get the name of the currently active Stable Diffusion model.",
-                "parameters": {
-                     "type": "object",
-                     "properties": {},
-                     "required": []
-                }
+                "description": "[Image] Get current image generation model.",
+                "parameters": { "type": "object", "properties": {}, "required": [] }
             },
             {
                 "name": "change_model",
-                "description": "Change the active Stable Diffusion model.",
+                "description": "[Image] Change image generation model.",
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "model_name": {
-                            "type": "string",
-                            "description": "The name (or partial name) of the model to switch to (e.g. 'Meina', 'v1-5')."
-                        }
+                        "model_name": { "type": "string", "description": "Model name." }
                     },
                     "required": ["model_name"]
                 }
             },
+
+            # --- 3. Voice Generation ---
             {
-                "name": "google_shopping_search",
-                "description": "Perform a product search using Google Shopping to find prices and availability.",
+                "name": "change_voice",
+                "description": "[Voice] Change TTS character (Zundamon, Metan, etc).",
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "query": {
-                            "type": "string",
-                            "description": "The product name or query to search for."
-                        }
+                        "character_name": { "type": "string", "description": "Target character name." }
+                    },
+                    "required": ["character_name"]
+                }
+            },
+            {
+                "name": "tts_speak",
+                "description": "[Voice] (Placeholder) Speak text directly.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "text": { "type": "string" }
+                    },
+                    "required": ["text"]
+                }
+            },
+
+            # --- 4. Video Generation (Placeholder) ---
+            {
+                "name": "generate_video",
+                "description": "[Video] (Placeholder) Generate video from prompt.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "prompt": { "type": "string" }
+                    },
+                    "required": ["prompt"]
+                }
+            },
+            {
+                "name": "get_video_models",
+                "description": "[Video] (Placeholder) Get available video models.",
+                "parameters": { "type": "object", "properties": {}, "required": [] }
+            },
+            {
+                "name": "change_video_model",
+                "description": "[Video] (Placeholder) Change video generation model.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "model_name": { "type": "string" }
+                    },
+                    "required": ["model_name"]
+                }
+            },
+
+            # --- 5. Video Recognition (Placeholder) ---
+            {
+                "name": "analyze_video",
+                "description": "[VideoAnalysis] (Placeholder) Analyze video content.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "video_path": { "type": "string" }
+                    },
+                    "required": ["video_path"]
+                }
+            },
+            {
+                "name": "segment_objects",
+                "description": "[VideoAnalysis] (Placeholder) Segment objects in video.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "video_path": { "type": "string" },
+                        "prompt": { "type": "string" }
+                    },
+                    "required": ["video_path"]
+                }
+            },
+
+            # --- 6. Search ---
+            {
+                "name": "google_search",
+                "description": "[Search] Search Google for information.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": { "type": "string" }
                     },
                     "required": ["query"]
                 }
             },
             {
-                "name": "get_system_stats",
-                "description": "Get current system statistics (CPU, Memory, Disk). Restricted to admin.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {},
-                    "required": []
-                }
-            },
-            {
-                "name": "system_control",
-                "description": "Control PC system (Volume, Apps). Admin only.",
+                "name": "google_shopping_search",
+                "description": "[Search] Search Google Shopping for products.",
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "action": {
-                            "type": "string",
-                            "enum": ["set_volume", "open_app", "mute"],
-                            "description": "The action to perform."
-                        },
-                        "value": {
-                            "type": "string",
-                            "description": "Volume level (0-40) or App name (e.g. 'vscode', 'chrome')."
-                        }
+                        "query": { "type": "string" }
+                    },
+                    "required": ["query"]
+                }
+            },
+
+            # --- 7. Admin & System ---
+            {
+                "name": "create_file",
+                "description": "[Admin] Create a file (Creator only).",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "filename": { "type": "string" },
+                        "content": { "type": "string" }
+                    },
+                    "required": ["filename", "content"]
+                }
+            },
+            {
+                "name": "create_channel",
+                "description": "[Admin] Create a server channel.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "name": { "type": "string" },
+                        "type": { "type": "string", "enum": ["text", "voice", "category"] },
+                        "category_name": { "type": "string" }
+                    },
+                    "required": ["name", "type"]
+                }
+            },
+            {
+                "name": "get_system_stats",
+                "description": "[Admin] Get PC system stats.",
+                "parameters": { "type": "object", "properties": {}, "required": [] }
+            },
+            {
+                "name": "system_control",
+                "description": "[Admin] Control PC system (Volume/App). Creator only.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "action": { "type": "string", "enum": ["set_volume", "open_app", "mute"] },
+                        "value": { "type": "string" }
                     },
                     "required": ["action"]
                 }
             },
             {
-                "name": "manage_user_voice",
-                "description": "Disconnect or Move a specific user in voice channels. Admin or Creator only.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                         "target_user": {
-                             "type": "string",
-                             "description": "The user ID, mention (<@ID>), or name of the user."
-                         },
-                         "action": {
-                             "type": "string",
-                             "enum": ["disconnect", "move", "summon", "mute_mic", "unmute_mic", "mute_speaker", "unmute_speaker"],
-                             "description": "Action. 'mute_mic' (Mic Only), 'mute_speaker' (Deafen/Speaker+Mic Off)."
-                         },
-                         "channel_name": {
-                             "type": "string",
-                             "description": "Destination channel name (for 'move' action)."
-                         }
-                    },
-                    "required": ["target_user", "action"]
-                }
+                "name": "system_check",
+                "description": "[Admin] Run functionality check.",
+                "parameters": { "type": "object", "properties": {}, "required": [] }
             },
             {
                 "name": "set_timer",
-                "description": "Set a countdown timer. Takes seconds as input.",
+                "description": "[Admin/Time] Set a timer.",
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "seconds": {
-                            "type": "integer",
-                            "description": "Duration in seconds (e.g. 180 for 3 minutes)."
-                        },
-                        "label": {
-                            "type": "string",
-                            "description": "Optional label for the timer (e.g. 'Cup Ramen')."
-                        }
+                        "seconds": { "type": "integer" },
+                        "label": { "type": "string" }
                     },
                     "required": ["seconds"]
                 }
             },
             {
-                "name": "check_points",
-                "description": "Check current point balance (Chat/VC activity).",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                         "target_user": {
-                             "type": "string",
-                             "description": "Optional user ID/Mention to check others."
-                         }
-                    },
-                    "required": []
-                }
-            },
-            {
                 "name": "set_alarm",
-                "description": "Set an alarm for a specific time (HH:MM).",
+                "description": "[Admin/Time] Set an alarm (HH:MM).",
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "time": {
-                            "type": "string",
-                            "description": "Target time in HH:MM format (24-hour)."
-                        },
-                        "label": {
-                            "type": "string",
-                            "description": "Optional label for the alarm."
-                        }
+                        "time": { "type": "string", "description": "HH:MM format" },
+                        "label": { "type": "string" }
                     },
                     "required": ["time"]
                 }
+            },
+            {
+                "name": "check_points",
+                "description": "[Admin/Point] Check user points.",
+                "parameters": {
+                     "type": "object",
+                     "properties": {
+                         "target_user": { "type": "string" }
+                     },
+                     "required": []
+                }
             }
         ]
+
 
     async def handle_prompt(self, message: discord.Message, prompt: str, existing_status_msg: Optional[discord.Message] = None, is_voice: bool = False) -> None:
         """Process a user message and generate a response using the LLM."""
@@ -2469,6 +2490,77 @@ class ORACog(commands.Cog):
 
             content = await self._llm.chat(messages=messages, temperature=0.7)
             
+            # --- ROUTER LOGIC (Advanced) ---
+            from ..config import Config
+            config = Config.load()
+            
+            # Try to parse route_eval
+            import re
+            route_match = re.search(r"route_eval.*?(\{.*?\})", content, re.DOTALL | re.IGNORECASE)
+            # Support cases where it creates a json codeblock for it
+            if not route_match:
+                 route_match = re.search(r"```json\s*(\{.*?route_eval.*?\})\s*```", content, re.DOTALL | re.IGNORECASE)
+
+            if route_match:
+                try:
+                    route_data_raw = route_match.group(1)
+                    # Parsing potentially nested JSON
+                    route_json = json.loads(route_data_raw)
+                    # Extract internal object if nested
+                    eval_data = route_json.get("route_eval", route_json) 
+                    
+                    needs_thinking = eval_data.get("needs_thinking", False)
+                    confidence = eval_data.get("confidence", 1.0)
+                    
+                    logger.info(f"🧩 Router Eval: Needs Thinking={needs_thinking}, Confidence={confidence}")
+
+                    # --- HYBRID/FAST PASS Check ---
+                    # If prompt is short (< 25 chars), ignore "needs_thinking" (likely false positive or simple greeting)
+                    # This prevents heavy switching for "Hello" or "Good morning"
+                    if len(prompt) < 25:
+                        logger.info("⚡ Fast Pass: Short input detected. Skipping escalation.")
+                        needs_thinking = False
+
+                    # Check Router Thresholds
+                    # Force thinking if confidence is low or explicitly requested
+                    is_low_conf = confidence < config.router_thresholds.get("confidence_cutoff", 0.72)
+                    
+                    if (needs_thinking or is_low_conf):
+                        resource_manager = self.bot.get_cog("ResourceCog").manager
+                        
+                        # Only switch if we are NOT already in Thinking mode
+                        # (We infer mode from current script or just force it for now)
+                        # A better check would be in ResourceManager, but we'll specificy explicit target here
+                        
+                        # Only switch if we are in 'instruct' or 'gaming' mode (implied default)
+                        # Ideally ResourceManager keeps track of current mode. 
+                        # For now, we trust the switch_model call to handle no-ops if same mode.
+                        
+                        if resource_manager.current_context == "llm": # Ensure we are in LLM context
+                             logger.info("⚡ Router triggered ESCALATION to Thinking Mode.")
+                             await status_manager.next_step("⚠️ 難問検知: 思考エンジンへ切り替え中...")
+                             
+                             # 1. Hot Swap
+                             await resource_manager.switch_model("thinking")
+                             
+                             # 2. Add Context for Thinking Model
+                             # context_handover = f"Instruct Model Analysis: {eval_data}\n\nUser Question: {prompt}\n\nPlease solve this step-by-step."
+                             # Actually, we just continue the conversation but now with a smarter brain.
+                             # We should remove the "router" instruction from the last user message to avoid confusion?
+                             # Or just append a system note.
+                             
+                             await status_manager.next_step("🤔 じっくり思考中...")
+                             
+                             # 3. Re-Generate with Thinking Model
+                             # NOTE: We use the SAME messages history, but the new model will answer
+                             content = await self._llm.chat(messages=messages, temperature=0.7)
+                             logger.info(f"🧠 Thinking Model Response: {content}")
+
+                except Exception as e:
+                    logger.error(f"Router parsing failed: {e}")
+            
+            # -------------------------------
+            
             # Tool Loop
             max_turns = 3
             turn = 0
@@ -2478,9 +2570,7 @@ class ORACog(commands.Cog):
             while turn < max_turns:
                 turn += 1
                 
-                logger.info(f"LLM Response Turn {turn}: {content}")
-                
-                # Extract JSON
+                # Re-extract JSON from (potentially new) content
                 json_objects = self._extract_json_objects(content)
                 logger.info(f"Extracted JSON objects: {len(json_objects)}")
                 
