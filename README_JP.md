@@ -59,8 +59,9 @@ ORAは、あなたのハードウェア上でローカル動作する **完全�
 ### 🔄 ロジックフロー (処理の流れ)
 
 ```mermaid
+%%{init: { 'theme': 'dark' }}%%
 graph TD
-    User["ユーザー入力 (Discord)"] --> Router["自動ルーター<br>(文脈分析)"]
+    User["ユーザー入力 (Discord)"] --> Router{"自動ルーター<br>(文脈分析)"}
 
     %% Routing Logic
     Router --> "会話 / ロジック" --> LLM["Qwen3-VL-30B-Instruct<br>(vLLM - Port 8001)"]
@@ -75,15 +76,16 @@ graph TD
     %% Future/Reserved
     Router --> "動画生成?" --> VideoGen["予約 / 実装予定<br>(Port 8189)"]
 
-    %% Styling
-    style Router fill:#f9f,stroke:#333,stroke-width:2px
-    style LLM fill:#ccf,stroke:#333
-    style ImageGen fill:#cfc,stroke:#333
-    style SAM2 fill:#fcf,stroke:#333
-    style VoiceRouter fill:#fcc,stroke:#333
-    style VV fill:#ccf,stroke:#333
-    style T5 fill:#fcf,stroke:#333
-    style VideoGen fill:#cff,stroke:#333
+    %% Styling for better dark mode readability
+    style Router fill:#ff1493,stroke:#ffffff,stroke-width:2px,color:#ffffff
+    style LLM fill:#1e90ff,stroke:#ffffff,stroke-width:1px,color:#ffffff
+    style ImageGen fill:#32cd32,stroke:#ffffff,stroke-width:1px,color:#ffffff
+    style Vision fill:#00bfff,stroke:#ffffff,stroke-width:1px,color:#ffffff
+    style SAM2 fill:#ff4500,stroke:#ffffff,stroke-width:1px,color:#ffffff
+    style VoiceRouter fill:#da70d6,stroke:#ffffff,stroke-width:1px,color:#ffffff
+    style VV fill:#ffd700,stroke:#ffffff,stroke-width:1px,color:#000000
+    style T5 fill:#dda0dd,stroke:#ffffff,stroke-width:1px,color:#000000
+    style VideoGen fill:#9370db,stroke:#ffffff,stroke-width:1px,color:#ffffff
 ```
 
 ### 🧩 コンポーネント構成
