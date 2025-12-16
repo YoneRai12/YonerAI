@@ -57,12 +57,13 @@ class Config:
             raise ConfigError("環境変数 DISCORD_BOT_TOKEN が未設定です。")
 
         app_id_raw = os.getenv("DISCORD_APP_ID")
-        if not app_id_raw:
-            raise ConfigError("環境変数 DISCORD_APP_ID が未設定です。")
-        try:
-            app_id = int(app_id_raw)
-        except ValueError as exc:  # pragma: no cover - validation only
-            raise ConfigError("DISCORD_APP_ID は数値で指定してください。") from exc
+        if app_id_raw:
+            try:
+                app_id = int(app_id_raw)
+            except ValueError:
+                app_id = 0 # Default if invalid
+        else:
+            app_id = 0 # Optional (Library will auto-fetch)
 
         ora_base_url = os.getenv("ORA_API_BASE_URL")
         if ora_base_url:

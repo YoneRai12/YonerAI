@@ -25,9 +25,6 @@ ORA is a **fully autonomous AI Operating System** running locally on your hardwa
 - **🗣️ Human-Like Voice**: Listens to you in VC (Faster-Whisper) and speaks back (T5Gemma/VoiceVox).
 - **⚡ Zero-Latency Gaming**: Automatically detects when you play games (Valorant/Apex) and hot-swaps to a lightweight model to save FPS.
 
----
-
-## 🛠️ System Architecture
 
 ORA operates on a sophisticated **5-Layer Stack** designed for the RTX 5090 (32GB VRAM).
 

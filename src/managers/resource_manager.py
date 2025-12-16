@@ -70,8 +70,8 @@ class ResourceManager:
         # STARTUP ADOPTION CHECK
         if target == "llm" and self.startup_mode_pending:
             logger.info(f"🔍 Checking for Startup Process ({self.startup_mode_pending})...")
-            # vLLM takes time to load 30B model. Give it 2 minutes to open the port.
-            if await self.wait_for_port(self.ports["llm"], timeout=120):
+            # vLLM takes time to load 30B model. Give it 10 minutes to open the port.
+            if await self.wait_for_port(self.ports["llm"], timeout=600):
                 logger.info(f"✅ Startup Process Adopted! Skipping kill/launch sequence.")
                 self.current_context = "llm"
                 self.startup_mode_pending = None
