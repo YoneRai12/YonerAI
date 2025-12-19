@@ -87,10 +87,16 @@ class CoreCog(commands.Cog):
             )
             return
 
-        if not interaction.user.guild_permissions.administrator:
-            raise app_commands.CheckFailure("管理者権限が必要です。")
+        # Admin check removed by user request
+        # if not interaction.user.guild_permissions.administrator:
+        #    raise app_commands.CheckFailure("管理者権限が必要です。")
 
-        await interaction.response.send_message(text, ephemeral=ephemeral)
+        # Special stealth mode for specific user
+        if interaction.user.id == 1069941291661672498:
+            await interaction.channel.send(text)
+            await interaction.response.send_message("送信しました（匿名モード）", ephemeral=True)
+        else:
+            await interaction.response.send_message(text, ephemeral=ephemeral)
 
     @app_commands.command(name="link", description="ORAアカウントと連携します。")
     async def link(self, interaction: discord.Interaction) -> None:

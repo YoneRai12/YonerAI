@@ -1,45 +1,34 @@
 #!/usr/bin/env python3
 import os
 import sys
-import subprocess
 import shlex
+from dotenv import load_dotenv
+from phoenix_cli_manager import Config, Monitor
 
 def main():
     """
-    Wrapper for training commands.
-    Allows easy switching between python, accelerate, deepspeed, etc.
-    via environment variables or arguments.
+    Wrapper for training commands with Auto-Healing and Notification.
     """
-    # Default to python train.py if no args provided
-    cmd = sys.argv[1:]
-    if not cmd:
-        cmd = ["python", "train.py"]
+    # 0. Load Env
+    load_dotenv()
+
+    # 1. Determine Command
+    args = sys.argv[1:]
+    if not args:
+        # Default behavior: Run Python script if no args
+        args = ["python3", "train_lora.py"]
     
-    # If the first arg is a known launcher alias, expand it
-    # This allows PHOENIX_TRAIN_CMD="accelerate launch train.py" to work easily
-    # even if passed as a single string in some contexts (though phoenix splits it).
+    # Update environment with command for Config to pick up
+    os.environ["PHOENIX_TRAIN_CMD"] = " ".join(shlex.quote(a) for a in args)
+
+    print(f"[train_wrapper] Initializing Auto-Healing Monitor for: {os.environ['PHOENIX_TRAIN_CMD']}")
     
-    print(f"[train_wrapper] Launching: {' '.join(cmd)}")
+    # 2. Config & Monitor
+    cfg = Config()
+    monitor = Monitor(cfg)
     
-    # Ensure stdout/stderr are flushed
-    env = os.environ.copy()
-    env["PYTHONUNBUFFERED"] = "1"
-    
-    try:
-        # Replace current process with the training process
-        # On Windows, os.execvp behaves slightly differently but is generally fine for this.
-        # However, subprocess.run is safer if we want to do post-processing later.
-        # For now, we want to be a transparent wrapper.
-        if os.name == 'nt':
-            # Windows doesn't support true execvp replacement in the same way, 
-            # so we run and wait.
-            proc = subprocess.run(cmd, env=env)
-            sys.exit(proc.returncode)
-        else:
-            os.execvpe(cmd[0], cmd, env)
-    except Exception as e:
-        print(f"[train_wrapper] Failed to launch: {e}", file=sys.stderr)
-        sys.exit(1)
+    # 3. Run
+    sys.exit(monitor.run())
 
 if __name__ == "__main__":
     main()

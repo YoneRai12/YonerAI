@@ -42,7 +42,7 @@ def setup_logging(level: str) -> None:
                 "class": "logging.handlers.RotatingFileHandler",
                 "formatter": "structured",
                 "level": level,
-                "filename": "ora_bot.log",
+                "filename": "logs/ora.log",
                 "maxBytes": 5 * 1024 * 1024,  # 5 MB
                 "backupCount": 3,
                 "encoding": "utf-8",

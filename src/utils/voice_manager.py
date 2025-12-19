@@ -92,7 +92,7 @@ class HotwordListener:
 
 
 class MixingAudioSource(discord.AudioSource):
-    def __init__(self, main_source: discord.AudioSource, overlay_source: discord.AudioSource, target_volume: float = 0.2, fade_duration: float = 0.5) -> None:
+    def __init__(self, main_source: discord.AudioSource, overlay_source: discord.AudioSource, target_volume: float = 0.2, fade_duration: float = 0.5, on_finish: Optional[Callable[[], None]] = None) -> None:
         self.main = main_source
         self.overlay = overlay_source
         self.target_volume = target_volume
@@ -100,6 +100,8 @@ class MixingAudioSource(discord.AudioSource):
         self.fade_duration = fade_duration
         self.overlay_finished = False
         self.fading_in = False
+        self.on_finish = on_finish
+        self.callback_fired = False
         # 20ms per frame (standard Discord audio)
         self.volume_step = (1.0 - target_volume) / (fade_duration / 0.02)
 
@@ -116,6 +118,14 @@ class MixingAudioSource(discord.AudioSource):
             if not overlay_data:
                 self.overlay_finished = True
                 self.fading_in = True
+                # Trigger callback once
+                if self.on_finish and not self.callback_fired:
+                    self.callback_fired = True
+                    # Execute callback (might need to be non-blocking or just standard func)
+                    try:
+                        self.on_finish()
+                    except Exception as e:
+                        logger.error(f"MixingAudioSource callback error: {e}")
         else:
             overlay_data = b""
 
@@ -171,6 +181,9 @@ class GuildMusicState:
         self.voice_client: Optional[discord.VoiceClient] = None
         self.history = [] # List of (url_or_path, title, is_stream)
         self.tts_volume = 1.0 # Default TTS volume (100%)
+        # TTS Queue
+        self.tts_queue = [] # List of (member, text)
+        self.tts_processing = False
 
 class VoiceManager:
     """Manages Discord voice clients for playback, recording, and music queue."""
@@ -197,7 +210,7 @@ class VoiceManager:
         """Set the preferred VoiceVox speaker ID for a user."""
         self._user_speakers[user_id] = speaker_id
 
-    async def ensure_voice_client(self, member: discord.Member) -> Optional[discord.VoiceClient]:
+    async def ensure_voice_client(self, member: discord.Member, allow_move: bool = True) -> Optional[discord.VoiceClient]:
         if member.voice is None or member.voice.channel is None:
             raise VoiceConnectionError("ユーザーがボイスチャンネルに参加していません。")
 
@@ -215,9 +228,15 @@ class VoiceManager:
                      voice_client = None
 
                 if voice_client and voice_client.channel != channel:
-                    # Automatically move to the user's channel
-                    logger.info(f"Moving voice client from {voice_client.channel.name} to {channel.name}")
-                    await voice_client.move_to(channel)
+                    if allow_move:
+                        # Automatically move to the user's channel
+                        logger.info(f"Moving voice client from {voice_client.channel.name} to {channel.name}")
+                        await voice_client.move_to(channel)
+                    else:
+                        # If move not allowed, return existing client (even if wrong channel)
+                        # The caller (play_tts) implies this is fine (user moved away but bot stays)
+                        logger.info(f"User is in {channel.name} but bot stays in {voice_client.channel.name} (allow_move=False)")
+                        pass
 
                 elif not voice_client or not voice_client.is_connected():
                     # IMPORTANT: self_deaf=True helps stability
@@ -269,34 +288,47 @@ class VoiceManager:
         if not text:
             return False
 
-        # Relaxed Connection Logic:
-        # 1. Try to ensure connection to User's channel (Normal case)
-        voice_client = None
-        if member.voice and member.voice.channel:
-            try:
-                voice_client = await self.ensure_voice_client(member)
-            except VoiceConnectionError:
-                pass
+        try:
+            # 2. Relaxed Connection Logic
+            voice_client = None
+            if member.voice and member.voice.channel:
+                 try:
+                     voice_client = await self.ensure_voice_client(member, allow_move=False)
+                 except VoiceConnectionError:
+                     pass
+            
+            if not voice_client:
+                 if member.guild.voice_client and member.guild.voice_client.is_connected():
+                     voice_client = member.guild.voice_client
+                 else:
+                     return False
+                     
+            # 3. Add to Queue
+            state = self.get_music_state(member.guild.id)
+            state.tts_queue.append((member, text))
+            
+            # 4. Trigger Processing if Idle
+            if not state.tts_processing:
+                await self._process_tts_queue(member.guild.id)
+                
+            return True
+        except Exception as e:
+            logger.error(f"play_tts error: {e}")
+            return False
+
+    async def _process_tts_queue(self, guild_id: int):
+        state = self.get_music_state(guild_id)
+        if not state.tts_queue:
+            state.tts_processing = False
+            return
+            
+        state.tts_processing = True
         
-        # 2. If user is NOT in VC (e.g. they just Left), check if BOT is already connected
-        if not voice_client:
-             if member.guild.voice_client and member.guild.voice_client.is_connected():
-                 voice_client = member.guild.voice_client
-             else:
-                 # Neither user nor bot are in a valid state to speak
-                 return False
-
-
-        # TTS should interrupt music? Or mix? For now, TTS plays over music if possible, 
-        # but standard Discord bot behavior usually stops music for TTS or plays in parallel if using a specific library.
-        # discord.py's VoiceClient only supports one source at a time.
-        # So TTS will stop music. This is a limitation. 
-        # To fix this properly requires mixing, which is complex.
-        # For now, we will just play TTS and it might cut off music.
-        # OR we can pause music?
-        # Let's just play it. If music is playing, it will be stopped.
+        # Pop next item
+        member, text = state.tts_queue.pop(0)
         
         try:
+            # Synthesize
             speaker_id = self._user_speakers.get(member.id)
             audio = await self._tts.synthesize(text, speaker_id=speaker_id)
         except Exception as exc:
@@ -309,29 +341,60 @@ class VoiceManager:
                     audio = await self._gtts.synthesize(text)
                 except Exception as gtts_exc:
                     logger.error(f"gTTS also failed: {gtts_exc}")
-                    return False
+                    # Skip this one and continue
+                    await self._process_tts_queue(guild_id)
+                    return
 
-        # Play TTS immediately
-        # If music is playing, mix it!
-        if voice_client.is_playing() and voice_client.source:
-             # Wrap current source
-             current_source = voice_client.source
-             # We need to create a source for the TTS audio
-             tts_source = self._create_source_from_bytes(audio)
-             
-             # Apply TTS Volume
-             state = self.get_music_state(member.guild.id)
-             tts_source = discord.PCMVolumeTransformer(tts_source, volume=state.tts_volume)
+        # Get Voice Client
+        voice_client = state.voice_client
+        if not voice_client or not voice_client.is_connected():
+            state.tts_processing = False
+            return
 
-             # Create mixed source
-             mixed = MixingAudioSource(current_source, tts_source, target_volume=0.2, fade_duration=0.5)
-             
-             # Hotswap source (this is safe in discord.py as long as we do it atomically)
-             voice_client.source = mixed
-        else:
-             await self._play_raw_audio(voice_client, audio)
-        
-        return True
+        # Prepare Callback
+        def on_complete(error=None):
+            if error:
+                logger.error(f"TTS Playback Error: {error}")
+            # Schedule next item
+            future = asyncio.run_coroutine_threadsafe(self._process_tts_queue(guild_id), self._bot.loop)
+            try:
+                future.result()
+            except: pass
+
+        try:
+            # Create Source
+            tts_source = self._create_source_from_bytes(audio)
+            tts_source = discord.PCMVolumeTransformer(tts_source, volume=state.tts_volume)
+            
+            if voice_client.is_playing() and voice_client.source:
+                # Mixing Mode (Music is playing)
+                current_source = voice_client.source
+                
+                # Create mixed source with callback
+                mixed = MixingAudioSource(
+                    current_source, 
+                    tts_source, 
+                    target_volume=0.2, 
+                    fade_duration=0.5,
+                    on_finish=lambda: on_complete() # Lambda to allow no-arg call
+                )
+                
+                # Hotswap
+                voice_client.source = mixed
+            else:
+                # Raw Mode (No music)
+                # We reuse _play_raw_audio logic but with custom callback?
+                # _play_raw_audio stops current, which is fine here as is_playing is false.
+                # But _play_raw_audio uses temp file path logic which _create_source_from_bytes also does partially?
+                # Let's unify.
+                
+                # Actually, standard play() needs after=callback.
+                voice_client.play(tts_source, after=on_complete)
+                
+        except Exception as e:
+            logger.error(f"Failed to play TTS: {e}")
+            # Ensure we don't stall queue
+            on_complete(e)
 
     def _create_source_from_bytes(self, audio: bytes) -> discord.AudioSource:
         # Create a temporary file for the audio

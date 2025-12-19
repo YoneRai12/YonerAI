@@ -207,7 +207,9 @@ class ORABot(commands.Bot):
             return
         else:
             logger.exception("Application command error", exc_info=error)
-            message = "コマンド実行中にエラーが発生しました。時間を置いて再度お試しください。"
+            # Auto-Healer
+            await self.healer.handle_error(interaction, error)
+            message = "コマンド実行中にエラーが発生しました。自動修復システムに報告されました。"
 
         if interaction.response.is_done():
             await interaction.followup.send(message, ephemeral=True)
@@ -222,6 +224,8 @@ class ORABot(commands.Bot):
             await ctx.send("このコマンドを実行する権限がありません。", delete_after=5)
         else:
             logger.exception("Command error", exc_info=error)
+            # Auto-Healer
+            await self.healer.handle_error(ctx, error)
             try:
                 await ctx.reply("エラーが発生しました。", mention_author=False, delete_after=5)
             except discord.HTTPException:

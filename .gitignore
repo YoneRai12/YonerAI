@@ -36,3 +36,6 @@ build/
 dist/
 
 tigauno
+
+.venv_wsl/
+.venv/

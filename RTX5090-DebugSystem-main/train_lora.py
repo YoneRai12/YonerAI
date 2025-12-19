@@ -6,9 +6,9 @@ from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training, Ta
 from trl import SFTTrainer
 from datasets import load_dataset
 import logging
+import mistral_common # Explicit import to ensure TokenizersBackend is available
 
 # Config
-# MODEL_ID = "Qwen/Qwen2.5-14B-Instruct" # Public fallback that works immediately
 MODEL_ID = "mistralai/Ministral-3-14B-Instruct-2512" # Valid Gated ID (token required)
 OUTPUT_DIR = "checkpoints"
 DATA_FILE = "data/lora_dataset.jsonl"
@@ -16,7 +16,7 @@ DATA_FILE = "data/lora_dataset.jsonl"
 def main():
     print(f"Starting QLoRA Training for {MODEL_ID}...")
     
-    # 1. Quantization Config (Enabled for RTX 5090 VRAM Optimization)
+    # 1. Quantization Config
     bnb_config = BitsAndBytesConfig(
         load_in_4bit=True,
         bnb_4bit_quant_type="nf4",
@@ -29,7 +29,7 @@ def main():
         tokenizer = AutoTokenizer.from_pretrained(MODEL_ID, trust_remote_code=True)
         tokenizer.pad_token = tokenizer.eos_token
         
-        # Ministral 3 is Multimodal -> Use AutoModelForImageTextToText or ConditionalGeneration
+        # Ministral 3 is Multimodal
         from transformers import AutoModelForImageTextToText, AutoConfig
         
         # Load config first to STRIP quantization info (forcing standard BFloat16 base for 4-bit override)
@@ -72,14 +72,24 @@ def main():
     full_dataset = load_dataset("json", data_files=DATA_FILE, split="train")
     
     # Formatting Func
+    # Formatting Func (Mistral Instruct Format)
     def format_prompts(example):
         msgs = example["messages"]
-        # Simple concatenation for ChatML
-        text = ""
-        for m in msgs:
-            role = m["role"]
-            content = m["content"]
-            text += f"<|im_start|>{role}\n{content}<|im_end|>\n"
+        # Convert map to list if needed (datasets.map passes dict)
+        # Expected structure: [{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}]
+        
+        # Simple string construction for [INST] ... [/INST]
+        # Assumes User -> Assistant -> User ...
+        text = "<s>"
+        for i in range(0, len(msgs), 2):
+            user_msg = msgs[i]
+            if i+1 < len(msgs):
+                assist_msg = msgs[i+1]
+                # Check roles strictness if needed, but for now trust synthetic data
+                text += f"[INST] {user_msg['content']} [/INST] {assist_msg['content']}</s>"
+            else:
+                 # Trailing user message (shouldn't happen in training data usually)
+                 text += f"[INST] {user_msg['content']} [/INST]"
         return {"text": text}
 
     train_dataset = full_dataset.map(format_prompts)
@@ -91,16 +101,17 @@ def main():
         output_dir=OUTPUT_DIR,
         per_device_train_batch_size=4, # Restored to 4 (VRAM is now safe with 4-bit)
         gradient_accumulation_steps=4, # Standard accumulation
-        learning_rate=2e-4,
-        logging_steps=10, # Reduce spam
+        learning_rate=5e-5, # Lower rate to prevent NaN/Divergence
+        logging_steps=10, 
         max_steps=500, # Phase 2: Full Training
         fp16=False,
-        bf16=True, # Switch to BF16 for RTX 5090 (Fixes GradScaler error with 4-bit BF16 compute)
-        save_steps=100, # Checkpoint less frequently
+        bf16=True, # Switch to BF16 for RTX 5090
+        save_steps=100, 
         optim="adamw_torch",
-        gradient_checkpointing=True, # Enable to save VRAM (Compute vs Memory trade-off)
-        max_length=512, # Correct parameter name for modern TRL SFTConfig
-        packing=False, # Disabled: Requires FlashAttn (Hard on Windows), causes stalling if missing
+        gradient_checkpointing=True,
+        max_grad_norm=0.3, # Aggressive clipping to prevent exploding gradients
+        max_length=1024, # Increased length for context
+        packing=False, 
     )
 
     trainer = SFTTrainer(

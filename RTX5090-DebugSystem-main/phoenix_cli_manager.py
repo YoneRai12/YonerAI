@@ -605,10 +605,172 @@ class DiscordNotifier:
                 with urllib.request.urlopen(req, timeout=5) as res:
                     pass
             except Exception:
-                pass # Fail silently
-
-        # Run in thread to avoid blocking main loop
+                pass
+        
+        # Send in background to not block
         threading.Thread(target=_send, daemon=True).start()
+
+
+class AutoHealer:
+    def __init__(self, cfg: Config, logger: Logger) -> None:
+        self.cfg = cfg
+        self.logger = logger
+
+    def analyze_failure(self, returncode: int, stdout: str, stderr: str) -> Optional[Dict[str, Any]]:
+        """
+        Analyze logs and return a patch/action dict if a known fix exists.
+        """
+        full_log = (stdout + "\n" + stderr)
+        
+        # Scenario 1: Gradient Explosion (NaN)
+        if "grad_norm: nan" in full_log or "loss: 0.0" in full_log or "loss: nan" in full_log:
+            self.logger.log("auto_heal_trigger", reason="gradient_explosion")
+            return {
+                "action": "modify_config",
+                "target": "train_lora.py",
+                "changes": {
+                    "learning_rate": "reduce_50_percent",
+                    "max_grad_norm": "0.5" 
+                },
+                "explanation": "Detected Gradient Explosion (NaN). Reducing Learning Rate and enabling Gradient Clipping."
+            }
+
+        # Scenario 2: OOM (CUDA Out Of Memory)
+        if "CUDA out of memory" in full_log:
+             self.logger.log("auto_heal_trigger", reason="oom")
+             return {
+                 "action": "modify_config",
+                 "target": "train_lora.py",
+                 "changes": {
+                     "per_device_train_batch_size": "reduce_50_percent",
+                     "gradient_accumulation_steps": "double"
+                 },
+                 "explanation": "Detected OOM. Halving batch size and doubling accumulation to maintain effective batch size."
+             }
+             
+        # Scenario 3: Missing Dependencies
+        if "ModuleNotFoundError" in full_log:
+             # Basic regex to capture module name
+             m = re.search(r"ModuleNotFoundError: No module named '([^']+)'", full_log)
+             if m:
+                 missing = m.group(1)
+                 return {
+                     "action": "install_pip",
+                     "package": missing,
+                     "explanation": f"Missing dependency: {missing}"
+                 }
+
+        return None
+
+    def apply_fix(self, fix: Dict[str, Any]) -> bool:
+        """
+        Apply the fix physically to the files.
+        """
+        if fix["action"] == "modify_config":
+            # Rough sed/regex replacement for safe config tuning
+            target_path = Path(self.cfg.project_root) / fix["target"]
+            if not target_path.exists():
+                return False
+            
+            content = target_path.read_text(encoding="utf-8")
+            
+            for key, mode in fix["changes"].items():
+                # Regex to find key assignment in SFTConfig
+                # pattern: key = value,
+                pattern = re.compile(rf"({key}\s*=\s*)([\d\.e-]+)(,?)")
+                match = pattern.search(content)
+                if match:
+                    prefix, current_val_str, suffix = match.groups()
+                    try:
+                        current_val = float(current_val_str)
+                    except ValueError:
+                        continue
+                        
+                    new_val = current_val
+                    if mode == "reduce_50_percent":
+                        new_val = current_val * 0.5
+                    elif mode == "double":
+                        new_val = current_val * 2.0
+                    elif mode.replace('.', '', 1).isdigit():
+                        new_val = float(mode) # Direct set
+                    
+                    # Format preservation
+                    new_val_str = f"{new_val:.2e}" if "e" in current_val_str else f"{new_val:.5f}".rstrip("0").rstrip(".")
+                    
+                    content = content.replace(match.group(0), f"{prefix}{new_val_str}{suffix}")
+                    self.logger.log("auto_heal_apply", file=fix["target"], key=key, old=current_val_str, new=new_val_str)
+            
+            target_path.write_text(content, encoding="utf-8")
+            return True
+
+        elif fix["action"] == "install_pip":
+            pkg = fix["package"]
+            subprocess.run([sys.executable, "-m", "pip", "install", pkg], check=True)
+            return True
+            
+        return False
+
+
+class Monitor:
+    def __init__(self, cfg: Config) -> None:
+        self.cfg = cfg
+        self.logger = Logger(cfg, Redactor(cfg))
+        self.notifier = DiscordNotifier(cfg)
+        self.healer = AutoHealer(cfg, self.logger)
+        
+    def run(self):
+        self.logger.log("monitor_start", cmd=self.cfg.train_cmd)
+        self.notifier.notify("Training Started", f"Command: {' '.join(self.cfg.train_cmd)}", color=0x3498db)
+        
+        retries = 0
+        while retries <= 3: # Max auto-heals
+            start_time = time.time()
+            
+            # Run Training
+            proc = subprocess.run(
+                self.cfg.train_cmd,
+                env={**os.environ, "PYTHONUNBUFFERED": "1"},
+                capture_output=True, # We need output for analysis. 
+                # streaming output to console AND capturing is hard with simple subprocess.run.
+                # For now, we capture. 
+                # TODO: Implement Tee logic for real-time console + capture.
+                text=True,
+                encoding="utf-8",
+                errors="ignore"
+            )
+            
+            # Print output for user
+            print(proc.stdout)
+            print(proc.stderr, file=sys.stderr)
+            
+            if proc.returncode == 0:
+                duration = time.time() - start_time
+                self.logger.log("monitor_success", duration=duration)
+                self.notifier.notify("Training Complete", f"Success! Duration: {duration:.1f}s", color=0x2ecc71)
+                return 0
+            
+            # Failure Analysis
+            self.logger.log("monitor_fail", rc=proc.returncode)
+            self.notifier.notify("Training Failed", f"RC: {proc.returncode}\nAnalyzeing...", color=0xe74c3c)
+            
+            fix = self.healer.analyze_failure(proc.returncode, proc.stdout, proc.stderr)
+            if fix and retries < 3:
+                self.logger.log("monitor_healing", fix=fix)
+                self.notifier.notify("Auto-Healing", f"Applying fix: {fix['explanation']}", color=0xf1c40f)
+                
+                if self.healer.apply_fix(fix):
+                    retries += 1
+                    time.sleep(2)
+                    continue
+                else:
+                    self.logger.log("monitor_heal_fail_apply")
+                    break
+            else:
+                self.logger.log("monitor_give_up")
+                break
+                
+        self.notifier.notify("Training Fatal Error", "Could not recover.", color=0x992d22)
+        return 1
 
 
 class DiscordBot:

@@ -45,6 +45,7 @@ from ..utils.drive_client import DriveClient
 from ..utils.desktop_watcher import DesktopWatcher
 from discord.ext import tasks
 from pathlib import Path
+from duckduckgo_search import DDGS
 
 logger = logging.getLogger(__name__)
 
@@ -818,6 +819,31 @@ class ORACog(commands.Cog):
                 if tool_name == "create_file" and not self._check_permission(message.author.id, "owner"):
                     return "Permission denied. This tool is restricted to the bot owner."
 
+            if tool_name == "google_search":
+                try:
+                    query = args.get("query")
+                    if not query: return "Error: No query provided."
+                    
+                    # Notify status
+                    if status_manager:
+                        await status_manager.next_step(f"Web検索中: {query}")
+                    
+                    results = DDGS().text(query, max_results=3)
+                    if not results:
+                        return "No results found."
+                        
+                    formatted = []
+                    for r in results:
+                        title = r.get('title', 'No Title')
+                        body = r.get('body', '')
+                        href = r.get('href', '')
+                        formatted.append(f"### [{title}]({href})\n{body}")
+                        
+                    return "\\n\\n".join(formatted)
+                except Exception as e:
+                    logger.error(f"Search failed: {e}")
+                    return f"Search Error: {e}"
+
             if tool_name == "music_play":
                 query = args.get("query")
                 if not query:
@@ -1230,7 +1256,7 @@ class ORACog(commands.Cog):
                     from ..utils.voice_manager import VoiceConnectionError
                     vc = await media_cog._voice_manager.ensure_voice_client(message.author)
                     if vc:
-                         media_cog._auto_read_channels[message.guild.id] = message.channel.id
+                         media_cog._voice_manager.auto_read_channels[message.guild.id] = message.channel.id
                          await media_cog._voice_manager.play_tts(message.author, "接続しました")
                          return f"Joined voice channel: {vc.channel.name}. Auto-read enabled."
                     else:
@@ -1247,7 +1273,7 @@ class ORACog(commands.Cog):
                 
                 if message.guild.voice_client:
                     await message.guild.voice_client.disconnect()
-                    media_cog._auto_read_channels.pop(message.guild.id, None)
+                    media_cog._voice_manager.auto_read_channels.pop(message.guild.id, None)
                     return "Disconnected from voice channel."
                 return "Not connected to any voice channel."
 
@@ -2148,6 +2174,91 @@ class ORACog(commands.Cog):
 
         logger.info(f"ORACog.on_message triggered: author={message.author.id}, content={message.content[:50]}, attachments={len(message.attachments)}")
 
+        # --- Voice Triggers (Direct Bypass - Mentions Only) ---
+        if message.guild and self.bot.user in message.mentions:
+            # Only trigger if specific keywords are present
+            content_stripped = message.content.replace(f"<@{self.bot.user.id}>", "").replace(f"<@!{self.bot.user.id}>", "").strip()
+            
+            # Use raw content to be safe against nickname resolution issues for simple keywords
+            # But stripped content is better to avoid matching the mention itself (though unlikely)
+            
+            # Join: "きて" / "来て"
+            if any(k in message.content for k in ["きて", "来て", "join"]):
+                media_cog = self.bot.get_cog("MediaCog")
+                if media_cog:
+                    try:
+                        await media_cog._voice_manager.ensure_voice_client(message.author)
+                        media_cog._voice_manager.auto_read_channels[message.guild.id] = message.channel.id
+                        await media_cog._voice_manager.play_tts(message.author, "はい、行きます！")
+                        await message.add_reaction("⭕")
+                    except Exception as e:
+                         # Likely user not in VC
+                         await message.channel.send(f"ボイスチャンネルに参加してから呼んでください。", delete_after=5)
+                return
+
+            # Leave: "消えて" / "ばいばい" / "バイバイ" / "帰って"
+            if any(k in message.content for k in ["消えて", "ばいばい", "バイバイ", "帰って", "leave"]):
+                media_cog = self.bot.get_cog("MediaCog")
+                if media_cog and message.guild.voice_client:
+                    # Remove auto-read
+                    media_cog._voice_manager.auto_read_channels.pop(message.guild.id, None)
+                    await media_cog._voice_manager.play_tts(message.author, "ばいばい！")
+                    # Wait slightly for TTS to buffer
+                    await asyncio.sleep(1.5)
+                    await message.guild.voice_client.disconnect()
+                    await message.add_reaction("👋")
+                return
+
+            # Music: "XX流して" / "play XX"
+            # Regex to capture content before keywords
+            import re
+            music_match = re.search(r"(.*?)\s*(流して|かけて|再生して|歌って|play)", content_stripped, re.IGNORECASE)
+            # Ensure the match is substantial (not just the keyword itself) and at the END of the string mostly
+            if music_match:
+                query = music_match.group(1).strip()
+                # If query is empty, maybe it was "play XX" where play is first?
+                if not query and "play" in content_stripped.lower():
+                     # Handle "play XX" format
+                     query = re.sub(r"^play\s*", "", content_stripped, flags=re.IGNORECASE).strip()
+
+                if query:
+                    media_cog = self.bot.get_cog("MediaCog")
+                    if media_cog:
+                        try:
+                            # Join VC if not already
+                            await media_cog._voice_manager.ensure_voice_client(message.author)
+                            
+                            # Feedback
+                            await message.add_reaction("🎵")
+                            
+                            # Execute Play (without context/interaction)
+                            # We need to manually call the cog's method or voice manager
+                            # But MediaCog.play_music usually takes Context.
+                            # We can trigger the command manually or use the underlying logic.
+                            # Calling command is safer for permissions checks etc, but context is different.
+                            # Let's call the internal logic directly if possible, or construct a fake context.
+                            # MediaCog.play_music is a command.
+                            # Better: media_cog.play_music_internal(ctx, query) - likely doesn't exist.
+                            # Let's invoke the voice_manager directly if possible, OR create a Context.
+                            
+                            # Using Context is standard for invoking commands.
+                            ctx = await self.bot.get_context(message)
+                            # Invoke the command
+                            # We need to find the command object.
+                            cmd = self.bot.get_command("play")
+                            if cmd:
+                                await ctx.invoke(cmd, query=query)
+                            else:
+                                # Fallback if command name differs (it is 'music_play' in schemas, but command might be 'play' in cog)
+                                # Let's check MediaCog... assume command is 'play'
+                                pass
+
+                        except Exception as e:
+                            logger.error(f"Regex Music Trigger Failed: {e}")
+                            await message.add_reaction("❌")
+                    return
+        # ------------------------------------------------------
+
         # Check for User Mention
         is_user_mention = self.bot.user in message.mentions
         
@@ -2788,277 +2899,7 @@ class ORACog(commands.Cog):
                 selected.append(tool)
         
         return selected
-            # --- General ---
-            {
-                "type": "function",
-                "function": {
-                    "name": "say",
-                    "description": "Speak or send a message to a channel as the bot.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "message": { "type": "string", "description": "The text message." },
-                             "channel_name": { "type": "string", "description": "Optional channel." }
-                        },
-                        "required": ["message"]
-                    }
-                }
-            },
 
-            # ==========================
-            # 2. Image Generation
-            # ==========================
-            {
-                "name": "generate_image",
-                "description": "[Image] Generate an image using Stable Diffusion (FLUX).",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "prompt": { "type": "string", "description": "English prompt for generation." },
-                        "negative_prompt": { "type": "string" },
-                        "width": { "type": "integer", "default": 512 },
-                        "height": { "type": "integer", "default": 512 }
-                    },
-                    "required": ["prompt"]
-                }
-            },
-            {
-                "name": "get_current_model",
-                "description": "[Image] Get current image generation model.",
-                "parameters": { "type": "object", "properties": {}, "required": [] }
-            },
-            {
-                "name": "change_model",
-                "description": "[Image] Change image generation model.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "model_name": { "type": "string", "description": "Model name." }
-                    },
-                    "required": ["model_name"]
-                }
-            },
-
-            # ==========================
-            # 3. Voice Generation
-            # ==========================
-            {
-                "name": "change_voice",
-                "description": "[Voice] Change TTS character (Zundamon, Metan, etc).",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "character_name": { "type": "string", "description": "Target character name." }
-                    },
-                    "required": ["character_name"]
-                }
-            },
-            {
-                "name": "tts_speak",
-                "description": "[Voice] Direct TTS Speech Engine.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "text": { "type": "string" },
-                        "voice": { "type": "string", "description": "Optional voice override" },
-                        "speed": { "type": "number", "description": "Speech speed (0.5-2.0)" },
-                        "pitch": { "type": "number", "description": "Speech pitch (-0.15 to 0.15)" }
-                    },
-                    "required": ["text"]
-                }
-            },
-
-            # ==========================
-            # 4. Video Generation (Future)
-            # ==========================
-            {
-                "name": "generate_video",
-                "description": "[Video] Generate video from prompt (Placeholder).",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "prompt": { "type": "string" },
-                        "width": { "type": "integer", "default": 512 },
-                        "height": { "type": "integer", "default": 512 },
-                        "seconds": { "type": "integer", "default": 2 },
-                        "fps": { "type": "integer", "default": 8 }
-                    },
-                    "required": ["prompt"]
-                }
-            },
-            {
-                "name": "get_video_models",
-                "description": "[Video] Get available video models (Placeholder).",
-                "parameters": { "type": "object", "properties": {}, "required": [] }
-            },
-            {
-                "name": "change_video_model",
-                "description": "[Video] Change video generation model (Placeholder).",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "model_name": { "type": "string" }
-                    },
-                    "required": ["model_name"]
-                }
-            },
-
-            # ==========================
-            # 5. Video Recognition (Future)
-            # ==========================
-            {
-                "name": "analyze_video",
-                "description": "[VideoRec] Analyze video content (Placeholder).",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "video_path": { "type": "string" },
-                        "mode": { "type": "string", "description": "summary, object_detection, etc." }
-                    },
-                    "required": ["video_path"]
-                }
-            },
-            {
-                "name": "segment_objects",
-                "description": "[VideoRec] Segment objects in video using SAM 3 (Placeholder).",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "video_path": { "type": "string" },
-                        "prompt": { "type": "string", "description": "Object description or bbox." }
-                    },
-                    "required": ["video_path"]
-                }
-            },
-            {
-                "name": "track_object",
-                "description": "[VideoRec] Track specific object in video (Placeholder).",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "video_path": { "type": "string" },
-                        "object_id": { "type": "string" }
-                    },
-                    "required": ["video_path", "object_id"]
-                }
-            },
-
-            # ==========================
-            # 6. Search
-            # ==========================
-            {
-                "name": "google_search",
-                "description": "[Search] Search Google for information.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "query": { "type": "string" }
-                    },
-                    "required": ["query"]
-                }
-            },
-            {
-                "name": "google_shopping_search",
-                "description": "[Search] Search Google Shopping for products.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "query": { "type": "string" }
-                    },
-                    "required": ["query"]
-                }
-            },
-
-            # ==========================
-            # 7. Admin & System
-            # ==========================
-            # --- File/Channel ---
-            {
-                "name": "create_file",
-                "description": "[Admin] Create a file (Creator only).",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "filename": { "type": "string" },
-                        "content": { "type": "string" }
-                    },
-                    "required": ["filename", "content"]
-                }
-            },
-            {
-                "name": "create_channel",
-                "description": "[Admin] Create a server channel.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "name": { "type": "string" },
-                        "type": { "type": "string", "enum": ["text", "voice", "category"] },
-                        "category_name": { "type": "string" }
-                    },
-                    "required": ["name", "type"]
-                }
-            },
-            # --- System Control ---
-            {
-                "name": "get_system_stats",
-                "description": "[Admin] Get PC system stats.",
-                "parameters": { "type": "object", "properties": {}, "required": [] }
-            },
-            {
-                "name": "system_control",
-                "description": "[Admin] Control PC system (Volume/App). Creator only.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "action": { "type": "string", "enum": ["set_volume", "open_app", "mute"] },
-                        "value": { "type": "string" }
-                    },
-                    "required": ["action"]
-                }
-            },
-            # --- Time ---
-            {
-                "name": "set_timer",
-                "description": "[Admin/Time] Set a timer.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "seconds": { "type": "integer" },
-                        "label": { "type": "string" }
-                    },
-                    "required": ["seconds"]
-                }
-            },
-            {
-                "name": "set_alarm",
-                "description": "[Admin/Time] Set an alarm (HH:MM).",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "time": { "type": "string", "description": "HH:MM format" },
-                        "label": { "type": "string" }
-                    },
-                    "required": ["time"]
-                }
-            },
-            # --- Points ---
-            {
-                "name": "check_points",
-                "description": "[Admin/Point] Check user points.",
-                "parameters": {
-                     "type": "object",
-                     "properties": {
-                         "target_user": { "type": "string" }
-                     },
-                     "required": []
-                }
-            },
-            {
-                "name": "system_check",
-                "description": "[System] Run detailed diagnostics to verify system health.",
-                "parameters": { "type": "object", "properties": {}, "required": [] }
-            }
-        ]
 
 
     async def handle_prompt(self, message: discord.Message, prompt: str, existing_status_msg: Optional[discord.Message] = None, is_voice: bool = False) -> None:
@@ -3113,7 +2954,8 @@ class ORACog(commands.Cog):
                     voice_manager = getattr(self.bot, "voice_manager", None)
                     if voice_manager:
                          # Use play_tts directly to avoid Command object issues
-                         await voice_manager.play_tts(message.author, "回答を生成しています")
+                         # Skipped "Generating answer" TTS as per user request
+                        pass
 
             voice_feedback_task = asyncio.create_task(delayed_feedback())
 
