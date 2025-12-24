@@ -30,7 +30,21 @@ ORA is a **fully autonomous AI Operating System** running locally on your hardwa
 - **🔒 Complete Privacy**: No data leaves your PC. Your chats, images, and voice are processed on your RTX 5090.
 - **⚡ High Performance**: Optimized for RTX 5090 (32GB VRAM), ensuring maximum speed and quality.
 
-### 🌟 Technical Highlights
+### � Universal Brain (v3.0)
+
+**A Hybrid System merging "Cloud Intelligence" with "Local Privacy".**
+
+### 🧠 Two Operation Modes
+- **Smart Mode (Recommended)**:
+  - Active only upon **User Consent**.
+  - Leverages **GPT-5 Series** (OpenAI) and **Gemini 2.0** (Google) for complex code generation and advanced vision.
+  - **Shared Traffic (Free)**: 250k ~ 2.5M tokens/day available via OpenAI Shared Lane.
+- **Private Mode (Default)**:
+  - Active if consent is denied or ignored.
+  - **100% Local**. No data leaves your machine.
+  - Maximizes your **RTX 5090** capability locally.
+
+### �🌟 Technical Highlights
 - **🧠 Dual-Architecture (Brain + Voice)**: 
     - **Main Brain**: `Ministral-3-14B` via **vLLM** (Logic, Tools, Vision).
     - **Voice Engine**: `T5Gemma-TTS` via **Services** (Voice Cloning, Speech).
@@ -61,25 +75,37 @@ This system uses an **Automatic Semantic Router** to dynamically assign tasks to
 ```mermaid
 %%{init: { 'theme': 'dark' }}%%
 graph TD
-    User["User Input (Discord)"] --> Router{"Auto Router<br>(Context Analysis)"}
+    User["User Input (Discord)"] --> Consent{"User Consent<br>(Smart Mode?)"}
+    
+    %% Privacy Decision
+    Consent -- "Yes" --> SmartRouter{"Smart Router<br>(Difficulty/Cost)"}
+    Consent -- "No" --> LocalRouter{"Local Router<br>(Fully Local)"}
 
-    %% Routing Logic
-    Router -- "Chat / Logic / Vision" --> LLM["Mistral 14B / Qwen<br>(vLLM - Port 8001)"]
-    Router -- "Generate Image" --> ImageGen["Flux.1-dev<br>(ComfyUI - Port 8188)"]
-    Router -- "Video/Object Search" --> SAM2["SAM 2 (Meta)<br>(Object Segmentation)"]
+    %% Smart Path
+    SmartRouter -- "High Intel / Vision" --> CloudAPI["☁️ Cloud APIs<br>(GPT-5 / Gemini 2.0)"]
+    SmartRouter -- "Standard / Low Cost" --> LocalRouter
+
+    %% Local Path
+    LocalRouter -- "Chat / Logic / Vision" --> LLM["Mistral 14B / Qwen<br>(vLLM - Port 8001)"]
+    LocalRouter -- "Generate Image" --> ImageGen["Flux.1-dev<br>(ComfyUI - Port 8188)"]
+    LocalRouter -- "Video/Object Search" --> SAM2["SAM 2 (Meta)<br>(Object Segmentation)"]
     
     %% Voice Path (Dual Engine)
-    Router -- "Speak/TTS" --> VoiceRouter{"Voice Selector"}
+    LocalRouter -- "Speak/TTS" --> VoiceRouter{"Voice Selector"}
     VoiceRouter -- "Standard" --> VV["VOICEVOX<br>(Port 50021)"]
     VoiceRouter -- "Clone/Real" --> VoiceSvc["Voice Engine<br>(T5Gemma Aratako - Port 8002)"]
     
     VoiceSvc -- "Doppelganger" --> Cloning["Voice Registration<br>(User Embeddings)"]
 
-    %% Future/Reserved
-    Router -- "Video Gen?" --> VideoGen["Reserved / Future<br>(Port 8189)"]
+    %% Output
+    CloudAPI --> Output["Response (Embed/Text)"]
+    LLM --> Output["Response (Embed/Text)"]
 
     %% Styling for better dark mode readability
-    style Router fill:#ff1493,stroke:#ffffff,stroke-width:2px,color:#ffffff
+    style Consent fill:#ffbd00,stroke:#333,stroke-width:2px,color:#000
+    style SmartRouter fill:#ff1493,stroke:#ffffff,stroke-width:2px,color:#ffffff
+    style CloudAPI fill:#00ffff,stroke:#333,stroke-width:2px,color:#000
+    style LocalRouter fill:#1e90ff,stroke:#ffffff,stroke-width:1px,color:#ffffff
     style LLM fill:#1e90ff,stroke:#ffffff,stroke-width:1px,color:#ffffff
     style ImageGen fill:#32cd32,stroke:#ffffff,stroke-width:1px,color:#ffffff
     style SAM2 fill:#ff4500,stroke:#ffffff,stroke-width:1px,color:#ffffff
@@ -87,7 +113,6 @@ graph TD
     style VV fill:#ffd700,stroke:#ffffff,stroke-width:1px,color:#000000
     style VoiceSvc fill:#dda0dd,stroke:#ffffff,stroke-width:1px,color:#000000
     style Cloning fill:#dda0dd,stroke:#ffffff,stroke-width:1px,color:#000000
-    style VideoGen fill:#9370db,stroke:#ffffff,stroke-width:1px,color:#ffffff
 ```
 
 ### 🧩 Component Breakdown
