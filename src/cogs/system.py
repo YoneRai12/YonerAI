@@ -308,6 +308,57 @@ class SystemCog(commands.Cog):
                 else:
                     self._log_audit(discord.Object(id=user_id), action, f"app={app_key} (Denied)", False)
                     return {"status": False, "message": f"許可されていないアプリです: {app_key}"}
+
+            elif action == "wake_pc":
+                # Wake on LAN
+                mac_addr = os.getenv("PC_MAC_ADDRESS")
+                if not mac_addr:
+                    return {"status": False, "message": "環境変数 PC_MAC_ADDRESS が設定されていません。"}
+                
+                try:
+                    import socket
+                    import struct
+                    
+                    # Clean MAC address
+                    mac = mac_addr.replace(":", "").replace("-", "")
+                    data = bytes.fromhex("f" * 12 + mac * 16)
+                    
+                    # Send to broadcast
+                    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                    sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+                    sock.sendto(data, ("255.255.255.255", 9))
+                    sock.close()
+                    
+                    self._log_audit(discord.Object(id=user_id), action, f"mac={mac_addr}", True)
+                    return {"status": True, "message": f"PC ({mac_addr}) への起動信号 (WoL) を送信しました。"}
+                except Exception as e:
+                    return {"status": False, "message": f"WoL 送信失敗: {e}"}
+
+            elif action == "shutdown_pc":
+                # Remote Shutdown logic
+                # Normally we run 'shutdown /s /t 0' locally. 
+                # If running on Mac, we need SSH: ssh <user>@<ip> "shutdown /s /t 0"
+                # For now, let's implement local and add a hook for remote.
+                
+                is_mac = os.name != 'nt'
+                target_ip = os.getenv("PC_IP_ADDRESS")
+                ssh_user = os.getenv("PC_SSH_USER")
+
+                try:
+                    if is_mac:
+                        if not target_ip or not ssh_user:
+                            return {"status": False, "message": "Mac運用時は PC_IP_ADDRESS と PC_SSH_USER の設定が必要です。"}
+                        # Run via SSH (Assumes SSH keys are set up)
+                        cmd = f'ssh {ssh_user}@{target_ip} "shutdown /s /t 0"'
+                        subprocess.Popen(cmd, shell=True)
+                    else:
+                        # Local Windows
+                        subprocess.Popen("shutdown /s /t 0", shell=False)
+                    
+                    self._log_audit(discord.Object(id=user_id), action, "shutdown", True)
+                    return {"status": True, "message": "PC のシャットダウンシーケンスを開始しました。"}
+                except Exception as e:
+                    return {"status": False, "message": f"シャットダウンエラー: {e}"}
             
             return {"status": False, "message": "不明なアクションです"}
 

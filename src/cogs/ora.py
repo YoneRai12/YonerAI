@@ -7,6 +7,7 @@ import secrets
 import string
 import time
 import json
+import re
 import asyncio
 import asyncio
 import io
@@ -36,6 +37,7 @@ from discord.ext import commands
 
 from ..storage import Store
 from ..utils.llm_client import LLMClient
+from ..utils.math_renderer import render_tex_to_image
 from ..utils.search_client import SearchClient
 from ..utils.logger import GuildLogger
 from ..utils import image_tools
@@ -796,7 +798,7 @@ class ORACog(commands.Cog):
         members = [m.display_name for m in target_channel.members]
         return f"チャンネル '{target_channel.name}' (ID: {target_channel.id})\n参加人数: {len(members)}人\n参加者: {', '.join(members)}"
 
-    async def _build_system_prompt(self, message: discord.Message) -> str:
+    async def _build_system_prompt(self, message: discord.Message, model_hint: str = "Ministral 3 (14B)") -> str:
         guild = message.guild
         guild_name = guild.name if guild else "Direct Message"
         member_count = guild.member_count if guild else "Unknown"
@@ -837,7 +839,7 @@ class ORACog(commands.Cog):
         tools_json = json.dumps(clean_tools, ensure_ascii=False)
 
         base = (
-            f"You are ORA, a highly advanced AI assistant powered by **Ministral 3 (14B)**.\n"
+            f"You are ORA (Operational Responsive AI), a highly intelligent assistant.\n"
             f"Current Server: {guild_name}\n"
             f"Member Count: {member_count}\n"
             f"Current Channel: {channel_name}\n"
@@ -3224,12 +3226,12 @@ class ORACog(commands.Cog):
             # --- System ---
             {
                 "name": "system_control",
-                "description": "[System] Control Bot Volume or Open/Close UI.",
+                "description": "[System] Control Bot Volume, Open UI, or Remote Power.",
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "action": { "type": "string", "enum": ["volume_up", "volume_down", "open_ui", "close_ui"] },
-                        "value": { "type": "integer" }
+                        "action": { "type": "string", "enum": ["volume_up", "volume_down", "open_ui", "close_ui", "wake_pc", "shutdown_pc"] },
+                        "value": { "type": "string" }
                     },
                     "required": ["action"]
                 },
@@ -3437,7 +3439,9 @@ class ORACog(commands.Cog):
             user_mode = self.user_prefs.get_mode(message.author.id) or "private"
             
             # 2. Build Context (Shared vs Local logic is handled later, but we need raw context first)
-            system_prompt = await self._build_system_prompt(message)
+            # Default model hint
+            model_hint = "Ministral 3 (14B)"
+            system_prompt = await self._build_system_prompt(message, model_hint=model_hint)
             if message.reference:
                 try:
                     history = await self._build_history(message)
@@ -3481,8 +3485,6 @@ class ORACog(commands.Cog):
                     can_burn_gemini = self.cost_manager.can_call("burn", "gemini_trial", message.author.id, est_usage)
                     can_high_openai = self.cost_manager.can_call("high", "openai", message.author.id, est_usage)
                     can_stable_openai = self.cost_manager.can_call("stable", "openai", message.author.id, est_usage)
-                    
-                    # Logic Tree
                     if has_image:
                          # Vision Task -> Gemini (Burn)
                          # Priority: Gemini 2.0 Flash Exp (Vision Elite)
@@ -3492,8 +3494,9 @@ class ORACog(commands.Cog):
                              target_model = ROUTER_CONFIG.get("vision_model", "gemini-2.0-flash-exp")
                              
                              selected_route = {"provider": "gemini_trial", "lane": "burn", "model": target_model}
-                             # Gemini usually takes multimodal input in specific ways, currently handled by client or message format
-                             clean_messages = [{"role": "user", "content": pkt.text}] 
+                             # Restore system context but use the correct model hint
+                             actual_sys = await self._build_system_prompt(message, model_hint=target_model)
+                             clean_messages = [{"role": "system", "content": actual_sys}, {"role": "user", "content": pkt.text}] 
                          else:
                              target_provider = "local" # Local Vision Fallback (Qwen/Mithril)
 
@@ -3519,7 +3522,7 @@ class ORACog(commands.Cog):
                             elif can_stable_openai.allowed:
                                 # Fallback to Standard Model (Mini) if High Lane exhausted
                                 target_provider = "openai"
-                                target_model = ROUTER_CONFIG.get("standard_model", "gpt-5_1-2025-11-13")
+                                target_model = ROUTER_CONFIG.get("standard_model", "gpt-5-mini")
                                 selected_route = {"provider": "openai", "lane": "stable", "model": target_model}
                             else:
                                 target_provider = "local"
@@ -3532,7 +3535,7 @@ class ORACog(commands.Cog):
                                 selected_route = {"provider": "openai", "lane": "high", "model": target_model}
                              elif can_stable_openai.allowed:
                                 target_provider = "openai"
-                                target_model = ROUTER_CONFIG.get("standard_model", "gpt-5_1-2025-11-13")
+                                target_model = ROUTER_CONFIG.get("standard_model", "gpt-5-mini")
                                 selected_route = {"provider": "openai", "lane": "stable", "model": target_model}
                              else:
                                 target_provider = "local"
@@ -3540,14 +3543,15 @@ class ORACog(commands.Cog):
                         # 3. Standard -> Stable Lane (Mini)
                         elif can_stable_openai.allowed:
                             target_provider = "openai"
-                            target_model = ROUTER_CONFIG.get("standard_model", "gpt-5_1-2025-11-13")
+                            target_model = ROUTER_CONFIG.get("standard_model", "gpt-5-mini")
                             selected_route = {"provider": "openai", "lane": "stable", "model": target_model}
                         else:
                             target_provider = "local"
                             
                         # Set Up Execution
                         if target_provider == "openai":
-                             clean_messages = [{"role": "user", "content": pkt.text}]
+                             actual_sys = await self._build_system_prompt(message, model_hint=target_model)
+                             clean_messages = [{"role": "system", "content": actual_sys}, {"role": "user", "content": pkt.text}]
 
                     else:
                         target_provider = "local"
@@ -3731,235 +3735,230 @@ class ORACog(commands.Cog):
                 else:
                     content, _, _ = await self._llm.chat(messages=messages, temperature=0.7)
 
-            # Step 5: Final Response Logic (Moved to bottom for single execution)
-            # We don't send here to avoid double-responses when tool calls happen.
-            pass
-
-
-            logger.info(f"🔍 [RAW_LLM_OUTPUT] Length: {len(content)}")
-            
-            # Tool Loop
-            max_turns = 3
-            turn = 0
-            executed_tools = []
-            tool_counts = {}
-            
-            while turn < max_turns:
-                turn += 1
+            # Step 5: Final Response Logic
+            # Tool Loop (Only run for Provider="Local". Native providers have their own loop above)
+            if target_provider not in ["openai", "gemini_trial"]:
+                max_turns = 3
+                turn = 0
+                executed_tools = []
+                tool_counts = {}
                 
-                # Re-extract JSON from (potentially new) content
-                json_objects = self._extract_json_objects(content)
-                
-                # ROBUST FALLBACK: If 7B model forgot markdown code blocks, try to find raw JSON
-                if not json_objects:
-                    import re
-                    # Try to find the first likely JSON object starting with { and ending with }
-                    loose_match = re.search(r"(\{[\s\S]*?\})", content)
-                    if loose_match:
-                         possible_json = loose_match.group(1)
-                         try:
-                             json.loads(possible_json)
-                             json_objects.append(possible_json)
-                             logger.info("Fallback: Extracted loose JSON object.")
-                         except:
-                             pass
+                while turn < max_turns:
+                    turn += 1
                     
-                    # FALLBACK 2: BARE TOOL NAME Detection
-                    # If content is exactly (or close to) a known tool name (e.g., "join_voice_channel"), map it.
-                    # This happens heavily with Qwen-2.5-7B when instructed to "Use implicit trigger".
-                    clean_text = content.strip().lower()
-                    # Common no-arg tools
-                    known_tools = {
-                        "join_voice_channel": {},
-                        "leave_voice_channel": {},
-                        "google_search": {"query": "something"}, # Search usually requires args, but might be triggered empty
-                        "start_thinking": {"reason": "Complex task"}
-                    }
+                    # Re-extract JSON from (potentially new) content
+                    json_objects = self._extract_json_objects(content)
                     
-                    for t_name, default_args in known_tools.items():
-                        # exact match or matches "ToolName"
-                        if clean_text == t_name or clean_text == f"`{t_name}`":
-                             logger.info(f"Fallback: Detected bare tool name '{t_name}'. Constructing JSON.")
-                             json_objects.append(json.dumps({"tool": t_name, "args": default_args}))
-                             break
-                    
-                    # FALLBACK 3: Music Heuristic (Strong)
-                    # If user asks to "Play X" and LLM just says "Playing" or "Sure" without tool call.
-                    # CRITICAL: Only check on TURN 1. If we are in turn 2+, we already handled the main request.
-                    if not json_objects and "流して" in prompt and turn == 1: # Only trigger if user explicitly asked
-                         # Check if response implies agreement but no tool
-                         # Or just forcefully interpret "Play X" if LLM output is short/empty
-                         # Extract song name from prompt: "X流して" -> X
-
-                         song_match = re.search(r"(.+?)(流して|再生して|歌って)", prompt)
-                         if song_match:
-                             song_query = song_match.group(1).strip()
-                             # Filter out mentions
-                             song_query = re.sub(r"<@!?\d+>", "", song_query).strip()
+                    # ROBUST FALLBACK: If 7B model forgot markdown code blocks, try to find raw JSON
+                    if not json_objects:
+                        # import re removed
+                        # Try to find the first likely JSON object starting with { and ending with }
+                        loose_match = re.search(r"(\{[\s\S]*?\})", content)
+                        if loose_match:
+                             possible_json = loose_match.group(1)
+                             try:
+                                 json.loads(possible_json)
+                                 json_objects.append(possible_json)
+                                 logger.info("Fallback: Extracted loose JSON object.")
+                             except:
+                                 pass
+                        
+                        # FALLBACK 2: BARE TOOL NAME Detection
+                        # If content is exactly (or close to) a known tool name (e.g., "join_voice_channel"), map it.
+                        # This happens heavily with Qwen-2.5-7B when instructed to "Use implicit trigger".
+                        clean_text = content.strip().lower()
+                        # Common no-arg tools
+                        known_tools = {
+                            "join_voice_channel": {},
+                            "leave_voice_channel": {},
+                            "google_search": {"query": "something"}, # Search usually requires args, but might be triggered empty
+                            "start_thinking": {"reason": "Complex task"}
+                        }
+                        
+                        for t_name, default_args in known_tools.items():
+                            # exact match or matches "ToolName"
+                            if clean_text == t_name or clean_text == f"`{t_name}`":
+                                 logger.info(f"Fallback: Detected bare tool name '{t_name}'. Constructing JSON.")
+                                 json_objects.append(json.dumps({"tool": t_name, "args": default_args}))
+                                 break
+                        
+                        # FALLBACK 3: Music Heuristic (Strong)
+                        # If user asks to "Play X" and LLM just says "Playing" or "Sure" without tool call.
+                        # CRITICAL: Only check on TURN 1. If we are in turn 2+, we already handled the main request.
+                        if not json_objects and "流して" in prompt and turn == 1: # Only trigger if user explicitly asked
+                             # Check if response implies agreement but no tool
+                             # Or just forcefully interpret "Play X" if LLM output is short/empty
+                             # Extract song name from prompt: "X流して" -> X
+    
+                             song_match = re.search(r"(.+?)(流して|再生して|歌って)", prompt)
+                             if song_match:
+                                 song_query = song_match.group(1).strip()
+                                 # Filter out mentions
+                                 song_query = re.sub(r"<@!?\d+>", "", song_query).strip()
+                                 
+                                 if song_query and len(song_query) > 1:
+                                     logger.info(f"Fallback: Music Heuristic triggered for query '{song_query}'")
+                                     json_objects.append(json.dumps({"tool": "music_play", "args": {"query": song_query}}))
+                        
+                        # FALLBACK 4: Search Heuristic (Refusal Override)
+                        # If LLM refuses to answer current info ("Cannot provide...", "I don't know"), force search.
+                        # Keywords: "天気", "ニュース", "価格", "株価", "速報"
+                        if not json_objects and turn == 1:
+                             # Refusal Check (Simple)
+                             refusal_keywords = ["できません", "お答えできません", "最新の情報", "cannot provide", "cutoff"]
+                             is_refusal = any(k in content for k in refusal_keywords)
                              
-                             if song_query and len(song_query) > 1:
-                                 logger.info(f"Fallback: Music Heuristic triggered for query '{song_query}'")
-                                 json_objects.append(json.dumps({"tool": "music_play", "args": {"query": song_query}}))
+                             triggers = ["天気", "ニュース", "価格", "株価", "速報", "とは", "教えて"]
+                             has_trigger = any(t in prompt for t in triggers)
+                             
+                             if is_refusal and has_trigger:
+                                 logger.info("Fallback: Search Heuristic triggered (Refusal Override).")
+                                 # Use entire prompt as query (cleaned)
+                                 clean_q = prompt.replace("教えて", "").strip()
+                                 json_objects.append(json.dumps({"tool": "google_search", "args": {"query": clean_q}}))
+
+
+
+
+                    logger.info(f"Extracted JSON objects: {len(json_objects)}")
                     
-                    # FALLBACK 4: Search Heuristic (Refusal Override)
-                    # If LLM refuses to answer current info ("Cannot provide...", "I don't know"), force search.
-                    # Keywords: "天気", "ニュース", "価格", "株価", "速報"
-                    if not json_objects and turn == 1:
-                         # Refusal Check (Simple)
-                         refusal_keywords = ["できません", "お答えできません", "最新の情報", "cannot provide", "cutoff"]
-                         is_refusal = any(k in content for k in refusal_keywords)
-                         
-                         triggers = ["天気", "ニュース", "価格", "株価", "速報", "とは", "教えて"]
-                         has_trigger = any(t in prompt for t in triggers)
-                         
-                         if is_refusal and has_trigger:
-                             logger.info("Fallback: Search Heuristic triggered (Refusal Override).")
-                             # Use entire prompt as query (cleaned)
-                             clean_q = prompt.replace("教えて", "").strip()
-                             json_objects.append(json.dumps({"tool": "google_search", "args": {"query": clean_q}}))
-
-
-
-
-                logger.info(f"Extracted JSON objects: {len(json_objects)}")
-                
-                tool_call = None
-                
-                # Check for Command R+ style tool calls (e.g. <|channel|>commentary to=google_search ... {args})
-                import re
-                cmd_r_match = re.search(r"to=(\w+)", content)
-                if cmd_r_match:
-                     logger.info(f"Cmd R+ Match: {cmd_r_match.group(1)}")
-                     # Always try Fallback: Extract JSON using regex
-                     # This handles cases where _extract_json_objects returns invalid garbage or misses the weird formatting
-                     json_match = re.search(r"json\s*(\{.*?\})", content, re.DOTALL)
-                     if json_match:
-                         # It's okay if we duplicate; the loop breaks on first valid parse
-                         json_objects.append(json_match.group(1))
-                         logger.info("Added fallback JSON object from regex (Always).")
-                
-                for i, json_str in enumerate(json_objects):
-                    logger.info(f"Processing JSON object {i}: {json_str}")
-                    try:
-                        data = json.loads(json_str)
-                        logger.info(f"Parsed JSON data: {data}")
+                    tool_call = None
+                    
+                    # Check for Command R+ style tool calls (e.g. <|channel|>commentary to=google_search ... {args})
+                    # import re removed
+                    cmd_r_match = re.search(r"to=(\w+)", content)
+                    if cmd_r_match:
+                         logger.info(f"Cmd R+ Match: {cmd_r_match.group(1)}")
+                         # Always try Fallback: Extract JSON using regex
+                         # This handles cases where _extract_json_objects returns invalid garbage or misses the weird formatting
+                         json_match = re.search(r"json\s*(\{.*?\})", content, re.DOTALL)
+                         if json_match:
+                             # It's okay if we duplicate; the loop breaks on first valid parse
+                             json_objects.append(json_match.group(1))
+                             logger.info("Added fallback JSON object from regex (Always).")
+                    
+                    for i, json_str in enumerate(json_objects):
+                        logger.info(f"Processing JSON object {i}: {json_str}")
+                        try:
+                            data = json.loads(json_str)
+                            logger.info(f"Parsed JSON data: {data}")
+                            
+                            # Case 1: Standard JSON format {"tool": "name", "args": {...}}
+                            if isinstance(data, dict) and "tool" in data and "args" in data:
+                                tool_call = data
+                                logger.info(f"Found Standard Tool Call: {tool_call}")
+                                break
+                            # Case 2: Command R+ style (args only in JSON, tool name in text)
+                            elif cmd_r_match and isinstance(data, dict):
+                                tool_name = cmd_r_match.group(1)
+                                # If the JSON looks like args (has keys matching parameters), use it
+                                # Or just assume the first JSON object is the args
+                                tool_call = {"tool": tool_name, "args": data}
+                                logger.info(f"Found Cmd R+ Tool Call: {tool_call}")
+                                break
+                            else:
+                                logger.warning(f"JSON object {i} did not match any tool format: {data}")
+                        except json.JSONDecodeError as e:
+                            logger.warning(f"JSON Decode Error at index {i}: {e}")
+                            continue
+                    
+                    if tool_call:
+                        tool_name = tool_call["tool"]
+                        tool_args = tool_call["args"]
+    
+                        # --- LOOP BREAKER / SPAM PROTECTION ---
+                        if tool_name not in tool_counts:
+                            tool_counts[tool_name] = 0
+                        tool_counts[tool_name] += 1
                         
-                        # Case 1: Standard JSON format {"tool": "name", "args": {...}}
-                        if isinstance(data, dict) and "tool" in data and "args" in data:
-                            tool_call = data
-                            logger.info(f"Found Standard Tool Call: {tool_call}")
-                            break
-                        # Case 2: Command R+ style (args only in JSON, tool name in text)
-                        elif cmd_r_match and isinstance(data, dict):
-                            tool_name = cmd_r_match.group(1)
-                            # If the JSON looks like args (has keys matching parameters), use it
-                            # Or just assume the first JSON object is the args
-                            tool_call = {"tool": tool_name, "args": data}
-                            logger.info(f"Found Cmd R+ Tool Call: {tool_call}")
-                            break
+                        # 1. Block excessive 'create_file' (Max 1)
+                        if tool_name == "create_file" and tool_counts[tool_name] > 1:
+                            logger.warning("Spam Protection: Blocked extra create_file call.")
+                            messages.append({"role": "user", "content": "Tool Error: 'create_file' can only be used once per turn."})
+                            continue
+    
+                        # 2. Block excessive same tool (Max 3)
+                        if tool_counts[tool_name] > 3:
+                            logger.warning(f"Spam Protection: Blocked excessive {tool_name} calls.")
+                            break # Break loop, force answer
+                            
+                        # 3. Block total tool calls (Max 5)
+                        if len(executed_tools) >= 5:
+                             logger.warning("Spam Protection: Max total tool calls reached.")
+                             break
+    
+                        executed_tools.append(tool_name)
+                        # --------------------------------------
+                        
+                        # Update progress message to show tool execution
+                        tool_display_name = {
+                            "google_search": "🔍 Web検索",
+                            "get_system_stats": "💻 システム情報取得",
+                            "music_play": "🎵 音楽再生",
+                            "music_control": "🎵 音楽操作",
+                            "system_control": "⚙️ システム制御",
+                            "create_file": "📝 ファイル作成",
+                            "get_voice_channel_info": "🔊 VC情報取得",
+                            "join_voice_channel": "🔊 VC参加",
+                            "leave_voice_channel": "🔊 VC退出",
+                        }.get(tool_name, f"🔧 {tool_name}")
+                        
+                        
+                        # Execute Tool
+                        if is_voice and tool_name == "google_search":
+                             media_cog = self.bot.get_cog("MediaCog")
+                             if media_cog:
+                                 query = tool_args.get("query", "")
+                                 await media_cog.speak_text(message.author, f"{query}について検索しています")
+    
+                        tool_result = await self._execute_tool(tool_name, tool_args, message, status_manager=status_manager)
+                        
+                        if tool_result and "[SILENT_COMPLETION]" in str(tool_result):
+                            logger.info("Silent tool completion detected. Stopping generation loop.")
+                            await status_manager.finish()
+                            return
+    
+                        if tool_result:
+                            # Check for loop (same tool, same args, repeated)
+                            # We need to track previous tool calls
+                            # Simple check: if this tool call is identical to the last one
+                            pass
+    
+                        # Append result
+                        # CLEAN CONTENT before appending: Remove special Command R+ tokens to avoid confusing the model
+                        clean_content = content.replace("<|channel|>", "").replace("<|constrain|>", "").replace("<|message|>", "").strip()
+                        messages.append({"role": "assistant", "content": clean_content})
+                        
+                        # Use USER role for the tool output to force attention and mimic turn-taking
+                        logger.info(f"Injecting Tool Result of length {len(tool_result)} for summarization")
+                        
+                        messages.append({
+                            "role": "user", 
+                            "content": f"【検索結果】以下は検索ツールからの実行結果です。\n{tool_result}\n\nこの情報に基づき、ユーザーの質問に対する回答を日本語で作成してください。ツールは既に実行されたため、これ以上ツールを呼び出さず、要約と回答のみを行ってください。"
+                        })
+                        
+                        # Update Status for Next Think
+                        await status_manager.next_step("回答生成中")
+                        
+                        # Fix for LLM Timeout: Use the correct provider for re-generation
+                        if target_provider == "openai":
+                            model = selected_route.get("model", "gpt-4o") # Default to robust model
+                            new_content, _, _ = await self.unified_client.chat("openai", messages, model=model)
+                        elif target_provider == "gemini_trial":
+                             new_content, _, _ = await self.bot.google_client.chat(messages=messages, model_name="gemini-1.5-pro")
                         else:
-                            logger.warning(f"JSON object {i} did not match any tool format: {data}")
-                    except json.JSONDecodeError as e:
-                        logger.warning(f"JSON Decode Error at index {i}: {e}")
-                        continue
-                
-                if tool_call:
-                    tool_name = tool_call["tool"]
-                    tool_args = tool_call["args"]
-
-                    # --- LOOP BREAKER / SPAM PROTECTION ---
-                    if tool_name not in tool_counts:
-                        tool_counts[tool_name] = 0
-                    tool_counts[tool_name] += 1
-                    
-                    # 1. Block excessive 'create_file' (Max 1)
-                    if tool_name == "create_file" and tool_counts[tool_name] > 1:
-                        logger.warning("Spam Protection: Blocked extra create_file call.")
-                        messages.append({"role": "user", "content": "Tool Error: 'create_file' can only be used once per turn."})
-                        continue
-
-                    # 2. Block excessive same tool (Max 3)
-                    if tool_counts[tool_name] > 3:
-                        logger.warning(f"Spam Protection: Blocked excessive {tool_name} calls.")
-                        break # Break loop, force answer
+                            new_content = await self._llm.chat(messages=messages, temperature=0.7)
                         
-                    # 3. Block total tool calls (Max 5)
-                    if len(executed_tools) >= 5:
-                         logger.warning("Spam Protection: Max total tool calls reached.")
-                         break
-
-                    executed_tools.append(tool_name)
-                    # --------------------------------------
-                    
-                    # Update progress message to show tool execution
-                    tool_display_name = {
-                        "google_search": "🔍 Web検索",
-                        "get_system_stats": "💻 システム情報取得",
-                        "music_play": "🎵 音楽再生",
-                        "music_control": "🎵 音楽操作",
-                        "system_control": "⚙️ システム制御",
-                        "create_file": "📝 ファイル作成",
-                        "get_voice_channel_info": "🔊 VC情報取得",
-                        "join_voice_channel": "🔊 VC参加",
-                        "leave_voice_channel": "🔊 VC退出",
-                    }.get(tool_name, f"🔧 {tool_name}")
-                    
-                    
-                    # Execute Tool
-                    if is_voice and tool_name == "google_search":
-                         media_cog = self.bot.get_cog("MediaCog")
-                         if media_cog:
-                             query = tool_args.get("query", "")
-                             await media_cog.speak_text(message.author, f"{query}について検索しています")
-
-                    tool_result = await self._execute_tool(tool_name, tool_args, message, status_manager=status_manager)
-                    
-                    if tool_result and "[SILENT_COMPLETION]" in str(tool_result):
-                        logger.info("Silent tool completion detected. Stopping generation loop.")
-                        await status_manager.finish()
-                        return
-
-                    if tool_result:
-                        # Check for loop (same tool, same args, repeated)
-                        # We need to track previous tool calls
-                        # Simple check: if this tool call is identical to the last one
-                        pass
-
-                    # Append result
-                    # CLEAN CONTENT before appending: Remove special Command R+ tokens to avoid confusing the model
-                    clean_content = content.replace("<|channel|>", "").replace("<|constrain|>", "").replace("<|message|>", "").strip()
-                    messages.append({"role": "assistant", "content": clean_content})
-                    
-                    # Use USER role for the tool output to force attention and mimic turn-taking
-                    logger.info(f"Injecting Tool Result of length {len(tool_result)} for summarization")
-                    
-                    messages.append({
-                        "role": "user", 
-                        "content": f"【検索結果】以下は検索ツールからの実行結果です。\n{tool_result}\n\nこの情報に基づき、ユーザーの質問に対する回答を日本語で作成してください。ツールは既に実行されたため、これ以上ツールを呼び出さず、要約と回答のみを行ってください。"
-                    })
-                    
-                    # Update Status for Next Think
-                    await status_manager.next_step("回答生成中")
-                    
-                    # Fix for LLM Timeout: Use the correct provider for re-generation
-                    if target_provider == "openai":
-                        model = selected_route.get("model", "gpt-4o") # Default to robust model
-                        new_content, _, _ = await self.unified_client.chat("openai", messages, model=model)
-                    elif target_provider == "gemini_trial":
-                         new_content, _, _ = await self.bot.google_client.chat(messages=messages, model_name="gemini-1.5-pro")
+                        # Loop Detection: If new_content is SAME as old content (ignoring unique IDs if any), break
+                        if new_content.strip() == content.strip():
+                            logger.warning("Loop detected: LLM output indicates same tool call. Breaking.")
+                            content = "申し訳ありません。検索結果の処理中にエラーが発生しました。"
+                            break
+                            
+                        content = new_content
                     else:
-                        new_content = await self._llm.chat(messages=messages, temperature=0.7)
-                    
-                    # Loop Detection: If new_content is SAME as old content (ignoring unique IDs if any), break
-                    if new_content.strip() == content.strip():
-                        logger.warning("Loop detected: LLM output indicates same tool call. Breaking.")
-                        content = "申し訳ありません。検索結果の処理中にエラーが発生しました。"
                         break
-                        
-                    content = new_content
-                else:
-                    break
-            
+                
             # Check if final content is still a tool call (Loop exhausted)
             # If so, suppress it
             if re.search(r"to=(\w+)", content) or "tool" in content and "args" in content:
@@ -3993,6 +3992,15 @@ class ORACog(commands.Cog):
                     except:
                         style = {"color": 0x10A37F, "icon": "🤖", "name": "OpenAI Shared"}
 
+                # Prepare Math Files
+                file_list = []
+                # import re removed
+                tex_match = re.search(r"```(tex|latex)\n(.*?)\n```", final_response, re.DOTALL)
+                if tex_match:
+                     buf = render_tex_to_image(tex_match.group(2))
+                     if buf:
+                         file_list.append(discord.File(buf, filename="math_render.png"))
+
                 if len(final_response) < 4000:
                     embed = discord.Embed(
                         description=final_response,
@@ -4001,19 +4009,19 @@ class ORACog(commands.Cog):
                     embed.set_author(name=f"{style['icon']} {style['name']}", icon_url=self.bot.user.display_avatar.url)
                     embed.set_footer(text="Sanitized & Powered by ORA Universal Brain")
                     
-                    await message.reply(embed=embed, mention_author=False)
+                    await message.reply(embed=embed, files=file_list, mention_author=False)
                 else:
                     # Too long for Embed, fall back to text with header
                     header = f"**{style['icon']} {style['name']}**\n"
-                    await message.reply(header + final_response, mention_author=False)
+                    await message.reply(header + final_response, files=file_list, mention_author=False)
+            
+                # Redundant sending logic removed to prevent double replies
             
             # Voice Response
             if is_voice:
                 media_cog = self.bot.get_cog("MediaCog")
                 if media_cog:
-                    # Clean text for TTS
-                    tts_text = final_response[:200]
-                    await media_cog.speak_text(message.author, tts_text)
+                    await media_cog.speak_text(message.author, final_response[:200])
             
             # Save conversation
             google_sub = await self._store.get_google_sub(message.author.id)

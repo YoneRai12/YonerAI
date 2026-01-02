@@ -190,19 +190,25 @@ class LLMClient:
                 "messages": final_messages,
                 "stream": False,
             }
-            # Omit temperature if None OR if model is reasoning/future type (gpt-5, o1, o3)
-            # User specifically said "requests are rejected because temperature is included".
-            should_omit_temp = any(x in model_name for x in ["gpt-5", "o1", "o3"])
+            # Temperature Handling: STRICTLY REMOVE for Next-Gen Models (User Request: "Don't send temperature")
+            # This includes gpt-5 family, o1/o3 family, and codex family as per user report.
+            # Models: gpt-5.1, gpt-5.1-codex, gpt-5, gpt-5-codex, gpt-5-chat-latest, gpt-4.1, o1, o3, codex-mini-latest
+            # Mini variants included.
             
+            # Simple keyword matching:
+            should_omit_temp = any(x in model_name for x in ["gpt-5", "gpt-4.1", "o1", "o3", "codex", "o4"])
             
             if temperature is not None and not should_omit_temp:
                 payload["temperature"] = temperature
             
-            # Parameter Mapping regarding Tokens for Standard Endpoint (o1/gpt-5)
-            # They use 'max_completion_tokens' instead of 'max_tokens'
-            if should_omit_temp: # Reusing this flag as it targets the same models
+            if should_omit_temp:
                  if "max_tokens" in kwargs:
-                     kwargs["max_completion_tokens"] = kwargs.pop("max_tokens")
+                     try:
+                         # Many of these models prefer 'max_completion_tokens' or 'max_output_tokens' 
+                         # But let's stick to standard behavior unless we know the endpoint is different.
+                         # Standard v1/chat/completions for o1 uses 'max_completion_tokens'
+                         kwargs["max_completion_tokens"] = kwargs.pop("max_tokens")
+                     except: pass
 
         # Inject Tools and other kwargs (Common to both)
         # We exclude keys already handled or standard internally (model, messages, input, instructions)

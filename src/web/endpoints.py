@@ -779,3 +779,49 @@ async def optimize_user(user_id: str):
         
     except Exception as e:
          raise HTTPException(status_code=500, detail=f"Failed to queue optimization: {e}")
+
+@router.post("/system/restart")
+async def system_restart():
+    """Restart the Bot Process (Self-Termination)."""
+    # In a managed environment (systemd/Docker), exiting 0 or 1 usually triggers restart.
+    import sys
+    import asyncio
+    
+    # Schedule exit
+    async def _exit():
+        await asyncio.sleep(1)
+        sys.exit(0)
+        
+    asyncio.create_task(_exit())
+    return {"ok": True, "message": "Restarting system..."}
+
+@router.post("/system/shutdown")
+async def system_shutdown():
+    """Shutdown the Bot Process."""
+    import sys
+    import asyncio
+    
+    async def _exit():
+        await asyncio.sleep(1)
+        # 0 might mean success and no restart in some configs, but usually scripts loop.
+        # If we really want to stop, we might need a specific exit code or flag file.
+        # For now, standard exit.
+        sys.exit(0) 
+        
+    asyncio.create_task(_exit())
+    return {"ok": True, "message": "Shutting down system..."}
+
+@router.get("/logs/stream")
+async def log_stream():
+    """Simple Log Stream (Not fully implemented, returns recent logs)."""
+    # For a real stream, we'd use WebSocket or SSE.
+    # Here, let's just return the last 50 lines of the log file if available.
+    log_path = "discord.log"
+    try:
+        if os.path.exists(log_path):
+            with open(log_path, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+                return {"ok": True, "logs": lines[-50:]}
+        return {"ok": False, "error": "Log file not found"}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}

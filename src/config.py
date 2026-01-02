@@ -10,7 +10,11 @@ from typing import Optional, List, Dict
 
 # --- Cost Management Constants ---
 COST_TZ = "UTC"
-STATE_DIR = r"L:\ORA_State"
+if os.name == 'nt':
+    STATE_DIR = r"L:\ORA_State"
+else:
+    # Mac/Linux path
+    STATE_DIR = os.path.expanduser("~/ORA_State")
 
 # Burn Lane: Gemini Trial ($300 limit)
 # Stable Lane: OpenAI Shared (gp-4o-mini: 2.5M tokens/day!)

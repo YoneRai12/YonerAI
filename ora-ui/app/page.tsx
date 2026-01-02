@@ -360,6 +360,67 @@ export default function HomePage() {
           )}
         </section>
       </div>
+      {/* Control Panel (Hidden by default, simplistic toggle) */}
+      <details className="fixed top-4 right-4 z-50 group">
+        <summary className="list-none cursor-pointer bg-slate-900/80 backdrop-blur border border-slate-700 p-2 rounded-full hover:bg-slate-800 transition text-slate-400 hover:text-cyan-400">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M10.343 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.157.945c.03.18.158.31.33.376.17.066.36.035.5-.083l.86-.718c.418-.35.996-.282 1.34.09l.774.84c.343.374.33.97-.038 1.32l-.658.625c-.14.133-.182.338-.11.52.074.183.25.32.448.347l.888.118c.55.074.96.536.96 1.09v1.18c0 .553-.41 1.015-.96 1.09l-.888.117c-.198.026-.374.164-.448.347-.072.182-.03.387.11.52l.658.625c.368.35.38 .946.038 1.32l-.774.84c-.344.372-.922.44-1.34.09l-.86-.718c-.14-.118-.33-.15-.5-.083-.172.066-.3.196-.33.376l-.157.945c-.09.542-.56.94-1.11.94h-1.094c-.55 0-1.02-.398-1.11-.94l-.157-.945c-.03-.18-.158-.31-.33-.376-.17-.066-.36-.035-.5.083l-.86.718c-.418.35-.996.282-1.34-.09l-.774-.84c-.343-.374-.33-.97.038-1.32l.658-.625c.14-.133.182-.338.11-.52-.074-.183-.25-.32-.448-.347l-.888-.118c-.55-.074-.96-.536-.96-1.09v-1.18c0-.553.41-1.015.96-1.09l.888-.117c.198-.026.374-.164.448-.347.072-.182.03-.387-.11-.52l-.658-.625c-.368-.35-.38-.946-.038-1.32l.774-.84c.344-.372.922-.44 1.34-.09l.86.718c.14.118.33.15.5.083.172.066.3.196.33.376l.157.945z" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+        </summary>
+        <div className="absolute top-12 right-0 w-80 bg-slate-950/90 backdrop-blur-xl border border-slate-700/50 rounded-2xl shadow-2xl p-4 animate-in fade-in zoom-in-95 origin-top-right">
+          <h3 className="text-sm font-semibold text-slate-300 mb-4 flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            System Control
+          </h3>
+
+          <div className="space-y-3">
+            <button
+              onClick={async () => {
+                if (!confirm("Botを再起動しますか？")) return;
+                await fetch(`${API_BASE}/system/restart`, { method: "POST" });
+                alert("再起動コマンドを送信しました。");
+              }}
+              className="w-full py-2 px-4 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20 transition text-sm font-medium flex items-center justify-center gap-2"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+              </svg>
+              Restart Bot
+            </button>
+
+            <button
+              onClick={async () => {
+                if (prompt("本当に停止しますか？停止する場合は 'STOP' と入力してください") !== "STOP") return;
+                await fetch(`${API_BASE}/system/shutdown`, { method: "POST" });
+                alert("シャットダウンコマンドを送信しました。");
+              }}
+              className="w-full py-2 px-4 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/20 transition text-sm font-medium flex items-center justify-center gap-2"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5.636 5.636a9 9 0 1012.728 0M12 3v9" />
+              </svg>
+              Shutdown App
+            </button>
+
+            <div className="mt-4 pt-4 border-t border-slate-800">
+              <div className="text-xs text-slate-500 mb-2 flex justify-between">
+                <span>Recent Logs</span>
+                <button
+                  onClick={() => window.open(`${API_BASE}/logs/stream`, '_blank')}
+                  className="text-cyan-400 hover:underline"
+                >
+                  Open Raw
+                </button>
+              </div>
+              <div className="h-32 bg-slate-950 rounded border border-slate-800 p-2 overflow-y-auto text-[10px] font-mono text-slate-400">
+                <p className="opacity-50 italic">Log stream not connected in preview.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </details>
+      {/* End Control Panel */}
     </main>
   );
 }

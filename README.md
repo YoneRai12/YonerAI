@@ -285,6 +285,28 @@ ORA is currently evolving to encompass the **9 Pillars of Singularity**:
 8.  **💅 Premium UI**: **Google Sans Flex** integration for a state-of-the-art dashboard.
 9.  **🏡 Jarvis Control**: Voice-to-IoT control for total room automation.
 
+---
+
+## 🆕 Upgrade v4.0 (2025/12/30) - The Mac Expansion
+
+### 🍎 ORA Mac Migration Support
+FULL Support for **Apple Silicon (M1/M2/M3/M4)**.
+- **Unified Logic**: Run ORA's Brain on your Windows/Mac.
+- **Remote Dev Ready**: Includes `MIGRATION_GUIDE.md` for seamless VS Code Remote SSH setups.
+- **One-Click Setup**: Dedicated `Double_Click_To_Start.command` for Mac users.
+
+### 📐 Automatic Math Rendering
+Native LaTeX/TeX support for beautiful mathematical expressions.
+- **Auto-Detect**: ORA automatically recognizes math in responses.
+- **Visual Rendering**: Converts complex equations (integral, matrix, etc.) into transparent PNGs instantly.
+- **Universal**: Works on both Local Brain and Cloud Models (OpenAI/Gemini).
+
+### 🐛 Critical Fixes
+- **Duplicate Reply Fix**: Solved the "Double Message" bug where ORA would reply twice.
+- **Model Stability**: Fixed `gpt-5.1` / `o1` API parameter compatibility.
+- **Dependency Fix**: Resolved `matplotlib` and `re` module errors.
+
+
 ### 📜 Verification Logs (Recent)
 *   **2025-12-21**: [Fix] Music "Search & Play" Logic (Polished `yt-dlp` query handling).
 *   **2025-12-21**: [New] Layer Decomposition Service (Port 8003).

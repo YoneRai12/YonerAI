@@ -40,3 +40,8 @@ comtypes
 psutil
 google-generativeai
 openai
+torch>=2.0.0
+transformers>=4.30.0
+soundfile>=0.12.0
+accelerate>=0.20.0
+matplotlib>=3.7.0

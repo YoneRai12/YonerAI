@@ -23,9 +23,15 @@ logger = logging.getLogger("VoiceEngine_Aratako")
 app = FastAPI(title="ORA Voice Engine (Aratako)", version="1.0")
 
 # Configuration
-MODEL_PATH = r"L:\AI_Models\T5Gemma\VoiceEngine_2B"
-DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-DTYPE = torch.bfloat16
+# Configuration
+MODEL_PATH = "google/gemma-2b-it" # Fallback to HF standard or use local if exists
+if os.path.exists(r"models/VoiceEngine_2B"):
+     MODEL_PATH = r"models/VoiceEngine_2B"
+elif os.path.exists(r"L:\AI_Models\T5Gemma\VoiceEngine_2B") and os.name == 'nt':
+     MODEL_PATH = r"L:\AI_Models\T5Gemma\VoiceEngine_2B"
+
+DEVICE = "cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu")
+DTYPE = torch.bfloat16 if DEVICE != "cpu" else torch.float32
 
 # Global State
 model = None
