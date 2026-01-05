@@ -345,6 +345,10 @@ async def run_bot() -> None:
 
     setup_logging(config.log_level)
     logger.info("ORA Discord Botを起動します", extra={"app_id": config.app_id})
+    
+    # SILENCE DISCORD HTTP LOGS (429 Spam)
+    logging.getLogger("discord.http").setLevel(logging.WARNING)
+    logging.getLogger("discord.gateway").setLevel(logging.WARNING)
 
     # Check for FFmpeg
     import shutil

@@ -91,11 +91,15 @@ def setup_logging(level: str) -> None:
             "file_error": {
                 "class": "logging.handlers.RotatingFileHandler",
                 "formatter": "structured",
-                "level": "ERROR", # Only ERROR and CRITICAL
+                "level": "ERROR", 
                 "filename": os.path.join(L_LOG_DIR, "ora_error.log"),
-                "maxBytes": 5 * 1024 * 1024,  # 5 MB
+                "maxBytes": 5 * 1024 * 1024,  
                 "backupCount": 5,
                 "encoding": "utf-8",
+            },
+            "queue": {
+                "class": "src.utils.logger.QueueHandler",
+                "queue": "src.utils.logger.GuildLogger.queue", 
             }
         },
         "root": {
@@ -105,3 +109,9 @@ def setup_logging(level: str) -> None:
     }
 
     dictConfig(config)
+    
+    # Manually attach QueueHandler (as dictConfig can't pass the queue object reference easily)
+    from src.utils.logger import GuildLogger, QueueHandler
+    q_handler = QueueHandler(GuildLogger.queue)
+    q_handler.setLevel(logging.INFO) # Filter logic will happen in SystemCog
+    logging.getLogger().addHandler(q_handler)

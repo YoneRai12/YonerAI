@@ -17,6 +17,9 @@ logging.basicConfig(
         logging.StreamHandler(sys.stdout)
     ]
 )
+logging.getLogger("discord.http").setLevel(logging.WARNING)
+logging.getLogger("discord.gateway").setLevel(logging.WARNING)
+
 logger = logging.getLogger("WorkerBot")
 
 # Load Env

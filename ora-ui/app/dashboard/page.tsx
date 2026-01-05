@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useEffect, useState, useMemo, useRef } from "react";
-import { motion, AnimatePresence, useSpring, useMotionValue, Reorder } from "framer-motion";
+import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { motion, AnimatePresence, useSpring, useMotionValue, Reorder, LayoutGroup } from "framer-motion";
 import {
     Activity,
     Pause,
@@ -58,6 +58,51 @@ const topCardVariants = {
             ...SPRING_FLUID
         }
     })
+};
+
+type SpotlightPoint = { x: number; y: number };
+
+const spotlightRects = new WeakMap<HTMLElement, DOMRect>();
+const spotlightRafs = new WeakMap<HTMLElement, number>();
+const spotlightPoints = new WeakMap<HTMLElement, SpotlightPoint>();
+
+const updateSpotlightPosition = (el: HTMLElement, clientX: number, clientY: number) => {
+    spotlightPoints.set(el, { x: clientX, y: clientY });
+    if (spotlightRafs.has(el)) {
+        return;
+    }
+
+    const rafId = requestAnimationFrame(() => {
+        const rect = spotlightRects.get(el) || el.getBoundingClientRect();
+        spotlightRects.set(el, rect);
+        const point = spotlightPoints.get(el);
+        if (!point) {
+            spotlightRafs.delete(el);
+            return;
+        }
+        el.style.setProperty("--x", `${point.x - rect.left}px`);
+        el.style.setProperty("--y", `${point.y - rect.top}px`);
+        spotlightRafs.delete(el);
+    });
+
+    spotlightRafs.set(el, rafId);
+};
+
+const activateSpotlight = (el: HTMLElement, clientX: number, clientY: number) => {
+    spotlightRects.set(el, el.getBoundingClientRect());
+    el.classList.add("spotlight-active");
+    updateSpotlightPosition(el, clientX, clientY);
+};
+
+const deactivateSpotlight = (el: HTMLElement) => {
+    el.classList.remove("spotlight-active");
+    spotlightRects.delete(el);
+    const rafId = spotlightRafs.get(el);
+    if (rafId !== undefined) {
+        cancelAnimationFrame(rafId);
+    }
+    spotlightRafs.delete(el);
+    spotlightPoints.delete(el);
 };
 
 function AnimatedCounter({ value, formatter, delay = 0 }: { value: number, formatter?: (v: number) => string, delay?: number }) {
@@ -249,6 +294,14 @@ interface HistoryData {
             [model: string]: number;
         };
     };
+    hourly: {
+        hour: string;
+        high: number;
+        stable: number;
+        optimization: number;
+        burn: number;
+        usd: number;
+    }[];
 }
 
 // Detailed Stats Interfaces
@@ -267,6 +320,104 @@ interface DetailedStats {
     models: ModelStat[];
     timeline: TimePoint[];
 }
+
+type LaneKey = "high" | "stable" | "optimization" | "burn" | "usd";
+
+const LANE_META: Record<Exclude<LaneKey, "burn">, { label: string; chip: string; text: string; bar: string; ring: string }> = {
+    high: {
+        label: "高速推論",
+        chip: "bg-cyan-500/15 text-cyan-200 border-cyan-500/40",
+        text: "text-cyan-300",
+        bar: "bg-cyan-500",
+        ring: "ring-cyan-500/40"
+    },
+    stable: {
+        label: "会話モデル",
+        chip: "bg-green-500/15 text-green-200 border-green-500/40",
+        text: "text-green-300",
+        bar: "bg-green-500",
+        ring: "ring-green-500/40"
+    },
+    optimization: {
+        label: "記憶整理",
+        chip: "bg-purple-500/15 text-purple-200 border-purple-500/40",
+        text: "text-purple-300",
+        bar: "bg-purple-500",
+        ring: "ring-purple-500/40"
+    },
+    usd: {
+        label: "USD",
+        chip: "bg-neutral-500/15 text-neutral-200 border-neutral-400/40",
+        text: "text-neutral-200",
+        bar: "bg-neutral-200",
+        ring: "ring-neutral-400/40"
+    }
+};
+
+const pad2 = (value: number) => value.toString().padStart(2, "0");
+
+const formatLocalDateKey = (d: Date) => {
+    const year = d.getFullYear();
+    const month = pad2(d.getMonth() + 1);
+    const day = pad2(d.getDate());
+    return `${year}-${month}-${day}`;
+};
+
+const formatLocalHourKey = (d: Date) => {
+    const year = d.getFullYear();
+    const month = pad2(d.getMonth() + 1);
+    const day = pad2(d.getDate());
+    const hour = pad2(d.getHours());
+    return `${year}-${month}-${day}T${hour}`;
+};
+
+const getLaneValue = (entry: { [key: string]: any }, lane: LaneKey) => {
+    if (lane === "usd") return entry.usd || 0;
+    return entry[lane] || 0;
+};
+
+const buildWeeklySeries = (history: HistoryData | null, lane: LaneKey) => {
+    if (!history) return [];
+    const map = new Map<string, number>();
+    for (const item of history.timeline || []) {
+        map.set(item.date, getLaneValue(item, lane));
+    }
+    const series: { key: string; label: string; value: number }[] = [];
+    for (let i = 6; i >= 0; i--) {
+        const d = new Date();
+        d.setHours(0, 0, 0, 0);
+        d.setDate(d.getDate() - i);
+        const key = formatLocalDateKey(d);
+        series.push({
+            key,
+            label: `${d.getMonth() + 1}/${d.getDate()}`,
+            value: map.get(key) ?? 0
+        });
+    }
+    return series;
+};
+
+const buildHourlySeries = (history: HistoryData | null, lane: LaneKey) => {
+    if (!history) return [];
+    const map = new Map<string, number>();
+    for (const item of history.hourly || []) {
+        map.set(item.hour, getLaneValue(item, lane));
+    }
+    const series: { key: string; label: string; value: number }[] = [];
+    const now = new Date();
+    now.setMinutes(0, 0, 0);
+    for (let i = 23; i >= 0; i--) {
+        const d = new Date(now);
+        d.setHours(d.getHours() - i);
+        const key = formatLocalHourKey(d);
+        series.push({
+            key,
+            label: `${pad2(d.getHours())}:00`,
+            value: map.get(key) ?? 0
+        });
+    }
+    return series;
+};
 
 // Mock Data Generator
 const generateMockStats = (type: string): DetailedStats => {
@@ -532,7 +683,7 @@ function UserDetailModal({ userId, initialUser, onClose }: { userId: string, ini
         <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            exit={{ opacity: 0, transition: { duration: 0.3 } }}
+            exit={{ opacity: 0, transition: { duration: 0.3 }, pointerEvents: "none" }}
             className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
             onClick={onClose}
         >
@@ -604,7 +755,6 @@ function UserDetailModal({ userId, initialUser, onClose }: { userId: string, ini
                         )}
                         {/* Impression Header - Use Specific first, fallback to General */}
                         <motion.div
-                            layout
                             className={`p-6 pt-10 flex flex-col items-center justify-center border-b border-white/5 relative overflow-hidden shrink-0 min-h-[160px]
                                 ${(initialUser as any)?.banner_url ? "" : "bg-gradient-to-r from-cyan-950/50 to-purple-950/50"}
                             `}
@@ -623,12 +773,11 @@ function UserDetailModal({ userId, initialUser, onClose }: { userId: string, ini
 
                             <div className="absolute inset-0 bg-[url('/noise.png')] opacity-10 mix-blend-overlay z-[1]"></div>
                             <motion.div
-                                layout
+                                layoutId={`avatar-${userId}`}
                                 className="w-20 h-20 rounded-2xl flex items-center justify-center font-bold text-4xl shadow-2xl mb-4 bg-gradient-to-br from-neutral-800 to-neutral-900 text-neutral-400 border border-white/10 relative z-10 overflow-hidden"
                             >
                                 {(initialUser as any)?.avatar_url ? (
                                     <motion.img
-                                        layout
                                         src={(initialUser as any).avatar_url}
                                         alt=""
                                         className="w-full h-full rounded-2xl object-cover"
@@ -638,13 +787,11 @@ function UserDetailModal({ userId, initialUser, onClose }: { userId: string, ini
                                 )}
                             </motion.div>
                             <motion.h2
-                                layout
                                 className="text-2xl font-black text-white text-center tracking-tight relative z-10 leading-tight min-h-[2rem]"
                             >
                                 {detail.specific?.impression || detail.general?.impression || "分析中..."}
                             </motion.h2>
                             <motion.p
-                                layout
                                 className="text-cyan-400/80 font-mono text-xs mt-2 uppercase tracking-widest relative z-10"
                             >
                                 {detail.specific ? "Server Priority Memory" : "Global Identity"}
@@ -699,7 +846,6 @@ function UserDetailModal({ userId, initialUser, onClose }: { userId: string, ini
                             {/* 1. Server Specific Profile (TOP) */}
                             {detail.specific && (
                                 <motion.section
-                                    layout
                                     initial={{ opacity: 0, y: 20 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     transition={{ delay: 0.1, duration: 0.4 }}
@@ -717,7 +863,6 @@ function UserDetailModal({ userId, initialUser, onClose }: { userId: string, ini
                             {/* 2. General Global Profile (BOTTOM) */}
                             {detail.general && (
                                 <motion.section
-                                    layout
                                     initial={{ opacity: 0, y: 20 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     transition={{ delay: 0.2, duration: 0.4 }}
@@ -935,9 +1080,6 @@ import NeuralBackground from "../components/NeuralBackground";
 
 
 
-// Helper Component for Expanded View (Defined outside component to prevent re-creation)
-const ExpandedStatsView = ({ type, color }: { type: string, color: string }) => null;
-
 const MatrixRain = () => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     useEffect(() => {
@@ -988,10 +1130,13 @@ export default function DashboardPage() {
     const [users, setUsers] = useState<User[]>([]);
     const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
     const [usage, setUsage] = useState<CostState | null>(null);
+    const [historyData, setHistoryData] = useState<HistoryData | null>(null);
+    const [historyLoading, setHistoryLoading] = useState(true);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [refreshing, setRefreshing] = useState(false);
     const [historyLane, setHistoryLane] = useState<string | null>(null);
+    const [insightLane, setInsightLane] = useState<Exclude<LaneKey, "burn">>("high");
     const [selectedUser, setSelectedUser] = useState<string | null>(null);
     const [screenshotMode, setScreenshotMode] = useState(false);
     const [groupByServer, setGroupByServer] = useState(true);
@@ -1167,12 +1312,19 @@ export default function DashboardPage() {
     // "Pending" or "New" implies active processing or queue
     const processingUsers = users.filter(u => u.status === 'Pending' || u.status === 'New').length;
     const isThinking = processingUsers > 0;
+    const resetLabel = usage?.last_reset ? new Date(usage.last_reset).toLocaleString("ja-JP") : "—";
+    const insightMeta = LANE_META[insightLane];
+    const weeklySeries = useMemo(() => buildWeeklySeries(historyData, insightLane), [historyData, insightLane]);
+    const hourlySeries = useMemo(() => buildHourlySeries(historyData, insightLane), [historyData, insightLane]);
+    const weeklyMax = Math.max(1, ...weeklySeries.map((point) => point.value));
+    const hourlyMax = Math.max(1, ...hourlySeries.map((point) => point.value));
 
 
 
     // Track last data strings to prevent redundant re-renders
     const lastUsersStrRef = useRef<string>("");
     const lastUsageStrRef = useRef<string>("");
+    const lastHistoryStrRef = useRef<string>("");
 
     const fetchData = async (isSilent = false) => {
         const apiBase = "";
@@ -1220,6 +1372,34 @@ export default function DashboardPage() {
         fetchData(); // Initial load (not silent, shows shimmer?)
         // Poll every 6 seconds for "live" feeling (Reduced from 3s to save CPU)
         const interval = setInterval(() => fetchData(true), 6000);
+        return () => {
+            clearInterval(interval);
+        };
+    }, []);
+
+    const fetchHistory = async () => {
+        try {
+            const apiBase = "";
+            const ts = new Date().getTime();
+            const res = await fetch(`${apiBase}/api/dashboard/history?t=${ts}`, { cache: "no-store" });
+            if (res.ok) {
+                const data = await res.json();
+                const nextStr = JSON.stringify(data.data);
+                if (nextStr !== lastHistoryStrRef.current) {
+                    lastHistoryStrRef.current = nextStr;
+                    setHistoryData(data.data);
+                }
+            }
+        } catch (err) {
+            console.error("Failed to fetch history data", err);
+        } finally {
+            setHistoryLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchHistory();
+        const interval = setInterval(fetchHistory, 60000);
         return () => {
             clearInterval(interval);
         };
@@ -1418,6 +1598,11 @@ export default function DashboardPage() {
             });
     }, [sortedUsers, autoSortServers, manualOrder, simulatedUsersState]);
 
+    const deferredAllUsers = useDeferredValue(sortedAllUsers);
+    const deferredGroupedUsers = useDeferredValue(sortedGroupedUsers);
+    const visibleAllUsers = selectedUser ? sortedAllUsers : deferredAllUsers;
+    const visibleGroupedUsers = selectedUser ? sortedGroupedUsers : deferredGroupedUsers;
+
     // Privacy Masking
     const maskName = (name: string | null) => screenshotMode ? "User-Protected" : (name || "Unknown");
     const maskID = (id: string) => screenshotMode ? "****-****-****" : id;
@@ -1495,6 +1680,164 @@ export default function DashboardPage() {
         exit: { scale: 0.95, opacity: 0, filter: "blur(5px)", transition: { duration: 0.15 } }
     };
 
+    const totalLifetimeTokens =
+        (usage?.lifetime_tokens?.high || 0) +
+        (usage?.lifetime_tokens?.stable || 0) +
+        (usage?.lifetime_tokens?.optimization || 0) +
+        (usage?.lifetime_tokens?.burn || 0);
+
+    const renderExpandedUsage = (limit?: number) => {
+        const isUsd = insightLane === "usd";
+        let todayValue = "";
+        let lifetimeValue = "";
+        let tokenUsage = 0;
+
+        if (isUsd) {
+            todayValue = `$${(usage?.total_usd || 0).toFixed(4)}`;
+            lifetimeValue = totalLifetimeTokens.toLocaleString();
+        } else {
+            tokenUsage = usage?.daily_tokens?.[insightLane] || 0;
+            todayValue = tokenUsage.toLocaleString();
+            lifetimeValue = (usage?.lifetime_tokens?.[insightLane] || 0).toLocaleString();
+        }
+
+        return (
+            <motion.div
+                layout
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.2 }}
+                className="mt-4 rounded-xl border border-white/10 bg-black/40 p-4 space-y-4 text-xs overflow-hidden"
+            >
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <span className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest rounded-full border ${insightMeta.chip}`}>
+                            {insightMeta.label}
+                        </span>
+                        <span className="text-[10px] text-neutral-500 font-mono">詳細</span>
+                    </div>
+                    <button
+                        onClick={(e) => { e.stopPropagation(); setHistoryLane(insightLane); }}
+                        className="px-3 py-1 text-[10px] font-bold uppercase tracking-widest rounded-full border border-neutral-700/60 bg-black/40 text-neutral-200 hover:bg-neutral-800/50 transition-colors"
+                    >
+                        履歴を見る
+                    </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="bg-neutral-900/60 border border-neutral-800/70 rounded-xl p-3">
+                        <div className="text-[10px] text-neutral-500 uppercase tracking-widest">
+                            {isUsd ? "総コスト" : "今日の使用量"}
+                        </div>
+                        <div className={`mt-2 text-2xl font-mono font-semibold ${insightMeta.text}`}>
+                            {todayValue}
+                        </div>
+                    </div>
+                    <div className="bg-neutral-900/60 border border-neutral-800/70 rounded-xl p-3">
+                        <div className="text-[10px] text-neutral-500 uppercase tracking-widest">累計トークン</div>
+                        <div className="mt-2 text-2xl font-mono font-semibold text-neutral-200">
+                            {lifetimeValue}
+                        </div>
+                    </div>
+                    <div className="bg-neutral-900/60 border border-neutral-800/70 rounded-xl p-3">
+                        <div className="text-[10px] text-neutral-500 uppercase tracking-widest">リセット</div>
+                        <div className="mt-2 text-sm font-mono text-neutral-300">{resetLabel}</div>
+                        {!isUsd && limit && (
+                            <div className="mt-3 h-2 rounded-full bg-neutral-800 overflow-hidden">
+                                <motion.div
+                                    initial={{ width: 0 }}
+                                    animate={{
+                                        width: `${Math.min((tokenUsage / limit) * 100, 100)}%`
+                                    }}
+                                    transition={{ type: "spring", stiffness: 180, damping: 24 }}
+                                    className={`h-full ${insightMeta.bar}`}
+                                />
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <div className="bg-neutral-900/50 border border-neutral-800/60 rounded-xl p-4">
+                        <div className="flex items-center justify-between mb-3">
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">This Week</span>
+                            <span className={`text-[10px] font-bold uppercase tracking-widest ${insightMeta.text}`}>{insightMeta.label}</span>
+                        </div>
+                        {historyLoading ? (
+                            <div className="flex items-center justify-center h-24 text-neutral-500">
+                                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                                <span className="text-[10px] font-mono">Loading...</span>
+                            </div>
+                        ) : weeklySeries.length > 0 ? (
+                            <div className="h-24 flex items-end gap-2">
+                                {weeklySeries.map((point) => {
+                                    const height = weeklyMax > 0 ? (point.value / weeklyMax) * 100 : 0;
+                                    const valueLabel = isUsd ? `$${point.value.toFixed(2)}` : point.value.toLocaleString();
+                                    return (
+                                        <div key={point.key} className="flex-1 flex flex-col items-center gap-2">
+                                            <motion.div
+                                                initial={{ height: 0 }}
+                                                animate={{ height: `${Math.max(height, 4)}%` }}
+                                                transition={{ type: "spring", stiffness: 260, damping: 26 }}
+                                                className={`w-full rounded-md ${insightMeta.bar} opacity-80 hover:opacity-100`}
+                                                title={`${point.label} ${valueLabel}`}
+                                            />
+                                            <span className="text-[9px] text-neutral-500 font-mono">{point.label}</span>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        ) : (
+                            <div className="flex items-center justify-center h-24 text-neutral-500 text-[10px] font-mono">
+                                週次データがまだありません
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="bg-neutral-900/50 border border-neutral-800/60 rounded-xl p-4">
+                        <div className="flex items-center justify-between mb-3">
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">Hourly Activity</span>
+                            <span className={`text-[10px] font-bold uppercase tracking-widest ${insightMeta.text}`}>24h</span>
+                        </div>
+                        {historyLoading ? (
+                            <div className="flex items-center justify-center h-24 text-neutral-500">
+                                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                                <span className="text-[10px] font-mono">Loading...</span>
+                            </div>
+                        ) : hourlySeries.length > 0 ? (
+                            <div className="h-24 flex items-end gap-[3px]">
+                                {hourlySeries.map((point) => {
+                                    const height = hourlyMax > 0 ? (point.value / hourlyMax) * 100 : 0;
+                                    const valueLabel = isUsd ? `$${point.value.toFixed(2)}` : point.value.toLocaleString();
+                                    return (
+                                        <motion.div
+                                            key={point.key}
+                                            initial={{ height: 0 }}
+                                            animate={{ height: `${Math.max(height, 2)}%` }}
+                                            transition={{ type: "spring", stiffness: 240, damping: 24 }}
+                                            className={`w-full rounded-t-sm ${insightMeta.bar} opacity-50 hover:opacity-90`}
+                                            title={`${point.label} ${valueLabel}`}
+                                        />
+                                    );
+                                })}
+                            </div>
+                        ) : (
+                            <div className="flex items-center justify-center h-24 text-neutral-500 text-[10px] font-mono">
+                                時間別データがまだありません
+                            </div>
+                        )}
+                        <div className="flex justify-between mt-2 text-[9px] text-neutral-600 font-mono">
+                            <span>00:00</span>
+                            <span>12:00</span>
+                            <span>23:00</span>
+                        </div>
+                    </div>
+                </div>
+            </motion.div>
+        );
+    };
+
     const renderCard = (id: string) => {
         switch (id) {
             case "high":
@@ -1503,27 +1846,23 @@ export default function DashboardPage() {
                         key="high"
                         custom={0}
                         variants={topCardVariants}
-                        onClick={() => { if (!isDraggingRef.current) setExpandedCard(expandedCard === "high" ? null : "high"); }}
-                        onMouseMove={(e) => {
-                            const rect = e.currentTarget.getBoundingClientRect();
-                            e.currentTarget.style.setProperty('--x', `${e.clientX - rect.left}px`);
-                            e.currentTarget.style.setProperty('--y', `${e.clientY - rect.top}px`);
+                        layout
+                        onClick={() => {
+                            if (!isDraggingRef.current) {
+                                const next = expandedCard === "high" ? null : "high";
+                                setExpandedCard(next);
+                                if (next) setInsightLane("high");
+                            }
                         }}
-                        onMouseEnter={(e) => {
-                            e.currentTarget.classList.add('spotlight-active');
-                            const rect = e.currentTarget.getBoundingClientRect();
-                            e.currentTarget.style.setProperty('--x', `${e.clientX - rect.left}px`);
-                            e.currentTarget.style.setProperty('--y', `${e.clientY - rect.top}px`);
-                        }}
-                        onMouseLeave={(e) => {
-                            e.currentTarget.classList.remove('spotlight-active');
-                        }}
+                        onMouseMove={(e) => updateSpotlightPosition(e.currentTarget, e.clientX, e.clientY)}
+                        onMouseEnter={(e) => activateSpotlight(e.currentTarget, e.clientX, e.clientY)}
+                        onMouseLeave={(e) => deactivateSpotlight(e.currentTarget)}
                         style={{
                             willChange: "transform, opacity, filter",
                             translateZ: 0,
                             "--spotlight-color": "6, 182, 212"
                         } as React.CSSProperties}
-                        className="mercury-glass rounded-2xl p-4 relative overflow-hidden flex flex-col justify-between group cursor-pointer active:scale-95 h-full"
+                        className={`mercury-glass rounded-2xl p-4 relative overflow-hidden flex flex-col justify-between group cursor-pointer active:scale-95 h-full ${expandedCard === "high" ? "ring-2 ring-cyan-500/40 shadow-[0_0_30px_rgba(6,182,212,0.25)]" : ""}`}
                     >
                         <div className="pointer-events-none absolute top-0 right-0 p-2 opacity-10 font-black text-8xl text-cyan-500 select-none leading-none z-0">GEN</div>
                         <div className="relative z-10">
@@ -1550,7 +1889,9 @@ export default function DashboardPage() {
                                     />
                                 </div>
                             </div>
-                            {/* High expansion removed */}
+                            <AnimatePresence initial={false} mode="popLayout">
+                                {expandedCard === "high" && renderExpandedUsage(LIMIT_HIGH)}
+                            </AnimatePresence>
                         </div>
                     </motion.div>
                 );
@@ -1560,26 +1901,22 @@ export default function DashboardPage() {
                         key="stable"
                         custom={1}
                         variants={topCardVariants}
-                        onClick={() => { if (!isDraggingRef.current) setExpandedCard(expandedCard === "stable" ? null : "stable"); }}
-                        onMouseMove={(e) => {
-                            const rect = e.currentTarget.getBoundingClientRect();
-                            e.currentTarget.style.setProperty('--x', `${e.clientX - rect.left}px`);
-                            e.currentTarget.style.setProperty('--y', `${e.clientY - rect.top}px`);
+                        layout
+                        onClick={() => {
+                            if (!isDraggingRef.current) {
+                                const next = expandedCard === "stable" ? null : "stable";
+                                setExpandedCard(next);
+                                if (next) setInsightLane("stable");
+                            }
                         }}
-                        onMouseEnter={(e) => {
-                            e.currentTarget.classList.add('spotlight-active');
-                            const rect = e.currentTarget.getBoundingClientRect();
-                            e.currentTarget.style.setProperty('--x', `${e.clientX - rect.left}px`);
-                            e.currentTarget.style.setProperty('--y', `${e.clientY - rect.top}px`);
-                        }}
-                        onMouseLeave={(e) => {
-                            e.currentTarget.classList.remove('spotlight-active');
-                        }}
+                        onMouseMove={(e) => updateSpotlightPosition(e.currentTarget, e.clientX, e.clientY)}
+                        onMouseEnter={(e) => activateSpotlight(e.currentTarget, e.clientX, e.clientY)}
+                        onMouseLeave={(e) => deactivateSpotlight(e.currentTarget)}
                         style={{
                             translateZ: 0,
                             "--spotlight-color": "34, 197, 94"
                         } as React.CSSProperties}
-                        className="mercury-glass rounded-2xl p-4 relative overflow-hidden flex flex-col justify-between group cursor-pointer active:scale-95 h-full"
+                        className={`mercury-glass rounded-2xl p-4 relative overflow-hidden flex flex-col justify-between group cursor-pointer active:scale-95 h-full ${expandedCard === "stable" ? "ring-2 ring-green-500/40 shadow-[0_0_30px_rgba(34,197,94,0.25)]" : ""}`}
                     >
 
                         <div className="pointer-events-none absolute top-0 right-0 p-2 opacity-10 font-black text-8xl text-green-500 select-none leading-none z-0">CHAT</div>
@@ -1606,6 +1943,9 @@ export default function DashboardPage() {
                                 />
                             </div>
                         </div>
+                        <AnimatePresence initial={false} mode="popLayout">
+                            {expandedCard === "stable" && renderExpandedUsage(LIMIT_STABLE)}
+                        </AnimatePresence>
                     </motion.div>
                 );
             case "optimization":
@@ -1614,26 +1954,22 @@ export default function DashboardPage() {
                         key="optimization"
                         custom={2}
                         variants={topCardVariants}
-                        onClick={() => { if (!isDraggingRef.current) setExpandedCard(expandedCard === "optimization" ? null : "optimization"); }}
-                        onMouseMove={(e) => {
-                            const rect = e.currentTarget.getBoundingClientRect();
-                            e.currentTarget.style.setProperty('--x', `${e.clientX - rect.left}px`);
-                            e.currentTarget.style.setProperty('--y', `${e.clientY - rect.top}px`);
+                        layout
+                        onClick={() => {
+                            if (!isDraggingRef.current) {
+                                const next = expandedCard === "optimization" ? null : "optimization";
+                                setExpandedCard(next);
+                                if (next) setInsightLane("optimization");
+                            }
                         }}
-                        onMouseEnter={(e) => {
-                            e.currentTarget.classList.add('spotlight-active');
-                            const rect = e.currentTarget.getBoundingClientRect();
-                            e.currentTarget.style.setProperty('--x', `${e.clientX - rect.left}px`);
-                            e.currentTarget.style.setProperty('--y', `${e.clientY - rect.top}px`);
-                        }}
-                        onMouseLeave={(e) => {
-                            e.currentTarget.classList.remove('spotlight-active');
-                        }}
+                        onMouseMove={(e) => updateSpotlightPosition(e.currentTarget, e.clientX, e.clientY)}
+                        onMouseEnter={(e) => activateSpotlight(e.currentTarget, e.clientX, e.clientY)}
+                        onMouseLeave={(e) => deactivateSpotlight(e.currentTarget)}
                         style={{
                             translateZ: 0,
                             "--spotlight-color": "168, 85, 247"
                         } as React.CSSProperties}
-                        className="mercury-glass rounded-2xl p-4 relative overflow-hidden flex flex-col justify-between group cursor-pointer active:scale-95 h-full"
+                        className={`mercury-glass rounded-2xl p-4 relative overflow-hidden flex flex-col justify-between group cursor-pointer active:scale-95 h-full ${expandedCard === "optimization" ? "ring-2 ring-purple-500/40 shadow-[0_0_30px_rgba(168,85,247,0.25)]" : ""}`}
                     >
 
                         <div className="pointer-events-none absolute top-0 right-0 p-2 opacity-10 font-black text-8xl text-purple-500 select-none leading-none z-0">MEM</div>
@@ -1660,55 +1996,57 @@ export default function DashboardPage() {
                                 />
                             </div>
                         </div>
+                        <AnimatePresence initial={false} mode="popLayout">
+                            {expandedCard === "optimization" && renderExpandedUsage(LIMIT_OPT_VISUAL)}
+                        </AnimatePresence>
                     </motion.div>
                 );
-            case "usd":
+            case "usd": {
+                const isUsdExpanded = expandedCard === "usd";
                 return (
                     <motion.div
                         key="usd"
                         custom={3}
                         variants={topCardVariants}
-                        onClick={() => { if (!isDraggingRef.current) setExpandedCard(expandedCard === "usd" ? null : "usd"); }}
-                        onMouseMove={(e) => {
-                            const rect = e.currentTarget.getBoundingClientRect();
-                            e.currentTarget.style.setProperty('--x', `${e.clientX - rect.left}px`);
-                            e.currentTarget.style.setProperty('--y', `${e.clientY - rect.top}px`);
+                        layout
+                        onClick={() => {
+                            if (!isDraggingRef.current) {
+                                const next = expandedCard === "usd" ? null : "usd";
+                                setExpandedCard(next);
+                                if (next) setInsightLane("usd");
+                            }
                         }}
-                        onMouseEnter={(e) => {
-                            e.currentTarget.classList.add('spotlight-active');
-                            const rect = e.currentTarget.getBoundingClientRect();
-                            e.currentTarget.style.setProperty('--x', `${e.clientX - rect.left}px`);
-                            e.currentTarget.style.setProperty('--y', `${e.clientY - rect.top}px`);
-                        }}
-                        onMouseLeave={(e) => {
-                            e.currentTarget.classList.remove('spotlight-active');
-                        }}
+                        onMouseMove={(e) => updateSpotlightPosition(e.currentTarget, e.clientX, e.clientY)}
+                        onMouseEnter={(e) => activateSpotlight(e.currentTarget, e.clientX, e.clientY)}
+                        onMouseLeave={(e) => deactivateSpotlight(e.currentTarget)}
                         style={{
                             translateZ: 0,
                             "--spotlight-color": "255, 255, 255"
                         } as React.CSSProperties}
-                        className="mercury-glass rounded-2xl p-4 relative overflow-hidden flex flex-col justify-center items-center cursor-pointer active:scale-95 h-full"
+                        className={`mercury-glass rounded-2xl p-4 relative overflow-hidden flex flex-col items-center cursor-pointer active:scale-95 h-full ${expandedCard === "usd" ? "ring-2 ring-neutral-300/40 shadow-[0_0_30px_rgba(255,255,255,0.18)]" : ""}`}
                     >
 
                         <div className="pointer-events-none absolute top-0 right-0 p-2 opacity-10 font-black text-8xl text-neutral-600 select-none leading-none z-0">USD</div>
-                        <h3 className="text-neutral-500 font-mono text-sm uppercase tracking-widest mb-2 leading-none relative z-10">推定コスト合計 (USD)</h3>
-                        <div className="text-3xl md:text-6xl font-black text-white font-mono tracking-tighter leading-none my-2 relative z-10">
-                            $<AnimatedCounter value={usage?.total_usd || 0} formatter={(v) => v.toFixed(4)} delay={0.4} />
-                        </div>
-                        <p className="text-sm text-neutral-500 leading-none relative z-10">現在のセッション累積</p>
-                        {expandedCard === "usd" && (
-                            <div className="w-full h-full flex-1">
-                                {/* <ExpandedStatsView ... /> removed */}
+                        <div className={`flex flex-col items-center justify-center ${isUsdExpanded ? "" : "flex-1"}`}>
+                            <h3 className="text-neutral-500 font-mono text-sm uppercase tracking-widest mb-2 leading-none relative z-10">推定コスト合計 (USD)</h3>
+                            <div className="text-3xl md:text-6xl font-black text-white font-mono tracking-tighter leading-none my-2 relative z-10">
+                                $<AnimatedCounter value={usage?.total_usd || 0} formatter={(v) => v.toFixed(4)} delay={0.4} />
                             </div>
-                        )}
+                            <p className="text-sm text-neutral-500 leading-none relative z-10">現在のセッション累積</p>
+                        </div>
+                        <AnimatePresence initial={false} mode="popLayout">
+                            {expandedCard === "usd" && renderExpandedUsage()}
+                        </AnimatePresence>
                     </motion.div>
                 );
+            }
             case "neural":
                 return (
                     <motion.div
                         key="neural"
                         custom={4}
                         variants={topCardVariants}
+                        layout
                         style={{
                             translateZ: 0,
                             "--spotlight-color": "6, 182, 212"
@@ -1729,20 +2067,9 @@ export default function DashboardPage() {
                                 }
                             }
                         }}
-                        onMouseMove={(e) => {
-                            const rect = e.currentTarget.getBoundingClientRect();
-                            e.currentTarget.style.setProperty('--x', `${e.clientX - rect.left}px`);
-                            e.currentTarget.style.setProperty('--y', `${e.clientY - rect.top}px`);
-                        }}
-                        onMouseEnter={(e) => {
-                            e.currentTarget.classList.add('spotlight-active');
-                            const rect = e.currentTarget.getBoundingClientRect();
-                            e.currentTarget.style.setProperty('--x', `${e.clientX - rect.left}px`);
-                            e.currentTarget.style.setProperty('--y', `${e.clientY - rect.top}px`);
-                        }}
-                        onMouseLeave={(e) => {
-                            e.currentTarget.classList.remove('spotlight-active');
-                        }}
+                        onMouseMove={(e) => updateSpotlightPosition(e.currentTarget, e.clientX, e.clientY)}
+                        onMouseEnter={(e) => activateSpotlight(e.currentTarget, e.clientX, e.clientY)}
+                        onMouseLeave={(e) => deactivateSpotlight(e.currentTarget)}
                     >
                         <div className="absolute inset-0">
                             <NeuralBackground intensity={overloadMode ? 5.0 : (isThinking ? 1.0 : 0)} frozen={isFrozen} className="opacity-80" />
@@ -1767,6 +2094,38 @@ export default function DashboardPage() {
                                 {expandedCard === "neural" ? <><br /><span className="text-[10px] text-cyan-300">SYNAPSE EXPANDED</span></> : null}
                             </p>
                         </div>
+                        <AnimatePresence initial={false}>
+                            {expandedCard === "neural" && (
+                                <motion.div
+                                    initial={{ opacity: 0, y: 8 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: 8 }}
+                                    transition={{ duration: 0.2 }}
+                                    className="absolute bottom-4 right-4 z-10 w-52 rounded-xl border border-cyan-500/20 bg-black/40 p-3 text-[11px] space-y-2"
+                                >
+                                    <div className="flex items-center justify-between text-neutral-300">
+                                        <span>処理中ユーザー</span>
+                                        <span className="font-mono text-cyan-200">{processingUsers}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between text-neutral-300">
+                                        <span>シナプスクリック</span>
+                                        <span className="font-mono text-cyan-200">{synapseClicks}/10</span>
+                                    </div>
+                                    <div className="flex items-center justify-between text-neutral-400">
+                                        <span>Overload</span>
+                                        <span className={`font-mono ${overloadMode ? "text-amber-300" : "text-neutral-500"}`}>
+                                            {overloadMode ? "ON" : "OFF"}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center justify-between text-neutral-400">
+                                        <span>Animation</span>
+                                        <span className={`font-mono ${isFrozen ? "text-neutral-400" : "text-cyan-200"}`}>
+                                            {isFrozen ? "FROZEN" : "LIVE"}
+                                        </span>
+                                    </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
                     </motion.div>
                 );
             default:
@@ -1804,6 +2163,7 @@ export default function DashboardPage() {
                 )}
             </AnimatePresence>
 
+            <LayoutGroup id="user-cards">
             <motion.div
                 className="w-full max-w-[2560px] mx-auto space-y-3 md:space-y-4"
                 variants={containerVariants}
@@ -1861,15 +2221,16 @@ export default function DashboardPage() {
                                 key={item}
                                 value={item}
                                 as="div"
+                                layout
                                 onDragStart={() => { isDraggingRef.current = true; }}
                                 onDragEnd={() => { setTimeout(() => { isDraggingRef.current = false; }, 100); }}
                                 // Remove CSS transition-all to prevent conflict with Framer Motion layout animation
-                                className={`${isExpanded ? 'md:col-span-2 md:row-span-2 z-10' : 'md:col-span-1 md:row-span-1 z-0'}`}
+                                className={`${isExpanded ? "md:col-span-2 md:row-span-2 z-10" : "md:col-span-1 md:row-span-1 z-0"}`}
                                 transition={{
                                     layout: { type: "spring", stiffness: 300, damping: 30 }, // Snappy swap
                                     default: { duration: 0.2 }
                                 }}
-                                style={{ height: isExpanded ? '50vh' : 'auto' }}
+                                style={{ height: isExpanded ? "50vh" : "auto" }}
                                 animate={gravityMode ? {
                                     y: [0, -20 - (item.length % 5) * 2, 0, 15, 0],
                                     rotate: [0, 1 + (item.length % 2), -1, 0],
@@ -2025,7 +2386,7 @@ export default function DashboardPage() {
                         {groupByServer ? (
                             autoSortServers ? (
                                 // Auto Sort Mode (Standard List)
-                                sortedGroupedUsers.map(({ serverName, users }) => (
+                                visibleGroupedUsers.map(({ serverName, users }) => (
                                     <div key={serverName} className="flex flex-col gap-4">
                                         <motion.h3
                                             layout
@@ -2063,8 +2424,8 @@ export default function DashboardPage() {
                                 ))
                             ) : (
                                 // Manual Sort Mode (Reorderable)
-                                <Reorder.Group axis="y" values={sortedGroupedUsers.map(g => g.serverName)} onReorder={setManualOrder} className="flex flex-col gap-8">
-                                    {sortedGroupedUsers.map(({ serverName, users }) => (
+                                <Reorder.Group axis="y" values={visibleGroupedUsers.map(g => g.serverName)} onReorder={setManualOrder} className="flex flex-col gap-8">
+                                    {visibleGroupedUsers.map(({ serverName, users }) => (
                                         <Reorder.Item key={serverName} value={serverName} className="flex flex-col gap-4 bg-neutral-900/20 rounded-xl p-2 border border-neutral-800/50 cursor-move">
                                             <div className="flex items-center gap-2 pl-2">
                                                 <GripVertical className="w-4 h-4 text-neutral-600" />
@@ -2101,7 +2462,7 @@ export default function DashboardPage() {
                                 className="grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-3"
                             >
                                 <AnimatePresence initial={false}>
-                                    {sortedAllUsers.map((user, index) => (
+                                    {visibleAllUsers.map((user, index) => (
                                         <UserCard
                                             key={user.discord_user_id}
                                             user={user}
@@ -2225,6 +2586,7 @@ export default function DashboardPage() {
             {historyLane && (
                 <HistoryModal lane={historyLane} onClose={() => setHistoryLane(null)} />
             )}
+            </LayoutGroup>
         </div>
     );
 }
@@ -2247,6 +2609,16 @@ const UserCardBase = ({ user, index, screenshotMode, setSelectedUser, isSelected
     const isQueued = isPending && !isProcessing;
     const optPercent = Math.min(Math.round(((user.cost_usage?.optimization || 0) / 200000) * 100), 99);
 
+    const cardTransition = isSelected
+        ? { type: "spring", stiffness: 320, damping: 28, mass: 0.9 }
+        : {
+            type: "spring",
+            stiffness: 210,
+            damping: 20,
+            mass: 1,
+            delay: Math.min(index * 0.02, 0.1)
+        };
+
     // Helpers (Inline to avoid scope issues)
     const maskName = (name: string | null) => screenshotMode ? "User-Protected" : (name || "Unknown");
     const maskID = (id: string) => screenshotMode ? "****-****-****" : id;
@@ -2262,20 +2634,14 @@ const UserCardBase = ({ user, index, screenshotMode, setSelectedUser, isSelected
         <motion.div
             layoutId={user.discord_user_id}
             custom={index}
-            transition={{
-                type: "spring",
-                stiffness: 210,
-                damping: 20,
-                mass: 1,
-                delay: Math.min(index * 0.02, 0.1) // Cap delay to prevent visual lag/overlap on long lists
-            }}
-            whileHover={{
+            transition={cardTransition}
+            whileHover={!isSelected ? {
                 scale: 1.02,
                 y: -5,
                 rotateX: 4,
                 rotateY: -2,
                 transition: { type: "spring", stiffness: 300, damping: 20 }
-            }}
+            } : undefined}
             whileTap={{ scale: 0.98 }}
             onClick={() => setSelectedUser(user.discord_user_id)}
             style={{ willChange: "transform, opacity", translateZ: 0 }}
@@ -2310,11 +2676,10 @@ const UserCardBase = ({ user, index, screenshotMode, setSelectedUser, isSelected
             />
 
             {/* Content Container */}
-            <motion.div layout className="relative z-10 flex items-center gap-4 w-full">
+            <div className="relative z-10 flex items-center gap-4 w-full">
 
                 {/* Status Bar Indicator - ALWAYS VISIBLE */}
-                <motion.div
-                    layout
+                <div
                     className={`absolute left-[-0.75rem] top-[-0.75rem] bottom-[-0.75rem] w-1 rounded-l-xl z-20
                         ${isOptimized ? "bg-emerald-500"
                             : isProcessing ? "bg-cyan-400 shadow-[0_0_10px_cyan]"
@@ -2324,9 +2689,8 @@ const UserCardBase = ({ user, index, screenshotMode, setSelectedUser, isSelected
                 />
 
                 {/* Avatar - ALWAYS VISIBLE */}
-                <motion.div layout className="flex-shrink-0 ml-1 relative">
-                    <motion.div
-                        layout
+                <motion.div layoutId={`avatar-${user.discord_user_id}`} className="flex-shrink-0 ml-1 relative">
+                    <div
                         className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-xl shadow-lg transition-all overflow-hidden ${screenshotMode ? "blur-md" : ""
                             } ${isOptimized
                                 ? "bg-neutral-800 text-neutral-600 border border-neutral-700"
@@ -2337,8 +2701,7 @@ const UserCardBase = ({ user, index, screenshotMode, setSelectedUser, isSelected
                         {isProcessing ? (
                             <Loader2 className="w-5 h-5 animate-spin" />
                         ) : (user as any).avatar_url ? (
-                            <motion.img
-                                layout
+                            <img
                                 src={(user as any).avatar_url}
                                 alt=""
                                 className="w-full h-full rounded-xl object-cover"
@@ -2346,7 +2709,7 @@ const UserCardBase = ({ user, index, screenshotMode, setSelectedUser, isSelected
                         ) : (
                             maskAvatar(user.display_name || "Unknown")
                         )}
-                    </motion.div>
+                    </div>
 
                     {/* Discord Status Indicator */}
                     <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-neutral-950 flex items-center justify-center z-20
@@ -2366,7 +2729,7 @@ const UserCardBase = ({ user, index, screenshotMode, setSelectedUser, isSelected
                 </motion.div>
 
                 {/* Hidden Content Wrapper (Fades out when selected) */}
-                <motion.div layout animate={hiddenAnim} className="flex-1 min-w-0 flex items-center gap-4 pl-1">
+                <motion.div animate={hiddenAnim} className="flex-1 min-w-0 flex items-center gap-4 pl-1">
 
                     {/* Impression Badge */}
                     {(user.impression || isProcessing || isPending || isError) && (
@@ -2503,7 +2866,7 @@ const UserCardBase = ({ user, index, screenshotMode, setSelectedUser, isSelected
                     {/* End Grid */}
                 </motion.div>
                 {/* End Hidden Content Wrapper */}
-            </motion.div>
+            </div>
             {/* End Content Container */}
         </motion.div>
     );

@@ -15,6 +15,23 @@ pip-delete-this-directory.txt
 
 # Google Cloud
 service-account.json
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Environment Variables
+.env
+
+# Google Cloud
+service-account.json
 client_secret_*.json
 
 # IDEs
@@ -24,9 +41,14 @@ client_secret_*.json
 # Local Data
 data/
 ora_bot.db
+ora_bot.db.*
 *.log
+*.log.*
 *.mp3
 *.wav
+*.zip
+*.bak
+*.txt
 
 # Node.js
 node_modules/
@@ -34,6 +56,18 @@ node_modules/
 out/
 build/
 dist/
+
+# Temporary Scripts
+cleanup.py
+debug_memory_trigger.py
+find_def.py
+locate_summary.py
+verify_system.py
+check_voicevox_status.py
+debug_search.py
+verify_openai_fix.py
+verify_youtube_search.py
+verify_voice.py
 
 tigauno
 

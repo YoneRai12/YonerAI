@@ -3,7 +3,7 @@ import json
 import os
 import logging
 from dataclasses import dataclass, field, asdict
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 import pytz
 from typing import Dict, Optional, Literal, Any
 from src.config import COST_LIMITS, COST_TZ, STATE_DIR
@@ -55,12 +55,18 @@ class CostManager:
         # Structure: key -> List[Bucket]
         self.global_history: Dict[str, list[Bucket]] = {} 
         self.user_history: Dict[str, Dict[str, list[Bucket]]] = {}
+        self.global_hourly: Dict[str, Dict[str, Usage]] = {}
+        self.user_hourly: Dict[str, Dict[str, Dict[str, Usage]]] = {}
 
         self._load_state()
 
     def _get_current_time_keys(self):
         now = datetime.now(self.timezone)
         return now.strftime("%Y-%m-%d"), now.strftime("%Y-%m")
+
+    def _get_current_hour_key(self) -> str:
+        now = datetime.now(self.timezone)
+        return now.strftime("%Y-%m-%dT%H")
 
     def _get_bucket_key(self, lane: Lane, provider: Provider) -> str:
         return f"{lane}:{provider}"
@@ -89,6 +95,15 @@ class CostManager:
             # Restore User History
             for user_id, user_hist_data in data.get("user_history", {}).items():
                 self.user_history[user_id] = {k: [self._dict_to_bucket(b) for b in v_list] for k, v_list in user_hist_data.items()}
+
+            # Restore Hourly Usage (Optional)
+            for k, hour_map in data.get("global_hourly", {}).items():
+                self.global_hourly[k] = {hour: self._dict_to_usage(u) for hour, u in hour_map.items()}
+            for user_id, user_hour_map in data.get("user_hourly", {}).items():
+                self.user_hourly[user_id] = {
+                    k: {hour: self._dict_to_usage(u) for hour, u in hour_map.items()}
+                    for k, hour_map in user_hour_map.items()
+                }
                 
             logger.info("Cost state loaded successfully.")
         except Exception as e:
@@ -104,13 +119,53 @@ class CostManager:
             last_update_iso=data.get("last_update_iso", "")
         )
 
+    def _dict_to_usage(self, data: dict) -> Usage:
+        return Usage(**data)
+
+    def _prune_hourly(self, hour_map: Dict[str, Usage]) -> None:
+        cutoff = datetime.now(self.timezone).replace(tzinfo=None) - timedelta(days=7)
+        for hour in list(hour_map.keys()):
+            try:
+                dt = datetime.strptime(hour, "%Y-%m-%dT%H")
+                if dt < cutoff:
+                    del hour_map[hour]
+            except ValueError:
+                # If parsing fails, drop malformed keys to keep data clean.
+                del hour_map[hour]
+
+    def _add_hourly_usage(self, lane: Lane, provider: Provider, user_id: Optional[int], usage: Usage) -> None:
+        hour_key = self._get_current_hour_key()
+        bucket_key = self._get_bucket_key(lane, provider)
+
+        if user_id is not None:
+            uid = str(user_id)
+            self.user_hourly.setdefault(uid, {})
+            self.user_hourly[uid].setdefault(bucket_key, {})
+            hour_map = self.user_hourly[uid][bucket_key]
+        else:
+            self.global_hourly.setdefault(bucket_key, {})
+            hour_map = self.global_hourly[bucket_key]
+
+        hour_usage = hour_map.get(hour_key)
+        if hour_usage is None:
+            hour_usage = Usage()
+            hour_map[hour_key] = hour_usage
+
+        hour_usage.add(usage)
+        self._prune_hourly(hour_map)
+
     def _save_state(self):
         try:
             data = {
                 "global_buckets": {k: asdict(v) for k, v in self.global_buckets.items()},
                 "global_history": {k: [asdict(b) for b in v] for k, v in self.global_history.items()},
                 "user_buckets": {uid: {k: asdict(v) for k, v in ubuckets.items()} for uid, ubuckets in self.user_buckets.items()},
-                "user_history": {uid: {k: [asdict(b) for b in v] for k, v in uhists.items()} for uid, uhists in self.user_history.items()}
+                "user_history": {uid: {k: [asdict(b) for b in v] for k, v in uhists.items()} for uid, uhists in self.user_history.items()},
+                "global_hourly": {k: {hour: asdict(u) for hour, u in hour_map.items()} for k, hour_map in self.global_hourly.items()},
+                "user_hourly": {
+                    uid: {k: {hour: asdict(u) for hour, u in hour_map.items()} for k, hour_map in uhists.items()}
+                    for uid, uhists in self.user_hourly.items()
+                }
             }
             with open(self.state_file, 'w', encoding='utf-8') as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
@@ -225,6 +280,7 @@ class CostManager:
             bucket.reserved.sub(est)
         
         bucket.last_update_iso = datetime.now(self.timezone).isoformat()
+        self._add_hourly_usage(lane, provider, user_id, actual)
         self._save_state()
         
         return bucket.used.usd
@@ -250,6 +306,7 @@ class CostManager:
             bucket.used.add(est)
             bucket.reserved.sub(est)
             del self._reservations[reservation_id]
+            self._add_hourly_usage(lane, provider, user_id, est)
             
         bucket.last_update_iso = datetime.now(self.timezone).isoformat()
         self._save_state()
@@ -261,12 +318,14 @@ class CostManager:
         bucket = self._get_or_create_bucket(lane, provider, user_id)
         bucket.used.add(usage)
         bucket.last_update_iso = datetime.now(self.timezone).isoformat()
+        self._add_hourly_usage(lane, provider, user_id, usage)
 
         # Also update Global Bucket if this was a user-specific add
         if user_id is not None:
             global_bucket = self._get_or_create_bucket(lane, provider, None)
             global_bucket.used.add(usage)
             global_bucket.last_update_iso = datetime.now(self.timezone).isoformat()
+            self._add_hourly_usage(lane, provider, None, usage)
         
         self._save_state()
         logger.info(f"CostAdded: {lane}:{provider} user={user_id} used={usage}")

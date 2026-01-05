@@ -11,7 +11,8 @@ import warnings
 warnings.filterwarnings("ignore", category=FutureWarning, module="google.generativeai")
 warnings.filterwarnings("ignore", category=FutureWarning, module="src.utils.google_client")
 
-import google.generativeai as genai
+# Lazy import to prevent hang on module load
+genai = None
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +29,11 @@ class GoogleClient:
         if not api_key:
             raise ValueError("Google API Key is required.")
         
+        # Lazy Import
+        global genai
+        if genai is None:
+            import google.generativeai as genai
+
         genai.configure(api_key=api_key)
         self.api_key = api_key
         

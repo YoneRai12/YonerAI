@@ -59,11 +59,13 @@ class SystemCog(commands.Cog):
         # Start Discord State Sync (for Dashboard)
         try:
             self.sync_discord_state.start()
+            self.log_forwarder.start()
         except RuntimeError:
             pass # Already running
 
     def cog_unload(self):
         self.sync_discord_state.cancel()
+        self.log_forwarder.cancel()
 
     @tasks.loop(seconds=5)
     async def sync_discord_state(self):
@@ -83,7 +85,6 @@ class SystemCog(commands.Cog):
                     status = str(member.status)
                     uid = str(member.id)
                     
-
                     # Banner Logic: Guild Banner > Global Banner
                     banner_hash = None
                     if hasattr(member, 'banner') and member.banner:
@@ -128,6 +129,116 @@ class SystemCog(commands.Cog):
              logger.error(f"sync_discord_state Error: {e}")
              pass 
 
+    @tasks.loop(seconds=1.0)
+    async def log_forwarder(self):
+        """
+        Consumes logs from asyncio.Queue and forwards them to the Debug Channel.
+        """
+        await self.bot.wait_until_ready()
+        
+        # Access the global queue from logger
+        from src.utils.logger import GuildLogger
+        queue = GuildLogger.queue
+        
+        if queue.empty():
+            return
+
+        batch = []
+        try:
+            while not queue.empty() and len(batch) < 10:
+                record = queue.get_nowait()
+                batch.append(record)
+        except Exception:
+            pass
+            
+        if not batch:
+            return
+
+        channel_id = getattr(self.bot.config, "log_channel_id", 1455097004433604860)
+        channel = self.bot.get_channel(channel_id)
+        if not channel:
+            return # Channel not found or bot not ready fully
+
+        # Aggregate logs
+        for record in batch:
+            try:
+                msg = record.message
+
+                # FILTER: Rate Limit Spam (User Request)
+                if "We are being rate limited" in msg or "429" in msg:
+                    continue
+
+                # Filter spam messages
+                # 1. ALWAYS Allow ERROR and Critical
+                if record.levelno >= logging.ERROR:
+                    pass
+                # 2. WARNINGS: Allow, but maybe filter specific repetitive ones?
+                elif record.levelno >= logging.WARNING:
+                    pass
+                # 3. INFO: STRICT Allow-List / Block-List
+                else:
+                    # BLOCK LIST (Spammy Info)
+                    if "Starting periodic backup" in msg: continue
+                    if "discord.gateway" in record.name: continue
+                    if "src.cogs.memory" in record.name and "Saved" in msg: continue # Periodic saves
+                    if "AutoScan" in msg: continue # Memory Scan Spam
+                    
+                    # ALLOW LIST (Explicitly wanted Info)
+                    allowed_keywords = [
+                        "Backup successful", "Backup failed", 
+                        "ORA Discord Botを起動します", 
+                        "Healer", "Auto-Evolution", 
+                        "dev_request", "System Diagnostics",
+                        "Memory", "メモリ" # Critical for Learning Feedback
+                    ]
+                    
+                    # If not in allowed list, SKIP it (Default Deny for INFO noise)
+                    if not any(k in msg for k in allowed_keywords):
+                        continue
+                
+                # --- Translation Layer (English -> Japanese) ---
+                if "Backup successful" in msg:
+                    msg = msg.replace("Backup successful", "✅ バックアップ成功")
+                if "Backup failed" in msg:
+                    msg = msg.replace("Backup failed", "❌ バックアップ失敗")
+                if "ORA Discord Botを起動します" in msg:
+                    msg = "🚀 ORA Discord Botを起動しました (システム正常)"
+                if "Healer" in record.name:
+                    msg = f"🩹 自動修復システム: {msg}"
+                if "dev_request" in msg:
+                   msg = f"📩 開発リクエスト: {msg}"
+
+                # Create Embed
+                color = discord.Color.red() if record.levelno >= logging.ERROR else \
+                        discord.Color.orange() if record.levelno == logging.WARNING else \
+                        discord.Color.green()
+                
+                title = "🚨 エラー発生" if record.levelno >= logging.ERROR else \
+                        "⚠️ 警告" if record.levelno == logging.WARNING else \
+                        "✅ システム通知"
+                
+                emoji = "🛑" if record.levelno >= logging.ERROR else \
+                        "⚠️" if record.levelno == logging.WARNING else \
+                        "ℹ️"
+                
+                if "Backup" in record.message or "バックアップ" in msg:
+                    emoji = "💾"
+                    title = "バックアップ報告"
+                    
+                embed = discord.Embed(
+                    title=f"{emoji} {title} [{record.name}]",
+                    description=f"```{msg[:4000]}```",
+                    color=color,
+                    timestamp=discord.utils.utcnow()
+                )
+                if record.exc_text:
+                    embed.add_field(name="Exception", value=f"```py\n{record.exc_text[-1000:]}```", inline=False)
+                
+                await channel.send(embed=embed)
+                
+            except Exception as e:
+                print(f"Failed to forward log: {e}")
+
     def _check_admin(self, interaction: discord.Interaction) -> bool:
         admin_id = self.bot.config.admin_user_id
         creator_id = 1069941291661672498
@@ -140,11 +251,23 @@ class SystemCog(commands.Cog):
         user_name = getattr(user, "name", "Unknown")
         log_msg = f"AUDIT: User={user_name}({user.id}) Action={action} Details='{details}' Status={status}"
         logger.info(log_msg)
-        # In a real enterprise app, write to a separate file or DB
-        with open("system_audit.log", "a", encoding="utf-8") as f:
-            import datetime
-            timestamp = datetime.datetime.now().isoformat()
-            f.write(f"[{timestamp}] {log_msg}\n")
+
+    @app_commands.command(name="dev_request", description="Botに新機能の実装や改修をリクエストします (自己進化)")
+    @app_commands.describe(request="実装してほしい機能や変更内容")
+    async def dev_request(self, interaction: discord.Interaction, request: str):
+        # Allow Admin/Owner Only
+        if not self._check_admin(interaction):
+            await interaction.response.send_message("⛔ 権限がありません。", ephemeral=True)
+            return
+
+        await interaction.response.send_message(f"🧬 リクエストを受理しました: `{request}`\n\n分析と実装案の作成を開始します...", ephemeral=True)
+        
+        # Trigger Healer Propose
+        await self.bot.healer.propose_feature(
+            feature=request, 
+            context="User triggered /dev_request", 
+            requester=interaction.user
+        )
 
     @app_commands.command(name="pc_control", description="PCシステム操作 (Admin Only)")
     @app_commands.describe(

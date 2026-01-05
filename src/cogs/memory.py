@@ -1,9 +1,24 @@
 
+# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# CRITICAL PROTOCOL WARNING
+# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# DO NOT MODIFY THE SCANNING/OPTIMIZATION LOGIC IN THIS FILE WITHOUT FIRST
+# READING: `ORA_OPTIMIZATION_MANIFEST.md`
+#
+# THE LOGIC IS LOCKED BY USER DECREE:
+# 1. REAL-TIME: Immediate trigger on 5 messages (Buffer).
+# 2. BACKGROUND: Local Logs ONLY. NO API SCANNING (Silent).
+# 3. MANUAL: API Scanning ALLOWED (Deep Scan) but throttled.
+#
+# FAILURE TO FOLLOW THIS WILL CAUSE REGRESSION AND USER FRUSTRATION.
+# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
 import discord
 from discord.ext import commands, tasks
 from discord import app_commands
 import logging
 import json
+import time
 import os
 import aiofiles
 import time
@@ -190,9 +205,15 @@ class MemoryCog(commands.Cog):
         member = guild.get_member(worker_id)
         
         if member:
-            # Worker is present and should be online/performing tasks.
-            # Main bot should back off from heavy tasks.
-            return False
+            # Check if Worker is actually ONLINE
+            # If Worker is offline, Main Bot MUST take over as redundancy.
+            if str(member.status) != "offline":
+                # Worker is present and ONLINE. Main bot backs off.
+                return False
+            else:
+                # Worker is present but OFFLINE. Main bot takes over.
+                # logger.debug(f"Memory: Worker Bot found but OFFLINE in {guild.name}. Main Bot taking over.")
+                return True
             
         # Worker not present. Main bot takes over as Fallback.
         return True
@@ -227,8 +248,17 @@ class MemoryCog(commands.Cog):
         }
         self.message_buffer[message.author.id].append(entry)
         
-        # Cap buffer size
-        if len(self.message_buffer[message.author.id]) > 50:
+        # Trigger Optimization immediately if threshold reached (User Request: "5 messages")
+        if len(self.message_buffer[message.author.id]) >= 5:
+             logger.info(f"Memory: Instant Optimization Trigger for {message.author.display_name} (5+ new msgs)")
+             msgs_to_process = self.message_buffer[message.author.id][:] # Copy
+             self.message_buffer[message.author.id] = [] # Clear
+             
+             # Fire off analysis (Background)
+             asyncio.create_task(self._analyze_wrapper(message.author.id, msgs_to_process, message.guild.id if message.guild else None, is_pub))
+        
+        # Cap buffer size (Safety net if trigger fails or backlog)
+        elif len(self.message_buffer[message.author.id]) > 50:
              self.message_buffer[message.author.id].pop(0)
 
         # Phase 32: Per-User History Persistence (with scope)
@@ -461,6 +491,11 @@ class MemoryCog(commands.Cog):
         except Exception as e:
             logger.error(f"Failed to update profile for {user_id}: {e}")
 
+    async def set_user_status(self, user_id: int, status: str, msg: str, guild_id: int | str = None, is_public: bool = True):
+        """Helper to quickly update user status for dashboard feedback."""
+        await self.update_user_profile(user_id, {"status": status, "status_msg": msg}, guild_id, is_public)
+
+
         # Since I can't see the START of update_user_profile in the view (it starts at 400 inside the function?),
         # I'll replace the block I see or scroll up.
         # Ah, View showed 400-450. Line 429 is set_user_status.
@@ -582,10 +617,13 @@ class MemoryCog(commands.Cog):
                      try:
                          # o1/gpt-5 ready (mapped internally)
                          # Explicitly pass None for temperature if needed, but client handles it now.
+                         logger.info(f"Memory: 📡 Sending analysis request to OpenAI (Timeout: 180s)...")
+                         start_t = time.time()
                          response_text, _, usage_dict = await asyncio.wait_for(
                              self._llm.chat("openai", prompt, temperature=None, max_tokens=max_output),
                              timeout=180.0
                          )
+                         logger.info(f"Memory: 📥 LLM Response received in {time.time() - start_t:.2f}s")
                      except asyncio.TimeoutError:
                          logger.error(f"Memory: LLM Analysis TIMED OUT for {user_id}")
                          raise Exception("Analysis Request Timed Out (3min)")
@@ -650,290 +688,16 @@ class MemoryCog(commands.Cog):
             await self.set_user_status(user_id, "Error", "分析失敗", guild_id, is_public)
 
 
-    async def _analyze_batch(self, user_id: int, messages: list[Dict[str, Any]], guild_id: int | str = None, is_public: bool = True):
-        """Analyze a batch of messages and update the user profile in the correct scope."""
-        if not messages: return
 
-        chat_log = "\n".join([f"[{m['timestamp']}] {m['content']}" for m in messages])
         
-        last_msg_id = max([m.get("id", 0) for m in messages]) if messages else 0
+
+
+
         
-        # --- BUDGET-AWARE DEPTH SELECTION ---
-        depth_mode = "Standard"
-        extra_instructions = ""
-        max_output = 10000 # Standard now 10k
-        
-        ora_cog = self.bot.get_cog("ORACog")
-        cost_manager = ora_cog.cost_manager if ora_cog else None
-        
-        if cost_manager:
-            usage_ratio = cost_manager.get_usage_ratio("optimization", "openai")
-            # If less than 40% used, go EXTREME (Leveraging 2.5M free tier)
-            if usage_ratio < 0.4:
-                depth_mode = "Extreme Deep Reflection"
-                max_output = 128000 # GPT-5 Peak Limit
-                extra_instructions = (
-                    "5. **Deep Psychological Profile**: 提供された会話から、ユーザーの潜在的な価値観、孤独感、承認欲求、または知的好奇心の傾向を深く洞察してください。\n"
-                    "6. **Relationship Analysis**: ORA（AI）や他者に対してどのような距離感を保とうとしているか分析してください。\n"
-                    "7. **Future Predictions**: このユーザーが次に興味を持ちそうなトピックや、陥りやすい感情的パターンを予測してください。\n"
-                    "Traitsは最低15個抽出してください。"
-                )
-            elif usage_ratio < 0.7:
-                depth_mode = "Deep Analysis"
-                max_output = 100000 # o-series Peak Limit
-                extra_instructions = "5. **Detailed Insight**: 会話の裏にある意図や感情を1段深く分析してください。Traitsは最低10個抽出してください。"
-
-        prompt = [
-            {"role": "system", "content": (
-                f"You are a World-Class Psychologist AI implementing a '4-Layer Memory System'. Analysis Mode: {depth_mode}. Output MUST be in Japanese.\n"
-                "Layers:\n"
-                "1. **Layer 1 (Metadata)**: Status, Device (managed by system, ignore in output).\n"
-                "2. **Layer 2 (User Memory)**: Static facts (Name, Age, Job) and Personality Traits.\n"
-                "3. **Layer 3 (Summary)**: A conceptual map of the conversation context.\n"
-                "4. **Layer 4 (Session)**: Raw logs (provided as input)."
-            )},
-            {"role": "user", "content": (
-                f"Analyze the chat logs for this user based on the 4-Layer Memory Architecture.\n"
-                f"Extract:\n"
-                f"1. **Layer 2 - Facts**: ユーザーに関する確定的な事実（名前、年齢、職業、居住地など）。推測は含めないこと。\n"
-                f"2. **Layer 2 - Traits**: 性格、話し方の特徴 (e.g., 明るい, 皮肉屋).\n"
-                f"3. **Layer 2 - Impression**: ユーザーを一言で表すキャッチフレーズ。\n"
-                f"4. **Layer 3 - Global Map**: これまでの会話の大まかな地図・要約。\n"
-                f"5. **Interests**: 興味のあるトピック。\n"
-                f"{extra_instructions}\n\n"
-                f"Chat Log:\n{chat_log}\n\n"
-                f"Output strictly in this JSON format (All values in Japanese):\n"
-                f"{{ \n"
-                f"  \"layer2_user_memory\": {{ \"facts\": [\"...\"], \"traits\": [\"...\"], \"impression\": \"...\", \"interests\": [\"...\"] }},\n"
-                f"  \"layer3_summary\": {{ \"global_summary\": \"...\", \"deep_profile\": \"...\", \"future_pred\": \"...\" }}\n"
-                f"}}"
-            )}
-        ]
-        
-        # COST TRACKING PREP
-        from src.utils.cost_manager import Usage
-        import secrets
-        
-        cost_manager = None
-        ora_cog = self.bot.get_cog("ORACog")
-        if ora_cog:
-            cost_manager = ora_cog.cost_manager
-
-        est_usage = Usage(tokens_in=len(chat_log)//4 + 500, tokens_out=max_output, usd=0.0)
-        rid = secrets.token_hex(4)
-
-        try:
-            response_text = ""
-            actual_usage = None
-
-            # Try APi (OpenAI) first as requested for optimization
-            try:
-                # MARK AS PROCESSING (Visual Feedback for Dashboard)
-                # We update the profile to "Processing" so the user card turns Cyan with a Spinner.
-                try:
-                    logger.info(f"Memory: Setting status to Processing for {user_id} (Guild: {guild_id}, Public: {is_public})...")
-                    await self.update_user_profile(user_id, {
-                        "status": "Processing",
-                        "impression": "Processing..."
-                    }, guild_id, is_public=is_public)
-                except Exception as e_profile:
-                    logger.warning(f"Memory: Failed to set Processing status: {e_profile}")
-
-                # Assuming _llm is UnifiedClient
-                if hasattr(self._llm, "openai_client") or hasattr(self._llm, "google_client"):
-                     # Reserve
-                     if cost_manager:
-                         cost_manager.reserve("optimization", "openai", user_id, rid, est_usage)
-
-                     # O1/GPT-5 models often don't support temperature or require default (1.0)
-                     # Explicitly pass None to omit it from payload
-                     # max_completion_tokens is required for newer OpenAI models to get enough output
-                     # max_completion_tokens (or max_output_tokens for new API) is handled by LLMClient mapping
-                     # ADDED TIMEOUT (3 minutes)
-                     try:
-                         response_text, _, usage_dict = await asyncio.wait_for(
-                             self._llm.chat("openai", prompt, temperature=None, max_tokens=max_output),
-                             timeout=180.0
-                         )
-                     except asyncio.TimeoutError:
-                         logger.error(f"Memory: LLM Analysis TIMED OUT for {user_id}")
-                         raise Exception("Analysis Request Timed Out (3min)")
-                     
-                     if usage_dict:
-                         u_in = usage_dict.get("prompt_tokens") or usage_dict.get("input_tokens", 0)
-                         u_out = usage_dict.get("completion_tokens") or usage_dict.get("output_tokens", 0)
-                         # Pricing (GPT-4o-mini approx): $0.15/1M in, $0.60/1M out
-                         c_usd = (u_in * 0.00000015) + (u_out * 0.00000060)
-                         
-                         actual_usage = Usage(
-                             tokens_in=u_in,
-                             tokens_out=u_out,
-                             usd=c_usd
-                         )
-                         logger.info(f"Memory: DEBUG OpenAI Usage -> In:{u_in} Out:{u_out} USD:{c_usd:.6f}")
-                     else:
-                         logger.warning("Memory: DEBUG OpenAI returned NO usage_dict")
-
-                else:
-                     raise RuntimeError("OpenAI disabled")
-            except Exception as e:
-                 logger.error(f"Memory: DEBUG OpenAI Failed: {e}")
-                 # Fallback to Local
-                 # Ensure vLLM is running (Wake-on-Demand)
-                 rm = self.bot.get_cog("ResourceManager")
-                 if rm: await rm.ensure_vllm_started()
-
-                 if hasattr(self._llm, "chat"):
-                     # Check if UnifiedClient (requires provider arg) or LLMClient
-                     # UnifiedClient.chat(provider, messages)
-                     if hasattr(self._llm, "google_client"): # Fingerprint for UnifiedClient
-                         # Local Tracking? (Lane=Private) - Maybe separate optimization usage for local too?
-                         # For now, stick to openai tracking request.
-                         response_text, _, _ = await self._llm.chat("local", prompt, temperature=0.3, max_tokens=1500)
-                     else:
-                         response_text, _, _ = await self._llm.chat(prompt, temperature=0.3, max_tokens=1500)
-
-            # Commit Cost if OpenAI
-            if cost_manager and actual_usage:
-                res = cost_manager.commit("optimization", "openai", user_id, rid, actual_usage)
-                logger.info(f"Memory: DEBUG Cost Committed. Total USD for this batch: {res}")
-            elif not cost_manager:
-                logger.warning("Memory: DEBUG CostManager NOT FOUND")
-            elif not actual_usage:
-                logger.warning("Memory: DEBUG Actual Usage NOT SET (OpenAI failed or fallback used)")
-
-
-            # Robust JSON Extraction
-            # 1. Strip Markdown Code Blocks
-            cleaned_text = response_text.replace("```json", "").replace("```", "").strip()
-            
-            # 2. Regex Search (Non-Greedy for outer braces)
-            import re
-            # Match first { to last }
-            json_match = re.search(r"\{[\s\S]*", cleaned_text) # Greedier start, handle truncated end
-            
-            data = None
-            if json_match:
-                potential_json = json_match.group(0)
-                # If it doesn't end with }, try repairing it
-                if not potential_json.strip().endswith("}"):
-                    logger.warning(f"Memory: Response appears truncated. Attempting repair...")
-                    potential_json = robust_json_repair(potential_json)
-
-                try:
-                    # strict=False allows control characters like newlines in strings
-                    data = json.loads(potential_json, strict=False)
-                except json.JSONDecodeError:
-                    # Try repair AGAIN just in case
-                    repaired = robust_json_repair(potential_json)
-                    try:
-                        data = json.loads(repaired, strict=False)
-                    except:
-                        # Final Fallback: ast.literal_eval for Python-like dict strings
-                        try:
-                            # Strip trailing junk if any after repair
-                            if repaired.count('{') == 1 and repaired.count('}') == 1:
-                                data = ast.literal_eval(repaired)
-                        except Exception as e_ast:
-                            logger.error(f"Memory: JSON Parse Failed even after repair. \nRaw: {repaired[:200]}... \nError: {e_ast}")
-            
-            if data:
-                user_obj = self.bot.get_user(user_id)
-                data["name"] = user_obj.name if user_obj else "Unknown"
-
-                # Fetch Banner (Global) - Nitro check
-                try:
-                    full_user = await self.bot.fetch_user(user_id)
-                    if full_user and full_user.banner:
-                        data["banner"] = full_user.banner.key
-                except Exception as e_banner:
-                    logger.warning(f"Memory: Failed to fetch banner for {user_id}: {e_banner}")
-                
-                # Attach Source Context
-                data["last_context"] = messages
-                data["last_message_id"] = last_msg_id
-                
-                # MARK AS OPTIMIZED (Important for Dashboard)
-                data["status"] = "Optimized"
-
-                # === 4-Layer Architecture Normalization ===
-                # Ensure root keys correspond to the new structure, but also keep flat keys for backward compatibility/ease of access
-                
-                # If the LLM returns the nested structure directly (it should)
-                l2 = data.get("layer2_user_memory")
-                l3 = data.get("layer3_summary")
-
-                # Fallback if LLM messed up structure but returned flat keys (Old format)
-                if not l2 and "traits" in data:
-                     # Reconstruct Layer 2
-                     l2 = {
-                         "facts": [], # Can't recover facts from old format easily
-                         "traits": data.get("traits", []),
-                         "impression": data.get("impression", "Analysing..."),
-                         "interests": data.get("interests", [])
-                     }
-                     data["layer2_user_memory"] = l2
-
-                if not l3 and ("history_summary" in data or "summary" in data):
-                    # Reconstruct Layer 3
-                    l3 = {
-                        "global_summary": data.get("history_summary") or data.get("summary", ""),
-                        "deep_profile": data.get("deep_profile", ""),
-                        "future_pred": data.get("future_pred", "")
-                    }
-                    data["layer3_summary"] = l3
-
-
-                # Sync essential flat keys for Dashboard (until Dashboard is fully updated)
-                if l2:
-                    data["impression"] = l2.get("impression", data.get("impression"))
-                    data["traits"] = l2.get("traits", data.get("traits", []))
-                    # Ensure impression is not "Processing..."
-                    if data["impression"] == "Processing...":
-                         data["impression"] = "分析完了"
-                         l2["impression"] = "分析完了" # update layer 2 as well
-
-                
-                # Fetch Guild Name to persist it
-                if guild_id:
-                    guild = self.bot.get_guild(int(guild_id))
-                    if guild:
-                        data["guild_name"] = guild.name
-                        
-                        # Layer 1 Metadata update
-                        if "layer1_metadata" not in data: data["layer1_metadata"] = {}
-                        data["layer1_metadata"]["guild_name"] = guild.name
-                        data["layer1_metadata"]["guild_id"] = str(guild_id)
-
-                # Store message count for Dashboard stats
-                data["message_count"] = len(messages)
-
-                await self.update_user_profile(user_id, data, guild_id, is_public=is_public)
-                logger.info(f"Memory: Updated profile for {user_id} ({len(messages)} messages) in Guild: {guild_id}")
-            else:
-                logger.warning(f"Memory: Failed to extract JSON from response. Setting status to Error.")
-                # SET STATUS TO ERROR if failed
-                profile = await self._read_profile_retry(self._get_memory_path(user_id, guild_id, is_public=is_public))
-                if profile:
-                    profile["status"] = "Error" 
-                    profile["impression"] = "分析データ抽出失敗"
-                    await self.update_user_profile(user_id, profile, guild_id, is_public=is_public)
-        except Exception as e:
-            logger.error(f"Memory: Analysis failed for {user_id}: {e}")
-            if cost_manager and actual_usage is None: # Rollback if reserve passed but execution failed
-                 cost_manager.rollback("optimization", "openai", user_id, rid)
-            # SET STATUS TO ERROR if failed, so they don't stay "Pending" forever
-            try:
-                profile = await self._read_profile_retry(self._get_memory_path(user_id, guild_id, is_public=is_public))
-                if profile:
-                    profile["status"] = "Error"
-                    # Add a note about the failure to the impression tag
-                    profile["impression"] = "AI連携エラー (再試行待ち)"
-                    await self.update_user_profile(user_id, profile, guild_id, is_public=is_public)
-            except:
-                pass
-
     async def _analyze_wrapper(self, user_id: int, messages: list, guild_id: int | str = None, is_public: bool = True):
+
+
+
         """Wrapper to run analysis with concurrency limit and scope."""
         async with self.sem:
             await self._analyze_batch(user_id, messages, guild_id, is_public)
@@ -1136,8 +900,8 @@ class MemoryCog(commands.Cog):
         if priv_batch:
             asyncio.create_task(self._analyze_wrapper(user_id, priv_batch, guild_id, is_public=False))
 
-    async def _find_user_history_targeted(self, user_id: int, guild_id: int, scan_depth: int = 500) -> list:
-        """Find messages for a specific user specifically if missed by general scan."""
+    async def _find_user_history_targeted(self, user_id: int, guild_id: int, scan_depth: int = 500, allow_api: bool = False) -> list:
+        """Find messages for a specific user. API scan is optional to prevent rate limits."""
         guild = self.bot.get_guild(guild_id)
         if not guild: return []
         collected = []
@@ -1165,7 +929,11 @@ class MemoryCog(commands.Cog):
         except Exception as e:
             logger.error(f"TargetedHistory: Log read failed: {e}")
 
-        # 2. API Fallback
+        # 2. API Fallback (Controlled)
+        if not allow_api:
+            logger.debug(f"TargetedHistory: API Scan skipped for {user_id} (allow_api=False).")
+            return collected
+
         # Scan ALL channels, Threads, and Forums
         logger.debug(f"TargetedHistory: Falling back to Discord API for {user_id} (Channels + Threads)...")
         
@@ -1179,9 +947,6 @@ class MemoryCog(commands.Cog):
         destinations.extend([t for t in guild.threads if t.permissions_for(guild.me).read_messages])
         
         # Forum Channels (if visible)
-        # Note: Forums are iterated like channels, but we need to check threads inside them? 
-        # Actually guild.threads includes active threads in forums usually.
-        # But let's explicitly include Voice Channels just in case text-in-voice is used
         destinations.extend([vc for vc in guild.voice_channels if vc.permissions_for(guild.me).read_messages])
 
         for channel in destinations:
@@ -1219,7 +984,7 @@ class MemoryCog(commands.Cog):
                     if len(collected) >= 50: break # Found enough total
                     
                     # Throttle between pages (User's "徐々に" strategy)
-                    await asyncio.sleep(0.3)
+                    await asyncio.sleep(1.5)
                 
             except: continue
             if len(collected) >= 50: break
@@ -1283,8 +1048,16 @@ class MemoryCog(commands.Cog):
                     
                     while msgs_checked < scan_depth:
                         batch = []
-                        async for m in channel.history(limit=50, before=cursor):
-                            batch.append(m)
+                        try:
+                            async for m in channel.history(limit=50, before=cursor):
+                                batch.append(m)
+                        except discord.HTTPException as e:
+                            if e.status == 429:
+                                logger.warning("AutoScan: Hit Rate Limit (429). Sleeping 60s and aborting channel scan.")
+                                await asyncio.sleep(60)
+                                break
+                            else:
+                                raise e
                         
                         if not batch: break
                         
@@ -1305,10 +1078,15 @@ class MemoryCog(commands.Cog):
                         
                         cursor = batch[-1]
                         msgs_checked += len(batch)
-                        if not remaining_targets: break
-                        await asyncio.sleep(0.3) 
                         
-                except: continue
+                        if not remaining_targets: break
+                        
+                        # "Gradually" - Slow pacing to avoid 429
+                        await asyncio.sleep(2.0) 
+                        
+                except Exception as e:
+                    logger.debug(f"AutoScan: Channel {channel.name} skipped: {e}")
+                    continue
 
             # 3. Dispatch Analysis for all collected data
             for member in target_members:
@@ -1324,7 +1102,7 @@ class MemoryCog(commands.Cog):
                     asyncio.create_task(self._analyze_wrapper(member.id, history, guild.id))
                     count += 1
                 else:
-                     logger.warning(f"AutoScan: {member.display_name} - No history found in batch scan.")
+                     logger.debug(f"AutoScan: {member.display_name} - No history found in batch scan.")
             
             await asyncio.sleep(1.0) # Yield between guilds
 
@@ -1364,7 +1142,7 @@ class MemoryCog(commands.Cog):
             
             await asyncio.sleep(2) # Avoid aggressive rate limiting
 
-    @app_commands.command(name="analyze", description="特定のユーザーの履歴をスキャンして最適化キューに入れます")
+    @app_commands.command(name="optimize_user", description="特定のユーザーの履歴をスキャンして最適化キューに入れます")
     @app_commands.describe(target="分析対象のユーザー")
     async def analyze_user(self, interaction: discord.Interaction, target: discord.User):
         """Manually trigger optimization for a specific user."""
@@ -1377,7 +1155,8 @@ class MemoryCog(commands.Cog):
             
             # 2. Deep Scan using the robust method
             # Manual scan depth = 10000 (Very deep, effectively "created at" for most)
-            history = await self._find_user_history_targeted(target.id, guild_id, scan_depth=10000)
+            # Enable API Fallback for manual user commands
+            history = await self._find_user_history_targeted(target.id, guild_id, scan_depth=10000, allow_api=True)
             
             if history:
                 # 3. Queue Analysis

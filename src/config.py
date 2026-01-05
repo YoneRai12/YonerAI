@@ -58,11 +58,15 @@ COST_LIMITS = {
 
 # --- Router Configuration ---
 ROUTER_CONFIG = {
-    "coding_model": "gpt-5.1-codex",
+    "coding_model": "gpt-5.1-codex", # Reverted to codex with /responses endpoint fix
     "high_intel_model": "gpt-5.1",
     "standard_model": "gpt-5-mini",
     "vision_model": "gemini-2.0-flash-exp",
-    "coding_keywords": ["コード", "実装", "バグ", "エラー", "修正", "関数", "変数", "API", "python", "javascript", "program"],
+    "coding_keywords": [
+        "コード", "実装", "バグ", "エラー", "修正", "関数", "変数", "API", "python", "javascript", "program",
+        "tree", "structure", "file", "list", "check", "system", "deploy", "debug", "fix", "html", "css", "ts", "tsx", "jsx", "json", "config",
+        "ツリー", "構成", "ファイル", "システム", "デバッグ", "直して", "確認", "フォルダ", "ディレクトリ", "階層"
+    ],
     "high_intel_keywords": ["解説", "詳しく", "理由", "分析", "なぜ", "とは", "比較", "設計"],
     "complexity_char_threshold": 50
 }
@@ -110,6 +114,7 @@ class Config:
     gemini_api_key: Optional[str] # Already loaded as GOOGLE_API_KEY in env, but good to have here?
     # actually GOOGLE_API_KEY is used by google_client directly from os.environ usually.
     # Let's standardize on Config.
+    log_channel_id: int
 
     @classmethod
     def load(cls) -> "Config":
@@ -213,6 +218,13 @@ class Config:
 
             except ValueError:
                 pass
+            
+        # Debug Log Channel
+        log_channel_raw = os.getenv("ORA_LOG_CHANNEL_ID", "1455097004433604860")
+        try:
+            log_channel_id = int(log_channel_raw)
+        except ValueError:
+            log_channel_id = 1455097004433604860
                 
         # Stable Diffusion API
         sd_api_url = "http://127.0.0.1:8188" # Force ComfyUI Port
@@ -260,6 +272,7 @@ class Config:
             router_thresholds=router_thresholds,
             openai_api_key=openai_key,
             gemini_api_key=os.getenv("GOOGLE_API_KEY"),
+            log_channel_id=log_channel_id,
         )
 
     def validate(self) -> None:

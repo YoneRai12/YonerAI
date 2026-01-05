@@ -141,18 +141,15 @@ class LLMClient:
         # Allow model override
         model_name = kwargs.get("model", self._model)
         # Determine Endpoint and Payload Structure
-        # We treat 'o1' and 'o3' as next_gen (v1/responses) ONLY if specifically configured?
-        # User feedback indicates gpt-5.1 etc should use Standard Endpoint but NO temperature.
-        # So we remove "gpt-5" from this check.
-        is_next_gen = any(x in model_name for x in ["o1-", "o3-"]) and "gpt-5" not in model_name
+        # FIX: Codex (gpt-5.1-codex) is a Next-Gen Agentic Model using /responses
+        is_next_gen = (any(x in model_name for x in ["o1-", "o3-"]) and "gpt-5" not in model_name) or "codex" in model_name
+        is_legacy_completions = any(x in model_name for x in ["davinci", "curie", "babbage", "ada"]) and "chat" not in model_name
 
         if is_next_gen:
             # New "v1/responses" Endpoint (Agentic)
             url = f"{self._base_url}/responses"
             
             # Convert Messages to Input/Instructions
-            # "instructions" = System Prompt
-            # "input" = User/Assistant Conversation
             instructions = ""
             input_msgs = []
             
@@ -160,7 +157,23 @@ class LLMClient:
                 if m["role"] == "system":
                     instructions += m["content"] + "\n"
                 else:
-                    input_msgs.append(m)
+                    # Sanitize: /responses does not support 'tool_calls' in history
+                    # We must flatten it into text content.
+                    clean_m = {"role": m["role"], "content": m.get("content", "") or ""}
+                    
+                    # Flatten Tool Calls
+                    if "tool_calls" in m and m["tool_calls"]:
+                        tools_str = "\n".join([f"[Tool Call: {tc['function']['name']}({tc['function']['arguments']})]" for tc in m["tool_calls"]])
+                        clean_m["content"] += f"\n{tools_str}"
+                    
+                    # Flatten Tool Outputs (if role is tool)
+                    if m["role"] == "tool":
+                        # CRITICAL: Codex /responses endpoint REJECTS "role": "tool".
+                        # Map it to "user" (Simulator pattern).
+                        clean_m["role"] = "user"
+                        clean_m["content"] = f"[Tool Output]\n{clean_m['content']}"
+                        
+                    input_msgs.append(clean_m)
             
             payload: Dict[str, Any] = {
                 "model": model_name,
@@ -168,6 +181,28 @@ class LLMClient:
             }
             if instructions.strip():
                 payload["instructions"] = instructions.strip()
+
+        elif is_legacy_completions:
+             # Legacy "v1/completions" Endpoint
+             url = f"{self._base_url}/completions"
+             
+             # Convert Messages to String Prompt
+             prompt_text = ""
+             for m in messages:
+                 role = m["role"].upper()
+                 content = m["content"]
+                 prompt_text += f"### {role}:\n{content}\n\n"
+             prompt_text += "### ASSISTANT:\n"
+             
+             payload: Dict[str, Any] = {
+                 "model": model_name,
+                 "prompt": prompt_text,
+                 "max_tokens": 4096,
+                 "stop": ["### USER:", "### SYSTEM:"]
+             }
+             
+             if temperature is not None:
+                 payload["temperature"] = temperature
 
         else:
             # Standard "v1/chat/completions" Endpoint
@@ -190,23 +225,15 @@ class LLMClient:
                 "messages": final_messages,
                 "stream": False,
             }
-            # Temperature Handling: STRICTLY REMOVE for Next-Gen Models (User Request: "Don't send temperature")
-            # This includes gpt-5 family, o1/o3 family, and codex family as per user report.
-            # Models: gpt-5.1, gpt-5.1-codex, gpt-5, gpt-5-codex, gpt-5-chat-latest, gpt-4.1, o1, o3, codex-mini-latest
-            # Mini variants included.
             
-            # Simple keyword matching:
+            # Temperature and Token Handling
             should_omit_temp = any(x in model_name for x in ["gpt-5", "gpt-4.1", "o1", "o3", "codex", "o4"])
-            
             if temperature is not None and not should_omit_temp:
                 payload["temperature"] = temperature
             
             if should_omit_temp:
                  if "max_tokens" in kwargs:
                      try:
-                         # Many of these models prefer 'max_completion_tokens' or 'max_output_tokens' 
-                         # But let's stick to standard behavior unless we know the endpoint is different.
-                         # Standard v1/chat/completions for o1 uses 'max_completion_tokens'
                          kwargs["max_completion_tokens"] = kwargs.pop("max_tokens")
                      except: pass
 
@@ -214,6 +241,13 @@ class LLMClient:
         # We exclude keys already handled or standard internally (model, messages, input, instructions)
         excluded_keys = {"model", "messages", "input", "instructions", "temperature", "stream"}
         
+        # FIX: Legacy completions do NOT support 'tools'
+        if is_legacy_completions:
+            excluded_keys.add("tools")
+            excluded_keys.add("tool_choice")
+
+
+
         # Parameter Mapping for v1/responses
         if is_next_gen:
             # Responses API uses 'max_output_tokens' instead of 'max_tokens' or 'max_completion_tokens'
@@ -286,7 +320,22 @@ class LLMClient:
                         if m["role"] == "system":
                             instructions += m["content"] + "\n"
                         else:
-                            input_msgs.append(m)
+                            # Sanitize: /responses does not support 'tool_calls' in history
+                            # We must flatten it into text content.
+                            clean_m = {"role": m["role"], "content": m.get("content", "") or ""}
+                            
+                            # Flatten Tool Calls
+                            if "tool_calls" in m and m["tool_calls"]:
+                                tools_str = "\n".join([f"[Tool Call: {tc['function']['name']}({tc['function']['arguments']})]" for tc in m["tool_calls"]])
+                                clean_m["content"] += f"\n{tools_str}"
+                            
+                            # Flatten Tool Outputs (if role is tool)
+                            if m["role"] == "tool":
+                                # Codex /responses endpoint REJECTS "role": "tool".
+                                clean_m["role"] = "user"
+                                clean_m["content"] = f"[Tool Output]\n{clean_m['content']}"
+                                
+                            input_msgs.append(clean_m)
                     
                     new_payload = {
                         "model": model_name,
@@ -333,6 +382,7 @@ class LLMClient:
                              except: pass
 
                              final_text = ""
+                             tool_calls = None  # Initialize before loop
                              for item in content:
                                  if isinstance(item, dict):
                                      # Debug unknown types - FORCE LOGGING
@@ -360,7 +410,31 @@ class LLMClient:
                                      # Option B: Item IS a content part
                                      elif item.get("type") == "text":
                                           final_text += item.get("text", "")
-                                          
+
+                                     # Option C: Tool Call (Agentic API)
+                                     # Typical format: { "type": "tool_call", "tool_call": { "id": "...", "function": { "name": "...", "arguments": "..." } } }
+                                     # Or: { "type": "function_call", ... } depending on version.
+                                     # Let's handle the "type": "tool_call" which structure matches standard tool_calls.
+                                     elif item.get("type") == "tool_call":
+                                         if tool_calls is None: tool_calls = []
+                                         tc = item.get("tool_call", item)
+                                         tool_calls.append(tc)
+
+                                     # Option D: Function Call (Codex Agentic)
+                                     # Format: {'id': '...', 'type': 'function_call', 'name': '...', 'arguments': '...'}
+                                     elif item.get("type") == "function_call":
+                                         if tool_calls is None: tool_calls = []
+                                         # Transform to Standard OpenAI tool_call format
+                                         std_tc = {
+                                             "id": item.get("call_id", item.get("id", "call_unknown")),
+                                             "type": "function",
+                                             "function": {
+                                                 "name": item.get("name"),
+                                                 "arguments": item.get("arguments")
+                                             }
+                                         }
+                                         tool_calls.append(std_tc)
+
                                  elif isinstance(item, str):
                                      final_text += item
                              
@@ -368,7 +442,6 @@ class LLMClient:
                              logger.debug(f"Combined Text Length: {len(final_text)}")
                              content = final_text
                         
-                        tool_calls = None 
                         usage = data.get("usage", {})
                         return content, tool_calls, usage
 

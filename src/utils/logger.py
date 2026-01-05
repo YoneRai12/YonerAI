@@ -61,4 +61,23 @@ class GuildLogger:
             logger.propagate = True 
 
         cls._loggers[logger_name] = logger
+        cls._loggers[logger_name] = logger
         return logger
+
+    # Global Queue for Discord Forwarding
+    queue = __import__("asyncio").Queue()
+
+class QueueHandler(Handler):
+    """
+    Non-blocking handler that pushes LogRecord to an asyncio.Queue.
+    Consumed by SystemCog for Discord channel reporting.
+    """
+    def __init__(self, queue):
+        super().__init__()
+        self.queue = queue
+
+    def emit(self, record):
+        try:
+            self.queue.put_nowait(record)
+        except Exception:
+            self.handleError(record)

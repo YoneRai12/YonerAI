@@ -72,6 +72,26 @@ Added routing support for OpenAI's latest model, `gpt-5.1-codex-mini`.
 
 ---
 
+## 🆕 Update v4.1 (2026/01/05) - Agentic Stability & Self-Evolution
+
+### 🤖 High-End Model Restoration (Codex stabilization)
+Stabilized agentic capabilities for the **Shared Traffic** series.
+- **gpt-5.1-codex Support**: Correctly routes to the `/responses` endpoint and handles "Tool Call" parsing ( flattening & mapping).
+- **Auto-Parameter Filtering**: Automatically removes incompatible parameters like `temperature` for O1 and Codex models.
+
+### 🧠 Enhanced Context Awareness
+- **Channel History Fallback**: ORA now automatically fetches the last 15 messages from the channel if no direct reply is found. No more "forgetting" the previous context!
+
+### 🔍 Optimized Search & Logic
+- **Search Guideline**: Updated sorting to place the latest information at the bottom of summaries for better scanning.
+- **Improved Tool Selection Index**: Added keyword RAG for directory-related queries ("Tree", "Hierarchy").
+
+### 🛠️ Self-Evolution & Reliability
+- **Healer 2.0**: Interactive UI to apply or dismiss AI-suggested code fixes safely.
+- **Log Forwarder**: Real-time log streaming to a dedicated Discord channel for remote monitoring.
+- **Pre-flight Health Checks**: Integrated `health_inspector` to verify system integrity before applying changes.
+
+
 ## 💡 Practical Use Cases
 
 | Scenario | How ORA Helps |

@@ -342,6 +342,7 @@ async def get_dashboard_history():
             
         timeline = {} # "YYYY-MM-DD" -> {high, stable, optimization, usd}
         breakdown = {} # "high" -> {"openai": 100, "total": 100}
+        hourly = {} # "YYYY-MM-DDTHH" -> {hour, high, stable, optimization, burn, usd}
 
         def process_bucket(key, bucket, date_str):
             # 1. Update Timeline
@@ -389,6 +390,29 @@ async def get_dashboard_history():
                     breakdown[lane][label] = 0
                 breakdown[lane][label] += tokens
 
+        def process_hourly(bucket_key, hour_map):
+            key_lower = bucket_key.lower()
+            lane = "unknown"
+            if key_lower.startswith("high"):
+                lane = "high"
+            elif key_lower.startswith("stable"):
+                lane = "stable"
+            elif key_lower.startswith("optimization"):
+                lane = "optimization"
+            elif key_lower.startswith("burn"):
+                lane = "burn"
+
+            if lane == "unknown":
+                return
+
+            for hour, usage in hour_map.items():
+                if hour not in hourly:
+                    hourly[hour] = {"hour": hour, "high": 0, "stable": 0, "optimization": 0, "burn": 0, "usd": 0.0}
+                tokens = usage.get("tokens_in", 0) + usage.get("tokens_out", 0)
+                usd = usage.get("usd", 0.0)
+                hourly[hour][lane] += tokens
+                hourly[hour]["usd"] += usd
+
         # Process History
         for key, hist_list in raw_data.get("global_history", {}).items():
             for bucket in hist_list:
@@ -398,10 +422,29 @@ async def get_dashboard_history():
         for key, bucket in raw_data.get("global_buckets", {}).items():
              process_bucket(key, bucket, bucket["day"])
 
+        # Process User History
+        for user_hists in raw_data.get("user_history", {}).values():
+            for key, hist_list in user_hists.items():
+                for bucket in hist_list:
+                    process_bucket(key, bucket, bucket["day"])
+
+        # Process User Current Buckets
+        for user_buckets in raw_data.get("user_buckets", {}).values():
+            for key, bucket in user_buckets.items():
+                process_bucket(key, bucket, bucket["day"])
+
+        # Process Hourly (Global + User)
+        for key, hour_map in raw_data.get("global_hourly", {}).items():
+            process_hourly(key, hour_map)
+        for user_hour_map in raw_data.get("user_hourly", {}).values():
+            for key, hour_map in user_hour_map.items():
+                process_hourly(key, hour_map)
+
         # Convert timeline to sorted list
         sorted_timeline = sorted(timeline.values(), key=lambda x: x["date"])
+        sorted_hourly = [hourly[k] for k in sorted(hourly.keys())]
 
-        return {"ok": True, "data": {"timeline": sorted_timeline, "breakdown": breakdown}}
+        return {"ok": True, "data": {"timeline": sorted_timeline, "breakdown": breakdown, "hourly": sorted_hourly}}
         
     except Exception as e:
         return {"ok": False, "error": str(e)}
@@ -475,6 +518,12 @@ async def get_dashboard_users(response: Response):
 
                         # Deduplication Check
                         # If we already have this (real_id, guild_name) tuple, keep the one with more points/optimized status
+                        # Deduplication Logic: Prioritize Optimized > Processing > New
+                        score_base = 0
+                        if raw_status.lower() == "optimized": score_base = 2000
+                        elif raw_status.lower() == "processing": score_base = 1500
+                        elif raw_status.lower() == "error": score_base = 1000
+
                         entry = {
                             "discord_user_id": method_file.stem,
                             "real_user_id": real_discord_id, 
@@ -485,11 +534,10 @@ async def get_dashboard_users(response: Response):
                             "status": raw_status,
                             "impression": data.get("impression", None),
                             "guild_name": guild_name,
-                            "banner": data.get("banner", None), # Fetch from JSON
-                            "traits": traits, # Expose traits for frontend
-                            "is_nitro": d_user.get("is_nitro", False), # Expose Nitro status
-                            # URLs will be injected in Step 3
-                            "_sort_score": (1 if raw_status.lower() == "optimized" else 0) * 1000 + len(traits)
+                            "banner": data.get("banner", None),
+                            "traits": traits,
+                            "is_nitro": d_user.get("is_nitro", False),
+                            "_sort_score": score_base + len(traits)
                         }
                         users.append(entry)
                 except Exception as e:

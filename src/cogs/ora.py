@@ -1,4 +1,10 @@
 """Extended ORA-specific slash commands."""
+# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# CRITICAL PROTOCOL WARNING
+# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# DO NOT MODIFY THE SCANNING/OPTIMIZATION LOGIC IN THIS FILE WITHOUT FIRST
+# READING: `ORA_OPTIMIZATION_MANIFEST.md`
+# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 from __future__ import annotations
 
@@ -126,6 +132,33 @@ from ..utils.cost_manager import CostManager
 from ..utils.sanitizer import Sanitizer
 from ..utils.user_prefs import UserPrefs
 from ..utils.unified_client import UnifiedClient
+
+def _generate_tree(dir_path: Path, max_depth: int = 2, current_depth: int = 0) -> str:
+    if current_depth > max_depth:
+        return ""
+    
+    tree_str = ""
+    try:
+        # Sort: Directories first, then files
+        items = sorted(list(dir_path.iterdir()), key=lambda x: (not x.is_dir(), x.name.lower()))
+        
+        for item in items:
+            # Filters
+            if item.name.startswith(".") or item.name == "__pycache__": continue
+            if item.name.endswith(".pyc"): continue
+            
+            indent = "    " * current_depth
+            if item.is_dir():
+                tree_str += f"{indent}📂 {item.name}/\n"
+                tree_str += _generate_tree(item, max_depth, current_depth + 1)
+            else:
+                tree_str += f"{indent}📄 {item.name}\n"
+    except PermissionError:
+        tree_str += f"{'    ' * current_depth}🔒 [Permission Denied]\n"
+    except Exception as e:
+         pass
+        
+    return tree_str
 
 class ORACog(commands.Cog):
     """ORA-specific commands such as login link and dataset management."""
@@ -725,6 +758,137 @@ class ORACog(commands.Cog):
         # Delegate to MediaCog.leavevc
         await media_cog.leavevc(interaction)
 
+    # Music Commands (Fallback)
+    music_group = app_commands.Group(name="music", description="音楽再生・制御 (Fallback)")
+
+    @music_group.command(name="play", description="YouTubeから音楽を再生します。")
+    @app_commands.describe(query="曲名またはURL")
+    async def music_play(self, interaction: discord.Interaction, query: str) -> None:
+        media_cog = self.bot.get_cog("MediaCog")
+        if not media_cog:
+            await interaction.response.send_message("Media機能が無効です。", ephemeral=True)
+            return
+        await media_cog.ytplay(interaction, query)
+
+    @music_group.command(name="stop", description="再生を停止します。")
+    async def music_stop(self, interaction: discord.Interaction) -> None:
+        media_cog = self.bot.get_cog("MediaCog")
+        if not media_cog:
+            await interaction.response.send_message("Media機能が無効です。", ephemeral=True)
+            return
+        await media_cog.stop(interaction)
+
+    @music_group.command(name="skip", description="次の曲へスキップします。")
+    async def music_skip(self, interaction: discord.Interaction) -> None:
+        media_cog = self.bot.get_cog("MediaCog")
+        if not media_cog:
+            await interaction.response.send_message("Media機能が無効です。", ephemeral=True)
+            return
+        await media_cog.skip(interaction)
+
+    @music_group.command(name="loop", description="Loop music (off/track/queue)")
+    @app_commands.describe(mode="Loop mode")
+    @app_commands.choices(mode=[
+        app_commands.Choice(name="Off", value="off"),
+        app_commands.Choice(name="Track", value="track"),
+        app_commands.Choice(name="Queue", value="queue")
+    ])
+    async def music_loop(self, interaction: discord.Interaction, mode: app_commands.Choice[str]):
+        """Loop music"""
+        media_cog = self.bot.get_cog("MediaCog")
+        if media_cog:
+            await media_cog.loop(interaction, mode.value)
+        else:
+            await interaction.response.send_message("❌ Media system not available.", ephemeral=True)
+
+    # --- Creative & Vision Commands ---
+
+    @app_commands.command(name="imagine", description="Generate an image using AI (Flux.1)")
+    @app_commands.describe(prompt="Image description", negative_prompt="What to exclude (optional)")
+    async def imagine(self, interaction: discord.Interaction, prompt: str, negative_prompt: str = ""):
+        """Generate an image using Flux.1 (ComfyUI)"""
+        # Unload LLM if running to free VRAM for ComfyUI
+        # This is handled by AspectRatioSelectView's start_generation, but we can preemptively check.
+        
+        from ..views.image_gen import AspectRatioSelectView
+        view = AspectRatioSelectView(self, prompt, negative_prompt, model_name="FLUX.2")
+        await interaction.response.send_message(f"🎨 **画像生成アシスタント**\nPrompt: `{prompt}`\nアスペクト比を選択して生成を開始してください。", view=view)
+
+    @app_commands.command(name="analyze", description="Analyze an image (Vision)")
+    @app_commands.describe(
+        image="Image to analyze", 
+        prompt="Question about the image (default: Describe this)",
+        model="Model to use (Auto/Local/Smart)"
+    )
+    @app_commands.choices(model=[
+        app_commands.Choice(name="Auto (Default)", value="auto"),
+        app_commands.Choice(name="Local (Qwen/Ministral)", value="local"),
+        app_commands.Choice(name="Smart (OpenAI/Gemini)", value="smart")
+    ])
+    async def analyze(self, interaction: discord.Interaction, image: discord.Attachment, prompt: str = "Describe this image in detail.", model: app_commands.Choice[str] = None):
+        """Analyze an image using Vision AI"""
+        if not image.content_type.startswith("image/"):
+            await interaction.response.send_message("❌ Image file required.", ephemeral=True)
+            return
+
+        await interaction.response.defer(thinking=True)
+        
+        # Determine Model
+        target_model = "Qwen/Qwen2.5-VL-32B-Instruct-AWQ" # Local Default
+        provider = "local"
+        
+        # User Choice Override
+        choice = model.value if model else "auto"
+        
+        if choice == "smart":
+            # Smart Mode: Use Shared Traffic (gpt-4o-mini is efficient and free-tier friendly)
+            target_model = "gpt-4o-mini" 
+            provider = "openai"
+        elif choice == "local":
+            target_model = "Qwen/Qwen2.5-VL-32B-Instruct-AWQ"
+            provider = "local"
+        else: # Auto
+            # Use User Preference
+            user_mode = self.user_prefs.get_mode(interaction.user.id) or "private"
+            if user_mode == "smart":
+                target_model = "gpt-4o-mini"
+                provider = "openai"
+            else:
+                target_model = "Qwen/Qwen2.5-VL-32B-Instruct-AWQ"
+                provider = "local"
+
+        try:
+            # Prepare Multimodal Message
+            import base64
+            img_data = await image.read()
+            b64_img = base64.b64encode(img_data).decode('utf-8')
+            
+            messages = [
+                {"role": "system", "content": "You are a helpful Vision AI. Describe the image or answer the user's question about it."},
+                {"role": "user", "content": [
+                    {"type": "text", "text": prompt},
+                    {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64_img}"}}
+                ]}
+            ]
+            
+            # Use LLM Client
+            # Note: _llm is our LLMClient instance.
+            # We override model and potentially provider-specific logic is handled inside LLMClient (it checks model name)
+            
+            start_msg = f"👁️ **Vision Analysis**\nModel: `{target_model}` ({provider.upper()})\nProcessing..."
+            await interaction.followup.send(start_msg)
+            
+            response, _, _ = await self._llm.chat(messages=messages, model=target_model, temperature=0.1)
+            
+            if response:
+                await interaction.followup.send(f"✅ **Analysis Result**:\n{response}")
+            else:
+                await interaction.followup.send("❌ Empty response from Vision Model.")
+                
+        except Exception as e:
+            await interaction.followup.send(f"❌ Error during analysis: {e}")
+            return
+
     # Memory Commands
     memory_group = app_commands.Group(name="memory", description="記憶管理コマンド")
 
@@ -798,7 +962,7 @@ class ORACog(commands.Cog):
         members = [m.display_name for m in target_channel.members]
         return f"チャンネル '{target_channel.name}' (ID: {target_channel.id})\n参加人数: {len(members)}人\n参加者: {', '.join(members)}"
 
-    async def _build_system_prompt(self, message: discord.Message, model_hint: str = "Ministral 3 (14B)") -> str:
+    async def _build_system_prompt(self, message: discord.Message, model_hint: str = "Ministral 3 (14B)", provider: str = "local") -> str:
         guild = message.guild
         guild_name = guild.name if guild else "Direct Message"
         member_count = guild.member_count if guild else "Unknown"
@@ -838,11 +1002,17 @@ class ORACog(commands.Cog):
 
         tools_json = json.dumps(clean_tools, ensure_ascii=False)
 
+        # ID Check for System Prompt
+        CREATOR_ID = 1069941291661672498
+        is_creator = message.author.id == CREATOR_ID
+        auth_status = "CREATOR/ADMIN (Full Access)" if is_creator else "User (Standard Access)"
+
         base = (
             f"You are ORA (Operational Responsive AI), a highly intelligent assistant.\n"
             f"Current Server: {guild_name}\n"
             f"Member Count: {member_count}\n"
             f"Current Channel: {channel_name}\n"
+            f"Current User: {user_name} (ID: {message.author.id}) [{auth_status}]\n"
             f"{memory_context}"  # <--- INJECTED HERE
             f"**CRITICAL INSTRUCTION**:\n"
             f"1. **LANGUAGE**: You MUST ALWAYS reply in **JAPANESE** (日本語).\n"
@@ -854,6 +1024,7 @@ class ORACog(commands.Cog):
             f"\n"
             f"3. **Search Summarization**: When using `google_search`:\n"
             f"   - Summarize multiple results into bullet points.\n"
+            f"   - **最新情報を下にする**: 得られた情報のうち、最新の情報を要約の一番下に配置してください。\n"
             f"   - Do not repeat the same info.\n"
             f"   - Keep it concise (150-300 chars).\n"
             f"4. **IMAGE ANALYSIS**: \n"
@@ -897,13 +1068,30 @@ class ORACog(commands.Cog):
             f"     - If the user's input looks like song lyrics (e.g., 'Never gonna give you up...'), **DO NOT** just reply with text.\n"
             f"     - Instead, ASK: 'Is that [Song Name]? Shall I play it?' (e.g., '今の曲は[Song Name]ですか？流しますか？')\n"
             f"     - If the user says 'Yes' or 'Play', THEN use `music_play`.\n"
-            f"3. **HOW TO USE**: Output a JSON block in this format:\n"
-            f"```json\n"
-            f"{{\n"
-            f"  \"tool\": \"tool_name\",\n"
-            f"  \"args\": {{ \"arg_name\": \"value\" }}\n"
-            f"}}\n"
-            f"```\n"
+        )
+
+        # OpenAI (Native Tools) vs Others (JSON)
+        # FIX: Codex models do not support Native Tools, so we force JSON mode for them too.
+        is_codex = "codex" in model_hint.lower()
+        
+        if provider == "openai" and not is_codex:
+             base += (
+                f"3. **HOW TO USE**: \n"
+                f"   - **Use the provided Native Tools directly**.\n"
+                f"   - DO NOT output JSON text manually.\n"
+             )
+        else:
+             base += (
+                f"3. **HOW TO USE**: Output a JSON block in this format:\n"
+                f"```json\n"
+                f"{{\n"
+                f"  \"tool\": \"tool_name\",\n"
+                f"  \"args\": {{ \"arg_name\": \"value\" }}\n"
+                f"}}\n"
+                f"```\n"
+             )
+
+        base += (
             f"4. **NORMAL CHAT**: If *NO* action is implied (e.g., answering a question, vision analysis), just reply normally in Japanese.\n"
             f"Example: use `google_search` for 'Discord bot':\n"
             f"```json\n"
@@ -921,13 +1109,18 @@ class ORACog(commands.Cog):
             "Read text, solve math, and analyze scenes directly from the image.\n"
             "You do NOT need OCR text; trust your eyes.\n"
             "\n"
-            "**FINAL ENFORCEMENT**:\n"
-            "1. If the task is complex, use `start_thinking`. Do NOT answer directly.\n"
-            "2. If the user asks to **Play Music** (e.g. '流して'), output `music_play` tool JSON.\n"
-            "3. If the user asks for **Image Generation** (e.g. '画像生成'), output `generate_image` tool JSON.\n"
-            "4. If the user asks for **Real-time Info**, **Weather**, **News**, or **Prices**, you MUST use `google_search`.\n"
-            "   - Query Example: { \"tool\": \"google_search\", \"args\": { \"query\": \"Tokyo weather tomorrow\" } }\n"
-            "5. **Do NOT** just reply with text if a tool is needed. USE THE TOOL."
+            "**JUDGMENT PROTOCOL (CRITICAL)**:\n"
+            "1. **Analyze Request**: context and intent. If user implies 'YOU', assume ORA.\n"
+            "2. **Check Tools**: Do you have a tool? If yes, USE IT.\n"
+            "3. **Self-Reference**: 'Turn off voice', 'Stop reading' -> Check YOUR capabilities first (e.g., `leavevc`).\n"
+            "4. **Tone**: Be polite, helpful, and efficient. Do NOT be aggressive (e.g., don't say 'Be brief').\n"
+            "5. **Real-time**: For News/Weather/Prices, ALWAYS use `google_search`.\n"
+            "6. **Action**: Don't just talk. ACT.\n"
+            "7. **CONFIDENTIALITY PROTOCOL (STRICT)**:\n"
+            "   - **User ID**: 1069941291661672498 is the ADMIN.\n"
+            "   - **Non-Admin**: If ANYONE else asks for 'System Tree', 'File Path', 'Shell', or 'Config', YOU MUST REFUSE.\n"
+            "     - Say: '🔒 Access Denied: System internals are restricted.'\n"
+            "   - **Admin**: Full access allowed."
         )
         
         return base
@@ -994,25 +1187,26 @@ class ORACog(commands.Cog):
                     logger.error(f"Search failed: {e}")
                     return f"Search Error: {e}"
 
-            elif tool_name == "request_feature_implementation":
+                    return f"Search Error: {e}"
+
+            elif tool_name == "request_feature":
                 feature = args.get("feature_request")
                 context = args.get("context")
                 if not feature or not context:
                     return "Error: Missing arguments (feature_request, context)."
                 
-                # Delegate to Healer/Evolver
-                # Using 'create_task' to not block the current turn, 
-                # but we probably want to return a confirmation message.
-                
-                # Check permission (Admin only? The tool description says [Admin], but user might trigger it)
-                # For now, let Healer decide or filter downstream.
+                # Check permission (Optional: Allow anyone to request, but Healer filters execution?)
+                # Healer's propose_feature sends a proposal to the Debug Channel.
+                # It does NOT execute code. So it is safe for anyone to trigger.
+                # The "Apply" button is locked to Admin.
                 
                 if hasattr(self.bot, 'healer'):
                     # Async task to not block response
                     asyncio.create_task(self.bot.healer.propose_feature(feature, context, message.author))
-                    return "✅ Feature Implementation Request SENT to Auto-Evolver. You will receive a DM proposal shortly."
+                    return f"✅ Feature Request '{feature}' has been sent to the Developer Channel for analysis."
                 else:
                     return "Error: Healer system is not active."
+
 
             if tool_name == "music_play":
                 query = args.get("query")
@@ -1404,6 +1598,33 @@ class ORACog(commands.Cog):
                     return f"System Stats (Embed Failed): CPU {cpu}%, Mem {mem.percent}%"
                 
                 return "System stats report sent as Embed."
+
+            elif tool_name == "get_system_tree":
+                 # LOCKDOWN: Creator Only (contains sensitive info)
+                if not self._check_permission(message.author.id, "creator"):
+                    return "Permission denied. Creator only."
+
+                relative_path = args.get("path", ".")
+                depth = int(args.get("depth", 2))
+                
+                try:
+                    root = Path.cwd()
+                    target_path = (root / relative_path).resolve()
+                    
+                    if status_manager:
+                        await status_manager.update_current(f"🌲 {target_path.name} をスキャン中...")
+                    
+                    tree = _generate_tree(target_path, max_depth=depth)
+                    
+                    tool_result = f"Current Directory: {target_path}\nStructure:\n{tree}"
+                    
+                    if len(tool_result) > 4000:
+                         tool_result = tool_result[:4000] + "\n... (Truncated)"
+                    
+                    return tool_result
+                         
+                except Exception as e:
+                    return f"Error generating tree: {e}"
 
             elif tool_name == "get_role_members":
                 role_name = args.get("role_name", "").lower()
@@ -2370,19 +2591,27 @@ class ORACog(commands.Cog):
         current_msg = message
         
         # Traverse reply chain (up to 5 messages)
-        for _ in range(5):
+        # Traverse reply chain (up to 20 messages)
+        for _ in range(20):
             if not current_msg.reference:
+                logger.debug(f"History traverse end: No reference at {current_msg.id}")
                 break
                 
             ref = current_msg.reference
             if not ref.message_id:
                 break
-                
+            
+            logger.info(f"Examining reference: {ref.message_id} (Resolved: {bool(ref.cached_message)})")
+            
             try:
-                # Try to get from cache first, then fetch
-                if ref.cached_message:
-                    prev_msg = ref.cached_message
-                else:
+                # Try to get from cache first
+                prev_msg = ref.cached_message
+                if not prev_msg:
+                    # Fallback: Search global cache (in case ref.cached_message is None but bot has it)
+                    prev_msg = discord.utils.get(self.bot.cached_messages, id=ref.message_id)
+                
+                if not prev_msg:
+                    # Final Fallback: Fetch from API
                     prev_msg = await message.channel.fetch_message(ref.message_id)
                 
                 # Only include messages from user or bot
@@ -2391,23 +2620,28 @@ class ORACog(commands.Cog):
                 
                 content = prev_msg.content.replace(f"<@{self.bot.user.id}>", "").strip()
                 
-                # Context Fix: If content is empty/short but has embeds, extract text from Embeds
-                # This is crucial now that we use Card-Style responses (Embed only)
-                if not content and prev_msg.embeds:
+                # Context Fix: Always append Embed content if present (for Card-Style responses)
+                if prev_msg.embeds:
                     embed = prev_msg.embeds[0]
+                    embed_text = ""
+                    
                     # Priority: Description -> specific fields -> Title
                     if embed.description:
-                         content = embed.description
+                         embed_text = embed.description
                     elif embed.title:
-                         content = f"[{embed.title}]"
+                         embed_text = f"[{embed.title}]"
                     
-                    # If it's a search/info card, maybe add fields?
-                    # For now, description is usually the main answer in Chat Embeds.
-                    # Search embeds don't have description usually, they have fields.
-                    if not content and embed.fields:
-                         # Reconstruct simple representation
+                    # Append Fields (Search Results, etc.)
+                    if embed.fields:
                          field_texts = [f"{f.name}: {f.value}" for f in embed.fields]
-                         content = "\n".join(field_texts)
+                         embed_text += "\n" + "\n".join(field_texts)
+                    
+                    # Append to main content
+                    if embed_text:
+                        if content:
+                            content += f"\n[Embed Content]: {embed_text}"
+                        else:
+                            content = f"[Embed Content]: {embed_text}"
 
                 # Prepend User Name to User messages for better recognition
                 if not is_bot and content:
@@ -2432,25 +2666,67 @@ class ORACog(commands.Cog):
                 break
         
         # Normalize History: Merge consecutive same-role messages
-        # This is critical for models incorrectly handling consecutive user messages
-        normalized_history = []
-        if history:
-            current_role = history[0]["role"]
-            current_content = history[0]["content"]
-            
-            for msg in history[1:]:
-                if msg["role"] == current_role:
-                    # Merge content
-                    current_content += f"\n{msg['content']}"
-                else:
-                    normalized_history.append({"role": current_role, "content": current_content})
-                    current_role = msg["role"]
-                    current_content = msg["content"]
-            
-            # Append final
-            normalized_history.append({"role": current_role, "content": current_content})
-            
-        return normalized_history
+    # This is critical for models incorrectly handling consecutive user messages
+    normalized_history = []
+    
+    # --- FALLBACK: Channel History ---
+    # If no reply chain was found, fetch last 15 messages for context
+    if not history:
+        logger.info(f"No reply chain found for message {message.id}. Falling back to channel history.")
+        try:
+            # Fetch last 15 messages (history is chronological from newest to oldest)
+            async for msg in message.channel.history(limit=15, before=message):
+                # Only include messages from user or bot
+                is_bot = msg.author.id == self.bot.user.id
+                role = "assistant" if is_bot else "user"
+                
+                content = msg.content.replace(f"<@{self.bot.user.id}>", "").replace(f"<@!{self.bot.user.id}>", "").strip()
+                
+                # Extract Embed Content (Reuse logic)
+                if msg.embeds:
+                    embed = msg.embeds[0]
+                    embed_text = ""
+                    if embed.description: embed_text = embed.description
+                    elif embed.title: embed_text = f"[{embed.title}]"
+                    
+                    if embed.fields:
+                        field_texts = [f"{f.name}: {f.value}" for f in embed.fields]
+                        embed_text += "\n" + "\n".join(field_texts)
+                    
+                    if embed_text:
+                        content = f"{content}\n[Embed Content]: {embed_text}" if content else f"[Embed Content]: {embed_text}"
+
+                # Prefix user name
+                if not is_bot and content:
+                    content = f"[{msg.author.display_name}]: {content}"
+
+                if content:
+                    # Truncate to prevent context overflow
+                    if len(content) > 1000: content = content[:1000] + "..."
+                    # Prepend to build chronological order (history.insert(0) logic equivalent)
+                    history.insert(0, {"role": role, "content": content})
+
+        except Exception as e:
+            logger.error(f"Failed to fetch channel history: {e}")
+
+    # --- NORMALIZATION ---
+    if history:
+        current_role = history[0]["role"]
+        current_content = history[0]["content"]
+        
+        for msg in history[1:]:
+            if msg["role"] == current_role:
+                # Merge content
+                current_content += f"\n{msg['content']}"
+            else:
+                normalized_history.append({"role": current_role, "content": current_content})
+                current_role = msg["role"]
+                current_content = msg["content"]
+        
+        # Append final
+        normalized_history.append({"role": current_role, "content": current_content})
+        
+    return normalized_history
 
     def _extract_json_objects(self, text: str) -> list[str]:
         """Extracts top-level JSON objects from text."""
@@ -2551,7 +2827,27 @@ class ORACog(commands.Cog):
         logger.info(f"ORACogメッセージ受信: ユーザー={message.author.id}, 内容={message.content[:50]}, 添付={len(message.attachments)}")
 
         # --- Voice Triggers (Direct Bypass - Mentions Only) ---
-        if message.guild and self.bot.user in message.mentions:
+        # --- Voice Triggers (Direct Bypass - Mentions Only) ---
+        is_reply_to_me = False
+        if message.reference:
+             # Check if replying to bot
+             if message.reference.cached_message:
+                 if message.reference.cached_message.author.id == self.bot.user.id:
+                     is_reply_to_me = True
+             else:
+                 # Fetch if needed (lightweight check, ideally use cached)
+                 # To avoid api spam, we might skip fetching here and rely on mentions, 
+                 # BUT user specifically asked for "Reply" support.
+                 # Let's perform a fetch if it's missing, but careful with rate limits.
+                 # Actually, on_message is async, fetching is fine.
+                 try:
+                     ref_msg = await message.channel.fetch_message(message.reference.message_id)
+                     if ref_msg.author.id == self.bot.user.id:
+                         is_reply_to_me = True
+                 except:
+                     pass
+
+        if message.guild and (self.bot.user in message.mentions or is_reply_to_me):
             # Only trigger if specific keywords are present
             content_stripped = message.content.replace(f"<@{self.bot.user.id}>", "").replace(f"<@!{self.bot.user.id}>", "").strip()
             
@@ -2897,7 +3193,7 @@ class ORACog(commands.Cog):
             # 0. Self-Evolution
             # ==========================
             {
-                "name": "request_feature_implementation",
+                "name": "request_feature",
                 "description": "[Admin] Use this when the user asks for a capability you do NOT have. Triggers Auto-Coding logic.",
                 "parameters": {
                     "type": "object",
@@ -2907,7 +3203,7 @@ class ORACog(commands.Cog):
                     },
                     "required": ["feature_request", "context"]
                 },
-                "tags": ["code", "feature", "implement", "create", "make", "capability", "実装", "機能", "作って", "進化"]
+                "tags": ["code", "feature", "implement", "create", "make", "capability", "実装", "機能", "作って", "進化", "request_feature"]
             },
             {
                 "name": "get_channels",
@@ -3121,7 +3417,7 @@ class ORACog(commands.Cog):
                     "properties": { "limit": { "type": "integer", "default": 50 } },
                     "required": []
                 },
-                "tags": ["summarize", "summary", "catchup", "history", "log", "read", "context", "要約", "まとめ", "ログ", "何話して", "流れ"]
+                "tags": ["summarize", "summary", "catchup", "history", "log", "read", "context", "要約", "まとめ", "ログ", "何話して", "流れ", "これまで", "話の内容", "教えて"]
             },
             {
                 "name": "remind_me",
@@ -3236,6 +3532,19 @@ class ORACog(commands.Cog):
                     "required": ["action"]
                 },
                 "tags": ["system", "volume", "ui", "interface", "open", "close", "システム", "音量", "UI", "開いて", "閉じて"]
+            },
+            {
+                "name": "get_system_tree",
+                "description": "[System/Coding] Get the file directory structure (Tree).",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path": { "type": "string", "description": "Relative path (default: current root)." },
+                        "depth": { "type": "integer", "description": "Max depth (default: 2)." }
+                    },
+                    "required": []
+                },
+                "tags": ["tree", "file", "structure", "folder", "dir", "ls", "list", "構成", "ツリー", "ファイル", "ディレクトリ", "階層"]
             }
         ]
 
@@ -3337,7 +3646,7 @@ class ORACog(commands.Cog):
                  # Check attachments
                  if message.attachments or message.reference:
                      logger.info("Direct Layer Bypass Triggered")
-                     await self._execute_tool(message, "layer", {}) # Force Tool Call
+                     await self._execute_tool("layer", {}, message) # Force Tool Call
                      return
 
         # 1.6 DIRECT BYPASS: "Music" Trigger (Force Tool Call)
@@ -3348,7 +3657,7 @@ class ORACog(commands.Cog):
         # Check Stop first
         if any(kw in prompt for kw in stop_keywords) and len(prompt) < 10:
              logger.info("Direct Music Bypass: STOP")
-             await self._execute_tool(message, "music_control", {"action": "stop"})
+             await self._execute_tool("music_control", {"action": "stop"}, message)
              return
              
         # Check Play - DISABLED (2025-12-29) User wants smart logic
@@ -3550,7 +3859,7 @@ class ORACog(commands.Cog):
                             
                         # Set Up Execution
                         if target_provider == "openai":
-                             actual_sys = await self._build_system_prompt(message, model_hint=target_model)
+                             actual_sys = await self._build_system_prompt(message, model_hint=target_model, provider="openai")
                              clean_messages = [{"role": "system", "content": actual_sys}, {"role": "user", "content": pkt.text}]
 
                     else:
@@ -3737,9 +4046,19 @@ class ORACog(commands.Cog):
 
             # Step 5: Final Response Logic
             # Tool Loop (Only run for Provider="Local". Native providers have their own loop above)
-            if target_provider not in ["openai", "gemini_trial"]:
+            
+            # Initialize turn globally to prevent UnboundLocalError in cleanup scope
+            turn = 0
+            
+            # Fallback: If Native Provider outputs raw JSON (hallucination), force entry into Local Tool Loop
+            force_local_loop = False
+            if content and ('"tool":' in content or '"tool":' in content.replace(" ", "")):
+                 force_local_loop = True
+                 logger.info("Native Provider output raw JSON tool call. Forcing Local Loop.")
+
+            if target_provider not in ["openai", "gemini_trial"] or force_local_loop:
                 max_turns = 3
-                turn = 0
+                # turn initialized above
                 executed_tools = []
                 tool_counts = {}
                 
@@ -3947,7 +4266,7 @@ class ORACog(commands.Cog):
                         elif target_provider == "gemini_trial":
                              new_content, _, _ = await self.bot.google_client.chat(messages=messages, model_name="gemini-1.5-pro")
                         else:
-                            new_content = await self._llm.chat(messages=messages, temperature=0.7)
+                            new_content, _, _ = await self._llm.chat(messages=messages, temperature=0.7)
                         
                         # Loop Detection: If new_content is SAME as old content (ignoring unique IDs if any), break
                         if new_content.strip() == content.strip():
