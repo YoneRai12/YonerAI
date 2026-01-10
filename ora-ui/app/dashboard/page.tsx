@@ -2248,7 +2248,7 @@ export default function DashboardPage() {
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         transition={{ duration: 1 }}
-                        className="fixed inset-0 z-[-1] pointer-events-none"
+                        className="fixed inset-0 z-[1] pointer-events-none"
                     >
                         {/* Red Tint & Vignette */}
                         <div className="absolute inset-0 bg-red-950/20 mix-blend-overlay"></div>
@@ -2285,7 +2285,7 @@ export default function DashboardPage() {
 
             <LayoutGroup id="user-cards">
                 <motion.div
-                    className="w-full max-w-[2560px] mx-auto space-y-3 md:space-y-4"
+                    className="w-full max-w-[2560px] mx-auto space-y-3 md:space-y-4 relative z-10"
                     variants={containerVariants}
                     initial="hidden"
                     animate="visible"
