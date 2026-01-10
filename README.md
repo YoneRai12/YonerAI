@@ -123,6 +123,19 @@ The Web Dashboard (`ora-ui`) provides a sci-fi interface to monitor ORA's intern
 
 ---
 
+## 📚 Technical Deep Dive & Manuals
+
+### 📘 For Users
+*   **[📖 User Manual & Command Guide](docs/USER_GUIDE.md)**: **Start Here**. How to use `@ORA`, slash commands, and the Dashboard.
+
+### 🏗️ For Engineers
+**Warning: These documents contain extreme levels of detail.**
+*   **[🏗️ System Architecture](docs/SYSTEM_ARCHITECTURE.md)**: The internal schematics of the Omni-Router and IPC.
+*   **[🧬 Auto-Healer Architecture](docs/AUTO_HEALER.md)**: How the bot rewrites its own python code at runtime.
+*   **[🧠 Hybrid Brain Logic](docs/HYBRID_BRAIN.md)**: Qwen 2.5 vs GPT-5.1 routing and cost management.
+*   **[💻 NERV Dashboard Internals](docs/NERV_DASHBOARD.md)**: React/Next.js implementation of the Red Alert system.
+*   **[🛰️ Satellite (Sub-PC) System](docs/SATELLITE_SYSTEM.md)**: Wake-on-LAN protocols and hardware handover.
+
 ## �️ Installation & Config
 
 ### 1. Setup
