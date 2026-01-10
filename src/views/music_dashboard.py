@@ -15,6 +15,32 @@ class MusicPlayerView(ui.View):
         self.cog = cog
         self.guild_id = guild_id
         self.voice_manager = cog._voice_manager
+        
+        # Sync Button States
+        self._sync_state()
+
+    def _sync_state(self):
+        try:
+            state = self.voice_manager.get_music_state(self.guild_id)
+            if not state:
+                return
+
+            # Loop Button
+            # Button custom_id="music_loop"
+            for child in self.children:
+                if isinstance(child, ui.Button):
+                    if child.custom_id == "music_loop":
+                        child.style = discord.ButtonStyle.green if state.is_looping else discord.ButtonStyle.secondary
+                    elif child.custom_id == "music_play_pause":
+                        # Optional: Change style if paused
+                        if state.voice_client and state.voice_client.is_paused():
+                            child.style = discord.ButtonStyle.danger # Red for paused? or just Secondary
+                            child.emoji = "▶️" # Show Play icon
+                        else:
+                            child.style = discord.ButtonStyle.primary
+                            child.emoji = "⏸️" # Show Pause icon
+        except Exception as e:
+            logger.error(f"Failed to sync dashboard state: {e}")
 
     @ui.button(emoji="⏯️", style=discord.ButtonStyle.primary, custom_id="music_play_pause", row=0)
     async def play_pause(self, interaction: discord.Interaction, button: ui.Button):
@@ -28,13 +54,9 @@ class MusicPlayerView(ui.View):
             vc.resume()
         elif vc.is_playing():
             vc.pause()
-        else:
-            # Not playing, not paused.
-            # If queue has items, maybe start playing?
-            # Or if history has items, replay?
-            # For now, just trigger dashboard update which will show "Stopped"
-            pass
         
+        # Force state sync before update
+        self._sync_state()
         await self.update_dashboard(interaction)
 
     @ui.button(emoji="⏭️", style=discord.ButtonStyle.secondary, custom_id="music_skip", row=0)
