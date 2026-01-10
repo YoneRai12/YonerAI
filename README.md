@@ -136,6 +136,44 @@ ORA is currently evolving to encompass the **9 Pillars of Singularity**:
 
 ## 🏗️ System Architecture & Components
 
+### 🔄 Logic Flow (Visualized)
+
+The **Omni-Router** intelligently directs traffic to the best possible engine based on complexity and cost.
+
+```mermaid
+%%{init: { 'theme': 'dark' }}%%
+graph TD
+    Input[Input Request] --> Router{Smart Router}
+    
+    %% Local Path
+    Router -->|Privacy / Speed| Local[🏠 Local Brain]
+    Local --> Ministral[Ministral-3-14B]
+    Local --> Qwen[Qwen-VL 32B]
+    
+    %% Cloud Path
+    Router -->|Coding / Complexity| Cloud[☁️ Cloud Brain]
+    Cloud --> GPT[OpenAI GPT-5.1]
+    Cloud --> Gemini[Gemini 2.0 Flash]
+
+    %% Tools & Actions
+    Local --> Tools[🛠️ Tools]
+    Cloud --> Tools
+    
+    Tools --> Image[🎨 Flux.1 Generate]
+    Tools --> Vision[👁️ Screen Analyze]
+    Tools --> System[💻 PC Control (Win/Mac)]
+
+    %% Output
+    Tools --> Response
+    GPT --> Response
+    Ministral --> Response[Final Response]
+    
+    style Router fill:#ff0055,stroke:#fff,stroke-width:2px
+    style Local fill:#00aaff,stroke:#fff
+    style Cloud fill:#aa00ff,stroke:#fff
+    style Flatten fill:#00ff00,stroke:#000
+```
+
 This system uses an **Automatic Semantic Router** to dynamically assign tasks to the most appropriate AI model.
 
 | Feature | Model / Engine | Provider | Status |
