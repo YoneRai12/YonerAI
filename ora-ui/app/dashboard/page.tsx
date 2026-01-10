@@ -2369,7 +2369,7 @@ export default function DashboardPage() {
                     </Reorder.Group>
 
                     {/* Lifetime Usage Row */}
-                    <motion.div variants={itemVariants} className="bg-neutral-900 border border-neutral-800/50 rounded-xl p-3 md:p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                    <motion.div variants={itemVariants} className="bg-neutral-900/60 backdrop-blur-md border border-neutral-800/50 rounded-xl p-3 md:p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                         <span className="text-sm font-semibold text-neutral-400 uppercase tracking-wider whitespace-nowrap md:mr-8">全期間 (History)</span>
                         {/* Fixed: Grid instead of overflow-x-auto */}
                         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 w-full gap-4 md:gap-8">
@@ -2412,7 +2412,7 @@ export default function DashboardPage() {
                     </motion.div>
 
                     {/* User Grid */}
-                    <motion.div variants={itemVariants} className="bg-neutral-900 border border-neutral-800 rounded-2xl overflow-hidden shadow-2xl p-3 md:p-4">
+                    <motion.div variants={itemVariants} className="bg-neutral-900/60 backdrop-blur-md border border-neutral-800 rounded-2xl overflow-hidden shadow-2xl p-3 md:p-4">
                         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4">
                             <div className="flex items-center gap-4">
                                 <h2 className="text-xl md:text-2xl font-bold text-white flex items-center gap-3">
