@@ -478,14 +478,17 @@ class MediaCog(commands.Cog):
             if isinstance(e, discord.NotFound):
                 del self.dashboard_messages[guild_id]
 
-    @tasks.loop(seconds=5.0)
+    @tasks.loop(seconds=3.0)
     async def music_dashboard_loop(self):
         """Periodically update active music dashboards to animate progress bar."""
         if not hasattr(self, "dashboard_messages"): return
         
         # Iterate copy of keys
         for guild_id in list(self.dashboard_messages.keys()):
-            await self.update_music_dashboard(guild_id)
+            # Only update if playing
+            state = self._voice_manager.get_music_state(guild_id)
+            if state and state.voice_client and state.voice_client.is_playing():
+                await self.update_music_dashboard(guild_id)
 
     @app_commands.command(name="queue", description="現在の再生キューを表示します。")
     async def queue(self, interaction: discord.Interaction):
