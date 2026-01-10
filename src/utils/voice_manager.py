@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import time
 import tempfile
 from collections import defaultdict
 from typing import Awaitable, Callable, Dict, Optional, Any
@@ -1094,7 +1095,6 @@ class VoiceManager:
                 except: pass
 
             state.voice_client.play(source, after=after_callback)
-            import time
             state.current_start_time = time.time()
             logger.info(f"Playing: {title} (Volume: {state.volume})")
             
