@@ -26,29 +26,29 @@ You don't need slash commands for everything. Just talk.
 
 ---
 
-## 🛠️ Slash Command Reference
+## 🛠️ Slash Command Reference (Cheatsheet)
 
 ### 🎨 Creative Tools
-| Command | Description |
-| :--- | :--- |
-| `/imagine [prompt] [style]` | Generate 4K Art via Flux.1 (e.g., `/imagine a cyberpunk city anime_style`). |
-| `/analyze [image]` | Deep analyze an image or video file. |
-| `/layer [image]` | Decompose an image into PSD layers (Photoshop Core). |
+| Command | Usage Example | Result |
+| :--- | :--- | :--- |
+| `/imagine` | `/imagine a futuristic tokyo` | Generates a 4K Image (Flux.1) |
+| `/analyze` | `/analyze (attach image)` | Analyzes the image content |
+| `/layer` | `/layer (attach image)` | Splits image into PSD layers |
 
 ### 🗣️ Voice & Audio
-| Command | Description |
-| :--- | :--- |
-| `/join` | ORA joins your voice channel and reads chat (TTS). |
-| `/listen` | ORA starts listening to your voice input (Voice Control). |
-| `/doppelganger [audio]` | Clones YOUR voice from a sample file. ORA will speak as YOU. |
+| Command | Usage Example | Result |
+| :--- | :--- | :--- |
+| `/join` | `/join` | ORA joins VC and reads chat |
+| `/listen` | `/listen` | Switch to Voice Control Mode |
+| `/doppelganger` | `/doppelganger (attach audio)` | Clones your voice instantly |
 
 ### 🔧 Utilities & System
-| Command | Description |
-| :--- | :--- |
-| `/search [query]` | Real-time web search (Google/DuckDuckGo). |
-| `/code [request]` | Forces the Coding Brain (GPT-5) for a specific request. |
-| `/system health` | Show VRAM usage, temp, and load. |
-| `/override` | **Admin Only**. Triggers NERV Red Alert mode for system recovery. |
+| Command | Usage Example | Result |
+| :--- | :--- | :--- |
+| `/search` | `/search RTX 5090 release date` | Real-time Google Search |
+| `/code` | `/code python script for...` | Force GPT-5 Coding Mode |
+| `/system health` | `/system health` | Show GPU VRAM/Temp |
+| `/override` | `/override` | **Admin Only**. Emergency Mode |
 
 ---
 

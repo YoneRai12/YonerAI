@@ -20,6 +20,39 @@ This module intercepts **every** user interaction and decides where to rout it.
     *   **Score > 50**: Route to **Cloud Brain (GPT-5.1)**. (High Cost, ~2s)
     *   **Vision Intent**: Route to **Qwen-VL Native**.
 
+### 📊 Visual Logic Flow
+
+```mermaid
+graph TD
+    Input[Input Request] --> Router{Smart Router}
+    
+    %% Local Path
+    Router -->|Privacy / Speed| Local[🏠 Local Brain]
+    Local --> Qwen["Qwen 2.5-VL 32B"]
+    
+    %% Cloud Path
+    Router -->|Coding / Complexity| Cloud[☁️ Cloud Brain]
+    Cloud --> GPT["GPT-5.1-Codex / GPT-4o"]
+    
+    %% Tools
+    Local --> Tools[🛠️ Tools]
+    Cloud --> Tools
+    
+    Tools --> Image["🎨 Flux.1 Image"]
+    Tools --> Vision["👁️ Screen Analyze"]
+    Tools --> System["💻 PC Control"]
+
+    %% Output
+    Tools --> Response
+    GPT --> Response
+    Qwen --> Response["Final Response"]
+    
+    style Router fill:#ff0055,stroke:#fff,stroke-width:2px
+    style Local fill:#00aaff,stroke:#fff
+    style Cloud fill:#aa00ff,stroke:#fff
+    style Response fill:#00ff00,stroke:#000
+```
+
 ---
 
 ## 📡 Satellite IPC Protocol
