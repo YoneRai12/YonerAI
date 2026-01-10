@@ -88,7 +88,7 @@ The **Omni-Router** (`config.py`) dynamically assigns tasks to the optimal brain
 | **Logic Core** | **Qwen 2.5-VL 32B** | Local (vLLM) | 🟢 Active |
 | **Vision Eyes** | **Qwen Native Vision** | Local (Monitor) | 🟢 Active |
 | **High Logic** | **GPT-5.1-Codex** | Cloud (OpenAI) | 🟢 Active |
-| **Creative Art** | **Flux.1-dev (FP8)** | Local (ComfyUI) | 🟢 Active |
+| **Creative Art** | **FLUX.2 (FP8)** | Local (ComfyUI) | 🟢 Active |
 | **Voice Cloning** | **T5Gemma-TTS** | Local (Port 8002) | 🟢 Active |
 
 ### 🔄 Logic Flow
@@ -103,7 +103,7 @@ graph TD
     Cloud --> Response
     
     Qwen --> Tools["🛠️ Real-World Tools"]
-    Tools --> Image["🎨 Flux.1 Image"]
+    Tools --> Image["🎨 FLUX.2 Image"]
     Tools --> System["💻 PC Control (WOL/Shutdown)"]
     Tools --> Healer["🧬 Code Patching"]
     
