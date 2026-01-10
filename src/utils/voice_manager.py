@@ -179,7 +179,7 @@ class GuildMusicState:
         self.current = None  # (url_or_path, title, is_stream, duration)
         self.current_start_time = 0.0 # Unix timestamp
         self.current_track_duration = 0.0 # Saved duration for current track
-        self.volume = 0.06
+        self.volume = 0.15 # Default volume boosted from 0.06
         self.voice_client: Optional[discord.VoiceClient] = None
         self.history = [] # List of (url_or_path, title, is_stream)
         self.tts_volume = 1.0 # Default TTS volume (100%)

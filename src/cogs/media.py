@@ -56,6 +56,10 @@ class MediaCog(commands.Cog):
         self._speak_search_default = speak_search_default
         # Register hotword callback for "ORALLM" voice trigger
         self._voice_manager.set_hotword_callback(self._on_hotword)
+        
+        # Verify commands
+        cmds = [c.name for c in self.get_app_commands()]
+        logger.info(f"MediaCog Loaded Commands: {cmds}")
 
         # Mapping of guild_id -> text_channel_id where auto-read is enabled
         # We now delegate this to VoiceManager to support Hot Reloading.
