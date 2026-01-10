@@ -1128,11 +1128,12 @@ class MediaCog(commands.Cog):
 
                 idle += 1
                 if idle >= idle_seconds:
-                    logger.info(f"Auto-disconnecting from guild {guild_id} due to inactivity")
-                    await vc.disconnect(force=False)
-                    # Clear auto-read mapping
-                    self._voice_manager.auto_read_channels.pop(guild_id, None)
-                    return
+                    # User requested to NOT auto-disconnect
+                    # logger.info(f"Auto-disconnecting from guild {guild_id} due to inactivity")
+                    # await vc.disconnect(force=False)
+                    # self._voice_manager.auto_read_channels.pop(guild_id, None)
+                    # return
+                    pass
         except asyncio.CancelledError:
             return
         except Exception:
