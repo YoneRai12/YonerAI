@@ -544,7 +544,7 @@ class MediaCog(commands.Cog):
     async def seek(self, interaction: discord.Interaction, timestamp: str):
         await interaction.response.defer(ephemeral=True)
         
-        seconds = parse_timestamp(timestamp)
+        seconds = self._parse_timestamp(timestamp)
         if seconds is None:
             await interaction.followup.send("時間の形式が正しくありません (例: 1:30, 90)", ephemeral=True)
             return
@@ -552,22 +552,6 @@ class MediaCog(commands.Cog):
         self._voice_manager.seek_music(interaction.guild.id, seconds)
         await interaction.followup.send(f"⏩ 再生位置を {timestamp} ({seconds}秒) に変更しました")
 
-    async def play_from_ai(self, ctx: commands.Context, query: str) -> None:
-        """Helper for AI to play music directly via Context."""
-        # Ensure Voice
-        if not ctx.author.voice:
-             await ctx.send("❌ ボイスチャンネルに参加してからリクエストしてください。")
-             return
-
-        # 1. Resolve URL
-        stream_url, title, _duration = await get_youtube_audio_stream_url(query)
-        if not title:
-            await ctx.send(f"❌ '{query}' の再生に失敗しました。")
-            return
-
-        # 2. Play (Await once!)
-        played = await self._voice_manager.play_music(ctx.author, stream_url, title, is_stream=True)
-        
     async def play_from_ai(self, ctx: commands.Context, query: str) -> None:
         """Helper for AI to play music directly via Context."""
         # Ensure Voice
@@ -654,23 +638,23 @@ class MediaCog(commands.Cog):
         if ctx.guild:
             await self.update_music_dashboard(ctx.guild.id)
 
-def parse_timestamp(ts: str) -> Optional[float]:
-    """Parse a timestamp like ``1:23`` or ``90`` and return seconds."""
-    ts = ts.strip()
-    try:
-        if ":" in ts:
-            parts = ts.split(":")
-            if len(parts) == 2:
-                m, s = map(int, parts)
-                return m * 60 + s
-            elif len(parts) == 3:
-                h, m, s = map(int, parts)
-                return h * 3600 + m * 60 + s
-        else:
-            return float(ts)
-    except ValueError:
+    def _parse_timestamp(self, ts: str) -> Optional[float]:
+        """Parse a timestamp like ``1:23`` or ``90`` and return seconds."""
+        ts = ts.strip()
+        try:
+            if ":" in ts:
+                parts = ts.split(":")
+                if len(parts) == 2:
+                    m, s = map(int, parts)
+                    return m * 60 + s
+                elif len(parts) == 3:
+                    h, m, s = map(int, parts)
+                    return h * 3600 + m * 60 + s
+            else:
+                return float(ts)
+        except ValueError:
+            return None
         return None
-    return None
 
     # ------------------------------------------------------------------
     # Country flag translation
