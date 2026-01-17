@@ -1,6 +1,7 @@
 # Tools logs
 *.log
 *.log.*
+bot.log
 *.txt
 
 # Project Artifacts

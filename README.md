@@ -89,7 +89,7 @@ ORA uses **Qwen 2.5-VL (Visual Language Model)** to "see" images.
 
 ### 3. Generation (The Hands) 🎨
 ORA creates content locally.
-*   **Image Generation**: Uses **FLUX.1 [schnell]** or **Stable Diffusion XL** to generate images from your text prompts.
+*   **Image Generation**: Uses **FLUX.1 [schnell]** or **Stable Diffusion XL** to generate images. *Resolution and speed depend on your GPU and Configuration.*
 *   **Voice Cloning**: Uses **T5Gemma-TTS** (or VoiceVox) for high-quality speech synthesis directly from your GPU.
 
 ---
@@ -303,6 +303,11 @@ ORA is highly configurable. Edit your `.env` file to control her behavior.
 | `ADMIN_USER_ID` | **Required**. Your User ID (for Admin commands like `/heal`). | `1234567890` |
 | `OPENAI_API_KEY` | Optional. Enables "Cloud Intelligence" (GPT-5). | `sk-...` |
 | `GOOGLE_API_KEY` | Optional. Enables Gemini Vision & Search redundancy. | `AIza...` |
+
+> [!CAUTION]
+> **SECURITY WARNING**: Never commit your `.env` file to GitHub.
+> If you accidentally push your token, Discord will detect it and ban the token immediately.
+> Rotate your keys if you suspect a leak.
 | **Brain Configuration** | | |
 | `LLM_MODEL` | The local model to use via vLLM. | `Qwen/Qwen2.5-VL-32B-Instruct-AWQ` |
 | `LLM_BASE_URL` | Endpoint for the Local LLM. | `http://localhost:8001/v1` |
