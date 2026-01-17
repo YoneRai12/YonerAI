@@ -129,6 +129,7 @@ class Config:
     sub_admin_ids: set[int]
     vc_admin_ids: set[int]
     feature_proposal_channel_id: Optional[int]
+    vision_provider: str
 
     @classmethod
     def load(cls) -> "Config":
@@ -137,6 +138,10 @@ class Config:
         token = os.getenv("DISCORD_BOT_TOKEN")
         if not token:
             raise ConfigError("環境変数 DISCORD_BOT_TOKEN が未設定です。")
+        
+        vision_provider = os.getenv("VISION_PROVIDER", "local").lower()
+        if vision_provider not in {"local", "openai"}:
+            vision_provider = "local" # Fallback
 
         openai_key = os.getenv("OPENAI_API_KEY")
 
@@ -318,6 +323,7 @@ class Config:
             sub_admin_ids=sub_admin_ids,
             vc_admin_ids=vc_admin_ids,
             feature_proposal_channel_id=feature_proposal_channel_id,
+            vision_provider=vision_provider,
         )
 
     def validate(self) -> None:

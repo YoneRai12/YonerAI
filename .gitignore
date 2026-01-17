@@ -10,6 +10,10 @@
 *.zip
 *.7z
 *.rar
+*.mp3
+*.wav
+test_output*.txt
+
 
 # Large Data & Models
 data/

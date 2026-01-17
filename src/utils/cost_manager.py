@@ -61,8 +61,6 @@ class CostManager:
         # [Override] Unlimited Users (Set of User IDs)
         self.unlimited_users = set()
         
-        # Pre-load requested Admin ID if needed, but better to rely on state
-        # self.unlimited_users.add("1069941291661672498")
 
         self.unlimited_mode = False # Deprecated but kept for safe migration (will be removed logic-wise)
 

@@ -35,6 +35,7 @@ import ast # For robust JSON parsing fallback
 logger = logging.getLogger(__name__)
 
 MEMORY_DIR = r"L:\ORA_Memory\users"
+CHANNEL_MEMORY_DIR = r"L:\ORA_Memory\channels"
 
 class SimpleFileLock:
     """Cross-process file lock using atomic filesystem operations."""
@@ -117,6 +118,8 @@ class MemoryCog(commands.Cog):
         
         # Buffer: {user_id: [{"content": str, "timestamp": str}, ...]}
         self.message_buffer: Dict[int, list] = {}
+        # Channel Buffer: {channel_id: [{"content": str, "timestamp": str, "author": str}, ...]}
+        self.channel_buffer: Dict[int, list] = {}
         
         # Concurrency Control (Worker: 50, Main: 20)
         limit = 50 if worker_mode else 10 # Main bot keeps low profile
@@ -146,6 +149,9 @@ class MemoryCog(commands.Cog):
             logger.info("MemoryCog: WORKER MODE (ヘビータスク優先) で起動しました。")
         else:
             logger.info("MemoryCog: MAIN MODE (リアルタイム応答 + フォールバック) で起動しました。")
+            
+        # [Phase 29] Multi-Modal Understanding
+        self.captioner = None
 
     def cog_unload(self):
         self.status_loop.cancel()
@@ -185,12 +191,13 @@ class MemoryCog(commands.Cog):
 
     def _ensure_memory_dir(self):
         """Ensure memory directory exists."""
-        if not os.path.exists(MEMORY_DIR):
-            try:
-                os.makedirs(MEMORY_DIR, exist_ok=True)
-                logger.info(f"Created Memory Directory: {MEMORY_DIR}")
-            except Exception as e:
-                logger.error(f"Failed to create Memory Directory: {e}")
+        for d in [MEMORY_DIR, CHANNEL_MEMORY_DIR]:
+            if not os.path.exists(d):
+                try:
+                    os.makedirs(d, exist_ok=True)
+                    logger.info(f"Created Memory Directory: {d}")
+                except Exception as e:
+                    logger.error(f"Failed to create Memory Directory {d}: {e}")
 
     def is_public(self, channel) -> bool:
         """Returns True if @everyone has View Channel permission."""
@@ -310,6 +317,52 @@ class MemoryCog(commands.Cog):
         self.scan_history_task.cancel()
         self.surplus_token_burner.cancel()
 
+    async def _process_media_attachments(self, message: discord.Message):
+        """Analyzes attachments (Image/Video) and appends context to buffer."""
+        try:
+            if not self.captioner:
+                # Lazy Init
+                ora_cog = self.bot.get_cog("ORACog")
+                if ora_cog and hasattr(ora_cog, "unified_client"):
+                     from ..utils.vision.captioner import ImageCaptioner
+                     self.captioner = ImageCaptioner(ora_cog.unified_client)
+                else:
+                     return
+
+            descriptions = []
+            for att in message.attachments:
+                ext = att.filename.lower().split(".")[-1]
+                if ext in ["png", "jpg", "jpeg", "webp", "gif", "bmp"]:
+                    text = await self.captioner.describe_media(att.url, "image")
+                    descriptions.append(f"[Image Context: {text}]")
+                elif ext in ["mp4", "mov", "webm", "mkv"]:
+                    text = await self.captioner.describe_media(att.url, "video")
+                    descriptions.append(f"[Video Context: {text}]")
+            
+            if descriptions:
+                full_text = "\n".join(descriptions)
+                
+                # Append to buffer as a System Context Message
+                # This ensures the Optimizer sees it as part of the conversation flow.
+                if message.author.id not in self.message_buffer:
+                    self.message_buffer[message.author.id] = []
+                    
+                entry = {
+                    "id": message.id + 1, # Pseudo-ID
+                    "content": f"[System Media Context] {full_text}",
+                    "timestamp": datetime.now().isoformat(),
+                    "channel": message.channel.name if hasattr(message.channel, "name") else "DM",
+                    "guild": message.guild.name if message.guild else "DM",
+                    "guild_id": message.guild.id if message.guild else None,
+                    "is_public": self.is_public(message.channel)
+                }
+                
+                self.message_buffer[message.author.id].append(entry)
+                # logger.info(f"Memory: Added media context for {message.author.display_name}")
+                
+        except Exception as e:
+            logger.error(f"Media Analysis Error: {e}")
+
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         """Buffer user messages for analysis."""
@@ -318,7 +371,12 @@ class MemoryCog(commands.Cog):
             return
 
         if message.author.bot: return
-        if not message.guild: return # Ignore DM for now        
+        if not message.guild: return # Ignore DM for now    
+        
+        # [NEW] Multi-Modal Analysis Hook
+        if message.attachments:
+             asyncio.create_task(self._process_media_attachments(message))
+             
         if message.author.id not in self.message_buffer:
             self.message_buffer[message.author.id] = []
             
@@ -352,6 +410,26 @@ class MemoryCog(commands.Cog):
 
         # Phase 32: Per-User History Persistence (with scope)
         asyncio.create_task(self._persist_message(message.author.id, entry, message.guild.id if message.guild else None, is_pub))
+
+        # ---------------------------------------------------------
+        # CHANNEL MEMORY BUFFERING
+        # ---------------------------------------------------------
+        if message.channel.id not in self.channel_buffer:
+            self.channel_buffer[message.channel.id] = []
+            
+        chan_entry = {
+            "content": message.content,
+            "timestamp": datetime.now().isoformat(),
+            "author": message.author.display_name
+        }
+        self.channel_buffer[message.channel.id].append(chan_entry)
+        
+        # Trigger Channel Optimization (10 messages)
+        if len(self.channel_buffer[message.channel.id]) >= 10:
+             # logger.info(f"Memory: Channel Optimization Trigger for {message.channel.name}")
+             c_msgs = self.channel_buffer[message.channel.id][:]
+             self.channel_buffer[message.channel.id] = []
+             asyncio.create_task(self._analyze_channel_wrapper(message.channel.id, c_msgs))
 
         # ---------------------------------------------------------
         # INSTANT NAME UPDATE (Fix for Dashboard "Unknown" Issue)
@@ -527,7 +605,16 @@ class MemoryCog(commands.Cog):
                         try: os.remove(temp_path)
                         except: pass
 
-    def _sanitize_traits(self, traits: List[Any]) -> List[str]:
+    def _get_channel_memory_path(self, channel_id: int) -> str:
+        """Get path to channel memory file."""
+        return os.path.join(CHANNEL_MEMORY_DIR, f"{channel_id}.json")
+
+    async def get_channel_profile(self, channel_id: int) -> Optional[Dict[str, Any]]:
+        """Retrieve channel profile (Summary/Topic)."""
+        path = self._get_channel_memory_path(channel_id)
+        return await self._read_profile_retry(path)
+
+    async def _sanitize_traits(self, traits: List[Any]) -> List[str]:
         """Ensure traits are clean, short strings."""
         clean = []
         seen = set()
@@ -563,7 +650,7 @@ class MemoryCog(commands.Cog):
         try:
             # Sanitize traits before merging
             if "traits" in data:
-                data["traits"] = self._sanitize_traits(data["traits"])
+                data["traits"] = await self._sanitize_traits(data["traits"])
 
             # For update, we only want the specific layer
             current = await self._read_profile_retry(path)
@@ -1739,6 +1826,91 @@ class MemoryCog(commands.Cog):
     @memory_worker.before_loop
     async def before_worker(self):
         await self.bot.wait_until_ready()
+
+    async def _analyze_channel_wrapper(self, channel_id: int, messages: list):
+        """Wrapper to handle channel analysis in background."""
+        try:
+            # Basic Concurrency Control
+            async with self.sem:
+                 await self.analyze_channel(channel_id, messages)
+        except Exception as e:
+            logger.error(f"Channel Analysis Wrapper Failed: {e}")
+
+    async def analyze_channel(self, channel_id: int, messages: list[Dict[str, Any]]):
+        """Analyze channel messages and update channel summary."""
+        if not messages: return
+        
+        # Prepare Log
+        chat_log = "\n".join([f"[{m['timestamp']}] {m['author']}: {m['content']}" for m in messages])
+        
+        prompt = [
+            {"role": "developer", "content": (
+                "You are an AI Observer summarizing a Discord Channel's context. Output MUST be in Japanese.\n"
+                "Goal: Update the persistent memory of this channel.\n"
+                "Output JSON format:\n"
+                "{\n"
+                "  \"summary\": \"Current conversation summary (2-3 sentences).\",\n"
+                "  \"topics\": [\"topic1\", \"topic2\"],\n"
+                "  \"atmosphere\": \"chill/heated/technical/gaming etc.\"\n"
+                "}"
+            )},
+            {"role": "user", "content": (
+                f"Analyze these recent messages from the channel:\n{chat_log}\n\n"
+                f"Update the channel context."
+            )}
+        ]
+        
+        try:
+             # Reuse LLM Client
+             if hasattr(self._llm, "chat"):
+                 response_text, _, _ = await self._llm.chat("openai", prompt, max_tokens=1000)
+                 
+                 data = self._parse_analysis_json(response_text)
+                 if data:
+                     # Merge with existing
+                     await self._update_channel_memory(channel_id, data)
+                     logger.info(f"Memory: Updated Channel Memory for {channel_id}")
+                 
+        except Exception as e:
+            logger.error(f"Channel Analysis Failed for {channel_id}: {e}")
+
+    async def _update_channel_memory(self, channel_id: int, new_data: dict):
+        """Update channel JSON with new analysis data."""
+        path = self._get_channel_memory_path(channel_id)
+        
+        try:
+            current = {}
+            if os.path.exists(path):
+                async with SimpleFileLock(path):
+                    async with aiofiles.open(path, "r", encoding="utf-8") as f:
+                        try:
+                            content = await f.read()
+                            if content: current = json.loads(content)
+                        except: pass
+            
+            # Merge Logic
+            # 1. Update/Overwrite Summary & Atmosphere (Context evolves)
+            if "summary" in new_data:
+                current["summary"] = new_data["summary"]
+            if "atmosphere" in new_data:
+                current["atmosphere"] = new_data["atmosphere"]
+                
+            # 2. Merge Topics (Keep last 10)
+            if "topics" in new_data and isinstance(new_data["topics"], list):
+                old_topics = current.get("topics", [])
+                # Add new ones at the end, remove duplicates, keep order
+                for t in new_data["topics"]:
+                    if t not in old_topics:
+                        old_topics.append(t)
+                current["topics"] = old_topics[-10:]
+            
+            current["last_updated"] = datetime.now().isoformat()
+            
+            # Save
+            await self._save_user_profile_atomic(path, current) 
+            
+        except Exception as e:
+            logger.error(f"Failed to save channel memory {channel_id}: {e}")
 
 async def setup(bot: commands.Bot):
     # Try getting UnifiedClient first, then fallback to llm_client

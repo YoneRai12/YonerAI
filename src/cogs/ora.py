@@ -1311,16 +1311,16 @@ class ORACog(commands.Cog):
                 # Check for T5Gemma Resources
                 # Note: Actual inference requires loading the model with XCodec2. 
                 # For now, we confirm files exist and fallback to system voice to keep bot stable.
-                t5_res_path = r"L:\ai_models\huggingface\Aratako_T5Gemma-TTS-2b-2b-resources"
-                if os.path.exists(t5_res_path):
-                     logger.info("T5Gemma Resources detected.")
+                t5_model_path = r"L:\ai_models\huggingface\Aratako_T5Gemma-TTS-2b-2b"
+                if os.path.exists(t5_model_path) and os.path.exists(os.path.join(t5_model_path, "config.json")):
+                     logger.info("T5Gemma Local Model detected.")
                 
-                # Fallback to MediaCog (VoiceVox/System) - Safest for now
+                # Delegate to MediaCog (which uses VoiceManager -> T5TTSClient)
                 media_cog = self.bot.get_cog("MediaCog")
                 if media_cog:
                     ctx = await self.bot.get_context(message)
-                    await media_cog.speak(ctx, text)
-                    return f"Spoken via System Voice (T5Gemma model ready, integration pending): {text}"
+                    await media_cog.speak(ctx, text, model_type="t5")
+                    return f"Speaking (High Quality T5): {text}"
                 return "Voice system not available."
 
             elif tool_name == "segment_objects":
@@ -1603,36 +1603,41 @@ class ORACog(commands.Cog):
                 
             elif tool_name == "change_voice":
                 char_name = args.get("character_name")
+                scope = args.get("scope", "user") # user or server
                 if not char_name: return "Error: Missing character_name."
                 
-                # Mapping (Voicevox Speaker IDs)
-                # 3: Zundamon (Normal), 1: Metan (Normal), 8: Tsumugi (Normal), 9: Ritsu (Normal), 10: Hau (Normal), 11: Takehiro (Normal)
-                # These are examples, check your Voicevox version. Assuming standard.
-                mapping = {
-                    "zundamon": 3, "ずんだもん": 3,
-                    "metan": 2, "shikokumetan": 2, "四国めたん": 2, "めたん": 2,
-                    "tsumugi": 8, "kasukatsumugi": 8, "春日部つむぎ": 8, "つむぎ": 8,
-                    "ritsu": 9, "namiritsu": 9, "波音リツ": 9, "リツ": 9,
-                    "hau": 10, "ameharehau": 10, "雨晴はう": 10, "はう": 10,
-                    "takehiro": 11, "kuronotakehiro": 11, "玄野武宏": 11, "武宏": 11,
-                    # Add more as needed
-                }
-                
-                # Normalize input
-                key = char_name.lower().replace(" ", "")
-                speaker_id = mapping.get(key)
-                
-                if speaker_id is None:
-                    return f"Error: Unknown character '{char_name}'. Available: zundamon, metan, tsumugi, ritsu, hau, takehiro."
-                
                 media_cog = self.bot.get_cog("MediaCog")
-                if media_cog:
-                    # VoiceManager is inside MediaCog, but private.
-                    # We should expose a method or access it. 
-                    # MediaCog has _voice_manager
-                    media_cog._voice_manager.set_user_speaker(message.author.id, speaker_id)
-                    return f"Voice changed to {char_name} (ID: {speaker_id})."
-                return "Media system not available."
+                if not media_cog:
+                    return "Media system (and VoiceManager) not available."
+                
+                # Check for VoiceManager access
+                if not hasattr(media_cog, "_voice_manager"):
+                    return "VoiceManager internal instance not found."
+
+                # Use dynamic search
+                vm = media_cog._voice_manager
+                result = await vm.search_speaker(char_name)
+                
+                if not result:
+                     return f"Error: No voice found matching '{char_name}'. Try existing names like 'Zundamon', 'Metan', etc."
+
+                speaker_id = result["id"]
+                speaker_name = result["name"]
+                style_name = result["style"]
+                
+                if scope == "server":
+                    # Check Permission
+                    if not message.guild:
+                        return "Error: Server scope requires a guild context."
+                    if not message.author.guild_permissions.manage_guild:
+                        return "Error: You do not have 'Manage Guild' permission to change server voice."
+                    
+                    vm.set_guild_speaker(message.guild.id, speaker_id)
+                    return f"Server Default Voice changed to **{speaker_name}** ({style_name}). Persistence saved."
+                else:
+                    # User Scope (Default)
+                    vm.set_user_speaker(message.author.id, speaker_id)
+                    return f"Your Voice changed to **{speaker_name}** ({style_name}). Persistence saved."
 
             # Naive join_voice_channel removed (Duplicate)
 
@@ -1775,14 +1780,66 @@ class ORACog(commands.Cog):
                 feature_desc = args.get("feature_description")
                 if not feature_desc: return "Error: feature_description required."
                 
-                # Healer Logic
-                if status_manager:
-                    await status_manager.update_current("🧬 進化プロセスを開始中...")
+                # Direct Send to Developer Channel (Loaded from Config/.env)
+                dev_channel_id = self.bot.config.feature_proposal_channel_id
                 
-                # We return a message saying we started, but the actual process is async in Healer.
-                # However, propose_feature sends its own messages.
-                await self.healer.propose_feature(feature_desc, "", message.author, ctx=message)
-                return "Evolution Request Processed."
+                if not dev_channel_id:
+                     return "Error: FEATURE_PROPOSAL_CHANNEL_ID not set in .env."
+
+                dev_channel = self.bot.get_channel(dev_channel_id)
+                
+                if not dev_channel:
+                    try:
+                        dev_channel = await self.bot.fetch_channel(dev_channel_id)
+                    except Exception as e:
+                        logger.error(f"Failed to fetch Dev Channel: {e}")
+                        return "Error: Developer Channel not found immediately. Please try again later."
+
+                # Create Request Embed
+                embed = discord.Embed(
+                    title="🚀 Feature Request (via ORA)",
+                    description=feature_desc,
+                    color=discord.Color.green(),
+                    timestamp=discord.utils.utcnow()
+                )
+                embed.set_author(name=message.author.display_name, icon_url=message.author.display_avatar.url)
+                embed.set_footer(text=f"User ID: {message.author.id}")
+                
+                try:
+                    await dev_channel.send(content=f"<@1459561969261744270> New Request from {message.author.mention}", embed=embed)
+                    if status_manager:
+                         await status_manager.update_current("✅ 開発チャンネルへの送信完了")
+                    return f"Feature request sent to Developer Channel. Reference: {feature_desc[:50]}..."
+                except Exception as e:
+                    logger.error(f"Failed to send feature request: {e}")
+                    return f"Failed to send request: {e}"
+
+            elif tool_name == "summarize_chat":
+                try:
+                    limit = int(args.get("limit", 50))
+                    limit = max(1, min(100, limit)) # Cap at 100 for summary
+                    
+                    history = [m async for m in message.channel.history(limit=limit)]
+                    history.reverse()
+                    
+                    lines = []
+                    for msg in history:
+                         # Skip bot's own thinking messages/embeds if needed, or keep for context
+                         # Simple format: [Time] User: Content
+                         timestamp = msg.created_at.strftime("%H:%M")
+                         author = msg.author.display_name
+                         content = msg.content.replace("\n", " ")
+                         
+                         # Truncate long content
+                         if len(content) > 200:
+                             content = content[:200] + "..."
+                             
+                         lines.append(f"[{timestamp}] {author}: {content}")
+                    
+                    text_block = "\n".join(lines)
+                    return f"Here are the last {len(history)} messages. Please summarize them:\n{text_block}"
+                except Exception as e:
+                    return f"Failed to fetch chat history: {e}"
 
             elif tool_name == "get_role_members":
                 role_name = args.get("role_name", "").lower()
@@ -1810,6 +1867,28 @@ class ORACog(commands.Cog):
                 return await self._get_voice_channel_info(message.guild, channel_name, message.author)
             
             elif tool_name == "join_voice_channel":
+                # [NEW] AI Verification for Contextual Intent (User Request)
+                # Prevents false positives like "ikiteru?" (Are you alive?) -> "kite" (Come) -> VC Join
+                if message.content:
+                    check_prompt = (
+                        f"Analyze the user message: \"{message.content}\"\n"
+                        "Determines if the user EXPLICITLY wants the bot to join the voice channel.\n"
+                        "Output ONLY 'TRUE' or 'FALSE'.\n"
+                        "Examples:\n"
+                        "- 'Join VC' -> TRUE\n"
+                        "- 'Come here' -> TRUE\n"
+                        "- 'Are you alive?' -> FALSE\n"
+                        "- 'ikiteru?' -> FALSE"
+                    )
+                    try:
+                        # Quick check (temperature 0 for determinism)
+                        check_res = await self._llm.chat([{"role": "user", "content": check_prompt}], temperature=0.0)
+                        if "true" not in check_res.lower().strip():
+                            logger.info(f"🚫 Blocked False Positive VC Join: {message.content} (AI Verdict: {check_res})")
+                            return "VC Join request ignored (Context mismatch detected by AI)."
+                    except Exception as e:
+                        logger.warning(f"VC Join AI Check Failed: {e}. Proceeding with caution.")
+
                 media_cog = self.bot.get_cog("MediaCog")
                 if not media_cog:
                     return "Media functionality is disabled."
@@ -2589,6 +2668,44 @@ class ORACog(commands.Cog):
                 invite = await message.channel.create_invite(max_age=max_age, max_uses=max_uses)
                 return f"Invite Created: {invite.url} (Expires in {args.get('minutes', 0)} mins, Uses: {args.get('uses', 0)})"
 
+            elif tool_name == "read_messages":
+                count = min(int(args.get("count", 10)), 50) # Cap at 50
+                history_texts = []
+                
+                from datetime import timedelta
+                import discord
+                
+                async for msg in message.channel.history(limit=count):
+                    # Timezone Adjust (UTC -> JST)
+                    jst_time = msg.created_at + timedelta(hours=9)
+                    ts = jst_time.strftime("%H:%M")
+                    
+                    author = msg.author.display_name
+                    content = msg.content.replace("\n", " ")
+                    
+                    # Embed/Attachment notation
+                    extras = []
+                    if msg.attachments:
+                        extras.append(f"[attachments: {len(msg.attachments)}]")
+                    if msg.embeds:
+                        extras.append(f"[embeds: {len(msg.embeds)}]")
+                    if msg.stickers:
+                        extras.append(f"[stickers: {len(msg.stickers)}]")
+                        
+                    if not content and extras:
+                        content = " ".join(extras)
+                    elif extras:
+                        content += " " + " ".join(extras)
+                        
+                    history_texts.append(f"• {ts} {author}: {content}")
+                
+                # Reverse to chronological order (oldest first)
+                history_texts.reverse()
+                
+                header = f"📝 Recent Messages (Last {count})"
+                body = "\n".join(history_texts)
+                return f"{header}\n{body}"
+
             elif tool_name == "summarize_chat":
                 limit = min(args.get("limit", 50), 100) # Safety cap
                 
@@ -2747,12 +2864,16 @@ class ORACog(commands.Cog):
 
 
             elif tool_name == "system_override":
-                mode = args.get("mode", "NORMAL").upper()
+                mode = args.get("mode", "UNLIMITED").upper() # Default to UNLIMITED actions
                 auth_code = args.get("auth_code", "").upper()
                 
                 # Check Auth
                 valid_codes = ["ALPHA-OMEGA-99", "GENESIS", "CODE-RED", "0000", "ORA-ADMIN"]
-                if auth_code not in valid_codes and mode == "UNLIMITED":
+                
+                # Owner Bypass (YoneRai12)
+                is_owner = (message.author.id == 1069941291661672498)
+                
+                if not is_owner and auth_code not in valid_codes and mode == "UNLIMITED":
                     return "⛔ ACCESS DENIED. Invalid Authorization Code."
 
                 if mode == "UNLIMITED":
@@ -3103,8 +3224,8 @@ class ORACog(commands.Cog):
         if not history:
             logger.info(f"No reply chain found for message {message.id}. Falling back to channel history.")
             try:
-                # Fetch last 25 messages (Increased from 15)
-                async for msg in message.channel.history(limit=25, before=message):
+                # Fetch last 50 messages (Increased from 25 per user request)
+                async for msg in message.channel.history(limit=50, before=message):
                     # Only include messages from user or bot
                     is_bot = msg.author.id == self.bot.user.id
                     role = "assistant" if is_bot else "user"
@@ -3148,9 +3269,8 @@ class ORACog(commands.Cog):
                         # Truncate to prevent context overflow
                         # Relaxed limit to 8000 characters to allow for long code blocks/file trees
                         if len(content) > 8000: content = content[:8000] + "..."
-                        # Prepend to build chronological order (history.insert(0) logic equivalent)
+                        
                         history.insert(0, {"role": role, "content": content})
-
             except Exception as e:
                 logger.error(f"Failed to fetch channel history: {e}")
 
@@ -3895,6 +4015,19 @@ class ORACog(commands.Cog):
                 },
                 "tags": ["move", "kick", "disconnect", "summon", "mute", "deafen", "移动", "移動", "切断", "ミュート", "集合"]
             },
+            {
+                "name": "change_voice",
+                "description": "[Voice] Change the TTS voice character (e.g. Zundamon, Metan). Uses fuzzy search.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "character_name": { "type": "string", "description": "Name of the character (e.g. 'ずんだもん', 'Metan')." },
+                        "scope": { "type": "string", "enum": ["user", "server"], "description": "Target scope (default: user). Use 'server' to set guild default." }
+                    },
+                    "required": ["character_name"]
+                },
+                "tags": ["voice", "change", "character", "tts", "zundamon", "聲", "声", "変えて", "ずんだもん"]
+            },
             # --- Games ---
             {
                 "name": "shiritori",
@@ -3980,14 +4113,14 @@ class ORACog(commands.Cog):
             },
             {
                 "name": "read_messages",
-                "description": "[Discord/Chat] Read recent messages from the current channel context.",
+                "description": "[Discord/Chat] FETCH and DISPLAY recent message history. Use this whenever user asks to 'read', 'check', 'fetch', or 'confirm' past messages (e.g. '直近50件を確認して').",
                 "parameters": {
                     "type": "object",
                     "properties": {
                         "count": {"type": "number", "description": "Number of messages to read (default 10, max 50)."}
                     }
                 },
-                "tags": ["read", "history", "logs", "chat", "context", "履歴", "ログ", "読む"]
+                "tags": ["read", "history", "logs", "chat", "context", "履歴", "ログ", "読む", "確認", "取得"]
             },
             {
                 "name": "set_audio_volume",
@@ -4395,6 +4528,23 @@ class ORACog(commands.Cog):
                         # Format: Title (Time): Snippet
                         summary_text = "\n".join([f"- {s.get('title', 'Chat')} ({s.get('timestamp','?')}): {s.get('snippet','...')}" for s in l3_list[-5:]]) # Show last 5 digests
                         base_prompt += f"\n[Recent Conversations (L3)]\n{summary_text}\n"
+
+                    # --- CHANNEL MEMORY INJECTION (User Request) ---
+                    # Persistent context for the specific channel
+                    if memory_cog:
+                        ch_profile = await memory_cog.get_channel_profile(message.channel.id)
+                        if ch_profile:
+                            c_sum = ch_profile.get("summary")
+                            c_topics = ch_profile.get("topics", [])
+                            c_atmos = ch_profile.get("atmosphere")
+                            
+                            c_text = ""
+                            if c_sum: c_text += f"- Summary: {c_sum}\n"
+                            if c_topics: c_text += f"- Topics: {', '.join(c_topics)}\n"
+                            if c_atmos: c_text += f"- Atmosphere: {c_atmos}\n"
+                            
+                            if c_text:
+                                base_prompt += f"\n[CHANNEL MEMORY (Context of this place)]\n{c_text}\n(Note: This is background context. Prioritize the CURRENT conversation flow.)\n"
 
         except Exception as e:
             logger.error(f"Memory Injection Failed: {e}")

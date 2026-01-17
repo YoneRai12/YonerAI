@@ -766,3 +766,22 @@ m the working environment (`.venv`).
 
 
 
+
+
+# Version 3.7.2: Implement TTS Voice Selection
+
+- [ ] Research existing VoiceVox integration
+    - [ ] Check `src/utils/tts_client.py` for speaker listing methods
+    - [ ] Check `src/cogs/voice_engine.py` for existing commands
+- [ ] Design Voice Selection Command
+    - [ ] Create `implementation_plan.md`
+- [ ] Implement `list_voices` command
+    - [ ] Fetch speakers from VoiceVox engine
+    - [ ] Display list to user
+- [ ] Implement `set_voice` command
+    - [ ] Update `VoiceManager` to store user preference
+    - [ ] Persist preferences (optional, but good)
+- [ ] Verify functionality
+    - [ ] Test listing voices
+    - [ ] Test changing voice
+    - [ ] Verify TTS uses selected voice

@@ -17,7 +17,11 @@ from .stt_client import WhisperClient
 from .tts_client import VoiceVoxClient
 from .edge_tts_client import EdgeTTSClient
 from .gtts_client import GTTSClient
+from .t5_tts_client import T5TTSClient
 import audioop
+import json
+from pathlib import Path
+from ..config import STATE_DIR
 
 class VoiceConnectionError(Exception):
     """Raised when the bot fails to connect to a voice channel."""
@@ -345,9 +349,21 @@ class VoiceManager:
         self._stt = stt
         self._edge_tts = EdgeTTSClient()
         self._gtts = GTTSClient()
+        t5_local_path = r"L:\ai_models\huggingface\Aratako_T5Gemma-TTS-2b-2b"
+        if os.path.exists(os.path.join(t5_local_path, "config.json")):
+             logger.info(f"Using Local T5Gemma Model: {t5_local_path}")
+             self._t5_tts = T5TTSClient(t5_local_path)
+        else:
+             self._t5_tts = T5TTSClient("Aratako/T5Gemma-TTS-2b-2b") # High Quality T5
         self._music_states: Dict[int, GuildMusicState] = defaultdict(GuildMusicState)
         self._listener = HotwordListener(stt, bot.loop)
         self._user_speakers: Dict[int, int] = {}  # user_id -> speaker_id
+        self._guild_speakers: Dict[int, int] = {} # guild_id -> speaker_id
+        self.state_path = Path(STATE_DIR) / "user_voices.json"
+        self.guild_state_path = Path(STATE_DIR) / "guild_voices.json"
+        self.load_speakers()
+        self.load_guild_speakers()
+
         # Persist auto-read channels here so they survive MediaCog reloads
         self.auto_read_channels: Dict[int, int] = {}  # guild_id -> channel_id
         self.has_warned_voicevox = False
@@ -358,9 +374,89 @@ class VoiceManager:
     def set_hotword_callback(self, callback: HotwordCallback) -> None:
         self._listener.set_callback(callback)
 
+    def load_speakers(self):
+        """Load speaker preferences from JSON."""
+        if self.state_path.exists():
+            try:
+                with open(self.state_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    # Convert keys to int (JSON keys are strings)
+                    self._user_speakers = {int(k): v for k, v in data.items()}
+                logger.info(f"Loaded {len(self._user_speakers)} user voice preferences.")
+            except Exception as e:
+                logger.error(f"Failed to load user voices: {e}")
+
+    def save_speakers(self):
+        """Save speaker preferences to JSON."""
+        try:
+            self.state_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(self.state_path, "w", encoding="utf-8") as f:
+                json.dump(self._user_speakers, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            logger.error(f"Failed to save user voices: {e}")
+
+    def load_guild_speakers(self):
+        """Load guild speaker preferences from JSON."""
+        if self.guild_state_path.exists():
+            try:
+                with open(self.guild_state_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    self._guild_speakers = {int(k): v for k, v in data.items()}
+                logger.info(f"Loaded {len(self._guild_speakers)} guild voice preferences.")
+            except Exception as e:
+                logger.error(f"Failed to load guild voices: {e}")
+
+    def save_guild_speakers(self):
+        """Save guild speaker preferences to JSON."""
+        try:
+            self.guild_state_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(self.guild_state_path, "w", encoding="utf-8") as f:
+                json.dump(self._guild_speakers, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            logger.error(f"Failed to save guild voices: {e}")
+
+    async def get_speakers(self) -> list[dict]:
+        """Fetch available speakers from VoiceVox Engine."""
+        return await self._tts.get_speakers()
+
     def set_user_speaker(self, user_id: int, speaker_id: int) -> None:
         """Set the preferred VoiceVox speaker ID for a user."""
         self._user_speakers[user_id] = speaker_id
+        self.save_speakers()
+
+    def set_guild_speaker(self, guild_id: int, speaker_id: int) -> None:
+        """Set the preferred VoiceVox speaker ID for a guild."""
+        self._guild_speakers[guild_id] = speaker_id
+        self.save_guild_speakers()
+
+    async def search_speaker(self, query: str) -> Optional[dict]:
+        """Search for a speaker by name (fuzzy match)."""
+        query = query.lower().strip()
+
+        # Virtual Speaker: T5Gemma
+        if any(w in query for w in ["t5", "gemma", "high quality", "高音質", "human", "人間", "real", "リアル", "person"]):
+            return {"name": "T5Gemma (High Quality)", "style": "Generative", "id": -1}
+
+        speakers = await self.get_speakers()
+        if not speakers:
+             return None
+        
+        best_match = None
+        # ... logic continues ...
+        
+        for sp in speakers:
+            name = sp.get("name", "").lower()
+            # Exact match
+            if name == query:
+                return {"id": sp["styles"][0]["id"], "name": sp["name"], "style": sp["styles"][0]["name"]}
+            
+            # Partial match
+            if query in name:
+                # Prefer exact contained matches or first found
+                if not best_match:
+                     best_match = {"id": sp["styles"][0]["id"], "name": sp["name"], "style": sp["styles"][0]["name"]}
+        
+        return best_match
 
     async def ensure_voice_client(self, member: discord.Member, allow_move: bool = True) -> Optional[discord.VoiceClient]:
         if member.voice is None or member.voice.channel is None:
@@ -431,7 +527,7 @@ class VoiceManager:
         logger.error("Failed to connect to voice after 3 attempts.")
         raise VoiceConnectionError(f"ボイスチャンネルへの接続に失敗しました (タイムアウト/エラー): {last_error}")
 
-    async def play_tts(self, member: discord.Member, text: str, speed: float = 1.0) -> bool:
+    async def play_tts(self, member: discord.Member, text: str, speed: float = 1.0, model_type: str = "standard") -> bool:
         if not text or not text.strip():
             return False
             
@@ -457,7 +553,7 @@ class VoiceManager:
                      
             # 3. Add to Queue
             state = self.get_music_state(member.guild.id)
-            state.tts_queue.append((member, text, speed))
+            state.tts_queue.append((member, text, speed, model_type))
             
             # 4. Trigger Processing if Idle
             if not state.tts_processing:
@@ -477,38 +573,71 @@ class VoiceManager:
         state.tts_processing = True
         
         # Pop next item
-        # Gracefully handle old format (length 2) if any linger in memory during hot-reload
         item = state.tts_queue.pop(0)
-        if len(item) == 3:
-            member, text, speed = item
-        else:
-            member, text = item
-            speed = 1.0
         
+        # Validate Queue Item
+        # Support variable length for backward compatibility
+        model_type = "standard"
+        if len(item) == 4:
+             member, text, speed, model_type = item
+        elif len(item) == 3:
+             member, text, speed = item
+        else:
+             member, text = item
+             speed = 1.0
+
+        # -- Resolve Speaker Preference (User > Guild > Default) --
+        # We check preferences here to potentially override the model_type
+        # e.g., if user selected "T5Gemma" (id=-1), we force t5 mode.
+        speaker_id = self._user_speakers.get(member.id)
+        if speaker_id is None:
+            speaker_id = self._guild_speakers.get(member.guild.id)
+        
+        # Virtual ID Check
+        if speaker_id == -1:
+            model_type = "t5"
+
         try:
-            # Synthesize
-            speaker_id = self._user_speakers.get(member.id)
-            audio = await self._tts.synthesize(text, speaker_id=speaker_id, speed_scale=speed)
-        except Exception as exc:
-            # VOICEVOX Failure Handling
-            if not self.has_warned_voicevox:
-                self.has_warned_voicevox = True
-                # Add warning prefix to the text for fallback
-                logger.warning("VoiceVox absent. Adding warning to text.")
-                # text = "ずんだ餅が不在です。" + text
-            
-            logger.warning(f"VOICEVOX synthesis failed: {exc}. Falling back to Edge TTS.")
-            try:
-                audio = await self._edge_tts.synthesize(text)
-            except Exception as edge_exc:
-                logger.warning(f"Edge TTS also failed: {edge_exc}. Falling back to gTTS.")
+            if model_type == "t5":
+                 # T5Gemma Exclusive Mode
+                 try:
+                     audio = await self._t5_tts.synthesize(text, speed_scale=speed)
+                 except Exception as e:
+                     logger.error(f"T5Gemma synthesis failed: {e}")
+                     # If T5 fails, we do NOT fallback to Zundamon (Separate slot).
+                     # Fallback to EdgeTTS
+                     logger.warning("Falling back to EdgeTTS for T5 request.")
+                     audio = await self._edge_tts.synthesize(text)
+            else:
+                # Standard Mode: VoiceVox (Zundamon / Selected) -> EdgeTTS -> gTTS
                 try:
-                    audio = await self._gtts.synthesize(text)
-                except Exception as gtts_exc:
-                    logger.error(f"gTTS also failed: {gtts_exc}")
-                    # Skip this one and continue
-                    await self._process_tts_queue(guild_id)
-                    return
+                    # 1. VoiceVox
+                    # speaker_id is already resolved above. 
+                    # If None, _tts.synthesize uses its default (Zundamon).
+                    audio = await self._tts.synthesize(text, speaker_id=speaker_id, speed_scale=speed)
+                except Exception as vv_exc:
+                     if not self.has_warned_voicevox:
+                         logger.warning(f"VoiceVox synthesis failed: {vv_exc}. Falling back to EdgeTTS.")
+                         self.has_warned_voicevox = True
+                    
+                     try:
+                         # 2. EdgeTTS
+                         audio = await self._edge_tts.synthesize(text)
+                     except Exception as edge_exc:
+                         logger.warning(f"Edge TTS failed: {edge_exc}. Falling back to gTTS.")
+                         try:
+                             # 3. gTTS
+                             audio = await self._gtts.synthesize(text)
+                         except Exception as gtts_exc:
+                             logger.error(f"All Standard TTS engines failed: {gtts_exc}")
+                             state.tts_processing = False
+                             return
+
+
+        except Exception as e:
+            logger.error(f"TTS Synthesis Critical Error: {e}")
+            state.tts_processing = False
+            return
 
         # Get Voice Client
         voice_client = state.voice_client

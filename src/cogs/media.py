@@ -130,7 +130,7 @@ class MediaCog(commands.Cog):
     # ----- TTS command -----
     @app_commands.command(name="speak", description="テキストをVCで読み上げます。")
     @app_commands.describe(text="読み上げるメッセージ", ephem="エフェメラルに返信するかどうか")
-    async def speak(self, interaction: discord.Interaction, text: str, ephem: Optional[bool] = None) -> None:
+    async def speak(self, interaction: discord.Interaction, text: str, ephem: Optional[bool] = None, model_type: str = "standard") -> None:
         """Read text aloud in the user's current voice channel and send it as a chat message.
 
         If the user is not in a voice channel, the message will be sent without audio.
@@ -147,7 +147,7 @@ class MediaCog(commands.Cog):
         # Defer response to allow time for TTS generation
         await interaction.response.defer(ephemeral=send_ephemeral, thinking=True)
         # Attempt to play the TTS in the user's voice channel
-        played = await self._voice_manager.play_tts(interaction.user, text)
+        played = await self._voice_manager.play_tts(interaction.user, text, model_type=model_type)
         # Enable auto-read for this guild + channel
         if interaction.guild:
              self._voice_manager.auto_read_channels[interaction.guild.id] = interaction.channel_id
@@ -526,6 +526,77 @@ class MediaCog(commands.Cog):
         self._voice_manager.skip_music(interaction.guild.id)
         await interaction.response.send_message("スキップしました。", ephemeral=True)
 
+    @app_commands.command(name="set_server_voice", description="サーバーのデフォルト読み上げ音声を設定します。")
+    @app_commands.describe(voice_name="設定する音声名 (例: ずんだもん、四国めたん)")
+    @app_commands.checks.has_permissions(manage_guild=True)
+    async def set_server_voice(self, interaction: discord.Interaction, voice_name: str):
+        """Set the default VoiceVox speaker for the guild."""
+        await interaction.response.defer(ephemeral=True)
+        
+        # Search for speaker
+        speaker = await self._voice_manager.search_speaker(voice_name)
+        if not speaker:
+            await interaction.followup.send(f"❌ '{voice_name}' という音声は見つかりませんでした。", ephemeral=True)
+            return
+
+        # Set Guild Speaker
+        # VoiceManager handles persistence
+        self._voice_manager.set_guild_speaker(interaction.guild.id, speaker["id"])
+        
+        await interaction.followup.send(
+            f"✅ このサーバーのデフォルト音声を **{speaker['name']}** に設定しました。\n"
+            f"(ユーザー個別の設定がある場合は、そちらが優先されます)",
+            ephemeral=False 
+        )
+
+    @app_commands.command(name="list_voices", description="利用可能な音声リストを表示します。")
+    async def list_voices(self, interaction: discord.Interaction):
+        """List available VoiceVox speakers."""
+        await interaction.response.defer(ephemeral=True)
+        speakers = await self._voice_manager.get_speakers()
+        
+        if not speakers:
+             await interaction.followup.send("❌ 音声リストを取得できませんでした (VoiceVoxが起動していない可能性があります)", ephemeral=True)
+             return
+
+        # Simple Text List (Truncated if too long)
+        msg = "**利用可能な音声リスト:**\n"
+        names = [s["name"] for s in speakers]
+        
+        # Chunking to avoid 2000 char limit
+        chunks = []
+        current_chunk = ""
+        for name in names:
+            if len(current_chunk) + len(name) + 2 > 1900:
+                chunks.append(current_chunk)
+                current_chunk = ""
+            current_chunk += f"- {name}\n"
+        if current_chunk:
+            chunks.append(current_chunk)
+            
+        for chunk in chunks:
+            await interaction.followup.send(chunk, ephemeral=True)
+
+    @app_commands.command(name="set_voice", description="自分の読み上げ音声を設定します。")
+    @app_commands.describe(voice_name="設定する音声名 (例: ずんだもん、四国めたん)")
+    async def set_voice(self, interaction: discord.Interaction, voice_name: str):
+        """Set the preferred VoiceVox speaker for the user."""
+        await interaction.response.defer(ephemeral=True)
+        
+        # Search for speaker
+        speaker = await self._voice_manager.search_speaker(voice_name)
+        if not speaker:
+            await interaction.followup.send(f"❌ '{voice_name}' という音声は見つかりませんでした。", ephemeral=True)
+            return
+
+        # Set User Speaker
+        self._voice_manager.set_user_speaker(interaction.user.id, speaker["id"])
+        
+        await interaction.followup.send(
+            f"✅ あなたの読み上げ音声を **{speaker['name']}** に設定しました。\n"
+            f"(この設定はサーバー設定より優先されます)",
+            ephemeral=True
+        )
     @app_commands.command(name="stop", description="再生を停止し、キューをクリアします。")
     async def stop(self, interaction: discord.Interaction):
         self._voice_manager.stop_music(interaction.guild.id)

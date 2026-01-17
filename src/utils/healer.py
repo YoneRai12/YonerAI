@@ -192,7 +192,7 @@ class Healer:
             }}
             """
             
-            # Using 'gpt-5.1-codex' (Local) initially, but fallback to 'gpt-4o' (Cloud)
+            # Using 'gpt-5.1-codex' (Cloud) as requested by user ("Use this!")
             try:
                 analysis_json = await self.llm.chat(
                     messages=[{"role": "user", "content": prompt}], 
@@ -200,7 +200,7 @@ class Healer:
                     model="gpt-5.1-codex"
                 )
             except Exception as e:
-                logger.warning(f"Healer Local LLM failed: {e}. Fallback to Cloud (gpt-4o).")
+                logger.warning(f"Primary Cloud LLM (gpt-5.1-codex) failed: {e}. Fallback to Standard (gpt-4o).")
                 analysis_json = await self.llm.chat(
                     messages=[{"role": "user", "content": prompt}], 
                     temperature=0.0,
@@ -481,6 +481,7 @@ class Healer:
             """
             
             import json
+            # Use 'gpt-5.1-codex' (Cloud) as requested by user ("Use this!")
             try:
                 analysis_json = await self.llm.chat(
                     messages=[{"role": "user", "content": prompt}], 
@@ -488,7 +489,7 @@ class Healer:
                     model="gpt-5.1-codex"
                 )
             except Exception as e:
-                logger.warning(f"Local LLM failed, using Cloud: {e}")
+                logger.warning(f"Primary Cloud LLM (gpt-5.1-codex) failed: {e}. Fallback to Standard (gpt-4o).")
                 analysis_json = await self.llm.chat(
                     messages=[{"role": "user", "content": prompt}], 
                     temperature=0.1,

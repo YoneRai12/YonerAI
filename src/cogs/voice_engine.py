@@ -69,5 +69,47 @@ class VoiceEngine(commands.Cog):
                     logger.error(f"TTS Failed: {resp.status}")
                     return None
 
+    @app_commands.command(name="voices", description="List available VoiceVox speakers.")
+    async def list_voices(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        # Access VoiceManager from bot
+        vm = getattr(self.bot, "voice_manager", None)
+        if not vm:
+            await interaction.followup.send("❌ VoiceManager not initialized.")
+            return
+
+        speakers = await vm.get_speakers()
+        if not speakers:
+            await interaction.followup.send("❌ No speakers found or VoiceVox is offline.")
+            return
+
+        # Format output
+        # VoiceVox structure: [{'name': '四国めたん', 'styles': [{'id': 2, 'name': 'ノーマル'}, ...], 'speaker_uuid': '...'}]
+        embed = discord.Embed(title="🎙️ Available Voices (VoiceVox)", color=discord.Color.blue())
+        
+        description = ""
+        for sp in speakers:
+            name = sp.get("name", "Unknown")
+            styles = sp.get("styles", [])
+            style_list = ", ".join([f"{s['name']}(ID:{s['id']})" for s in styles])
+            description += f"**{name}**: {style_list}\n"
+
+        if len(description) > 4000:
+            description = description[:4000] + "..."
+            
+        embed.description = description
+        await interaction.followup.send(embed=embed)
+
+    @app_commands.command(name="voice_set", description="Set your TTS voice (Speaker ID).")
+    @app_commands.describe(speaker_id="The ID of the speaker style (e.g. 3 for Zundamon Normal)")
+    async def set_voice(self, interaction: discord.Interaction, speaker_id: int):
+        vm = getattr(self.bot, "voice_manager", None)
+        if not vm:
+            await interaction.response.send_message("❌ VoiceManager not initialized.", ephemeral=True)
+            return
+
+        vm.set_user_speaker(interaction.user.id, speaker_id)
+        await interaction.response.send_message(f"✅ Voice set to Speaker ID: **{speaker_id}**", ephemeral=True)
+
 async def setup(bot: commands.Bot):
     await bot.add_cog(VoiceEngine(bot))

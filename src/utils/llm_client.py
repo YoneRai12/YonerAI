@@ -144,8 +144,8 @@ class LLMClient:
         # --- CLOUD ROUTING LOGIC ---
         # If the model is clearly an OpenAI Cloud Model, route to OpenAI API directly.
         # This bypasses the Local LLM (vLLM) which might be down.
-        # Known Cloud Models: gpt-4, gpt-3.5, o1-, o3-, chatgpt-4o
-        is_cloud_model = any(m in model_name for m in ["gpt-4", "gpt-3.5", "o1-", "o3-", "chatgpt"])
+        # Known Cloud Models: gpt-4, gpt-3.5, o1-, o3-, chatgpt-4o, AND NOW gpt-5/codex based on user request
+        is_cloud_model = any(m in model_name for m in ["gpt-4", "gpt-3.5", "o1-", "o3-", "chatgpt", "gpt-5", "codex"])
         
         # Current Base URL and Key (Default to Local)
         request_base_url = self._base_url
@@ -172,7 +172,7 @@ class LLMClient:
         # v1/responses is predominantly for the Local Manager (LMS/vLLM custom).
         
         is_next_gen_local = any(x in model_name for x in ["gpt-5", "codex"]) and not is_cloud_model
-        is_legacy_completions = any(x in model_name for x in ["davinci", "curie", "babbage", "ada"]) and "chat" not in model_name
+        is_legacy_completions = any(x in model_name for x in ["davinci", "curie", "babbage", "ada", "codex"]) and "chat" not in model_name
 
         if is_next_gen_local:
             # New "v1/responses" Endpoint (Agentic)

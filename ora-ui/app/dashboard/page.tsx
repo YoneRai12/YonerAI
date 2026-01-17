@@ -1021,19 +1021,19 @@ function ProfileContent({ profile, theme }: { profile: UserProfile, theme: "cyan
                     <div className="space-y-1">
                         <span className="text-[10px] text-neutral-500 uppercase tracking-widest font-bold">Traits</span>
                         <div className="flex flex-wrap gap-1.5">
-                            {l2.traits.map((t, i) => (
+                            {(l2.traits || []).map((t, i) => (
                                 <span key={i} className={`px-2 py-0.5 rounded-full text-[10px] bg-neutral-800/80 text-neutral-400 border border-neutral-700/50`}>
                                     #{t}
                                 </span>
                             ))}
-                            {l2.traits.length === 0 && <span className="text-neutral-600 text-[10px] italic">None</span>}
+                            {(!l2.traits || l2.traits.length === 0) && <span className="text-neutral-600 text-[10px] italic">None</span>}
                         </div>
                     </div>
                     {l2.interests && l2.interests.length > 0 && (
                         <div className="space-y-1">
                             <span className="text-[10px] text-neutral-500 uppercase tracking-widest font-bold">Interests</span>
                             <div className="flex flex-wrap gap-1.5">
-                                {l2.interests.map((int, i) => (
+                                {(l2.interests || []).map((int, i) => (
                                     <span key={i} className={`px-2 py-0.5 rounded text-[10px] bg-neutral-800/50 text-neutral-400 border border-neutral-700/30`}>
                                         {int}
                                     </span>
