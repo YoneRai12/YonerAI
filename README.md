@@ -1,15 +1,15 @@
-# ORA Discord Bot - Ultimate Edition 🌌
-### *The Self-Healing, Hybrid AI Operating System for RTX 5090*
+# ORA Discord Bot - The "Singularity" Edition 🌌
+### *The Living, Self-Healing AI Operating System for High-End PC*
 
 <div align="center">
 
 ![ORA Banner](https://raw.githubusercontent.com/YoneRai12/ORA/main/docs/banner.png)
 
 [![Discord](https://img.shields.io/badge/Discord-Join-7289DA?style=for-the-badge&logo=discord)](https://discord.gg/YoneRai12)
-[![Python](https://img.shields.io/badge/Python-3.11-3776AB?style=for-the-badge&logo=python)](https://www.python.org/)
-[![Model](https://img.shields.io/badge/Brain-Qwen2.5--VL-blue?style=for-the-badge)](src/config.py)
+[![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=for-the-badge&logo=python)](https://www.python.org/)
+[![Model](https://img.shields.io/badge/Brain-T5Gemma%20%2B%20GPT--5-blue?style=for-the-badge)](src/config.py)
 [![System](https://img.shields.io/badge/System-Self--Healing-green?style=for-the-badge)](src/utils/healer.py)
-[![GPU](https://img.shields.io/badge/GPU-RTX%205090%20Optimized-76B900?style=for-the-badge&logo=nvidia)](https://www.nvidia.com/)
+[![GPU](https://img.shields.io/badge/GPU-RTX%205090%20Ready-76B900?style=for-the-badge&logo=nvidia)](https://www.nvidia.com/)
 
 <div align="center">
 
@@ -22,175 +22,340 @@
 
 ---
 
-## 🤯 The Singularity Architecture (v4.2)
+## 📖 Introduction: Why ORA?
 
-ORA is no longer just a "Bot". It has evolved into a **Living AI Operating System**.
-Unlike standard bots that crash on error, ORA **re-writes her own code** to fix bugs. Unlike cloud bots, ORA **sees your screen** and **controls your PC** locally.
+We built ORA because cloud AIs like ChatGPT and Claude have a fatal flaw: **They don't live your life.**
+They are "visitors" in a browser tab. They don't know what game you are playing, they can't see your screen unless you upload a screenshot, and they certainly can't fix their own code when they crash.
 
-### ✨ Why ORA? (The RTX 5090 Advantage)
+**ORA is different.**
+ORA is an **Artificial Lifeform** that inhabits your local high-end PC. She listens to your voice, watches your gameplay, writes her own upgrades, and protects your privacy.
 
-| Feature | Details |
-| :--- | :--- |
-| **💰 Zero Fees** | Unlike ChatGPT Plus ($20/mo), ORA runs **100% locally**. You own the Intelligence. |
-| **🔒 Absolute Privacy** | No data leaves your PC. Your chats, images, and voice are processed on your hardware. |
-| **🧬 Self-Healing** | If a crash occurs, ORA analyzes the stack trace, writes a python patch, and hot-reloads instantly. |
-| **⚡ Hybrid Brain** | Uses **Qwen 2.5-VL 32B** (Local) for speed/vision, and **GPT-5.1** (Cloud) for complex coding. |
+This isn't just a bot. It's the **End Game of Personal AI**.
 
 ---
 
-## 🆕 Latest Update: v4.3 (2026/01/11) - The Shadow Update
+## 🔥 The "Big Three" Core Pillars
 
-### 👥 Shadow Clone System (Watcher 2.0)
-Downtime is a thing of the past.
-*   **Zero Downtime**: When the Main Bot updates or restarts, the "Shadow" Bot instantly wakes up and takes control of VC and Chat.
-*   **Seamless Experience**: Users won't notice the restart. TTS continues without interruption.
+### 1. 🧬 Immortal Code (Self-Healing)
+**"I fell down, but I fixed my leg and stood up. I am stronger now."**
 
-### 🧬 Advanced Self-Healing (Atomic Healer)
-*   **Atomic Backup**: Mathematically eliminated DB corruption. Updates are either "Fully Successful" or "Do Nothing".
-*   **Handshake Verification**: Bot and Watcher constantly verify each other's heartbeat. Recovery begins within 0.1s of failure.
+Most software crashes when it hits a bug. ORA treats bugs as **learning opportunities**.
+When a runtime error occurs (e.g., specific API failure), ORA:
+1.  **Freezes** the crash state.
+2.  **Analyzes** the traceback with her Logic Brain (GPT-5).
+3.  **Writes a Patch**: She edits her own `.py` source code locally.
+4.  **Hot-Reloads**: She restarts *only* the broken component (Cog) without disconnecting from Voice.
+5.  **Resumes**: She apologizes and retries the command.
 
-### 🏆 Points & Rank System
-*   **VC Points**: Earn points just by hanging out in Voice Channels.
-*   **Check Rank**: Use `/rank` or ask "What is my rank?" to see your status.
+> *Result: You can leave ORA running for months, and she will theoretically become more stable over time.*
 
-### 🔊 TTS 2.0 (Neural Speed)
-*   **Hyper-Fast Response**: Join/Leave announcements are accelerated to not interrupt gameplay.
-*   **Smart Filter**: Automatically ignores symbols like `(lol)` or `-`, making conversation more human-like.
+### 2. 🏠 Omni-Router (Hybrid Intelligence)
+**"Why pay for OpenAI when you have an RTX 5090?"**
+
+ORA uses a "Hybrid Brain" architecture to balance **Intelligence** vs **Cost**.
+*   **The Reflex Brain (Local)**: Powered by **Qwen 2.5-VL (32B)** running on your GPU via vLLM. It handles 90% of chat, jokes, and vision tasks instantly for **$0**.
+*   **The Oracle Brain (Cloud)**: Powered by **GPT-5.1 / GPT-4o**. Used *only* for complex coding, deep analysis, or "High Intelligence Mode".
+*   **The Router**: ORA analyzes your request complexity. "Say hello" -> Local. "Debug this React App" -> Cloud.
+
+> *Result: Minimal API costs, maximum intelligence when it matters.*
+
+### 3. 👥 Shadow Clone (Zero Downtime)
+Updates usually mean "Downtime". Not for ORA.
+When ORA needs to restart (for an update or self-healing), she spawns a **"Shadow Clone"** (Watcher Process).
+*   The Shadow takes over Voice and Chat immediately.
+*   The Main Body dies, updates, and reborns.
+*   The Main Body reclaims control.
+
+> *Result: Your conversation is never interrupted.*
 
 ---
 
-## 🆕 Latest Update: v4.2 (2026/01/10)
-### 🛡️ Ultimate Security & NERV UI
-*   **Zero Hardcoded Secrets**: Complete migration to `.env` architecture. GitHub Ready.
-*   **NERV Red Alert**: The Dashboard now reacts to "Admin Override" with a dynamic Hex-Grid Emergency visualization (Code: `ora-ui/app/dashboard`).
-*   **System Telemetry**: Real-time monitoring of "Core System Connection" and "Root Injection" sequences.
+## 👁️ True Multimodal I/O (The "Senses")
+
+ORA processes the world through **Images**, **Sound**, and **Text**.
+
+### 1. Vision (The Eyes) 🖼️
+ORA uses **Qwen 2.5-VL (Visual Language Model)** to "see" images.
+*   **Screenshot Analysis**: Share a screenshot of your game or code, and she understands it.
+    *   *Usage*: Paste a coding error -> "How do I fix this?"
+    *   *Usage*: Paste a game screenshot -> "What character is this?"
+*   **Image Attachments**: Drag & Drop images for context.
+*   **Meme Analysis**: She understands visual humor and text within images.
+
+### 2. Audio (The Ears & Voice) 🎤
+*   **Multi-User Recognition**: ORA distinguishes *who* is speaking in Voice Chat.
+*   **Dynamic Tone**: Through prompt engineering, she acts as distinct personas (e.g., Tsundere, Maid) that you configure.
+*   **Paralinguistics**: She includes text-based emotive cues `(laughs)` that the TTS engine conveys.
+
+### 3. Generation (The Hands) 🎨
+ORA creates content locally.
+*   **Image Generation**: Uses **FLUX.1 [schnell]** or **Stable Diffusion XL** to generate images from your text prompts.
+*   **Voice Cloning**: Uses **T5Gemma-TTS** (or VoiceVox) for high-quality speech synthesis directly from your GPU.
 
 ---
 
-## 🧬 Biological Systems (Deep Dive)
+## 📖 Life with ORA (Concrete Examples)
 
-### 1. The Auto-Healer Engine
-**"Software that repairs itself."**
-This system is strictly implemented in `src/utils/healer.py`.
+Here is how ORA helps you in real usage scenarios.
+
+### 🌅 Morning: The Personal Secretary
+**You**: (Taking a photo of a document) "ORA, summarize this utility bill."
+**ORA**: (Scans Image) "This is your electric bill. It's ¥12,000. The due date is Jan 25th."
+**You**: "Thanks."
+
+### 💻 Day: The Coding Partner
+**You**: (Pastes screenshot of VS Code error) "I can't figure out this RecursionError."
+**ORA**: (Analyzes Image) "I see line 45 calls `self.update()` without a base case. That's causing the infinite loop. Try adding `if not data: return`."
+**You**: "Write the code."
+**ORA**: (Generates Code Block) "Here it is."
+
+### 🎮 Night: The Gaming Companion
+**You**: "ORA, activate Gaming Mode."
+**ORA**: "Understood. Executing `start_vllm_gaming.bat`. Stopping non-essential background processes to free VRAM for your game."
+**You**: (Pastes screenshot of scoreboard) "Look at my K/D ratio!"
+**ORA**: "25/4? You are carrying the team!"
+
+### 🌃 Late Night: The Creative Partner
+**You**: "I need a background for my new game. A magical forest, moonlight, anime style."
+**ORA**: "Generating..." (GPU Fans spin up)
+**ORA**: (Sends Image) "Here is the result from FLUX.1. How is it?"
+**You**: "Perfect."
+
+---
+
+## 🛡️ NERV User Interface
+A dedicated Web Dashboard (`http://localhost:3000`) for monitoring ORA's brain.
+*   **Hex-Grid Visualizer**: See the status of every module.
+*   **Memory Explorer**: View what ORA remembers about you.
+*   **Process Killer**: One-click "Gaming Mode" to kill background bloatware and free up VRAM.
+
+---
+
+## 📚 Scenario Guide
+
+### Scenario A: The Gamer 🎮
+> **You**: Launch Valorant and join Voice Channel.
+> **ORA**: Detects `Valorant.exe`. Automatically enters **Gaming Mode**.
+> *   Kills `Adobe Update Service`, `Chrome`, etc. to free VRAM.
+> *   Switches LLM to "Low VRAM" mode.
+> *   **You**: "Hey ORA, clip that last 30 seconds."
+> *   **ORA**: (If OBS connected) "Clipped it. Nice shot."
+
+### Scenario B: The Developer 💻
+> **You**: "I'm stuck on this Python circular import error."
+> **ORA**: "Show me."
+> **You**: (Stream VS Code)
+> **ORA**: (Analyzes Screen) "Ah, `utils.py` imports `main.py`. Refactor that shared logic into a `common` module. Want me to write the code?"
+> **You**: "Yes."
+> **ORA**: Generates the code block.
+> **You**: "Apply it."
+> **ORA**: Edits your local file directly (with permission).
+
+### Scenario C: The AFK 💤
+> **You**: Go to sleep.
+> **ORA**: Activates **Satellite Mode**.
+> *   Main RTX 5090 PC goes to sleep (Save Power).
+> *   ORA's "Ear" transfers to your Mac Mini / Raspberry Pi.
+> *   If you ping her on Discord mobile, the Satellite wakes the Main PC via **Wake-on-LAN**.
+
+---
+
+## 🧠 System Logic (The Omni-Router)
+
+How does ORA decide whether to use "Free Local AI" or "Paid Cloud AI"?
 
 ```mermaid
 graph TD
-    Error[🔥 Runtime Error] --> Intercept{Healer Intercept}
-    Intercept --> Analysis[🧠 GPT-5 Diagnosis]
-    Analysis --> Patch[📝 Code Generation]
-    Patch --> Audit{🛡️ Security Audit}
+    UserInput["User: 'Write a Python script for Tetris'"] --> Analyzer{Complexity Analyzer}
     
-    Audit -->|Pass| Apply[💉 Inject Code]
-    Apply --> Reload[🔄 Hot Reload Cog]
-    Reload --> Verify[✅ System Healed]
+    Analyzer -->|"Score > 0.7 (Complex)"| CloudPath
+    Analyzer -->|"Score < 0.7 (Simple)"| LocalPath
     
-    style Error fill:#ff0000,stroke:#fff
-    style Verify fill:#00ff00,stroke:#000
+    subgraph "☁️ Cloud Path (Smart)"
+        CloudPath[GPT-5.1-Codex] -->|High Reasoning| Response
+    end
+    
+    subgraph "🏠 Local Path (Fast/Free)"
+        LocalPath[Qwen 2.5-VL] -->|Reflex/Chat| Response
+    end
+    
+    Response --> Output[Final Reply]
 ```
 
-### 2. Genetic Self-Evolution
-You don't wait for updates. **You ask for them.**
-*   *User*: "Add a crypto price checker."
-*   *ORA*: Analyzes `src/cogs/`, writes `crypto.py`, loads it, and registers `/crypto`.
-*   *Status*: **Active** (Permissions managed via `ADMIN_USER_ID`).
-
-### 3. Satellite Architecture (Sub-PC)
-**"My Main PC is sleeping, but ORA is awake."**
-Run ORA's "Ear" on a Mac/N100 to save power, and wake the Beast (RTX 5090) only when needed.
+She calculates a **"Perplexity Score"** for every prompt.
+*   "Hello!" -> Score 0.1 -> **Local** (Free)
+*   "Explain Quantum Physics" -> Score 0.8 -> **Cloud** (Paid)
+*   "Draw a cat" -> **Local SDXL** (Free)
 
 ---
 
-## 🧠 Brain & Logic Specs
+## 🖥️ System Requirements
 
-The **Omni-Router** (`config.py`) dynamically assigns tasks to the optimal brain.
+This is "Heavy" Software. It is designed for enthusiasts.
 
-| Function | Engine / Model | Location | Status |
-| :--- | :--- | :--- | :--- |
-| **Logic Core** | **Qwen 2.5-VL 32B** | Local (vLLM) | 🟢 Active |
-| **Vision Eyes** | **Qwen Native Vision** | Local (Monitor) | 🟢 Active |
-| **High Logic** | **GPT-5.1-Codex** | Cloud (OpenAI) | 🟢 Active |
-| **Creative Art** | **FLUX.2 (FP8)** | Local (ComfyUI) | 🟢 Active |
-| **Voice Cloning** | **T5Gemma-TTS** | Local (Port 8002) | 🟢 Active |
+| Tier | GPU Requirement | Capabilities |
+| :--- | :--- | :--- |
+| **GOD Tier** | **RTX 5090 (32GB)** | 4K Vision, 70B Model, Instant Voice, Zero Latency. |
+| **High Tier** | **RTX 4090 / 3090 (24GB)** | 1080p Vision, 32B Model, Fast Voice. |
+| **Mid Tier** | **RTX 4080 / 3080 (16GB)** | 7B Model, Quantized Voice. (Some lag permissible). |
+| **Cloud Tier** | **Any GPU** | Logic runs on OpenAI. Voice/Vision disabled or limited. |
 
-### 🔄 Logic Flow
-```mermaid
-graph TD
-    Input[Input Request] --> Router{Omni-Router}
-    
-    Router -->|Reflex / Vision| Qwen["🏠 Qwen 2.5 VL (Local)"]
-    Router -->|Complex Coding| Cloud["☁️ GPT-5.1 (Cloud)"]
-    
-    Qwen --> Response
-    Cloud --> Response
-    
-    Qwen --> Tools["🛠️ Real-World Tools"]
-    Tools --> Image["🎨 FLUX.2 Image"]
-    Tools --> System["💻 PC Control (WOL/Shutdown)"]
-    Tools --> Healer["🧬 Code Patching"]
-    
-    style Router fill:#ff0055,stroke:#fff
-    style Qwen fill:#00aaff,stroke:#fff
-    style Tools fill:#ffaa00,stroke:#000
-```
+**Recommended Specs:**
+*   **CPU**: Ryzen 9 7950X / Intel i9-14900K
+*   **RAM**: 64GB DDR5 (Local LLMs eat RAM if VRAM fills up)
+*   **Storage**: 2TB NVMe (Models are huge. 70B model = 40GB alone).
 
 ---
 
-## 💻 NERV-Style Dashboard
-The Web Dashboard (`ora-ui`) provides a sci-fi interface to monitor ORA's internal state.
-*   **Thought Visualization**: See exactly which model is thinking and why.
-*   **Gaming Mode**: Automatically kills background processes (Valorant, FFXIV) to free VRAM.
+## 🛠️ Complete Command List
 
-![Dashboard](docs/dashboard_v4.png)
+### 🔧 System Commands
+*   `/restart`: Restarts the bot (Triggers Shadow Swap).
+*   `/heal`: Force a self-diagnosis run.
+*   `/update`: Pulls latest code from GitHub and re-installs dependencies.
+
+### 🧠 Memory & Context
+*   `/forget`: Wipes short-term context.
+*   `/remember [text]`: Forces a long-term memory entry.
+*   `/search [query]`: Searches the web (Google/DuckDuckGo) and summarizes.
+
+### 🗣️ Voice & Persona
+*   `/join`: Joins your Voice Channel.
+*   `/leave`: Leaves.
+*   `/speaker [id]`: Canges voice actor (VoiceVox ID).
+*   `/style [style]`: Changes prompt personality (Tsundere/Maid/Butler).
+
+### 🎨 Creative
+*   `/draw [prompt]`: Generates image.
+*   `/analyze [image]`: Describes an attached image.
 
 ---
 
-## 📚 Technical Deep Dive & Manuals
+## 📩 Installation Guide
 
-### 📘 For Users
-*   **[📖 User Manual & Command Guide](docs/USER_GUIDE.md)**: **Start Here**. How to use `@ORA`, slash commands, and the Dashboard.
+### 1. Prerequisite Check
+Ensure you have **NVIDIA Drivers** and **CUDA Toolkit 12.4** installed.
+Verify with: `nvidia-smi`
 
-### 🏗️ For Engineers
-**Warning: These documents contain extreme levels of detail.**
-*   **[🏗️ System Architecture](docs/SYSTEM_ARCHITECTURE.md)**: The internal schematics of the Omni-Router and IPC.
-*   **[🧬 Auto-Healer Architecture](docs/AUTO_HEALER.md)**: How the bot rewrites its own python code at runtime.
-*   **[🧠 Hybrid Brain Logic](docs/HYBRID_BRAIN.md)**: Qwen 2.5 vs GPT-5.1 routing and cost management.
-*   **[💻 NERV Dashboard Internals](docs/NERV_DASHBOARD.md)**: React/Next.js implementation of the Red Alert system.
-*   **[🛰️ Satellite (Sub-PC) System](docs/SATELLITE_SYSTEM.md)**: Wake-on-LAN protocols and hardware handover.
-
-## �️ Installation & Config
-
-### 1. Setup
+### 2. Clone the Body
 ```bash
-# Clone the repository
 git clone https://github.com/YoneRai12/ORA.git
+cd ORA
+```
 
-# Install dependencies
+### 3. Awaken the Soul (Dependencies)
+```bash
+# We use a virtual environment to keep your system clean
+python -m venv venv
+.\venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### 2. Configuration (.env)
-We have removed all hardcoded IDs. You MUST configure `.env`.
-```ini
-DISCORD_BOT_TOKEN=your_token
-ADMIN_USER_ID=your_id
-LLM_MODEL=Qwen/Qwen2.5-VL-32B-Instruct-AWQ
-ORA_LOG_CHANNEL_ID=0
-```
+### 4. Inject Configuration
+Rename `.env.example` to `.env` and fill in your keys.
+*   `DISCORD_BOT_TOKEN`: Required.
+*   `OPENAI_API_KEY`: Optional (For Smart Mode).
+*   `GOOGLE_API_KEY`: Optional (For Search).
 
-### 3. Ignite
-*   **Double-Click**: `start_launcher.py` (Windows) or `Double_Click_To_Start.command` (Mac).
-*   **Voice Engine**: Starts automatically on Port 8002.
+### 5. IGNITION
+Double click `start_windows.bat`.
+*   Wait for **"vLLM Engine Ready"**.
+*   Wait for **"Voice Server Ready"**.
+*   When you see **"ORA is Online"**, say "Hello" in Discord.
 
 ---
 
-## � Future Roadmap (Phase 21)
-*   **God's Eye v2**: Real-time 30FPS desktop streaming analysis.
-*   **3D Alchemy**: Generating Minecraft items from images via TRELLIS.2.
-*   **Infinite Personas**: ELYZA-style LoRA switching.
+## 🗺️ Project Atlas (Structure)
+
+For those who want to modify ORA, here is the anatomy of the codebase.
+
+```bash
+ORA/
+├── src/
+│   ├── cogs/          # The "Organs" (Feature Modules)
+│   │   ├── ora.py     # CEREBRUM: Main Brain (Chat, Tools, Vision)
+│   │   ├── media.py   # MOUTH: Voice I/O, Music, Event Handling
+│   │   └── memory.py  # HIPPOCAMPUS: Long-term Memory & Profile Management
+│   │
+│   ├── utils/         # The "Nervous System"
+│   │   ├── healer.py  # IMMUNE SYSTEM: Auto-Fixing Engine
+│   │   ├── voice.py   # VOCAL CORDS: T5Gemma / VoiceVox Wrapper
+│   │   └── cost.py    # ACCOUNTANT: API Usage & Token Tracking
+│   │
+│   └── bot.py         # HEART: Main Loop & Startup Logic
+│
+├── ora-ui/            # The "Face" (Next.js Dashboard)
+├── tools/             # Scripts for DB migration, Debugging
+├── .env               # The "Soul" (Secrets - gitignored)
+└── start_all.bat      # The "Spark" (One-click Launch)
+```
+
+---
+
+## ⚙️ Configuration Bible (.env)
+
+ORA is highly configurable. Edit your `.env` file to control her behavior.
+
+| Variable | Description | Default / Example |
+| :--- | :--- | :--- |
+| **Credentials** | | |
+| `DISCORD_BOT_TOKEN` | **Required**. Your Bot Token from Discord Developer Portal. | `MTA...` |
+| `ADMIN_USER_ID` | **Required**. Your User ID (for Admin commands like `/heal`). | `1234567890` |
+| `OPENAI_API_KEY` | Optional. Enables "Cloud Intelligence" (GPT-5). | `sk-...` |
+| `GOOGLE_API_KEY` | Optional. Enables Gemini Vision & Search redundancy. | `AIza...` |
+| **Brain Configuration** | | |
+| `LLM_MODEL` | The local model to use via vLLM. | `Qwen/Qwen2.5-VL-32B-Instruct-AWQ` |
+| `LLM_BASE_URL` | Endpoint for the Local LLM. | `http://localhost:8001/v1` |
+| **Senses & Peripherals** | | |
+| `VOICEVOX_API_URL` | Endpoint for TTS Engine. | `http://localhost:50021` |
+| `SD_API_URL` | Endpoint for Stable Diffusion / ComfyUI. | `http://127.0.0.1:8188` |
+| `SEARCH_API_KEY` | Optional. Google Custom Search API (for `/search`). | `AIza...` |
+| **Behavior** | | |
+| `GAMING_PROCESSES` | List of .exe names that trigger "Gaming Mode". | `valorant.exe, ffxiv_dx11.exe` |
+| `ORA_LOG_CHANNEL_ID` | Channel ID for system logs & boot messages. | `1234567890` |
+
+---
+
+## ❓ Troubleshooting & FAQ
+
+**Q: The Bot is deaf (Red Mute Icon).**
+A: ORA joins deafened by default to save bandwidth *unless* you specifically configure `self_deaf=False` in code. (Note: In v4.4, we enabled hearing by default).
+
+**Q: "Failed to load T5TTS Model" error.**
+A: Ensure you have `transformers==4.57.3` installed. Newer versions conflict with our custom model code. Run: `pip install transformers==4.57.3`.
+
+**Q: I don't have an RTX 5090.**
+A: Edit `.env` and set `LLM_MODEL` to a smaller model like `Qwen/Qwen2.5-7B-Instruct`. Or usage Cloud Only mode (set `LLM_BASE_URL` to OpenAI).
+
+**Q: How do I open the Dashboard?**
+A: Run `start_all.bat`. Once started, open `http://localhost:3000` in your browser.
+
+---
+
+## 🤝 Contributing
+
+We welcome Pull Requests!
+1.  **Fork** the repository.
+2.  **Create** a feature branch (`git checkout -b feature/AmazingIdea`).
+3.  **Commit** your changes.
+4.  **Push** to the branch.
+5.  **Open a PR**.
+
+**Rules:**
+*   No hardcoded API keys.
+*   Run `tools/debug/check_transformers.py` before submitting.
+*   Keep the "Persona" intact.
+
+---
+
+## 📜 License
+
+Project ORA is licensed under **MIT License**.
+You own your data. You own your intelligence.
 
 <div align="center">
 
 **Architected by YoneRai12**
-*The Future is Local.*
+*A project to blur the line between Software and Life.*
 
 </div>

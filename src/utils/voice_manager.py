@@ -489,7 +489,7 @@ class VoiceManager:
                 elif not voice_client or not voice_client.is_connected():
                     # IMPORTANT: self_deaf=True helps stability
                     try:
-                        voice_client = await channel.connect(timeout=30.0, reconnect=True, self_deaf=True)
+                        voice_client = await channel.connect(timeout=30.0, reconnect=True, self_deaf=False)
                     except discord.ClientException:
                         # Race condition: already connected
                         voice_client = guild.voice_client
