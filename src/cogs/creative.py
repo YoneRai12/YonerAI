@@ -5,6 +5,7 @@ from discord.ext import commands
 import aiohttp
 import io
 import logging
+from ..utils.comfy_client import ComfyWorkflow
 
 logger = logging.getLogger("CreativeCog")
 
@@ -12,9 +13,33 @@ class CreativeCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.layer_api = "http://127.0.0.1:8003/decompose"
+        self.comfy_client = ComfyWorkflow()
+
+    @app_commands.command(name="generate_video", description="Generate video using LTX-2 (ComfyUI)")
+    @app_commands.describe(prompt="Video description", negative_prompt="What to avoid (optional)", width="Width (def: 768)", height="Height (def: 512)", frames="Frame count (def: 49)")
+    @app_commands.checks.cooldown(1, 60.0, key=lambda i: (i.guild_id, i.user.id))
+    async def generate_video(self, interaction: discord.Interaction, prompt: str, negative_prompt: str = "", width: int = 768, height: int = 512, frames: int = 49):
+        """
+        Generate a video from text using LTX-Video.
+        """
+        await interaction.response.defer(thinking=True)
+        
+        try:
+            # Generate
+            mp4_data = await self.bot.loop.run_in_executor(None, lambda: self.comfy_client.generate_video(prompt, negative_prompt, width=width, height=height, frame_count=frames))
+            
+            if mp4_data:
+                f = discord.File(io.BytesIO(mp4_data), filename="ltx_video.mp4")
+                await interaction.followup.send(content=f"🎬 **Generated Video**\nPrompt: {prompt}", file=f)
+            else:
+                 await interaction.followup.send("❌ Video generation failed. Check logs or ComfyUI console.")
+                 
+        except Exception as e:
+            await interaction.followup.send(f"❌ Error: {e}")
 
     @app_commands.command(name="layer", description="Decompose an image into layers (Qwen-Image-Layered)")
     @app_commands.describe(image="The image to decompose")
+    @app_commands.checks.cooldown(1, 30.0, key=lambda i: (i.guild_id, i.user.id))
     async def layer(self, interaction: discord.Interaction, image: discord.Attachment):
         """
         Decomposes an image into a ZIP of layers.

@@ -203,11 +203,12 @@ class GuildMusicState:
         self.history = [] # List of (url_or_path, title, is_stream)
         self.tts_volume = 1.0 # Default TTS volume (100%)
         # TTS Queue
-        self.tts_queue = [] # List of (member, text)
+        self.tts_queue = [] # List of (member, text, speed, model_type, cache_key, msg_type)
         self.tts_processing = False
         self.speed = 1.0
         self.pitch = 1.0
         self.start_offset = 0.0
+        self.current_tts_type: str = "chat" # Track current playback type for Anti-Spam
 
 # ... (VoiceManager methods) ...
 
@@ -368,6 +369,10 @@ class VoiceManager:
         self.auto_read_channels: Dict[int, int] = {}  # guild_id -> channel_id
         self.has_warned_voicevox = False
 
+        # Audio Cache for static notifications (join/leave)
+        self.cache_dir = Path("src/data/cache/audio_notify")
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
+
     def get_music_state(self, guild_id: int) -> GuildMusicState:
         return self._music_states[guild_id]
 
@@ -527,7 +532,7 @@ class VoiceManager:
         logger.error("Failed to connect to voice after 3 attempts.")
         raise VoiceConnectionError(f"ボイスチャンネルへの接続に失敗しました (タイムアウト/エラー): {last_error}")
 
-    async def play_tts(self, member: discord.Member, text: str, speed: float = 1.0, model_type: str = "standard") -> bool:
+    async def play_tts(self, member: discord.Member, text: str, speed: float = 1.0, model_type: str = "standard", cache_key: str = None, msg_type: str = "chat") -> bool:
         if not text or not text.strip():
             return False
             
@@ -551,9 +556,32 @@ class VoiceManager:
                  else:
                      return False
                      
-            # 3. Add to Queue
+            # 3. Add to Queue with Anti-Spam (Debounce)
             state = self.get_music_state(member.guild.id)
-            state.tts_queue.append((member, text, speed, model_type))
+
+            if msg_type == "system_join_leave":
+                # DEBOUNCE: Remove pending join/leave messages from THIS member to prevent pile-up.
+                # Only keep the newest one (which we are about to add).
+                # Queue item structure: (member, text, speed, model_type, cache_key, msg_type)
+                new_queue = []
+                for item in state.tts_queue:
+                    # Backward compatibility check
+                    if len(item) == 6:
+                        (m, t, s, mt, ck, mtype) = item
+                        if m.id == member.id and mtype == "system_join_leave":
+                            logger.info(f"🚫 [Anti-Spam] Dropped pending Join/Leave msg for {member.display_name}")
+                            continue
+                    new_queue.append(item)
+                state.tts_queue = new_queue
+
+                # CANCEL CURRENT: If currently reading a Join/Leave message, stop it immediately.
+                # We need to track what is currently playing.
+                if state.current_tts_type == "system_join_leave":
+                     if voice_client.is_playing():
+                         logger.info(f"🚫 [Anti-Spam] Stopping current Join/Leave reading for new event.")
+                         voice_client.stop() # This triggers after_callback -> next item
+
+            state.tts_queue.append((member, text, speed, model_type, cache_key, msg_type))
             
             # 4. Trigger Processing if Idle
             if not state.tts_processing:
@@ -578,13 +606,23 @@ class VoiceManager:
         # Validate Queue Item
         # Support variable length for backward compatibility
         model_type = "standard"
-        if len(item) == 4:
+        cache_key = None
+        msg_type = "chat"
+        
+        if len(item) == 6:
+             member, text, speed, model_type, cache_key, msg_type = item
+        elif len(item) == 5:
+             member, text, speed, model_type, cache_key = item
+        elif len(item) == 4:
              member, text, speed, model_type = item
         elif len(item) == 3:
              member, text, speed = item
         else:
              member, text = item
              speed = 1.0
+        
+        # Track Current Type
+        state.current_tts_type = msg_type
 
         # -- Resolve Speaker Preference (User > Guild > Default) --
         # We check preferences here to potentially override the model_type
@@ -598,40 +636,57 @@ class VoiceManager:
             model_type = "t5"
 
         try:
-            if model_type == "t5":
-                 # T5Gemma Exclusive Mode
-                 try:
-                     audio = await self._t5_tts.synthesize(text, speed_scale=speed)
-                 except Exception as e:
-                     logger.error(f"T5Gemma synthesis failed: {e}")
-                     # If T5 fails, we do NOT fallback to Zundamon (Separate slot).
-                     # Fallback to EdgeTTS
-                     logger.warning("Falling back to EdgeTTS for T5 request.")
-                     audio = await self._edge_tts.synthesize(text)
-            else:
-                # Standard Mode: VoiceVox (Zundamon / Selected) -> EdgeTTS -> gTTS
-                try:
-                    # 1. VoiceVox
-                    # speaker_id is already resolved above. 
-                    # If None, _tts.synthesize uses its default (Zundamon).
-                    audio = await self._tts.synthesize(text, speaker_id=speaker_id, speed_scale=speed)
-                except Exception as vv_exc:
-                     if not self.has_warned_voicevox:
-                         logger.warning(f"VoiceVox synthesis failed: {vv_exc}. Falling back to EdgeTTS.")
-                         self.has_warned_voicevox = True
-                    
+            audio = None
+            
+            # [CACHE CHECK]
+            if cache_key:
+                cache_file = self.cache_dir / f"{cache_key}.mp3"
+                if cache_file.exists():
+                    logger.info(f"Using cached audio for {cache_key}")
+                    try:
+                        with open(cache_file, "rb") as f:
+                            audio = f.read()
+                    except Exception as e:
+                        logger.error(f"Failed to read cache {cache_key}: {e}")
+            
+            if not audio:
+                # Generate Audio
+                if model_type == "t5":
+                     # T5Gemma Exclusive Mode
                      try:
-                         # 2. EdgeTTS
+                         audio = await self._t5_tts.synthesize(text, speed_scale=speed)
+                     except Exception as e:
+                         logger.error(f"T5Gemma synthesis failed: {e}")
+                         logger.warning("Falling back to EdgeTTS for T5 request.")
                          audio = await self._edge_tts.synthesize(text)
-                     except Exception as edge_exc:
-                         logger.warning(f"Edge TTS failed: {edge_exc}. Falling back to gTTS.")
+                else:
+                    # Standard Mode
+                    try:
+                        audio = await self._tts.synthesize(text, speaker_id=speaker_id, speed_scale=speed)
+                    except Exception as vv_exc:
+                         if not self.has_warned_voicevox:
+                             logger.warning(f"VoiceVox synthesis failed: {vv_exc}. Falling back to EdgeTTS.")
+                             self.has_warned_voicevox = True
                          try:
-                             # 3. gTTS
-                             audio = await self._gtts.synthesize(text)
-                         except Exception as gtts_exc:
-                             logger.error(f"All Standard TTS engines failed: {gtts_exc}")
-                             state.tts_processing = False
-                             return
+                             audio = await self._edge_tts.synthesize(text)
+                         except Exception as edge_exc:
+                             logger.warning(f"Edge TTS failed: {edge_exc}. Falling back to gTTS.")
+                             try:
+                                 audio = await self._gtts.synthesize(text)
+                             except Exception as gtts_exc:
+                                 logger.error(f"All Standard TTS engines failed: {gtts_exc}")
+                                 state.tts_processing = False
+                                 return
+
+                # [CACHE SAVE]
+                if cache_key and audio:
+                    try:
+                        cache_file = self.cache_dir / f"{cache_key}.mp3"
+                        with open(cache_file, "wb") as f:
+                            f.write(audio)
+                        logger.info(f"Saved cache for {cache_key}")
+                    except Exception as e:
+                        logger.error(f"Failed to save cache {cache_key}: {e}")
 
 
         except Exception as e:

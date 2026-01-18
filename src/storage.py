@@ -47,6 +47,12 @@ CREATE TABLE IF NOT EXISTS conversations (
   response TEXT,
   created_at INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS dashboard_tokens (
+  token TEXT PRIMARY KEY,
+  guild_id TEXT NOT NULL,
+  created_by TEXT,
+  expires_at INTEGER NOT NULL
+);
 """
 
 
@@ -474,6 +480,24 @@ class Store:
                 rows = await cursor.fetchall()
                 return [dict(row) for row in rows]
 
+    async def search_conversations(self, query: str, user_id: Optional[str] = None, limit: int = 5) -> list[dict]:
+        """Search conversations for a keyword."""
+        async with aiosqlite.connect(self._db_path) as db:
+            db.row_factory = aiosqlite.Row
+            search_query = f"%{query}%"
+            
+            if user_id:
+                sql = "SELECT * FROM conversations WHERE user_id=? AND (message LIKE ? OR response LIKE ?) ORDER BY created_at DESC LIMIT ?"
+                params = (user_id, search_query, search_query, limit)
+            else:
+                # Global search (if allowed permissions, but typically restricted by caller)
+                sql = "SELECT * FROM conversations WHERE message LIKE ? OR response LIKE ? ORDER BY created_at DESC LIMIT ?"
+                params = (search_query, search_query, limit)
+                
+            async with db.execute(sql, params) as cursor:
+                rows = await cursor.fetchall()
+                return [dict(row) for row in rows]
+
     async def clear_conversations(self, user_id: str) -> int:
         """Clear conversation history for a user."""
         async with aiosqlite.connect(self._db_path) as db:
@@ -636,3 +660,52 @@ class Store:
 
             return (rank, total)
 
+    async def get_or_create_dashboard_token(self, guild_id: int, user_id: int, ttl: int = 31536000) -> str:
+        """Get existing valid token or create a new persistent access token (Default 1 year)."""
+        import uuid
+        now = int(time.time())
+        
+        async with aiosqlite.connect(self._db_path) as db:
+            # 1. Try to find existing valid token
+            async with db.execute("SELECT token, expires_at FROM dashboard_tokens WHERE guild_id=?", (str(guild_id),)) as cursor:
+                rows = await cursor.fetchall()
+                
+            # Filter for valid one (and maybe cleanup expired ones)
+            valid_token = None
+            for r in rows:
+                if r[1] > now:
+                    valid_token = r[0]
+                    break
+            
+            if valid_token:
+                return valid_token
+
+            # 2. Create New
+            token = str(uuid.uuid4())
+            expires = now + ttl # Default 1 year
+            
+            await db.execute(
+                "INSERT INTO dashboard_tokens(token, guild_id, created_by, expires_at) VALUES(?, ?, ?, ?)",
+                (token, str(guild_id), str(user_id), expires)
+            )
+            await db.commit()
+            return token
+
+    async def validate_dashboard_token(self, token: str) -> Optional[str]:
+        """Validate token and return guild_id if valid. Deletes expired tokens."""
+        now = int(time.time())
+        async with aiosqlite.connect(self._db_path) as db:
+            async with db.execute("SELECT guild_id, expires_at FROM dashboard_tokens WHERE token=?", (token,)) as cursor:
+                row = await cursor.fetchone()
+            
+            if not row:
+                return None
+            
+            guild_id, expires_at = row
+            if now > expires_at:
+                # Expired
+                await db.execute("DELETE FROM dashboard_tokens WHERE token=?", (token,))
+                await db.commit()
+                return None
+            
+            return guild_id

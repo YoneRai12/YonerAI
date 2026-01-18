@@ -26,6 +26,8 @@ class Sanitizer:
             (r"(?:https?://)?(?:www\.)?discord(?:app)?\.com/invite/[a-zA-Z0-9]+", "<DISCORD_INVITE>"),
             (r"C:\\[a-zA-Z0-9 _\-\\]+", "<LOCAL_PATH>"),
             (r"\/home\/[a-zA-Z0-9 _\-\/]+", "<LOCAL_PATH>"),
+            (r"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b", "<IP_ADDRESS>"), # IPv4
+            # Add more patterns here
             # Add more patterns here
         ]
         

@@ -169,21 +169,24 @@ def create_music_embed(
     # [====>-------] 1:20 / 3:45
     bar_length = 20
     if total_duration_sec > 0:
-        # Effective progress might be different if speeding? 
-        # play_time_sec is real time elapsed.
-        # If speed > 1, position is play_time_sec * speed?
-        # Yes.
+        # Effective progress
         current_pos = play_time_sec * speed
         progress = min(1.0, max(0.0, current_pos / total_duration_sec))
+        # Custom "Diagonal" Style
         filled = int(progress * bar_length)
         empty = bar_length - filled
-        bar = "▬" * filled + "🔘" + "▬" * empty
+        # Filled: ▧ (Diagonal Crosshatch), Empty: ▱ (Hollow Parallelogram) or ▨
+        bar = "▧" * filled + "🔘" + "▱" * empty
         
         t_curr = format_time(current_pos)
         t_total = format_time(total_duration_sec)
         embed.description = f"`{bar}`\n`{t_curr} / {t_total}`"
     else:
-        embed.description = f"`🔘 Live Stream`"
+        # Duration 0: Could be Live Stream OR Stopped/Loading
+        if "Stopped" in status_text or status == "Stopped":
+             embed.description = "`⏹️ Stopped`"
+        else:
+             embed.description = f"`🔘 Live Stream`"
 
     # Thumbnail
     thumb = track_info.get("thumbnail")

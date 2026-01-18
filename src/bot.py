@@ -8,7 +8,13 @@ import signal
 import sys
 import time
 import os
+import warnings
 from typing import Optional
+
+# [SUPPRESSION]
+# Discord.py often emits "ResourceWarning: unclosed file" for FFmpeg pipes on Windows.
+# This is a known benign issue with the library's cleanup of subprocess streams.
+warnings.simplefilter("ignore", ResourceWarning)
 
 import aiohttp
 from dotenv import load_dotenv
@@ -267,6 +273,8 @@ class ORABot(commands.Bot):
                                         logger.info(f"Ngrok URLをユーザーに送信: {user.name} ({tid}) -> {dashboard_url}")
                             except Exception as e:
                                 logger.error(f"Ngrok URLの送信に失敗しました ({tid}): {e}")
+                        
+
                 else:
                     logger.debug("Ngrok API not accessible (Status %s)", resp.status)
         except Exception as e:

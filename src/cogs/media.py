@@ -942,11 +942,17 @@ class MediaCog(commands.Cog):
                  
                  # User Joined Bot's Channel
                  if after.channel and after.channel.id == bot_channel.id and (not before.channel or before.channel.id != bot_channel.id):
-                      await self._voice_manager.play_tts(member, f"{member.display_name}さんが参加しました")
+                      import hashlib
+                      name_hash = hashlib.md5(member.display_name.encode('utf-8')).hexdigest()[:8]
+                      cache_key = f"join_{member.id}_{name_hash}"
+                      await self._voice_manager.play_tts(member, f"{member.display_name}さんが参加しました", cache_key=cache_key, msg_type="system_join_leave")
 
                  # User Left Bot's Channel
                  elif before.channel and before.channel.id == bot_channel.id and (not after.channel or after.channel.id != bot_channel.id):
-                      await self._voice_manager.play_tts(member, f"{member.display_name}さんが退出しました")
+                      import hashlib
+                      name_hash = hashlib.md5(member.display_name.encode('utf-8')).hexdigest()[:8]
+                      cache_key = f"leave_{member.id}_{name_hash}"
+                      await self._voice_manager.play_tts(member, f"{member.display_name}さんが退出しました", cache_key=cache_key, msg_type="system_join_leave")
 
         # 3. VC Points Logic
         import time

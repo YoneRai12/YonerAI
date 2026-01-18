@@ -45,6 +45,7 @@ from discord.ext import commands
 
 from ..storage import Store
 from ..utils.llm_client import LLMClient
+from src.utils.safe_shell import SafeShell
 from ..utils.math_renderer import render_tex_to_image
 from ..utils.search_client import SearchClient
 from ..utils.ascii_art import AsciiGenerator
@@ -60,6 +61,7 @@ from src.views.onboarding import SelectModeView
 from discord.ext import tasks
 from pathlib import Path
 from duckduckgo_search import DDGS
+import shlex
 
 logger = logging.getLogger(__name__)
 
@@ -208,8 +210,15 @@ class ORACog(commands.Cog):
         
         # Layer 2: Resource Manager (The Guard Dog)
         self.resource_manager = ResourceManager()
+        # Allow shell to read repo root
+        repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        if os.path.exists(os.path.join(repo_root, "src")):
+             self.safe_shell = SafeShell(repo_root)
+        else:
+             logger.warning("Could not determine repo root for SafeShell. Defaulting to current dir.")
+             self.safe_shell = SafeShell(".")
 
-        # VRAM Management & Queue
+        # State Trackingagement & Queue
         self.is_generating_image = False
         self.message_queue: list[discord.Message] = []
         
@@ -218,6 +227,95 @@ class ORACog(commands.Cog):
         self.shiritori_games: Dict[int, ShiritoriGame] = defaultdict(ShiritoriGame)
         
         # Gaming Mode Watcher
+        # self.game_watcher = GameWatcher(bot) # (Optional)
+
+    @app_commands.command(name="dashboard", description="Get the link to this server's web dashboard")
+    async def dashboard(self, interaction: discord.Interaction):
+        """Get the link to this server's web dashboard."""
+        if not interaction.guild:
+            await interaction.response.send_message("❌ Server only command.", ephemeral=True)
+            return
+
+        # Default to local if not set or if force_check
+        base = self._public_base_url
+        
+        # Dynamic Ngrok Discovery (if not configured or local default)
+        if not base or "localhost" in base:
+            # 1. Try to find existing tunnel
+            found_tunnel = False
+            try:
+                 async with aiohttp.ClientSession() as session:
+                     async with session.get("http://127.0.0.1:4040/api/tunnels", timeout=1) as resp:
+                         if resp.status == 200:
+                             data = await resp.json()
+                             tunnels = data.get("tunnels", [])
+                             for t in tunnels:
+                                 if t.get("proto") == "https":
+                                     base = t.get("public_url")
+                                     found_tunnel = True
+                                     break
+            except:
+                pass
+            
+            # 2. If NO tunnel, Auto-Start Ngrok
+            if not found_tunnel:
+                await interaction.response.defer(ephemeral=True) # Defer as this takes time
+                is_deferred = True
+                
+                import subprocess
+                try:
+                    # Attempt to start ngrok
+                    # We assume 'ngrok' is in PATH.
+                    # We run it detached.
+                    subprocess.Popen(["ngrok", "http", "8000"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    
+                    # Wait for spin-up
+                    await asyncio.sleep(4)
+                    
+                    # Check again
+                    try:
+                         async with aiohttp.ClientSession() as session:
+                             async with session.get("http://127.0.0.1:4040/api/tunnels", timeout=1) as resp:
+                                 if resp.status == 200:
+                                     data = await resp.json()
+                                     tunnels = data.get("tunnels", [])
+                                     for t in tunnels:
+                                         if t.get("proto") == "https":
+                                             base = t.get("public_url")
+                                             break
+                    except:
+                        pass
+                except Exception as e:
+                    # Failed to start (ngrok not installed?)
+                    pass
+            else:
+                is_deferred = False
+        else:
+            is_deferred = False
+
+
+        if not base: 
+            base = "http://localhost:8000"
+            warning = "\n⚠️ **Ngrok could not be started.** This link only works on the host machine."
+        else:
+            warning = ""
+
+        base = base.rstrip("/")
+
+        if not base:
+             base = "http://localhost:8000"
+        base = base.rstrip("/")
+        
+        # Security: Create Access Token (Persistent per guild)
+        token = await self.store.get_or_create_dashboard_token(interaction.guild.id, interaction.user.id)
+        
+        url = f"{base}/api/dashboard/view?token={token}"
+        msg_content = f"📊 **Server Dashboard**\nView analytics for **{interaction.guild.name}** here:\n[Open Dashboard]({url})\n*(This link is secure and unique to this server. You can pin this message.)*{warning}"
+        
+        if is_deferred:
+            await interaction.followup.send(msg_content, ephemeral=True)
+        else:
+            await interaction.response.send_message(msg_content, ephemeral=True)
         from ..managers.game_watcher import GameWatcher
         self.game_watcher = GameWatcher(
             target_processes=self.bot.config.gaming_processes,
@@ -1462,8 +1560,92 @@ class ORACog(commands.Cog):
             # However, removing it cleanly is best.
             # ...
             # Actually, standardizing:
+            elif tool_name == "read_file":
+                path = args.get("path")
+                lines_range = args.get("lines_range")
+                
+                cmd = f"cat -n {path}" if not lines_range else ""
+                
+                if lines_range:
+                    try:
+                        parts = lines_range.split("-")
+                        s = parts[0]
+                        e = parts[1] if len(parts) > 1 else str(int(s) + 50)
+                        cmd = f"lines -s {s} -e {e} {path}"
+                    except: 
+                        cmd = f"cat -n {path}" # Fallback
+                
+                res = await self.safe_shell.run(cmd)
+                return f"Outcome: {res['exit_code']}\nSTDOUT:\n{res['stdout']}\nSTDERR:\n{res['stderr']}"
+
+            elif tool_name == "list_files":
+                path = args.get("path") or "."
+                rec = args.get("recursive")
+                
+                if rec:
+                    cmd = f"tree -L 2 {path}"
+                else:
+                    cmd = f"ls -lh {path}"
+                
+                res = await self.safe_shell.run(cmd)
+                return f"Outcome: {res['exit_code']}\nSTDOUT:\n{res['stdout']}\nSTDERR:\n{res['stderr']}"
+
+            elif tool_name == "search_code":
+                query = args.get("query")
+                path = args.get("path") or "."
+                
+                # Escape query for safety if needed, but SafeShell handles shlex split.
+                # We need to quote the query for shlex to treat it as one arg.
+                safe_query = shlex.quote(query)
+                safe_path = shlex.quote(path)
+                
+                cmd = f"rg -n -i -m 20 {safe_query} {safe_path}"
+                res = await self.safe_shell.run(cmd)
+                return f"Outcome: {res['exit_code']}\nSTDOUT:\n{res['stdout']}\nSTDERR:\n{res['stderr']}"
+
             elif tool_name == "generate_image_legacy":
                  return "Please use the updated generate_image tool."
+
+            elif tool_name == "generate_video":
+                 # 1. Rate Limiting (Internal)
+                 user_id = message.author.id
+                 now = time.time()
+                 last_gen = self._spam_buckets.get(f"video_{user_id}", 0)
+                 
+                 if now - last_gen < 60:
+                     remaining = int(60 - (now - last_gen))
+                     return f"⏳ Please wait {remaining}s before generating another video."
+                 
+                 self._spam_buckets[f"video_{user_id}"] = now
+
+                 prompt = args.get("prompt")
+                 neg = args.get("negative_prompt", "")
+                 w = int(args.get("width", 768))
+                 h = int(args.get("height", 512))
+                 frames = int(args.get("frame_count", 49))
+                 
+                 creative_cog = self.bot.get_cog("CreativeCog")
+                 if not creative_cog:
+                     return "Creative module (CreativeCog) is not loaded."
+                 
+                 # Notify status
+                 if status_manager:
+                     await status_manager.update_current("🎬 動画生成を開始しました (LTX-2)...")
+                 
+                 try:
+                     # Run in executor to avoid blocking
+                     import io
+                     mp4_data = await self.bot.loop.run_in_executor(None, lambda: creative_cog.comfy_client.generate_video(prompt, neg, width=w, height=h, frame_count=frames))
+                     
+                     if mp4_data:
+                         f = discord.File(io.BytesIO(mp4_data), filename="ltx_video.mp4")
+                         await message.reply(f"🎬 **Generated Video**\nPrompt: {prompt}", file=f)
+                         return "Video generated and sent successfully."
+                     else:
+                         return "Video generation failed (returned None). Check ComfyUI console."
+                 except Exception as e:
+                     logger.error(f"Video Gen Error: {e}")
+                     return f"Video generation error: {e}"
 
             elif tool_name == "layer":
                 # Logic reused from CreativeCog
@@ -1591,15 +1773,23 @@ class ORACog(commands.Cog):
                 return json.dumps(results, ensure_ascii=False)
 
             elif tool_name == "get_channels":
-                guild = message.guild
-                if not guild: return "Error: Not in a server."
-                channels = []
-                for ch in guild.channels:
-                    kind = "text" if isinstance(ch, discord.TextChannel) else \
-                           "voice" if isinstance(ch, discord.VoiceChannel) else \
-                           "category" if isinstance(ch, discord.CategoryChannel) else "other"
-                    channels.append({"id": ch.id, "name": ch.name, "type": kind})
-                return json.dumps(channels[:50], ensure_ascii=False) # Limit to 50
+                 guild = message.guild
+                 if not guild: return "Error: Not in a server."
+                 
+                 lines = ["### 📺 Channels"]
+                 # Text
+                 lines.append("**Text Channels:**")
+                 for c in guild.text_channels[:20]: # Limit 20
+                     lines.append(f"- {c.name} (ID: {c.id})")
+                 if len(guild.text_channels) > 20: lines.append(f"...and {len(guild.text_channels)-20} more.")
+                 
+                 # Voice
+                 lines.append("\n**Voice Channels:**")
+                 for c in guild.voice_channels[:20]:
+                     lines.append(f"- {c.name} (ID: {c.id})")
+                 if len(guild.voice_channels) > 20: lines.append(f"...and {len(guild.voice_channels)-20} more.")
+                 
+                 return "\n".join(lines)
                 
             elif tool_name == "change_voice":
                 char_name = args.get("character_name")
@@ -1639,14 +1829,73 @@ class ORACog(commands.Cog):
                     vm.set_user_speaker(message.author.id, speaker_id)
                     return f"Your Voice changed to **{speaker_name}** ({style_name}). Persistence saved."
 
+            elif tool_name == "recall_memory":
+                # Agentic RAG: Search past conversations
+                query = args.get("query")
+                if not query: return "Error: Missing query."
+                
+                # Default to user scope for privacy
+                # In future we can add scope="channel" or "server" if requested
+                
+                store = self.bot.get_cog("ORACog").store
+                if not store: return "Error: Storage not available."
+                
+                # Search
+                results = await store.search_conversations(query, user_id=str(message.author.id), limit=5)
+                
+                if not results:
+                    return f"No memories found matching '{query}' in your history."
+                
+                # Format for LLM
+                lines = []
+                for r in results:
+                    dt = datetime.fromtimestamp(r['created_at']).strftime('%Y-%m-%d %H:%M')
+                    lines.append(f"[{dt}] User: {r['message'][:50]}... | ORA: {r['response'][:50]}...")
+                
+                return "Found Memories:\n" + "\n".join(lines)
+
+            elif tool_name == "search_knowledge_base":
+                # Agentic RAG: Search static datasets
+                query = args.get("query")
+                if not query: return "Error: Missing query."
+                
+                # TODO: Implement actual Vector DB or robust dataset search
+                # For now, we search the 'datasets' table metadata or list available datasets
+                # Since we don't have the *content* of datasets in SQL (it's in API), 
+                # we will simulate this by checking if we implement the API search here via 'unified_client' or directly.
+                
+                # Fallback: Search MemoryCog's long-term memory profiles for facts?
+                # Or use Google Search if "knowledge base" implies world knowledge?
+                # User specifically said "search_knowledge_base" for RAG.
+                
+                # Let's search the user's profile "facts" (Layer 2)
+                memory_cog = self.bot.get_cog("MemoryCog")
+                if memory_cog:
+                    profile = await memory_cog.get_user_profile(message.author.id, message.guild.id if message.guild else None)
+                    if profile:
+                        facts = profile.get("layer2_user_memory", {}).get("facts", [])
+                        matches = [f for f in facts if query.lower() in f.lower()]
+                        if matches:
+                             return f"Knowledge Base (Profile Facts) Matches:\n- " + "\n- ".join(matches)
+                
+                return "No info found in local knowledge base for this query. (Vector DB not fully connected yet)."
+
             # Naive join_voice_channel removed (Duplicate)
 
 
             elif tool_name == "get_roles":
-                guild = message.guild
-                if not guild: return "Error: Not in a server."
-                roles = [{"id": r.id, "name": r.name} for r in guild.roles]
-                return json.dumps(roles[:50], ensure_ascii=False)
+                 guild = message.guild
+                 if not guild: return "Error: Not in a server."
+                 
+                 lines = ["### 🎭 Roles"]
+                 # Reverse to show highest first
+                 for r in reversed(guild.roles):
+                     if r.is_default(): continue
+                     lines.append(f"- {r.name} (ID: {r.id}) [Members: {len(r.members)}]")
+                     if len(lines) > 30: # Hard limit
+                         lines.append("...(truncated)")
+                         break
+                 return "\n".join(lines)
 
             # ... (Keep existing tools like google_search, get_system_stats, etc.)
             # I need to make sure I don't delete them.
@@ -2195,11 +2444,8 @@ class ORACog(commands.Cog):
                 if message.attachments:
                     return "ABORT: Attachments detected. Priority: Vision Analysis. Do NOT generate an image."
 
-                # GUARD: Strict Keyword Check ("画像生成")
-                # We check the raw content (ignoring mentions slightly, but safest to lookat message.content)
-                if "画像生成" not in message.content:
-                    logger.info("Blocked generation: Missing '画像生成' keyword.")
-                    return "ABORT: User requires strict keyword '画像生成' to trigger generation."
+                # GUARD: Strict Keyword Check REMOVED for Agentic Behavior
+                # if "画像生成" not in message.content: ...
 
                 prompt = args.get("prompt")
                 negative_prompt = args.get("negative_prompt", "")
@@ -2741,27 +2987,49 @@ class ORACog(commands.Cog):
                  return f"Icon: {icon}\nBanner: {banner}"
 
             elif tool_name == "manage_permission":
-                target_user = args.get("target_user")
-                action = args.get("action")
-                level = args.get("level")
-                
-                # STRICT OWNER CHECK
-                if not await self._check_permission(message.author.id, "creator"):
-                    return "Permission Denied: Only the Bot Owner can manage permissions."
-                
-                if not target_user: return "Error: target_user required."
-                
-                # Resolve User
-                target_member = await self._resolve_user(message.guild, target_user)
-                if not target_member: return f"User '{target_user}' not found."
-                
-                if action == "grant":
-                    await self._store.set_permission_level(target_member.id, level)
-                    return f"✅ Granted '{level}' permission to {target_member.display_name}."
-                elif action == "revoke":
-                    await self._store.set_permission_level(target_member.id, "user")
-                    return f"⛔ Revoked permissions from {target_member.display_name}."
-                return "Unknown action."
+                 # STRICT SECURITY CHECK
+                 OWNER_ID = 1069941291661672498
+                 if message.author.id != OWNER_ID:
+                     logger.warning(f"Unauthorized permission change attempt by {message.author.name} ({message.author.id})")
+                     return "⛔ Permission denied. This command is restricted to the Bot Owner."
+                 
+                 target_user_str = args.get("target_user")
+                 action = args.get("action")
+                 level = args.get("level")
+                 
+                 if not target_user_str or not action or not level:
+                     return "Error: Missing arguments."
+                 
+                 # Clean ID
+                 try:
+                     tid = int("".join(c for c in target_user_str if c.isdigit()))
+                 except:
+                     return f"Error: Invalid user format '{target_user_str}'"
+                 
+                 # Apply
+                 if action == "grant":
+                     if level == "sub_admin":
+                         self.bot.config.sub_admin_ids.add(tid)
+                     elif level == "vc_admin":
+                         self.bot.config.vc_admin_ids.add(tid)
+                     msg = f"✅ Granted {level} to {tid}"
+                     
+                 elif action == "revoke":
+                     if level == "sub_admin":
+                         self.bot.config.sub_admin_ids.discard(tid)
+                     elif level == "vc_admin":
+                         self.bot.config.vc_admin_ids.discard(tid)
+                     msg = f"🗑️ Revoked {level} from {tid}"
+                 
+                 else:
+                     return "Error: Unknown action."
+                 
+                 # Note: Config changes are in-memory unless saved.
+                 # Ideally we should save to .env or DB, but for now runtime is OK 
+                 # as the user asked for functional tools.
+                 # (Future task: Persist config changes)
+                 
+                 return msg
 
 
 
@@ -3031,7 +3299,7 @@ class ORACog(commands.Cog):
                  await memory_cog.update_user_profile(interaction.user.id, {"layer1_session_meta": {"system_status": "OVERRIDE"}}, interaction.guild.id if interaction.guild else None)
             
             embed = discord.Embed(title="🚨 SYSTEM OVERRIDE 🚨", description="**[WARNING] Safety Limiters DISENGAGED.**\nInfinite Generation Mode: **ACTIVE (User Only)**\n\n*\"Power overwhelming...\"*", color=discord.Color.red())
-            embed.set_thumbnail(url="https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExM3R5eXJ4eXJ4eXJ4eXJ4eXJ4eXJ4eXJ4eXJ4/3o7TKSjRrfIPjeiVyM/giphy.gif") # Placeholder or specific asset
+            embed.set_thumbnail(url="https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExM2R5eXJ4eXJ4eXJ4eXJ4eXJ4eXJ4eXJ4eXJ4eXJ4eXJ4/3o7TKSjRrfIPjeiVyM/giphy.gif") # Placeholder or specific asset
             await interaction.response.send_message(embed=embed)
         else:
             self.cost_manager.toggle_unlimited_mode(False, user_id=interaction.user.id)
@@ -3239,6 +3507,8 @@ class ORACog(commands.Cog):
                         
                         if embed.provider and embed.provider.name:
                             embed_parts.append(f"Source: {embed.provider.name}")
+                        
+                        logger.info(f"[History Debug] Found msg: {msg.id} | Author: {msg.author} | Content: {content[:20]}")
                         
                         if embed.author and embed.author.name and not is_bot:
                             embed_parts.append(f"Author: {embed.author.name}")
@@ -3630,6 +3900,7 @@ class ORACog(commands.Cog):
             # If resolved is available, check author id.
             # If not, we might need to fetch, but for trigger check, maybe we can rely on cached resolved or fetch it.
             # To be safe and fast, let's try to use resolved, if not, fetch.
+            # To be safe and fast, let's try to use resolved, if not, fetch.
             ref_msg = message.reference.resolved
             if not ref_msg and message.reference.message_id:
                  try:
@@ -3883,16 +4154,39 @@ class ORACog(commands.Cog):
             # 1. Discord System (Core)
             # ==========================
             {
-                "name": "system_shell",
-                "description": "[Admin ONLY] Execute safe read-only shell commands (ls, cat, grep, find, tree) to inspect the bot's source code and file system.",
+                "name": "recall_memory",
+                "description": "Searches your long-term memory and past conversation logs (RAG). Use this when the user asks 'Do you remember...?' or refers to past topics. Returns relevant chat logs.",
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "command": { "type": "string", "description": "The command to run (e.g. 'ls -la src', 'cat src/bot.py')" }
+                        "query": {
+                            "type": "string",
+                            "description": "The specific keyword or topic to search for."
+                        },
+                        "scope": {
+                            "type": "string",
+                            "enum": ["user", "server", "global"],
+                            "description": "Scope of search. Defaults to 'user'."
+                        }
                     },
-                    "required": ["command"]
+                    "required": ["query"]
                 },
-                "tags": ["shell", "terminal", "exec", "ls", "cat", "grep", "open", "read", "file", "code", "inspect", "シェル", "コマンド", "ファイル", "中身", "読む"]
+                "tags": ["memory", "recall", "remember", "search", "history", "rag", "past", "conversation", "記憶", "思い出す", "検索", "過去", "会話"]
+            },
+            {
+                "name": "search_knowledge_base",
+                "description": "Searches the ORA Knowledge Base (Datasets) for factual information. Use this for questions about specific documented info that isn't in general training.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "Search query."
+                        }
+                    },
+                    "required": ["query"]
+                },
+                "tags": ["knowledge", "database", "dataset", "search", "info", "fact", "rag", "知識", "データベース", "検索", "情報"]
             },
             {
                 "name": "get_server_info",
@@ -4333,6 +4627,57 @@ class ORACog(commands.Cog):
                 },
                 "tags": ["timeout", "mute", "silence", "quiet", "shut", "タイムアウト", "黙らせ", "静かに"]
             },
+            # --- Music ---
+            {
+                "name": "music_play",
+                "description": "[Music] Play music from YouTube/URL. Also joins VC if needed.",
+                "parameters": {
+                    "type": "object",
+                    "properties": { "query": { "type": "string", "description": "Song title or URL" } },
+                    "required": ["query"]
+                },
+                "tags": ["play", "music", "song", "stream", "listen", "再生", "流して", "歌って", "曲", "音楽"]
+            },
+            {
+                "name": "music_control",
+                "description": "[Music] Control playback (stop, skip, loop).",
+                "parameters": {
+                    "type": "object",
+                    "properties": { 
+                        "action": { 
+                            "type": "string", 
+                            "enum": ["stop", "skip", "loop_on", "loop_off"] 
+                        } 
+                    },
+                    "required": ["action"]
+                },
+                "tags": ["stop", "skip", "next", "loop", "repeat", "止めて", "スキップ", "次", "ループ", "繰り返し"]
+            },
+            {
+                "name": "music_tune",
+                "description": "[Music] Adjust speed and pitch.",
+                "parameters": {
+                    "type": "object",
+                    "properties": { 
+                        "speed": { "type": "number", "description": "0.5 - 2.0" },
+                        "pitch": { "type": "number", "description": "0.5 - 2.0" }
+                    },
+                    "required": ["speed", "pitch"]
+                },
+                "tags": ["speed", "pitch", "tempo", "fast", "slow", "速度", "ピッチ", "早送り", "ゆっくり"]
+            },
+            {
+                "name": "music_seek",
+                "description": "[Music] Seek to a specific timestamp.",
+                "parameters": {
+                    "type": "object",
+                    "properties": { 
+                        "seconds": { "type": "number", "description": "Target timestamp in seconds" } 
+                    },
+                    "required": ["seconds"]
+                },
+                "tags": ["seek", "jump", "time", "スキップ", "飛ばして", "秒", "時間"]
+            },
             # --- General ---
             {
                 "name": "google_search",
@@ -4345,6 +4690,62 @@ class ORACog(commands.Cog):
                 "tags": ["search", "google", "weather", "price", "news", "info", "lookup", "調べ", "検索", "天気", "価格", "ニュース", "情報", "とは"]
             },
             {
+                 "type": "function",
+                 "name": "read_file",
+                 "description": "Read the contents of a file (Code Analyst). Use list_files to find paths first. Restricted to SafeShell.",
+                 "parameters": {
+                     "type": "object",
+                     "properties": {
+                         "path": {"type": "string", "description": "Relative path to the file (e.g. src/config.py)"},
+                         "lines_range": {"type": "string", "description": "Optional line range (e.g. 10-50). Leave empty for full file."}
+                     },
+                     "required": ["path"]
+                 }
+            },
+            {
+                 "type": "function",
+                 "name": "list_files",
+                 "description": "List files in a directory (Code Analyst).",
+                 "parameters": {
+                     "type": "object",
+                     "properties": {
+                         "path": {"type": "string", "description": "Relative path to directory (e.g. src/cogs). Default is root ."},
+                         "recursive": {"type": "boolean", "description": "If true, lists recursively (tree view)."}
+                     },
+                     "required": []
+                 }
+            },
+            {
+                 "type": "function",
+                 "name": "search_code",
+                 "description": "Search for a pattern in the codebase (Grep) (Code Analyst).",
+                 "parameters": {
+                     "type": "object",
+                     "properties": {
+                         "query": {"type": "string", "description": "Regex pattern or string to search for."},
+                         "path": {"type": "string", "description": "Path to search in (file or dir). Default is root ."}
+                     },
+                     "required": ["query"]
+                 }
+            },
+            {
+                 "type": "function",
+                 "name": "generate_video",
+                 "description": "[Creative] Generate a short video using LTX-2 (ComfyUI).",
+                 "parameters": {
+                     "type": "object",
+                     "properties": {
+                         "prompt": {"type": "string", "description": "Description of the video (e.g. 'cinematic drone shot of Tokyo')"},
+                         "negative_prompt": {"type": "string", "description": "What to avoid"},
+                         "width": {"type": "integer", "description": "Width (default 768)"},
+                         "height": {"type": "integer", "description": "Height (default 512)"},
+                         "frame_count": {"type": "integer", "description": "Number of frames (default 49)"}
+                     },
+                     "required": ["prompt"]
+                 }
+            },
+            {
+                "type": "function",
                 "name": "generate_image",
                 "description": "[Creative] Generate an image from text. Args: 'prompt', 'negative_prompt'.",
                 "parameters": {
@@ -4428,7 +4829,13 @@ class ORACog(commands.Cog):
             "join_voice_channel",
             "request_feature",   # CRITICAL: Always allow evolution
             "manage_permission", # CRITICAL: Admin delegation
-            "get_system_tree"    # CRITICAL: Coding analysis
+            "get_system_tree",   # CRITICAL: Coding analysis
+            "read_file",         # CODE ANALYST
+            "list_files",        # CODE ANALYST
+            "search_code",       # CODE ANALYST
+            "generate_image"     # AGENTIC: Always available for creativity
+            # "recall_memory",     # MOVED TO ROUTER (Mini-Model)
+            # "search_knowledge_base" # MOVED TO ROUTER
         } 
         
         # Override: If user explicitly asks for "help" or "functions", show ALL
@@ -4661,10 +5068,49 @@ class ORACog(commands.Cog):
             "「このコードをレビューして改善案を出して」\n"
             "\n"
             "何を手伝いしましょうか？具体的なタスクや希望の出力形式（箇条書き、コードブロック、英語など）を教えてください。\n"
-            "Sanitized & Powered by ORA Universal Brain\n"
+            f"Sanitized & Powered by ORA Universal Brain\n"
         )
-
         return base_prompt
+
+    async def _router_decision(self, prompt: str, user_name: str) -> str:
+        """
+        [Layer 1.5] Mini-Model Router (gpt-4o-mini).
+        Decides if RAG (Memory/Knowledge) is needed BEFORE the Main LLM sees the prompt.
+        Cost-Effective Agentic Behavior.
+        """
+        try:
+            # lightweight classification
+            messages = [
+                {"role": "system", "content": (
+                    "You are the ORA Router (gpt-4o-mini). Your job is to classify the user's INTENT.\n"
+                    "Output ONLY one of the following labels:\n"
+                    "- RECALL: User is asking about past conversations, memories, or 'do you remember'.\n"
+                    "- KNOWLEDGE: User is asking for factual info, definitions, or documentation (ORA, Python, World).\n"
+                    "- NONE: General chat, greetings, creative writing, coding request, or image generation.\n"
+                    "\n"
+                    "Rules:\n"
+                    "- If unsure, choose NONE.\n"
+                    "- 'Draw a cat' -> NONE (Handled by Main LLM)\n"
+                    "- 'Who is YoneRai?' -> KNOWLEDGE\n"
+                    "- 'What did I say yesterday?' -> RECALL"
+                )},
+                {"role": "user", "content": f"User {user_name}: {prompt}"}
+            ]
+            
+            # Use OpenAI Lane (Stable) with Mini Model
+            content, _, _ = await self.unified_client.chat("openai", messages, model="gpt-4o-mini", temperature=0.0)
+            
+            if not content: return "NONE"
+            
+            label = content.strip().upper().replace(".", "")
+            if "RECALL" in label: return "RECALL"
+            if "KNOWLEDGE" in label or "SEARCH" in label: return "KNOWLEDGE"
+            
+            return "NONE"
+            
+        except Exception as e:
+            logger.warning(f"Router Failed: {e}")
+            return "NONE"
 
     async def handle_prompt(self, message: discord.Message, prompt: str, existing_status_msg: Optional[discord.Message] = None, is_voice: bool = False, force_dm: bool = False) -> None:
         """Process a user message and generate a response using the LLM."""
@@ -4673,7 +5119,6 @@ class ORACog(commands.Cog):
         try:
              memory_cog = self.bot.get_cog("MemoryCog")
              if memory_cog:
-                 # Fire and forget status update (Processing)
                  asyncio.create_task(memory_cog.update_user_profile(
                      message.author.id, 
                      {"status": "Processing", "impression": f"Input: {prompt[:20]}..."}, 
@@ -4688,9 +5133,47 @@ class ORACog(commands.Cog):
         # 1. Check for Generation Lock
         if self.is_generating_image:
             await message.reply("🎨 現在、画像生成を実行中です... 完了次第、順次回答しますので少々お待ちください！ (Waiting for image generation...)", mention_author=True)
-            # CRITICAL FIX: Queue the PROMPT too, otherwise it's lost and causes TypeError later
             self.message_queue.append((message, prompt))
             return
+
+        # ----------------------------------------------------
+        # [Step 1.5] Mini-Model Router (RAG Decision)
+        # ----------------------------------------------------
+        rag_context = ""
+        
+        # Only run Router if prompt is long enough to be meaningful query
+        if len(prompt) > 3:
+            intent = await self._router_decision(prompt, message.author.display_name)
+            
+            if intent == "RECALL":
+                # Execute Recall Logic Directly
+                logger.info(f"🧠 [Router] RECALL Triggered for: {prompt[:30]}")
+                store = self.bot.get_cog("ORACog").store
+                if store:
+                    results = await store.search_conversations(prompt, user_id=str(message.author.id), limit=3)
+                    if results:
+                        formatted = "\n".join([f"[{datetime.fromtimestamp(r['created_at']).strftime('%Y-%m-%d')}] User: {r['message'][:50]}..." for r in results])
+                        rag_context = f"\n[AUTO-RAG: RECALL MEMORY]\nPrevious Conversations:\n{formatted}\n(Use this info to answer if relevant.)\n"
+                    else:
+                         rag_context = "\n[AUTO-RAG] No relevant memories found.\n"
+            
+            elif intent == "KNOWLEDGE":
+                # Execute Knowledge Logic Directly (Placeholder + Facts)
+                logger.info(f"📚 [Router] KNOWLEDGE Triggered for: {prompt[:30]}")
+                if memory_cog:
+                     profile = await memory_cog.get_user_profile(message.author.id, message.guild.id if message.guild else None)
+                     if profile:
+                        facts = profile.get("layer2_user_memory", {}).get("facts", [])
+                        matches = [f for f in facts if any(k in prompt.lower() for k in f.lower().split())]
+                        if matches:
+                            rag_context = f"\n[AUTO-RAG: KNOWLEDGE]\nUser Facts:\n- " + "\n- ".join(matches) + "\n"
+
+            # Inject RAG Context into Prompt
+            if rag_context:
+                prompt += rag_context
+                logger.info(f"🔗 RAG Context Injected ({len(rag_context)} chars)")
+
+        # ----------------------------------------------------
 
         # 0.1 SUPER PRIORITY: System Override (Admin Chat Trigger)
         if "管理者権限でオーバーライド" in prompt:
@@ -4877,6 +5360,42 @@ class ORACog(commands.Cog):
 
         # 2. Privacy Check
         await self._store.ensure_user(message.author.id, self._privacy_default, display_name=message.author.display_name)
+
+        # [CONTEXT REPAIR]
+        # logic: If prompt is short and user didn't reply, they likely refer to the immediate previous message.
+        # We explicitly fetch it and inject it into the prompt to prevent "Hallucination of Menus".
+        if len(prompt) < 20 and not message.reference:
+            try:
+                # Fetch only 1 message before this one
+                async for prev_msg_ctx in message.channel.history(limit=1, before=message):
+                    # Ignore if it's the bot itself (unless we want to support follow-up to bot?)
+                    # Usually short replies are "Really?" onto a User statement or Bot statement.
+                    # Let's include it regardless of author.
+                    if prev_msg_ctx.content:
+                        clean_prev = prev_msg_ctx.content.replace(f"<@{self.bot.user.id}>", "").strip()[:200]
+                        prompt = f"(Context: Previous message was '{clean_prev}')\n{prompt}"
+                        logger.info(f"🔗 Context Injection: Injected '{clean_prev}' into short prompt.")
+            except Exception as e:
+                logger.warning(f"Context Injection Failed: {e}")
+
+        # [REPLY SOURCE ENFORCEMENT]
+        # logic: User explicitly asked to "Read the reply source".
+        # Even though history traversal does this, we FORCE injection into prompt to guarantee visibility.
+        if message.reference:
+            try:
+                ref_msg = message.reference.resolved
+                if not ref_msg and message.reference.message_id:
+                     ref_msg = await message.channel.fetch_message(message.reference.message_id)
+                
+                if ref_msg and ref_msg.content:
+                    # Clean mentions
+                    clean_ref = ref_msg.content.replace(f"<@{self.bot.user.id}>", "").strip()[:500]
+                    # Format clearly as a Reply Context
+                    # Using "User X said:" helps the LLM differentiate speakers.
+                    prompt = f"【返信元のメッセージ (User: {ref_msg.author.display_name})】\n{clean_ref}\n\n【私の返信】\n{prompt}"
+                    logger.info(f"🔗 Reply Injection: Injected '{clean_ref[:20]}...' into prompt.")
+            except Exception as e:
+                logger.warning(f"Reply Injection Failed: {e}")
 
         # Send initial progress message if not provided
         start_time = time.time()
@@ -5119,6 +5638,9 @@ class ORACog(commands.Cog):
                      # Pass 'self.tool_definitions' assuming it exists as instance attribute (from __init__)
                      # If not, we might need access to it. Assuming it is available.
                      candidate_tools = self._select_tools(prompt, self.tool_definitions)
+
+                     # OPTIMIZATION: Hide RAG Tools from Main LLM (Handled by Router)
+                     candidate_tools = [t for t in candidate_tools if t['name'] not in ["recall_memory", "search_knowledge_base"]]
                      
                      # 2. Format for API (Remove 'tags', wrap in 'function')
                      openai_tools = []

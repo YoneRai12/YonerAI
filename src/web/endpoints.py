@@ -1019,3 +1019,249 @@ async def log_stream():
         return {"ok": False, "error": "Log file not found"}
     except Exception as e:
         return {"ok": False, "error": str(e)}
+
+@router.get("/dashboard/view", response_class=Response)
+async def get_server_dashboard_view(token: str):
+    """Render a beautiful, server-specific dashboard (HTML) SECURELY."""
+    from fastapi.responses import HTMLResponse
+    import json
+    
+    # 0. Validate Token
+    from src.web.app import get_store
+    store = get_store()
+    
+    guild_id = await store.validate_dashboard_token(token)
+    if not guild_id:
+        return HTMLResponse(
+            "<h1>403 Access Denied</h1><p>Invalid or expired dashboard token. Please generate a new link using <code>/dashboard</code> in your server.</p>", 
+            status_code=403
+        )
+
+    # 1. Fetch ALL users (reuse logic)
+    class MockResponse:
+        headers = {}
+    
+    res = await get_dashboard_users(MockResponse())
+    if not res.get("ok"):
+        return HTMLResponse(f"Error loading data: {res.get('error')}", status_code=500)
+    
+    all_users = res.get("data", [])
+    
+    # 2. Filter by Guild ID (Securely obtained from Token)
+    server_users = []
+    guild_name = "Unknown Server"
+    
+    for u in all_users:
+        # Check explicit guild_id
+        if str(u.get("guild_id")) == guild_id:
+            server_users.append(u)
+            if u.get("guild_name") and u["guild_name"] != "Unknown Server":
+                guild_name = u["guild_name"]
+        # Fallback: Check if UID_GID matches (though with token, this might be less relevant)
+        elif "_" in str(u["discord_user_id"]):
+            parts = str(u["discord_user_id"]).split("_")
+            if len(parts) == 2 and parts[1] == guild_id:
+                server_users.append(u)
+                if u.get("guild_name") and u["guild_name"] != "Unknown Server":
+                    guild_name = u["guild_name"]
+
+    # 3. Calculate Stats
+    total_users = len(server_users)
+    total_cost = sum(u["cost_usage"]["total_usd"] for u in server_users)
+    active_users = len([u for u in server_users if u["status"] != "New"])
+    
+    # 4. Generate HTML (Dark Mode, Glassmorphism)
+    html = f"""
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>ORA Dashboard - {guild_name}</title>
+        <style>
+            :root {{
+                --bg: #0f172a;
+                --card-bg: rgba(30, 41, 59, 0.7);
+                --text-main: #f8fafc;
+                --text-sub: #94a3b8;
+                --accent: #3b82f6;
+                --accent-glow: rgba(59, 130, 246, 0.5);
+                --sc-success: #10b981;
+                --sc-warn: #f59e0b;
+                --sc-danger: #ef4444;
+            }}
+            body {{
+                background-color: var(--bg);
+                background-image: radial-gradient(circle at 10% 20%, rgba(59, 130, 246, 0.1) 0%, transparent 20%),
+                                  radial-gradient(circle at 90% 80%, rgba(16, 185, 129, 0.05) 0%, transparent 20%);
+                color: var(--text-main);
+                font-family: 'Inter', system-ui, -apple-system, sans-serif;
+                margin: 0;
+                padding: 40px;
+                min-height: 100vh;
+            }}
+            .container {{
+                max-width: 1200px;
+                margin: 0 auto;
+            }}
+            header {{
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 40px;
+                border-bottom: 1px solid rgba(255,255,255,0.1);
+                padding-bottom: 20px;
+            }}
+            h1 {{
+                font-size: 2.5rem;
+                font-weight: 800;
+                background: linear-gradient(135deg, #fff 0%, #94a3b8 100%);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                margin: 0;
+            }}
+            
+            .stats-grid {{
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+                gap: 20px;
+                margin-bottom: 40px;
+            }}
+            .stat-card {{
+                background: var(--card-bg);
+                backdrop-filter: blur(12px);
+                border: 1px solid rgba(255,255,255,0.05);
+                border-radius: 16px;
+                padding: 24px;
+                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+                transition: transform 0.2s;
+            }}
+            .stat-card:hover {{
+                transform: translateY(-2px);
+                border-color: rgba(255,255,255,0.1);
+            }}
+            .stat-label {{ color: var(--text-sub); font-size: 0.9rem; margin-bottom: 8px; }}
+            .stat-value {{ font-size: 2rem; font-weight: 700; color: #fff; }}
+            
+            .users-table {{
+                width: 100%;
+                border-collapse: collapse;
+                background: var(--card-bg);
+                backdrop-filter: blur(12px);
+                border-radius: 16px;
+                overflow: hidden;
+                border: 1px solid rgba(255,255,255,0.05);
+            }}
+            th, td {{
+                padding: 16px 24px;
+                text-align: left;
+                border-bottom: 1px solid rgba(255,255,255,0.05);
+            }}
+            th {{
+                background: rgba(0,0,0,0.2);
+                color: var(--text-sub);
+                font-weight: 600;
+                font-size: 0.85rem;
+                text-transform: uppercase;
+                letter-spacing: 0.05em;
+            }}
+            tr:last-child td {{ border-bottom: none; }}
+            tr:hover td {{ background: rgba(255,255,255,0.02); }}
+            
+            .avatar {{
+                width: 32px;
+                height: 32px;
+                border-radius: 50%;
+                vertical-align: middle;
+                margin-right: 12px;
+                border: 2px solid rgba(255,255,255,0.1);
+            }}
+            .badge {{
+                display: inline-block;
+                padding: 4px 10px;
+                border-radius: 20px;
+                font-size: 0.75rem;
+                font-weight: 600;
+            }}
+            .badge-success {{ background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.2); }}
+            .badge-warn {{ background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.2); }}
+            .badge-neutral {{ background: rgba(148, 163, 184, 0.2); color: #cbd5e1; border: 1px solid rgba(148, 163, 184, 0.2); }}
+            
+            .cost {{ font-family: 'SF Mono', 'Roboto Mono', monospace; color: var(--sc-warn); }}
+            
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <header>
+                <div>
+                    <h1>{guild_name}</h1>
+                    <span style="color: var(--text-sub)">Server Dashboard</span>
+                </div>
+                <div style="text-align: right">
+                     <span class="badge badge-success">SECURE VIEW</span>
+                     <span class="badge badge-neutral">ID: {guild_id}</span>
+                </div>
+            </header>
+            
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Total Users</div>
+                    <div class="stat-value">{total_users}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Active Profiles</div>
+                    <div class="stat-value">{active_users}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">AI Cost (Est.)</div>
+                    <div class="stat-value" style="color: #fbbf24">${total_cost:.4f}</div>
+                </div>
+            </div>
+            
+            <h2 style="margin-bottom: 20px; font-weight: 600;">Member Activity</h2>
+            
+            <table class="users-table">
+                <thead>
+                    <tr>
+                        <th>User</th>
+                        <th>Status</th>
+                        <th>Points</th>
+                        <th>AI Cost</th>
+                        <th>Last Active</th>
+                    </tr>
+                </thead>
+                <tbody>
+    """
+    
+    for u in server_users:
+        avatar = u.get("avatar_url") or "https://cdn.discordapp.com/embed/avatars/0.png"
+        status = u.get("status", "New")
+        badge_class = "badge-neutral"
+        if status == "Optimized": badge_class = "badge-success"
+        elif status == "Processing": badge_class = "badge-warn"
+        
+        cost = u["cost_usage"]["total_usd"]
+        
+        html += f"""
+                    <tr>
+                        <td>
+                            <img src="{avatar}" class="avatar" alt="av">
+                            {u['display_name']}
+                        </td>
+                        <td><span class="badge {{badge_class}}">{status}</span></td>
+                        <td>{u['points']}</td>
+                        <td class="cost">${cost:.4f}</td>
+                        <td style="color: var(--text-sub)">{u.get('created_at', 'N/A')[:16]}</td>
+                    </tr>
+        """
+        
+    html += """
+                </tbody>
+            </table>
+        </div>
+    </body>
+    </html>
+    """
+    
+    return HTMLResponse(content=html, status_code=200)

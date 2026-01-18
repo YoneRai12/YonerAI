@@ -172,7 +172,8 @@ class LLMClient:
         # v1/responses is predominantly for the Local Manager (LMS/vLLM custom).
         
         is_next_gen_local = any(x in model_name for x in ["gpt-5", "codex"]) and not is_cloud_model
-        is_legacy_completions = any(x in model_name for x in ["davinci", "curie", "babbage", "ada", "codex"]) and "chat" not in model_name
+        # Fix: Ensure we don't treat 'gpt-5.1-codex' as legacy davinci completion
+        is_legacy_completions = any(x in model_name for x in ["davinci", "curie", "babbage", "ada"]) and "chat" not in model_name and "gpt" not in model_name
 
         if is_next_gen_local:
             # New "v1/responses" Endpoint (Agentic)
@@ -638,7 +639,7 @@ class LLMClient:
             cmd = (
                 "wsl -d Ubuntu-22.04 nohup python3 -m vllm.entrypoints.openai.api_server "
                 "--model Qwen/Qwen2.5-VL-32B-Instruct-AWQ --quantization awq --dtype half --gpu-memory-utilization 0.90 "
-                "--max-model-len 2048 --enforce-eager --disable-custom-all-reduce --tensor-parallel-size 1 --port 8000 "
+                "--max-model-len 2048 --enforce-eager --disable-custom-all-reduce --tensor-parallel-size 1 --port 8001 "
                 "--trust-remote-code > vllm.log 2>&1 &"
             )
             

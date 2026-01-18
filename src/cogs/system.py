@@ -44,10 +44,8 @@ class SystemCog(commands.Cog):
                 self.volume_interface = interface.QueryInterface(IAudioEndpointVolume)
                 logger.info("Audio control interface initialized successfully.")
             except AttributeError:
-                # Fallback for some pycaw versions or if GetSpeakers returns a list/different object
+                # Fallback for some pycaw versions or if GetSpeakers returns a device directly
                 try:
-                    # Alternative init (sometimes GetSpeakers() returns a device directly? or we need Enumerator)
-                    # For now, just log and disable if it fails to avoid crash
                     logger.warning("AudioDevice.Activate failed. System volume control disabled.")
                     self.volume_interface = None
                 except Exception:
@@ -132,7 +130,7 @@ class SystemCog(commands.Cog):
     @tasks.loop(seconds=1.0)
     async def log_forwarder(self):
         """
-        Consumes logs from asyncio.Queue and forwards them to the Debug Channel.
+        Consumes logs from asyncio.Queue and forwards them to the Debug Channel (Batched).
         """
         await self.bot.wait_until_ready()
         
@@ -145,6 +143,7 @@ class SystemCog(commands.Cog):
 
         batch = []
         try:
+            # Batch up to 10 logs or empty queue
             while not queue.empty() and len(batch) < 10:
                 record = queue.get_nowait()
                 batch.append(record)
@@ -160,6 +159,9 @@ class SystemCog(commands.Cog):
             return # Channel not found or bot not ready fully
 
         # Aggregate logs
+        valid_messages = []
+        max_level = logging.INFO
+        
         for record in batch:
             try:
                 msg = record.message
@@ -171,10 +173,10 @@ class SystemCog(commands.Cog):
                 # Filter spam messages
                 # 1. ALWAYS Allow ERROR and Critical
                 if record.levelno >= logging.ERROR:
-                    pass
-                # 2. WARNINGS: Allow, but maybe filter specific repetitive ones?
+                    max_level = max(max_level, record.levelno)
+                # 2. WARNINGS: Allow
                 elif record.levelno >= logging.WARNING:
-                    pass
+                     max_level = max(max_level, record.levelno)
                 # 3. INFO: STRICT Allow-List / Block-List
                 else:
                     # BLOCK LIST (Spammy Info)
@@ -189,7 +191,8 @@ class SystemCog(commands.Cog):
                         "ORA Discord Botを起動します", 
                         "Healer", "Auto-Evolution", 
                         "dev_request", "System Diagnostics",
-                        "Memory", "メモリ" # Critical for Learning Feedback
+                        "Memory", "メモリ", "Updated Channel Memory",
+                        "Analyzing"
                     ]
                     
                     # If not in allowed list, SKIP it (Default Deny for INFO noise)
@@ -208,37 +211,48 @@ class SystemCog(commands.Cog):
                 if "dev_request" in msg:
                    msg = f"📩 開発リクエスト: {msg}"
 
-                # Create Embed
-                color = discord.Color.red() if record.levelno >= logging.ERROR else \
-                        discord.Color.orange() if record.levelno == logging.WARNING else \
-                        discord.Color.green()
-                
-                title = "🚨 エラー発生" if record.levelno >= logging.ERROR else \
-                        "⚠️ 警告" if record.levelno == logging.WARNING else \
-                        "✅ システム通知"
-                
+                # Format Line
+                timestamp = discord.utils.utcnow().strftime("%H:%M:%S")
                 emoji = "🛑" if record.levelno >= logging.ERROR else \
                         "⚠️" if record.levelno == logging.WARNING else \
                         "ℹ️"
                 
-                if "Backup" in record.message or "バックアップ" in msg:
-                    emoji = "💾"
-                    title = "バックアップ報告"
-                    
+                formatted_line = f"`{timestamp}` {emoji} **[{record.name}]** {msg}"
+                valid_messages.append(formatted_line)
+                
+            except Exception as e:
+                print(f"Failed to process log record: {e}")
+
+        if not valid_messages:
+            return
+
+        # Create Unified Embed
+        try:
+            full_text = "\n".join(valid_messages)
+            
+            # Split if too long (Discord Limit 4096)
+            chunks = [full_text[i:i+4000] for i in range(0, len(full_text), 4000)]
+            
+            for chunk in chunks:
+                color = discord.Color.red() if max_level >= logging.ERROR else \
+                        discord.Color.orange() if max_level == logging.WARNING else \
+                        discord.Color.green()
+                
+                title = "🚨 システム通知 (Batch)" if max_level >= logging.ERROR else \
+                        "⚠️ システム警告" if max_level == logging.WARNING else \
+                        "✅ システム通知"
+
                 embed = discord.Embed(
-                    title=f"{emoji} {title} [{record.name}]",
-                    description=f"```{msg[:4000]}```",
+                    title=title,
+                    description=chunk,
                     color=color,
                     timestamp=discord.utils.utcnow()
                 )
-                if record.exc_text:
-                    embed.add_field(name="Exception", value=f"```py\n{record.exc_text[-1000:]}```", inline=False)
-                
                 await channel.send(embed=embed)
                 
-            except Exception as e:
-                print(f"Failed to forward log: {e}")
-
+        except Exception as e:
+             print(f"Failed to send batched log: {e}")
+             
     def _check_admin(self, interaction: discord.Interaction) -> bool:
         admin_id = self.bot.config.admin_user_id
         # creator_id lookup via config if needed, or just admin check
@@ -282,11 +296,6 @@ class SystemCog(commands.Cog):
             return
 
         # 2. DM Check (Optional, but requested for safety)
-        # if not isinstance(interaction.channel, discord.DMChannel):
-        #     await interaction.response.send_message("⛔ セキュリティのため、このコマンドはDMでのみ実行可能です。", ephemeral=True)
-        #     return
-        # For now, let's allow it in Guilds if it's the Admin, but maybe ephemeral only?
-        # User requested "DM専用: 公開チャンネルでは動かない"
         if interaction.guild_id is not None:
              await interaction.response.send_message("⛔ セキュリティのため、このコマンドはDMでのみ実行可能です。", ephemeral=True)
              return

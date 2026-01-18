@@ -767,7 +767,8 @@ class MemoryCog(commands.Cog):
         # --- BUDGET-AWARE DEPTH SELECTION ---
         depth_mode = "Standard"
         extra_instructions = ""
-        max_output = 1500
+        # FIX: Worker Mode (No ORACog) needs higher default than 1500 to avoid truncation of deep analysis.
+        max_output = 16384 
         
         ora_cog = self.bot.get_cog("ORACog")
         cost_manager = ora_cog.cost_manager if ora_cog else None
@@ -821,7 +822,7 @@ class MemoryCog(commands.Cog):
                 f"  \"layer2_user_memory\": {{ \"facts\": [\"...\"], \"traits\": [\"...\"], \"impression\": \"...\", \"interests\": [\"...\"] }},\n"
                 f"  \"layer3_recent_summaries\": [ {{ \"title\": \"...\", \"timestamp\": \"...\", \"snippet\": \"...\" }} ]\n"
                 f"}}\n"
-                f"Do not include any text outside the JSON block."
+                f"IMPORTANT: Output ONLY the raw JSON. Do NOT use markdown code blocks (```json). Do not add any preamble."
             )}
         ]
         

@@ -1,0 +1,114 @@
+{
+    "3": {
+        "inputs": {
+            "ckpt_name": "ltx-video-2b-v0.9.safetensors"
+        },
+        "class_type": "CheckpointLoaderSimple",
+        "_meta": {
+            "title": "Load Checkpoint"
+        }
+    },
+    "20": {
+        "inputs": {
+            "text": "cinematic, 4k, drone shot, beautiful landscape",
+            "clip": [
+                "3",
+                1
+            ]
+        },
+        "class_type": "CLIPTextEncode",
+        "_meta": {
+            "title": "Positive Prompt"
+        }
+    },
+    "21": {
+        "inputs": {
+            "text": "blurry, low quality, watermark, text",
+            "clip": [
+                "3",
+                1
+            ]
+        },
+        "class_type": "CLIPTextEncode",
+        "_meta": {
+            "title": "Negative Prompt"
+        }
+    },
+    "25": {
+        "inputs": {
+            "width": 768,
+            "height": 512,
+            "length": 49,
+            "batch_size": 1
+        },
+        "class_type": "EmptyLTXVideoLatent",
+        "_meta": {
+            "title": "Empty Latent Video"
+        }
+    },
+    "10": {
+        "inputs": {
+            "seed": 0,
+            "steps": 30,
+            "cfg": 3.0,
+            "sampler_name": "euler",
+            "scheduler": "normal",
+            "denoise": 1.0,
+            "model": [
+                "3",
+                0
+            ],
+            "positive": [
+                "20",
+                0
+            ],
+            "negative": [
+                "21",
+                0
+            ],
+            "latent_image": [
+                "25",
+                0
+            ]
+        },
+        "class_type": "KSampler",
+        "_meta": {
+            "title": "KSampler"
+        }
+    },
+    "8": {
+        "inputs": {
+            "samples": [
+                "10",
+                0
+            ],
+            "vae": [
+                "3",
+                2
+            ]
+        },
+        "class_type": "VAEDecode",
+        "_meta": {
+            "title": "VAE Decode"
+        }
+    },
+    "30": {
+        "inputs": {
+            "frame_rate": 24,
+            "loop_count": 0,
+            "filename_prefix": "LTX_Video",
+            "format": "video/h264-mp4",
+            "pix_fmt": "yuv420p",
+            "crf": 19,
+            "save_metadata": true,
+            "images": [
+                "8",
+                0
+            ]
+        },
+        "class_type": "VHS_VideoCombine",
+        "_meta": {
+            "title": "Save Video"
+        }
+    }
+}
