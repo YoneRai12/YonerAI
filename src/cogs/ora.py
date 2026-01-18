@@ -165,6 +165,8 @@ def _generate_tree(dir_path: Path, max_depth: int = 2, current_depth: int = 0) -
         
     return tree_str
 
+from .tools.tool_handler import ToolHandler
+
 class ORACog(commands.Cog):
     """ORA-specific commands such as login link and dataset management."""
 
@@ -182,6 +184,7 @@ class ORACog(commands.Cog):
         self.bot = bot
         self._store = store
         self._llm = llm
+        self.tool_handler = ToolHandler(bot, self)
         self.llm = llm # Public Alias for Views
         self._search_client = search_client
         self._drive_client = DriveClient()
@@ -1280,6 +1283,11 @@ class ORACog(commands.Cog):
                 logger.error(f"Error processing queued message from {msg.author}: {e}")
 
     async def _execute_tool(self, tool_name: str, args: dict, message: discord.Message, status_manager: Optional[StatusManager] = None) -> str:
+        # > Phase 1 Refactor: Try ToolHandler first
+        handler_result = await self.tool_handler.execute(tool_name, args, message, status_manager)
+        if handler_result is not None:
+             return handler_result
+
         try:
             # Update Status (Start)
             if status_manager:
