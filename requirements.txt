@@ -1,4 +1,4 @@
---index-url https://download.pytorch.org/whl/cu121
+
 
 # Core
 discord.py>=2.3,<3.0
