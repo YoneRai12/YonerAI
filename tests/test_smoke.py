@@ -26,6 +26,9 @@ async def test_bot_setup_hook():
     mock_config.llm_model = "test-model"
     mock_config.db_path = "test.db"
     mock_config.log_level = "INFO"
+    mock_config.gemini_api_key = "test_gemini" # Used in setup_hook
+    mock_config.admin_user_id = 12345
+    mock_config.startup_notify_channel_id = 12345
 
     # Mock Dependencies
     mock_link_client = MagicMock()
