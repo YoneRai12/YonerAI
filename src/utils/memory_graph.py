@@ -1,8 +1,9 @@
+import asyncio
 import json
 import logging
-import asyncio
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import Any, Dict
+
 from ..storage import Store
 
 logger = logging.getLogger(__name__)

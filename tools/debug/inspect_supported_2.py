@@ -1,4 +1,3 @@
-import os
 
 target_file = r"L:\ComfyUI\comfy\supported_models.py"
 with open(target_file, "r", encoding="utf-8") as f:

@@ -1,10 +1,11 @@
-import discord
-from discord.ext import commands, tasks
 import asyncio
-import subprocess
-import socket
 import os
+import socket
+import subprocess
 import time
+
+from discord.ext import commands, tasks
+
 
 class ResourceManager(commands.Cog):
     def __init__(self, bot):

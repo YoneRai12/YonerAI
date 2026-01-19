@@ -1,8 +1,8 @@
-import discord
 import asyncio
 import time
 from typing import List, Optional
 
+import discord
 
 
 class StatusManager:

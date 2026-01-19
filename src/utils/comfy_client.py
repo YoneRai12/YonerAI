@@ -1,17 +1,14 @@
 import json
-import uuid
-import websocket
-import urllib.request
-import urllib.parse
-import random
+import logging
 import os
-import io
-import asyncio
-import logging
-from typing import Optional, Dict, List, Any
-
+import random
 import time
-import logging
+import urllib.parse
+import urllib.request
+import uuid
+from typing import Any, Dict, Optional
+
+import websocket
 
 logger = logging.getLogger(__name__)
 
@@ -338,7 +335,7 @@ class ComfyWorkflow:
                             elif resp.status != 404: # If 500/405, it might be the wrong method or error
                                 text = await resp.text()
                                 logger.warning(f"Failed to free via {ep}: {resp.status} - {text[:50]}")
-                    except Exception as e:
+                    except Exception:
                          # logger.debug(f"Endpoint {ep} failed: {e}")
                          pass
             

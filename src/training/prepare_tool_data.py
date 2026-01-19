@@ -1,7 +1,6 @@
 
 import json
 import random
-import os
 
 # Output File
 OUTPUT_FILE = "src/training/ora_tool_dataset.jsonl"

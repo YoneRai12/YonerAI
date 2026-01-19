@@ -1,5 +1,7 @@
 import asyncio
+
 from src.utils.gtts_client import GTTSClient
+
 
 async def main():
     client = GTTSClient()

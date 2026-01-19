@@ -3,6 +3,7 @@ import logging
 import os
 from logging import Handler
 
+
 class GuildLogger:
     """
     Manager for dynamic guild-specific logging.

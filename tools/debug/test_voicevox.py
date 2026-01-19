@@ -1,6 +1,8 @@
 import asyncio
-import aiohttp
 import json
+
+import aiohttp
+
 
 async def test_voicevox():
     base_url = "http://127.0.0.1:50021"

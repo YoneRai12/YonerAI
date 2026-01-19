@@ -1,6 +1,7 @@
 
 import discord
-from discord.ui import View, Button
+from discord.ui import Button, View
+
 
 class SelectModeView(View):
     def __init__(self, cog, user_id: int):

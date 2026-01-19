@@ -6,14 +6,15 @@ project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(_
 if project_root not in sys.path:
     sys.path.append(project_root)
 
+import asyncio
 import io
-import torch
-import uvicorn
-import zipfile
 import logging
 import time
-import asyncio
-from fastapi import FastAPI, UploadFile, File, Form
+import zipfile
+
+import torch
+import uvicorn
+from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import Response
 from PIL import Image
 

@@ -1,7 +1,5 @@
 import json
 import os
-import sys
-from pathlib import Path
 
 STATE_DIR = r"L:\ORA_State"
 STATE_FILE = os.path.join(STATE_DIR, "cost_state.json")

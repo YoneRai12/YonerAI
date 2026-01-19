@@ -1,8 +1,9 @@
 import asyncio
-import sys
-import os
 import json
+import os
+import sys
 from pathlib import Path
+
 from dotenv import load_dotenv
 
 # Add src to path
@@ -11,8 +12,9 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # Load env variables explicitly
 load_dotenv()
 
-from config import Config, STATE_DIR
+from config import STATE_DIR, Config
 from utils.tts_client import VoiceVoxClient
+
 
 async def main():
     print("=== TTS Verification ===")

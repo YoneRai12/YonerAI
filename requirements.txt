@@ -54,6 +54,8 @@ fastapi
 uvicorn[standard]
 python-multipart
 
-# Development & Testing
+# Development & Testing (Local only)
 pytest
 pytest-asyncio
+ruff
+mypy

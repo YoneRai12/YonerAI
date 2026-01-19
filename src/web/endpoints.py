@@ -1,14 +1,12 @@
-from fastapi import APIRouter, Depends, Request, Response
-from fastapi.responses import RedirectResponse
-
-from google_auth_oauthlib.flow import Flow
-from google.oauth2 import id_token
-from google.auth.transport import requests as g_requests
-
-from fastapi import APIRouter, Depends, Request, WebSocket, WebSocketDisconnect, HTTPException
-from typing import List
-from datetime import datetime
 import uuid
+from datetime import datetime
+from typing import List
+
+from fastapi import APIRouter, HTTPException, Request, Response, WebSocket, WebSocketDisconnect
+from fastapi.responses import RedirectResponse
+from google.auth.transport import requests as g_requests
+from google.oauth2 import id_token
+from google_auth_oauthlib.flow import Flow
 
 router = APIRouter()
 
@@ -146,7 +144,6 @@ async def ocr_endpoint(request: Request):
     Analyze an uploaded image using the same logic as the ORA Cog.
     Expects multipart/form-data with 'file'.
     """
-    from fastapi import UploadFile, File
     from src.utils import image_tools
     
     # We need to parse the body manually or use FastAPI's File
@@ -209,6 +206,7 @@ async def get_dashboard_usage():
     # Calculate Today in JST
     # Calculate Today (Match CostManager Timezone)
     import pytz
+
     from src.config import COST_TZ
     
     tz = pytz.timezone(COST_TZ)
@@ -474,9 +472,9 @@ async def get_dashboard_users(response: Response):
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "0"
     import json
-    import os
-    import aiofiles
     from pathlib import Path
+
+    import aiofiles
     
     MEMORY_DIR = Path("L:/ORA_Memory/users")
     users = []
@@ -939,8 +937,8 @@ async def optimize_user(user_id: str):
     
     # Architecture Change: Write to Queue File for MemoryCog to pick up (IPC)
     import json
-    from pathlib import Path
     import time
+    from pathlib import Path
     
     parts = user_id.split("_")
     real_uid = int(parts[0])
@@ -978,8 +976,8 @@ async def optimize_user(user_id: str):
 async def system_restart():
     """Restart the Bot Process (Self-Termination)."""
     # In a managed environment (systemd/Docker), exiting 0 or 1 usually triggers restart.
-    import sys
     import asyncio
+    import sys
     
     # Schedule exit
     async def _exit():
@@ -992,8 +990,8 @@ async def system_restart():
 @router.post("/system/shutdown")
 async def system_shutdown():
     """Shutdown the Bot Process."""
-    import sys
     import asyncio
+    import sys
     
     async def _exit():
         await asyncio.sleep(1)
@@ -1023,9 +1021,9 @@ async def log_stream():
 @router.get("/dashboard/view", response_class=Response)
 async def get_server_dashboard_view(token: str):
     """Render a beautiful, server-specific dashboard (HTML) SECURELY."""
+
     from fastapi.responses import HTMLResponse
-    import json
-    
+
     # 0. Validate Token
     from src.web.app import get_store
     store = get_store()

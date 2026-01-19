@@ -2,10 +2,12 @@
 import asyncio
 import os
 import sys
+
 # Add src to path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from dotenv import load_dotenv
+
 load_dotenv()
 
 async def verify_all_tools():

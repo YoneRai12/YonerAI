@@ -8,60 +8,51 @@
 
 from __future__ import annotations
 
+import asyncio
+import datetime
+import json
 import logging
+import os
+import re
 import secrets
 import string
 import time
-import json
-import re
-import asyncio
-import asyncio
-import io
-from PIL import Image
-import datetime
-from ..utils import image_tools
+from typing import Dict, Optional
+
+import aiofiles
+
 from ..utils import flag_utils
 from ..utils.games import ShiritoriGame
-import os
-import aiofiles
-from typing import Optional, Dict
 
-import torch
 # Transformers for SAM 2 / T5Gemma
 try:
-    from transformers import AutoProcessor, Sam2Model, AutoModelForCausalLM, AutoTokenizer, pipeline
+    from transformers import AutoModelForCausalLM, AutoProcessor, AutoTokenizer, Sam2Model, pipeline
 except ImportError:
     pass # Handled in tool execution
+import shlex
+import zlib
 from collections import defaultdict
+from pathlib import Path
 
 import aiohttp
-import re
-import zlib
-import psutil
 import discord
+import psutil
 from discord import app_commands
-from discord.abc import User
-from discord.ext import commands
+from discord.ext import commands, tasks
+from duckduckgo_search import DDGS
+
+from src.utils.safe_shell import SafeShell
 
 from ..storage import Store
+from ..utils.ascii_art import AsciiGenerator
+from ..utils.cost_manager import Usage
+from ..utils.desktop_watcher import DesktopWatcher
+from ..utils.drive_client import DriveClient
 from ..utils.llm_client import LLMClient
-from src.utils.safe_shell import SafeShell
+from ..utils.logger import GuildLogger
 from ..utils.math_renderer import render_tex_to_image
 from ..utils.search_client import SearchClient
-from ..utils.ascii_art import AsciiGenerator
-from ..utils.logger import GuildLogger
-from ..utils import image_tools
-from ..utils.voice_manager import VoiceConnectionError
-from ..utils.ui import StatusManager, EmbedFactory
-from src.views.image_gen import AspectRatioSelectView
-from ..utils.drive_client import DriveClient
-from ..utils.desktop_watcher import DesktopWatcher
-from ..utils.cost_manager import Usage
-from src.views.onboarding import SelectModeView
-from discord.ext import tasks
-from pathlib import Path
-from duckduckgo_search import DDGS
-import shlex
+from ..utils.ui import EmbedFactory, StatusManager
 
 logger = logging.getLogger(__name__)
 
@@ -137,8 +128,9 @@ def _nonce(length: int = 32) -> str:
 from ..managers.resource_manager import ResourceManager
 from ..utils.cost_manager import CostManager
 from ..utils.sanitizer import Sanitizer
-from ..utils.user_prefs import UserPrefs
 from ..utils.unified_client import UnifiedClient
+from ..utils.user_prefs import UserPrefs
+
 
 def _generate_tree(dir_path: Path, max_depth: int = 2, current_depth: int = 0) -> str:
     if current_depth > max_depth:
@@ -162,14 +154,15 @@ def _generate_tree(dir_path: Path, max_depth: int = 2, current_depth: int = 0) -
                 tree_str += f"{indent}📄 {item.name}\n"
     except PermissionError:
         tree_str += f"{'    ' * current_depth}🔒 [Permission Denied]\n"
-    except Exception as e:
+    except Exception:
          pass
         
     return tree_str
 
-from .tools.tool_handler import ToolHandler
-from .handlers.vision_handler import VisionHandler
 from .handlers.chat_handler import ChatHandler
+from .handlers.vision_handler import VisionHandler
+from .tools.tool_handler import ToolHandler
+
 
 class ORACog(commands.Cog):
     """ORA-specific commands such as login link and dataset management."""
@@ -294,7 +287,7 @@ class ORACog(commands.Cog):
                                              break
                     except:
                         pass
-                except Exception as e:
+                except Exception:
                     # Failed to start (ngrok not installed?)
                     pass
             else:
@@ -669,7 +662,6 @@ class ORACog(commands.Cog):
             report += "\n📊 **Cost Dashboard**\n"
             
             # Status Icon
-            from ..config import SAFETY_BUFFER_RATIO
             status_icon = "🟢"
             if ratio > SAFETY_BUFFER_RATIO:
                 status_icon = "🔴 (Safety Stop)"
@@ -1466,7 +1458,7 @@ class ORACog(commands.Cog):
                 
                 # Verify Creator/Owner Permission (Double Check)
                 if not await self._check_permission(message.author.id, "creator"):
-                    return f"🚫 **Access Denied**: System Shell is restricted to the Bot Owner."
+                    return "🚫 **Access Denied**: System Shell is restricted to the Bot Owner."
 
                 command = args.get("command")
                 if not command: return "Error: Command required."
@@ -1890,7 +1882,7 @@ class ORACog(commands.Cog):
                         facts = profile.get("layer2_user_memory", {}).get("facts", [])
                         matches = [f for f in facts if query.lower() in f.lower()]
                         if matches:
-                             return f"Knowledge Base (Profile Facts) Matches:\n- " + "\n- ".join(matches)
+                             return "Knowledge Base (Profile Facts) Matches:\n- " + "\n- ".join(matches)
                 
                 return "No info found in local knowledge base for this query. (Vector DB not fully connected yet)."
 
@@ -2268,7 +2260,9 @@ class ORACog(commands.Cog):
                 await update_field(VISION_LABEL, "loading", "Loading Test Image...")
                 vision_ok = False
                 try:
-                    import io, base64, os
+                    import base64
+                    import io
+                    import os
                     img_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "assets", "test_image.png")
                     
                     b64_img = None
@@ -2770,7 +2764,7 @@ class ORACog(commands.Cog):
                     return f"Pinned message from {target_msg.author.display_name}."
                 elif action == "unpin":
                     await target_msg.unpin()
-                    return f"Unpinned message."
+                    return "Unpinned message."
                 else:
                     return "Error: action must be 'pin' or 'unpin'."
             
@@ -2933,6 +2927,7 @@ class ORACog(commands.Cog):
                 history_texts = []
                 
                 from datetime import timedelta
+
                 import discord
                 
                 async for msg in message.channel.history(limit=count):
@@ -3345,7 +3340,7 @@ class ORACog(commands.Cog):
                  if "error" in sync_res:
                      sync_status = f"Failed ({sync_res['error']})"
                  else:
-                     sync_status = f"✅ Synced"
+                     sync_status = "✅ Synced"
                      official_total = sync_res.get('total_tokens', 0)
         
         # 2. Calculate User Totals (Post-Sync)
@@ -3677,9 +3672,9 @@ class ORACog(commands.Cog):
                         media_cog._voice_manager.auto_read_channels[message.guild.id] = message.channel.id
                         await media_cog._voice_manager.play_tts(message.author, "接続しました")
                         await message.add_reaction("⭕")
-                    except Exception as e:
+                    except Exception:
                          # Likely user not in VC
-                         await message.channel.send(f"ボイスチャンネルに参加してから呼んでください。", delete_after=5)
+                         await message.channel.send("ボイスチャンネルに参加してから呼んでください。", delete_after=5)
                 return
 
             # Leave: "消えて" / "ばいばい" / "バイバイ" / "帰って"
@@ -4617,7 +4612,7 @@ class ORACog(commands.Cog):
                         facts = profile.get("layer2_user_memory", {}).get("facts", [])
                         matches = [f for f in facts if any(k in prompt.lower() for k in f.lower().split())]
                         if matches:
-                            rag_context = f"\n[AUTO-RAG: KNOWLEDGE]\nUser Facts:\n- " + "\n- ".join(matches) + "\n"
+                            rag_context = "\n[AUTO-RAG: KNOWLEDGE]\nUser Facts:\n- " + "\n- ".join(matches) + "\n"
 
             # Inject RAG Context into Prompt
             if rag_context:
@@ -4932,7 +4927,7 @@ class ORACog(commands.Cog):
 
             # 4. Routing Decision (Universal Brain Router V3)
             # -----------------------------------------------------
-            from ..config import ROUTER_CONFIG # Ensure import is available
+            from ..config import ROUTER_CONFIG  # Ensure import is available
             
             target_provider = "local" # Default
             sanitized_prompt = None

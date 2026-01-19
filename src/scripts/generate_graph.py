@@ -1,9 +1,8 @@
 
 import asyncio
 import json
-import sqlite3
 import os
-from pathlib import Path
+import sqlite3
 
 DB_PATH = os.getenv("ORA_BOT_DB", "ora_bot.db")
 CACHE_FILE = "graph_cache.json"

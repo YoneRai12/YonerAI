@@ -1,10 +1,11 @@
 
+import io
+import logging
+
+import aiohttp
 import discord
 from discord import app_commands
 from discord.ext import commands
-import aiohttp
-import io
-import logging
 
 logger = logging.getLogger("VoiceEngineCog")
 

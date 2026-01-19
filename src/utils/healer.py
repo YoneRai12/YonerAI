@@ -1,16 +1,17 @@
-import logging
-import traceback
-import discord
-import io
-import os
-import shutil
-import zipfile
-import subprocess
-import py_compile
-import time
-import json
 import asyncio
+import io
+import json
+import logging
+import os
+import py_compile
+import shutil
+import subprocess
+import time
+import traceback
 from typing import Optional
+
+import discord
+
 from .llm_client import LLMClient
 
 logger = logging.getLogger(__name__)

@@ -1,12 +1,12 @@
 
-import os
-import torch
-from fastapi import FastAPI, UploadFile, File, Form
-from transformers import AutoProcessor, AutoModelForCausalLM
-from PIL import Image
 import io
-import time
 import logging
+import time
+
+import torch
+from fastapi import FastAPI, File, Form, UploadFile
+from PIL import Image
+from transformers import AutoModelForCausalLM, AutoProcessor
 
 # Configure Logging
 logging.basicConfig(level=logging.INFO)

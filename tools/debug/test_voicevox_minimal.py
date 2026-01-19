@@ -1,6 +1,7 @@
 import asyncio
+
 import aiohttp
-import json
+
 
 async def test_synthesis_minimal():
     base_url = "http://127.0.0.1:50021"

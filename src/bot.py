@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import signal
 import sys
 import time
-import os
 import warnings
 from typing import Optional
 
@@ -29,18 +29,17 @@ from discord.ext import commands
 
 from .cogs.core import CoreCog
 from .cogs.ora import ORACog
-from .cogs.media import MediaCog
 from .config import Config, ConfigError
 from .logging_conf import setup_logging
 from .storage import Store
+from .utils.healer import Healer
 from .utils.link_client import LinkClient
 from .utils.llm_client import LLMClient
-from .utils.tts_client import VoiceVoxClient
-from .utils.stt_client import WhisperClient
-from .utils.voice_manager import VoiceManager
-from .utils.search_client import SearchClient
-from .utils.healer import Healer
 from .utils.logger import GuildLogger
+from .utils.search_client import SearchClient
+from .utils.stt_client import WhisperClient
+from .utils.tts_client import VoiceVoxClient
+from .utils.voice_manager import VoiceManager
 
 logger = logging.getLogger(__name__)
 

@@ -1,14 +1,12 @@
 import contextlib
-import difflib
 import logging
 import os
 import re
 import shlex
 from dataclasses import dataclass
 from datetime import datetime
-from collections import deque
 from pathlib import Path
-from typing import Any, List, Set, Dict, Tuple
+from typing import Any, Dict, List, Set, Tuple
 
 logger = logging.getLogger(__name__)
 

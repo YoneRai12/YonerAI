@@ -1,6 +1,7 @@
 
-import re
 import json
+import re
+
 
 def extract_json_objects(text):
     """

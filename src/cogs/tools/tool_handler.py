@@ -1,8 +1,9 @@
 
-import logging
 import asyncio
-import discord
+import logging
 from typing import Optional
+
+import discord
 from duckduckgo_search import DDGS
 
 logger = logging.getLogger(__name__)

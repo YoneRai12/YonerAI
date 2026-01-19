@@ -1,4 +1,3 @@
-import os
 
 # Target 1: model_base.py (Checks how it initializes Flux)
 target_file = r"L:\ComfyUI\comfy\model_base.py"

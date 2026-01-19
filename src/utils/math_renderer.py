@@ -1,6 +1,8 @@
-import matplotlib.pyplot as plt
 import io
 import re
+
+import matplotlib.pyplot as plt
+
 
 def render_tex_to_image(tex_code: str) -> io.BytesIO | None:
     """

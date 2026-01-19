@@ -1,6 +1,5 @@
 import logging
-import tempfile
-import os
+
 import edge_tts
 
 logger = logging.getLogger(__name__)

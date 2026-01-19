@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
+
 import discord
 from discord import app_commands
 from discord.ext import commands
-from pathlib import Path
 
 from src.utils.shell import ReadOnlyShellExecutor, ShellPolicy
 

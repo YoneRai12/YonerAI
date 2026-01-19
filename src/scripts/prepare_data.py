@@ -1,6 +1,6 @@
 import json
-import random
 import os
+import random
 
 OUTPUT_FILE = "data/lora_dataset.jsonl"
 SYSTEM_PROMPT = "You are ORA, an AI assistant. You can use tools to help the user. Answer in Japanese."

@@ -1,8 +1,9 @@
-import logging
-import torch
-import soundfile as sf
-import io
 import asyncio
+import io
+import logging
+
+import soundfile as sf
+import torch
 
 # Initialize logger first
 logger = logging.getLogger(__name__)
@@ -36,7 +37,7 @@ class T5TTSClient:
             # Note: AutoModelForTextToSpeech is not standard in 4.48.0, using AutoModelForTextToWaveform
             # Note: config.json maps 'AutoModelForSeq2SeqLM' to 'T5GemmaVoiceForConditionalGeneration'
             # We must use the mapped Auto class.
-            from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, AutoModel
+            from transformers import AutoModel, AutoModelForSeq2SeqLM, AutoTokenizer
             
             # The local directory is missing tokenizer files. using base Gemma tokenizer.
             try:
@@ -64,7 +65,8 @@ class T5TTSClient:
                 self.vocoder = XCodec2Model.from_pretrained("NandemoGHS/Anime-XCodec2-44.1kHz-v2", trust_remote_code=True).to(self.device).eval()
             except ImportError:
                 logger.warning("xcodec2 library not found. Installing via pip (this may take a moment)...")
-                import sys, subprocess
+                import subprocess
+                import sys
                 try:
                     subprocess.check_call([sys.executable, "-m", "pip", "install", "xcodec2"])
                     

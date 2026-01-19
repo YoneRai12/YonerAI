@@ -2,11 +2,11 @@
 
 from dataclasses import dataclass
 
-import torch
-from torch import Tensor, nn
-from einops import rearrange, repeat
 import comfy.ldm.common_dit
 import comfy.patcher_extension
+import torch
+from einops import rearrange, repeat
+from torch import Tensor, nn
 
 from .layers import (
     DoubleStreamBlock,
@@ -16,6 +16,7 @@ from .layers import (
     SingleStreamBlock,
     timestep_embedding,
 )
+
 
 @dataclass
 class FluxParams:

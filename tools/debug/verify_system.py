@@ -1,6 +1,4 @@
 import socket
-import sys
-import time
 
 # Simple health check for core ORA services.
 # Emoji caused cp932 encode errors on some consoles, so keep output ASCII-only.

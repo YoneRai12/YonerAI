@@ -11,18 +11,17 @@ try:
     import resource  # type: ignore
 except ImportError:  # pragma: no cover - platform specific
     resource = None  # type: ignore
+import asyncio
+import random
+from datetime import datetime, timedelta
 from typing import Any, Optional
 
 import discord
 from discord import app_commands
-import asyncio
-from datetime import datetime, timedelta
 from discord.ext import commands, tasks
 
-from ..utils.link_client import LinkClient
 from ..storage import Store
-import psutil
-import random
+from ..utils.link_client import LinkClient
 
 logger = logging.getLogger(__name__)
 

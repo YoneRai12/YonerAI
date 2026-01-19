@@ -13,25 +13,25 @@ requires Tesseract to be installed on the host system.
 
 from __future__ import annotations
 
-import logging
+import asyncio
 import logging
 from typing import Optional
-import asyncio
 
-import aiohttp
 import discord
 from discord import app_commands
 from discord.ext import commands, tasks
 
-from ..storage import Store
-from ..utils.voice_manager import VoiceManager, HotwordCallback, VoiceConnectionError
-# Import helper utilities for YouTube playback and flag translation
-from ..utils.youtube import get_youtube_audio_stream_url, download_youtube_audio
-from ..utils.flag_utils import flag_to_iso, iso_to_flag, country_to_flag, get_country_name
-from ..utils.search_client import SearchClient
-from ..utils.llm_client import LLMClient
-from ..utils import image_tools
 from src.views.music_dashboard import MusicPlayerView, create_music_embed
+
+from ..storage import Store
+from ..utils import image_tools
+from ..utils.flag_utils import country_to_flag, flag_to_iso, get_country_name, iso_to_flag
+from ..utils.llm_client import LLMClient
+from ..utils.search_client import SearchClient
+from ..utils.voice_manager import VoiceManager
+
+# Import helper utilities for YouTube playback and flag translation
+from ..utils.youtube import download_youtube_audio, get_youtube_audio_stream_url
 
 logger = logging.getLogger(__name__)
 
@@ -689,7 +689,7 @@ class MediaCog(commands.Cog):
                      # Dashboard already exists and updated, no text needed.
                      pass
         else:
-             await ctx.send(f"❌ 再生エラー: VoiceClientへの接続に失敗しました。")
+             await ctx.send("❌ 再生エラー: VoiceClientへの接続に失敗しました。")
 
     async def control_from_ai(self, ctx: commands.Context, action: str) -> None:
         """Helper for AI to control music (stop/skip/loop)."""

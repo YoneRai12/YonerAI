@@ -1,7 +1,9 @@
 import asyncio
 import logging
 import os
+
 from dotenv import load_dotenv
+
 from src.utils.search_client import SearchClient
 
 # Configure logging

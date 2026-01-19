@@ -1,12 +1,11 @@
 import asyncio
 import logging
 import time
-import io
-import wave
+
 import discord
-from discord.ext import commands, voice_recv
-from discord import app_commands
 import numpy as np
+from discord import app_commands
+from discord.ext import commands, voice_recv
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +17,7 @@ except ImportError:
     logger.warning("faster-whisper がインストールされていません。音声認識機能は無効化されます。")
 
 from collections import defaultdict
+
 
 class UserVoiceBuffer:
     def __init__(self):
@@ -131,7 +131,7 @@ class VoiceRecvCog(commands.Cog):
         
         self.processing_tasks[interaction.guild.id] = asyncio.create_task(self.process_audio_loop(interaction.guild.id, interaction.channel))
 
-        await interaction.followup.send(f"👂 チャンネル内の全員の声を聞き取っています...", ephemeral=True)
+        await interaction.followup.send("👂 チャンネル内の全員の声を聞き取っています...", ephemeral=True)
         
         # Announce
         media_cog = self.bot.get_cog("MediaCog")

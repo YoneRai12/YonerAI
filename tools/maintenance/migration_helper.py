@@ -1,9 +1,8 @@
 import os
-import sys
-import zipfile
-import shutil
 import platform
 import subprocess
+import sys
+import zipfile
 
 # --- CONFIGURATION ---
 EXCLUDE_DIRS = {

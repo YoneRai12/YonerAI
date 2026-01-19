@@ -1,10 +1,11 @@
-import discord
-from discord.ext import commands, tasks
+import collections
 import json
+import logging
 import os
 import time
-import logging
-import collections
+
+from discord.ext import commands, tasks
+
 
 # Memory Handler for Log Snippets
 class MemoryLogHandler(logging.Handler):

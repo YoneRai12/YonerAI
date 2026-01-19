@@ -1,8 +1,9 @@
 import logging
+from typing import Any, Dict, Optional
+
 import mss
 import mss.tools
-import io
-from typing import Optional, Dict, Any
+
 from . import image_tools
 
 logger = logging.getLogger(__name__)

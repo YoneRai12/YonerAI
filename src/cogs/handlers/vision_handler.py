@@ -1,13 +1,14 @@
-import logging
-import discord
-import time
-import io
 import base64
-import aiofiles
+import io
+import logging
+import time
 from pathlib import Path
-from PIL import Image
-from typing import List, Dict, Any, Tuple, Optional
+from typing import Any, Dict, List, Optional, Tuple
+
+import aiofiles
 import aiohttp
+import discord
+from PIL import Image
 
 logger = logging.getLogger(__name__)
 
@@ -104,7 +105,7 @@ class VisionHandler:
                         "image_url": {"url": f"data:image/jpeg;base64,{b64_img}"}
                      }
                      image_payloads.append(payload)
-                     prompt_suffix += f"\n\n[Embed Image]\n(Image loaded into Qwen2.5-VL Vision Context)\n"
+                     prompt_suffix += "\n\n[Embed Image]\n(Image loaded into Qwen2.5-VL Vision Context)\n"
 
             except Exception as e:
                 logger.warning(f"Failed to process embed image {image_url}: {e}")

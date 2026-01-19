@@ -7,8 +7,8 @@ import sys
 # tools/debug/script.py -> tools/debug -> tools -> root
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-import logging
 from src.utils.gtts_client import GTTSClient
+
 
 async def test_gtts():
     print("Testing GTTSClient...")

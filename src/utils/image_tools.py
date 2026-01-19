@@ -5,7 +5,6 @@ from __future__ import annotations
 import io
 import logging
 import os
-from typing import Tuple
 
 from PIL import Image
 

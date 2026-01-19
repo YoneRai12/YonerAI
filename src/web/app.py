@@ -1,9 +1,10 @@
 import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.web import endpoints
 from src.storage import Store
+from src.web import endpoints
 
 store: Store | None = None
 

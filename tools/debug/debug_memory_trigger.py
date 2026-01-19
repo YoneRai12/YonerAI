@@ -1,10 +1,10 @@
 
 import asyncio
 import logging
-import sys
 import os
-from unittest.mock import MagicMock, AsyncMock
+import sys
 from datetime import datetime
+from unittest.mock import AsyncMock, MagicMock
 
 # Setup Logging to Console
 logging.basicConfig(level=logging.DEBUG)
@@ -86,7 +86,7 @@ async def test_memory_logic():
                 profile = await cog.get_user_profile(user_id, 123)
                 if profile.get("status") == "New" or len(all_msgs) >= 5:
                     print("   [SUCCESS] Worker decided to queue analysis!")
-                    print(f"   Queuing _analyze_wrapper task...")
+                    print("   Queuing _analyze_wrapper task...")
                 else:
                     print("   [FAIL] Worker decided NOT to queue analysis.")
             except Exception as e:

@@ -1,0 +1,21 @@
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "B", "I"]
+ignore = ["E501"] # Line too long (handled by formatter or ignored)
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = false
+warn_unused_configs = true
+ignore_missing_imports = true
+disallow_untyped_defs = false
+check_untyped_defs = false
+# Suppress noisy errors for initial "Pro" rollout
+disable_error_code = ["arg-type", "var-annotated", "union-attr", "attr-defined", "no-any-return", "assignment", "index", "operator", "name-defined", "syntax"]

@@ -1,9 +1,8 @@
-import os
-import time
-import subprocess
 import asyncio
 import logging
-import psutil
+import os
+import subprocess
+import time
 
 # Configure Logger
 logging.basicConfig(level=logging.INFO)
@@ -72,7 +71,7 @@ class ResourceManager:
             logger.info(f"🔍 Checking for Startup Process ({self.startup_mode_pending})...")
             # vLLM takes time to load 30B model. Give it 10 minutes to open the port.
             if await self.wait_for_port(self.ports["llm"], timeout=600):
-                logger.info(f"✅ Startup Process Adopted! Skipping kill/launch sequence.")
+                logger.info("✅ Startup Process Adopted! Skipping kill/launch sequence.")
                 self.current_context = "llm"
                 self.startup_mode_pending = None
                 return

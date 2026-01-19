@@ -1,7 +1,7 @@
 
 import os
+
 from huggingface_hub import snapshot_download
-import sys
 
 # Define target directory
 BASE_PATH = r"L:\AI_Models\T5Gemma"

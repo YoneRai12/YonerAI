@@ -1,6 +1,8 @@
 
 from typing import Optional
+
 import pycountry
+
 
 def flag_to_iso(flag: str) -> Optional[str]:
     """Convert a flag emoji to a two-letter ISO 3166-1 alpha-2 code."""

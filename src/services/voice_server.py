@@ -6,16 +6,16 @@ project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(_
 if project_root not in sys.path:
     sys.path.append(project_root)
 
-import torch
-from fastapi import FastAPI, UploadFile, File, Form, BackgroundTasks
-from fastapi.responses import FileResponse
-from transformers import AutoProcessor, AutoModelForSeq2SeqLM
-import soundfile as sf
-import numpy as np
-import io
-import time
-import logging
 import asyncio
+import io
+import logging
+import time
+
+import soundfile as sf
+import torch
+from fastapi import FastAPI, File, Form, UploadFile
+from fastapi.responses import FileResponse
+from transformers import AutoModelForSeq2SeqLM, AutoProcessor
 
 # Configure Logging
 logging.basicConfig(level=logging.INFO)

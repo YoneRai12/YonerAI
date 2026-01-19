@@ -1,13 +1,11 @@
 
+import asyncio
+import json
+import logging
 import os
 import sys
 import time
-import json
-import shutil
-import asyncio
-import logging
-import subprocess
-from datetime import datetime
+
 from dotenv import load_dotenv
 
 # Setup Logging
@@ -38,6 +36,7 @@ HEARTBEAT_FILE = os.path.join("data", "heartbeat.json")
 BACKUP_DIR = "backups"
 
 import discord
+
 
 class ShadowWatcher(discord.Client):
     def __init__(self):

@@ -1,16 +1,16 @@
-import logging
-import time
 import asyncio
+import datetime
 import json
+import logging
 import re
 import secrets
-import datetime
-from datetime import datetime as dt_class # Avoid conflict
-import discord
-from typing import Optional, List, Dict, Any, Tuple
+from datetime import datetime as dt_class  # Avoid conflict
+from typing import Dict, List, Optional
 
-from src.utils.cost_manager import Usage
+import discord
+
 from src.config import ROUTER_CONFIG
+from src.utils.cost_manager import Usage
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +71,7 @@ class ChatHandler:
                         facts = profile.get("layer2_user_memory", {}).get("facts", [])
                         matches = [f for f in facts if any(k in prompt.lower() for k in f.lower().split())]
                         if matches:
-                            rag_context = f"\n[AUTO-RAG: KNOWLEDGE]\nUser Facts:\n- " + "\n- ".join(matches) + "\n"
+                            rag_context = "\n[AUTO-RAG: KNOWLEDGE]\nUser Facts:\n- " + "\n- ".join(matches) + "\n"
 
             # Inject RAG Context into Prompt
             if rag_context:
@@ -332,7 +332,7 @@ class ChatHandler:
                  try:
                      content, tool_calls, usage = await self.bot.google_client.chat(messages=clean_messages, model_name="gemini-1.5-pro")
                      self.cog.cost_manager.commit("burn", "gemini_trial", message.author.id, rid, est_usage)
-                 except Exception as e:
+                 except Exception:
                      self.cog.cost_manager.rollback("burn", "gemini_trial", message.author.id, rid)
                      target_provider = "local"
 
@@ -392,7 +392,7 @@ class ChatHandler:
                              actual_usd = (u_in * 0.0000025) + (u_out * 0.000010)
                              self.cog.cost_manager.commit(lane, "openai", message.author.id, rid, Usage(tokens_in=u_in, tokens_out=u_out, usd=actual_usd))
                              break
-                 except Exception as e:
+                 except Exception:
                      self.cog.cost_manager.rollback(lane, "openai", message.author.id, rid)
                      target_provider = "local"
 

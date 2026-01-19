@@ -3,25 +3,27 @@
 from __future__ import annotations
 
 import asyncio
-import logging
-import os
-import time
-import tempfile
-from collections import defaultdict
-from typing import Awaitable, Callable, Dict, Optional, Any
-
-import discord
-# from discord.ext import voice_recv
-
-from .stt_client import WhisperClient
-from .tts_client import VoiceVoxClient
-from .edge_tts_client import EdgeTTSClient
-from .gtts_client import GTTSClient
-from .t5_tts_client import T5TTSClient
 import audioop
 import json
+import logging
+import os
+import tempfile
+import time
+from collections import defaultdict
 from pathlib import Path
+from typing import Any, Awaitable, Callable, Dict, Optional
+
+import discord
+
 from ..config import STATE_DIR
+from .edge_tts_client import EdgeTTSClient
+from .gtts_client import GTTSClient
+
+# from discord.ext import voice_recv
+from .stt_client import WhisperClient
+from .t5_tts_client import T5TTSClient
+from .tts_client import VoiceVoxClient
+
 
 class VoiceConnectionError(Exception):
     """Raised when the bot fails to connect to a voice channel."""
@@ -578,7 +580,7 @@ class VoiceManager:
                 # We need to track what is currently playing.
                 if state.current_tts_type == "system_join_leave":
                      if voice_client.is_playing():
-                         logger.info(f"🚫 [Anti-Spam] Stopping current Join/Leave reading for new event.")
+                         logger.info("🚫 [Anti-Spam] Stopping current Join/Leave reading for new event.")
                          voice_client.stop() # This triggers after_callback -> next item
 
             state.tts_queue.append((member, text, speed, model_type, cache_key, msg_type))
@@ -717,7 +719,7 @@ class VoiceManager:
             
             if voice_client.is_playing() and voice_client.source:
                 # Mixing Mode (Music is playing)
-                logger.info(f"Mixing TTS with active music (Ducking to 50%)")
+                logger.info("Mixing TTS with active music (Ducking to 50%)")
                 current_source = voice_client.source
                 
                 # Create mixed source with callback

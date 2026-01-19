@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-import time
 import asyncio
-import json
 import logging
 import random
+import time
 from typing import Any, Dict, List, Optional
 
 import aiohttp

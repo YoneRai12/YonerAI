@@ -13,24 +13,21 @@
 # FAILURE TO FOLLOW THIS WILL CAUSE REGRESSION AND USER FRUSTRATION.
 # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-import discord
-from discord.ext import commands, tasks
-from discord import app_commands
-import logging
-import json
-import pytz
-from datetime import datetime, timedelta
-import time
-import os
-import aiofiles
-import time
-import psutil
-import aiohttp
-from typing import Optional, Dict, Any, List
-from datetime import datetime
 import asyncio
-import re
-import ast # For robust JSON parsing fallback
+import json
+import logging
+import os
+import time
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+import aiofiles
+import aiohttp
+import discord
+import psutil
+import pytz
+from discord import app_commands
+from discord.ext import commands, tasks
 
 logger = logging.getLogger(__name__)
 
@@ -827,8 +824,9 @@ class MemoryCog(commands.Cog):
         ]
         
         # COST TRACKING PREP
-        from src.utils.cost_manager import Usage
         import secrets
+
+        from src.utils.cost_manager import Usage
         
         est_usage = Usage(tokens_in=len(chat_log)//4 + 500, tokens_out=max_output, usd=0.0)
         rid = secrets.token_hex(4)
@@ -850,7 +848,7 @@ class MemoryCog(commands.Cog):
                      try:
                          # o1/gpt-5 ready (mapped internally)
                          # Explicitly pass None for temperature if needed, but client handles it now.
-                         logger.info(f"Memory: 📡 Sending analysis request to OpenAI (Timeout: 600s)...")
+                         logger.info("Memory: 📡 Sending analysis request to OpenAI (Timeout: 600s)...")
                          start_t = time.time()
                          response_text, _, usage_dict = await asyncio.wait_for(
                              self._llm.chat("openai", prompt, temperature=None, max_tokens=max_output),

@@ -1,14 +1,11 @@
 import logging
-import subprocess
-import asyncio
-import discord
-from discord.ext import commands
-from discord import app_commands
-from typing import Optional, Literal
-import psutil
-from discord.ext import tasks
 import os
+import subprocess
+from typing import Literal, Optional
 
+import discord
+from discord import app_commands
+from discord.ext import commands, tasks
 
 # Audio control
 try:
@@ -114,8 +111,9 @@ class SystemCog(commands.Cog):
                                  data["users"][uid]["banner"] = banner_hash
                             
             import json
-            import aiofiles
             from datetime import datetime
+
+            import aiofiles
             
             data["last_updated"] = datetime.now().isoformat()
             
@@ -469,7 +467,6 @@ class SystemCog(commands.Cog):
                 
                 try:
                     import socket
-                    import struct
                     
                     # Clean MAC address
                     mac = mac_addr.replace(":", "").replace("-", "")

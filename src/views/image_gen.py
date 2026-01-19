@@ -1,9 +1,11 @@
 
-import discord
-from discord.ui import View, Button
 import asyncio
 import io
 import logging
+
+import discord
+from discord.ui import Button, View
+
 from src.utils.comfy_client import ComfyWorkflow
 
 logger = logging.getLogger(__name__)
@@ -101,7 +103,7 @@ class StyleSelectView(View):
 
             if image_data:
                 file = discord.File(io.BytesIO(image_data), filename=f"flux_gen_{style}.png")
-                await interaction.followup.send(f"✅ **生成完了!**", file=file)
+                await interaction.followup.send("✅ **生成完了!**", file=file)
             else:
                 await interaction.followup.send("❌ 生成に失敗しました (ComfyUIからのデータなし)")
 
@@ -156,7 +158,7 @@ class StyleSelectView(View):
                         
                 await interaction.followup.send(f"🤖 **AI判断**: `{determined_style}` スタイルで生成します...", ephemeral=True)
                 
-            except Exception as e:
+            except Exception:
                 # Fallback to simple heuristic
                 p = self.prompt.lower()
                 if "cat" in p or "dog" in p or "animal" in p: determined_style = "animal"

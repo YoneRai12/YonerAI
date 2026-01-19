@@ -1,7 +1,8 @@
-import logging
-from PIL import Image, ImageOps
 import io
+import logging
+
 import aiohttp
+from PIL import Image, ImageOps
 
 logger = logging.getLogger(__name__)
 

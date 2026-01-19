@@ -1,4 +1,3 @@
-import os
 
 target_file = r"L:\ComfyUI\comfy\ldm\flux\model.py"
 print(f"Patching {target_file}...")

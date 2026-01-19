@@ -1,7 +1,8 @@
 
 import asyncio
 import logging
-from typing import List, Callable, Optional, Set
+from typing import Callable, List, Optional
+
 import psutil
 
 logger = logging.getLogger(__name__)

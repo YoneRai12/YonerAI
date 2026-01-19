@@ -1,11 +1,12 @@
 
-import discord
-from discord.ext import commands
 import asyncio
 import logging
 import os
 import sys
+
 import aiohttp
+import discord
+from discord.ext import commands
 from dotenv import load_dotenv
 
 # Setup Logging
@@ -37,9 +38,10 @@ if project_root not in sys.path:
 
 # Imports from src
 from src.config import Config
-from src.utils.llm_client import LLMClient
 from src.utils.google_client import GoogleClient
+from src.utils.llm_client import LLMClient
 from src.utils.unified_client import UnifiedClient
+
 
 class WorkerBot(commands.Bot):
     def __init__(self, config: Config, session: aiohttp.ClientSession):

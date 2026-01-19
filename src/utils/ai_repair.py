@@ -4,12 +4,11 @@ AI Repair Module
 Interacts with Local LLM (RTX5090) or Cloud APIs to fix code based on error logs.
 """
 
-import logging
-import os
-import aiohttp
 import asyncio
-import json
+import logging
 from pathlib import Path
+
+import aiohttp
 
 logger = logging.getLogger(__name__)
 

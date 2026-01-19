@@ -1,6 +1,7 @@
 
-import re
 import json
+import re
+
 
 def _extract_json_objects(text: str) -> list[str]:
     """Extracts top-level JSON objects from text by matching balanced braces."""

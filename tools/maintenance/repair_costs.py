@@ -1,6 +1,7 @@
-import logging
 import datetime
-from src.utils.cost_manager import CostManager, Usage, Bucket
+import logging
+
+from src.utils.cost_manager import Bucket, CostManager
 
 # Setup Logging
 logging.basicConfig(level=logging.INFO)

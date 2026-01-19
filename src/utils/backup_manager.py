@@ -1,7 +1,5 @@
-import shutil
-import os
-import time
 import logging
+import os
 import zipfile
 from datetime import datetime
 

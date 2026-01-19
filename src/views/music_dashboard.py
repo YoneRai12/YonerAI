@@ -1,11 +1,11 @@
+import logging
+from typing import TYPE_CHECKING
+
 import discord
 from discord import ui
-from typing import Optional, TYPE_CHECKING
-import logging
 
 if TYPE_CHECKING:
     from ..cogs.media import MediaCog
-    from ..utils.voice_manager import VoiceManager
 
 logger = logging.getLogger(__name__)
 
@@ -186,7 +186,7 @@ def create_music_embed(
         if "Stopped" in status_text or status == "Stopped":
              embed.description = "`⏹️ Stopped`"
         else:
-             embed.description = f"`🔘 Live Stream`"
+             embed.description = "`🔘 Live Stream`"
 
     # Thumbnail
     thumb = track_info.get("thumbnail")

@@ -1,9 +1,10 @@
+import ctypes.util
+import os
+import sys
+
 import discord
 import discord.opus
 import nacl.secret
-import sys
-import ctypes.util
-import os
 
 print("--- Voice Dependency Check ---")
 print(f"Python: {sys.version}")

@@ -1,6 +1,5 @@
 
 import json
-import os
 from pathlib import Path
 
 MEMORY_DIR = Path("L:/ORA_Memory/users")

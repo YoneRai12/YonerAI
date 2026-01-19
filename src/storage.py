@@ -2,18 +2,16 @@
 
 from __future__ import annotations
 
-import time
+import asyncio
+import logging
 import os
+import sqlite3
+import time
+from datetime import datetime
 from pathlib import Path
 from typing import Optional, Sequence, Tuple
 
 import aiosqlite
-import sqlite3
-import shutil
-import logging
-import asyncio
-from datetime import datetime
-from concurrent.futures import ThreadPoolExecutor
 
 logger = logging.getLogger(__name__)
 

@@ -32,6 +32,12 @@ jobs:
         pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
         
+    - name: Run Ruff (Lint & Format)
+      run: ruff check .
+
+    - name: Run Mypy (Type Check)
+      run: mypy src/ --ignore-missing-imports
+
     - name: Code Syntax Check (Compile)
       run: |
         python -m compileall src/
@@ -40,5 +46,4 @@ jobs:
       run: |
         # Ensure src is in python path
         export PYTHONPATH=$PYTHONPATH:$(pwd)/src
-        # Run pytest if installed, or ignore if not yet fully blocked
-        if pip show pytest; then pytest tests/test_smoke.py; else echo "Pytest not found, skipping"; fi
+        pytest tests/test_smoke.py

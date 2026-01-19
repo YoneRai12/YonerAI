@@ -1,6 +1,6 @@
 
 import logging
-from typing import Optional
+
 from src.utils.unified_client import UnifiedClient
 
 logger = logging.getLogger(__name__)

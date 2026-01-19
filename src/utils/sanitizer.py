@@ -1,7 +1,8 @@
-import re
 import logging
+import re
 from dataclasses import dataclass
-from typing import List, Tuple, Optional, Dict
+from typing import Dict, List
+
 # Lazy load easyocr to avoid startup delay
 # import easyocr 
 

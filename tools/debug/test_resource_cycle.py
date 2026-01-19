@@ -1,8 +1,6 @@
 
 import asyncio
 import logging
-import os
-import sys
 
 # Setup Logging
 logging.basicConfig(level=logging.INFO)
@@ -16,6 +14,7 @@ logger = logging.getLogger("TestCycle")
 # actually, real verification is best.
 
 from src.managers.resource_manager import ResourceManager
+
 
 async def test_cycle():
     rm = ResourceManager()

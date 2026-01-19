@@ -1,5 +1,7 @@
 # ORA Discord BOT
 [![Build and Test](https://github.com/YoneRai12/ORA/actions/workflows/test.yml/badge.svg)](https://github.com/YoneRai12/ORA/actions/workflows/test.yml)
+[![Lint: Ruff](https://img.shields.io/badge/lint-Ruff-4b1e3b.svg)](https://github.com/astral-sh/ruff)
+[![Types: Mypy](https://img.shields.io/badge/types-Mypy-blue.svg)](https://github.com/python/mypy)
  - The "Singularity" Edition 🌌
 ### *The Living, Self-Healing AI Operating System for High-End PC*
 
