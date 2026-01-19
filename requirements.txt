@@ -35,7 +35,7 @@ mss
 
 # Search & Google APIs
 google-search-results>=2.0,<3.0
-duckduckgo-search>=4.0,<7.0
+duckduckgo-search>=4.0,<9.0
 google-api-python-client
 google-cloud-vision
 google-auth-oauthlib
