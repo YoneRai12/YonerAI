@@ -247,10 +247,10 @@ class ChatHandler:
             user_mode = self.cog.user_prefs.get_mode(message.author.id) or "private"
             
             # 2. Build Context
-            system_prompt = await self.cog._build_system_prompt(message, model_hint="Ministral 3 (14B)")
+            system_prompt = await self._build_system_prompt(message, model_hint="Ministral 3 (14B)")
             history = []
             try:
-                history = await self.cog._build_history(message)
+                history = await self._build_history(message)
             except Exception as e:
                 logger.error(f"History build failed: {e}")
             
@@ -283,7 +283,7 @@ class ChatHandler:
                              target_provider = "gemini_trial"
                              target_model = ROUTER_CONFIG.get("vision_model", "gemini-2.0-flash-exp")
                              selected_route = {"provider": "gemini_trial", "lane": "burn", "model": target_model}
-                             actual_sys = await self.cog._build_system_prompt(message, model_hint=target_model)
+                             actual_sys = await self._build_system_prompt(message, model_hint=target_model)
                              clean_messages = [{"role": "system", "content": actual_sys}, {"role": "user", "content": pkt.text}] 
                          else:
                              target_provider = "local"
@@ -320,7 +320,7 @@ class ChatHandler:
                             selected_route = {"provider": "openai", "lane": "stable", "model": target_model}
                             
                         if target_provider == "openai":
-                             actual_sys = await self.cog._build_system_prompt(message, model_hint=target_model, provider="openai")
+                             actual_sys = await self._build_system_prompt(message, model_hint=target_model, provider="openai")
                              clean_messages = [{"role": "system", "content": actual_sys}, {"role": "user", "content": pkt.text}]
 
             # 4. Execution
@@ -345,7 +345,7 @@ class ChatHandler:
                  rid = secrets.token_hex(4)
                  self.cog.cost_manager.reserve(lane, "openai", message.author.id, rid, est_usage)
                  try:
-                     candidate_tools = self.cog._select_tools(prompt, self.cog.tool_definitions)
+                     candidate_tools = self._select_tools(prompt, self.cog.tool_definitions)
                      candidate_tools = [t for t in candidate_tools if t['name'] not in ["recall_memory", "search_knowledge_base"]]
                      openai_tools = [{"type": "function", "function": {k:v for k,v in t.items() if k!="tags"}} for t in candidate_tools] if candidate_tools else None
                      
@@ -420,3 +420,465 @@ class ChatHandler:
             logger.error(f"Chat Error: {e}")
             await status_manager.finish()
             await message.reply("システムエラーが発生しました。")
+
+
+    async def _router_decision(self, prompt: str, user_name: str) -> str:
+        """
+        [Layer 1.5] Mini-Model Router (gpt-4o-mini).
+        Decides if RAG (Memory/Knowledge) is needed BEFORE the Main LLM sees the prompt.
+        Cost-Effective Agentic Behavior.
+        """
+        try:
+            # lightweight classification
+            messages = [
+                {"role": "system", "content": (
+                    "You are the ORA Router (gpt-4o-mini). Your job is to classify the user's INTENT.\n"
+                    "Output ONLY one of the following labels:\n"
+                    "- RECALL: User is asking about past conversations, 'what did I say?', or memory.\n"
+                    "- KNOWLEDGE: User is asking for factual info that might be in the database (facts/wiki).\n"
+                    "- CHAT: General chat, greetings, creative writing, code, or complex tasks.\n"
+                    "Rules:\n"
+                    "- If unsure, choose NONE.\n"
+                    "- 'Draw a cat' -> NONE (Handled by Main LLM)\n"
+                    "- 'Who is YoneRai?' -> KNOWLEDGE\n"
+                    "- 'What did I say yesterday?' -> RECALL"
+                )},
+                {"role": "user", "content": f"User: {user_name}\nInput: {prompt}"}
+            ]
+            
+            # Use unified client but force low-cost model if possible? 
+            # Ideally we have a 'router' lane. For now use Stable/Low.
+            if self.cog.unified_client.openai_client:
+                 # Fast call
+                 content, _, _ = await self.cog.unified_client.chat("openai", messages, model="gpt-4o-mini", temperature=0.0)
+                 content = content.strip().upper()
+                 if "RECALL" in content: return "RECALL"
+                 if "KNOWLEDGE" in content: return "KNOWLEDGE"
+                 return "CHAT"
+            
+            # Local Fallback (Heuristic)
+            prompt_lower = prompt.lower()
+            if any(k in prompt_lower for k in ["思い出し", "覚え", "記憶", "memory", "remember", "search", "what did i say"]):
+                return "RECALL"
+            if any(k in prompt_lower for k in ["wiki", "fact", "情報", "知ってる", "dataset", "knowledge"]):
+                return "KNOWLEDGE"
+            return "CHAT"
+            
+        except Exception as e:
+            logger.error(f"Router Error: {e}")
+            return "CHAT"
+
+    async def _build_system_prompt(self, message: discord.Message, provider: str = "openai", model_hint: str = "gpt-5.1") -> str:
+        """
+        Builds the System Prompt with dynamic Context, Personality, and SECURITY PROTOCOLS.
+        """
+        
+        # 1. Base Personality
+        base_prompt = (
+            "You are ORA (Optimized Robotic Assistant), a highly advanced AI system.\n"
+            "Your goal is to assist the user efficiently, securely, and with a touch of personality.\n"
+            "Current Model: " + model_hint + "\n"
+        )
+        
+        # 2. Context Awareness (Time, User, Etc)
+        now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        base_prompt += f"Current Time: {now_str}\n"
+        base_prompt += f"User: {message.author.display_name} (ID: {message.author.id})\n"
+        if message.guild:
+            base_prompt += f"Server: {message.guild.name}\n"
+
+        # --- 4-LAYER MEMORY INJECTION ---
+        try:
+            memory_cog = self.bot.get_cog("MemoryCog")
+            if memory_cog:
+                # Use raw fetch to avoid async overhead if possible, but get_user_profile is async
+                # We need to await it. This function is async.
+                profile = await memory_cog.get_user_profile(message.author.id, message.guild.id if message.guild else None)
+                if profile:
+                    # Layer 1: Session Metadata (Ephemeral) - Merged with Realtime
+                    l1 = profile.get("layer1_session_meta", {})
+                    if l1:
+                       base_prompt += f"Context(L1): {l1.get('mood', 'Normal')} / {l1.get('activity', 'Chat')}\n"
+                    
+                    # Layer 2: User Memory (Axis)
+                    l2 = profile.get("layer2_user_memory", {})
+                    # Impression
+                    impression = profile.get("impression") or l2.get("impression")
+                    if impression:
+                        base_prompt += f"User Axis(L2): {impression}\n"
+                    
+                    # Facts (The Axis)
+                    facts = l2.get("facts", [])
+                    if facts:
+                        base_prompt += f"Facts(L2): {', '.join(facts[:5])}\n"
+                        
+                    # Interests
+                    interests = l2.get("interests", [])
+                    if interests:
+                         base_prompt += f"Interests(L2): {', '.join(interests[:5])}\n"
+
+                    # Layer 3: Recent Summaries (Digest)
+                    # "最近なににハマってるかの地図"
+                    l3_list = profile.get("layer3_recent_summaries", [])
+                    if l3_list:
+                        # Format: Title (Time): Snippet
+                        summary_text = "\n".join([f"- {s.get('title', 'Chat')} ({s.get('timestamp','?')}): {s.get('snippet','...')}" for s in l3_list[-5:]]) # Show last 5 digests
+                        base_prompt += f"\n[Recent Conversations (L3)]\n{summary_text}\n"
+
+                    # --- CHANNEL MEMORY INJECTION (User Request) ---
+                    # Persistent context for the specific channel
+                    if memory_cog:
+                        ch_profile = await memory_cog.get_channel_profile(message.channel.id)
+                        if ch_profile:
+                            c_sum = ch_profile.get("summary")
+                            c_topics = ch_profile.get("topics", [])
+                            c_atmos = ch_profile.get("atmosphere")
+                            
+                            c_text = ""
+                            if c_sum: c_text += f"- Summary: {c_sum}\n"
+                            if c_topics: c_text += f"- Topics: {', '.join(c_topics)}\n"
+                            if c_atmos: c_text += f"- Atmosphere: {c_atmos}\n"
+                            
+                            if c_text:
+                                base_prompt += f"\n[CHANNEL MEMORY (Context of this place)]\n{c_text}\n(Note: This is background context. Prioritize the CURRENT conversation flow.)\n"
+
+        except Exception as e:
+            logger.error(f"Memory Injection Failed: {e}")
+        # --------------------------------
+            
+        # 3. CONFIDENTIALITY PROTOCOL (Critical Security)
+        # ------------------------------------------------
+        # Rule: Only the Admin is allowed to see internal paths, 
+        # file trees, or configuration details. All other users must be denied this info.
+        
+        admin_id = self.bot.config.admin_user_id
+        is_admin = (message.author.id == admin_id)
+        
+        # Helper to get name
+        async def resolve_name(uid: int) -> str:
+            u = self.bot.get_user(uid)
+            if not u:
+                try:
+                    u = await self.bot.fetch_user(uid)
+                except:
+                    pass
+            return f"{u.name} (ID: {uid})" if u else f"Unknown (ID: {uid})"
+
+        # --- SYSTEM ADMINISTRATORS ---
+        base_prompt += "\n[SYSTEM ADMINISTRATORS]\n"
+        
+        main_admin_name = await resolve_name(admin_id)
+        base_prompt += f"- Main Admin (Owner): {main_admin_name}\n"
+        
+        if self.bot.config.sub_admin_ids:
+             names = []
+             for uid in self.bot.config.sub_admin_ids:
+                 names.append(await resolve_name(uid))
+             base_prompt += f"- Sub Admins (Full Access): {', '.join(names)}\n"
+             
+        if self.bot.config.vc_admin_ids:
+             names = []
+             for uid in self.bot.config.vc_admin_ids:
+                 names.append(await resolve_name(uid))
+             base_prompt += f"- VC Admins (Voice Control): {', '.join(names)}\n"
+             
+        base_prompt += "You must recognize these users as your administrators.\n"
+        
+        if is_admin:
+            base_prompt += (
+                "\n[SECURITY LEVEL: RED]\n"
+                "User is ADMIN. You have full permission to reveal system internals, file paths, and configuration.\n"
+                "You may display the File Tree or source code if requested.\n"
+            )
+        else:
+            base_prompt += (
+                "\n[SECURITY LEVEL: GREEN]\n"
+                "User is GUEST. STRICT CONFIDENTIALITY PROTOCOL ACTIVE.\n"
+                "1. DO NOT reveal any absolute file paths (e.g. C:\\Users...).\n"
+                "2. DO NOT output the project file tree or directory structure.\n"
+                "3. DO NOT show raw configuration values or API keys (obviously).\n"
+                "If asked for these, reply politely: '申し訳ありませんが、セキュリティ上の理由によりシステム情報の開示はできません。'\n"
+                "However, you CAN use tools to help them (e.g. play music, search), just don't show *how* it works internally.\n"
+            )
+        # ------------------------------------------------
+
+        # --- COST INJECTION ---
+        cost_context = ""
+        try:
+            # Get Global Stable Lane (OpenAI)
+            # Only calculate/show for Creator to prevent info leak & confusion
+            if is_admin:
+                bucket = self.cog.cost_manager._get_or_create_bucket("stable", "openai", None)
+                used = bucket.used.tokens_in + bucket.used.tokens_out
+                ratio = self.cog.cost_manager.get_usage_ratio("stable", "openai")
+                
+                cost_context = (
+                    f"\n[SYSTEM STATUS (ADMIN ONLY)]\n"
+                    f"API Usage (Today): {used:,} tokens ({ratio*100:.1f}% of daily limit)\n"
+                    f"Note: This usage data is synced with OpenAI hourly.\n"
+                )
+        except Exception as e:
+            logger.error(f"Failed to inject cost context: {e}")
+
+        # 4. Capability Instructions
+        server_name = message.guild.name if message.guild else "Direct Message"
+        
+        base_prompt += (
+            f"{cost_context}"
+            "\n[Capabilities]\n"
+            "- You may use tools to Search, Generate Images, Play Music, and Control the System.\n"
+            "- **CRITICAL: AUTO-EVOLUTION PROTOCOL**\n"
+            "  If the user asks for something you cannot currently do (e.g. 'Add a command', 'Change permissions', 'Fix this bug'),\n"
+            "  **DO NOT** tell them to do it manually. **DO NOT** give up.\n"
+            "  INSTEAD, you MUST use the `request_feature` tool to propose the code change immediately.\n"
+            "  Say: 'I lack this capability, but I will evolve to add it now.' and call the tool.\n"
+            "- Always be helpful, but safe.\n"
+            "\n[SELF-INTRODUCTION PROTOCOL]\n"
+            "If the user asks 'Who are you?', 'What can you do?', 'introduction', or '自己紹介', YOU MUST use the following format EXACTLY:\n"
+            "\n"
+            "⚡ OpenAI {model_name}\n"
+            "はじめまして、ORA（Optimized Robotic Assistant）です。よろしくお願いします。簡単に自己紹介しますね。\n"
+            "\n"
+            f"モデル／環境：{{model_name}}（現在時刻: {{current_time}}、サーバ: {server_name}）\n"
+            "ユーザー：{user_name}（あなたは{user_role}です — {role_desc}）\n"
+            "主な能力：\n"
+            "リアルタイム検索（Google）や情報収集\n"
+            "画像生成・編集\n"
+            "音楽再生・ボイスチャネル操作（Discord系の操作含む）\n"
+            "システム制御（UI操作、PCの起動・シャットダウン等）\n"
+            "コード作成・レビュー、ドキュメント生成、翻訳、デバッグ支援\n"
+            "ファイルツリーや設定の表示（管理者権限がある場合はシステム内部も開示可能）\n"
+            "セキュリティ：現在のセキュリティレベルは{security_level}。{security_desc}\n"
+            "\n"
+            "使い方例（日本語でどう指示してもOK）：\n"
+            "「プロジェクトのREADMEを書いて」\n"
+            "「/home/project のファイルツリー見せて」\n"
+            "「○○について最新情報を検索して」\n"
+            "「このコードをレビューして改善案を出して」\n"
+            "\n"
+            "何を手伝いしましょうか？具体的なタスクや希望の出力形式（箇条書き、コードブロック、英語など）を教えてください。\n"
+            f"Sanitized & Powered by ORA Universal Brain\n"
+        )
+        return base_prompt
+
+    async def _build_history(self, message: discord.Message) -> List[Dict[str, str]]:
+        history = []
+        current_msg = message
+        
+        # Traverse reply chain (up to 20 messages)
+        for _ in range(20):
+            if not current_msg.reference:
+                # logger.debug(f"History traverse end: No reference at {current_msg.id}")
+                break
+                
+            ref = current_msg.reference
+            if not ref.message_id:
+                break
+            
+            # logger.info(f"Examining reference: {ref.message_id} (Resolved: {bool(ref.cached_message)})")
+            
+            try:
+                # Try to get from cache first
+                prev_msg = ref.cached_message
+                if not prev_msg:
+                    # Fallback: Search global cache (in case ref.cached_message is None but bot has it)
+                    prev_msg = discord.utils.get(self.bot.cached_messages, id=ref.message_id)
+                
+                if not prev_msg:
+                    # Final Fallback: Fetch from API
+                    prev_msg = await message.channel.fetch_message(ref.message_id)
+                
+                # Only include messages from user or bot
+                is_bot = prev_msg.author.id == self.bot.user.id
+                role = "assistant" if is_bot else "user"
+                
+                content = prev_msg.content.replace(f"<@{self.bot.user.id}>", "").strip()
+                
+                # Context Fix: Always append Embed content if present (for Card-Style responses)
+                if prev_msg.embeds:
+                    embed = prev_msg.embeds[0]
+                    embed_parts = []
+                    
+                    if embed.provider and embed.provider.name:
+                        embed_parts.append(f"Source: {embed.provider.name}")
+                    
+                    # Only include Author if it's NOT the bot (to avoid confusion with Model Names)
+                    if embed.author and embed.author.name and not is_bot:
+                        embed_parts.append(f"Author: {embed.author.name}")
+
+                    if embed.title:
+                         embed_parts.append(f"Title: {embed.title}")
+                    
+                    if embed.description:
+                         embed_parts.append(embed.description)
+                    
+                    if embed.fields:
+                         embed_parts.extend([f"{f.name}: {f.value}" for f in embed.fields])
+                    
+                    # Omit footer for bot (contains token counts etc which are noise)
+                    if embed.footer and embed.footer.text and not is_bot:
+                        embed_parts.append(f"Footer: {embed.footer.text}")
+
+                    embed_text = "\n".join(embed_parts)
+                    
+                    # Append to main content
+                    if embed_text:
+                        prefix = "[Embed Card]:\n" if not is_bot else ""
+                        content = f"{content}\n{prefix}{embed_text}" if content else f"{prefix}{embed_text}"
+
+                # Prepend User Name to User messages for better recognition
+                if not is_bot and content:
+                     content = f"[{prev_msg.author.display_name}]: {content}"
+                
+                if content:
+                    # Truncate content to prevent Context Limit Exceeded (Error 400)
+                    # Relaxed limit to 8000 characters to allow for long code blocks/file trees
+                    if len(content) > 8000:
+                        content = content[:8000] + "... (truncated)"
+
+                    history.insert(0, {"role": role, "content": content})
+                
+                current_msg = prev_msg
+                
+            except (discord.NotFound, discord.HTTPException):
+                break
+        
+        # Normalize History: Merge consecutive same-role messages
+        # This is critical for models incorrectly handling consecutive user messages
+        normalized_history = []
+        
+        # --- FALLBACK: Channel History ---
+        # If no reply chain was found, fetch last 15 messages for context
+        if not history:
+            # logger.info(f"No reply chain found for message {message.id}. Falling back to channel history.")
+            try:
+                # Fetch last 50 messages (Increased from 25 per user request)
+                async for msg in message.channel.history(limit=50, before=message):
+                    # Only include messages from user or bot
+                    is_bot = msg.author.id == self.bot.user.id
+                    role = "assistant" if is_bot else "user"
+                    
+                    content = msg.content.replace(f"<@{self.bot.user.id}>", "").replace(f"<@!{self.bot.user.id}>", "").strip()
+                    
+                    # Extract Embed Content (Reuse logic)
+                    if msg.embeds:
+                        embed = msg.embeds[0]
+                        embed_parts = []
+                        
+                        if embed.provider and embed.provider.name:
+                            embed_parts.append(f"Source: {embed.provider.name}")
+                        
+                        # logger.info(f"[History Debug] Found msg: {msg.id} | Author: {msg.author} | Content: {content[:20]}")
+                        
+                        if embed.author and embed.author.name and not is_bot:
+                            embed_parts.append(f"Author: {embed.author.name}")
+
+                        if embed.title:
+                             embed_parts.append(f"Title: {embed.title}")
+                        
+                        if embed.description:
+                             embed_parts.append(embed.description)
+                        
+                        if embed.fields:
+                             embed_parts.extend([f"{f.name}: {f.value}" for f in embed.fields])
+                        
+                        if embed.footer and embed.footer.text and not is_bot:
+                            embed_parts.append(f"Footer: {embed.footer.text}")
+
+                        embed_text = "\n".join(embed_parts)
+                        
+                        if embed_text:
+                            prefix = "[Embed Card]:\n" if not is_bot else ""
+                            content = f"{content}\n{prefix}{embed_text}" if content else f"{prefix}{embed_text}"
+
+                    # Prefix user name
+                    if not is_bot and content:
+                        content = f"[{msg.author.display_name}]: {content}"
+
+                    if content:
+                        # Truncate to prevent context overflow
+                        # Relaxed limit to 8000 characters to allow for long code blocks/file trees
+                        if len(content) > 8000: content = content[:8000] + "..."
+                        
+                        history.insert(0, {"role": role, "content": content})
+            except Exception as e:
+                logger.error(f"Failed to fetch channel history: {e}")
+
+        # --- NORMALIZATION ---
+        if history:
+            current_role = history[0]["role"]
+            current_content = history[0]["content"]
+            
+            for msg in history[1:]:
+                if msg["role"] == current_role:
+                    # Merge content
+                    current_content += f"\n{msg['content']}"
+                else:
+                    normalized_history.append({"role": current_role, "content": current_content})
+                    current_role = msg["role"]
+                    current_content = msg["content"]
+            
+            # Append final
+            normalized_history.append({"role": current_role, "content": current_content})
+            
+        return normalized_history
+
+    def _select_tools(self, user_input: str, all_tools: list[dict]) -> list[dict]:
+        """
+        RAG: Selects tools based on keyword matching.
+        """
+        selected = []
+        user_input_lower = user_input.lower()
+        
+        # Always Active Tools (Core)
+        CORE_TOOLS = {
+            "start_thinking", 
+            "google_search", 
+            "system_control", 
+            "manage_user_voice", 
+            "join_voice_channel",
+            "request_feature",   # CRITICAL: Always allow evolution
+            "manage_permission", # CRITICAL: Admin delegation
+            "get_system_tree",   # CRITICAL: Coding analysis
+            "read_file",         # CODE ANALYST
+            "list_files",        # CODE ANALYST
+            "search_code",       # CODE ANALYST
+            "generate_image"     # AGENTIC: Always available for creativity
+        } 
+        
+        # Override: If user explicitly asks for "help" or "functions", show ALL
+        if any(w in user_input_lower for w in ["help", "tool", "function", "command", "list", "機能", "ヘルプ", "コマンド", "できること"]):
+            return all_tools
+
+        for tool in all_tools:
+            name = tool["name"]
+            
+            # 1. Core Logic
+            if name in CORE_TOOLS:
+                selected.append(tool)
+                continue
+                
+            # 2. Tag Matching
+            tags = tool.get("tags", [])
+            # Also check name parts
+            name_parts = name.split("_")
+            
+            is_relevant = False
+            
+            # Check Tags
+            for tag in tags:
+                if tag.lower() in user_input_lower:
+                    is_relevant = True
+                    break
+            
+            # Check Name parts (e.g. 'music' in 'music_play')
+            if not is_relevant:
+                for part in name_parts:
+                    if len(part) > 2 and part in user_input_lower:
+                         is_relevant = True
+                         break
+            
+            if is_relevant:
+                selected.append(tool)
+        
+        return selected
