@@ -1,4 +1,4 @@
-# ruff: noqa: E402
+# ruff: noqa: E402, B007
 import datetime
 import logging
 

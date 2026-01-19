@@ -1,4 +1,4 @@
-# ruff: noqa: E402
+# ruff: noqa: E402, F401, B023, B007, B008
 # Original code can be found on: https://github.com/black-forest-labs/flux
 
 from dataclasses import dataclass

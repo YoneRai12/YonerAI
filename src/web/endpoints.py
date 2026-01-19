@@ -1,3 +1,4 @@
+# ruff: noqa: B904
 import os
 import uuid
 from datetime import datetime

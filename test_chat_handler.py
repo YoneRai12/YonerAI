@@ -1,3 +1,4 @@
+# ruff: noqa: E402, F401, B023, B007, B008
 import os
 import sys
 

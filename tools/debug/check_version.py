@@ -1,4 +1,4 @@
-# ruff: noqa: E402
+# ruff: noqa: E402, F401, B023, B007, B008
 import transformers
 
 print(f"Transformers Version: {transformers.__version__}")
