@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, Literal, Optional
 
 import aiohttp
-import pytz
+import pytz  # type: ignore
 
 from src.config import COST_LIMITS, COST_TZ, SAFETY_BUFFER_RATIO, STATE_DIR
 

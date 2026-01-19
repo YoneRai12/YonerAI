@@ -69,7 +69,7 @@ class MusicPlayerView(ui.View):
         await self.update_dashboard(interaction)
 
     @ui.button(emoji="⏹️", style=discord.ButtonStyle.danger, custom_id="music_stop", row=0)
-    async def stop(self, interaction: discord.Interaction, button: ui.Button):
+    async def stop_button(self, interaction: discord.Interaction, button: ui.Button):  # type: ignore[override]
         await interaction.response.defer()
         await self.voice_manager.stop_player(interaction.guild.id)
         # await interaction.delete_original_response() # Don't delete, just show Stopped

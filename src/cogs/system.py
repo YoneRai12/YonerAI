@@ -115,7 +115,7 @@ class SystemCog(commands.Cog):
             import json
             from datetime import datetime
 
-            import aiofiles
+            import aiofiles  # type: ignore
 
             data["last_updated"] = datetime.now().isoformat()
 

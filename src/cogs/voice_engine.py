@@ -70,7 +70,8 @@ class VoiceEngine(commands.Cog):
                     return io.BytesIO(audio_bytes)
                 else:
                     logger.error(f"TTS Failed: {resp.status}")
-                    return None
+                    return io.BytesIO(b"")
+        return io.BytesIO(b"")
 
     @app_commands.command(name="voices", description="List available VoiceVox speakers.")
     async def list_voices(self, interaction: discord.Interaction):

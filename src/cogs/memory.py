@@ -1251,13 +1251,13 @@ class MemoryCog(commands.Cog):
         logger.debug(f"TargetedHistory: Falling back to Discord API for {user_id} (Channels + Threads)...")
 
         # Collect all scannable destinations
-        destinations = []
+        destinations: List[Any] = []
 
         # Text Channels
         destinations.extend([c for c in guild.text_channels if c.permissions_for(guild.me).read_messages])
 
         # Threads (Active)
-        destinations.extend([t for t in guild.threads if t.permissions_for(guild.me).read_messages])
+        destinations.extend([t for t in guild.threads if t.permissions_for(guild.me).read_messages])  # type: ignore
 
         # Forum Channels (if visible)
         destinations.extend([vc for vc in guild.voice_channels if vc.permissions_for(guild.me).read_messages])
@@ -1696,7 +1696,7 @@ class MemoryCog(commands.Cog):
                 if history:
                     # Case A: Found History -> Pending & Analyze
                     logger.info(f"Memory: Ghost {member.display_name} has {len(history)} msgs. Queueing optimization.")
-                    profile = {
+                    profile: Dict[str, Any] = {
                         "status": "Pending",
                         "name": member.display_name,
                         "guild_id": str(guild.id),

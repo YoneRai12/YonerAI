@@ -220,7 +220,7 @@ async def get_dashboard_usage():
 
     # Calculate Today in JST
     # Calculate Today (Match CostManager Timezone)
-    import pytz
+    import pytz  # type: ignore
 
     from src.config import COST_TZ
 

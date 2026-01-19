@@ -5,7 +5,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-import aiofiles
+import aiofiles  # type: ignore
 import aiohttp
 import discord
 from PIL import Image

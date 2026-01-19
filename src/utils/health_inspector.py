@@ -144,7 +144,7 @@ class HealthInspector:
             if not mem_cog.memory_worker.is_running():
                 return False, "❌ メモリ診断: Worker Loopが停止しています！"
 
-            buffer_size = sum(len(msgs) for msgs in mem_cog.message_buffer.values())
+            buffer_size = sum([len(msgs) for msgs in mem_cog.message_buffer.values()])  # type: ignore[misc]
             if buffer_size > 100:
                 return True, f"⚠️ メモリ診断: 処理待ちメッセージが溜まっています ({buffer_size}件)"
         else:

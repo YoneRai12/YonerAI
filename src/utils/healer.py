@@ -10,7 +10,7 @@ import time
 import traceback
 from typing import Optional
 
-import aiofiles
+import aiofiles  # type: ignore
 import discord
 
 from .llm_client import LLMClient

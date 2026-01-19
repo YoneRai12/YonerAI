@@ -446,8 +446,8 @@ class MediaCog(commands.Cog):
 
             # -----------------------------------
         else:
-            msg = f"{title} を再生できませんでした。ボイスチャンネルに参加しているか確認してください。"
-            await interaction.followup.send(msg, ephemeral=send_ephemeral)
+            error_msg = f"{title} を再生できませんでした。ボイスチャンネルに参加しているか確認してください。"
+            await interaction.followup.send(content=error_msg, ephemeral=send_ephemeral)
 
     async def update_music_dashboard(self, guild_id: int):
         """Refreshes the music dashboard message for a guild."""
@@ -1035,7 +1035,7 @@ class MediaCog(commands.Cog):
         # If only bots are left (or the channel is empty), disconnect
         if len(non_bot_members) == 0:
             logger.info(f"無人になったため {bot_channel.name} から自動切断します")
-            await member.guild.voice_client.disconnect()
+            await member.guild.voice_client.disconnect(force=True)  # type: ignore[call-arg]
             self._voice_manager.auto_read_channels.pop(member.guild.id, None)
 
     @commands.Cog.listener()

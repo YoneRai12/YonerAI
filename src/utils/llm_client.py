@@ -71,7 +71,7 @@ async def robust_json_request(
                             if retry_after > 0:
                                 # Check if we can afford to wait
                                 current_remaining = deadline - _time_func()
-                                if retry_after > current_remaining:
+                                def write(self, user: Optional[discord.User | discord.Member], data: voice_recv.VoiceData):
                                     logger.warning(
                                         f"Retry-After ({retry_after}s) > Remaining ({current_remaining:.2f}s). Aborting."
                                     )
@@ -139,6 +139,7 @@ class LLMClient:
     ) -> tuple[Optional[str], Optional[List[Dict[str, Any]]], Dict[str, Any]]:
         # Allow model override
         model_name = kwargs.get("model", self._model)
+        payload: Dict[str, Any] = {}
 
         # --- CLOUD ROUTING LOGIC ---
         # If the model is clearly an OpenAI Cloud Model, route to OpenAI API directly.
@@ -215,7 +216,7 @@ class LLMClient:
 
                     input_msgs.append(clean_m)
 
-            payload: Dict[str, Any] = {
+            payload = {
                 "model": model_name,
                 "input": input_msgs,
             }
@@ -260,7 +261,7 @@ class LLMClient:
             else:
                 final_messages = messages
 
-            payload: Dict[str, Any] = {
+            payload = {
                 "model": model_name,
                 "messages": final_messages,
                 "stream": False,

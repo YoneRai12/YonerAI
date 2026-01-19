@@ -62,11 +62,11 @@ def preprocess_image_for_ocr(data: bytes) -> list[Image.Image]:
             raise ValueError("Failed to decode image with OpenCV")
 
         # Convert to Grayscale
-        gray = cv2.cvtColor(img_cv, cv2.COLOR_BGR2GRAY)
+        gray_cv = cv2.cvtColor(img_cv, cv2.COLOR_BGR2GRAY)
 
         # 2. Rescaled (x2) + Grayscale
         # Scaling up helps with small text
-        scaled = cv2.resize(gray, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
+        scaled = cv2.resize(gray_cv, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)  # type: ignore
         images.append(Image.fromarray(scaled))
 
         # 3. Adaptive Thresholding (Gaussian) - Good for shadows/handwriting
@@ -75,8 +75,8 @@ def preprocess_image_for_ocr(data: bytes) -> list[Image.Image]:
         images.append(Image.fromarray(thresh_gauss))
 
         # 4. Denoised + Thresholding
-        denoised = cv2.fastNlMeansDenoising(gray, None, 10, 7, 21)
-        scaled_denoised = cv2.resize(denoised, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
+        denoised = cv2.fastNlMeansDenoising(gray_cv, None, 10, 7, 21)
+        scaled_denoised = cv2.resize(denoised, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)  # type: ignore
         thresh_denoised = cv2.adaptiveThreshold(
             scaled_denoised, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2
         )
@@ -85,10 +85,10 @@ def preprocess_image_for_ocr(data: bytes) -> list[Image.Image]:
     except ImportError:
         logger.warning("OpenCV not found. Using basic PIL preprocessing.")
         # Fallback: Basic PIL processing
-        gray = original.convert("L")
+        gray_pil = original.convert("L")
         # Resize x2
-        width, height = gray.size
-        scaled = gray.resize((width * 2, height * 2), Image.Resampling.LANCZOS)
+        width, height = gray_pil.size
+        scaled = gray_pil.resize((width * 2, height * 2), Image.Resampling.LANCZOS)
         images.append(scaled)
 
         # Simple Binarization

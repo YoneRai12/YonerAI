@@ -17,9 +17,9 @@ import re
 import secrets
 import string
 import time
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
-import aiofiles
+import aiofiles  # type: ignore
 
 from ..utils import flag_utils
 from ..utils.games import ShiritoriGame
@@ -1305,6 +1305,9 @@ class ORACog(commands.Cog):
                 await self.handle_prompt(msg, prompt)
             except Exception as e:
                 logger.error(f"Error processing queued message from {msg.author}: {e}")
+                return
+
+        return
 
     async def _execute_tool(
         self, tool_name: str, args: dict, message: discord.Message, status_manager: Optional[StatusManager] = None
@@ -1318,6 +1321,8 @@ class ORACog(commands.Cog):
             # Update Status (Start)
             if status_manager:
                 await status_manager.next_step(f"ツール使用中 ({tool_name})")
+
+
 
             if tool_name in {"create_file"}:
                 if tool_name == "create_file" and not self._check_permission(message.author.id, "owner"):
@@ -1347,8 +1352,6 @@ class ORACog(commands.Cog):
                     return "\\n\\n".join(formatted)
                 except Exception as e:
                     logger.error(f"Search failed: {e}")
-                    return f"Search Error: {e}"
-
                     return f"Search Error: {e}"
 
             elif tool_name == "request_feature":
@@ -1477,6 +1480,7 @@ class ORACog(commands.Cog):
 
             # --- 4. Video Generation (Placeholder) ---
             elif tool_name in ["generate_video", "get_video_models", "change_video_model", "analyze_video"]:
+                # Return result (if not returned earlier)
                 return f"⚠️ Feature '{tool_name}' is currently under development. Coming soon!"
 
             elif tool_name == "system_shell":
@@ -1568,6 +1572,8 @@ class ORACog(commands.Cog):
                     if str(m.desktop_status) != "offline":
                         devices["desktop"] += 1
                     if str(m.web_status) != "offline":
+                        devices["desktop"] += 1
+                    if str(m.web_status) != "offline":
                         devices["web"] += 1
 
                 logger.info(
@@ -1602,7 +1608,6 @@ class ORACog(commands.Cog):
             # REPLACED: generate_image is handled below (lines 1572+)
             # Keeping block structure empty or redirecting to avoid syntax errors if needed,
             # but since "elif" chain continues, we can just remove this block or pass.
-            # However, removing it cleanly is best.
             # ...
             # Actually, standardizing:
             elif tool_name == "read_file":
@@ -1749,9 +1754,6 @@ class ORACog(commands.Cog):
                 if not guild:
                     return "Error: Not in a server."
 
-                if not guild:
-                    return "Error: Not in a server."
-
                 import re
 
                 found_members = []
@@ -1823,21 +1825,21 @@ class ORACog(commands.Cog):
                 # Limit results
                 found_members = found_members[:10]
 
-                results = []
+                user_results: List[Dict[str, Any]] = []
                 for m in found_members:
                     status = str(m.status) if hasattr(m, "status") else "unknown"
-                    results.append(
+                    user_results.append(
                         {
                             "name": m.name,
                             "display_name": m.display_name,
-                            "id": m.id,
-                            "bot": m.bot,
+                            "id": str(m.id),
+                            "bot": str(m.bot),
                             "status": status,
                             "joined_at": str(m.joined_at.date()) if m.joined_at else "Unknown",
                         }
                     )
 
-                return json.dumps(results, ensure_ascii=False)
+                return json.dumps(user_results, ensure_ascii=False)
 
             elif tool_name == "get_channels":
                 guild = message.guild
@@ -2093,8 +2095,7 @@ class ORACog(commands.Cog):
                         import io
 
                         with io.BytesIO(tree.encode("utf-8")) as f:
-                            f.name = "file_tree.txt"
-                            await message.channel.send(header, file=discord.File(f))
+                            await message.channel.send(header, file=discord.File(f, filename="file_tree.txt"))
                         return "Tree sent as file attachment."
                     else:
                         await message.channel.send(f"{header}\n```\n{tree}\n```")
@@ -2609,7 +2610,6 @@ class ORACog(commands.Cog):
 
                 if not target_member.voice:
                     return f"{target_member.display_name} is not in a voice channel."
-                    return f"{target_member.display_name} is not in a voice channel."
 
                 try:
                     if action == "disconnect":
@@ -2778,33 +2778,33 @@ class ORACog(commands.Cog):
                 word = args.get("word")
                 reading = args.get("reading")
 
-            # channel.id can be text or voice
-            game = self.shiritori_games[message.channel.id]
+                # channel.id can be text or voice
+                game = self.shiritori_games[message.channel.id]
 
-            if action == "start":
-                return game.start()
+                if action == "start":
+                    return game.start()
 
-            elif action == "play":
-                if not word or not reading:
-                    return "Error: arguments 'word' and 'reading' are required."
+                elif action == "play":
+                    if not word or not reading:
+                        return "Error: arguments 'word' and 'reading' are required."
 
-                is_valid, msg, next_char = game.check_move(word, reading)
-                if not is_valid:
-                    return f"User Move Invalid: {msg}"
-                else:
-                    return f"User Move Valid! History updated. Next character must start with: 「{next_char}」. Now, YOU (AI) must generate a word starting with '{next_char}' and call this tool with action='check_bot', word='YOUR_WORD', reading='YOUR_READING' to verify it."
+                    is_valid, msg, next_char = game.check_move(word, reading)
+                    if not is_valid:
+                        return f"User Move Invalid: {msg}"
+                    else:
+                        return f"User Move Valid! History updated. Next character must start with: 「{next_char}」. Now, YOU (AI) must generate a word starting with '{next_char}' and call this tool with action='check_bot', word='YOUR_WORD', reading='YOUR_READING' to verify it."
 
-            elif action == "check_bot":
-                if not word or not reading:
-                    return "Error: arguments 'word' and 'reading' are required."
+                elif action == "check_bot":
+                    if not word or not reading:
+                        return "Error: arguments 'word' and 'reading' are required."
 
-                # Check Bot Move
-                is_valid, msg, next_char = game.check_move(word, reading)
-                if not is_valid:
-                    # Bot failed! ReAct loop allows it to see this error and try again.
-                    return f"YOUR (AI) Move Invalid: {msg}. Please pick a DIFFERENT word starting with the correct character."
-                else:
-                    return f"Bot Move Valid! History updated. You can now reply to the user with: '{word} ({reading})! Next is {next_char}.'"
+                    # Check Bot Move
+                    is_valid, msg, next_char = game.check_move(word, reading)
+                    if not is_valid:
+                        # Bot failed! ReAct loop allows it to see this error and try again.
+                        return f"YOUR (AI) Move Invalid: {msg}. Please pick a DIFFERENT word starting with the correct character."
+                    else:
+                        return f"Bot Move Valid! History updated. You can now reply to the user with: '{word} ({reading})! Next is {next_char}.'"
 
             elif tool_name == "say":
                 text = args.get("message")
@@ -3603,6 +3603,8 @@ class ORACog(commands.Cog):
                 # Subsequent chunks as regular messages in channel
                 await message.channel.send(chunk)
 
+        return "Tool executed."
+
     def _detect_spam(self, text: str) -> bool:
         """
         Detects if text is repetitive spam using Compression Ratio.
@@ -3757,7 +3759,9 @@ class ORACog(commands.Cog):
                 if stack > 0:
                     stack -= 1
                     if stack == 0:
-                        objects.append(text[start_index : i + 1])
+                        json_str = text[start_index : i + 1]
+                        if "route_eval" not in json_str:
+                            objects.append(json_str)
 
         return objects
 
@@ -3941,7 +3945,6 @@ class ORACog(commands.Cog):
             # We need to check if the reply is to us.
             # If resolved is available, check author id.
             # If not, we might need to fetch, but for trigger check, maybe we can rely on cached resolved or fetch it.
-            # To be safe and fast, let's try to use resolved, if not, fetch.
             # To be safe and fast, let's try to use resolved, if not, fetch.
             ref_msg = message.reference.resolved
             if not ref_msg and message.reference.message_id:
@@ -4610,24 +4613,6 @@ class ORACog(commands.Cog):
                     "required": ["target_user"],
                 },
                 "tags": ["kick", "remove", "bye", "キック", "蹴る", "追放"],
-            },
-            {
-                "name": "generate_ascii_art",
-                "description": "[Vision] Convert an image to ASCII art.",
-                "parameters": {"type": "object", "properties": {"image_url": {"type": "string"}}, "required": []},
-                "tags": ["ascii", "art", "image", "vision", "aa", "画像", "アスキーアート"],
-            },
-            {
-                "name": "join_voice_channel",
-                "description": "[Voice] Join a specific voice channel.",
-                "parameters": {"type": "object", "properties": {"channel_name": {"type": "string"}}, "required": []},
-                "tags": ["join", "vc", "voice", "connect", "参加", "接続", "通話"],
-            },
-            {
-                "name": "leave_voice_channel",
-                "description": "[Voice] Leave the current voice channel.",
-                "parameters": {"type": "object", "properties": {}, "required": []},
-                "tags": ["leave", "vc", "voice", "disconnect", "stop", "退出", "切断", "抜けて"],
             },
             {
                 "name": "generate_ascii_art",

@@ -43,7 +43,7 @@ class VoiceSink(voice_recv.AudioSink):
     def wants_opus(self) -> bool:
         return False
 
-    def write(self, user: discord.User, data: voice_recv.VoiceData):
+    def write(self, user: Optional[Any], data: voice_recv.VoiceData):  # type: ignore[override]
         if user is None:
             return
 

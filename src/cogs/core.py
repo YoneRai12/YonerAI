@@ -41,7 +41,7 @@ class CoreCog(commands.Cog):
         privacy = await self._store.get_system_privacy(user_id)
         return privacy == "private"
 
-    def cog_unload(self) -> None:
+    def cog_unload(self):  # type: ignore[override]
         self.status_task.cancel()
 
     @tasks.loop(minutes=10)

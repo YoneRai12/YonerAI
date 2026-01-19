@@ -318,7 +318,7 @@ class ChatHandler:
             # 4. Routing Decision (Universal Brain Router V3)
             target_provider = "local"
             clean_messages = messages
-            selected_route = {"provider": "local", "lane": "stable", "model": None}
+            selected_route: Dict[str, Any] = {"provider": "local", "lane": "stable", "model": None}
 
             logger.info(f"🧩 [Router] User Mode: {user_mode} | Has Image: {has_image}")
 
@@ -335,7 +335,7 @@ class ChatHandler:
                     can_stable_openai = self.cog.cost_manager.can_call("stable", "openai", message.author.id, est_usage)
 
                     if has_image:
-                        selected_route: Dict[str, Any] = {}
+                        selected_route = {}  # type: ignore
                         if can_burn_gemini.allowed and self.bot.google_client:
                             target_provider = "gemini_trial"
                             target_model = ROUTER_CONFIG.get("vision_model", "gemini-2.0-flash-exp")
