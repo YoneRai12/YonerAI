@@ -169,6 +169,7 @@ def _generate_tree(dir_path: Path, max_depth: int = 2, current_depth: int = 0) -
 
 from .tools.tool_handler import ToolHandler
 from .handlers.vision_handler import VisionHandler
+from .handlers.chat_handler import ChatHandler
 
 class ORACog(commands.Cog):
     """ORA-specific commands such as login link and dataset management."""
@@ -189,6 +190,7 @@ class ORACog(commands.Cog):
         self._llm = llm
         self.tool_handler = ToolHandler(bot, self)
         self.vision_handler = VisionHandler(CACHE_DIR)
+        self.chat_handler = ChatHandler(self)
         self.llm = llm # Public Alias for Views
         self._search_client = search_client
         self._drive_client = DriveClient()
@@ -5025,6 +5027,10 @@ class ORACog(commands.Cog):
             return "NONE"
 
     async def handle_prompt(self, message: discord.Message, prompt: str, existing_status_msg: Optional[discord.Message] = None, is_voice: bool = False, force_dm: bool = False) -> None:
+        """Process a user message and generate a response using the LLM (Delegated to ChatHandler)."""
+        await self.chat_handler.handle_prompt(message, prompt, existing_status_msg, is_voice, force_dm)
+
+    async def _legacy_handle_prompt(self, message: discord.Message, prompt: str, existing_status_msg: Optional[discord.Message] = None, is_voice: bool = False, force_dm: bool = False) -> None:
         """Process a user message and generate a response using the LLM."""
         
         # --- Dashboard Update: Immediate Feedback ---
