@@ -243,22 +243,23 @@ git clone https://github.com/YoneRai12/ORA.git
 cd ORA
 ```
 
-### 3. Awaken the Soul (Dependencies)
+### 3. Setup Wizard (The Ritual) [NEW]
+We have automated the environment setup.
 ```bash
-# We use a virtual environment to keep your system clean
-python -m venv venv
-.\venv\Scripts\activate
-pip install -r requirements.txt
+# Run the Setup Wizard
+python setup_wizard.py
 ```
+This script will:
+1.  Check your Python & GPU version.
+2.  Create a virtual environment (`venv`).
+3.  Install PyTorch with correct CUDA support.
+4.  Generate your `.env` configuration.
 
-### 4. Inject Configuration
-Rename `.env.example` to `.env` and fill in your keys.
-*   `DISCORD_BOT_TOKEN`: Required.
-*   `OPENAI_API_KEY`: Optional (For Smart Mode).
-*   `GOOGLE_API_KEY`: Optional (For Search).
-
-### 5. IGNITION
-Double click `start_windows.bat`.
+### 4. IGNITION
+```bash
+# Start ORA (Windows)
+start_windows.bat
+```
 *   Wait for **"vLLM Engine Ready"**.
 *   Wait for **"Voice Server Ready"**.
 *   When you see **"ORA is Online"**, say "Hello" in Discord.

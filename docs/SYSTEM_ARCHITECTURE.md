@@ -6,11 +6,17 @@ ORA is not a monolithic bot; it is a microservice-based **AI Operating System**.
 ---
 
 ## 🔄 The Omni-Router (The Brain Stem)
-Located in `src/utils/unified_client.py`.
-This module intercepts **every** user interaction and decides where to rout it.
+Located in `src/utils/unified_client.py` and `src/cogs/handlers/chat_handler.py`.
+The system architecture has been refactored (Jan 2026) from a God Object into specialized Handlers.
+
+### Handler Architecture
+The `ORACog` (`src/cogs/ora.py`) now acts as a facade/controller, delegating logic to:
+1.  **`ChatHandler`**: Manages the convo flow, RAG Router, System Prompt construction, and History building.
+2.  **`VisionHandler`**: Specialized in `Qwen-VL` interactions, image resizing, and base64 encoding.
+3.  **`ToolHandler`**: Manages tool execution (Search, Music, System Control).
 
 ### Routing Logic Flow:
-1.  **Input Analysis**:
+1.  **Input Analysis** (`ChatHandler`):
     *   **Text Density**: Is it a simple greeting or a complex essay?
     *   **Keywords**: "Python", "Error", "Fix" -> **Coding Score +50**.
     *   **Context**: Is there an image attachment? -> **Vision Path**.
@@ -24,7 +30,11 @@ This module intercepts **every** user interaction and decides where to rout it.
 
 ```mermaid
 graph TD
-    Input[Input Request] --> Router{Smart Router}
+    Input[Input Request] --> Facade[ORACog Facade]
+    Facade --> Chat[ChatHandler]
+    
+    %% Router Decision inside ChatHandler
+    Chat --> Router{Smart Router}
     
     %% Local Path
     Router -->|Privacy / Speed| Local[🏠 Local Brain]
@@ -35,12 +45,12 @@ graph TD
     Cloud --> GPT["GPT-5.1-Codex / GPT-4o"]
     
     %% Tools
-    Local --> Tools[🛠️ Tools]
+    Local --> Tools[ToolHandler]
     Cloud --> Tools
     
-    Tools --> Image["🎨 Flux.1 Image"]
-    Tools --> Vision["👁️ Screen Analyze"]
-    Tools --> System["💻 PC Control"]
+    Tools --> Image["generate_image (Flux.1)"]
+    Tools --> Vision["VisionHandler (Screen Analyze)"]
+    Tools --> System["system_control"]
 
     %% Output
     Tools --> Response
@@ -48,6 +58,7 @@ graph TD
     Qwen --> Response["Final Response"]
     
     style Router fill:#ff0055,stroke:#fff,stroke-width:2px
+    style Chat fill:#ffaa00,stroke:#000
     style Local fill:#00aaff,stroke:#fff
     style Cloud fill:#aa00ff,stroke:#fff
     style Response fill:#00ff00,stroke:#000
@@ -88,6 +99,7 @@ Key files:
 | :--- | :--- | :--- |
 | **Language** | Python 3.11 | Core Logic |
 | **Web UI** | Next.js 15 + React | NERV Dashboard |
+| **Architecture** | Modular Handlers | `ChatHandler`, `VisionHandler`, `ToolHandler` |
 | **DB** | ChromaDB + SQLite | Memory |
 | **Local LLM** | vLLM (Pytorch) | Inference Engine |
 | **Vision** | Transformers (HuggingFace) | Eye |

@@ -1,48 +1,57 @@
 --index-url https://download.pytorch.org/whl/cu121
+
+# Core
 discord.py>=2.3,<3.0
+python-dotenv
 aiohttp>=3.8,<4.0
 aiosqlite>=0.19,<1.0
-# Additional dependencies for media and search
-google-auth-oauthlib
-python-multipart
+requests
 httpx
 aiofiles
-edge-tts
-gTTS
-python-dotenv
 
-
-
-git+https://github.com/imayhaveborkedit/discord-ext-voice-recv.git
-PyNaCl>=1.5,<2.0
-pillow>=9.5,<10.0
-pytesseract>=0.3,<1.0
-numpy>=1.23,<2.0
-openai-whisper>=20230314.0
-google-search-results>=2.0,<3.0
-yt-dlp>=2024.3.10  # For downloading and streaming YouTube audio
-pycountry>=22.3,<24.0  # For country and ISO code lookups used in flag translation
-google-api-python-client
-google-cloud-vision
-psutil
-duckduckgo-search>=4.0,<7.0
-opencv-python-headless>=4.8,<5.0
-fastapi
-uvicorn[standard]
-google-auth
-google-auth-oauthlib
-python-multipart
-requests
-google-api-python-client
-google-cloud-vision
-mss
-pycaw
-comtypes
-psutil
-google-generativeai
-openai
+# AI & Machine Learning
 torch>=2.0.0
 transformers>=4.48.0
-soundfile>=0.12.0
 accelerate>=0.20.0
+openai
+google-generativeai
+numpy>=1.23,<2.0
 matplotlib>=3.7.0
+
+# Voice & Audio
+PyNaCl>=1.5,<2.0
+git+https://github.com/imayhaveborkedit/discord-ext-voice-recv.git
+edge-tts
+gTTS
+openai-whisper>=20230314.0
+yt-dlp>=2024.3.10
+soundfile>=0.12.0
+
+# Vision & Image
+pillow>=9.5,<10.0
+pytesseract>=0.3,<1.0
+opencv-python-headless>=4.8,<5.0
+mss
+
+# Search & Google APIs
+google-search-results>=2.0,<3.0
+duckduckgo-search>=4.0,<7.0
+google-api-python-client
+google-cloud-vision
+google-auth-oauthlib
+google-auth
+
+# System
+psutil
+pycaw
+comtypes
+pycountry>=22.3,<24.0
+
+# Web API (Dashboard/IPC)
+fastapi
+uvicorn[standard]
+python-multipart
+
+# Development & Testing
+pytest
+pytest-asyncio
