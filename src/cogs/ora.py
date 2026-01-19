@@ -65,11 +65,13 @@ import shlex
 
 logger = logging.getLogger(__name__)
 
-# Try E: drive first, then fallback to user home
-CACHE_DIR = Path("E:/ora_cache")
-if not Path("E:/").exists():
+# Cache Directory Configuration
+env_cache = os.getenv("ORA_CACHE_DIR")
+if env_cache:
+    CACHE_DIR = Path(env_cache)
+else:
+    # Default to user home directory
     CACHE_DIR = Path.home() / ".ora_cache"
-    logger.warning(f"E: ドライブが見つかりません。キャッシュに {CACHE_DIR} を使用します。")
 
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -166,6 +168,7 @@ def _generate_tree(dir_path: Path, max_depth: int = 2, current_depth: int = 0) -
     return tree_str
 
 from .tools.tool_handler import ToolHandler
+from .handlers.vision_handler import VisionHandler
 
 class ORACog(commands.Cog):
     """ORA-specific commands such as login link and dataset management."""
@@ -185,6 +188,7 @@ class ORACog(commands.Cog):
         self._store = store
         self._llm = llm
         self.tool_handler = ToolHandler(bot, self)
+        self.vision_handler = VisionHandler(CACHE_DIR)
         self.llm = llm # Public Alias for Views
         self._search_client = search_client
         self._drive_client = DriveClient()
@@ -4003,137 +4007,37 @@ class ORACog(commands.Cog):
 
     async def _process_attachments(self, attachments: List[discord.Attachment], prompt: str, context_message: discord.Message, is_reference: bool = False) -> str:
         """Process a list of attachments (Text or Image) and update prompt/context."""
-        supported_text_ext = {'.txt', '.md', '.py', '.js', '.json', '.html', '.css', '.csv', '.xml', '.yaml', '.yml', '.sh', '.bat', '.ps1'}
-        supported_img_ext = {'.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp'}
+        suffix, payloads = await self.vision_handler.process_attachments(attachments, is_reference)
+        
+        if payloads:
+             # Indicate processing if not reference
+             if not is_reference:
+                 try: await context_message.add_reaction("👁️")
+                 except: pass
 
-        for i, attachment in enumerate(attachments):
-            ext = "." + attachment.filename.split(".")[-1].lower() if "." in attachment.filename else ""
-            
-            # TEXT
-            if ext in supported_text_ext or (attachment.content_type and "text" in attachment.content_type):
-                if attachment.size > 1024 * 1024: 
-                    continue
-                try:
-                    content = await attachment.read()
-                    text_content = content.decode('utf-8', errors='ignore')
-                    header = f"[Referenced File: {attachment.filename}]" if is_reference else f"[Attached File: {attachment.filename}]"
-                    prompt += f"\n\n{header}\n{text_content}\n"
-                except Exception:
-                    pass
-
-            # IMAGE (Vision)
-            elif ext in supported_img_ext:
-                if attachment.size > 8 * 1024 * 1024:
-                    continue
-                
-                try:
-                    # indicate processing
-                    if not is_reference:
-                         await context_message.add_reaction("👁️")
-                    
-                    image_data = await attachment.read()
-                    
-                    # Cache
-                    timestamp = int(time.time())
-                    safe_filename = f"{timestamp}_{attachment.filename}"
-                    cache_path = CACHE_DIR / safe_filename
-                    async with aiofiles.open(cache_path, "wb") as f:
-                        await f.write(image_data)
-                    
-                    # Base64 Injection (Vision)
-                    try:
-                        import base64
-                        
-                        # OPTIMIZATON: Resize for Vision Model
-                        # Load image with PIL
-                        with Image.open(io.BytesIO(image_data)) as img:
-                            # Convert to RGB (in case of RGBA/PNG)
-                            if img.mode in ("RGBA", "P"):
-                                img = img.convert("RGB")
-                            
-                            # Resize if too large (Max 1024x1024)
-                            max_size = 1024
-                            if max(img.size) > max_size:
-                                img.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
-                            
-                            # Save to buffer as JPEG
-                            buffer = io.BytesIO()
-                            img.save(buffer, format="JPEG", quality=85)
-                            optimized_data = buffer.getvalue()
-                        
-                        b64_img = base64.b64encode(optimized_data).decode('utf-8')
-                        mime_type = "image/jpeg" # Always send as JPEG
-                        
-                        if not hasattr(self, "_temp_image_context"):
-                            self._temp_image_context = {}
-                        
-                        # Append to context list (support multiple images)
-                        if context_message.id not in self._temp_image_context:
-                            self._temp_image_context[context_message.id] = []
-                        
-                        self._temp_image_context[context_message.id].append({
-                            "type": "image_url", 
-                            "image_url": {"url": f"data:{mime_type};base64,{b64_img}"}
-                        })
-                    except Exception as e:
-                        logger.error(f"Vision Encode Error: {e}")
-
-                    header = f"[Referenced Image: {attachment.filename}]" if is_reference else f"[Attached Image {i+1}: {attachment.filename}]"
-                    prompt += f"\n\n{header}\n(Image loaded into Qwen2.5-VL Vision Context)\n"
-
-                except Exception as e:
-                    logger.error(f"Image process failed: {e}")
-
-        return prompt
+             if not hasattr(self, "_temp_image_context"):
+                 self._temp_image_context = {}
+             
+             if context_message.id not in self._temp_image_context:
+                 self._temp_image_context[context_message.id] = []
+             
+             self._temp_image_context[context_message.id].extend(payloads)
+             
+        return prompt + suffix
 
     async def _process_embed_images(self, embeds: List[discord.Embed], prompt: str, context_message: discord.Message, is_reference: bool = False) -> str:
         """Process images found in Embeds (Thumbnail or Image field)."""
-        import aiohttp
-        import base64
+        suffix, payloads = await self.vision_handler.process_embeds(embeds, is_reference)
         
-        for embed in embeds:
-            image_url = None
-            if embed.image and embed.image.url:
-                image_url = embed.image.url
-            elif embed.thumbnail and embed.thumbnail.url:
-                image_url = embed.thumbnail.url
-            
-            if not image_url:
-                continue
-                
-            try:
-                # Download Image
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(image_url) as resp:
-                        if resp.status != 200:
-                            logger.warning(f"Failed to download embed image: {resp.status}")
-                            continue
-                        image_data = await resp.read()
-                
-                # Encode (Vision)
-                b64_img = base64.b64encode(image_data).decode('utf-8')
-                mime_type = "image/png" # Default to png, actual type detection might be better but base64 usually works
-                
-                if not hasattr(self, "_temp_image_context"):
-                    self._temp_image_context = {}
-                
-                if context_message.id not in self._temp_image_context:
-                    self._temp_image_context[context_message.id] = []
-                    
-                self._temp_image_context[context_message.id].append({
-                    "type": "image_url", 
-                    "image_url": {"url": f"data:{mime_type};base64,{b64_img}"}
-                })
-                
-                header = "[Referenced Embed Image]" if is_reference else "[Embed Image]"
-                prompt += f"\n\n{header}\n(Image URL: {image_url})\n"
-                
-                # OCR Backup (Optional - skipping for speed/complexity, relying on Vision)
-                
-            except Exception as e:
-                logger.error(f"Failed to process embed image: {e}")
-
-        return prompt
+        if payloads:
+             if not hasattr(self, "_temp_image_context"):
+                 self._temp_image_context = {}
+             if context_message.id not in self._temp_image_context:
+                 self._temp_image_context[context_message.id] = []
+             
+             self._temp_image_context[context_message.id].extend(payloads)
+             
+        return prompt + suffix
         
         logger.info(f"Final prompt length: {len(prompt)} chars, Has attachments: {len(message.attachments) > 0}")
         
