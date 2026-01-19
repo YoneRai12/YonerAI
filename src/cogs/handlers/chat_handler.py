@@ -14,30 +14,43 @@ from src.utils.cost_manager import Usage
 
 logger = logging.getLogger(__name__)
 
+
 class ChatHandler:
     def __init__(self, cog):
         self.cog = cog
         self.bot = cog.bot
-        
-    async def handle_prompt(self, message: discord.Message, prompt: str, existing_status_msg: Optional[discord.Message] = None, is_voice: bool = False, force_dm: bool = False) -> None:
+
+    async def handle_prompt(
+        self,
+        message: discord.Message,
+        prompt: str,
+        existing_status_msg: Optional[discord.Message] = None,
+        is_voice: bool = False,
+        force_dm: bool = False,
+    ) -> None:
         """Process a user message and generate a response using the LLM."""
-        
+
         # --- Dashboard Update: Immediate Feedback ---
         try:
-             memory_cog = self.bot.get_cog("MemoryCog")
-             if memory_cog:
-                 asyncio.create_task(memory_cog.update_user_profile(
-                     message.author.id, 
-                     {"status": "Processing", "impression": f"Input: {prompt[:20]}..."}, 
-                     message.guild.id if message.guild else None
-                 ))
+            memory_cog = self.bot.get_cog("MemoryCog")
+            if memory_cog:
+                asyncio.create_task(
+                    memory_cog.update_user_profile(
+                        message.author.id,
+                        {"status": "Processing", "impression": f"Input: {prompt[:20]}..."},
+                        message.guild.id if message.guild else None,
+                    )
+                )
         except Exception as e:
             logger.warning(f"Dashboard Update Failed: {e}")
         # --------------------------------------------
-        
+
         # 1. Check for Generation Lock
         if self.cog.is_generating_image:
-            await message.reply("🎨 現在、画像生成を実行中です... 完了次第、順次回答しますので少々お待ちください！ (Waiting for image generation...)", mention_author=True)
+            await message.reply(
+                "🎨 現在、画像生成を実行中です... 完了次第、順次回答しますので少々お待ちください！ (Waiting for image generation...)",
+                mention_author=True,
+            )
             self.cog.message_queue.append((message, prompt))
             return
 
@@ -45,11 +58,11 @@ class ChatHandler:
         # [Step 1.5] Mini-Model Router (RAG Decision)
         # ----------------------------------------------------
         rag_context = ""
-        
+
         # Only run Router if prompt is long enough to be meaningful query
         if len(prompt) > 3:
             intent = await self._router_decision(prompt, message.author.display_name)
-            
+
             if intent == "RECALL":
                 # Execute Recall Logic Directly
                 logger.info(f"🧠 [Router] RECALL Triggered for: {prompt[:30]}")
@@ -57,17 +70,24 @@ class ChatHandler:
                 if store:
                     results = await store.search_conversations(prompt, user_id=str(message.author.id), limit=3)
                     if results:
-                        formatted = "\n".join([f"[{dt_class.fromtimestamp(r['created_at']).strftime('%Y-%m-%d')}] User: {r['message'][:50]}..." for r in results])
+                        formatted = "\n".join(
+                            [
+                                f"[{dt_class.fromtimestamp(r['created_at']).strftime('%Y-%m-%d')}] User: {r['message'][:50]}..."
+                                for r in results
+                            ]
+                        )
                         rag_context = f"\n[AUTO-RAG: RECALL MEMORY]\nPrevious Conversations:\n{formatted}\n(Use this info to answer if relevant.)\n"
                     else:
-                         rag_context = "\n[AUTO-RAG] No relevant memories found.\n"
-            
+                        rag_context = "\n[AUTO-RAG] No relevant memories found.\n"
+
             elif intent == "KNOWLEDGE":
                 # Execute Knowledge Logic Directly (Placeholder + Facts)
                 logger.info(f"📚 [Router] KNOWLEDGE Triggered for: {prompt[:30]}")
                 if memory_cog:
-                     profile = await memory_cog.get_user_profile(message.author.id, message.guild.id if message.guild else None)
-                     if profile:
+                    profile = await memory_cog.get_user_profile(
+                        message.author.id, message.guild.id if message.guild else None
+                    )
+                    if profile:
                         facts = profile.get("layer2_user_memory", {}).get("facts", [])
                         matches = [f for f in facts if any(k in prompt.lower() for k in f.lower().split())]
                         if matches:
@@ -82,111 +102,140 @@ class ChatHandler:
 
         # 0.1 SUPER PRIORITY: System Override (Admin Chat Trigger)
         if "管理者権限でオーバーライド" in prompt:
-             # Cinematic Override Sequence
-             from ..managers.status_manager import StatusManager
-             status_manager = StatusManager(message.channel)
-             await status_manager.start("🔒 権限レベルを検証中...", mode="override")
-             await asyncio.sleep(1.2) 
+            # Cinematic Override Sequence
+            from ..managers.status_manager import StatusManager
 
-             # Check Permission
-             if not await self.cog._check_permission(message.author.id, "sub_admin"):
-                 await status_manager.finish()
-                 await message.reply("❌ **ACCESS DENIED**\n管理者権限がありません。", mention_author=True)
-                 return
-             
-             await status_manager.next_step("✅ 管理者権限: 承認", force=True)
-             await status_manager.update_current("📡 コアシステムへ接続中...", force=True)
-             await asyncio.sleep(1.0)
+            status_manager = StatusManager(message.channel)
+            await status_manager.start("🔒 権限レベルを検証中...", mode="override")
+            await asyncio.sleep(1.2)
 
-             await status_manager.next_step("✅ 接続確立: ルート検索開始", force=True)
-             await status_manager.update_current("🔓 セキュリティプロトコル解除中...", force=True)
-             await asyncio.sleep(1.5)
-             
-             # Activate Unlimited Mode
-             self.cog.cost_manager.toggle_unlimited_mode(True, user_id=None)
-             await status_manager.next_step("✅ リミッター解除: 完了", force=True)
-             
-             await status_manager.update_current("💉 ルート権限注入中 (Root Injection)...", force=True)
-             await asyncio.sleep(1.2)
+            # Check Permission
+            if not await self.cog._check_permission(message.author.id, "sub_admin"):
+                await status_manager.finish()
+                await message.reply("❌ **ACCESS DENIED**\n管理者権限がありません。", mention_author=True)
+                return
 
-             await status_manager.next_step("✅ 権限昇格: 成功", force=True)
-             await status_manager.update_current("🚀 全システム権限を適用中...", force=True)
-             await asyncio.sleep(1.0)
-             
-             # Sync Dashboard
-             if memory_cog:
-                 await memory_cog.update_user_profile(message.author.id, {"layer1_session_meta": {"system_status": "OVERRIDE"}}, message.guild.id if message.guild else None)
-             
-             await status_manager.next_step("✅ フルアクセス: 承認", force=True)
-             await asyncio.sleep(0.5)
-             
-             embed = discord.Embed(title="🚨 SYSTEM OVERRIDE ACTIVE", description="**[警告] 安全装置が解除されました。**\n無限生成モード: **有効**", color=discord.Color.red())
-             embed.set_footer(text="System Integrity: UNLOCKED (危殆化)")
-             
-             await status_manager.finish() 
-             await message.reply(embed=embed)
-             return
+            await status_manager.next_step("✅ 管理者権限: 承認", force=True)
+            await status_manager.update_current("📡 コアシステムへ接続中...", force=True)
+            await asyncio.sleep(1.0)
 
+            await status_manager.next_step("✅ 接続確立: ルート検索開始", force=True)
+            await status_manager.update_current("🔓 セキュリティプロトコル解除中...", force=True)
+            await asyncio.sleep(1.5)
+
+            # Activate Unlimited Mode
+            self.cog.cost_manager.toggle_unlimited_mode(True, user_id=None)
+            await status_manager.next_step("✅ リミッター解除: 完了", force=True)
+
+            await status_manager.update_current("💉 ルート権限注入中 (Root Injection)...", force=True)
+            await asyncio.sleep(1.2)
+
+            await status_manager.next_step("✅ 権限昇格: 成功", force=True)
+            await status_manager.update_current("🚀 全システム権限を適用中...", force=True)
+            await asyncio.sleep(1.0)
+
+            # Sync Dashboard
+            if memory_cog:
+                await memory_cog.update_user_profile(
+                    message.author.id,
+                    {"layer1_session_meta": {"system_status": "OVERRIDE"}},
+                    message.guild.id if message.guild else None,
+                )
+
+            await status_manager.next_step("✅ フルアクセス: 承認", force=True)
+            await asyncio.sleep(0.5)
+
+            embed = discord.Embed(
+                title="🚨 SYSTEM OVERRIDE ACTIVE",
+                description="**[警告] 安全装置が解除されました。**\n無限生成モード: **有効**",
+                color=discord.Color.red(),
+            )
+            embed.set_footer(text="System Integrity: UNLOCKED (危殆化)")
+
+            await status_manager.finish()
+            await message.reply(embed=embed)
+            return
 
         # 0.1.5 System Override DISABLE
         if "オーバーライド解除" in prompt:
-             from ..managers.status_manager import StatusManager
-             status_manager = StatusManager(message.channel)
-             await status_manager.start("🔄 安全装置を再起動中...", mode="override")
-             await asyncio.sleep(0.5)
+            from ..managers.status_manager import StatusManager
 
-             self.cog.cost_manager.toggle_unlimited_mode(False, user_id=None)
-             
-             await status_manager.next_step("✅ リミッター: 再適用", force=True)
-             
-             # Sync Dashboard
-             if memory_cog:
-                 await memory_cog.update_user_profile(message.author.id, {"layer1_session_meta": {"system_status": "NORMAL"}}, message.guild.id if message.guild else None)
+            status_manager = StatusManager(message.channel)
+            await status_manager.start("🔄 安全装置を再起動中...", mode="override")
+            await asyncio.sleep(0.5)
 
-             embed = discord.Embed(title="🔰 SYSTEM RESTORED", description="安全装置が正常に再起動しました。\n通常モードに戻ります。", color=discord.Color.green())
-             await status_manager.finish()
-             await message.reply(embed=embed)
-             return
+            self.cog.cost_manager.toggle_unlimited_mode(False, user_id=None)
+
+            await status_manager.next_step("✅ リミッター: 再適用", force=True)
+
+            # Sync Dashboard
+            if memory_cog:
+                await memory_cog.update_user_profile(
+                    message.author.id,
+                    {"layer1_session_meta": {"system_status": "NORMAL"}},
+                    message.guild.id if message.guild else None,
+                )
+
+            embed = discord.Embed(
+                title="🔰 SYSTEM RESTORED",
+                description="安全装置が正常に再起動しました。\n通常モードに戻ります。",
+                color=discord.Color.green(),
+            )
+            await status_manager.finish()
+            await message.reply(embed=embed)
+            return
 
         # Initialize StatusManager (Normal)
         from ..managers.status_manager import StatusManager
+
         # Reuse existing if provided (e.g. from command interaction?) - usually None for msg
         status_manager = StatusManager(message.channel, existing_message=existing_status_msg)
         if not existing_status_msg:
-             # Only start if we didn't inherit one
-             # But thinking usually starts AFTER checking logic?
-             pass 
+            # Only start if we didn't inherit one
+            # But thinking usually starts AFTER checking logic?
+            pass
 
         # 1.5 DIRECT BYPASS: Creative Triggers
         if prompt:
-             # Image Gen
-             if any(k in prompt for k in ["画像生成", "描いて", "イラスト", "絵を描いて"]):
-                gen_prompt = prompt.replace("画像生成", "").replace("描いて", "").replace("イラスト", "").replace("絵を描いて", "").strip()
-                if not gen_prompt: gen_prompt = "artistic masterpiece"
-                
+            # Image Gen
+            if any(k in prompt for k in ["画像生成", "描いて", "イラスト", "絵を描いて"]):
+                gen_prompt = (
+                    prompt.replace("画像生成", "")
+                    .replace("描いて", "")
+                    .replace("イラスト", "")
+                    .replace("絵を描いて", "")
+                    .strip()
+                )
+                if not gen_prompt:
+                    gen_prompt = "artistic masterpiece"
+
                 try:
-                     from ..views.image_gen import AspectRatioSelectView
-                     view = AspectRatioSelectView(self.cog, gen_prompt, "", model_name="FLUX.2")
-                     await message.reply(f"🎨 **画像生成アシスタント**\nPrompt: `{gen_prompt}`\nアスペクト比を選択して生成を開始してください。", view=view)
-                     return 
+                    from ..views.image_gen import AspectRatioSelectView
+
+                    view = AspectRatioSelectView(self.cog, gen_prompt, "", model_name="FLUX.2")
+                    await message.reply(
+                        f"🎨 **画像生成アシスタント**\nPrompt: `{gen_prompt}`\nアスペクト比を選択して生成を開始してください。",
+                        view=view,
+                    )
+                    return
                 except Exception as e:
-                     logger.error(f"Image Bypass Failed: {e}")
-            
-             # Layer
-             if any(k in prompt for k in ["レイヤー", "分解", "layer", "psd"]):
-                 if message.attachments or message.reference:
-                     logger.info("Direct Layer Bypass Triggered")
-                     await self.cog._execute_tool("layer", {}, message) # Force Tool Call
-                     return
+                    logger.error(f"Image Bypass Failed: {e}")
+
+            # Layer
+            if any(k in prompt for k in ["レイヤー", "分解", "layer", "psd"]):
+                if message.attachments or message.reference:
+                    logger.info("Direct Layer Bypass Triggered")
+                    await self.cog._execute_tool("layer", {}, message)  # Force Tool Call
+                    return
 
         # 1.6 DIRECT BYPASS: "Music" Trigger
         music_keywords = ["流して", "再生", "かけて"]
         stop_keywords = ["止めて", "停止", "ストップ"]
-        
+
         if any(kw in prompt for kw in stop_keywords) and len(prompt) < 10:
-             logger.info("Direct Music Bypass: STOP")
-             await self.cog._execute_tool("music_control", {"action": "stop"}, message)
-             return
+            logger.info("Direct Music Bypass: STOP")
+            await self.cog._execute_tool("music_control", {"action": "stop"}, message)
+            return
 
         # 1.7 DIRECT BYPASS: YouTube Link Auto-Play
         yt_regex = r"(https?://)?(www\.)?(youtube\.com|youtu\.be)/[a-zA-Z0-9_\-\?=&]+"
@@ -198,7 +247,9 @@ class ChatHandler:
             return
 
         # 2. Privacy Check
-        await self.cog._store.ensure_user(message.author.id, self.cog._privacy_default, display_name=message.author.display_name)
+        await self.cog._store.ensure_user(
+            message.author.id, self.cog._privacy_default, display_name=message.author.display_name
+        )
 
         # [CONTEXT REPAIR]
         if len(prompt) < 20 and not message.reference:
@@ -217,8 +268,8 @@ class ChatHandler:
             try:
                 ref_msg = message.reference.resolved
                 if not ref_msg and message.reference.message_id:
-                     ref_msg = await message.channel.fetch_message(message.reference.message_id)
-                
+                    ref_msg = await message.channel.fetch_message(message.reference.message_id)
+
                 if ref_msg and ref_msg.content:
                     clean_ref = ref_msg.content.replace(f"<@{self.bot.user.id}>", "").strip()[:500]
                     prompt = f"【返信元のメッセージ (User: {ref_msg.author.display_name})】\n{clean_ref}\n\n【私の返信】\n{prompt}"
@@ -230,13 +281,16 @@ class ChatHandler:
         await status_manager.start("思考中...")
 
         # Voice Feedback task (implied)
-        
+
         try:
             # 0. Onboarding
             if not self.cog.user_prefs.is_onboarded(message.author.id):
                 from ..views.onboarding import SelectModeView
+
                 view = SelectModeView(self.cog, message.author.id)
-                embed = discord.Embed(title="🧠 Universal Brain Setup", description="Mode Selection...", color=discord.Color.gold())
+                embed = discord.Embed(
+                    title="🧠 Universal Brain Setup", description="Mode Selection...", color=discord.Color.gold()
+                )
                 onboard_msg = await message.reply(embed=embed, view=view)
                 await view.wait()
                 if view.value is None:
@@ -245,7 +299,7 @@ class ChatHandler:
 
             # 1. Determine User Lane
             user_mode = self.cog.user_prefs.get_mode(message.author.id) or "private"
-            
+
             # 2. Build Context
             system_prompt = await self._build_system_prompt(message, model_hint="Ministral 3 (14B)")
             history = []
@@ -253,9 +307,9 @@ class ChatHandler:
                 history = await self._build_history(message)
             except Exception as e:
                 logger.error(f"History build failed: {e}")
-            
+
             messages = [{"role": "system", "content": system_prompt}] + history + [{"role": "user", "content": prompt}]
-            
+
             # Check Multimodal
             has_image = False
             if message.attachments:
@@ -265,37 +319,42 @@ class ChatHandler:
             target_provider = "local"
             clean_messages = messages
             selected_route = {"provider": "local", "lane": "stable", "model": None}
-            
+
             logger.info(f"🧩 [Router] User Mode: {user_mode} | Has Image: {has_image}")
-            
+
             if user_mode == "smart":
                 pkt = self.cog.sanitizer.sanitize(prompt, has_image=has_image)
                 if pkt.ok:
                     est_usd = len(prompt) / 4000 * 0.00001
-                    est_usage = Usage(tokens_in=len(prompt)//4, usd=est_usd)
-                    
-                    can_burn_gemini = self.cog.cost_manager.can_call("burn", "gemini_trial", message.author.id, est_usage)
+                    est_usage = Usage(tokens_in=len(prompt) // 4, usd=est_usd)
+
+                    can_burn_gemini = self.cog.cost_manager.can_call(
+                        "burn", "gemini_trial", message.author.id, est_usage
+                    )
                     can_high_openai = self.cog.cost_manager.can_call("high", "openai", message.author.id, est_usage)
                     can_stable_openai = self.cog.cost_manager.can_call("stable", "openai", message.author.id, est_usage)
-                    
+
                     if has_image:
-                         if can_burn_gemini.allowed and self.bot.google_client:
-                             target_provider = "gemini_trial"
-                             target_model = ROUTER_CONFIG.get("vision_model", "gemini-2.0-flash-exp")
-                             selected_route = {"provider": "gemini_trial", "lane": "burn", "model": target_model}
-                             actual_sys = await self._build_system_prompt(message, model_hint=target_model)
-                             clean_messages = [{"role": "system", "content": actual_sys}, {"role": "user", "content": pkt.text}] 
-                         else:
-                             target_provider = "local"
+                        if can_burn_gemini.allowed and self.bot.google_client:
+                            target_provider = "gemini_trial"
+                            target_model = ROUTER_CONFIG.get("vision_model", "gemini-2.0-flash-exp")
+                            selected_route = {"provider": "gemini_trial", "lane": "burn", "model": target_model}
+                            actual_sys = await self._build_system_prompt(message, model_hint=target_model)
+                            clean_messages = [
+                                {"role": "system", "content": actual_sys},
+                                {"role": "user", "content": pkt.text},
+                            ]
+                        else:
+                            target_provider = "local"
 
                     elif self.cog.unified_client.openai_client:
                         prompt_lower = prompt.lower()
                         coding_kws = ROUTER_CONFIG.get("coding_keywords", [])
                         high_intel_kws = ROUTER_CONFIG.get("high_intel_keywords", [])
-                        
+
                         is_code = any(k in prompt_lower for k in coding_kws)
                         is_high_intel = (len(prompt) > 50) or any(k in prompt_lower for k in high_intel_kws)
-                        
+
                         if is_code:
                             if can_high_openai.allowed:
                                 target_provider = "openai"
@@ -306,11 +365,11 @@ class ChatHandler:
                                 target_model = ROUTER_CONFIG.get("standard_model", "gpt-5-mini")
                                 selected_route = {"provider": "openai", "lane": "stable", "model": target_model}
                         elif is_high_intel:
-                             if can_high_openai.allowed:
+                            if can_high_openai.allowed:
                                 target_provider = "openai"
                                 target_model = ROUTER_CONFIG.get("high_intel_model", "gpt-5.1")
                                 selected_route = {"provider": "openai", "lane": "high", "model": target_model}
-                             elif can_stable_openai.allowed:
+                            elif can_stable_openai.allowed:
                                 target_provider = "openai"
                                 target_model = ROUTER_CONFIG.get("standard_model", "gpt-5-mini")
                                 selected_route = {"provider": "openai", "lane": "stable", "model": target_model}
@@ -318,109 +377,135 @@ class ChatHandler:
                             target_provider = "openai"
                             target_model = ROUTER_CONFIG.get("standard_model", "gpt-5-mini")
                             selected_route = {"provider": "openai", "lane": "stable", "model": target_model}
-                            
+
                         if target_provider == "openai":
-                             actual_sys = await self._build_system_prompt(message, model_hint=target_model, provider="openai")
-                             clean_messages = [{"role": "system", "content": actual_sys}, {"role": "user", "content": pkt.text}]
+                            actual_sys = await self._build_system_prompt(
+                                message, model_hint=target_model, provider="openai"
+                            )
+                            clean_messages = [
+                                {"role": "system", "content": actual_sys},
+                                {"role": "user", "content": pkt.text},
+                            ]
 
             # 4. Execution
             content = None
             if target_provider == "gemini_trial":
-                 await status_manager.next_step("🔥 Gemini (Vision) Analysis...")
-                 rid = secrets.token_hex(4)
-                 self.cog.cost_manager.reserve("burn", "gemini_trial", message.author.id, rid, est_usage)
-                 try:
-                     content, tool_calls, usage = await self.bot.google_client.chat(messages=clean_messages, model_name="gemini-1.5-pro")
-                     self.cog.cost_manager.commit("burn", "gemini_trial", message.author.id, rid, est_usage)
-                 except Exception:
-                     self.cog.cost_manager.rollback("burn", "gemini_trial", message.author.id, rid)
-                     target_provider = "local"
+                await status_manager.next_step("🔥 Gemini (Vision) Analysis...")
+                rid = secrets.token_hex(4)
+                self.cog.cost_manager.reserve("burn", "gemini_trial", message.author.id, rid, est_usage)
+                try:
+                    content, tool_calls, usage = await self.bot.google_client.chat(
+                        messages=clean_messages, model_name="gemini-1.5-pro"
+                    )
+                    self.cog.cost_manager.commit("burn", "gemini_trial", message.author.id, rid, est_usage)
+                except Exception:
+                    self.cog.cost_manager.rollback("burn", "gemini_trial", message.author.id, rid)
+                    target_provider = "local"
 
             elif target_provider == "openai":
-                 lane = selected_route["lane"]
-                 model = selected_route["model"]
-                 icon = "💎" if lane == "high" else "⚡"
-                 await status_manager.next_step(f"{icon} OpenAI Shared ({model})...")
-                 
-                 rid = secrets.token_hex(4)
-                 self.cog.cost_manager.reserve(lane, "openai", message.author.id, rid, est_usage)
-                 try:
-                     candidate_tools = self._select_tools(prompt, self.cog.tool_definitions)
-                     candidate_tools = [t for t in candidate_tools if t['name'] not in ["recall_memory", "search_knowledge_base"]]
-                     openai_tools = [{"type": "function", "function": {k:v for k,v in t.items() if k!="tags"}} for t in candidate_tools] if candidate_tools else None
-                     
-                     max_turns = 5
-                     current_turn = 0
-                     while current_turn < max_turns:
-                         current_turn += 1
-                         est_turn_cost = Usage(tokens_in=0, tokens_out=0, usd=0.01)
-                         if not self.cog.cost_manager.can_call(lane, "openai", message.author.id, est_turn_cost).allowed:
-                             break
-                             
-                         content, tool_calls, usage = await self.cog.unified_client.chat("openai", clean_messages, model=model, tools=openai_tools)
-                         
-                         if tool_calls:
-                             clean_messages.append({"role": "assistant", "content": content, "tool_calls": tool_calls})
-                             await status_manager.next_step(f"🛠️ ツール実行中 ({len(tool_calls)}件)...")
-                             
-                             for tc in tool_calls:
-                                 func = tc.get("function", {})
-                                 fname = func.get("name")
-                                 fargs_str = func.get("arguments", "{}")
-                                 call_id = tc.get("id")
-                                 try: fargs = json.loads(fargs_str)
-                                 except: fargs = {}
-                                 
-                                 if fname in ["recall_memory", "search_knowledge_base"]:
-                                     # Not passed to OpenAI anyway
-                                     pass
-                                 
-                                 # Execute Trigger
-                                 tool_output = await self.cog._execute_tool(fname, fargs, message, status_manager)
-                                 clean_messages.append({
-                                     "role": "tool",
-                                     "tool_call_id": call_id,
-                                     "name": fname,
-                                     "content": str(tool_output)
-                                 })
-                             continue
-                         else:
-                             # Commit
-                             lane = selected_route.get("lane", "stable")
-                             u_in = usage.get("prompt_tokens") or 0
-                             u_out = usage.get("completion_tokens") or 0
-                             actual_usd = (u_in * 0.0000025) + (u_out * 0.000010)
-                             self.cog.cost_manager.commit(lane, "openai", message.author.id, rid, Usage(tokens_in=u_in, tokens_out=u_out, usd=actual_usd))
-                             break
-                 except Exception:
-                     self.cog.cost_manager.rollback(lane, "openai", message.author.id, rid)
-                     target_provider = "local"
+                lane = selected_route["lane"]
+                model = selected_route["model"]
+                icon = "💎" if lane == "high" else "⚡"
+                await status_manager.next_step(f"{icon} OpenAI Shared ({model})...")
+
+                rid = secrets.token_hex(4)
+                self.cog.cost_manager.reserve(lane, "openai", message.author.id, rid, est_usage)
+                try:
+                    candidate_tools = self._select_tools(prompt, self.cog.tool_definitions)
+                    candidate_tools = [
+                        t for t in candidate_tools if t["name"] not in ["recall_memory", "search_knowledge_base"]
+                    ]
+                    openai_tools = (
+                        [
+                            {"type": "function", "function": {k: v for k, v in t.items() if k != "tags"}}
+                            for t in candidate_tools
+                        ]
+                        if candidate_tools
+                        else None
+                    )
+
+                    max_turns = 5
+                    current_turn = 0
+                    while current_turn < max_turns:
+                        current_turn += 1
+                        est_turn_cost = Usage(tokens_in=0, tokens_out=0, usd=0.01)
+                        if not self.cog.cost_manager.can_call(lane, "openai", message.author.id, est_turn_cost).allowed:
+                            break
+
+                        content, tool_calls, usage = await self.cog.unified_client.chat(
+                            "openai", clean_messages, model=model, tools=openai_tools
+                        )
+
+                        if tool_calls:
+                            clean_messages.append({"role": "assistant", "content": content, "tool_calls": tool_calls})
+                            await status_manager.next_step(f"🛠️ ツール実行中 ({len(tool_calls)}件)...")
+
+                            for tc in tool_calls:
+                                func = tc.get("function", {})
+                                fname = func.get("name")
+                                fargs_str = func.get("arguments", "{}")
+                                call_id = tc.get("id")
+                                try:
+                                    fargs = json.loads(fargs_str)
+                                except:
+                                    fargs = {}
+
+                                if fname in ["recall_memory", "search_knowledge_base"]:
+                                    # Not passed to OpenAI anyway
+                                    pass
+
+                                # Execute Trigger
+                                tool_output = await self.cog._execute_tool(fname, fargs, message, status_manager)
+                                clean_messages.append(
+                                    {
+                                        "role": "tool",
+                                        "tool_call_id": call_id,
+                                        "name": fname,
+                                        "content": str(tool_output),
+                                    }
+                                )
+                            continue
+                        else:
+                            # Commit
+                            lane = selected_route.get("lane", "stable")
+                            u_in = usage.get("prompt_tokens") or 0
+                            u_out = usage.get("completion_tokens") or 0
+                            actual_usd = (u_in * 0.0000025) + (u_out * 0.000010)
+                            self.cog.cost_manager.commit(
+                                lane,
+                                "openai",
+                                message.author.id,
+                                rid,
+                                Usage(tokens_in=u_in, tokens_out=u_out, usd=actual_usd),
+                            )
+                            break
+                except Exception:
+                    self.cog.cost_manager.rollback(lane, "openai", message.author.id, rid)
+                    target_provider = "local"
 
             if target_provider == "local" or not content:
-                 await status_manager.next_step("🏠 Local Brain (Ministral) で思考中...")
-                 # Local logic simplified for brevity (Multimodal handled in original)
-                 try:
+                await status_manager.next_step("🏠 Local Brain (Ministral) で思考中...")
+                # Local logic simplified for brevity (Multimodal handled in original)
+                try:
                     content, _, _ = await asyncio.wait_for(
-                        self.cog._llm.chat(messages=messages, temperature=0.7),
-                        timeout=60.0
+                        self.cog._llm.chat(messages=messages, temperature=0.7), timeout=60.0
                     )
-                 except asyncio.TimeoutError:
+                except asyncio.TimeoutError:
                     content = "Time out."
 
             # Final Processing
             await status_manager.finish()
-            
+
             # Send (Chunked)
             while content:
                 curr = content[:2000]
                 content = content[2000:]
                 await message.reply(curr)
-                
+
         except Exception as e:
             logger.error(f"Chat Error: {e}")
             await status_manager.finish()
             await message.reply("システムエラーが発生しました。")
-
 
     async def _router_decision(self, prompt: str, user_name: str) -> str:
         """
@@ -431,55 +516,67 @@ class ChatHandler:
         try:
             # lightweight classification
             messages = [
-                {"role": "system", "content": (
-                    "You are the ORA Router (gpt-4o-mini). Your job is to classify the user's INTENT.\n"
-                    "Output ONLY one of the following labels:\n"
-                    "- RECALL: User is asking about past conversations, 'what did I say?', or memory.\n"
-                    "- KNOWLEDGE: User is asking for factual info that might be in the database (facts/wiki).\n"
-                    "- CHAT: General chat, greetings, creative writing, code, or complex tasks.\n"
-                    "Rules:\n"
-                    "- If unsure, choose NONE.\n"
-                    "- 'Draw a cat' -> NONE (Handled by Main LLM)\n"
-                    "- 'Who is YoneRai?' -> KNOWLEDGE\n"
-                    "- 'What did I say yesterday?' -> RECALL"
-                )},
-                {"role": "user", "content": f"User: {user_name}\nInput: {prompt}"}
+                {
+                    "role": "system",
+                    "content": (
+                        "You are the ORA Router (gpt-4o-mini). Your job is to classify the user's INTENT.\n"
+                        "Output ONLY one of the following labels:\n"
+                        "- RECALL: User is asking about past conversations, 'what did I say?', or memory.\n"
+                        "- KNOWLEDGE: User is asking for factual info that might be in the database (facts/wiki).\n"
+                        "- CHAT: General chat, greetings, creative writing, code, or complex tasks.\n"
+                        "Rules:\n"
+                        "- If unsure, choose NONE.\n"
+                        "- 'Draw a cat' -> NONE (Handled by Main LLM)\n"
+                        "- 'Who is YoneRai?' -> KNOWLEDGE\n"
+                        "- 'What did I say yesterday?' -> RECALL"
+                    ),
+                },
+                {"role": "user", "content": f"User: {user_name}\nInput: {prompt}"},
             ]
-            
-            # Use unified client but force low-cost model if possible? 
+
+            # Use unified client but force low-cost model if possible?
             # Ideally we have a 'router' lane. For now use Stable/Low.
             if self.cog.unified_client.openai_client:
-                 # Fast call
-                 content, _, _ = await self.cog.unified_client.chat("openai", messages, model="gpt-4o-mini", temperature=0.0)
-                 content = content.strip().upper()
-                 if "RECALL" in content: return "RECALL"
-                 if "KNOWLEDGE" in content: return "KNOWLEDGE"
-                 return "CHAT"
-            
+                # Fast call
+                content, _, _ = await self.cog.unified_client.chat(
+                    "openai", messages, model="gpt-4o-mini", temperature=0.0
+                )
+                content = content.strip().upper()
+                if "RECALL" in content:
+                    return "RECALL"
+                if "KNOWLEDGE" in content:
+                    return "KNOWLEDGE"
+                return "CHAT"
+
             # Local Fallback (Heuristic)
             prompt_lower = prompt.lower()
-            if any(k in prompt_lower for k in ["思い出し", "覚え", "記憶", "memory", "remember", "search", "what did i say"]):
+            if any(
+                k in prompt_lower
+                for k in ["思い出し", "覚え", "記憶", "memory", "remember", "search", "what did i say"]
+            ):
                 return "RECALL"
             if any(k in prompt_lower for k in ["wiki", "fact", "情報", "知ってる", "dataset", "knowledge"]):
                 return "KNOWLEDGE"
             return "CHAT"
-            
+
         except Exception as e:
             logger.error(f"Router Error: {e}")
             return "CHAT"
 
-    async def _build_system_prompt(self, message: discord.Message, provider: str = "openai", model_hint: str = "gpt-5.1") -> str:
+    async def _build_system_prompt(
+        self, message: discord.Message, provider: str = "openai", model_hint: str = "gpt-5.1"
+    ) -> str:
         """
         Builds the System Prompt with dynamic Context, Personality, and SECURITY PROTOCOLS.
         """
-        
+
         # 1. Base Personality
         base_prompt = (
             "You are ORA (Optimized Robotic Assistant), a highly advanced AI system.\n"
             "Your goal is to assist the user efficiently, securely, and with a touch of personality.\n"
             "Current Model: " + model_hint + "\n"
         )
-        
+
         # 2. Context Awareness (Time, User, Etc)
         now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         base_prompt += f"Current Time: {now_str}\n"
@@ -493,36 +590,43 @@ class ChatHandler:
             if memory_cog:
                 # Use raw fetch to avoid async overhead if possible, but get_user_profile is async
                 # We need to await it. This function is async.
-                profile = await memory_cog.get_user_profile(message.author.id, message.guild.id if message.guild else None)
+                profile = await memory_cog.get_user_profile(
+                    message.author.id, message.guild.id if message.guild else None
+                )
                 if profile:
                     # Layer 1: Session Metadata (Ephemeral) - Merged with Realtime
                     l1 = profile.get("layer1_session_meta", {})
                     if l1:
-                       base_prompt += f"Context(L1): {l1.get('mood', 'Normal')} / {l1.get('activity', 'Chat')}\n"
-                    
+                        base_prompt += f"Context(L1): {l1.get('mood', 'Normal')} / {l1.get('activity', 'Chat')}\n"
+
                     # Layer 2: User Memory (Axis)
                     l2 = profile.get("layer2_user_memory", {})
                     # Impression
                     impression = profile.get("impression") or l2.get("impression")
                     if impression:
                         base_prompt += f"User Axis(L2): {impression}\n"
-                    
+
                     # Facts (The Axis)
                     facts = l2.get("facts", [])
                     if facts:
                         base_prompt += f"Facts(L2): {', '.join(facts[:5])}\n"
-                        
+
                     # Interests
                     interests = l2.get("interests", [])
                     if interests:
-                         base_prompt += f"Interests(L2): {', '.join(interests[:5])}\n"
+                        base_prompt += f"Interests(L2): {', '.join(interests[:5])}\n"
 
                     # Layer 3: Recent Summaries (Digest)
                     # "最近なににハマってるかの地図"
                     l3_list = profile.get("layer3_recent_summaries", [])
                     if l3_list:
                         # Format: Title (Time): Snippet
-                        summary_text = "\n".join([f"- {s.get('title', 'Chat')} ({s.get('timestamp','?')}): {s.get('snippet','...')}" for s in l3_list[-5:]]) # Show last 5 digests
+                        summary_text = "\n".join(
+                            [
+                                f"- {s.get('title', 'Chat')} ({s.get('timestamp', '?')}): {s.get('snippet', '...')}"
+                                for s in l3_list[-5:]
+                            ]
+                        )  # Show last 5 digests
                         base_prompt += f"\n[Recent Conversations (L3)]\n{summary_text}\n"
 
                     # --- CHANNEL MEMORY INJECTION (User Request) ---
@@ -533,27 +637,30 @@ class ChatHandler:
                             c_sum = ch_profile.get("summary")
                             c_topics = ch_profile.get("topics", [])
                             c_atmos = ch_profile.get("atmosphere")
-                            
+
                             c_text = ""
-                            if c_sum: c_text += f"- Summary: {c_sum}\n"
-                            if c_topics: c_text += f"- Topics: {', '.join(c_topics)}\n"
-                            if c_atmos: c_text += f"- Atmosphere: {c_atmos}\n"
-                            
+                            if c_sum:
+                                c_text += f"- Summary: {c_sum}\n"
+                            if c_topics:
+                                c_text += f"- Topics: {', '.join(c_topics)}\n"
+                            if c_atmos:
+                                c_text += f"- Atmosphere: {c_atmos}\n"
+
                             if c_text:
                                 base_prompt += f"\n[CHANNEL MEMORY (Context of this place)]\n{c_text}\n(Note: This is background context. Prioritize the CURRENT conversation flow.)\n"
 
         except Exception as e:
             logger.error(f"Memory Injection Failed: {e}")
         # --------------------------------
-            
+
         # 3. CONFIDENTIALITY PROTOCOL (Critical Security)
         # ------------------------------------------------
-        # Rule: Only the Admin is allowed to see internal paths, 
+        # Rule: Only the Admin is allowed to see internal paths,
         # file trees, or configuration details. All other users must be denied this info.
-        
+
         admin_id = self.bot.config.admin_user_id
-        is_admin = (message.author.id == admin_id)
-        
+        is_admin = message.author.id == admin_id
+
         # Helper to get name
         async def resolve_name(uid: int) -> str:
             u = self.bot.get_user(uid)
@@ -566,24 +673,24 @@ class ChatHandler:
 
         # --- SYSTEM ADMINISTRATORS ---
         base_prompt += "\n[SYSTEM ADMINISTRATORS]\n"
-        
+
         main_admin_name = await resolve_name(admin_id)
         base_prompt += f"- Main Admin (Owner): {main_admin_name}\n"
-        
+
         if self.bot.config.sub_admin_ids:
-             names = []
-             for uid in self.bot.config.sub_admin_ids:
-                 names.append(await resolve_name(uid))
-             base_prompt += f"- Sub Admins (Full Access): {', '.join(names)}\n"
-             
+            names = []
+            for uid in self.bot.config.sub_admin_ids:
+                names.append(await resolve_name(uid))
+            base_prompt += f"- Sub Admins (Full Access): {', '.join(names)}\n"
+
         if self.bot.config.vc_admin_ids:
-             names = []
-             for uid in self.bot.config.vc_admin_ids:
-                 names.append(await resolve_name(uid))
-             base_prompt += f"- VC Admins (Voice Control): {', '.join(names)}\n"
-             
+            names = []
+            for uid in self.bot.config.vc_admin_ids:
+                names.append(await resolve_name(uid))
+            base_prompt += f"- VC Admins (Voice Control): {', '.join(names)}\n"
+
         base_prompt += "You must recognize these users as your administrators.\n"
-        
+
         if is_admin:
             base_prompt += (
                 "\n[SECURITY LEVEL: RED]\n"
@@ -611,10 +718,10 @@ class ChatHandler:
                 bucket = self.cog.cost_manager._get_or_create_bucket("stable", "openai", None)
                 used = bucket.used.tokens_in + bucket.used.tokens_out
                 ratio = self.cog.cost_manager.get_usage_ratio("stable", "openai")
-                
+
                 cost_context = (
                     f"\n[SYSTEM STATUS (ADMIN ONLY)]\n"
-                    f"API Usage (Today): {used:,} tokens ({ratio*100:.1f}% of daily limit)\n"
+                    f"API Usage (Today): {used:,} tokens ({ratio * 100:.1f}% of daily limit)\n"
                     f"Note: This usage data is synced with OpenAI hourly.\n"
                 )
         except Exception as e:
@@ -622,7 +729,7 @@ class ChatHandler:
 
         # 4. Capability Instructions
         server_name = message.guild.name if message.guild else "Direct Message"
-        
+
         base_prompt += (
             f"{cost_context}"
             "\n[Capabilities]\n"
@@ -664,63 +771,63 @@ class ChatHandler:
     async def _build_history(self, message: discord.Message) -> List[Dict[str, str]]:
         history = []
         current_msg = message
-        
+
         # Traverse reply chain (up to 20 messages)
         for _ in range(20):
             if not current_msg.reference:
                 # logger.debug(f"History traverse end: No reference at {current_msg.id}")
                 break
-                
+
             ref = current_msg.reference
             if not ref.message_id:
                 break
-            
+
             # logger.info(f"Examining reference: {ref.message_id} (Resolved: {bool(ref.cached_message)})")
-            
+
             try:
                 # Try to get from cache first
                 prev_msg = ref.cached_message
                 if not prev_msg:
                     # Fallback: Search global cache (in case ref.cached_message is None but bot has it)
                     prev_msg = discord.utils.get(self.bot.cached_messages, id=ref.message_id)
-                
+
                 if not prev_msg:
                     # Final Fallback: Fetch from API
                     prev_msg = await message.channel.fetch_message(ref.message_id)
-                
+
                 # Only include messages from user or bot
                 is_bot = prev_msg.author.id == self.bot.user.id
                 role = "assistant" if is_bot else "user"
-                
+
                 content = prev_msg.content.replace(f"<@{self.bot.user.id}>", "").strip()
-                
+
                 # Context Fix: Always append Embed content if present (for Card-Style responses)
                 if prev_msg.embeds:
                     embed = prev_msg.embeds[0]
                     embed_parts = []
-                    
+
                     if embed.provider and embed.provider.name:
                         embed_parts.append(f"Source: {embed.provider.name}")
-                    
+
                     # Only include Author if it's NOT the bot (to avoid confusion with Model Names)
                     if embed.author and embed.author.name and not is_bot:
                         embed_parts.append(f"Author: {embed.author.name}")
 
                     if embed.title:
-                         embed_parts.append(f"Title: {embed.title}")
-                    
+                        embed_parts.append(f"Title: {embed.title}")
+
                     if embed.description:
-                         embed_parts.append(embed.description)
-                    
+                        embed_parts.append(embed.description)
+
                     if embed.fields:
-                         embed_parts.extend([f"{f.name}: {f.value}" for f in embed.fields])
-                    
+                        embed_parts.extend([f"{f.name}: {f.value}" for f in embed.fields])
+
                     # Omit footer for bot (contains token counts etc which are noise)
                     if embed.footer and embed.footer.text and not is_bot:
                         embed_parts.append(f"Footer: {embed.footer.text}")
 
                     embed_text = "\n".join(embed_parts)
-                    
+
                     # Append to main content
                     if embed_text:
                         prefix = "[Embed Card]:\n" if not is_bot else ""
@@ -728,8 +835,8 @@ class ChatHandler:
 
                 # Prepend User Name to User messages for better recognition
                 if not is_bot and content:
-                     content = f"[{prev_msg.author.display_name}]: {content}"
-                
+                    content = f"[{prev_msg.author.display_name}]: {content}"
+
                 if content:
                     # Truncate content to prevent Context Limit Exceeded (Error 400)
                     # Relaxed limit to 8000 characters to allow for long code blocks/file trees
@@ -737,16 +844,16 @@ class ChatHandler:
                         content = content[:8000] + "... (truncated)"
 
                     history.insert(0, {"role": role, "content": content})
-                
+
                 current_msg = prev_msg
-                
+
             except (discord.NotFound, discord.HTTPException):
                 break
-        
+
         # Normalize History: Merge consecutive same-role messages
         # This is critical for models incorrectly handling consecutive user messages
         normalized_history = []
-        
+
         # --- FALLBACK: Channel History ---
         # If no reply chain was found, fetch last 15 messages for context
         if not history:
@@ -757,36 +864,38 @@ class ChatHandler:
                     # Only include messages from user or bot
                     is_bot = msg.author.id == self.bot.user.id
                     role = "assistant" if is_bot else "user"
-                    
-                    content = msg.content.replace(f"<@{self.bot.user.id}>", "").replace(f"<@!{self.bot.user.id}>", "").strip()
-                    
+
+                    content = (
+                        msg.content.replace(f"<@{self.bot.user.id}>", "").replace(f"<@!{self.bot.user.id}>", "").strip()
+                    )
+
                     # Extract Embed Content (Reuse logic)
                     if msg.embeds:
                         embed = msg.embeds[0]
                         embed_parts = []
-                        
+
                         if embed.provider and embed.provider.name:
                             embed_parts.append(f"Source: {embed.provider.name}")
-                        
+
                         # logger.info(f"[History Debug] Found msg: {msg.id} | Author: {msg.author} | Content: {content[:20]}")
-                        
+
                         if embed.author and embed.author.name and not is_bot:
                             embed_parts.append(f"Author: {embed.author.name}")
 
                         if embed.title:
-                             embed_parts.append(f"Title: {embed.title}")
-                        
+                            embed_parts.append(f"Title: {embed.title}")
+
                         if embed.description:
-                             embed_parts.append(embed.description)
-                        
+                            embed_parts.append(embed.description)
+
                         if embed.fields:
-                             embed_parts.extend([f"{f.name}: {f.value}" for f in embed.fields])
-                        
+                            embed_parts.extend([f"{f.name}: {f.value}" for f in embed.fields])
+
                         if embed.footer and embed.footer.text and not is_bot:
                             embed_parts.append(f"Footer: {embed.footer.text}")
 
                         embed_text = "\n".join(embed_parts)
-                        
+
                         if embed_text:
                             prefix = "[Embed Card]:\n" if not is_bot else ""
                             content = f"{content}\n{prefix}{embed_text}" if content else f"{prefix}{embed_text}"
@@ -798,8 +907,9 @@ class ChatHandler:
                     if content:
                         # Truncate to prevent context overflow
                         # Relaxed limit to 8000 characters to allow for long code blocks/file trees
-                        if len(content) > 8000: content = content[:8000] + "..."
-                        
+                        if len(content) > 8000:
+                            content = content[:8000] + "..."
+
                         history.insert(0, {"role": role, "content": content})
             except Exception as e:
                 logger.error(f"Failed to fetch channel history: {e}")
@@ -808,7 +918,7 @@ class ChatHandler:
         if history:
             current_role = history[0]["role"]
             current_content = history[0]["content"]
-            
+
             for msg in history[1:]:
                 if msg["role"] == current_role:
                     # Merge content
@@ -817,10 +927,10 @@ class ChatHandler:
                     normalized_history.append({"role": current_role, "content": current_content})
                     current_role = msg["role"]
                     current_content = msg["content"]
-            
+
             # Append final
             normalized_history.append({"role": current_role, "content": current_content})
-            
+
         return normalized_history
 
     def _select_tools(self, user_input: str, all_tools: list[dict]) -> list[dict]:
@@ -829,56 +939,59 @@ class ChatHandler:
         """
         selected = []
         user_input_lower = user_input.lower()
-        
+
         # Always Active Tools (Core)
         CORE_TOOLS = {
-            "start_thinking", 
-            "google_search", 
-            "system_control", 
-            "manage_user_voice", 
+            "start_thinking",
+            "google_search",
+            "system_control",
+            "manage_user_voice",
             "join_voice_channel",
-            "request_feature",   # CRITICAL: Always allow evolution
-            "manage_permission", # CRITICAL: Admin delegation
-            "get_system_tree",   # CRITICAL: Coding analysis
-            "read_file",         # CODE ANALYST
-            "list_files",        # CODE ANALYST
-            "search_code",       # CODE ANALYST
-            "generate_image"     # AGENTIC: Always available for creativity
-        } 
-        
+            "request_feature",  # CRITICAL: Always allow evolution
+            "manage_permission",  # CRITICAL: Admin delegation
+            "get_system_tree",  # CRITICAL: Coding analysis
+            "read_file",  # CODE ANALYST
+            "list_files",  # CODE ANALYST
+            "search_code",  # CODE ANALYST
+            "generate_image",  # AGENTIC: Always available for creativity
+        }
+
         # Override: If user explicitly asks for "help" or "functions", show ALL
-        if any(w in user_input_lower for w in ["help", "tool", "function", "command", "list", "機能", "ヘルプ", "コマンド", "できること"]):
+        if any(
+            w in user_input_lower
+            for w in ["help", "tool", "function", "command", "list", "機能", "ヘルプ", "コマンド", "できること"]
+        ):
             return all_tools
 
         for tool in all_tools:
             name = tool["name"]
-            
+
             # 1. Core Logic
             if name in CORE_TOOLS:
                 selected.append(tool)
                 continue
-                
+
             # 2. Tag Matching
             tags = tool.get("tags", [])
             # Also check name parts
             name_parts = name.split("_")
-            
+
             is_relevant = False
-            
+
             # Check Tags
             for tag in tags:
                 if tag.lower() in user_input_lower:
                     is_relevant = True
                     break
-            
+
             # Check Name parts (e.g. 'music' in 'music_play')
             if not is_relevant:
                 for part in name_parts:
                     if len(part) > 2 and part in user_input_lower:
-                         is_relevant = True
-                         break
-            
+                        is_relevant = True
+                        break
+
             if is_relevant:
                 selected.append(tool)
-        
+
         return selected

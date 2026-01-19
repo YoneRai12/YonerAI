@@ -1,4 +1,3 @@
-
 import logging
 
 import aiohttp
@@ -7,6 +6,7 @@ from discord import app_commands
 from discord.ext import commands
 
 logger = logging.getLogger("VisualCortexCog")
+
 
 class VisualCortex(commands.Cog):
     def __init__(self, bot: commands.Bot):
@@ -32,17 +32,18 @@ class VisualCortex(commands.Cog):
         async with aiohttp.ClientSession() as session:
             # Download image first
             image_data = await attachment.read()
-            
+
             data = aiohttp.FormData()
             data.add_field("file", image_data, filename=attachment.filename)
             data.add_field("prompt", prompt)
-            
+
             async with session.post(self.api_url, data=data) as resp:
                 if resp.status == 200:
                     result = await resp.json()
                     return result.get("analysis", "No analysis returned.")
                 else:
                     return f"Error: API {resp.status}"
+
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(VisualCortex(bot))

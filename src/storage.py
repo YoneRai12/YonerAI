@@ -66,13 +66,13 @@ class Store:
         Path(self._db_path).parent.mkdir(parents=True, exist_ok=True)
         async with aiosqlite.connect(self._db_path) as db:
             await db.executescript(SCHEMA)
-            
+
             # Migration: Ensure points column exists
             try:
                 await db.execute("ALTER TABLE users ADD COLUMN points INTEGER DEFAULT 0")
             except Exception:
-                pass # Column likely exists
-            
+                pass  # Column likely exists
+
             # Migration: Ensure display_name column exists
             try:
                 await db.execute("ALTER TABLE users ADD COLUMN display_name TEXT")
@@ -89,7 +89,7 @@ class Store:
 
     async def backup(self) -> None:
         """Create an atomic backup of the database file."""
-        
+
         if not os.path.exists(self._db_path):
             return
 
@@ -97,9 +97,9 @@ class Store:
         # Try L: drive first, fallback to local 'backups' dir
         l_drive_path = Path("L:/Backups/ORADiscordBOT")
         local_backup_path = Path("backups")
-        
+
         target_dir = local_backup_path
-        
+
         # Check L: drive writability
         if os.path.exists("L:/"):
             try:
@@ -116,11 +116,11 @@ class Store:
             local_backup_path.mkdir(exist_ok=True)
 
         # 2. Generate Filenames
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:19] # Include millis
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:19]  # Include millis
         backup_filename = f"ora_{timestamp}.sqlite"
         temp_filename = f"ora_{timestamp}.sqlite.tmp"
         corrupt_filename = f"ora_{timestamp}.corrupt"
-        
+
         final_path = target_dir / backup_filename
         temp_path = target_dir / temp_filename
         corrupt_path = target_dir / corrupt_filename
@@ -133,26 +133,26 @@ class Store:
                 # Open NEW synchronous connections for thread safety
                 src_conn = sqlite3.connect(self._db_path)
                 dst_conn = sqlite3.connect(str(temp_path))
-                
+
                 # Perform Backup
                 src_conn.backup(dst_conn, pages=1000)
-                dst_conn.close() # Close to flush WAL
+                dst_conn.close()  # Close to flush WAL
                 dst_conn = None
-                
+
                 # Verify Integrity
                 verify_conn = sqlite3.connect(str(temp_path))
                 cursor = verify_conn.cursor()
                 cursor.execute("PRAGMA integrity_check")
                 result = cursor.fetchone()[0]
                 verify_conn.close()
-                
+
                 if result == "ok":
                     # Atomic Replace
                     # os.replace is atomic on POSIX, and usually atomic on Windows if dest exists (Python 3.3+)
                     # But here we are creating a new file.
                     # We rename .tmp to .sqlite
                     if os.path.exists(final_path):
-                        os.remove(final_path) # Should not happen with timestamp
+                        os.remove(final_path)  # Should not happen with timestamp
                     os.replace(temp_path, final_path)
                     logger.info(f"バックアップ成功: {final_path}")
                     return True
@@ -160,7 +160,7 @@ class Store:
                     logger.error(f"バックアップ整合性チェック失敗: {result}")
                     os.replace(temp_path, corrupt_path)
                     return False
-                    
+
             except Exception as e:
                 logger.error(f"バックアップ失敗: {e}")
                 if os.path.exists(temp_path):
@@ -170,8 +170,10 @@ class Store:
                         pass
                 return False
             finally:
-                if src_conn: src_conn.close()
-                if dst_conn: dst_conn.close()
+                if src_conn:
+                    src_conn.close()
+                if dst_conn:
+                    dst_conn.close()
 
         # Run in executor to avoid blocking event loop
         loop = asyncio.get_running_loop()
@@ -252,7 +254,7 @@ class Store:
                 await db.execute("ALTER TABLE users ADD COLUMN system_privacy TEXT DEFAULT 'private'")
             except Exception:
                 pass
-            
+
             await db.execute(
                 "UPDATE users SET system_privacy=? WHERE discord_user_id=?",
                 (mode, str(discord_user_id)),
@@ -314,7 +316,7 @@ class Store:
                 ) as cursor:
                     row = await cursor.fetchone()
                 if row is None or row[0] is None:
-                    return True # Default ON
+                    return True  # Default ON
                 return bool(row[0])
             except Exception:
                 return True
@@ -327,15 +329,17 @@ class Store:
             try:
                 await db.execute("ALTER TABLE users ADD COLUMN desktop_watch_enabled INTEGER DEFAULT 1")
             except Exception:
-                pass # Column likely exists
-            
+                pass  # Column likely exists
+
             await db.execute(
                 "UPDATE users SET desktop_watch_enabled=? WHERE discord_user_id=?",
                 (val, str(discord_user_id)),
             )
             await db.commit()
 
-    async def upsert_google_sub(self, discord_user_id: int, google_sub: str, refresh_token: Optional[str] = None) -> None:
+    async def upsert_google_sub(
+        self, discord_user_id: int, google_sub: str, refresh_token: Optional[str] = None
+    ) -> None:
         async with aiosqlite.connect(self._db_path) as db:
             if refresh_token:
                 await db.execute(
@@ -365,15 +369,15 @@ class Store:
                 (str(discord_user_id),),
             ) as cursor:
                 row = await cursor.fetchone()
-        
-        if not row or not row['refresh_token']:
+
+        if not row or not row["refresh_token"]:
             return None
-            
+
         return {
-            'refresh_token': row['refresh_token'],
-            'client_id': None, # Will be filled by caller from env
-            'client_secret': None,
-            'token_uri': "https://oauth2.googleapis.com/token",
+            "refresh_token": row["refresh_token"],
+            "client_id": None,  # Will be filled by caller from env
+            "client_secret": None,
+            "token_uri": "https://oauth2.googleapis.com/token",
         }
 
     async def get_google_sub(self, discord_user_id: int) -> Optional[str]:
@@ -388,10 +392,7 @@ class Store:
     async def start_login_state(self, state: str, discord_user_id: int, ttl_sec: int = 900) -> None:
         async with aiosqlite.connect(self._db_path) as db:
             await db.execute(
-                (
-                    "INSERT OR REPLACE INTO login_states(state, discord_user_id, expires_at) "
-                    "VALUES(?, ?, ?)"
-                ),
+                ("INSERT OR REPLACE INTO login_states(state, discord_user_id, expires_at) VALUES(?, ?, ?)"),
                 (state, str(discord_user_id), int(time.time()) + ttl_sec),
             )
             await db.commit()
@@ -419,15 +420,10 @@ class Store:
             await db.commit()
         return str(discord_user_id)
 
-    async def add_dataset(
-        self, discord_user_id: int, name: str, source_url: Optional[str]
-    ) -> int:
+    async def add_dataset(self, discord_user_id: int, name: str, source_url: Optional[str]) -> int:
         async with aiosqlite.connect(self._db_path) as db:
             cursor = await db.execute(
-                (
-                    "INSERT INTO datasets(discord_user_id, name, source_url, created_at) "
-                    "VALUES(?, ?, ?, ?)"
-                ),
+                ("INSERT INTO datasets(discord_user_id, name, source_url, created_at) VALUES(?, ?, ?, ?)"),
                 (str(discord_user_id), name, source_url, int(time.time())),
             )
             await db.commit()
@@ -448,16 +444,11 @@ class Store:
                 rows = await cursor.fetchall()
         return [(int(r[0]), str(r[1]), r[2], int(r[3])) for r in rows]
 
-    async def add_conversation(
-        self, user_id: str, platform: str, message: str, response: str
-    ) -> None:
+    async def add_conversation(self, user_id: str, platform: str, message: str, response: str) -> None:
         """Log a conversation turn. user_id can be Discord ID or Google Sub."""
         async with aiosqlite.connect(self._db_path) as db:
             await db.execute(
-                (
-                    "INSERT INTO conversations(user_id, platform, message, response, created_at) "
-                    "VALUES(?, ?, ?, ?, ?)"
-                ),
+                ("INSERT INTO conversations(user_id, platform, message, response, created_at) VALUES(?, ?, ?, ?, ?)"),
                 (user_id, platform, message, response, int(time.time())),
             )
             await db.commit()
@@ -472,7 +463,7 @@ class Store:
             else:
                 query = "SELECT * FROM conversations ORDER BY created_at DESC LIMIT ?"
                 params = (limit,)
-            
+
             async with db.execute(query, params) as cursor:
                 rows = await cursor.fetchall()
                 rows = await cursor.fetchall()
@@ -483,7 +474,7 @@ class Store:
         async with aiosqlite.connect(self._db_path) as db:
             db.row_factory = aiosqlite.Row
             search_query = f"%{query}%"
-            
+
             if user_id:
                 sql = "SELECT * FROM conversations WHERE user_id=? AND (message LIKE ? OR response LIKE ?) ORDER BY created_at DESC LIMIT ?"
                 params = (user_id, search_query, search_query, limit)
@@ -491,7 +482,7 @@ class Store:
                 # Global search (if allowed permissions, but typically restricted by caller)
                 sql = "SELECT * FROM conversations WHERE message LIKE ? OR response LIKE ? ORDER BY created_at DESC LIMIT ?"
                 params = (search_query, search_query, limit)
-                
+
             async with db.execute(sql, params) as cursor:
                 rows = await cursor.fetchall()
                 return [dict(row) for row in rows]
@@ -507,7 +498,7 @@ class Store:
         """Update or insert Google user info."""
         # credentials is a google.oauth2.credentials.Credentials object
         refresh_token = credentials.refresh_token
-        
+
         async with aiosqlite.connect(self._db_path) as db:
             # We might need a separate table for google users if we want to store email
             # But for now, let's assume we map it to the 'users' table via some mechanism
@@ -515,36 +506,36 @@ class Store:
             # The current schema has 'users' keyed by 'discord_user_id'.
             # If we don't have a discord_user_id yet, we can't insert into 'users' easily unless we allow null discord_id
             # or use a different table.
-            
+
             # However, the 'users' table schema is:
             # discord_user_id TEXT PRIMARY KEY, google_sub TEXT, ...
-            
+
             # The Web Auth flow gets Google info FIRST, then links to Discord.
             # So we might need to store Google info temporarily or allow looking up by google_sub.
-            
-            # For this implementation, let's assume we are updating an existing user OR 
+
+            # For this implementation, let's assume we are updating an existing user OR
             # we need a way to store "Unlinked Google Users".
             # But the 'link_discord_google' method implies we link them later.
-            
+
             # Let's just store the refresh token if we can find the user, or do nothing?
             # Wait, the user's snippet says:
             # await store.upsert_google_user(google_sub=google_sub, email=email, credentials=creds)
             # await store.link_discord_google(discord_user_id, google_sub)
-            
+
             # This implies 'upsert_google_user' might create a record.
             # But our 'users' table requires discord_user_id as PK.
-            
+
             # Let's modify 'users' table or add a 'google_users' table?
             # Given the constraints, I will implement 'link_discord_google' to do the heavy lifting
             # and 'upsert_google_user' to maybe just log or update if the user exists.
-            
+
             # ACTUALLY, looking at the schema:
             # CREATE TABLE IF NOT EXISTS users (discord_user_id TEXT PRIMARY KEY, google_sub TEXT, ...)
-            
+
             # If we don't have discord_id, we can't insert.
             # But the auth flow has 'state' which contains 'discord_user_id'.
             # So 'link_discord_google' is the one that matters.
-            
+
             # Let's make 'upsert_google_user' a no-op or just helper if we had a google_users table.
             # BUT, if the user logs in via Web and we want to show their data, we need to know who they are.
             # If they are already linked, we can update their refresh token.
@@ -556,7 +547,7 @@ class Store:
             # Check if user exists
             async with db.execute("SELECT 1 FROM users WHERE discord_user_id=?", (str(discord_user_id),)) as cursor:
                 exists = await cursor.fetchone()
-            
+
             if exists:
                 await db.execute(
                     "UPDATE users SET google_sub=? WHERE discord_user_id=?",
@@ -587,27 +578,28 @@ class Store:
             # Upsert User if not exists
             await db.execute(
                 "INSERT INTO users(discord_user_id, created_at, points) VALUES(?, ?, 0) ON CONFLICT(discord_user_id) DO NOTHING",
-                (str(discord_user_id), int(time.time()))
+                (str(discord_user_id), int(time.time())),
             )
 
             # Atomic Add
             await db.execute(
-                "UPDATE users SET points = points + ? WHERE discord_user_id=?",
-                (amount, str(discord_user_id))
+                "UPDATE users SET points = points + ? WHERE discord_user_id=?", (amount, str(discord_user_id))
             )
             await db.commit()
-            
+
             # Fetch new balance
-            async with db.execute("SELECT points FROM users WHERE discord_user_id=?", (str(discord_user_id),)) as cursor:
-                 row = await cursor.fetchone()
-                 return row[0] if row else 0
+            async with db.execute(
+                "SELECT points FROM users WHERE discord_user_id=?", (str(discord_user_id),)
+            ) as cursor:
+                row = await cursor.fetchone()
+                return row[0] if row else 0
 
     async def set_points(self, discord_user_id: int, amount: int) -> None:
         """Set absolute point balance."""
         async with aiosqlite.connect(self._db_path) as db:
             await db.execute(
                 "INSERT INTO users(discord_user_id, created_at, points) VALUES(?, ?, ?) ON CONFLICT(discord_user_id) DO UPDATE SET points=?",
-                (str(discord_user_id), int(time.time()), amount, amount)
+                (str(discord_user_id), int(time.time()), amount, amount),
             )
             await db.commit()
 
@@ -615,11 +607,10 @@ class Store:
         """Get the permission level for a user (user, sub_admin, vc_admin, owner)."""
         async with aiosqlite.connect(self._db_path) as db:
             async with db.execute(
-                "SELECT permission_level FROM users WHERE discord_user_id=?",
-                (str(discord_user_id),)
+                "SELECT permission_level FROM users WHERE discord_user_id=?", (str(discord_user_id),)
             ) as cursor:
                 row = await cursor.fetchone()
-        
+
         if not row or not row[0]:
             return "user"
         return row[0]
@@ -631,7 +622,7 @@ class Store:
             await db.execute(
                 "INSERT INTO users(discord_user_id, created_at, permission_level) VALUES(?, ?, ?) "
                 "ON CONFLICT(discord_user_id) DO UPDATE SET permission_level=?",
-                (str(discord_user_id), int(time.time()), level, level)
+                (str(discord_user_id), int(time.time()), level, level),
             )
             await db.commit()
 
@@ -639,7 +630,9 @@ class Store:
         """Get the rank of a user based on points. Returns (rank, total_users)."""
         async with aiosqlite.connect(self._db_path) as db:
             # 1. Get user's points
-            async with db.execute("SELECT points FROM users WHERE discord_user_id=?", (str(discord_user_id),)) as cursor:
+            async with db.execute(
+                "SELECT points FROM users WHERE discord_user_id=?", (str(discord_user_id),)
+            ) as cursor:
                 row = await cursor.fetchone()
                 if not row:
                     return (0, 0)
@@ -650,7 +643,7 @@ class Store:
             async with db.execute("SELECT COUNT(*) FROM users WHERE points > ?", (my_points,)) as cursor:
                 rank_row = await cursor.fetchone()
                 rank = rank_row[0] + 1
-            
+
             # 3. Total Count (with > 0 points)
             async with db.execute("SELECT COUNT(*) FROM users WHERE points > 0") as cursor:
                 total_row = await cursor.fetchone()
@@ -661,30 +654,33 @@ class Store:
     async def get_or_create_dashboard_token(self, guild_id: int, user_id: int, ttl: int = 31536000) -> str:
         """Get existing valid token or create a new persistent access token (Default 1 year)."""
         import uuid
+
         now = int(time.time())
-        
+
         async with aiosqlite.connect(self._db_path) as db:
             # 1. Try to find existing valid token
-            async with db.execute("SELECT token, expires_at FROM dashboard_tokens WHERE guild_id=?", (str(guild_id),)) as cursor:
+            async with db.execute(
+                "SELECT token, expires_at FROM dashboard_tokens WHERE guild_id=?", (str(guild_id),)
+            ) as cursor:
                 rows = await cursor.fetchall()
-                
+
             # Filter for valid one (and maybe cleanup expired ones)
             valid_token = None
             for r in rows:
                 if r[1] > now:
                     valid_token = r[0]
                     break
-            
+
             if valid_token:
                 return valid_token
 
             # 2. Create New
             token = str(uuid.uuid4())
-            expires = now + ttl # Default 1 year
-            
+            expires = now + ttl  # Default 1 year
+
             await db.execute(
                 "INSERT INTO dashboard_tokens(token, guild_id, created_by, expires_at) VALUES(?, ?, ?, ?)",
-                (token, str(guild_id), str(user_id), expires)
+                (token, str(guild_id), str(user_id), expires),
             )
             await db.commit()
             return token
@@ -693,17 +689,19 @@ class Store:
         """Validate token and return guild_id if valid. Deletes expired tokens."""
         now = int(time.time())
         async with aiosqlite.connect(self._db_path) as db:
-            async with db.execute("SELECT guild_id, expires_at FROM dashboard_tokens WHERE token=?", (token,)) as cursor:
+            async with db.execute(
+                "SELECT guild_id, expires_at FROM dashboard_tokens WHERE token=?", (token,)
+            ) as cursor:
                 row = await cursor.fetchone()
-            
+
             if not row:
                 return None
-            
+
             guild_id, expires_at = row
             if now > expires_at:
                 # Expired
                 await db.execute("DELETE FROM dashboard_tokens WHERE token=?", (token,))
                 await db.commit()
                 return None
-            
+
             return guild_id

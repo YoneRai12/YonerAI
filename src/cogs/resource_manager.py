@@ -15,7 +15,7 @@ class ResourceManager(commands.Cog):
         self.vllm_process = None
         self.is_starting_vllm = False
         self._lock = asyncio.Lock()
-        
+
         # Dynamic Management
         self.last_activity = time.time()
         self.idle_timeout = 300  # 5 minutes
@@ -35,7 +35,7 @@ class ResourceManager(commands.Cog):
 
     async def ensure_vllm_started(self):
         """Checks if vLLM is running. If not, starts it."""
-        self.update_activity() # Reset timer on request
+        self.update_activity()  # Reset timer on request
 
         async with self._lock:
             # 1. Fast Check
@@ -53,7 +53,7 @@ class ResourceManager(commands.Cog):
 
             self.is_starting_vllm = True
             print("[ResourceManager] vLLM Server is DOWN (Idle Mode). Waking up Ministral 14B...")
-            
+
             try:
                 # 4. Launch Service (Ministral 14B - Instruct)
                 # Use 'start' to detach properly on Windows
@@ -68,17 +68,17 @@ class ResourceManager(commands.Cog):
 
                 # 5. Wait for Port
                 print("[ResourceManager] Waiting for vLLM Port 8001...")
-                for i in range(120): # 2 mins max
+                for i in range(120):  # 2 mins max
                     if i % 10 == 0:
                         print(f"[ResourceManager] ... {i}s")
-                    
+
                     if self.is_port_open(self.host, self.vllm_port):
                         print("[ResourceManager] vLLM is READY! Connection established.")
                         self.is_starting_vllm = False
                         return True
-                    
+
                     await asyncio.sleep(1)
-                
+
                 print("[ResourceManager] Timeout: vLLM failed to open port.")
                 self.is_starting_vllm = False
                 return False
@@ -91,18 +91,23 @@ class ResourceManager(commands.Cog):
     async def stop_vllm(self):
         """Stops the vLLM process to save resources."""
         if not self.is_port_open(self.host, self.vllm_port):
-            return # Already stopped
+            return  # Already stopped
 
         print("[ResourceManager] Idle timeout reached. Stopping vLLM (Ministral 14B)...")
         try:
             # 1. Kill the WSL process specifically
-            subprocess.run(["wsl", "-d", "Ubuntu-22.04", "pkill", "-f", "vllm.entrypoints.openai.api_server"], 
-                           creationflags=subprocess.CREATE_NO_WINDOW)
-            
+            subprocess.run(
+                ["wsl", "-d", "Ubuntu-22.04", "pkill", "-f", "vllm.entrypoints.openai.api_server"],
+                creationflags=subprocess.CREATE_NO_WINDOW,
+            )
+
             # 2. Close the CMD window (by title set in batch file)
-            subprocess.run(["taskkill", "/F", "/FI", "WINDOWTITLE eq ORA vLLM Server (INSTRUCT - Default)"], 
-                           creationflags=subprocess.CREATE_NO_WINDOW, check=False)
-            
+            subprocess.run(
+                ["taskkill", "/F", "/FI", "WINDOWTITLE eq ORA vLLM Server (INSTRUCT - Default)"],
+                creationflags=subprocess.CREATE_NO_WINDOW,
+                check=False,
+            )
+
             print("[ResourceManager] vLLM Stopped.")
         except Exception as e:
             print(f"[ResourceManager] Error stopping vLLM: {e}")
@@ -121,6 +126,7 @@ class ResourceManager(commands.Cog):
 
     def cog_unload(self):
         self.idle_monitor.cancel()
+
 
 async def setup(bot):
     await bot.add_cog(ResourceManager(bot))

@@ -66,24 +66,18 @@ class CoreCog(commands.Cog):
 
         latency_ms = self.bot.latency * 1000
         ephemeral = await self._get_privacy(interaction.user.id)
-        await interaction.response.send_message(
-            f"Pong! {latency_ms:.0f}ms", ephemeral=ephemeral
-        )
+        await interaction.response.send_message(f"Pong! {latency_ms:.0f}ms", ephemeral=ephemeral)
 
     @app_commands.command(name="say", description="指定したメッセージを送信します。")
     @app_commands.describe(
         text="送信するメッセージ",
         ephemeral="エフェメラルで返信する場合は true",
     )
-    async def say(
-        self, interaction: discord.Interaction, text: str, ephemeral: bool = False
-    ) -> None:
+    async def say(self, interaction: discord.Interaction, text: str, ephemeral: bool = False) -> None:
         """Send back the provided message if the invoker has administrator permission."""
 
         if not interaction.guild or not isinstance(interaction.user, discord.Member):
-            await interaction.response.send_message(
-                "このコマンドはサーバー内でのみ使用できます。", ephemeral=True
-            )
+            await interaction.response.send_message("このコマンドはサーバー内でのみ使用できます。", ephemeral=True)
             return
 
         # Admin check removed by user request
@@ -147,7 +141,9 @@ class CoreCog(commands.Cog):
         if process_memory:
             lines.append(f"Memory: {process_memory}")
 
-        await interaction.response.send_message("\n".join(lines), ephemeral=await self._get_privacy(interaction.user.id))
+        await interaction.response.send_message(
+            "\n".join(lines), ephemeral=await self._get_privacy(interaction.user.id)
+        )
 
     @app_commands.command(name="help", description="利用可能なコマンド一覧を表示します。")
     @app_commands.allowed_installs(guilds=True, users=True)
@@ -173,7 +169,7 @@ class CoreCog(commands.Cog):
         if not target.avatar:
             await interaction.response.send_message("アイコンが設定されていません。", ephemeral=True)
             return
-        
+
         embed = discord.Embed(title=f"{target.name}のアイコン", color=discord.Color.purple())
         embed.set_image(url=target.avatar.url)
         await interaction.response.send_message(embed=embed)
@@ -186,7 +182,7 @@ class CoreCog(commands.Cog):
         if amount > 100:
             await interaction.response.send_message("一度に削除できるのは100件までです。", ephemeral=True)
             return
-            
+
         await interaction.response.defer(ephemeral=True)
         deleted = await interaction.channel.purge(limit=amount)
         await interaction.followup.send(f"{len(deleted)}件のメッセージを削除しました。", ephemeral=True)
@@ -200,12 +196,15 @@ class CoreCog(commands.Cog):
         if minutes < 1:
             await interaction.response.send_message("1分以上を指定してください。", ephemeral=True)
             return
-            
+
         remind_time = datetime.now() + timedelta(minutes=minutes)
         timestamp = int(remind_time.timestamp())
-        
-        await interaction.response.send_message(f"<t:{timestamp}:R> にリマインドします: 「{message}」", ephemeral=await self._get_privacy(interaction.user.id))
-        
+
+        await interaction.response.send_message(
+            f"<t:{timestamp}:R> にリマインドします: 「{message}」",
+            ephemeral=await self._get_privacy(interaction.user.id),
+        )
+
         # Simple in-memory wait (for now)
         # In production, this should use a DB or persistent scheduler
         await asyncio.sleep(minutes * 60)
@@ -227,7 +226,9 @@ class CoreCog(commands.Cog):
         try:
             # pylint: disable=eval-used
             result = eval(expression, {"__builtins__": None}, {})
-            await interaction.response.send_message(f"{expression} = {result}", ephemeral=await self._get_privacy(interaction.user.id))
+            await interaction.response.send_message(
+                f"{expression} = {result}", ephemeral=await self._get_privacy(interaction.user.id)
+            )
         except Exception:
             await interaction.response.send_message("計算できませんでした。", ephemeral=True)
 
@@ -235,7 +236,9 @@ class CoreCog(commands.Cog):
     @app_commands.describe(sides="面の数 (デフォルト: 6)")
     async def utility_dice(self, interaction: discord.Interaction, sides: int = 6) -> None:
         result = random.randint(1, sides)
-        await interaction.response.send_message(f"🎲 {result} (1-{sides})", ephemeral=await self._get_privacy(interaction.user.id))
+        await interaction.response.send_message(
+            f"🎲 {result} (1-{sides})", ephemeral=await self._get_privacy(interaction.user.id)
+        )
 
     @utility_group.command(name="userinfo", description="ユーザー情報を表示します。")
     @app_commands.describe(user="対象ユーザー")
@@ -247,12 +250,9 @@ class CoreCog(commands.Cog):
         embed.add_field(name="Created At", value=target.created_at.strftime("%Y-%m-%d"), inline=True)
         await interaction.response.send_message(embed=embed, ephemeral=await self._get_privacy(interaction.user.id))
 
-
-
     @app_commands.command(name="debug_logs", description="Retrieve system logs (Admin only).")
     @app_commands.describe(
-        stream="Log stream to retrieve (all, success, error, guild)",
-        lines="Number of lines to retrieve (default: 50)"
+        stream="Log stream to retrieve (all, success, error, guild)", lines="Number of lines to retrieve (default: 50)"
     )
     @app_commands.default_permissions(administrator=True)
     async def debug_logs(self, interaction: discord.Interaction, stream: str = "all", lines: int = 50):
@@ -271,7 +271,7 @@ class CoreCog(commands.Cog):
             log_file = r"L:\ORA_Logs\ora_success.log"
         elif stream == "error":
             log_file = r"L:\ORA_Logs\ora_error.log"
-        else: # default to all
+        else:  # default to all
             log_file = r"L:\ORA_Logs\ora_all.log"
 
         if not os.path.exists(log_file):
@@ -279,13 +279,13 @@ class CoreCog(commands.Cog):
 
         try:
             # Read last N lines efficiently
-            # For large files, reading all lines is bad. 
+            # For large files, reading all lines is bad.
             # Simple tail implementation:
             with open(log_file, "rb") as f:
                 # Seek to end
                 f.seek(0, 2)
                 file_size = f.tell()
-                
+
                 # If file is empty
                 if file_size == 0:
                     return await interaction.followup.send("Log file is empty.")
@@ -294,22 +294,22 @@ class CoreCog(commands.Cog):
                 lines_found = 0
                 block_size = 1024
                 blocks = []
-                
+
                 # Start from end
                 pointer = file_size
-                
+
                 while pointer > 0 and lines_found < lines:
                     read_size = min(block_size, pointer)
                     pointer -= read_size
                     f.seek(pointer)
                     block = f.read(read_size)
                     blocks.append(block)
-                    lines_found += block.count(b'\n')
-                
+                    lines_found += block.count(b"\n")
+
                 # Decode and split
-                text = b"".join(reversed(blocks)).decode('utf-8', errors='ignore')
+                text = b"".join(reversed(blocks)).decode("utf-8", errors="ignore")
                 all_lines = text.splitlines()
-                
+
                 # Get last N lines
                 result_lines = all_lines[-lines:]
                 content = "\n".join(result_lines)
@@ -318,7 +318,8 @@ class CoreCog(commands.Cog):
             if len(content) > 1900:
                 # Create a temporary file object in memory
                 from io import BytesIO
-                file_obj = discord.File(BytesIO(content.encode('utf-8')), filename=f"{stream}_tail.log")
+
+                file_obj = discord.File(BytesIO(content.encode("utf-8")), filename=f"{stream}_tail.log")
                 await interaction.followup.send(f"Log Output ({stream}):", file=file_obj)
             else:
                 await interaction.followup.send(f"Log Output ({stream}):\n```log\n{content}\n```")
@@ -343,7 +344,7 @@ class CoreCog(commands.Cog):
     async def messages(self, interaction: discord.Interaction, count: int = 10) -> None:
         """Fetch recent messages from the current channel."""
         await interaction.response.defer(ephemeral=True)
-        
+
         channel = interaction.channel
         if not hasattr(channel, "history"):
             await interaction.followup.send("このチャンネルではメッセージ履歴を取得できません。", ephemeral=True)
@@ -352,7 +353,7 @@ class CoreCog(commands.Cog):
         amount = max(1, min(50, count))
         try:
             history = [m async for m in channel.history(limit=amount)]
-            history.reverse() # Oldest first
+            history.reverse()  # Oldest first
 
             if not history:
                 content = "メッセージが見つかりませんでした。"
@@ -360,10 +361,7 @@ class CoreCog(commands.Cog):
                 content = _format_messages(history)
 
             embed = discord.Embed(
-                title="📝 最近のメッセージ",
-                description=content,
-                color=discord.Color.blue(),
-                timestamp=datetime.now()
+                title="📝 最近のメッセージ", description=content, color=discord.Color.blue(), timestamp=datetime.now()
             )
             embed.set_footer(text=f"表示: {len(history)}件")
             await interaction.followup.send(embed=embed, ephemeral=True)
@@ -374,33 +372,36 @@ class CoreCog(commands.Cog):
             logger.exception("Failed to fetch messages")
             await interaction.followup.send(f"エラーが発生しました: {e}", ephemeral=True)
 
+
 def _format_messages(messages: list[discord.Message], limit: int = 3900) -> str:
     lines = []
     total_len = 0
-    
+
     for msg in messages:
         snippet = msg.content.replace("\n", " ").strip() if msg.content else ""
         if not snippet:
             extras = []
-            if msg.attachments: extras.append(f"{len(msg.attachments)} attach")
-            if msg.embeds: extras.append(f"{len(msg.embeds)} embeds")
+            if msg.attachments:
+                extras.append(f"{len(msg.attachments)} attach")
+            if msg.embeds:
+                extras.append(f"{len(msg.embeds)} embeds")
             snippet = f"[{', '.join(extras)}]" if extras else "[no content]"
-            
+
         # Sanitize / Truncate
-        snippet = snippet.replace("`", "") # Remove backticks
+        snippet = snippet.replace("`", "")  # Remove backticks
         if len(snippet) > 100:
             snippet = snippet[:97] + "..."
-            
+
         author = msg.author.display_name
         ts = int(msg.created_at.timestamp())
-        
+
         line = f"• <t:{ts}:t> **{author}**: {snippet}"
-        
+
         if total_len + len(line) > limit:
             lines.append("...(truncated)")
             break
-            
+
         lines.append(line)
         total_len += len(line) + 1
-        
+
     return "\n".join(lines)

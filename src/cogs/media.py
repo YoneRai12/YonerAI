@@ -56,7 +56,7 @@ class MediaCog(commands.Cog):
         self._speak_search_default = speak_search_default
         # Register hotword callback for "ORALLM" voice trigger
         self._voice_manager.set_hotword_callback(self._on_hotword)
-        
+
         # Verify commands
         cmds = [c.name for c in self.get_app_commands()]
         logger.info(f"MediaCog Loaded Commands: {cmds}")
@@ -64,20 +64,20 @@ class MediaCog(commands.Cog):
         # Mapping of guild_id -> text_channel_id where auto-read is enabled
         # We now delegate this to VoiceManager to support Hot Reloading.
         # self._voice_manager.auto_read_channels is used directly.
-        
+
         # VC Points Tracking (User ID -> Start Timestamp)
         self.vc_start_times: dict[int, float] = {}
-        
+
         # Dashboard Message Cache (Guild ID -> Message)
         self.dashboard_messages: dict[int, discord.Message] = {}
 
         # Check for Voice Dependencies
         self.check_voice_dependencies()
-        
+
     def cog_load(self):
         """Start background tasks."""
         self.music_dashboard_loop.start()
-        
+
     def cog_unload(self):
         """Stop background tasks."""
         self.music_dashboard_loop.cancel()
@@ -86,35 +86,38 @@ class MediaCog(commands.Cog):
         """Check if Opus and PyNaCl are available."""
         try:
             import nacl
+
             logger.info(f"PyNaCl 検出: {nacl.__version__}")
         except ImportError:
             logger.critical("PyNaCl が見つかりません。ボイス機能は使用できません。")
 
         if not discord.opus.is_loaded():
             import os
+
             try:
                 # Try common Windows filenames with ABSOLUTE paths (Critical for Python 3.8+)
                 # 1. assets/libs/ (New Standard)
-                dll_path = os.path.abspath(os.path.join('assets', 'libs', 'libopus-0.dll'))
-                
-                if not os.path.exists(dll_path):
-                    # 2. Root fallback (Legacy)
-                    dll_path = os.path.abspath('libopus-0.dll')
+                dll_path = os.path.abspath(os.path.join("assets", "libs", "libopus-0.dll"))
 
                 if not os.path.exists(dll_path):
-                     # 3. x64 fallback
-                    dll_path = os.path.abspath('libopus-0.x64.dll')
+                    # 2. Root fallback (Legacy)
+                    dll_path = os.path.abspath("libopus-0.dll")
+
+                if not os.path.exists(dll_path):
+                    # 3. x64 fallback
+                    dll_path = os.path.abspath("libopus-0.x64.dll")
 
                 if not os.path.exists(dll_path):
                     logger.critical("'libopus-0.dll' が assets/libs/ またはルートディレクトリに見つかりません。")
                     return
-                
+
                 discord.opus.load_opus(dll_path)
                 logger.info(f"Opus ライブラリをロードしました: {dll_path}")
             except Exception as e:
-                logger.critical(f"Opus ライブラリが見つかりません。ボイス機能がタイムアウトする可能性があります。 error={e}")
+                logger.critical(
+                    f"Opus ライブラリが見つかりません。ボイス機能がタイムアウトする可能性があります。 error={e}"
+                )
                 logger.critical("'libopus-0.dll' (64-bit) をBotのルートディレクトリに配置してください。")
-
 
     async def _ephemeral_for(self, user: discord.abc.User, override: Optional[bool] = None) -> bool:
         """Return whether responses should be sent ephemerally for a user.
@@ -130,7 +133,9 @@ class MediaCog(commands.Cog):
     # ----- TTS command -----
     @app_commands.command(name="speak", description="テキストをVCで読み上げます。")
     @app_commands.describe(text="読み上げるメッセージ", ephem="エフェメラルに返信するかどうか")
-    async def speak(self, interaction: discord.Interaction, text: str, ephem: Optional[bool] = None, model_type: str = "standard") -> None:
+    async def speak(
+        self, interaction: discord.Interaction, text: str, ephem: Optional[bool] = None, model_type: str = "standard"
+    ) -> None:
         """Read text aloud in the user's current voice channel and send it as a chat message.
 
         If the user is not in a voice channel, the message will be sent without audio.
@@ -150,7 +155,7 @@ class MediaCog(commands.Cog):
         played = await self._voice_manager.play_tts(interaction.user, text, model_type=model_type)
         # Enable auto-read for this guild + channel
         if interaction.guild:
-             self._voice_manager.auto_read_channels[interaction.guild.id] = interaction.channel_id
+            self._voice_manager.auto_read_channels[interaction.guild.id] = interaction.channel_id
         if played:
             await interaction.followup.send(text, ephemeral=send_ephemeral)
         else:
@@ -158,10 +163,10 @@ class MediaCog(commands.Cog):
                 f"読み上げ対象のボイスチャンネルが見つからないため、テキストのみ送信します\n{text}",
                 ephemeral=send_ephemeral,
             )
-    
+
     async def speak_text(self, user: discord.Member | discord.User, text: str) -> bool:
         """Helper method to speak text programmatically (not a command).
-        
+
         Returns True if TTS was played, False otherwise.
         """
         return await self._voice_manager.play_tts(user, text)
@@ -201,7 +206,9 @@ class MediaCog(commands.Cog):
             results = await self._search_client.search(query)
         except Exception as exc:
             logger.exception("検索に失敗しました", exc_info=exc)
-            await interaction.followup.send("検索に失敗しました。設定とAPIキーを確認してください。", ephemeral=send_ephemeral)
+            await interaction.followup.send(
+                "検索に失敗しました。設定とAPIキーを確認してください。", ephemeral=send_ephemeral
+            )
             return
         # Announce end of search if enabled
         if speak_prog:
@@ -210,16 +217,18 @@ class MediaCog(commands.Cog):
         if not results:
             msg = f"検索結果が見つかりませんでした: {query}"
         else:
-            lines = [f"**{i+1}. {title}**\n{url}" for i, (title, url) in enumerate(results)]
+            lines = [f"**{i + 1}. {title}**\n{url}" for i, (title, url) in enumerate(results)]
             msg = "\n".join(lines)
         await interaction.followup.send(msg, ephemeral=send_ephemeral)
 
     @search_group.command(name="notify", description="検索進捗の読み上げ設定を切り替えます。")
     @app_commands.describe(mode="on で読み上げ、off で無効化")
-    @app_commands.choices(mode=[
-        app_commands.Choice(name="on", value="on"),
-        app_commands.Choice(name="off", value="off"),
-    ])
+    @app_commands.choices(
+        mode=[
+            app_commands.Choice(name="on", value="on"),
+            app_commands.Choice(name="off", value="off"),
+        ]
+    )
     async def search_notify(
         self,
         interaction: discord.Interaction,
@@ -327,7 +336,7 @@ class MediaCog(commands.Cog):
         await self._voice_manager.play_tts(member, summary)
         # Send details via DM to the member for privacy
         try:
-            lines = [f"{i+1}. {title}\n{url}" for i, (title, url) in enumerate(results)]
+            lines = [f"{i + 1}. {title}\n{url}" for i, (title, url) in enumerate(results)]
             msg = "\n".join(lines)
             await member.send(msg)
         except Exception:
@@ -393,46 +402,50 @@ class MediaCog(commands.Cog):
         # Play audio
         played = False
         if file_path:
-            played = await self._voice_manager.play_music(interaction.user, file_path, title, is_stream=False, duration=_duration or 0.0)
+            played = await self._voice_manager.play_music(
+                interaction.user, file_path, title, is_stream=False, duration=_duration or 0.0
+            )
         elif stream_url:
-            played = await self._voice_manager.play_music(interaction.user, stream_url, title, is_stream=True, duration=_duration or 0.0)
-            
+            played = await self._voice_manager.play_music(
+                interaction.user, stream_url, title, is_stream=True, duration=_duration or 0.0
+            )
+
         # Build response message
         if played:
             state = self._voice_manager.get_music_state(interaction.guild.id)
-            
+
             # --- MUSIC DASHBOARD INTEGRATION ---
             from ..views.music_dashboard import MusicPlayerView, create_music_embed
-            
+
             # Create View
             view = MusicPlayerView(self, interaction.guild.id)
-            
+
             # Create Initial Embed
             # We need track_info. VoiceManager sets this in `current`.
             # We'll fetch the fresh state.
             # state is GuildMusicState object
-            
+
             track_info = {"title": title, "url": query if "http" in query else ""}
-            queue_preview = [{"title": t[1]} for t in state.queue] # Convert tuples to dicts
-            
+            queue_preview = [{"title": t[1]} for t in state.queue]  # Convert tuples to dicts
+
             dashboard_embed = create_music_embed(
                 track_info=track_info,
-                status="Playing" if not state.queue else "Queued", 
+                status="Playing" if not state.queue else "Queued",
                 play_time_sec=0,
-                total_duration_sec=_duration or 0.0, 
+                total_duration_sec=_duration or 0.0,
                 queue_preview=queue_preview,
                 speed=state.speed,
-                pitch=state.pitch
+                pitch=state.pitch,
             )
-            
+
             await interaction.followup.send(embed=dashboard_embed, view=view, ephemeral=send_ephemeral)
-            
+
             # Store message for updates
             msg = await interaction.original_response()
             if not hasattr(self, "dashboard_messages"):
                 self.dashboard_messages = {}
             self.dashboard_messages[interaction.guild.id] = msg
-            
+
             # -----------------------------------
         else:
             msg = f"{title} を再生できませんでした。ボイスチャンネルに参加しているか確認してください。"
@@ -440,40 +453,43 @@ class MediaCog(commands.Cog):
 
     async def update_music_dashboard(self, guild_id: int):
         """Refreshes the music dashboard message for a guild."""
-        if not hasattr(self, "dashboard_messages"): return
+        if not hasattr(self, "dashboard_messages"):
+            return
         msg = self.dashboard_messages.get(guild_id)
-        if not msg: return
-        
+        if not msg:
+            return
+
         try:
             from ..views.music_dashboard import MusicPlayerView, create_music_embed
-            
+
             state = self._voice_manager.get_queue_info(guild_id)
-            
+
             # If nothing playing and queue empty, maybe remove dashboard?
             # Or just show "Stopped"
-            
+
             # Calculate progress
             import time
+
             current_start = state.get("current_start_time", 0)
             play_time = 0
             if current_start > 0:
                 play_time = time.time() - current_start
-            
+
             embed = create_music_embed(
                 track_info={"title": state["current"] or "None"},
                 status="Playing" if state["current"] else "Stopped",
                 play_time_sec=play_time,
-                total_duration_sec=state.get("current_duration", 0), 
+                total_duration_sec=state.get("current_duration", 0),
                 queue_preview=state.get("queue", []),
                 speed=state.get("speed", 1.0),
-                pitch=state.get("pitch", 1.0)
+                pitch=state.get("pitch", 1.0),
             )
-            
+
             await msg.edit(embed=embed, view=MusicPlayerView(self, guild_id))
         except Exception as e:
-            # logger.error(f"Failed to update music dashboard: {e}") 
+            # logger.error(f"Failed to update music dashboard: {e}")
             # Log verbose only if needed
-            
+
             # If message deleted, remove from cache
             if isinstance(e, discord.NotFound):
                 del self.dashboard_messages[guild_id]
@@ -481,8 +497,9 @@ class MediaCog(commands.Cog):
     @tasks.loop(seconds=3.0)
     async def music_dashboard_loop(self):
         """Periodically update active music dashboards to animate progress bar."""
-        if not hasattr(self, "dashboard_messages"): return
-        
+        if not hasattr(self, "dashboard_messages"):
+            return
+
         # Iterate copy of keys
         for guild_id in list(self.dashboard_messages.keys()):
             # Only update if playing
@@ -496,30 +513,34 @@ class MediaCog(commands.Cog):
         if not state["current"] and not state["queue"]:
             await interaction.response.send_message("現在再生中の曲はありません。", ephemeral=True)
             return
-            
+
         msg = f"**現在再生中:** {state['current']}\n"
         msg += f"**ループ:** {'ON' if state['is_looping'] else 'OFF'}\n"
         msg += f"**音量:** {int(state['volume'] * 100)}%\n\n"
-        
+
         if state["queue"]:
             msg += "**キュー:**\n"
             for i, title in enumerate(state["queue"], 1):
                 msg += f"{i}. {title}\n"
         else:
             msg += "キューは空です。"
-            
+
         await interaction.response.send_message(msg, ephemeral=True)
 
     @app_commands.command(name="loop", description="ループ再生を切り替えます。")
     @app_commands.describe(mode="ON/OFF")
-    @app_commands.choices(mode=[
-        app_commands.Choice(name="ON", value="on"),
-        app_commands.Choice(name="OFF", value="off"),
-    ])
+    @app_commands.choices(
+        mode=[
+            app_commands.Choice(name="ON", value="on"),
+            app_commands.Choice(name="OFF", value="off"),
+        ]
+    )
     async def loop(self, interaction: discord.Interaction, mode: str):
-        enabled = (mode == "on")
+        enabled = mode == "on"
         self._voice_manager.set_loop(interaction.guild.id, enabled)
-        await interaction.response.send_message(f"ループ再生を {'ON' if enabled else 'OFF'} にしました。", ephemeral=True)
+        await interaction.response.send_message(
+            f"ループ再生を {'ON' if enabled else 'OFF'} にしました。", ephemeral=True
+        )
 
     @app_commands.command(name="skip", description="現在の曲をスキップします。")
     async def skip(self, interaction: discord.Interaction):
@@ -532,7 +553,7 @@ class MediaCog(commands.Cog):
     async def set_server_voice(self, interaction: discord.Interaction, voice_name: str):
         """Set the default VoiceVox speaker for the guild."""
         await interaction.response.defer(ephemeral=True)
-        
+
         # Search for speaker
         speaker = await self._voice_manager.search_speaker(voice_name)
         if not speaker:
@@ -542,11 +563,11 @@ class MediaCog(commands.Cog):
         # Set Guild Speaker
         # VoiceManager handles persistence
         self._voice_manager.set_guild_speaker(interaction.guild.id, speaker["id"])
-        
+
         await interaction.followup.send(
             f"✅ このサーバーのデフォルト音声を **{speaker['name']}** に設定しました。\n"
             f"(ユーザー個別の設定がある場合は、そちらが優先されます)",
-            ephemeral=False 
+            ephemeral=False,
         )
 
     @app_commands.command(name="list_voices", description="利用可能な音声リストを表示します。")
@@ -554,15 +575,17 @@ class MediaCog(commands.Cog):
         """List available VoiceVox speakers."""
         await interaction.response.defer(ephemeral=True)
         speakers = await self._voice_manager.get_speakers()
-        
+
         if not speakers:
-             await interaction.followup.send("❌ 音声リストを取得できませんでした (VoiceVoxが起動していない可能性があります)", ephemeral=True)
-             return
+            await interaction.followup.send(
+                "❌ 音声リストを取得できませんでした (VoiceVoxが起動していない可能性があります)", ephemeral=True
+            )
+            return
 
         # Simple Text List (Truncated if too long)
         msg = "**利用可能な音声リスト:**\n"
         names = [s["name"] for s in speakers]
-        
+
         # Chunking to avoid 2000 char limit
         chunks = []
         current_chunk = ""
@@ -573,7 +596,7 @@ class MediaCog(commands.Cog):
             current_chunk += f"- {name}\n"
         if current_chunk:
             chunks.append(current_chunk)
-            
+
         for chunk in chunks:
             await interaction.followup.send(chunk, ephemeral=True)
 
@@ -582,7 +605,7 @@ class MediaCog(commands.Cog):
     async def set_voice(self, interaction: discord.Interaction, voice_name: str):
         """Set the preferred VoiceVox speaker for the user."""
         await interaction.response.defer(ephemeral=True)
-        
+
         # Search for speaker
         speaker = await self._voice_manager.search_speaker(voice_name)
         if not speaker:
@@ -591,12 +614,13 @@ class MediaCog(commands.Cog):
 
         # Set User Speaker
         self._voice_manager.set_user_speaker(interaction.user.id, speaker["id"])
-        
+
         await interaction.followup.send(
             f"✅ あなたの読み上げ音声を **{speaker['name']}** に設定しました。\n"
             f"(この設定はサーバー設定より優先されます)",
-            ephemeral=True
+            ephemeral=True,
         )
+
     @app_commands.command(name="stop", description="再生を停止し、キューをクリアします。")
     async def stop(self, interaction: discord.Interaction):
         self._voice_manager.stop_music(interaction.guild.id)
@@ -609,15 +633,17 @@ class MediaCog(commands.Cog):
         # Validate
         speed = max(0.5, min(2.0, speed))
         pitch = max(0.5, min(2.0, pitch))
-        
+
         self._voice_manager.set_speed_pitch(interaction.guild.id, speed, pitch)
-        await interaction.followup.send(f"🎵 再生設定を変更しました: Speed={speed}, Pitch={pitch} (再生をリセットしました)")
+        await interaction.followup.send(
+            f"🎵 再生設定を変更しました: Speed={speed}, Pitch={pitch} (再生をリセットしました)"
+        )
 
     @app_commands.command(name="seek", description="再生位置を変更します (例: 1:30, 90)")
     @app_commands.describe(timestamp="時間 (MM:SS または 秒数)")
     async def seek(self, interaction: discord.Interaction, timestamp: str):
         await interaction.response.defer(ephemeral=True)
-        
+
         seconds = self._parse_timestamp(timestamp)
         if seconds is None:
             await interaction.followup.send("時間の形式が正しくありません (例: 1:30, 90)", ephemeral=True)
@@ -630,8 +656,8 @@ class MediaCog(commands.Cog):
         """Helper for AI to play music directly via Context."""
         # Ensure Voice
         if not ctx.author.voice:
-             await ctx.send("❌ ボイスチャンネルに参加してからリクエストしてください。")
-             return
+            await ctx.send("❌ ボイスチャンネルに参加してからリクエストしてください。")
+            return
 
         # 1. Resolve URL
         stream_url, title, duration_sec = await get_youtube_audio_stream_url(query)
@@ -640,56 +666,59 @@ class MediaCog(commands.Cog):
             return
 
         # 2. Play (Await once!)
-        played = await self._voice_manager.play_music(ctx.author, stream_url, title, is_stream=True, duration=duration_sec or 0.0)
-        
+        played = await self._voice_manager.play_music(
+            ctx.author, stream_url, title, is_stream=True, duration=duration_sec or 0.0
+        )
+
         if played:
-             # --- MUSIC DASHBOARD INTEGRATION ---
-             if ctx.guild:
-                 guild_id = ctx.guild.id
-                 # Check if dashboard exists
-                 if hasattr(self, "dashboard_messages") and self.dashboard_messages.get(guild_id):
-                     # Just update
-                     try:
-                         await self.update_music_dashboard(guild_id)
-                     except:
-                         # If update fails (e.g. deleted), recreate
-                         pass
-                 
-                 # Create New Dashboard if needed (or if update failed/didn't exist)
-                 # Re-check existence to be sure
-                 if not hasattr(self, "dashboard_messages") or not self.dashboard_messages.get(guild_id):
-                     try:
-                         from ..views.music_dashboard import MusicPlayerView, create_music_embed
-                         state = self._voice_manager.get_music_state(guild_id)
-                         
-                         track_info = {"title": title, "url": query if "http" in query else ""}
-                         queue_preview = [{"title": t[1]} for t in state.queue]
-                         
-                         dashboard_embed = create_music_embed(
-                             track_info=track_info,
-                             status="Playing" if not state.queue else "Queued",
-                             play_time_sec=0,
-                             total_duration_sec=duration_sec or 0.0,
-                             queue_preview=queue_preview,
-                             speed=state.speed,
-                             pitch=state.pitch
-                         )
-                         
-                         view = MusicPlayerView(self, guild_id)
-                         msg = await ctx.send(embed=dashboard_embed, view=view)
-                         
-                         if not hasattr(self, "dashboard_messages"):
-                             self.dashboard_messages = {}
-                         self.dashboard_messages[guild_id] = msg
-                     except Exception as e:
-                         logger.error(f"Failed to create dashboard in play_from_ai: {e}")
-                         # Fallback to text if dashboard fails
-                         await ctx.send(f"🎵 再生を開始します: **{title}**")
-                 else:
-                     # Dashboard already exists and updated, no text needed.
-                     pass
+            # --- MUSIC DASHBOARD INTEGRATION ---
+            if ctx.guild:
+                guild_id = ctx.guild.id
+                # Check if dashboard exists
+                if hasattr(self, "dashboard_messages") and self.dashboard_messages.get(guild_id):
+                    # Just update
+                    try:
+                        await self.update_music_dashboard(guild_id)
+                    except:
+                        # If update fails (e.g. deleted), recreate
+                        pass
+
+                # Create New Dashboard if needed (or if update failed/didn't exist)
+                # Re-check existence to be sure
+                if not hasattr(self, "dashboard_messages") or not self.dashboard_messages.get(guild_id):
+                    try:
+                        from ..views.music_dashboard import MusicPlayerView, create_music_embed
+
+                        state = self._voice_manager.get_music_state(guild_id)
+
+                        track_info = {"title": title, "url": query if "http" in query else ""}
+                        queue_preview = [{"title": t[1]} for t in state.queue]
+
+                        dashboard_embed = create_music_embed(
+                            track_info=track_info,
+                            status="Playing" if not state.queue else "Queued",
+                            play_time_sec=0,
+                            total_duration_sec=duration_sec or 0.0,
+                            queue_preview=queue_preview,
+                            speed=state.speed,
+                            pitch=state.pitch,
+                        )
+
+                        view = MusicPlayerView(self, guild_id)
+                        msg = await ctx.send(embed=dashboard_embed, view=view)
+
+                        if not hasattr(self, "dashboard_messages"):
+                            self.dashboard_messages = {}
+                        self.dashboard_messages[guild_id] = msg
+                    except Exception as e:
+                        logger.error(f"Failed to create dashboard in play_from_ai: {e}")
+                        # Fallback to text if dashboard fails
+                        await ctx.send(f"🎵 再生を開始します: **{title}**")
+                else:
+                    # Dashboard already exists and updated, no text needed.
+                    pass
         else:
-             await ctx.send("❌ 再生エラー: VoiceClientへの接続に失敗しました。")
+            await ctx.send("❌ 再生エラー: VoiceClientへの接続に失敗しました。")
 
     async def control_from_ai(self, ctx: commands.Context, action: str) -> None:
         """Helper for AI to control music (stop/skip/loop)."""
@@ -708,7 +737,7 @@ class MediaCog(commands.Cog):
             await ctx.send("➡️ ループ再生を解除しました。")
         else:
             await ctx.send(f"⚠️ Unknown music action: {action}")
-        
+
         if ctx.guild:
             await self.update_music_dashboard(ctx.guild.id)
 
@@ -816,6 +845,7 @@ class MediaCog(commands.Cog):
         # Ensure voice client exists
         try:
             from ..utils.voice_manager import VoiceConnectionError
+
             voice_client = await self._voice_manager.ensure_voice_client(interaction.user)
         except VoiceConnectionError as e:
             await interaction.followup.send(
@@ -830,7 +860,7 @@ class MediaCog(commands.Cog):
             return
         self._voice_manager.auto_read_channels[guild_id] = interaction.channel.id
         await interaction.followup.send("メッセージの自動読み上げを開始しました。", ephemeral=send_ephemeral)
-        
+
         # Announce connection via TTS
         await self._voice_manager.play_tts(interaction.user, "接続しました")
 
@@ -877,7 +907,7 @@ class MediaCog(commands.Cog):
         # 1. Check for Bot Mention
         if self.bot.user in message.mentions:
             return
-            
+
         # 2. Check for Text Triggers (@ORA, @ROA)
         content = message.content.strip()
         triggers = ["@ORA", "@ROA", "＠ORA", "＠ROA", "@ora", "@roa"]
@@ -887,14 +917,14 @@ class MediaCog(commands.Cog):
         if guild is None:
             return
         channel_id = self._voice_manager.auto_read_channels.get(guild.id)
-        
+
         # Logic: Read if (Mapped Channel) OR (User in same Voice Channel)
         should_read = False
-        
+
         # 1. Check strict mapping
         if channel_id and channel_id == message.channel.id:
             should_read = True
-            
+
         # 2. Check Co-location (Removed by User Request)
         # Users want strict separation. Only read from the channel where usage was started.
         # if not should_read and message.author.voice and message.author.voice.channel:
@@ -904,7 +934,7 @@ class MediaCog(commands.Cog):
 
         if not should_read:
             return
-        
+
         logger.info(f"読み上げ: {message.clean_content}")
         # Play the message content via TTS
         try:
@@ -912,81 +942,99 @@ class MediaCog(commands.Cog):
             if not played:
                 # If it failed (e.g. empty text or VOICEVOX error), notify in chat
                 # But only if it's not just empty text (which returns False early)
-                # We can't easily distinguish here without changing return type, 
-                # but for now let's just log. 
+                # We can't easily distinguish here without changing return type,
+                # but for now let's just log.
                 # Actually, let's send a small reaction or message if it was a VOICEVOX error.
                 # Since play_tts catches exceptions and returns False, we can assume failure.
                 # However, we don't want to spam for empty messages.
                 if message.content and message.content.strip():
-                     await message.add_reaction("⚠️")
+                    await message.add_reaction("⚠️")
         except Exception:
             logger.exception("自動読み上げに失敗しました")
 
     @commands.Cog.listener()
     async def on_voice_state_update(
-        self, 
-        member: discord.Member, 
-        before: discord.VoiceState, 
-        after: discord.VoiceState
+        self, member: discord.Member, before: discord.VoiceState, after: discord.VoiceState
     ) -> None:
         """Handle VC join/leave announcements and auto-disconnect."""
         # Ignore bots (except for disconnect logic which counts bots)
         # But we don't want to announce bots joining
-        
+
         # 1. Join/Leave Announcement Logic
         if not member.bot:
-             bot_vc = member.guild.voice_client
-             if bot_vc and bot_vc.is_connected():
-                 # Valid bot connection
-                 bot_channel = bot_vc.channel
-                 
-                 # User Joined Bot's Channel
-                 if after.channel and after.channel.id == bot_channel.id and (not before.channel or before.channel.id != bot_channel.id):
-                      import hashlib
-                      name_hash = hashlib.md5(member.display_name.encode('utf-8')).hexdigest()[:8]
-                      cache_key = f"join_{member.id}_{name_hash}"
-                      await self._voice_manager.play_tts(member, f"{member.display_name}さんが参加しました", cache_key=cache_key, msg_type="system_join_leave")
+            bot_vc = member.guild.voice_client
+            if bot_vc and bot_vc.is_connected():
+                # Valid bot connection
+                bot_channel = bot_vc.channel
 
-                 # User Left Bot's Channel
-                 elif before.channel and before.channel.id == bot_channel.id and (not after.channel or after.channel.id != bot_channel.id):
-                      import hashlib
-                      name_hash = hashlib.md5(member.display_name.encode('utf-8')).hexdigest()[:8]
-                      cache_key = f"leave_{member.id}_{name_hash}"
-                      await self._voice_manager.play_tts(member, f"{member.display_name}さんが退出しました", cache_key=cache_key, msg_type="system_join_leave")
+                # User Joined Bot's Channel
+                if (
+                    after.channel
+                    and after.channel.id == bot_channel.id
+                    and (not before.channel or before.channel.id != bot_channel.id)
+                ):
+                    import hashlib
+
+                    name_hash = hashlib.md5(member.display_name.encode("utf-8")).hexdigest()[:8]
+                    cache_key = f"join_{member.id}_{name_hash}"
+                    await self._voice_manager.play_tts(
+                        member,
+                        f"{member.display_name}さんが参加しました",
+                        cache_key=cache_key,
+                        msg_type="system_join_leave",
+                    )
+
+                # User Left Bot's Channel
+                elif (
+                    before.channel
+                    and before.channel.id == bot_channel.id
+                    and (not after.channel or after.channel.id != bot_channel.id)
+                ):
+                    import hashlib
+
+                    name_hash = hashlib.md5(member.display_name.encode("utf-8")).hexdigest()[:8]
+                    cache_key = f"leave_{member.id}_{name_hash}"
+                    await self._voice_manager.play_tts(
+                        member,
+                        f"{member.display_name}さんが退出しました",
+                        cache_key=cache_key,
+                        msg_type="system_join_leave",
+                    )
 
         # 3. VC Points Logic
         import time
+
         # Join Event (or Switch to new channel)
         if after.channel is not None and (before.channel is None or before.channel.id != after.channel.id):
             if not member.bot:
-                 self.vc_start_times[member.id] = time.time()
-        
+                self.vc_start_times[member.id] = time.time()
+
         # Leave Event (or Switch away from channel)
         if before.channel is not None and (after.channel is None or after.channel.id != before.channel.id):
-             if not member.bot and member.id in self.vc_start_times:
-                 start_time = self.vc_start_times.pop(member.id)
-                 duration = time.time() - start_time
-                 minutes = int(duration / 60)
-                 if minutes > 0:
-                     await self._store.add_points(member.id, minutes)
-                     logger.info(f"{member.display_name} にVC参加ボーナス {minutes} ポイントを付与しました。")
+            if not member.bot and member.id in self.vc_start_times:
+                start_time = self.vc_start_times.pop(member.id)
+                duration = time.time() - start_time
+                minutes = int(duration / 60)
+                if minutes > 0:
+                    await self._store.add_points(member.id, minutes)
+                    logger.info(f"{member.display_name} にVC参加ボーナス {minutes} ポイントを付与しました。")
 
         # 2. Auto-Disconnect Logic (existing)
         # Only care about users leaving a channel
         if before.channel is None:
             return
-        
+
         # Check if the bot is in the channel that the user left
         if member.guild.voice_client is None:
             return
-        
+
         bot_channel = member.guild.voice_client.channel
         if before.channel.id != bot_channel.id:
             return
-        
+
         # Count non-bot members in the channel
         non_bot_members = [m for m in bot_channel.members if not m.bot]
-        
+
         # If only bots are left (or the channel is empty), disconnect
         if len(non_bot_members) == 0:
             logger.info(f"無人になったため {bot_channel.name} から自動切断します")
@@ -1014,7 +1062,7 @@ class MediaCog(commands.Cog):
         channel = self.bot.get_channel(payload.channel_id)
         if not channel:
             return
-        
+
         try:
             message = await channel.fetch_message(payload.message_id)
         except discord.NotFound:
@@ -1027,7 +1075,7 @@ class MediaCog(commands.Cog):
 
         # Translate using LLM
         logger.info(f"メッセージ {message.id} を {country_name} に翻訳中 (国旗: {emoji})")
-        
+
         prompt = (
             f"Translate the following text to the primary language spoken in {country_name}.\n"
             f"Output ONLY the translated text. Do not add any explanations or notes.\n"
@@ -1058,8 +1106,8 @@ class MediaCog(commands.Cog):
         """Play music requested by AI."""
         # Ensure voice client
         if ctx.author.voice:
-             await self._voice_manager.ensure_voice_client(ctx.author)
-        
+            await self._voice_manager.ensure_voice_client(ctx.author)
+
         # Use existing ytplay logic but simplified
         # We assume 'stream' mode for speed
         stream_url, title, _duration = await get_youtube_audio_stream_url(query)
@@ -1073,28 +1121,28 @@ class MediaCog(commands.Cog):
                 # Dashboard Integration
                 guild_id = ctx.guild.id
                 state = self._voice_manager.get_music_state(guild_id)
-                
+
                 # Create View and Embed
                 # Correct Usage: No await, correct args, only Embed return
                 track_info = {"title": title, "url": query if "http" in query else ""}
                 queue_preview = [{"title": t[1]} for t in state.queue]
-                
+
                 embed = create_music_embed(
                     track_info=track_info,
-                    status="Playing", # Assumed valid since logic falls through here
+                    status="Playing",  # Assumed valid since logic falls through here
                     play_time_sec=0,
                     total_duration_sec=_duration if _duration else 0,
                     queue_preview=queue_preview,
                     speed=state.speed,
-                    pitch=state.pitch
+                    pitch=state.pitch,
                 )
-                
+
                 view = MusicPlayerView(self, guild_id)
-                
+
                 # Clean up old dashboard if exists
                 if not hasattr(self, "dashboard_messages"):
                     self.dashboard_messages = {}
-                    
+
                 if guild_id in self.dashboard_messages:
                     try:
                         old_msg = self.dashboard_messages[guild_id]
@@ -1102,11 +1150,11 @@ class MediaCog(commands.Cog):
                             await old_msg.delete()
                     except:
                         pass
-                
+
                 # Send New Dashboard
                 msg = await ctx.send(embed=embed, view=view)
                 self.dashboard_messages[guild_id] = msg
-            
+
             except Exception as e:
                 logger.error(f"Failed to show dashboard in play_from_ai: {e}")
                 await ctx.send(f"再生を開始します: {title}")
@@ -1138,7 +1186,7 @@ class MediaCog(commands.Cog):
                 return
             msg = f"**現在再生中:** {state['current']}\n"
             if state["queue"]:
-                msg += "**キュー:**\n" + "\n".join([f"{i+1}. {t}" for i, t in enumerate(state["queue"], 1)])
+                msg += "**キュー:**\n" + "\n".join([f"{i + 1}. {t}" for i, t in enumerate(state["queue"], 1)])
             await ctx.send(msg)
         elif action == "replay_last":
             success = self._voice_manager.replay_previous(guild_id)
@@ -1162,6 +1210,7 @@ class MediaCog(commands.Cog):
 
     async def _auto_disconnect_worker(self, guild_id: int, voice_client, *, idle_seconds: int):
         import asyncio
+
         try:
             idle = 0
             empty_timer = 0
@@ -1178,26 +1227,26 @@ class MediaCog(commands.Cog):
                     non_bots = [m for m in channel.members if not m.bot]
                     if len(non_bots) == 0:
                         empty_timer += 1
-                        if empty_timer >= 10: # 10 seconds grace period
+                        if empty_timer >= 10:  # 10 seconds grace period
                             logger.info(f"Auto-disconnecting from guild {guild_id} - Channel empty (Poller protection)")
                             await vc.disconnect()
                             self._voice_manager.auto_read_channels.pop(guild_id, None)
                             return
                     else:
-                        empty_timer = 0 # Reset if someone joins
-                
+                        empty_timer = 0  # Reset if someone joins
+
                 playing = vc.is_playing()
                 paused = vc.is_paused()
-                
+
                 # Check queue state via voice manager
                 state = self._voice_manager.get_music_state(guild_id)
                 queue_empty = len(state.queue) == 0
                 looping = state.is_looping
-                
+
                 if playing or paused or looping or (not queue_empty):
                     idle = 0
                     continue
-                
+
                 # Check if Auto-Read (TTS) is active. If so, do not disconnect.
                 if guild_id in self._voice_manager.auto_read_channels:
                     idle = 0
@@ -1216,6 +1265,7 @@ class MediaCog(commands.Cog):
         except Exception:
             logger.exception("auto_disconnect_worker crashed", extra={"guild_id": guild_id})
             return
+
 
 async def setup(bot: commands.Bot) -> None:
     """Load the MediaCog extension."""

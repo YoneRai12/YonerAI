@@ -8,9 +8,11 @@ from src.web import endpoints
 
 store: Store | None = None
 
+
 def get_store() -> Store:
     assert store is not None, "Store is not initialized"
     return store
+
 
 app = FastAPI(
     title="ORA Web API",
@@ -40,6 +42,6 @@ async def on_startup() -> None:
 @app.on_event("shutdown")
 async def on_shutdown() -> None:
     global store
-    # Store might not need explicit disconnect if using aiofiles/sqlite3 directly per request, 
+    # Store might not need explicit disconnect if using aiofiles/sqlite3 directly per request,
     # but good to have the hook.
     store = None

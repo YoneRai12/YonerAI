@@ -27,6 +27,7 @@ from .tts_client import VoiceVoxClient
 
 class VoiceConnectionError(Exception):
     """Raised when the bot fails to connect to a voice channel."""
+
     pass
 
 
@@ -74,7 +75,7 @@ class HotwordListener:
             #         wf.setsampwidth(2)
             #         wf.setframerate(48000)
             #         wf.writeframes(pcm)
-                
+
             #     transcript = await self._stt.transcribe_pcm(pcm)
             # except Exception:
             #     logger.exception("音声認識に失敗しました")
@@ -99,7 +100,14 @@ class HotwordListener:
 
 
 class MixingAudioSource(discord.AudioSource):
-    def __init__(self, main_source: discord.AudioSource, overlay_source: discord.AudioSource, target_volume: float = 0.2, fade_duration: float = 0.5, on_finish: Optional[Callable[[], None]] = None) -> None:
+    def __init__(
+        self,
+        main_source: discord.AudioSource,
+        overlay_source: discord.AudioSource,
+        target_volume: float = 0.2,
+        fade_duration: float = 0.5,
+        on_finish: Optional[Callable[[], None]] = None,
+    ) -> None:
         self.main = main_source
         self.overlay = overlay_source
         self.target_volume = target_volume
@@ -150,7 +158,7 @@ class MixingAudioSource(discord.AudioSource):
             if self.current_volume < 1.0:
                 self.current_volume = min(1.0, self.current_volume + self.volume_step)
             else:
-                self.fading_in = False # Done fading in
+                self.fading_in = False  # Done fading in
 
         # Apply Volume to Main
         if main_data:
@@ -169,7 +177,7 @@ class MixingAudioSource(discord.AudioSource):
                     # audioop.add requires same length
                     len_main = len(main_adjusted)
                     len_overlay = len(overlay_data)
-                    
+
                     if len_main == len_overlay:
                         return audioop.add(main_adjusted, overlay_data, 2)
                     elif len_main > len_overlay:
@@ -185,7 +193,7 @@ class MixingAudioSource(discord.AudioSource):
                     return main_adjusted
             else:
                 return overlay_data
-        
+
         return main_adjusted
 
     def cleanup(self) -> None:
@@ -198,21 +206,21 @@ class GuildMusicState:
         self.queue = []  # List of (url_or_path, title, is_stream, duration)
         self.is_looping = False
         self.current = None  # (url_or_path, title, is_stream, duration)
-        self.current_start_time = 0.0 # Unix timestamp
-        self.current_track_duration = 0.0 # Saved duration for current track
-        self.volume = 0.15 # Default volume boosted from 0.06
+        self.current_start_time = 0.0  # Unix timestamp
+        self.current_track_duration = 0.0  # Saved duration for current track
+        self.volume = 0.15  # Default volume boosted from 0.06
         self.voice_client: Optional[discord.VoiceClient] = None
-        self.history = [] # List of (url_or_path, title, is_stream)
-        self.tts_volume = 1.0 # Default TTS volume (100%)
+        self.history = []  # List of (url_or_path, title, is_stream)
+        self.tts_volume = 1.0  # Default TTS volume (100%)
         # TTS Queue
-        self.tts_queue = [] # List of (member, text, speed, model_type, cache_key, msg_type)
+        self.tts_queue = []  # List of (member, text, speed, model_type, cache_key, msg_type)
         self.tts_processing = False
         self.speed = 1.0
         self.pitch = 1.0
         self.start_offset = 0.0
-        self.current_tts_type: str = "chat" # Track current playback type for Anti-Spam
+        self.current_tts_type: str = "chat"  # Track current playback type for Anti-Spam
 
-# ... (VoiceManager methods) ...
+    # ... (VoiceManager methods) ...
 
     def _play_next(self, guild_id: int):
         state = self.get_music_state(guild_id)
@@ -233,9 +241,9 @@ class GuildMusicState:
             # Save current to history before switching
             if state.current:
                 state.history.insert(0, state.current)
-                if len(state.history) > 20: # Limit history
+                if len(state.history) > 20:  # Limit history
                     state.history.pop()
-            
+
             # Get next from queue
             url_or_path, title, is_stream, duration = state.queue.pop(0)
             state.current = (url_or_path, title, is_stream, duration)
@@ -244,7 +252,7 @@ class GuildMusicState:
             # Queue empty
             if state.current:
                 state.history.insert(0, state.current)
-                if len(state.history) > 20: 
+                if len(state.history) > 20:
                     state.history.pop()
             state.current = None
             state.current_start_time = 0.0
@@ -254,16 +262,16 @@ class GuildMusicState:
         try:
             # FFmpeg Filters Calculation
             filters = []
-            
+
             # 1. Speed (atempo)
             # FFmpeg `atempo` is limited to 0.5 - 2.0 per instance. Chain them for larger values.
             # We will cap it for safety between 0.5 and 2.0 for now, or implement chaining if needed.
             # actually we can chain: "atempo=2.0,atempo=1.5"
             current_speed = state.speed
             if abs(current_speed - 1.0) > 0.01:
-                 # Limitation hack: just support 0.5-2.0 for now to keep code simple
-                 current_speed = max(0.5, min(2.0, current_speed))
-                 filters.append(f"atempo={current_speed}")
+                # Limitation hack: just support 0.5-2.0 for now to keep code simple
+                current_speed = max(0.5, min(2.0, current_speed))
+                filters.append(f"atempo={current_speed}")
 
             # 2. Pitch (asetrate)
             if state.pitch != 1.0:
@@ -274,53 +282,53 @@ class GuildMusicState:
                 # final_speed = speed
                 # pitch_speed_change = pitch
                 # required_tempo_change = speed / pitch
-                
+
                 # Filters
                 filters.append("aresample=48000")
                 filters.append(f"asetrate={48000 * state.pitch}")
                 filters.append("aresample=48000")
-                
+
                 # Adjust tempo compensation
                 tempo_comp = state.speed / state.pitch
                 if abs(tempo_comp - 1.0) > 0.01:
                     filters.append(f"atempo={tempo_comp}")
-            
-            ffmpeg_opts = {
-                "before_options": "",
-                "options": "-vn"
-            }
-            
+
+            ffmpeg_opts = {"before_options": "", "options": "-vn"}
+
             if is_stream:
                 ffmpeg_opts["before_options"] += " -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5"
-            
+
             # Apply filters
             if filters:
-                 ffmpeg_opts["options"] += f' -filter:a "{",".join(filters)}"'
-            
+                ffmpeg_opts["options"] += f' -filter:a "{",".join(filters)}"'
+
             # Apply Seek / Start Offset
             if state.start_offset > 0:
                 ffmpeg_opts["before_options"] += f" -ss {state.start_offset}"
                 state.current_start_time = time.time() - state.start_offset
-                state.start_offset = 0.0 # Reset
+                state.start_offset = 0.0  # Reset
             else:
                 state.current_start_time = time.time()
-                
+
             source = discord.FFmpegPCMAudio(url_or_path, **ffmpeg_opts)
-            
+
             if not is_stream:
                 # Cleanup local file after playback
                 original_cleanup = source.cleanup
+
                 def cleanup():
                     original_cleanup()
                     if os.path.exists(url_or_path):
                         try:
                             os.remove(url_or_path)
-                        except: pass
+                        except:
+                            pass
+
                 source.cleanup = cleanup
 
             # Apply Volume
             source = discord.PCMVolumeTransformer(source, volume=state.volume)
-            
+
             def after_callback(error):
                 if error:
                     logger.error(f"Player error: {error}")
@@ -328,20 +336,23 @@ class GuildMusicState:
                 future = asyncio.run_coroutine_threadsafe(self._schedule_next(guild_id), self._bot.loop)
                 try:
                     future.result()
-                except: pass
+                except:
+                    pass
 
             state.voice_client.play(source, after=after_callback)
             import time
+
             state.current_start_time = time.time()
             logger.info(f"Playing: {title} (Volume: {state.volume})")
-            
-            # Notifying dashboard update? 
+
+            # Notifying dashboard update?
             # Ideally VoiceManager emits an event, but MediaCog handles updates.
 
         except Exception as e:
             logger.exception(f"Failed to play music: {e}")
             # Try next one
             self._play_next(guild_id)
+
 
 class VoiceManager:
     """Manages Discord voice clients for playback, recording, and music queue."""
@@ -354,14 +365,14 @@ class VoiceManager:
         self._gtts = GTTSClient()
         t5_local_path = r"L:\ai_models\huggingface\Aratako_T5Gemma-TTS-2b-2b"
         if os.path.exists(os.path.join(t5_local_path, "config.json")):
-             logger.info(f"Using Local T5Gemma Model: {t5_local_path}")
-             self._t5_tts = T5TTSClient(t5_local_path)
+            logger.info(f"Using Local T5Gemma Model: {t5_local_path}")
+            self._t5_tts = T5TTSClient(t5_local_path)
         else:
-             self._t5_tts = T5TTSClient("Aratako/T5Gemma-TTS-2b-2b") # High Quality T5
+            self._t5_tts = T5TTSClient("Aratako/T5Gemma-TTS-2b-2b")  # High Quality T5
         self._music_states: Dict[int, GuildMusicState] = defaultdict(GuildMusicState)
         self._listener = HotwordListener(stt, bot.loop)
         self._user_speakers: Dict[int, int] = {}  # user_id -> speaker_id
-        self._guild_speakers: Dict[int, int] = {} # guild_id -> speaker_id
+        self._guild_speakers: Dict[int, int] = {}  # guild_id -> speaker_id
         self.state_path = Path(STATE_DIR) / "user_voices.json"
         self.guild_state_path = Path(STATE_DIR) / "guild_voices.json"
         self.load_speakers()
@@ -441,31 +452,35 @@ class VoiceManager:
         query = query.lower().strip()
 
         # Virtual Speaker: T5Gemma
-        if any(w in query for w in ["t5", "gemma", "high quality", "高音質", "human", "人間", "real", "リアル", "person"]):
+        if any(
+            w in query for w in ["t5", "gemma", "high quality", "高音質", "human", "人間", "real", "リアル", "person"]
+        ):
             return {"name": "T5Gemma (High Quality)", "style": "Generative", "id": -1}
 
         speakers = await self.get_speakers()
         if not speakers:
-             return None
-        
+            return None
+
         best_match = None
         # ... logic continues ...
-        
+
         for sp in speakers:
             name = sp.get("name", "").lower()
             # Exact match
             if name == query:
                 return {"id": sp["styles"][0]["id"], "name": sp["name"], "style": sp["styles"][0]["name"]}
-            
+
             # Partial match
             if query in name:
                 # Prefer exact contained matches or first found
                 if not best_match:
-                     best_match = {"id": sp["styles"][0]["id"], "name": sp["name"], "style": sp["styles"][0]["name"]}
-        
+                    best_match = {"id": sp["styles"][0]["id"], "name": sp["name"], "style": sp["styles"][0]["name"]}
+
         return best_match
 
-    async def ensure_voice_client(self, member: discord.Member, allow_move: bool = True) -> Optional[discord.VoiceClient]:
+    async def ensure_voice_client(
+        self, member: discord.Member, allow_move: bool = True
+    ) -> Optional[discord.VoiceClient]:
         if member.voice is None or member.voice.channel is None:
             raise VoiceConnectionError("ユーザーがボイスチャンネルに参加していません。")
 
@@ -479,8 +494,8 @@ class VoiceManager:
             try:
                 # Force cleanup of zombies
                 if attempt > 1 and voice_client and voice_client.is_connected():
-                     await voice_client.disconnect(force=True)
-                     voice_client = None
+                    await voice_client.disconnect(force=True)
+                    voice_client = None
 
                 if voice_client and voice_client.channel != channel:
                     if allow_move:
@@ -490,7 +505,9 @@ class VoiceManager:
                     else:
                         # If move not allowed, return existing client (even if wrong channel)
                         # The caller (play_tts) implies this is fine (user moved away but bot stays)
-                        logger.info(f"User is in {channel.name} but bot stays in {voice_client.channel.name} (allow_move=False)")
+                        logger.info(
+                            f"User is in {channel.name} but bot stays in {voice_client.channel.name} (allow_move=False)"
+                        )
                         pass
 
                 elif not voice_client or not voice_client.is_connected():
@@ -500,7 +517,7 @@ class VoiceManager:
                     except discord.ClientException:
                         # Race condition: already connected
                         voice_client = guild.voice_client
-                
+
                 # Success
                 self._music_states[guild.id].voice_client = voice_client
                 return voice_client
@@ -520,8 +537,8 @@ class VoiceManager:
             except discord.ClientException as e:
                 # Already connected?
                 if guild.voice_client and guild.voice_client.is_connected():
-                     voice_client = guild.voice_client
-                     break
+                    voice_client = guild.voice_client
+                    break
                 else:
                     logger.error(f"Voice ClientException: {e}")
                     raise VoiceConnectionError(f"接続エラー (ClientException): {e}")
@@ -534,10 +551,18 @@ class VoiceManager:
         logger.error("Failed to connect to voice after 3 attempts.")
         raise VoiceConnectionError(f"ボイスチャンネルへの接続に失敗しました (タイムアウト/エラー): {last_error}")
 
-    async def play_tts(self, member: discord.Member, text: str, speed: float = 1.0, model_type: str = "standard", cache_key: str = None, msg_type: str = "chat") -> bool:
+    async def play_tts(
+        self,
+        member: discord.Member,
+        text: str,
+        speed: float = 1.0,
+        model_type: str = "standard",
+        cache_key: str = None,
+        msg_type: str = "chat",
+    ) -> bool:
         if not text or not text.strip():
             return False
-            
+
         # Clean and Truncate Text
         text = self.clean_for_tts(text)
         if not text:
@@ -547,17 +572,17 @@ class VoiceManager:
             # 2. Relaxed Connection Logic
             voice_client = None
             if member.voice and member.voice.channel:
-                 try:
-                     voice_client = await self.ensure_voice_client(member, allow_move=False)
-                 except VoiceConnectionError:
-                     pass
-            
+                try:
+                    voice_client = await self.ensure_voice_client(member, allow_move=False)
+                except VoiceConnectionError:
+                    pass
+
             if not voice_client:
-                 if member.guild.voice_client and member.guild.voice_client.is_connected():
-                     voice_client = member.guild.voice_client
-                 else:
-                     return False
-                     
+                if member.guild.voice_client and member.guild.voice_client.is_connected():
+                    voice_client = member.guild.voice_client
+                else:
+                    return False
+
             # 3. Add to Queue with Anti-Spam (Debounce)
             state = self.get_music_state(member.guild.id)
 
@@ -579,16 +604,16 @@ class VoiceManager:
                 # CANCEL CURRENT: If currently reading a Join/Leave message, stop it immediately.
                 # We need to track what is currently playing.
                 if state.current_tts_type == "system_join_leave":
-                     if voice_client.is_playing():
-                         logger.info("🚫 [Anti-Spam] Stopping current Join/Leave reading for new event.")
-                         voice_client.stop() # This triggers after_callback -> next item
+                    if voice_client.is_playing():
+                        logger.info("🚫 [Anti-Spam] Stopping current Join/Leave reading for new event.")
+                        voice_client.stop()  # This triggers after_callback -> next item
 
             state.tts_queue.append((member, text, speed, model_type, cache_key, msg_type))
-            
+
             # 4. Trigger Processing if Idle
             if not state.tts_processing:
                 await self._process_tts_queue(member.guild.id)
-                
+
             return True
         except Exception as e:
             logger.error(f"play_tts error: {e}")
@@ -599,30 +624,30 @@ class VoiceManager:
         if not state.tts_queue:
             state.tts_processing = False
             return
-            
+
         state.tts_processing = True
-        
+
         # Pop next item
         item = state.tts_queue.pop(0)
-        
+
         # Validate Queue Item
         # Support variable length for backward compatibility
         model_type = "standard"
         cache_key = None
         msg_type = "chat"
-        
+
         if len(item) == 6:
-             member, text, speed, model_type, cache_key, msg_type = item
+            member, text, speed, model_type, cache_key, msg_type = item
         elif len(item) == 5:
-             member, text, speed, model_type, cache_key = item
+            member, text, speed, model_type, cache_key = item
         elif len(item) == 4:
-             member, text, speed, model_type = item
+            member, text, speed, model_type = item
         elif len(item) == 3:
-             member, text, speed = item
+            member, text, speed = item
         else:
-             member, text = item
-             speed = 1.0
-        
+            member, text = item
+            speed = 1.0
+
         # Track Current Type
         state.current_tts_type = msg_type
 
@@ -632,14 +657,14 @@ class VoiceManager:
         speaker_id = self._user_speakers.get(member.id)
         if speaker_id is None:
             speaker_id = self._guild_speakers.get(member.guild.id)
-        
+
         # Virtual ID Check
         if speaker_id == -1:
             model_type = "t5"
 
         try:
             audio = None
-            
+
             # [CACHE CHECK]
             if cache_key:
                 cache_file = self.cache_dir / f"{cache_key}.mp3"
@@ -650,35 +675,35 @@ class VoiceManager:
                             audio = f.read()
                     except Exception as e:
                         logger.error(f"Failed to read cache {cache_key}: {e}")
-            
+
             if not audio:
                 # Generate Audio
                 if model_type == "t5":
-                     # T5Gemma Exclusive Mode
-                     try:
-                         audio = await self._t5_tts.synthesize(text, speed_scale=speed)
-                     except Exception as e:
-                         logger.error(f"T5Gemma synthesis failed: {e}")
-                         logger.warning("Falling back to EdgeTTS for T5 request.")
-                         audio = await self._edge_tts.synthesize(text)
+                    # T5Gemma Exclusive Mode
+                    try:
+                        audio = await self._t5_tts.synthesize(text, speed_scale=speed)
+                    except Exception as e:
+                        logger.error(f"T5Gemma synthesis failed: {e}")
+                        logger.warning("Falling back to EdgeTTS for T5 request.")
+                        audio = await self._edge_tts.synthesize(text)
                 else:
                     # Standard Mode
                     try:
                         audio = await self._tts.synthesize(text, speaker_id=speaker_id, speed_scale=speed)
                     except Exception as vv_exc:
-                         if not self.has_warned_voicevox:
-                             logger.warning(f"VoiceVox synthesis failed: {vv_exc}. Falling back to EdgeTTS.")
-                             self.has_warned_voicevox = True
-                         try:
-                             audio = await self._edge_tts.synthesize(text)
-                         except Exception as edge_exc:
-                             logger.warning(f"Edge TTS failed: {edge_exc}. Falling back to gTTS.")
-                             try:
-                                 audio = await self._gtts.synthesize(text)
-                             except Exception as gtts_exc:
-                                 logger.error(f"All Standard TTS engines failed: {gtts_exc}")
-                                 state.tts_processing = False
-                                 return
+                        if not self.has_warned_voicevox:
+                            logger.warning(f"VoiceVox synthesis failed: {vv_exc}. Falling back to EdgeTTS.")
+                            self.has_warned_voicevox = True
+                        try:
+                            audio = await self._edge_tts.synthesize(text)
+                        except Exception as edge_exc:
+                            logger.warning(f"Edge TTS failed: {edge_exc}. Falling back to gTTS.")
+                            try:
+                                audio = await self._gtts.synthesize(text)
+                            except Exception as gtts_exc:
+                                logger.error(f"All Standard TTS engines failed: {gtts_exc}")
+                                state.tts_processing = False
+                                return
 
                 # [CACHE SAVE]
                 if cache_key and audio:
@@ -689,7 +714,6 @@ class VoiceManager:
                         logger.info(f"Saved cache for {cache_key}")
                     except Exception as e:
                         logger.error(f"Failed to save cache {cache_key}: {e}")
-
 
         except Exception as e:
             logger.error(f"TTS Synthesis Critical Error: {e}")
@@ -710,27 +734,28 @@ class VoiceManager:
             future = asyncio.run_coroutine_threadsafe(self._process_tts_queue(guild_id), self._bot.loop)
             try:
                 future.result()
-            except: pass
+            except:
+                pass
 
         try:
             # Create Source
             tts_source = self._create_source_from_bytes(audio)
             tts_source = discord.PCMVolumeTransformer(tts_source, volume=state.tts_volume)
-            
+
             if voice_client.is_playing() and voice_client.source:
                 # Mixing Mode (Music is playing)
                 logger.info("Mixing TTS with active music (Ducking to 50%)")
                 current_source = voice_client.source
-                
+
                 # Create mixed source with callback
                 mixed = MixingAudioSource(
-                    current_source, 
-                    tts_source, 
-                    target_volume=0.5, 
+                    current_source,
+                    tts_source,
+                    target_volume=0.5,
                     fade_duration=0.5,
-                    on_finish=lambda: on_complete() # Lambda to allow no-arg call
+                    on_finish=lambda: on_complete(),  # Lambda to allow no-arg call
                 )
-                
+
                 # Hotswap
                 voice_client.source = mixed
                 logger.info("Swapped audio source to Mixed source.")
@@ -739,7 +764,7 @@ class VoiceManager:
                 logger.info("Playing TTS in Raw mode (No music)")
                 # We reuse _play_raw_audio logic but with custom callback?
                 voice_client.play(tts_source, after=on_complete)
-                
+
         except Exception as e:
             logger.error(f"Failed to play TTS: {e}")
             # Ensure we don't stall queue
@@ -747,21 +772,22 @@ class VoiceManager:
 
     def _create_source_from_bytes(self, audio: bytes) -> discord.AudioSource:
         # Create a temporary file for the audio
-        # Note: We need to keep the file alive while playing. 
+        # Note: We need to keep the file alive while playing.
         # FFmpegPCMAudio opens it.
         # We can use a custom cleanup to delete it.
-        
+
         # For simplicity, we use the same tempfile logic but return the source
         f = tempfile.NamedTemporaryFile("wb", delete=False, suffix=".mp3")
         f.write(audio)
-        f.close() # Close handle, let ffmpeg open by path
+        f.close()  # Close handle, let ffmpeg open by path
         path = f.name
-        
+
         def cleanup():
             if os.path.exists(path):
                 try:
                     os.remove(path)
-                except: pass
+                except:
+                    pass
 
         # We need a wrapper to call cleanup when done
         source = discord.FFmpegPCMAudio(path)
@@ -769,9 +795,11 @@ class VoiceManager:
         # discord.py's FFmpegPCMAudio doesn't have a callback for cleanup on its own cleanup.
         # But we can override cleanup.
         original_cleanup = source.cleanup
+
         def new_cleanup():
             original_cleanup()
             cleanup()
+
         source.cleanup = new_cleanup
         return source
 
@@ -780,26 +808,28 @@ class VoiceManager:
         with tempfile.NamedTemporaryFile("wb", delete=False, suffix=".wav") as tmp:
             tmp.write(audio)
             path = tmp.name
-        
+
         def cleanup(error):
             if os.path.exists(path):
                 try:
                     os.remove(path)
-                except: pass
+                except:
+                    pass
             if error:
                 logger.error(f"Player error: {error}")
-            
+
             # Check if there is music in the queue for this guild
             if voice_client and voice_client.guild:
-                 guild_id = voice_client.guild.id
-                 # Schedule next song check
-                 future = asyncio.run_coroutine_threadsafe(self._schedule_next(guild_id), self._bot.loop)
-                 try:
-                     future.result()
-                 except: pass
+                guild_id = voice_client.guild.id
+                # Schedule next song check
+                future = asyncio.run_coroutine_threadsafe(self._schedule_next(guild_id), self._bot.loop)
+                try:
+                    future.result()
+                except:
+                    pass
 
         source = discord.FFmpegPCMAudio(path)
-        
+
         # Apply Volume
         if voice_client.guild:
             state = self.get_music_state(voice_client.guild.id)
@@ -807,11 +837,11 @@ class VoiceManager:
 
         if voice_client.is_playing():
             voice_client.stop()
-        
+
         try:
             if not voice_client.is_connected():
-                 logger.warning("Attempted to play audio on disconnected client.")
-                 return
+                logger.warning("Attempted to play audio on disconnected client.")
+                return
 
             voice_client.play(source, after=cleanup)
         except Exception as e:
@@ -819,7 +849,9 @@ class VoiceManager:
             # Ensure cleanup happens even if play fails
             cleanup(e)
 
-    async def play_music(self, member: discord.Member, url_or_path: str, title: str, is_stream: bool, duration: float = 0.0) -> bool:
+    async def play_music(
+        self, member: discord.Member, url_or_path: str, title: str, is_stream: bool, duration: float = 0.0
+    ) -> bool:
         """Add music to queue and start playing if idle."""
         voice_client = await self.ensure_voice_client(member)
         if not voice_client:
@@ -827,13 +859,13 @@ class VoiceManager:
 
         state = self.get_music_state(member.guild.id)
         state.voice_client = voice_client
-        
+
         # Add to queue
         state.queue.append((url_or_path, title, is_stream, duration))
-        
+
         if not voice_client.is_playing():
             self._play_next(member.guild.id)
-            
+
         return True
 
     def _play_next(self, guild_id: int):
@@ -856,9 +888,9 @@ class VoiceManager:
             # Save current to history before switching
             if state.current:
                 state.history.insert(0, state.current)
-                if len(state.history) > 20: # Limit history
+                if len(state.history) > 20:  # Limit history
                     state.history.pop()
-            
+
             # Get next from queue
             url_or_path, title, is_stream, duration = state.queue.pop(0)
             state.current = (url_or_path, title, is_stream, duration)
@@ -866,7 +898,7 @@ class VoiceManager:
             # Queue empty
             if state.current:
                 state.history.insert(0, state.current)
-                if len(state.history) > 20: 
+                if len(state.history) > 20:
                     state.history.pop()
             state.current = None
             return
@@ -881,17 +913,20 @@ class VoiceManager:
                 source = discord.FFmpegPCMAudio(url_or_path)
                 # Cleanup local file after playback
                 original_cleanup = source.cleanup
+
                 def cleanup():
                     original_cleanup()
                     if os.path.exists(url_or_path):
                         try:
                             os.remove(url_or_path)
-                        except: pass
+                        except:
+                            pass
+
                 source.cleanup = cleanup
-            
+
             # Apply Volume
             source = discord.PCMVolumeTransformer(source, volume=state.volume)
-            
+
             def after_callback(error):
                 if error:
                     logger.error(f"Player error: {error}")
@@ -899,7 +934,8 @@ class VoiceManager:
                 future = asyncio.run_coroutine_threadsafe(self._schedule_next(guild_id), self._bot.loop)
                 try:
                     future.result()
-                except: pass
+                except:
+                    pass
 
             state.voice_client.play(source, after=after_callback)
             logger.info(f"Playing: {title} (Volume: {state.volume})")
@@ -910,7 +946,7 @@ class VoiceManager:
             self._play_next(guild_id)
 
     async def _schedule_next(self, guild_id: int):
-        await asyncio.sleep(1) # Wait a bit
+        await asyncio.sleep(1)  # Wait a bit
         self._play_next(guild_id)
 
     def stop_music(self, guild_id: int):
@@ -925,23 +961,23 @@ class VoiceManager:
         state = self.get_music_state(guild_id)
         # Disable loop to ensure we skip to the next track
         state.is_looping = False
-        
+
         if state.voice_client and state.voice_client.is_playing():
-            state.voice_client.stop() # This triggers after_callback -> _play_next
+            state.voice_client.stop()  # This triggers after_callback -> _play_next
 
     def replay_previous(self, guild_id: int) -> bool:
         """Play the last song from history."""
         state = self.get_music_state(guild_id)
         if not state.history:
             return False
-        
+
         # Get last track
         last_track = state.history.pop(0)
-        
+
         # If currently playing, we want to play this NOW.
         # So we push current to queue (front), push last_track to queue (front), then skip?
         # Or simpler: Push last_track to FRONT of queue, then skip current.
-        
+
         # Wait, if we are playing song A. History has B.
         # User says "Play prev".
         # We want to play B.
@@ -949,13 +985,13 @@ class VoiceManager:
         # Wait, our _play_next logic saves current to history ONLY if queue pop happens or queue empty.
         # If we skip, `stop()` triggers `_play_next`.
         # correct.
-        
+
         state.queue.insert(0, last_track)
         if state.voice_client and state.voice_client.is_playing():
-            state.voice_client.stop() # Triggers _play_next which picks up the text track
+            state.voice_client.stop()  # Triggers _play_next which picks up the text track
         else:
             self._play_next(guild_id)
-            
+
         return True
 
     def stop_playback(self, guild_id: int):
@@ -969,6 +1005,7 @@ class VoiceManager:
     def clean_for_tts(self, text: str) -> str:
         """Clean text for TTS (remove URLs, code blocks, and parentheses)."""
         import re
+
         # Remove Code Blocks
         text = re.sub(r"```[\s\S]*?```", "コードブロック", text)
         text = re.sub(r"`.*?`", "コード", text)
@@ -978,20 +1015,20 @@ class VoiceManager:
         text = re.sub(r"<a?:\w+:\d+>", "絵文字", text)
         # Remove internal tags just in case
         text = re.sub(r"<\|.*?\|>", "", text)
-        
+
         # Remove content inside parentheses (Half-width and Full-width)
         # Non-greedy match to avoid eating entire sentences if multiple parens exist
         text = re.sub(r"\(.*?\)", "", text)
         text = re.sub(r"（.*?）", "", text)
-        
+
         # Remove Hyphens and Whitespace (Half/Full width)
         # Requested by user to stop reading "minus" or "space"
         text = re.sub(r"[-−\s　]", "", text)
-        
+
         # Truncate to 60 chars
         if len(text) > 60:
             text = text[:60] + "以下略"
-            
+
         return text.strip()
 
     def set_loop(self, guild_id: int, enabled: bool):
@@ -1000,41 +1037,42 @@ class VoiceManager:
 
     def set_speed_pitch(self, guild_id: int, speed: float, pitch: float):
         state = self.get_music_state(guild_id)
-        
+
         # Calculate current position before updating state
         current_pos = 0.0
         if state.voice_client and state.voice_client.is_playing() and state.current_start_time > 0:
-             import time
-             elapsed_real = time.time() - state.current_start_time
-             # Adjusted for previous speed?
-             # If we were playing at x2.0 for 10s, we are at 20s mark in file.
-             # So elapsed_file = elapsed_real * state.speed
-             current_pos = elapsed_real * state.speed
-             
+            import time
+
+            elapsed_real = time.time() - state.current_start_time
+            # Adjusted for previous speed?
+            # If we were playing at x2.0 for 10s, we are at 20s mark in file.
+            # So elapsed_file = elapsed_real * state.speed
+            current_pos = elapsed_real * state.speed
+
         state.speed = speed
         state.pitch = pitch
-        
+
         # Restart current track to apply effects
         if state.current and state.voice_client and state.voice_client.is_playing():
-             # Resume from current position
-             state.start_offset = current_pos
-             
-             # Re-queue current to front
-             state.queue.insert(0, state.current)
-             state.current = None
-             state.voice_client.stop()
+            # Resume from current position
+            state.start_offset = current_pos
+
+            # Re-queue current to front
+            state.queue.insert(0, state.current)
+            state.current = None
+            state.voice_client.stop()
 
     def seek_music(self, guild_id: int, seconds: float):
         state = self.get_music_state(guild_id)
         if not state.current:
             return
-            
+
         state.start_offset = max(0.0, seconds)
-        
+
         # Push current back to queue to be picked up by _play_next
         state.queue.insert(0, state.current)
-        state.current = None # Reset current so _play_next picks from queue
-        
+        state.current = None  # Reset current so _play_next picks from queue
+
         if state.voice_client and (state.voice_client.is_playing() or state.voice_client.is_paused()):
             state.voice_client.stop()
         else:
@@ -1059,6 +1097,7 @@ class VoiceManager:
     def shuffle_queue(self, guild_id: int):
         """Shuffle the current queue."""
         import random
+
         state = self.get_music_state(guild_id)
         if state.queue:
             random.shuffle(state.queue)
@@ -1069,52 +1108,53 @@ class VoiceManager:
         # Prefer the explicitly stored duration, fallback to tuple extraction
         current_duration = state.current_track_duration
         if current_duration == 0.0 and state.current and len(state.current) > 3:
-             current_duration = state.current[3]
-        
+            current_duration = state.current[3]
+
         # Safe access for duration in queue
         queue_list = []
         for item in state.queue:
-             # item is (url, title, stream, duration)
-             queue_list.append({"title": item[1], "duration": item[3] if len(item)>3 else 0.0})
+            # item is (url, title, stream, duration)
+            queue_list.append({"title": item[1], "duration": item[3] if len(item) > 3 else 0.0})
 
         return {
             "current": current_title,
-            "current_duration": current_duration, 
-            "queue": queue_list, # List of dicts
+            "current_duration": current_duration,
+            "queue": queue_list,  # List of dicts
             "is_looping": state.is_looping,
             "current_start_time": state.current_start_time,
             "volume": state.volume,
             "tts_volume": state.tts_volume,
             "speed": state.speed,
-            "pitch": state.pitch
+            "pitch": state.pitch,
         }
 
     def set_speed_pitch(self, guild_id: int, speed: float = 1.0, pitch: float = 1.0):
         """Set speed/pitch and restart current track at approximate position."""
         state = self.get_music_state(guild_id)
-        
+
         # Clamp values for safety
         speed = max(0.5, min(2.0, speed))
         pitch = max(0.5, min(2.0, pitch))
-        
+
         state.speed = speed
         state.pitch = pitch
-        
+
         # Apply immediately if playing
         if state.voice_client and state.voice_client.is_playing() and state.current:
             # We need to seek to current position?
             # Calculating current position is hard because speed changes heavily affect it.
             # Assuming simple restart for now is safer, OR we try to estimate.
-            
+
             import time
+
             elapsed = time.time() - state.current_start_time
             # Apply previous speed factor to get "Real" audio time elapsed?
             # Too complex. Let's just restart the track with new settings (User knows "Tune" might reset)
             # OR we implement 'ss' option?
-            
+
             # Let's try to 'seek' if possible.
             # If it's a stream, we can't really seek easily without restarting stream.
-            
+
             # RESTART STRATEGY:
             # 1. Stop current (which triggers _play_next)
             # 2. _play_next sees state.current.
@@ -1122,25 +1162,24 @@ class VoiceManager:
             # Check `_play_next` logic:
             # `if state.is_looping and state.current:` -> Replays.
             # Else pops from Queue.
-            
-            # If we want to restart CURRENT track, we must ensure it stays as `state.current` 
+
+            # If we want to restart CURRENT track, we must ensure it stays as `state.current`
             # AND `_play_next` decides to play `state.current` again instead of popping.
-            
+
             # HACK: Push current back to front of queue?
             # state.queue.insert(0, state.current)
-            # state.voice_client.stop() 
+            # state.voice_client.stop()
             # -> `stop` triggers `after` -> `_play_next` -> pops from queue (which is our track).
-            
+
             # But wait, `_play_next` logic at line 208:
             # `elif state.queue:` -> Pops.
-            
+
             # So yes, pushing to front of queue works.
-            
+
             if state.current:
                 state.queue.insert(0, state.current)
                 # Force stop to trigger next
                 state.voice_client.stop()
-
 
     def set_music_volume(self, guild_id: int, volume: float):
         """Set music volume (0.0 to 2.0)."""
@@ -1163,21 +1202,21 @@ class VoiceManager:
         state.tts_volume = max(0.0, min(2.0, volume))
         # Update current playback if possible
         if state.voice_client and state.voice_client.source:
-             source = state.voice_client.source
-             # If pure TTS (via _play_raw_audio wrapped)
-             if isinstance(source, discord.PCMVolumeTransformer) and not isinstance(source, MixingAudioSource):
-                 # Limitation: We don't know if current transformer is Music or TTS just by type.
-                 # But usually Music is playing. TTS is short.
-                 # If TTS is playing alone, we can update it.
-                 # But risk: Music might be playing and we stick TTS volume to it.
-                 # Practical fix: TTS is short, so immediate update is less critical than Music.
-                 pass
+            source = state.voice_client.source
+            # If pure TTS (via _play_raw_audio wrapped)
+            if isinstance(source, discord.PCMVolumeTransformer) and not isinstance(source, MixingAudioSource):
+                # Limitation: We don't know if current transformer is Music or TTS just by type.
+                # But usually Music is playing. TTS is short.
+                # If TTS is playing alone, we can update it.
+                # But risk: Music might be playing and we stick TTS volume to it.
+                # Practical fix: TTS is short, so immediate update is less critical than Music.
+                pass
 
     def _on_voice_frame(
         self,
         guild: discord.Guild,
         user: Optional[discord.User],
-        data: Any, # voice_recv.VoiceData,
+        data: Any,  # voice_recv.VoiceData,
     ) -> None:
         if not isinstance(user, discord.Member):
             # Attempt to resolve user -> member
@@ -1216,9 +1255,9 @@ class VoiceManager:
             # Save current to history before switching
             if state.current:
                 state.history.insert(0, state.current)
-                if len(state.history) > 20: # Limit history
+                if len(state.history) > 20:  # Limit history
                     state.history.pop()
-            
+
             # Get next from queue
             url_or_path, title, is_stream, duration = state.queue.pop(0)
             state.current = (url_or_path, title, is_stream, duration)
@@ -1227,7 +1266,7 @@ class VoiceManager:
             # Queue empty
             if state.current:
                 state.history.insert(0, state.current)
-                if len(state.history) > 20: 
+                if len(state.history) > 20:
                     state.history.pop()
             state.current = None
             state.current_start_time = 0.0
@@ -1237,16 +1276,16 @@ class VoiceManager:
         try:
             # FFmpeg Filters Calculation
             filters = []
-            
+
             # 1. Speed (atempo)
             # FFmpeg `atempo` is limited to 0.5 - 2.0 per instance. Chain them for larger values.
             # We will cap it for safety between 0.5 and 2.0 for now, or implement chaining if needed.
             # actually we can chain: "atempo=2.0,atempo=1.5"
             current_speed = state.speed
             if abs(current_speed - 1.0) > 0.01:
-                 # Limitation hack: just support 0.5-2.0 for now to keep code simple
-                 current_speed = max(0.5, min(2.0, current_speed))
-                 filters.append(f"atempo={current_speed}")
+                # Limitation hack: just support 0.5-2.0 for now to keep code simple
+                current_speed = max(0.5, min(2.0, current_speed))
+                filters.append(f"atempo={current_speed}")
 
             # 2. Pitch (asetrate)
             if state.pitch != 1.0:
@@ -1257,53 +1296,53 @@ class VoiceManager:
                 # final_speed = speed
                 # pitch_speed_change = pitch
                 # required_tempo_change = speed / pitch
-                
+
                 # Filters
                 filters.append("aresample=48000")
                 filters.append(f"asetrate={48000 * state.pitch}")
                 filters.append("aresample=48000")
-                
+
                 # Adjust tempo compensation
                 tempo_comp = state.speed / state.pitch
                 if abs(tempo_comp - 1.0) > 0.01:
                     filters.append(f"atempo={tempo_comp}")
-            
-            ffmpeg_opts = {
-                "before_options": "",
-                "options": "-vn"
-            }
-            
+
+            ffmpeg_opts = {"before_options": "", "options": "-vn"}
+
             if is_stream:
                 ffmpeg_opts["before_options"] += " -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5"
-            
+
             # Apply filters
             if filters:
-                 ffmpeg_opts["options"] += f' -filter:a "{",".join(filters)}"'
-            
+                ffmpeg_opts["options"] += f' -filter:a "{",".join(filters)}"'
+
             # Apply Seek / Start Offset
             if state.start_offset > 0:
                 ffmpeg_opts["before_options"] += f" -ss {state.start_offset}"
                 state.current_start_time = time.time() - state.start_offset
-                state.start_offset = 0.0 # Reset
+                state.start_offset = 0.0  # Reset
             else:
                 state.current_start_time = time.time()
-                
+
             source = discord.FFmpegPCMAudio(url_or_path, **ffmpeg_opts)
-            
+
             if not is_stream:
                 # Cleanup local file after playback
                 original_cleanup = source.cleanup
+
                 def cleanup():
                     original_cleanup()
                     if os.path.exists(url_or_path):
                         try:
                             os.remove(url_or_path)
-                        except: pass
+                        except:
+                            pass
+
                 source.cleanup = cleanup
 
             # Apply Volume
             source = discord.PCMVolumeTransformer(source, volume=state.volume)
-            
+
             def after_callback(error):
                 if error:
                     logger.error(f"Player error: {error}")
@@ -1311,13 +1350,14 @@ class VoiceManager:
                 future = asyncio.run_coroutine_threadsafe(self._schedule_next(guild_id), self._bot.loop)
                 try:
                     future.result()
-                except: pass
+                except:
+                    pass
 
             state.voice_client.play(source, after=after_callback)
             state.current_start_time = time.time()
             logger.info(f"Playing: {title} (Volume: {state.volume})")
-            
-            # Notifying dashboard update? 
+
+            # Notifying dashboard update?
             # Ideally VoiceManager emits an event, but MediaCog handles updates.
 
         except Exception as e:

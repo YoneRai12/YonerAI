@@ -6,9 +6,10 @@ from PIL import Image, ImageOps
 
 logger = logging.getLogger(__name__)
 
+
 class AsciiGenerator:
     """Generates ASCII Art from images."""
-    
+
     ASCII_CHARS = ["@", "#", "S", "%", "?", "*", "+", ";", ":", ",", "."]
 
     @staticmethod
@@ -38,22 +39,22 @@ class AsciiGenerator:
                     if resp.status != 200:
                         return "Error: Failed to download image."
                     data = await resp.read()
-            
+
             image = Image.open(io.BytesIO(data))
-            
+
             # Process
             image = cls.resize_image(image, width)
             image = cls.grayify(image)
-            
+
             ascii_str = cls.pixels_to_ascii(image)
-            
+
             # Format into lines
             ascii_img = ""
             for i in range(0, len(ascii_str), width):
-                ascii_img += ascii_str[i:i+width] + "\n"
-                
+                ascii_img += ascii_str[i : i + width] + "\n"
+
             return ascii_img
-            
+
         except Exception as e:
             logger.error(f"ASCII Generation failed: {e}")
             return f"Error generating ASCII: {e}"

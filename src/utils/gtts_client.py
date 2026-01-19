@@ -6,6 +6,7 @@ from gtts import gTTS
 
 logger = logging.getLogger(__name__)
 
+
 class GTTSClient:
     """Client for Google Translate TTS."""
 
@@ -14,6 +15,7 @@ class GTTSClient:
 
     async def synthesize(self, text: str) -> bytes:
         """Synthesize text to audio bytes using gTTS."""
+
         def _synthesize():
             fp = io.BytesIO()
             tts = gTTS(text=text, lang=self.lang)

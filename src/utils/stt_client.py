@@ -73,27 +73,30 @@ class WhisperClient:
         except Exception:
             logger.exception("Failed to preprocess audio for Whisper")
             return ""
+
         # Perform decoding in a thread to avoid blocking the event loop
         def _decode(audio: np.ndarray) -> str:
             # Resample from 48kHz to 16kHz (simple decimation by 3)
             if sample_rate == 48000:
                 audio = audio[::3]
-            
+
             try:
                 # Pad or trim to 30 seconds
                 audio = whisper.pad_or_trim(audio)
-                
+
                 # Debug logging - using INFO to ensure visibility
-                logger.info(f"Whisper input audio shape: {audio.shape}, dtype: {audio.dtype}, range: [{audio.min()}, {audio.max()}]")
-                
+                logger.info(
+                    f"Whisper input audio shape: {audio.shape}, dtype: {audio.dtype}, range: [{audio.min()}, {audio.max()}]"
+                )
+
                 if audio.size == 0:
                     logger.warning("Whisper input audio is empty after resampling")
                     return ""
-                
+
                 if np.all(audio == 0):
                     logger.warning("Whisper input audio is all zeros (silence)")
                     return ""
-                
+
                 # Check for silence (RMS amplitude)
                 rms = np.sqrt(np.mean(audio**2))
                 # logger.info(f"Audio RMS: {rms:.5f}")
@@ -114,7 +117,7 @@ class WhisperClient:
                     fp16=False,
                     no_speech_threshold=0.6,
                     condition_on_previous_text=False,
-                    beam_size=1
+                    beam_size=1,
                 )
                 return result["text"].strip()
 

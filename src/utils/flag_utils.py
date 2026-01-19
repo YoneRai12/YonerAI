@@ -1,4 +1,3 @@
-
 from typing import Optional
 
 import pycountry
@@ -18,10 +17,12 @@ def flag_to_iso(flag: str) -> Optional[str]:
     except ValueError:
         return None
 
+
 def iso_to_flag(iso_code: str) -> str:
     """Convert a two-letter ISO 3166-1 alpha-2 code to a flag emoji."""
     OFFSET = 127397
     return "".join(chr(ord(c) + OFFSET) for c in iso_code.upper())
+
 
 def country_to_flag(country_name: str) -> Optional[str]:
     """Look up a country by name and return its flag emoji."""
@@ -35,6 +36,7 @@ def country_to_flag(country_name: str) -> Optional[str]:
         pass
     return None
 
+
 CUSTOM_FLAGS = {
     "AC": "Ascension Island",
     "CP": "Clipperton Island",
@@ -46,12 +48,13 @@ CUSTOM_FLAGS = {
     "XK": "Kosovo",
 }
 
+
 def get_country_name(iso_code: str) -> Optional[str]:
     """Get the common name of a country from its ISO code."""
     code = iso_code.upper()
     if code in CUSTOM_FLAGS:
         return CUSTOM_FLAGS[code]
-        
+
     try:
         country = pycountry.countries.get(alpha_2=code)
         return country.name if country else None

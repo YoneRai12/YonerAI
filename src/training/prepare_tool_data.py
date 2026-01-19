@@ -1,4 +1,3 @@
-
 import json
 import random
 
@@ -13,9 +12,9 @@ TOOLS = {
             ("Draw a {prompt}", "generate_image", {"prompt": "{prompt}"}),
             ("Create an image of {prompt}", "generate_image", {"prompt": "{prompt}"}),
             ("Generate {prompt}", "generate_image", {"prompt": "{prompt}"}),
-            ("I want to see {prompt}", "generate_image", {"prompt": "{prompt}"})
+            ("I want to see {prompt}", "generate_image", {"prompt": "{prompt}"}),
         ],
-        "args": ["prompt"]
+        "args": ["prompt"],
     },
     "web_search": {
         "description": "Searches the web for information.",
@@ -23,32 +22,40 @@ TOOLS = {
             ("Search for {query}", "web_search", {"query": "{query}"}),
             ("Google {query}", "web_search", {"query": "{query}"}),
             ("Find info about {query}", "web_search", {"query": "{query}"}),
-            ("What is {query}?", "web_search", {"query": "{query}"})
+            ("What is {query}?", "web_search", {"query": "{query}"}),
         ],
-        "args": ["query"]
+        "args": ["query"],
     },
     "speak_text": {
         "description": "Speaks the provided text in voice chat.",
         "patterns": [
             ("Say {text}", "speak", {"text": "{text}"}),
             ("Speak {text}", "speak", {"text": "{text}"}),
-            ("Read this aloud: {text}", "speak", {"text": "{text}"})
+            ("Read this aloud: {text}", "speak", {"text": "{text}"}),
         ],
-        "args": ["text"]
+        "args": ["text"],
     },
-     "doppelganger": {
+    "doppelganger": {
         "description": "Clones a user's voice from audio attachment.",
         "patterns": [
             ("Clone this voice", "doppelganger", {}),
             ("Learn my voice from this audio", "doppelganger", {}),
-            ("Register this as my doppelganger", "doppelganger", {})
+            ("Register this as my doppelganger", "doppelganger", {}),
         ],
-        "args": []
-    }
+        "args": [],
+    },
 }
 
 # Domain Data (to fill templates)
-PROMPTS = ["cyberpunk city", "cute cat", "space station", "fantasy dragon", "Tesla Cybertruck", "anime girl", "forest landscape"]
+PROMPTS = [
+    "cyberpunk city",
+    "cute cat",
+    "space station",
+    "fantasy dragon",
+    "Tesla Cybertruck",
+    "anime girl",
+    "forest landscape",
+]
 QUERIES = ["latest RTX 5090 price", "weather in Tokyo", "how to cook pasta", "Python async tutorial", "history of Rome"]
 TEXTS = ["Hello world", "System online", "Initiating shutdown", "Welcome to the server", "I am ORA"]
 
@@ -57,13 +64,14 @@ Your goal is to assist the user by calling the appropriate tool.
 Output your thought process, followed by a JSON object containing the tool call.
 JSON Schema: {"tool": "tool_name", "args": { ... }}"""
 
+
 def generate_example():
     tool_key = random.choice(list(TOOLS.keys()))
     tool_def = TOOLS[tool_key]
-    
+
     # Pick a pattern
     pattern_template, tool_name, args_template = random.choice(tool_def["patterns"])
-    
+
     # Fill Slots
     if "{prompt}" in pattern_template:
         val = random.choice(PROMPTS)
@@ -84,15 +92,16 @@ def generate_example():
     # Construct Output
     thought = f"The user wants to {tool_key.replace('_', ' ')}. I should call the {tool_name} tool."
     tool_json = json.dumps({"tool": tool_name, "args": args})
-    
+
     # ChatML Format
     return {
         "messages": [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": user_input},
-            {"role": "assistant", "content": f"{thought}\n```json\n{tool_json}\n```"}
+            {"role": "assistant", "content": f"{thought}\n```json\n{tool_json}\n```"},
         ]
     }
+
 
 def main():
     print(f"Generating 1000 examples to {OUTPUT_FILE}...")
@@ -101,6 +110,7 @@ def main():
             ex = generate_example()
             f.write(json.dumps(ex, ensure_ascii=False) + "\n")
     print("Done!")
+
 
 if __name__ == "__main__":
     main()

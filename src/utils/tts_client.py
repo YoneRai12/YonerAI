@@ -35,12 +35,12 @@ class VoiceVoxClient:
                     body = await resp.text()
                     raise RuntimeError(f"VOICEVOX audio_query 失敗: {resp.status} {body}")
                 query = await resp.json()
-            
+
             # Apply Speed Scale
             # VOICEVOX query object has 'speedScale'
             original_speed = query.get("speedScale", 1.0)
             query["speedScale"] = original_speed * speed_scale
-            
+
             # Debug log for query
             logger.debug(f"VOICEVOX query response: {query}")
             logger.info(f"VOICEVOX audio_query successful (Speed: {query['speedScale']})")
@@ -65,4 +65,3 @@ class VoiceVoxClient:
                     logger.error(f"Failed to fetch speakers: {resp.status}")
                     return []
                 return await resp.json()
-

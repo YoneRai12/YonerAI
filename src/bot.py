@@ -46,8 +46,10 @@ logger = logging.getLogger(__name__)
 
 _bot_instance: Optional[ORABot] = None
 
+
 def get_bot() -> Optional[ORABot]:
     return _bot_instance
+
 
 class ORABot(commands.Bot):
     """Discord bot implementation for ORA."""
@@ -94,7 +96,7 @@ class ORABot(commands.Bot):
         # 1. Initialize Shared Resources
         # Search client using SerpApi or similar
         self.search_client = SearchClient(self.config.search_api_key, self.config.search_engine)
-        
+
         # VOICEVOX text-to-speech
         vv_client = VoiceVoxClient(self.config.voicevox_api_url, self.config.voicevox_speaker_id)
         # Whisper speech-to-text
@@ -104,9 +106,9 @@ class ORABot(commands.Bot):
 
         # 2. Register Core Cogs
         await self.add_cog(CoreCog(self, self.link_client, self.store))
-        
+
         # 3. Register ORA Cog (Main Logic)
-        # Note: We keep ORACog as manual add for now, or convert it later. 
+        # Note: We keep ORACog as manual add for now, or convert it later.
         # Using self.search_client instead of local var.
         await self.add_cog(
             ORACog(
@@ -119,11 +121,11 @@ class ORABot(commands.Bot):
                 privacy_default=self.config.privacy_default,
             )
         )
-        
+
         # 4. Register Media Cog (Loaded as Extension for Hot Reloading)
         # Depends on self.voice_manager which is now attached to bot
         await self.load_extension("src.cogs.media")
-        
+
         # 5. Load Extensions
         extensions = [
             "src.cogs.voice_recv",
@@ -137,10 +139,10 @@ class ORABot(commands.Bot):
                 await self.load_extension(ext)
             except Exception as e:
                 logger.exception(f"Failed to load extension {ext}", exc_info=e)
-        
+
         # 6. Sync Commands
         self.tree.on_error = self.on_app_command_error
-        
+
         # Only sync if explicitly requested or in Dev environment
         # CHANGED: Default to "true" to ensure commands appear for the user
         if os.getenv("SYNC_COMMANDS", "true").lower() == "true":
@@ -156,7 +158,7 @@ class ORABot(commands.Bot):
         await self.wait_until_ready()
         while not self.is_closed():
             try:
-                await asyncio.sleep(6 * 3600) # 6 hours
+                await asyncio.sleep(6 * 3600)  # 6 hours
                 logger.info("Starting periodic backup...")
                 await self.store.backup()
             except asyncio.CancelledError:
@@ -170,9 +172,7 @@ class ORABot(commands.Bot):
                 guild = discord.Object(id=self.config.dev_guild_id)
                 self.tree.copy_global_to(guild=guild)
                 synced = await self.tree.sync(guild=guild)
-                logger.info(
-                    "Synchronized %d commands to Dev Guild %s", len(synced), self.config.dev_guild_id
-                )
+                logger.info("Synchronized %d commands to Dev Guild %s", len(synced), self.config.dev_guild_id)
             except Exception as e:
                 logger.warning(f"Failed to sync to Dev Guild: {e}")
 
@@ -186,7 +186,7 @@ class ORABot(commands.Bot):
     async def close(self) -> None:
         """Graceful shutdown."""
         logger.info("Closing bot...")
-        
+
         # 1. Stop Periodic Backup
         if self._backup_task:
             self._backup_task.cancel()
@@ -194,7 +194,7 @@ class ORABot(commands.Bot):
                 await self._backup_task
             except asyncio.CancelledError:
                 pass
-        
+
         # 2. Final Backup (Shielded)
         logger.info("Performing final backup...")
         try:
@@ -225,16 +225,16 @@ class ORABot(commands.Bot):
         # Add dynamic admin
         target_ids = []
         if self.config.admin_user_id:
-             target_ids.append(self.config.admin_user_id)
-        
+            target_ids.append(self.config.admin_user_id)
+
         # Add Startup Notification Channel
         if self.config.startup_notify_channel_id:
             target_ids.append(self.config.startup_notify_channel_id)
         ngrok_api = "http://127.0.0.1:4040/api/tunnels"
-        
+
         # Wait a bit for Ngrok to spin up
         await asyncio.sleep(5)
-        
+
         try:
             async with self.session.get(ngrok_api) as resp:
                 if resp.status == 200:
@@ -245,7 +245,7 @@ class ORABot(commands.Bot):
                         if t.get("proto") == "https":
                             public_url = t.get("public_url")
                             break
-                    
+
                     if public_url:
                         # Add /dashboard to the ngrok URL for direct access
                         public_url = public_url.rstrip("/")
@@ -261,18 +261,21 @@ class ORABot(commands.Bot):
                                         channel = await self.fetch_channel(tid)
                                     except:
                                         channel = None
-                                
+
                                 if channel:
                                     await channel.send(message)
-                                    logger.info(f"Ngrok URLをチャンネルに送信: {channel.name} ({tid}) -> {dashboard_url}")
+                                    logger.info(
+                                        f"Ngrok URLをチャンネルに送信: {channel.name} ({tid}) -> {dashboard_url}"
+                                    )
                                 else:
                                     user = await self.fetch_user(tid)
                                     if user:
                                         await user.send(message)
-                                        logger.info(f"Ngrok URLをユーザーに送信: {user.name} ({tid}) -> {dashboard_url}")
+                                        logger.info(
+                                            f"Ngrok URLをユーザーに送信: {user.name} ({tid}) -> {dashboard_url}"
+                                        )
                             except Exception as e:
                                 logger.error(f"Ngrok URLの送信に失敗しました ({tid}): {e}")
-                        
 
                 else:
                     logger.debug("Ngrok API not accessible (Status %s)", resp.status)
@@ -299,9 +302,7 @@ class ORABot(commands.Bot):
         except Exception as e:
             logger.error(f"Failed to trigger Healer for on_error: {e}")
 
-    async def on_app_command_error(
-        self, interaction: discord.Interaction, error: app_commands.AppCommandError
-    ) -> None:
+    async def on_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError) -> None:
         if isinstance(error, app_commands.CheckFailure):
             command_name = interaction.command.qualified_name if interaction.command else "unknown"
             logger.info(
@@ -368,13 +369,14 @@ async def run_bot() -> None:
 
     setup_logging(config.log_level)
     logger.info("ORA Discord Botを起動します", extra={"app_id": config.app_id})
-    
+
     # SILENCE DISCORD HTTP LOGS (429 Spam)
     logging.getLogger("discord.http").setLevel(logging.WARNING)
     logging.getLogger("discord.gateway").setLevel(logging.WARNING)
 
     # Check for FFmpeg
     import shutil
+
     if not shutil.which("ffmpeg"):
         logger.critical("FFmpegがPATHに見つかりません。音声再生機能は動作しません。")
         print("CRITICAL: FFmpeg not found! Please install FFmpeg and add it to your PATH.", file=sys.stderr)
@@ -415,9 +417,7 @@ async def run_bot() -> None:
             bot_task = asyncio.create_task(bot.start(config.token))
             stop_task = asyncio.create_task(stop_event.wait())
 
-            done, pending = await asyncio.wait(
-                {bot_task, stop_task}, return_when=asyncio.FIRST_COMPLETED
-            )
+            done, pending = await asyncio.wait({bot_task, stop_task}, return_when=asyncio.FIRST_COMPLETED)
 
             if stop_task in done:
                 logger.info("終了シグナルを受信しました。Botを停止します...")
@@ -446,6 +446,7 @@ async def main() -> None:
         pass
     except KeyboardInterrupt:
         logger.info("ユーザーにより中断されました。終了します。")
+
 
 if __name__ == "__main__":
     try:

@@ -11,16 +11,26 @@ from typing import Any, Dict, List, Set, Tuple
 logger = logging.getLogger(__name__)
 
 DENY_META_CHARS = re.compile(r"[;&><`]")
-ALLOWED_CMDS = {
-    "cat", "diff", "find", "grep", "head", "lines", "ls",
-    "rg", "stat", "tree", "tail", "wc"
-}
+ALLOWED_CMDS = {"cat", "diff", "find", "grep", "head", "lines", "ls", "rg", "stat", "tree", "tail", "wc"}
 
 DENY_BASENAMES = {
-    ".env", ".env.local", ".envrc", ".npmrc", ".pypirc", ".netrc",
-    ".git-credentials", "id_rsa", "id_rsa.pub", "credentials.json",
-    "secrets.json", "secrets.yaml", "secrets.yml", "secrets.env",
-    "secrets.txt", "private.key", "private.pem"
+    ".env",
+    ".env.local",
+    ".envrc",
+    ".npmrc",
+    ".pypirc",
+    ".netrc",
+    ".git-credentials",
+    "id_rsa",
+    "id_rsa.pub",
+    "credentials.json",
+    "secrets.json",
+    "secrets.yaml",
+    "secrets.yml",
+    "secrets.env",
+    "secrets.txt",
+    "private.key",
+    "private.pem",
 }
 
 ALLOWED_FLAGS: Dict[str, Set[str]] = {
@@ -50,6 +60,7 @@ FLAG_REQUIRES_VALUE: Dict[str, Set[str]] = {
 
 PATTERN_ARG_COUNT: Dict[str, int] = {"find": 1, "grep": 1, "rg": 1}
 
+
 @dataclass
 class ShellPolicy:
     root_dir: Path
@@ -60,8 +71,10 @@ class ShellPolicy:
     max_total_bytes_scanned: int = 5_000_000
     max_depth: int = 6
 
+
 class ReadOnlyShellExecutor:
     """Safe, read-only shell emulator for inspecting the codebase."""
+
     def __init__(self, policy: ShellPolicy) -> None:
         self.p = policy
         self.root = policy.root_dir.resolve()
@@ -173,8 +186,8 @@ class ReadOnlyShellExecutor:
                 return "Denied: include -m <limit> to bound grep/rg output."
 
         if command == "tree":
-             # implicit dot is allowed for tree if no path
-             pass
+            # implicit dot is allowed for tree if no path
+            pass
 
         if command == "diff":
             if len(path_args) != 2:
@@ -246,21 +259,22 @@ class ReadOnlyShellExecutor:
                     return [resolved_file]
                 except Exception:
                     return []
-            
+
             if base.is_dir():
                 out: List[Path] = []
                 try:
                     for root_path, dirs, files in os.walk(base):
                         resolved_root = Path(root_path).resolve()
                         if ".git" in resolved_root.parts:
-                             dirs[:] = []
-                             continue
-                        
+                            dirs[:] = []
+                            continue
+
                         # Prune hidden dirs (optional, but good for cleanliness)
                         dirs[:] = [d for d in dirs if not d.startswith(".") and d not in DENY_BASENAMES]
-                        
+
                         for file_name in sorted(files):
-                            if file_name in DENY_BASENAMES: continue
+                            if file_name in DENY_BASENAMES:
+                                continue
                             fpath = resolved_root / file_name
                             check_limits(fpath)
                             out.append(fpath)
@@ -270,7 +284,7 @@ class ReadOnlyShellExecutor:
                     pass
                 return out
             return []
-        
+
         # --- COMMAND IMPLEMENTATIONS (Simulated) ---
 
         if name == "ls":
@@ -280,35 +294,37 @@ class ReadOnlyShellExecutor:
             human = "-lh" in flags
             shown = positionals[-1] if positionals else "."
             base = resolve_path(shown)
-            
+
             if not base.exists():
                 return {"stdout": "", "stderr": "No such file or directory", "outcome": {"exit_code": 2}}
 
             entries = [base] if base.is_file() else sorted(base.iterdir(), key=lambda p: p.name.lower())
             lines = []
             for entry in entries:
-                if entry.name in DENY_BASENAMES: continue
-                if not show_all and entry.name.startswith("."): continue
-                
+                if entry.name in DENY_BASENAMES:
+                    continue
+                if not show_all and entry.name.startswith("."):
+                    continue
+
                 if long:
                     try:
                         st = entry.stat()
                         kind = "d" if entry.is_dir() else "-"
-                        size = f"{st.st_size/1024:.1f}K" if human else str(st.st_size)
+                        size = f"{st.st_size / 1024:.1f}K" if human else str(st.st_size)
                         mtime = datetime.fromtimestamp(st.st_mtime).strftime("%Y-%m-%d %H:%M")
                         lines.append(f"{kind} {size:>8} {mtime} {entry.name}")
                     except:
                         pass
                 else:
                     lines.append(entry.name)
-            
+
             return {"stdout": trunc("\n".join(lines)), "stderr": "", "outcome": {"exit_code": 0}}
 
         if name == "cat":
             _, _, targets = self._parse_args(name, args)
             target = resolve_path(targets[0])
             if not target.is_file():
-                 return {"stdout": "", "stderr": "Not a file", "outcome": {"exit_code": 1}}
+                return {"stdout": "", "stderr": "Not a file", "outcome": {"exit_code": 1}}
             try:
                 content = target.read_text(encoding="utf-8", errors="replace")
                 return {"stdout": trunc(content), "stderr": "", "outcome": {"exit_code": 0}}
@@ -324,29 +340,34 @@ class ReadOnlyShellExecutor:
                 regex = re.compile(pattern, re.IGNORECASE if ignore_case else 0)
             except re.error as e:
                 return {"stdout": "", "stderr": f"Invalid regex: {e}", "outcome": {"exit_code": 2}}
-            
+
             hits = []
             try:
                 # Simplified walk for grep
                 def walk_grep(path):
                     if path.is_file():
-                         try:
-                             with path.open("r", encoding="utf-8", errors="replace") as f:
-                                 for i, line in enumerate(f):
-                                     if regex.search(line):
-                                         rel = path.relative_to(self.root)
-                                         hits.append(f"{rel}:{i+1}:{line.strip()}")
-                         except: pass
+                        try:
+                            with path.open("r", encoding="utf-8", errors="replace") as f:
+                                for i, line in enumerate(f):
+                                    if regex.search(line):
+                                        rel = path.relative_to(self.root)
+                                        hits.append(f"{rel}:{i + 1}:{line.strip()}")
+                        except:
+                            pass
                     elif path.is_dir():
                         for child in path.iterdir():
                             if child.name not in DENY_BASENAMES and not child.name.startswith("."):
                                 walk_grep(child)
-                
+
                 walk_grep(target_path)
             except Exception as e:
-                 return {"stdout": "", "stderr": str(e), "outcome": {"exit_code": 1}}
+                return {"stdout": "", "stderr": str(e), "outcome": {"exit_code": 1}}
 
-            return {"stdout": trunc("\n".join(hits[:int(values.get("-m", 200))])), "stderr": "", "outcome": {"exit_code": 0}}
-        
+            return {
+                "stdout": trunc("\n".join(hits[: int(values.get("-m", 200))])),
+                "stderr": "",
+                "outcome": {"exit_code": 0},
+            }
+
         # Fallback for others not fully implemented in this port yet
         return {"stdout": "", "stderr": "Command not fully implemented in ORA port yet.", "outcome": {"exit_code": 0}}

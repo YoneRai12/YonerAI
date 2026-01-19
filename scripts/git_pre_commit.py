@@ -1,19 +1,21 @@
-import sys
 import os
 import subprocess
+import sys
 
 # Config
 MAX_FILE_SIZE_MB = 5
-FORBIDDEN_EXTENSIONS = {'.zip', '.db', '.bak', '.log', '.tmp'}
-FORBIDDEN_FILES = {'.env', 'ora_bot.db', 'log.txt'}
+FORBIDDEN_EXTENSIONS = {".zip", ".db", ".bak", ".log", ".tmp"}
+FORBIDDEN_FILES = {".env", "ora_bot.db", "log.txt"}
+
 
 def get_staged_files():
     """Get list of files staged for commit."""
     try:
-        output = subprocess.check_output(['git', 'diff', '--cached', '--name-only'], text=True)
+        output = subprocess.check_output(["git", "diff", "--cached", "--name-only"], text=True)
         return output.splitlines()
     except subprocess.CalledProcessError:
         return []
+
 
 def check_files():
     staged_files = get_staged_files()
@@ -47,6 +49,7 @@ def check_files():
         print("Action: Remove these files from staging using 'git reset <file>'")
         print("!" * 50 + "\n")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     check_files()

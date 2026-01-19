@@ -1,4 +1,3 @@
-
 import asyncio
 import logging
 from typing import Callable, List, Optional
@@ -7,17 +6,19 @@ import psutil
 
 logger = logging.getLogger(__name__)
 
+
 class GameWatcher:
     """
     Monitors running processes for known games and triggers callbacks on state change.
     Designed to help the bot downgrade resources (e.g. switch to lighter LLM) when the user is gaming.
     """
+
     def __init__(
-        self, 
-        target_processes: List[str], 
+        self,
+        target_processes: List[str],
         on_game_start: Callable[[], None],
         on_game_end: Callable[[], None],
-        poll_interval: int = 30
+        poll_interval: int = 30,
     ):
         self.target_processes = set(p.lower() for p in target_processes)
         self.on_game_start = on_game_start
@@ -50,7 +51,7 @@ class GameWatcher:
         while not self._stop_event.is_set():
             try:
                 is_running = await self._check_processes()
-                
+
                 # State Machine with Debounce
                 if is_running:
                     if not self._is_gaming:
@@ -90,7 +91,7 @@ class GameWatcher:
                 break
             except Exception as e:
                 logger.error(f"GameWatcher 監視エラー: {e}")
-            
+
             await asyncio.sleep(self.poll_interval)
 
     async def _check_processes(self) -> bool:
@@ -100,9 +101,9 @@ class GameWatcher:
 
     def _check_processes_sync(self) -> bool:
         try:
-            for proc in psutil.process_iter(['name']):
+            for proc in psutil.process_iter(["name"]):
                 try:
-                    if proc.info['name'] and proc.info['name'].lower() in self.target_processes:
+                    if proc.info["name"] and proc.info["name"].lower() in self.target_processes:
                         # logger.debug(f"Found game process: {proc.info['name']}")
                         return True
                 except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):

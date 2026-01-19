@@ -1,4 +1,3 @@
-
 import io
 import logging
 
@@ -8,6 +7,7 @@ from discord import app_commands
 from discord.ext import commands
 
 logger = logging.getLogger("VoiceEngineCog")
+
 
 class VoiceEngine(commands.Cog):
     def __init__(self, bot: commands.Bot):
@@ -36,16 +36,18 @@ class VoiceEngine(commands.Cog):
             return
 
         await interaction.response.defer(ephemeral=True)
-        
+
         async with aiohttp.ClientSession() as session:
             audio_data = await sample.read()
             data = aiohttp.FormData()
             data.add_field("user_id", str(interaction.user.id))
             data.add_field("audio", audio_data, filename=sample.filename)
-            
+
             async with session.post(self.clone_url, data=data) as resp:
                 if resp.status == 200:
-                    await interaction.followup.send(f"✅ Voice Registered! ORA can now speak as {interaction.user.display_name}.")
+                    await interaction.followup.send(
+                        f"✅ Voice Registered! ORA can now speak as {interaction.user.display_name}."
+                    )
                 else:
                     await interaction.followup.send(f"❌ Registration Failed: {resp.status}")
 
@@ -58,10 +60,10 @@ class VoiceEngine(commands.Cog):
             data = {"text": text}
             if user_id:
                 data["speaker_id"] = str(user_id)
-            
+
             # Note: For cloning, we might need to verify if user has registered data.
             # Ideally the VoiceEngine server handles fallback if ID not found.
-            
+
             async with session.post(self.speak_url, data=data) as resp:
                 if resp.status == 200:
                     audio_bytes = await resp.read()
@@ -87,7 +89,7 @@ class VoiceEngine(commands.Cog):
         # Format output
         # VoiceVox structure: [{'name': '四国めたん', 'styles': [{'id': 2, 'name': 'ノーマル'}, ...], 'speaker_uuid': '...'}]
         embed = discord.Embed(title="🎙️ Available Voices (VoiceVox)", color=discord.Color.blue())
-        
+
         description = ""
         for sp in speakers:
             name = sp.get("name", "Unknown")
@@ -97,7 +99,7 @@ class VoiceEngine(commands.Cog):
 
         if len(description) > 4000:
             description = description[:4000] + "..."
-            
+
         embed.description = description
         await interaction.followup.send(embed=embed)
 
@@ -111,6 +113,7 @@ class VoiceEngine(commands.Cog):
 
         vm.set_user_speaker(interaction.user.id, speaker_id)
         await interaction.response.send_message(f"✅ Voice set to Speaker ID: **{speaker_id}**", ephemeral=True)
+
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(VoiceEngine(bot))

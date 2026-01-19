@@ -20,11 +20,7 @@ def create_folder(service, name: str, parent_id: Optional[str] = None) -> str:
     if parent_id:
         file_metadata["parents"] = [parent_id]
 
-    folder = (
-        service.files()
-        .create(body=file_metadata, fields="id", supportsAllDrives=True)
-        .execute()
-    )
+    folder = service.files().create(body=file_metadata, fields="id", supportsAllDrives=True).execute()
     return folder["id"]
 
 

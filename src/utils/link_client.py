@@ -35,9 +35,7 @@ class LinkClient:
                 async with session.post(endpoint, json=payload) as response:
                     if response.status != 200:
                         body = await response.text()
-                        raise RuntimeError(
-                            f"ORA API returned status {response.status}: {body}"
-                        )
+                        raise RuntimeError(f"ORA API returned status {response.status}: {body}")
                     data = await response.json()
             except aiohttp.ClientError as exc:  # noqa: PERF203
                 raise RuntimeError("ORA APIへの接続に失敗しました。") from exc

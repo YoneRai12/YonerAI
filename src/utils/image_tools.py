@@ -35,7 +35,6 @@ def classify_image(data: bytes) -> str:
     orientation = "横長" if aspect > 1.2 else "縦長" if aspect < 0.8 else "ほぼ正方形"
     return f"推定カテゴリ: {dominant} / 雰囲気: {mood} / 形状: {orientation}"
 
-
     cleaned = text.strip()
     if not cleaned:
         return "テキストは検出されませんでした。"
@@ -48,7 +47,7 @@ def preprocess_image_for_ocr(data: bytes) -> list[Image.Image]:
     Returns a list of PIL Images (Original, Grayscale, Thresholded, etc.)
     """
     images = []
-    
+
     # 1. Original (PIL)
     try:
         original = Image.open(io.BytesIO(data)).convert("RGB")
@@ -59,16 +58,17 @@ def preprocess_image_for_ocr(data: bytes) -> list[Image.Image]:
     # Try to use OpenCV for advanced processing
     try:
         import cv2
+
         # Convert bytes to numpy array
         nparr = np.frombuffer(data, np.uint8)
         img_cv = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-        
+
         if img_cv is None:
             raise ValueError("Failed to decode image with OpenCV")
 
         # Convert to Grayscale
         gray = cv2.cvtColor(img_cv, cv2.COLOR_BGR2GRAY)
-        
+
         # 2. Rescaled (x2) + Grayscale
         # Scaling up helps with small text
         scaled = cv2.resize(gray, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
@@ -76,9 +76,7 @@ def preprocess_image_for_ocr(data: bytes) -> list[Image.Image]:
 
         # 3. Adaptive Thresholding (Gaussian) - Good for shadows/handwriting
         # Block size 11, C=2
-        thresh_gauss = cv2.adaptiveThreshold(
-            scaled, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2
-        )
+        thresh_gauss = cv2.adaptiveThreshold(scaled, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
         images.append(Image.fromarray(thresh_gauss))
 
         # 4. Denoised + Thresholding
@@ -97,7 +95,7 @@ def preprocess_image_for_ocr(data: bytes) -> list[Image.Image]:
         width, height = gray.size
         scaled = gray.resize((width * 2, height * 2), Image.Resampling.LANCZOS)
         images.append(scaled)
-        
+
         # Simple Binarization
         # threshold = 128
         # binarized = scaled.point(lambda p: 255 if p > threshold else 0)
@@ -105,7 +103,7 @@ def preprocess_image_for_ocr(data: bytes) -> list[Image.Image]:
 
     except Exception as e:
         logger.warning(f"OpenCV preprocessing failed: {e}")
-    
+
     return images
 
 
@@ -145,12 +143,12 @@ def ocr_image(data: bytes) -> str:
                 pass
 
             configs = [
-                r'--oem 3 --psm 6 -l jpn+eng',  # Assume block of text
-                r'--oem 3 --psm 3 -l jpn+eng',  # Auto seg
-                r'--oem 3 --psm 11 -l jpn+eng', # Sparse
-                r'--oem 3 --psm 6 -l jpn',      # Japanese ONLY (force)
+                r"--oem 3 --psm 6 -l jpn+eng",  # Assume block of text
+                r"--oem 3 --psm 3 -l jpn+eng",  # Auto seg
+                r"--oem 3 --psm 11 -l jpn+eng",  # Sparse
+                r"--oem 3 --psm 6 -l jpn",  # Japanese ONLY (force)
             ]
-            
+
             for config in configs:
                 try:
                     text = pytesseract.image_to_string(img, config=config)
@@ -162,12 +160,12 @@ def ocr_image(data: bytes) -> str:
                         best_text = cleaned
                 except pytesseract.TesseractError:
                     continue
-                
+
                 # If we found a good amount of text, maybe stop early?
                 # For now, let's try a few combos.
-                if len(best_text) > 50: 
+                if len(best_text) > 50:
                     break
-            
+
             if len(best_text) > 100:
                 break
 
@@ -177,8 +175,9 @@ def ocr_image(data: bytes) -> str:
 
     if not best_text:
         return "テキストは検出されませんでした。"
-    
+
     return best_text
+
 
 def analyze_image_v2(data: bytes) -> str:
     """Analyze image using Google Cloud Vision API (Labels, Faces, Text)."""
@@ -197,7 +196,7 @@ def analyze_image_v2(data: bytes) -> str:
         vision.Feature(type_=vision.Feature.Type.TEXT_DETECTION),
     ]
     request = vision.AnnotateImageRequest(image=image, features=features)
-    
+
     try:
         response = client.annotate_image(request)
     except Exception as e:
@@ -210,19 +209,13 @@ def analyze_image_v2(data: bytes) -> str:
         except Exception as tess_err:
             return f"画像分析エラー (Vision API & Tesseract): {e} / {tess_err}"
 
+
 def _analyze_image_v2_raw(data: bytes) -> dict:
     """
     Analyze image using Google Cloud Vision API and return structured data.
     Returns a dict with keys: labels, faces, text, objects, error.
     """
-    result = {
-        "labels": [],
-        "faces": 0,
-        "text": "",
-        "objects": [],
-        "error": None,
-        "safe_search": None
-    }
+    result = {"labels": [], "faces": 0, "text": "", "objects": [], "error": None, "safe_search": None}
 
     try:
         from google.cloud import vision
@@ -287,37 +280,35 @@ def _analyze_image_v2_raw(data: bytes) -> dict:
     # Objects
     if response.localized_object_annotations:
         result["objects"] = [o.name for o in response.localized_object_annotations]
-        
+
     # Safe Search
     if response.safe_search_annotation:
         s = response.safe_search_annotation
-        result["safe_search"] = {
-            "adult": s.adult,
-            "violence": s.violence,
-            "racy": s.racy
-        }
+        result["safe_search"] = {"adult": s.adult, "violence": s.violence, "racy": s.racy}
 
     return result
+
 
 def analyze_image_structured(data: bytes) -> dict:
     """Public alias for structured analysis."""
     return _analyze_image_v2_raw(data)
 
+
 def analyze_image_v2(data: bytes) -> str:
     """Legacy wrapper that returns a formatted string for the LLM."""
     data_dict = _analyze_image_v2_raw(data)
-    
+
     if data_dict["error"] and not data_dict["text"]:
         return f"Error: {data_dict['error']}"
-    
+
     parts = []
-    
+
     if data_dict["error"]:
         parts.append(f"[Warning: {data_dict['error']}]")
 
     if data_dict["labels"]:
         parts.append("Labels: " + ", ".join(data_dict["labels"][:5]))
-    
+
     if data_dict["objects"]:
         parts.append("Objects: " + ", ".join(data_dict["objects"][:5]))
 
@@ -332,13 +323,14 @@ def analyze_image_v2(data: bytes) -> str:
 
     return "Image contains: " + "  |  ".join(parts)
 
+
 def decode_base64_image(base64_string: str) -> io.BytesIO:
     """Decode a base64 string (from API) into a BytesIO object."""
     import base64
-    
+
     # Remove prefix if present (e.g., data:image/png;base64,)
     if "," in base64_string:
         base64_string = base64_string.split(",", 1)[1]
-        
+
     image_data = base64.b64decode(base64_string)
     return io.BytesIO(image_data)

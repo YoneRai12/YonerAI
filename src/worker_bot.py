@@ -1,4 +1,3 @@
-
 import asyncio
 import logging
 import os
@@ -12,11 +11,8 @@ from dotenv import load_dotenv
 # Setup Logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s %(levelname)s %(name)s %(message)s',
-    handlers=[
-        logging.FileHandler("L:\\ORA_Logs\\worker_bot.log", encoding='utf-8'),
-        logging.StreamHandler(sys.stdout)
-    ]
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
+    handlers=[logging.FileHandler("L:\\ORA_Logs\\worker_bot.log", encoding="utf-8"), logging.StreamHandler(sys.stdout)],
 )
 logging.getLogger("discord.http").setLevel(logging.WARNING)
 logging.getLogger("discord.gateway").setLevel(logging.WARNING)
@@ -48,29 +44,27 @@ class WorkerBot(commands.Bot):
         intents = discord.Intents.default()
         intents.members = True
         intents.message_content = True
-        intents.presences = True # Needed to scan online users
-        
+        intents.presences = True  # Needed to scan online users
+
         super().__init__(command_prefix="!", intents=intents)
         self.config = config
         self.session = session
-        
+
         # Initialize Clients for UnifiedClient
         self.base_llm = LLMClient(
-            base_url=config.llm_base_url,
-            api_key=config.llm_api_key,
-            model=config.llm_model,
-            session=session
+            base_url=config.llm_base_url, api_key=config.llm_api_key, model=config.llm_model, session=session
         )
-        
+
         self.google_client = None
         if config.gemini_api_key:
             self.google_client = GoogleClient(config.gemini_api_key)
-            
+
         self.llm_client = UnifiedClient(config, self.base_llm, self.google_client)
 
     async def setup_hook(self):
         # Load MemoryCog in WORKER MODE
         from src.cogs.memory import MemoryCog
+
         # MemoryCog expects (bot, llm_client, worker_mode)
         await self.add_cog(MemoryCog(self, self.llm_client, worker_mode=True))
         logger.info("WorkerBot: MemoryCog loaded in WORKER MODE.")
@@ -78,6 +72,7 @@ class WorkerBot(commands.Bot):
     async def on_ready(self):
         logger.info(f"WorkerBot Logged in as {self.user} (ID: {self.user.id})")
         logger.info("WorkerBot is ready to process memory tasks.")
+
 
 async def main():
     # Load configuration
@@ -91,6 +86,7 @@ async def main():
         bot = WorkerBot(config, session)
         async with bot:
             await bot.start(TOKEN)
+
 
 if __name__ == "__main__":
     try:

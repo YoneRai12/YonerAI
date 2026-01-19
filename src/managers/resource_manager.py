@@ -8,39 +8,43 @@ import time
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("ResourceGuard")
 
+
 class ResourceManager:
     """
     Layer 2: Resource Manager (The Guard Dog)
     Ensures only ONE heavy GPU process runs at a time.
     Enforces 'Absolute Load/Unload' via Process Termination.
     """
+
     def __init__(self):
-        self.current_context = "none" # "llm", "image", "video", "none"
-        self.gaming_mode = False # State flag
+        self.current_context = "none"  # "llm", "image", "video", "none"
+        self.gaming_mode = False  # State flag
         self.ports = {
             "llm": 8001,
             "image": 8188,
-            "video": 8189, # Reserved for separated video instance
-            "manager": 5000 # Placeholder
+            "video": 8189,  # Reserved for separated video instance
+            "manager": 5000,  # Placeholder
         }
         self.scripts = {
             "llm": os.path.abspath("start_vllm.bat"),
-            "image": os.path.abspath("run_comfy_gpu.bat"), # We need to create this specifically for GPU run? Or use update_comfy.bat? No, usually run_nvidia_gpu.bat
+            "image": os.path.abspath(
+                "run_comfy_gpu.bat"
+            ),  # We need to create this specifically for GPU run? Or use update_comfy.bat? No, usually run_nvidia_gpu.bat
             # Assuming standard Comfy run script exists or we use the user's batch file.
             # User has 'update_comfy.bat' running in logs, but likely uses 'run_nvidia_gpu.bat' for launch.
             # I'll default to looking for run_nvidia_gpu.bat in Comfy folder later.
         }
         # Hardcoded paths for now - should be config driven ideally
-        self.comfy_dir = r"L:\\ComfyUI_windows_portable\\ComfyUI" # Inferred from previous logs? Or desktop?
+        self.comfy_dir = r"L:\\ComfyUI_windows_portable\\ComfyUI"  # Inferred from previous logs? Or desktop?
         # Re-inferring from User logs: "C:\Users\YoneRai12\Desktop\ORADiscordBOT-main3" is bot dir.
         # "L:\ComfyUI\custom_nodes\..." seen in logs.
         # User migrated to L drive.
-        self.comfy_bat = r"L:\ComfyUI\run_nvidia_gpu.bat" 
-        
+        self.comfy_bat = r"L:\ComfyUI\run_nvidia_gpu.bat"
+
         # Override with exact paths found in system if possible, but for now hardcode common setup
         if not os.path.exists(self.comfy_bat):
-             # Fallback to local desktop if L drive path fails (safety)
-             self.comfy_bat = os.path.join(os.getcwd(), "run_comfy.bat")
+            # Fallback to local desktop if L drive path fails (safety)
+            self.comfy_bat = os.path.join(os.getcwd(), "run_comfy.bat")
 
         # STARTUP ADOPTION LOGIC
         # Check if vLLM was started externally (by Launcher)
@@ -83,7 +87,7 @@ class ResourceManager:
         # We don't trust "what was running". We clean the house.
         await self.kill_process_on_port(self.ports["llm"])
         await self.kill_process_on_port(self.ports["image"])
-        
+
         # 2. Wait for VRAM to settle (Magic Wait)
         # Windows Driver can lag. 2 seconds is usually safe.
         await asyncio.sleep(2)
@@ -110,12 +114,12 @@ class ResourceManager:
         logger.info(f"🔪 Attempting to kill process on port {port}...")
 
         # 1. Kill Windows Process (Standard)
-        cmd = f'netstat -ano | findstr :{port}'
+        cmd = f"netstat -ano | findstr :{port}"
         try:
             # We use synchronous popen/run here for simplicity in utility
             proc = subprocess.run(cmd, shell=True, capture_output=True)
             if proc.stdout:
-                lines = proc.stdout.decode().strip().split('\n')
+                lines = proc.stdout.decode().strip().split("\n")
                 pids = set()
                 for line in lines:
                     parts = line.split()
@@ -123,7 +127,7 @@ class ResourceManager:
                         pid = parts[-1]
                         if pid.isdigit() and int(pid) > 0:
                             pids.add(pid)
-                
+
                 for pid in pids:
                     logger.info(f"Found Windows PID {pid}. Terminating...")
                     subprocess.run(f"taskkill /F /PID {pid}", shell=True, check=False)
@@ -135,11 +139,11 @@ class ResourceManager:
             try:
                 logger.info("🐧 Scanning WSL distros to kill vLLM...")
                 # Get list of distros
-                proc_list = subprocess.run('wsl -l -q', shell=True, capture_output=True)
+                proc_list = subprocess.run("wsl -l -q", shell=True, capture_output=True)
                 # Decode properly: UTF-16LE is standard for WSL output
-                raw_output = proc_list.stdout.decode('utf-16-le', errors='ignore')
+                raw_output = proc_list.stdout.decode("utf-16-le", errors="ignore")
                 distros = [d.strip() for d in raw_output.split() if d.strip()]
-                
+
                 if not distros:
                     distros = ["Ubuntu", "Ubuntu-22.04", "Debian"]
 
@@ -148,15 +152,19 @@ class ResourceManager:
                     try:
                         # Command 1: pkill via full path (most reliable)
                         # We use || true to prevent exit code 1 if no process found
-                        kill_cmd = 'wsl -d {} bash -c "/usr/bin/pkill -9 -f vllm || /usr/bin/pkill -9 -f python3 || true"'.format(distro)
+                        kill_cmd = 'wsl -d {} bash -c "/usr/bin/pkill -9 -f vllm || /usr/bin/pkill -9 -f python3 || true"'.format(
+                            distro
+                        )
                         res = subprocess.run(kill_cmd, shell=True, capture_output=True, text=True)
                         if res.returncode != 0:
-                             logger.warning(f"  Result: {res.stderr.strip()}")
+                            logger.warning(f"  Result: {res.stderr.strip()}")
                         else:
-                             # Also try fuser just in case pkill missed
-                             subprocess.run(f'wsl -d {distro} bash -c "fuser -k -9 8001/tcp || true"', shell=True, check=False)
-                             logger.info("  Signal sent.")
-                             
+                            # Also try fuser just in case pkill missed
+                            subprocess.run(
+                                f'wsl -d {distro} bash -c "fuser -k -9 8001/tcp || true"', shell=True, check=False
+                            )
+                            logger.info("  Signal sent.")
+
                     except Exception as e:
                         logger.warning(f"Failed to kill in {distro}: {e}")
 
@@ -170,31 +178,32 @@ class ResourceManager:
             specific_mode: Optional force override (e.g. 'thinking')
         """
         from ..config import Config
+
         config = Config.load()
-        
+
         # Determine Mode
-        mode = "instruct" # Default
-        
+        mode = "instruct"  # Default
+
         if self.gaming_mode:
             mode = "gaming"
         elif specific_mode:
             mode = specific_mode
-            
+
         script_name = config.model_modes.get(mode, "start_vllm_instruct.bat")
         title = f"ORA_LLM_{mode.upper()}"
-            
+
         script_path = os.path.abspath(script_name)
         if not os.path.exists(script_path):
             logger.error(f"LLM Script not found for mode {mode}: {script_path}")
             # Fallback to default
             script_path = os.path.abspath("start_vllm.bat")
-            
+
         logger.info(f"🚀 Starting Orchestrator LLM ({title})...")
-        
+
         # Launch visible window (Foreground)
         cmd = f'start "{title}" "{script_path}"'
         subprocess.Popen(cmd, shell=True)
-        
+
         # Wait for Port 8001 to be live
         await self.wait_for_port(8001)
 
@@ -203,11 +212,11 @@ class ResourceManager:
         Hot-swaps the running vLLM process to the target mode.
         """
         logger.info(f"🔀 HOT-SWAP REQUESTED: Switching to {mode_name.upper()}...")
-        
+
         # 1. Kill current LLM
         await self.kill_process_on_port(self.ports["llm"])
-        await asyncio.sleep(2) # Wait for VRAM release
-        
+        await asyncio.sleep(2)  # Wait for VRAM release
+
         # 2. Start new LLM
         await self.start_llm(specific_mode=mode_name)
         self.current_context = "llm"
@@ -216,10 +225,10 @@ class ResourceManager:
         """Starts ComfyUI."""
         # Updated to point to tools/setup as per user structure
         target_bat = os.path.abspath("tools/setup/start_comfy.bat")
-        
+
         if not os.path.exists(target_bat):
-             logger.error("start_comfy.bat not found!")
-             return
+            logger.error("start_comfy.bat not found!")
+            return
 
         logger.info(f"🎨 Starting ComfyUI ({target_bat})...")
         # Launch minimized
@@ -233,10 +242,10 @@ class ResourceManager:
         while time.time() - start_time < timeout:
             try:
                 # Simple connect test? or netstat?
-                # Netstat is heavier. 
+                # Netstat is heavier.
                 # Let's use asyncio.open_connection
                 try:
-                    _, writer = await asyncio.open_connection('127.0.0.1', port)
+                    _, writer = await asyncio.open_connection("127.0.0.1", port)
                     writer.close()
                     await writer.wait_closed()
                     logger.info(f"✅ Port {port} is active.")
@@ -244,9 +253,9 @@ class ResourceManager:
                 except (ConnectionRefusedError, asyncio.TimeoutError):
                     await asyncio.sleep(1)
             except Exception as e:
-                 logger.debug(f"Wait check error: {e}")
-                 await asyncio.sleep(1)
-        
+                logger.debug(f"Wait check error: {e}")
+                await asyncio.sleep(1)
+
         logger.error(f"❌ Port {port} did not open after {timeout} seconds.")
         return False
 
@@ -259,9 +268,9 @@ class ResourceManager:
 
         logger.info(f"🎮 Gaming Mode Toggled: {enabled}")
         self.gaming_mode = enabled
-        
+
         # If LLM is running, we need to restart it to apply model change
         if self.current_context == "llm":
             logger.info("🔄 Restarting LLM to apply Gaming Mode...")
-            await self.switch_context("none") # Stop it
+            await self.switch_context("none")  # Stop it
             await self.switch_context("llm")  # Start it (will pick up new mode)

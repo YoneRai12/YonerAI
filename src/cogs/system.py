@@ -11,6 +11,7 @@ from discord.ext import commands, tasks
 try:
     from comtypes import CLSCTX_ALL
     from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
+
     AUDIO_AVAILABLE = True
 except ImportError:
     AUDIO_AVAILABLE = False
@@ -24,10 +25,11 @@ ALLOWED_APPS = {
     "notepad": "notepad",
     "calc": "calc",
     "explorer": "explorer",
-    "cmd": "cmd.exe" # Be careful, but cmd without args is just a window
+    "cmd": "cmd.exe",  # Be careful, but cmd without args is just a window
 }
 
 MAX_VOLUME = 40
+
 
 class SystemCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
@@ -50,13 +52,13 @@ class SystemCog(commands.Cog):
             except Exception as e:
                 logger.warning(f"Failed to initialize system audio control: {e}")
                 self.volume_interface = None
-        
+
         # Start Discord State Sync (for Dashboard)
         try:
             self.sync_discord_state.start()
             self.log_forwarder.start()
         except RuntimeError:
-            pass # Already running
+            pass  # Already running
 
     def cog_unload(self):
         self.sync_discord_state.cancel()
@@ -70,26 +72,26 @@ class SystemCog(commands.Cog):
             state_path = r"L:\ORA_State\discord_state.json"
             # Structure: users (presence), guilds (id->name map)
             data = {"users": {}, "guilds": {}, "last_updated": ""}
-            
+
             for guild in self.bot.guilds:
                 # Store Guild Info
                 data["guilds"][str(guild.id)] = guild.name
-                
+
                 for member in guild.members:
                     # Priority: Online > Idle > DND > Offline
                     status = str(member.status)
                     uid = str(member.id)
-                    
+
                     # Banner Logic: Guild Banner > Global Banner
                     banner_hash = None
-                    if hasattr(member, 'banner') and member.banner:
+                    if hasattr(member, "banner") and member.banner:
                         banner_hash = member.banner.key
-                    
+
                     if not banner_hash:
-                         # Try Global Banner from Cache
-                         cached_user = self.bot.get_user(member.id)
-                         if cached_user and cached_user.banner:
-                             banner_hash = cached_user.banner.key
+                        # Try Global Banner from Cache
+                        cached_user = self.bot.get_user(member.id)
+                        if cached_user and cached_user.banner:
+                            banner_hash = cached_user.banner.key
 
                     if uid not in data["users"]:
                         data["users"][uid] = {
@@ -99,31 +101,31 @@ class SystemCog(commands.Cog):
                             "avatar": member.display_avatar.key if member.display_avatar else None,
                             "banner": banner_hash,
                             "is_bot": member.bot,
-                            "is_nitro": bool(member.premium_since or member.display_avatar.is_animated())
+                            "is_nitro": bool(member.premium_since or member.display_avatar.is_animated()),
                         }
                     else:
                         # Update if 'online' overrides 'offline' (unlikely but safe)
                         if status != "offline" and data["users"][uid]["status"] == "offline":
                             data["users"][uid]["status"] = status
-                            data["users"][uid]["guild_id"] = str(guild.id) # Update guild ref to active one
+                            data["users"][uid]["guild_id"] = str(guild.id)  # Update guild ref to active one
                             # Also update banner if we found one now and didn't have one before?
                             if banner_hash and not data["users"][uid]["banner"]:
-                                 data["users"][uid]["banner"] = banner_hash
-                            
+                                data["users"][uid]["banner"] = banner_hash
+
             import json
             from datetime import datetime
 
             import aiofiles
-            
+
             data["last_updated"] = datetime.now().isoformat()
-            
+
             # Atomic Write via overwrite
             async with aiofiles.open(state_path, "w", encoding="utf-8") as f:
                 await f.write(json.dumps(data, ensure_ascii=False))
-                
+
         except Exception as e:
-             logger.error(f"sync_discord_state Error: {e}")
-             pass 
+            logger.error(f"sync_discord_state Error: {e}")
+            pass
 
     @tasks.loop(seconds=1.0)
     async def log_forwarder(self):
@@ -131,11 +133,12 @@ class SystemCog(commands.Cog):
         Consumes logs from asyncio.Queue and forwards them to the Debug Channel (Batched).
         """
         await self.bot.wait_until_ready()
-        
+
         # Access the global queue from logger
         from src.utils.logger import GuildLogger
+
         queue = GuildLogger.queue
-        
+
         if queue.empty():
             return
 
@@ -147,19 +150,19 @@ class SystemCog(commands.Cog):
                 batch.append(record)
         except Exception:
             pass
-            
+
         if not batch:
             return
 
         channel_id = getattr(self.bot.config, "log_channel_id", 0)
         channel = self.bot.get_channel(channel_id)
         if not channel:
-            return # Channel not found or bot not ready fully
+            return  # Channel not found or bot not ready fully
 
         # Aggregate logs
         valid_messages = []
         max_level = logging.INFO
-        
+
         for record in batch:
             try:
                 msg = record.message
@@ -174,29 +177,38 @@ class SystemCog(commands.Cog):
                     max_level = max(max_level, record.levelno)
                 # 2. WARNINGS: Allow
                 elif record.levelno >= logging.WARNING:
-                     max_level = max(max_level, record.levelno)
+                    max_level = max(max_level, record.levelno)
                 # 3. INFO: STRICT Allow-List / Block-List
                 else:
                     # BLOCK LIST (Spammy Info)
-                    if "Starting periodic backup" in msg: continue
-                    if "discord.gateway" in record.name: continue
-                    if "src.cogs.memory" in record.name and "Saved" in msg: continue # Periodic saves
-                    if "AutoScan" in msg: continue # Memory Scan Spam
-                    
+                    if "Starting periodic backup" in msg:
+                        continue
+                    if "discord.gateway" in record.name:
+                        continue
+                    if "src.cogs.memory" in record.name and "Saved" in msg:
+                        continue  # Periodic saves
+                    if "AutoScan" in msg:
+                        continue  # Memory Scan Spam
+
                     # ALLOW LIST (Explicitly wanted Info)
                     allowed_keywords = [
-                        "Backup successful", "Backup failed", 
-                        "ORA Discord Botを起動します", 
-                        "Healer", "Auto-Evolution", 
-                        "dev_request", "System Diagnostics",
-                        "Memory", "メモリ", "Updated Channel Memory",
-                        "Analyzing"
+                        "Backup successful",
+                        "Backup failed",
+                        "ORA Discord Botを起動します",
+                        "Healer",
+                        "Auto-Evolution",
+                        "dev_request",
+                        "System Diagnostics",
+                        "Memory",
+                        "メモリ",
+                        "Updated Channel Memory",
+                        "Analyzing",
                     ]
-                    
+
                     # If not in allowed list, SKIP it (Default Deny for INFO noise)
                     if not any(k in msg for k in allowed_keywords):
                         continue
-                
+
                 # --- Translation Layer (English -> Japanese) ---
                 if "Backup successful" in msg:
                     msg = msg.replace("Backup successful", "✅ バックアップ成功")
@@ -207,17 +219,15 @@ class SystemCog(commands.Cog):
                 if "Healer" in record.name:
                     msg = f"🩹 自動修復システム: {msg}"
                 if "dev_request" in msg:
-                   msg = f"📩 開発リクエスト: {msg}"
+                    msg = f"📩 開発リクエスト: {msg}"
 
                 # Format Line
                 timestamp = discord.utils.utcnow().strftime("%H:%M:%S")
-                emoji = "🛑" if record.levelno >= logging.ERROR else \
-                        "⚠️" if record.levelno == logging.WARNING else \
-                        "ℹ️"
-                
+                emoji = "🛑" if record.levelno >= logging.ERROR else "⚠️" if record.levelno == logging.WARNING else "ℹ️"
+
                 formatted_line = f"`{timestamp}` {emoji} **[{record.name}]** {msg}"
                 valid_messages.append(formatted_line)
-                
+
             except Exception as e:
                 print(f"Failed to process log record: {e}")
 
@@ -227,35 +237,38 @@ class SystemCog(commands.Cog):
         # Create Unified Embed
         try:
             full_text = "\n".join(valid_messages)
-            
-            # Split if too long (Discord Limit 4096)
-            chunks = [full_text[i:i+4000] for i in range(0, len(full_text), 4000)]
-            
-            for chunk in chunks:
-                color = discord.Color.red() if max_level >= logging.ERROR else \
-                        discord.Color.orange() if max_level == logging.WARNING else \
-                        discord.Color.green()
-                
-                title = "🚨 システム通知 (Batch)" if max_level >= logging.ERROR else \
-                        "⚠️ システム警告" if max_level == logging.WARNING else \
-                        "✅ システム通知"
 
-                embed = discord.Embed(
-                    title=title,
-                    description=chunk,
-                    color=color,
-                    timestamp=discord.utils.utcnow()
+            # Split if too long (Discord Limit 4096)
+            chunks = [full_text[i : i + 4000] for i in range(0, len(full_text), 4000)]
+
+            for chunk in chunks:
+                color = (
+                    discord.Color.red()
+                    if max_level >= logging.ERROR
+                    else discord.Color.orange()
+                    if max_level == logging.WARNING
+                    else discord.Color.green()
                 )
+
+                title = (
+                    "🚨 システム通知 (Batch)"
+                    if max_level >= logging.ERROR
+                    else "⚠️ システム警告"
+                    if max_level == logging.WARNING
+                    else "✅ システム通知"
+                )
+
+                embed = discord.Embed(title=title, description=chunk, color=color, timestamp=discord.utils.utcnow())
                 await channel.send(embed=embed)
-                
+
         except Exception as e:
-             print(f"Failed to send batched log: {e}")
-             
+            print(f"Failed to send batched log: {e}")
+
     def _check_admin(self, interaction: discord.Interaction) -> bool:
         admin_id = self.bot.config.admin_user_id
         # creator_id lookup via config if needed, or just admin check
         if interaction.user.id == admin_id:
-             return True
+            return True
         return False
 
     def _log_audit(self, user: discord.User | discord.Object, action: str, details: str, success: bool):
@@ -272,21 +285,20 @@ class SystemCog(commands.Cog):
             await interaction.response.send_message("⛔ 権限がありません。", ephemeral=True)
             return
 
-        await interaction.response.send_message(f"🧬 リクエストを受理しました: `{request}`\n\n分析と実装案の作成を開始します...", ephemeral=True)
-        
+        await interaction.response.send_message(
+            f"🧬 リクエストを受理しました: `{request}`\n\n分析と実装案の作成を開始します...", ephemeral=True
+        )
+
         # Trigger Healer Propose
         await self.bot.healer.propose_feature(
-            feature=request, 
-            context="User triggered /dev_request", 
-            requester=interaction.user
+            feature=request, context="User triggered /dev_request", requester=interaction.user
         )
 
     @app_commands.command(name="pc_control", description="PCシステム操作 (Admin Only)")
-    @app_commands.describe(
-        action="実行する操作",
-        value="設定値 (音量0-40, アプリ名)"
-    )
-    async def system_control(self, interaction: discord.Interaction, action: Literal["volume", "open", "mute"], value: Optional[str] = None):
+    @app_commands.describe(action="実行する操作", value="設定値 (音量0-40, アプリ名)")
+    async def system_control(
+        self, interaction: discord.Interaction, action: Literal["volume", "open", "mute"], value: Optional[str] = None
+    ):
         # 1. Admin Check
         if not self._check_admin(interaction):
             await interaction.response.send_message("⛔ この機能は管理者専用です。", ephemeral=True)
@@ -295,8 +307,10 @@ class SystemCog(commands.Cog):
 
         # 2. DM Check (Optional, but requested for safety)
         if interaction.guild_id is not None:
-             await interaction.response.send_message("⛔ セキュリティのため、このコマンドはDMでのみ実行可能です。", ephemeral=True)
-             return
+            await interaction.response.send_message(
+                "⛔ セキュリティのため、このコマンドはDMでのみ実行可能です。", ephemeral=True
+            )
+            return
 
         await interaction.response.defer(ephemeral=True)
         success = False
@@ -316,7 +330,7 @@ class SystemCog(commands.Cog):
                         msg = f"⚠️ 音量が大きすぎます。{MAX_VOLUME}に制限しました。\n"
                     elif vol < 0:
                         vol = 0
-                    
+
                     # Set volume (scalar is 0.0 to 1.0)
                     scalar = vol / 100.0
                     self.volume_interface.SetMasterVolumeLevelScalar(scalar, None)
@@ -356,7 +370,9 @@ class SystemCog(commands.Cog):
         await interaction.followup.send(msg, ephemeral=True)
 
     @commands.command(name="sync", hidden=True)
-    async def sync_prefix(self, ctx: commands.Context, guild_id: Optional[int] = None, spec: Optional[str] = None) -> None:
+    async def sync_prefix(
+        self, ctx: commands.Context, guild_id: Optional[int] = None, spec: Optional[str] = None
+    ) -> None:
         """
         Manually sync commands to the current guild (Panic Button).
         Usage: !sync
@@ -364,7 +380,7 @@ class SystemCog(commands.Cog):
         # Only Admin or Creator
         admin_id = self.bot.config.admin_user_id
         if ctx.author.id != admin_id:
-             return
+            return
 
         async with ctx.typing():
             if spec == "global":
@@ -375,25 +391,27 @@ class SystemCog(commands.Cog):
                 self.bot.tree.copy_global_to(guild=ctx.guild)
                 synced = await self.bot.tree.sync(guild=ctx.guild)
                 await ctx.send(f"🏠 Synced {len(synced)} commands to THIS guild ({ctx.guild.id})!")
-            
+
     @app_commands.command(name="reload", description="Bot拡張機能(Cog)を再読み込みします (Admin Only)")
     @app_commands.describe(extension="再読み込みする拡張機能名 (例: media, system)")
     async def reload_cog(self, interaction: discord.Interaction, extension: str):
         if not self._check_admin(interaction):
             await interaction.response.send_message("⛔ 権限がありません。", ephemeral=True)
             return
-        
+
         await interaction.response.defer(ephemeral=True)
-        
+
         # Normalize name
         if not extension.startswith("src.cogs."):
             target = f"src.cogs.{extension}"
         else:
             target = extension
-            
+
         try:
             await self.bot.reload_extension(target)
-            await interaction.followup.send(f"✅ `{target}` を再読み込みしました！\n音楽再生等は継続されます (MediaCogの場合)。")
+            await interaction.followup.send(
+                f"✅ `{target}` を再読み込みしました！\n音楽再生等は継続されます (MediaCogの場合)。"
+            )
             logger.info(f"Reloaded extension: {target} by {interaction.user}")
         except Exception as e:
             logger.exception(f"Failed to reload {target}")
@@ -404,7 +422,7 @@ class SystemCog(commands.Cog):
         if not self._check_admin(interaction):
             await interaction.response.send_message("⛔ 権限がありません。", ephemeral=True)
             return
-        
+
         await interaction.response.defer(ephemeral=True)
         try:
             await self.bot._notify_ngrok_url()
@@ -422,27 +440,27 @@ class SystemCog(commands.Cog):
     # Internal API for LLM Tool
     async def execute_tool(self, user_id: int, action: str, value: str = None) -> dict:
         """Execute a system tool action safely.
-        
+
         Returns a dictionary with 'status' (bool) and 'message' (str).
         """
         # Admin Check
         admin_id = self.bot.config.admin_user_id
         if user_id != admin_id:
-             self._log_audit(discord.Object(id=user_id), action, "Unauthorized Tool Call", False)
-             return {"status": False, "message": "⛔ 権限がありません。"}
+            self._log_audit(discord.Object(id=user_id), action, "Unauthorized Tool Call", False)
+            return {"status": False, "message": "⛔ 権限がありません。"}
 
         try:
             if action == "set_volume":
-                if not self.volume_interface: 
+                if not self.volume_interface:
                     return {"status": False, "message": "音声制御不可"}
-                
+
                 vol = self._clamp_int(value, 0, MAX_VOLUME)
                 self.volume_interface.SetMasterVolumeLevelScalar(vol / 100.0, None)
                 self._log_audit(discord.Object(id=user_id), action, f"vol={vol}", True)
                 return {"status": True, "message": f"音量を {vol} に設定しました。"}
 
             elif action == "mute":
-                if not self.volume_interface: 
+                if not self.volume_interface:
                     return {"status": False, "message": "音声制御不可"}
                 current = self.volume_interface.GetMute()
                 self.volume_interface.SetMute(not current, None)
@@ -464,20 +482,20 @@ class SystemCog(commands.Cog):
                 mac_addr = os.getenv("PC_MAC_ADDRESS")
                 if not mac_addr:
                     return {"status": False, "message": "環境変数 PC_MAC_ADDRESS が設定されていません。"}
-                
+
                 try:
                     import socket
-                    
+
                     # Clean MAC address
                     mac = mac_addr.replace(":", "").replace("-", "")
                     data = bytes.fromhex("f" * 12 + mac * 16)
-                    
+
                     # Send to broadcast
                     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
                     sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
                     sock.sendto(data, ("255.255.255.255", 9))
                     sock.close()
-                    
+
                     self._log_audit(discord.Object(id=user_id), action, f"mac={mac_addr}", True)
                     return {"status": True, "message": f"PC ({mac_addr}) への起動信号 (WoL) を送信しました。"}
                 except Exception as e:
@@ -485,35 +503,39 @@ class SystemCog(commands.Cog):
 
             elif action == "shutdown_pc":
                 # Remote Shutdown logic
-                # Normally we run 'shutdown /s /t 0' locally. 
+                # Normally we run 'shutdown /s /t 0' locally.
                 # If running on Mac, we need SSH: ssh <user>@<ip> "shutdown /s /t 0"
                 # For now, let's implement local and add a hook for remote.
-                
-                is_mac = os.name != 'nt'
+
+                is_mac = os.name != "nt"
                 target_ip = os.getenv("PC_IP_ADDRESS")
                 ssh_user = os.getenv("PC_SSH_USER")
 
                 try:
                     if is_mac:
                         if not target_ip or not ssh_user:
-                            return {"status": False, "message": "Mac運用時は PC_IP_ADDRESS と PC_SSH_USER の設定が必要です。"}
+                            return {
+                                "status": False,
+                                "message": "Mac運用時は PC_IP_ADDRESS と PC_SSH_USER の設定が必要です。",
+                            }
                         # Run via SSH (Assumes SSH keys are set up)
                         cmd = f'ssh {ssh_user}@{target_ip} "shutdown /s /t 0"'
                         subprocess.Popen(cmd, shell=True)
                     else:
                         # Local Windows
                         subprocess.Popen("shutdown /s /t 0", shell=False)
-                    
+
                     self._log_audit(discord.Object(id=user_id), action, "shutdown", True)
                     return {"status": True, "message": "PC のシャットダウンシーケンスを開始しました。"}
                 except Exception as e:
                     return {"status": False, "message": f"シャットダウンエラー: {e}"}
-            
+
             return {"status": False, "message": "不明なアクションです"}
 
         except Exception as e:
             logger.error(f"Tool execution error: {e}")
             return {"status": False, "message": f"エラー: {e}"}
+
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(SystemCog(bot))

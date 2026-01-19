@@ -18,7 +18,7 @@ from utils.tts_client import VoiceVoxClient
 
 async def main():
     print("=== TTS Verification ===")
-    
+
     # 1. Load Config
     try:
         config = Config.load()
@@ -42,28 +42,29 @@ async def main():
     # 3. Test Persistence Logic
     state_path = Path(STATE_DIR) / "user_voices.json"
     print(f"Testing persistence at: {state_path}")
-    
+
     # Write Test
-    test_data = {999999: 1} # Test ID
+    test_data = {999999: 1}  # Test ID
     try:
         state_path.parent.mkdir(parents=True, exist_ok=True)
         # Load existing if any to preserve it
         existing = {}
         if state_path.exists():
-             with open(state_path, "r", encoding="utf-8") as f:
+            with open(state_path, "r", encoding="utf-8") as f:
                 existing = json.load(f)
-        
+
         # Update with test
         existing.update(test_data)
-        
+
         with open(state_path, "w", encoding="utf-8") as f:
             json.dump(existing, f, ensure_ascii=False, indent=2)
         print("✅ Write permission check passed.")
-        
+
     except Exception as e:
         print(f"❌ Persistence write failed: {e}")
 
     print("=== Verification Complete ===")
+
 
 if __name__ == "__main__":
     asyncio.run(main())
