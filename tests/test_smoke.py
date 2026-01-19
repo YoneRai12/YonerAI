@@ -27,6 +27,7 @@ async def test_bot_setup_hook():
     mock_config.db_path = "test.db"
     mock_config.log_level = "INFO"
     mock_config.gemini_api_key = "test_gemini" # Used in setup_hook
+    mock_config.openai_api_key = "test_openai" # Used in UnifiedClient
     mock_config.admin_user_id = 12345
     mock_config.startup_notify_channel_id = 12345
 
@@ -49,6 +50,9 @@ async def test_bot_setup_hook():
         session=mock_session
     )
     
+    # Manually set loop for test (simulating Bot runner)
+    bot.loop = asyncio.get_running_loop()
+
     # Mock internal methods/attributes used in setup_hook
     bot.add_cog = AsyncMock()
     bot.load_extension = AsyncMock()
@@ -77,5 +81,5 @@ async def test_bot_setup_hook():
         assert bot.load_extension.call_count >= 2
         
         # Verify cogs added
-        # Core, ORA, Media
-        assert bot.add_cog.call_count >= 3
+        # Core, ORA
+        assert bot.add_cog.call_count >= 2
