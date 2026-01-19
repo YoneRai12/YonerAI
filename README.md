@@ -1,4 +1,6 @@
-# ORA Discord Bot - The "Singularity" Edition 🌌
+# ORA Discord BOT
+[![Build and Test](https://github.com/YoneRai12/ORA/actions/workflows/test.yml/badge.svg)](https://github.com/YoneRai12/ORA/actions/workflows/test.yml)
+ - The "Singularity" Edition 🌌
 ### *The Living, Self-Healing AI Operating System for High-End PC*
 
 <div align="center">
