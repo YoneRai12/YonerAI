@@ -1,9 +1,9 @@
-import os
 import logging
+import os
+from typing import Any, Dict, Optional
+
 import firebase_admin
 from firebase_admin import credentials, firestore
-from pathlib import Path
-from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 

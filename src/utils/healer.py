@@ -62,7 +62,7 @@ class HealerView(discord.ui.View):
             # 3. Reload/Load Extension
             reload_error = None
             if "src/cogs/" in self.filepath.replace("\\", "/"):
-                filename = os.path.basename(self.filepath)
+                os.path.basename(self.filepath)
                 rel_path = os.path.relpath(self.filepath, os.getcwd())
                 ext_name = rel_path.replace("\\", ".").replace("/", ".").replace(".py", "")
 
@@ -272,7 +272,7 @@ class Healer:
         if not os.path.exists(start_dir):
             return "src/ (Not Found)"
 
-        for root, dirs, files in os.walk(start_dir):
+        for root, _dirs, files in os.walk(start_dir):
             level = root.replace(start_dir, "").count(os.sep)
             indent = " " * 4 * (level)
             tree_lines.append(f"{indent}{os.path.basename(root)}/")
@@ -343,7 +343,7 @@ class Healer:
             # 3. Reload/Load Extension
             reload_error = None
             if "src/cogs/" in filepath.replace("\\", "/"):
-                filename = os.path.basename(filepath)
+                os.path.basename(filepath)
                 rel_path = os.path.relpath(filepath, os.getcwd())
                 ext_name = rel_path.replace("\\", ".").replace("/", ".").replace(".py", "")
 
@@ -502,14 +502,14 @@ class Healer:
             code = data.get("code", "")
 
             status_text = "🔒 管理者承認待ち"
-            color = discord.Color.orange()
+            discord.Color.orange()
 
             # Check Auto-Evolve Conditions
             if (risk == "SAFE" or risk == "LOW") and compliance == "COMPLIANT":
                 # Check Admin or Trusted Scenarios here if needed
                 # For now, SAFE + COMPLIANT = GO
                 status_text = "⚡ 適用実行中..."
-                color = discord.Color.green()
+                discord.Color.green()
 
             # Enhanced Notification
             await self.notify_feature_proposal(
@@ -556,7 +556,7 @@ class Healer:
         if not os.path.exists(start_dir):
             return "src/ (Not Found)"
 
-        for root, dirs, files in os.walk(start_dir):
+        for root, _dirs, files in os.walk(start_dir):
             level = root.replace(start_dir, "").count(os.sep)
             indent = " " * 4 * (level)
             tree_lines.append(f"{indent}{os.path.basename(root)}/")

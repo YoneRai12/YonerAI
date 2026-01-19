@@ -674,7 +674,7 @@ class LLMClient:
                 "--trust-remote-code > vllm.log 2>&1 &"
             )
 
-            proc = await asyncio.create_subprocess_shell(
+            await asyncio.create_subprocess_shell(
                 cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
             )
             # Wait for it to spin up? (It takes ~20s)

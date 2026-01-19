@@ -53,7 +53,7 @@ def render_tex_to_image(tex_code: str) -> io.BytesIO | None:
         # Enable rendering of tex
         # rcParams['text.usetex'] = False (default) uses built-in mathtext which is what we want (no external deps)
 
-        text = plt.text(0.5, 0.5, display_tex, fontsize=24, ha="center", va="center", color="white")
+        plt.text(0.5, 0.5, display_tex, fontsize=24, ha="center", va="center", color="white")
         plt.axis("off")
 
         # Save with transparent background

@@ -28,7 +28,7 @@ def test_root():
 
 def test_link_init():
     # Mock store
-    with patch("src.web.endpoints.get_store") as mock_get_store:
+    with patch("src.web.endpoints.get_store"):
         # We need a real store or a good mock.
         # Since the app initializes store in lifespan, TestClient might not trigger it fully if we mock get_store?
         # Actually TestClient runs lifespan.

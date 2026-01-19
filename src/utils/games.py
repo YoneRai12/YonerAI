@@ -103,60 +103,13 @@ class ShiritoriGame:
         if next_char == "-":
             # Fallback: Look at second to last char
             if len(reading) > 1:
-                second_last = reading[-2]
+                reading[-2]
                 # Convert vowel... complex.
                 # Let's just say "Ends in ー is forbidden" for simplicity or just ignore it.
                 # "Start with ー" is impossible.
                 # Let's use the vowel of the character before ー.
                 # Too complex for regex‐less pure python quickly?
                 # Vowel map:
-                vowels = {
-                    "あ": "あ",
-                    "か": "あ",
-                    "さ": "あ",
-                    "た": "あ",
-                    "な": "あ",
-                    "は": "あ",
-                    "ま": "あ",
-                    "や": "あ",
-                    "ら": "あ",
-                    "わ": "あ",
-                    "い": "い",
-                    "き": "い",
-                    "し": "い",
-                    "ち": "い",
-                    "に": "い",
-                    "ひ": "い",
-                    "み": "い",
-                    "り": "い",
-                    "う": "う",
-                    "く": "う",
-                    "す": "う",
-                    "つ": "う",
-                    "ぬ": "う",
-                    "ふ": "う",
-                    "む": "う",
-                    "ゆ": "う",
-                    "る": "う",
-                    "え": "え",
-                    "け": "え",
-                    "せ": "え",
-                    "て": "え",
-                    "ね": "え",
-                    "へ": "え",
-                    "め": "え",
-                    "れ": "え",
-                    "お": "お",
-                    "こ": "お",
-                    "そ": "お",
-                    "と": "お",
-                    "の": "お",
-                    "ほ": "お",
-                    "も": "お",
-                    "よ": "お",
-                    "ろ": "お",
-                    "を": "お",
-                }
                 # Simplified map.
                 # Actually, most people play rule: "ー" -> Preceding Vowel.
                 # This is too much logic for now.

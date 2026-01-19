@@ -65,7 +65,9 @@ class SD15(supported_models_base.BASE):
         replace_prefix = {"clip_l.": "cond_stage_model."}
         return utils.state_dict_prefix_replace(state_dict, replace_prefix)
 
-    def clip_target(self, state_dict={}):
+    def clip_target(self, state_dict=None):
+        if state_dict is None:
+            state_dict = {}
         return supported_models_base.ClipTarget(sd1_clip.SD1Tokenizer, sd1_clip.SD1ClipModel)
 
 
@@ -112,7 +114,9 @@ class SD20(supported_models_base.BASE):
         state_dict = diffusers_convert.convert_text_enc_state_dict_v20(state_dict)
         return state_dict
 
-    def clip_target(self, state_dict={}):
+    def clip_target(self, state_dict=None):
+        if state_dict is None:
+            state_dict = {}
         return supported_models_base.ClipTarget(
             comfy.text_encoders.sd2_clip.SD2Tokenizer, comfy.text_encoders.sd2_clip.SD2ClipModel
         )
@@ -185,7 +189,9 @@ class SDXLRefiner(supported_models_base.BASE):
         state_dict_g = utils.state_dict_prefix_replace(state_dict_g, replace_prefix)
         return state_dict_g
 
-    def clip_target(self, state_dict={}):
+    def clip_target(self, state_dict=None):
+        if state_dict is None:
+            state_dict = {}
         return supported_models_base.ClipTarget(sdxl_clip.SDXLTokenizer, sdxl_clip.SDXLRefinerClipModel)
 
 
@@ -258,7 +264,9 @@ class SDXL(supported_models_base.BASE):
         state_dict_g = utils.state_dict_prefix_replace(state_dict_g, replace_prefix)
         return state_dict_g
 
-    def clip_target(self, state_dict={}):
+    def clip_target(self, state_dict=None):
+        if state_dict is None:
+            state_dict = {}
         return supported_models_base.ClipTarget(sdxl_clip.SDXLTokenizer, sdxl_clip.SDXLClipModel)
 
 
@@ -334,7 +342,9 @@ class SVD_img2vid(supported_models_base.BASE):
         out = model_base.SVD_img2vid(self, device=device)
         return out
 
-    def clip_target(self, state_dict={}):
+    def clip_target(self, state_dict=None):
+        if state_dict is None:
+            state_dict = {}
         return None
 
 
@@ -407,7 +417,9 @@ class Stable_Zero123(supported_models_base.BASE):
         )
         return out
 
-    def clip_target(self, state_dict={}):
+    def clip_target(self, state_dict=None):
+        if state_dict is None:
+            state_dict = {}
         return None
 
 
@@ -487,7 +499,9 @@ class Stable_Cascade_C(supported_models_base.BASE):
         out = model_base.StableCascade_C(self, device=device)
         return out
 
-    def clip_target(self, state_dict={}):
+    def clip_target(self, state_dict=None):
+        if state_dict is None:
+            state_dict = {}
         return supported_models_base.ClipTarget(sdxl_clip.StableCascadeTokenizer, sdxl_clip.StableCascadeClipModel)
 
 
@@ -577,7 +591,9 @@ class SD3(supported_models_base.BASE):
         out = model_base.SD3(self, device=device)
         return out
 
-    def clip_target(self, state_dict={}):
+    def clip_target(self, state_dict=None):
+        if state_dict is None:
+            state_dict = {}
         clip_l = False
         clip_g = False
         t5 = False
@@ -635,7 +651,9 @@ class StableAudio(supported_models_base.BASE):
         replace_prefix = {"": "model.model."}
         return utils.state_dict_prefix_replace(state_dict, replace_prefix)
 
-    def clip_target(self, state_dict={}):
+    def clip_target(self, state_dict=None):
+        if state_dict is None:
+            state_dict = {}
         return supported_models_base.ClipTarget(
             comfy.text_encoders.sa_t5.SAT5Tokenizer, comfy.text_encoders.sa_t5.SAT5Model
         )
@@ -661,7 +679,9 @@ class AuraFlow(supported_models_base.BASE):
         out = model_base.AuraFlow(self, device=device)
         return out
 
-    def clip_target(self, state_dict={}):
+    def clip_target(self, state_dict=None):
+        if state_dict is None:
+            state_dict = {}
         return supported_models_base.ClipTarget(
             comfy.text_encoders.aura_t5.AuraT5Tokenizer, comfy.text_encoders.aura_t5.AuraT5Model
         )
@@ -691,7 +711,9 @@ class PixArtAlpha(supported_models_base.BASE):
         out = model_base.PixArt(self, device=device)
         return out.eval()
 
-    def clip_target(self, state_dict={}):
+    def clip_target(self, state_dict=None):
+        if state_dict is None:
+            state_dict = {}
         return supported_models_base.ClipTarget(
             comfy.text_encoders.pixart_t5.PixArtTokenizer, comfy.text_encoders.pixart_t5.PixArtT5XXL
         )
@@ -729,7 +751,9 @@ class HunyuanDiT(supported_models_base.BASE):
         out = model_base.HunyuanDiT(self, device=device)
         return out
 
-    def clip_target(self, state_dict={}):
+    def clip_target(self, state_dict=None):
+        if state_dict is None:
+            state_dict = {}
         return supported_models_base.ClipTarget(
             comfy.text_encoders.hydit.HyditTokenizer, comfy.text_encoders.hydit.HyditModel
         )
@@ -770,7 +794,9 @@ class Flux(supported_models_base.BASE):
         out = model_base.Flux(self, device=device)
         return out
 
-    def clip_target(self, state_dict={}):
+    def clip_target(self, state_dict=None):
+        if state_dict is None:
+            state_dict = {}
         pref = self.text_encoder_key_prefix[0]
         t5_detect = comfy.text_encoders.sd3_clip.t5_xxl_detect(state_dict, "{}t5xxl.transformer.".format(pref))
         return supported_models_base.ClipTarget(
@@ -828,7 +854,9 @@ class GenmoMochi(supported_models_base.BASE):
         out = model_base.GenmoMochi(self, device=device)
         return out
 
-    def clip_target(self, state_dict={}):
+    def clip_target(self, state_dict=None):
+        if state_dict is None:
+            state_dict = {}
         pref = self.text_encoder_key_prefix[0]
         t5_detect = comfy.text_encoders.sd3_clip.t5_xxl_detect(state_dict, "{}t5xxl.transformer.".format(pref))
         return supported_models_base.ClipTarget(
@@ -863,7 +891,9 @@ class LTXV(supported_models_base.BASE):
         out = model_base.LTXV(self, device=device)
         return out
 
-    def clip_target(self, state_dict={}):
+    def clip_target(self, state_dict=None):
+        if state_dict is None:
+            state_dict = {}
         pref = self.text_encoder_key_prefix[0]
         t5_detect = comfy.text_encoders.sd3_clip.t5_xxl_detect(state_dict, "{}t5xxl.transformer.".format(pref))
         return supported_models_base.ClipTarget(
@@ -922,7 +952,9 @@ class HunyuanVideo(supported_models_base.BASE):
         replace_prefix = {"": "model.model."}
         return utils.state_dict_prefix_replace(state_dict, replace_prefix)
 
-    def clip_target(self, state_dict={}):
+    def clip_target(self, state_dict=None):
+        if state_dict is None:
+            state_dict = {}
         pref = self.text_encoder_key_prefix[0]
         hunyuan_detect = comfy.text_encoders.hunyuan_video.llama_detect(state_dict, "{}llama.transformer.".format(pref))
         return supported_models_base.ClipTarget(
@@ -979,7 +1011,9 @@ class CosmosT2V(supported_models_base.BASE):
         out = model_base.CosmosVideo(self, device=device)
         return out
 
-    def clip_target(self, state_dict={}):
+    def clip_target(self, state_dict=None):
+        if state_dict is None:
+            state_dict = {}
         pref = self.text_encoder_key_prefix[0]
         t5_detect = comfy.text_encoders.sd3_clip.t5_xxl_detect(state_dict, "{}t5xxl.transformer.".format(pref))
         return supported_models_base.ClipTarget(
@@ -1025,7 +1059,9 @@ class CosmosT2IPredict2(supported_models_base.BASE):
         out = model_base.CosmosPredict2(self, device=device)
         return out
 
-    def clip_target(self, state_dict={}):
+    def clip_target(self, state_dict=None):
+        if state_dict is None:
+            state_dict = {}
         pref = self.text_encoder_key_prefix[0]
         t5_detect = comfy.text_encoders.sd3_clip.t5_xxl_detect(state_dict, "{}t5xxl.transformer.".format(pref))
         return supported_models_base.ClipTarget(
@@ -1068,7 +1104,9 @@ class Lumina2(supported_models_base.BASE):
         out = model_base.Lumina2(self, device=device)
         return out
 
-    def clip_target(self, state_dict={}):
+    def clip_target(self, state_dict=None):
+        if state_dict is None:
+            state_dict = {}
         pref = self.text_encoder_key_prefix[0]
         hunyuan_detect = comfy.text_encoders.hunyuan_video.llama_detect(
             state_dict, "{}gemma2_2b.transformer.".format(pref)
@@ -1106,7 +1144,9 @@ class WAN21_T2V(supported_models_base.BASE):
         out = model_base.WAN21(self, device=device)
         return out
 
-    def clip_target(self, state_dict={}):
+    def clip_target(self, state_dict=None):
+        if state_dict is None:
+            state_dict = {}
         pref = self.text_encoder_key_prefix[0]
         t5_detect = comfy.text_encoders.sd3_clip.t5_xxl_detect(state_dict, "{}umt5xxl.transformer.".format(pref))
         return supported_models_base.ClipTarget(
@@ -1232,7 +1272,9 @@ class Hunyuan3Dv2(supported_models_base.BASE):
         out = model_base.Hunyuan3Dv2(self, device=device)
         return out
 
-    def clip_target(self, state_dict={}):
+    def clip_target(self, state_dict=None):
+        if state_dict is None:
+            state_dict = {}
         return None
 
 
@@ -1282,7 +1324,9 @@ class HiDream(supported_models_base.BASE):
         out = model_base.HiDream(self, device=device)
         return out
 
-    def clip_target(self, state_dict={}):
+    def clip_target(self, state_dict=None):
+        if state_dict is None:
+            state_dict = {}
         return None  #  TODO
 
 
@@ -1307,7 +1351,9 @@ class Chroma(supported_models_base.BASE):
         out = model_base.Chroma(self, device=device)
         return out
 
-    def clip_target(self, state_dict={}):
+    def clip_target(self, state_dict=None):
+        if state_dict is None:
+            state_dict = {}
         pref = self.text_encoder_key_prefix[0]
         t5_detect = comfy.text_encoders.sd3_clip.t5_xxl_detect(state_dict, "{}t5xxl.transformer.".format(pref))
         return supported_models_base.ClipTarget(
@@ -1339,7 +1385,9 @@ class ACEStep(supported_models_base.BASE):
         out = model_base.ACEStep(self, device=device)
         return out
 
-    def clip_target(self, state_dict={}):
+    def clip_target(self, state_dict=None):
+        if state_dict is None:
+            state_dict = {}
         return supported_models_base.ClipTarget(
             comfy.text_encoders.ace.AceT5Tokenizer, comfy.text_encoders.ace.AceT5Model
         )
@@ -1374,7 +1422,9 @@ class Omnigen2(supported_models_base.BASE):
         out = model_base.Omnigen2(self, device=device)
         return out
 
-    def clip_target(self, state_dict={}):
+    def clip_target(self, state_dict=None):
+        if state_dict is None:
+            state_dict = {}
         pref = self.text_encoder_key_prefix[0]
         hunyuan_detect = comfy.text_encoders.hunyuan_video.llama_detect(
             state_dict, "{}qwen25_3b.transformer.".format(pref)
@@ -1408,7 +1458,9 @@ class QwenImage(supported_models_base.BASE):
         out = model_base.QwenImage(self, device=device)
         return out
 
-    def clip_target(self, state_dict={}):
+    def clip_target(self, state_dict=None):
+        if state_dict is None:
+            state_dict = {}
         pref = self.text_encoder_key_prefix[0]
         hunyuan_detect = comfy.text_encoders.hunyuan_video.llama_detect(
             state_dict, "{}qwen25_7b.transformer.".format(pref)
@@ -1438,7 +1490,9 @@ class HunyuanImage21(HunyuanVideo):
         out = model_base.HunyuanImage21(self, device=device)
         return out
 
-    def clip_target(self, state_dict={}):
+    def clip_target(self, state_dict=None):
+        if state_dict is None:
+            state_dict = {}
         pref = self.text_encoder_key_prefix[0]
         hunyuan_detect = comfy.text_encoders.hunyuan_video.llama_detect(
             state_dict, "{}qwen25_7b.transformer.".format(pref)

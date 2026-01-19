@@ -497,9 +497,8 @@ class Store:
     async def upsert_google_user(self, google_sub: str, email: str | None, credentials) -> None:
         """Update or insert Google user info."""
         # credentials is a google.oauth2.credentials.Credentials object
-        refresh_token = credentials.refresh_token
 
-        async with aiosqlite.connect(self._db_path) as db:
+        async with aiosqlite.connect(self._db_path):
             # We might need a separate table for google users if we want to store email
             # But for now, let's assume we map it to the 'users' table via some mechanism
             # OR we just update the existing users table if we can find the user?

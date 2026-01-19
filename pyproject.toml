@@ -1,6 +1,13 @@
 [tool.ruff]
 line-length = 120
 target-version = "py311"
+exclude = [
+    "tools/backend/comfy",
+    "tools/voice/T5Gemma",
+    "node_modules",
+    "venv",
+    ".venv",
+]
 
 [tool.ruff.lint]
 select = ["E", "F", "B", "I"]
@@ -17,5 +24,9 @@ warn_unused_configs = true
 ignore_missing_imports = true
 disallow_untyped_defs = false
 check_untyped_defs = false
+exclude = [
+    "tools/backend/comfy",
+    "tools/voice/T5Gemma",
+]
 # Suppress noisy errors for initial "Pro" rollout
 disable_error_code = ["arg-type", "var-annotated", "union-attr", "attr-defined", "no-any-return", "assignment", "index", "operator", "name-defined", "syntax"]

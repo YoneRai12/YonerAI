@@ -229,7 +229,6 @@ class ChatHandler:
                     return
 
         # 1.6 DIRECT BYPASS: "Music" Trigger
-        music_keywords = ["流して", "再生", "かけて"]
         stop_keywords = ["止めて", "停止", "ストップ"]
 
         if any(kw in prompt for kw in stop_keywords) and len(prompt) < 10:

@@ -4,8 +4,6 @@ import os
 import subprocess
 import time
 
-from src.config import Config
-
 # Configure Logger
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("ResourceGuard")

@@ -117,9 +117,11 @@ class Flux(nn.Module):
         y: Tensor,
         guidance: Tensor = None,
         control=None,
-        transformer_options={},
+        transformer_options=None,
         attn_mask: Tensor = None,
     ) -> Tensor:
+        if transformer_options is None:
+            transformer_options = {}
         if y is None:
             y = torch.zeros((img.shape[0], self.params.vec_in_dim), device=img.device, dtype=img.dtype)
 
@@ -246,9 +248,11 @@ class Flux(nn.Module):
         guidance=None,
         ref_latents=None,
         control=None,
-        transformer_options={},
+        transformer_options=None,
         **kwargs,
     ):
+        if transformer_options is None:
+            transformer_options = {}
         return comfy.patcher_extension.WrapperExecutor.new_class_executor(
             self._forward,
             self,
@@ -266,9 +270,11 @@ class Flux(nn.Module):
         guidance=None,
         ref_latents=None,
         control=None,
-        transformer_options={},
+        transformer_options=None,
         **kwargs,
     ):
+        if transformer_options is None:
+            transformer_options = {}
         bs, c, h_orig, w_orig = x.shape
         patch_size = self.patch_size
 

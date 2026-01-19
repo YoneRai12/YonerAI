@@ -175,9 +175,11 @@ class Flux(nn.Module):
         y: Tensor,
         guidance: Tensor = None,
         control=None,
-        transformer_options={},
+        transformer_options=None,
         attn_mask: Tensor = None,
     ) -> Tensor:
+        if transformer_options is None:
+            transformer_options = {}
         patches = transformer_options.get("patches", {})
         patches_replace = transformer_options.get("patches_replace", {})
         if img.ndim != 3 or txt.ndim != 3:
@@ -312,7 +314,9 @@ class Flux(nn.Module):
         img = self.final_layer(img, vec_orig)  # (N, T, patch_size ** 2 * out_channels)
         return img
 
-    def process_img(self, x, index=0, h_offset=0, w_offset=0, transformer_options={}):
+    def process_img(self, x, index=0, h_offset=0, w_offset=0, transformer_options=None):
+        if transformer_options is None:
+            transformer_options = {}
         bs, c, h, w = x.shape
         patch_size = self.patch_size
         x = comfy.ldm.common_dit.pad_to_patch_size(x, (patch_size, patch_size))
@@ -355,9 +359,11 @@ class Flux(nn.Module):
         guidance=None,
         ref_latents=None,
         control=None,
-        transformer_options={},
+        transformer_options=None,
         **kwargs,
     ):
+        if transformer_options is None:
+            transformer_options = {}
         return comfy.patcher_extension.WrapperExecutor.new_class_executor(
             self._forward,
             self,
@@ -375,9 +381,11 @@ class Flux(nn.Module):
         guidance=None,
         ref_latents=None,
         control=None,
-        transformer_options={},
+        transformer_options=None,
         **kwargs,
     ):
+        if transformer_options is None:
+            transformer_options = {}
         bs, c, h_orig, w_orig = x.shape
         patch_size = self.patch_size
 

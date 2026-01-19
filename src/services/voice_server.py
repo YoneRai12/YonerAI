@@ -94,7 +94,6 @@ async def speak(text: str = Form(...), speaker_id: str = Form(None), reference_a
         return {"error": "Voice Engine failed to load."}
 
     try:
-        inputs = None
 
         # 1. Processing Input
         # Aratako's prompt format likely requires specific control tokens or just text.

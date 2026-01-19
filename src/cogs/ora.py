@@ -400,7 +400,6 @@ class ORACog(commands.Cog):
         if not memory_dir.exists():
             return
 
-        count = 0
         memory_cog = self.bot.get_cog("MemoryCog")
         if not memory_cog:
             logger.warning("MemoryCog not found, skipping optimization scan.")
@@ -759,7 +758,6 @@ class ORACog(commands.Cog):
             await interaction.response.send_message("⛔ この機能は管理者専用です。", ephemeral=True)
             return
 
-        enabled = mode == "on"
 
     @system_group.command(name="info", description="詳細なシステム情報を表示します。")
     async def system_info(self, interaction: discord.Interaction) -> None:
@@ -2350,7 +2348,6 @@ class ORACog(commands.Cog):
                 # Load Test Image
                 VISION_LABEL = "Vision (Qwen2.5-VL)"
                 await update_field(VISION_LABEL, "loading", "Loading Test Image...")
-                vision_ok = False
                 try:
                     import base64
                     import io
@@ -2394,7 +2391,6 @@ class ORACog(commands.Cog):
 
                         if vis_response:
                             await update_field(VISION_LABEL, "done", f"Pass: '{vis_response[:40]}...'")
-                            vision_ok = True
                         else:
                             await update_field(VISION_LABEL, "done", "Failed: Empty Response", is_error=True)
 
@@ -3884,7 +3880,7 @@ class ORACog(commands.Cog):
                 # Continue to normal AI processing with force_dm flag
 
             # Only trigger if specific keywords are present
-            content_stripped = (
+            (
                 message.content.replace(f"<@{self.bot.user.id}>", "").replace(f"<@!{self.bot.user.id}>", "").strip()
             )
 
@@ -5239,7 +5235,6 @@ class ORACog(commands.Cog):
 
         # 1.6 DIRECT BYPASS: "Music" Trigger (Force Tool Call)
         # Why? LLM sometimes chats ("OK I will play") without calling tool.
-        music_keywords = ["流して", "再生", "かけて"]
         stop_keywords = ["止めて", "停止", "ストップ"]
 
         # Check Stop first
@@ -5321,11 +5316,10 @@ class ORACog(commands.Cog):
                 logger.warning(f"Reply Injection Failed: {e}")
 
         # Send initial progress message if not provided
-        start_time = time.time()
+        time.time()
         # Status Manager already started above
 
         # Voice Feedback: "Generating..." (Smart Delay)
-        voice_feedback_task = None
         if is_voice:
 
             async def delayed_feedback():
@@ -5338,7 +5332,7 @@ class ORACog(commands.Cog):
                         # Skipped "Generating answer" TTS as per user request
                         pass
 
-            voice_feedback_task = asyncio.create_task(delayed_feedback())
+            asyncio.create_task(delayed_feedback())
 
         try:
             # --- Phase 29: Universal Brain Router ---
@@ -5410,7 +5404,6 @@ class ORACog(commands.Cog):
             from ..config import ROUTER_CONFIG  # Ensure import is available
 
             target_provider = "local"  # Default
-            sanitized_prompt = None
             clean_messages = messages  # Default to full context
             selected_route = {"provider": "local", "lane": "stable", "model": None}
 
@@ -5939,7 +5932,7 @@ class ORACog(commands.Cog):
                         # --------------------------------------
 
                         # Update progress message to show tool execution
-                        tool_display_name = {
+                        {
                             "google_search": "🔍 Web検索",
                             "get_system_stats": "💻 システム情報取得",
                             "music_play": "🎵 音楽再生",

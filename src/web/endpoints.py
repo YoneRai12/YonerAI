@@ -497,7 +497,7 @@ async def get_dashboard_users(response: Response):
     import aiofiles
 
     from src.config import MEMORY_DIR, STATE_DIR
-    users_dir = Path(MEMORY_DIR) / "users"
+    Path(MEMORY_DIR) / "users"
     users = []
 
     # 1. Load Discord State (Presence/Names/Guilds) FIRST
@@ -1269,11 +1269,10 @@ async def get_server_dashboard_view(token: str):
     for u in server_users:
         avatar = u.get("avatar_url") or "https://cdn.discordapp.com/embed/avatars/0.png"
         status = u.get("status", "New")
-        badge_class = "badge-neutral"
         if status == "Optimized":
-            badge_class = "badge-success"
+            pass
         elif status == "Processing":
-            badge_class = "badge-warn"
+            pass
 
         cost = u["cost_usage"]["total_usd"]
 

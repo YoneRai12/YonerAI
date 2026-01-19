@@ -10,7 +10,6 @@ def fix_loop():
         print("Memory dir not found.")
         return
 
-    count = 0
     fixed = 0
 
     for f_path in MEMORY_DIR.glob("*.json"):

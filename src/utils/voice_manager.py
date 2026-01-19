@@ -1147,7 +1147,7 @@ class VoiceManager:
 
             import time
 
-            elapsed = time.time() - state.current_start_time
+            time.time() - state.current_start_time
             # Apply previous speed factor to get "Real" audio time elapsed?
             # Too complex. Let's just restart the track with new settings (User knows "Tune" might reset)
             # OR we implement 'ss' option?

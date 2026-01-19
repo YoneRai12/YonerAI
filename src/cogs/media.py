@@ -583,7 +583,6 @@ class MediaCog(commands.Cog):
             return
 
         # Simple Text List (Truncated if too long)
-        msg = "**利用可能な音声リスト:**\n"
         names = [s["name"] for s in speakers]
 
         # Chunking to avoid 2000 char limit
@@ -846,7 +845,7 @@ class MediaCog(commands.Cog):
         try:
             from ..utils.voice_manager import VoiceConnectionError
 
-            voice_client = await self._voice_manager.ensure_voice_client(interaction.user)
+            await self._voice_manager.ensure_voice_client(interaction.user)
         except VoiceConnectionError as e:
             await interaction.followup.send(
                 f"ボイスチャンネルへの参加に失敗しました。\n理由: {e}",

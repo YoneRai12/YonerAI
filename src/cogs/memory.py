@@ -1069,10 +1069,9 @@ class MemoryCog(commands.Cog):
                     profile = await self.get_user_profile(uid, gid)
                     if not profile:
                         status = "New"
-                        traits = []
                     else:
                         status = profile.get("status", "New")
-                        traits = profile.get("traits", [])
+                        profile.get("traits", [])
 
                     if status == "New" or len(g_msgs) >= 5:
                         logger.info(f"メモリ: {uid} (サーバー {gid}) の分析をキューに追加しました ({len(g_msgs)}件)")
@@ -1112,7 +1111,6 @@ class MemoryCog(commands.Cog):
 
         # Scan active channels
         collected_msgs = []
-        scanned_count = 0
 
         # Determine status
         profile = await self.get_user_profile(user_id, guild_id)

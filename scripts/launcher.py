@@ -122,7 +122,6 @@ def run_bot_in_sandbox():
                 logger.error(f"Bot successfully crashed with code {return_code}. Restarting in 5 seconds...")
 
                 # Capture recent logs for repair
-                msg = "Crash detected."
                 try:
                     # Read the last 50 lines of the log file
                     log_file = SANDBOX_DIR / "ora_bot.log"

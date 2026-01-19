@@ -8,15 +8,22 @@ import discord
 from discord.ext import commands
 from dotenv import load_dotenv
 
+# Imports from src
+from src.config import Config  # noqa: E402
+from src.utils.google_client import GoogleClient  # noqa: E402
+from src.utils.llm_client import LLMClient  # noqa: E402
+from src.utils.unified_client import UnifiedClient  # noqa: E402
+from src.cogs.memory import MemoryCog  # noqa: E402
+
 # Setup Logging
 log_dir = os.path.join(os.getcwd(), "logs")
 os.makedirs(log_dir, exist_ok=True)
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(name)s %(message)s",
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     handlers=[
-        logging.FileHandler(os.path.join(log_dir, "worker_bot.log"), encoding="utf-8"),
-        logging.StreamHandler(sys.stdout)
+        logging.FileHandler("logs/worker_bot.log", encoding="utf-8"),
+        logging.StreamHandler(sys.stdout),
     ],
 )
 logging.getLogger("discord.http").setLevel(logging.WARNING)
@@ -35,12 +42,6 @@ if not TOKEN:
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if project_root not in sys.path:
     sys.path.append(project_root)
-
-# Imports from src
-from src.config import Config
-from src.utils.google_client import GoogleClient
-from src.utils.llm_client import LLMClient
-from src.utils.unified_client import UnifiedClient
 
 
 class WorkerBot(commands.Bot):
@@ -66,9 +67,6 @@ class WorkerBot(commands.Bot):
         self.llm_client = UnifiedClient(config, self.base_llm, self.google_client)
 
     async def setup_hook(self):
-        # Load MemoryCog in WORKER MODE
-        from src.cogs.memory import MemoryCog
-
         # MemoryCog expects (bot, llm_client, worker_mode)
         await self.add_cog(MemoryCog(self, self.llm_client, worker_mode=True))
         logger.info("WorkerBot: MemoryCog loaded in WORKER MODE.")

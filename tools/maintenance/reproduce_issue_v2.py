@@ -34,7 +34,7 @@ def test_parsing(content):
             else:
                 print("Fallback Regex FAILED")
 
-    for i, json_str in enumerate(json_objects):
+    for _i, json_str in enumerate(json_objects):
         try:
             print(f"Attempting to parse: {json_str}")
             data = json.loads(json_str)

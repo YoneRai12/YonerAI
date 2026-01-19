@@ -258,7 +258,7 @@ class Config:
         search_engine = os.getenv("SEARCH_ENGINE", "google")
 
         # Google Cloud (Gemini API)
-        google_api_key = os.getenv("GOOGLE_API_KEY")
+        os.getenv("GOOGLE_API_KEY")
 
         # OpenAI Configuration
         openai_key = os.getenv("OPENAI_API_KEY")

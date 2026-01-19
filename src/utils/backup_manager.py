@@ -27,7 +27,7 @@ class BackupManager:
                 # 1. Backup SRC (Code)
                 src_path = os.path.join(self.root_dir, "src")
                 if os.path.exists(src_path):
-                    for root, dirs, files in os.walk(src_path):
+                    for root, _dirs, files in os.walk(src_path):
                         # Skip __pycache__
                         if "__pycache__" in root:
                             continue
@@ -50,7 +50,7 @@ class BackupManager:
                 # UNLESS the user explicitly asks.
                 # The user said "Complete Backup". So we should try.
 
-                state_path = os.path.join(self.root_dir, "state")  # Assuming mapped or config driven?
+                os.path.join(self.root_dir, "state")  # Assuming mapped or config driven?
                 # Config usually says config.STATE_DIR.
                 # Let's check reliable L:\ORA_State or local state.
                 # For now, let's backup LOCAL 'src' primarily as that's what Healer changes.

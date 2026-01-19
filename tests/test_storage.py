@@ -24,9 +24,9 @@ async def test_backup_success():
         patch("os.path.exists", side_effect=side_effect_exists),
         patch("src.storage.sqlite3") as mock_sqlite,
         patch("os.replace") as mock_replace,
-        patch("os.remove") as mock_remove,
-        patch("pathlib.Path.mkdir") as mock_mkdir,
-        patch("pathlib.Path.glob") as mock_glob,
+        patch("os.remove"),
+        patch("pathlib.Path.mkdir"),
+        patch("pathlib.Path.glob"),
     ):
         # Setup mocks
         mock_src_conn = MagicMock()

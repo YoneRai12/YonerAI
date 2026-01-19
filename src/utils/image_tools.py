@@ -35,11 +35,6 @@ def classify_image(data: bytes) -> str:
     orientation = "横長" if aspect > 1.2 else "縦長" if aspect < 0.8 else "ほぼ正方形"
     return f"推定カテゴリ: {dominant} / 雰囲気: {mood} / 形状: {orientation}"
 
-    cleaned = text.strip()
-    if not cleaned:
-        return "テキストは検出されませんでした。"
-    return cleaned
-
 
 def preprocess_image_for_ocr(data: bytes) -> list[Image.Image]:
     """
@@ -198,7 +193,7 @@ def analyze_image_v2(data: bytes) -> str:
     request = vision.AnnotateImageRequest(image=image, features=features)
 
     try:
-        response = client.annotate_image(request)
+        client.annotate_image(request)
     except Exception as e:
         logger.error(f"Vision API Error: {e}")
         # Fallback to Tesseract
