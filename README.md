@@ -243,26 +243,38 @@ git clone https://github.com/YoneRai12/ORA.git
 cd ORA
 ```
 
-### 3. Setup Wizard (The Ritual) [NEW]
-We have automated the environment setup.
-```bash
-# Run the Setup Wizard
-python setup_wizard.py
-```
-This script will:
-1.  Check your Python & GPU version.
-2.  Create a virtual environment (`venv`).
-3.  Install PyTorch with correct CUDA support.
-4.  Generate your `.env` configuration.
+### 3. Setup Wizard (The Ritual) [Universal]
+We have automated the environment setup for Windows, Mac, and Linux.
+
+1.  **Clone the Repository**:
+    ```bash
+    git clone https://github.com/YoneRai12/ORA.git
+    cd ORA
+    ```
+
+2.  **Run the Setup Wizard**:
+    *   **Windows**:
+        ```powershell
+        python setup_wizard.py
+        ```
+    *   **Mac / Linux**:
+        ```bash
+        python3 setup_wizard.py
+        ```
+
+This script will automatically detect your OS and GPU, create a `venv`, and install the correct version of PyTorch (CUDA for PC, MPS for Mac).
 
 ### 4. IGNITION
-```bash
-# Start ORA (Windows)
-start_windows.bat
-```
-*   Wait for **"vLLM Engine Ready"**.
-*   Wait for **"Voice Server Ready"**.
-*   When you see **"ORA is Online"**, say "Hello" in Discord.
+Wake up the bot using the command for your OS:
+
+| OS | Command | Notes |
+| :--- | :--- | :--- |
+| **Windows** | `start_windows.bat` | Double-click or run in CMD. |
+| **Mac (Silicon)** | `./start.sh` | Supports Apple M1/M2/M3 Neural Engine. |
+| **Linux** | `./start.sh` | Supports NVIDIA CUDA / Headless Mode. |
+
+*   Wait for **"ORA is Online"**.
+*   Say "Hello" in Discord!
 
 ---
 

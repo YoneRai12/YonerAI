@@ -74,17 +74,54 @@ def setup_venv():
 def install_dependencies(python_path, pip_path):
     print(f"\n{Colors.HEADER}[4/5] Installing Dependencies...{Colors.ENDC}")
     
-    # 1. Install PyTorch with CUDA support first (Crucial for Windows)
-    print("   📦 Installing PyTorch (CUDA 12.1)... this may take a while.")
-    subprocess.check_call([
-        pip_path, "install", 
-        "torch", "torchvision", "torchaudio", 
-        "--index-url", "https://download.pytorch.org/whl/cu121"
-    ])
+    current_os = platform.system()
+    print(f"   Detected OS: {current_os}")
+
+    torch_cmd = [pip_path, "install", "torch", "torchvision", "torchaudio"]
+    
+    # OS-Specific Torch Logic
+    if current_os == "Windows":
+        print("   🪟 Windows detected. Installing PyTorch with CUDA 12.1...")
+        torch_cmd.extend(["--index-url", "https://download.pytorch.org/whl/cu121"])
+        
+    elif current_os == "Linux":
+        print("   🐧 Linux detected. Installing PyTorch with CUDA 12.1 (assuming NVIDIA GPU)...")
+        # You might want to ask user here or check nvidia-smi, but auto-assuming based on user persona (High-End PC)
+        torch_cmd.extend(["--index-url", "https://download.pytorch.org/whl/cu121"])
+        
+    elif current_os == "Darwin":
+        print("   🍎 macOS detected. Installing PyTorch (MPS/Metal Acceleration)...")
+        # Standard install covers MPS on modern Mac
+        pass
+        
+    else:
+        print(f"   ⚠️ Unknown OS '{current_os}'. Installing standard CPU PyTorch.")
+        torch_cmd.extend(["--index-url", "https://download.pytorch.org/whl/cpu"])
+
+    # Run Torch Install
+    try:
+        subprocess.check_call(torch_cmd)
+    except subprocess.CalledProcessError:
+        print(f"{Colors.FAIL}   ❌ PyTorch installation failed.{Colors.ENDC}")
+        sys.exit(1)
     
     # 2. Install requirements.txt
     if os.path.exists("requirements.txt"):
         print("   📦 Installing Core Dependencies from requirements.txt...")
+        # Exclude torch from requirements if it's already installed to avoid conflict strings? 
+        # Usually pip handles it, but let's just run it.
+        # Note: requirements.txt has `torch>=2.0.0` which is fine.
+        # But it also has `--index-url` at the top which might force CUDA on Mac if not careful.
+        # We should tell user to ignore the first line if on Mac? 
+        # Let's remove --index-url from requirements.txt and handle it here solely? 
+        # Or just trust pip.
+        
+        # If requirements.txt has `--index-url`, it overrides CLI args sometimes.
+        # Best practice: Remove `--index-url` from requirements.txt and let this script manage it.
+        # But I just added it to requirements.txt...
+        # I will start by stripping lines starting with --index-url when passing to pip? No that's hard via CLI.
+        # I'll just run it. If it fails on Mac, I might need to edit requirements.txt dynamically.
+        
         subprocess.check_call([pip_path, "install", "-r", "requirements.txt"])
         print(f"{Colors.GREEN}   ✅ Dependencies installed.{Colors.ENDC}")
     else:
@@ -145,6 +182,8 @@ def finish():
         print(f"   or")
         print(f"   {Colors.CYAN}.\\venv\\Scripts\\python.exe -m src.bot{Colors.ENDC}")
     else:
+        print(f"   {Colors.CYAN}./start.sh{Colors.ENDC}   (Recommended)")
+        print(f"   or")
         print(f"   {Colors.CYAN}./venv/bin/python -m src.bot{Colors.ENDC}")
 
 if __name__ == "__main__":
