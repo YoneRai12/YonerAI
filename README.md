@@ -59,61 +59,74 @@ ORA uses a "Hybrid Brain" architecture to balance **Intelligence** vs **Cost**.
 
 ```mermaid
 graph TD
-    %% Styling Definitions
-    classDef user fill:#ffecb3,stroke:#ffb74d,stroke-width:2px,color:#000
-    classDef router fill:#e1f5fe,stroke:#29b6f6,stroke-width:2px,color:#000
-    classDef cloud fill:#e8f5e9,stroke:#66bb6a,stroke-width:2px,color:#000
-    classDef local fill:#333,stroke:#b2dfdb,stroke-width:2px,color:#fff
-    classDef tool fill:#fff3e0,stroke:#ffcc80,stroke-width:2px,color:#000
-    classDef final fill:#fce4ec,stroke:#f48fb1,stroke-width:2px,color:#000
+    %% Styling
+    classDef user fill:#fff9c4,stroke:#fbc02d,stroke-width:2px,color:#000
+    classDef router fill:#e1f5fe,stroke:#039be5,stroke-width:2px,color:#000
+    classDef cloud fill:#e8f5e9,stroke:#4caf50,stroke-width:2px,color:#000
+    classDef local fill:#212121,stroke:#90a4ae,stroke-width:2px,color:#fff
+    classDef tool fill:#fff3e0,stroke:#fb8c00,stroke-width:2px,color:#000
+    classDef final fill:#fce4ec,stroke:#f06292,stroke-width:2px,color:#000
 
+    %% 1. User Input Layer
     UserInput["User Prompt"]:::user --> RouteCheck{Local or Cloud?}:::router
 
-    %% Main Routing
+    %% 2. Models Layer (Cloud & Local)
+    subgraph ModelsWrapper [ ]
+        style ModelsWrapper fill:none,stroke:none
+        
+        %% Right Side: Local
+        subgraph Local ["🏠 Local PC (Private)"]
+            direction TB
+            L_Coder["💻 Coder: DeepSeek"]:::local
+            L_Mistral["🌪️ Mistral: Mithril"]:::local
+            L_Qwen["🦉 Qwen: Quarter"]:::local
+            L_GLM["⚡ GLM-4.7-Flash"]:::local
+        end
+
+        %% Left Side: Cloud
+        subgraph Cloud ["☁️ OpenAI API (Cloud)"]
+            direction TB
+            CodingModel["💻 Coding: gpt-5.1-codex"]:::cloud
+            HighModel["🧠 Deep: gpt-5.1 / o3"]:::cloud
+            MiniModel["👁️🗨️ Vision: gpt-5-mini"]:::cloud
+        end
+    end
+
+    %% Routing Logic
     RouteCheck -- "Local Only" --> LocalRouter{Local Router}:::local
     RouteCheck -- "Allow Cloud" --> OmniRouter{Analysis Logic}:::router
 
-    %% Cloud & Local Container (Parallel Concept)
-    subgraph Cloud ["☁️ OpenAI API (Cloud)"]
-        direction TB
-        CodingModel["💻 Coding: gpt-5.1-codex"]:::cloud
-        HighModel["🧠 Deep: gpt-5.1 / o3"]:::cloud
-        MiniModel["👁️🗨️ Chat & Vision: gpt-5-mini"]:::cloud
-    end
-    
-    subgraph Local ["🏠 Local PC (Localhost)"]
-        direction TB
-        L_Coder["💻 Coder: DeepSeek"]:::local
-        L_Mistral["🌪️ Mistral: Mithril"]:::local
-        L_Qwen["🦉 Qwen: Quarter"]:::local
-        L_GLM["⚡ GLM-4.7-Flash"]:::local
-    end
-
-    %% Tools Layer (Compact Mode)
-    subgraph Tools ["🛠️ Advanced Tools"]
-        direction LR
-        T_Img["🎨 Image\n(DALL-E 3 / FLUX.2)"]:::tool
-        T_Vid["🎥 Video\n(Sora)"]:::tool
-        T_Search["🔍 Search\n(Google / Perplexity)"]:::tool
-        T_Voice["🎤 Voice\n(OpenAI TTS / VoiceVox)"]:::tool
-    end
-
-    %% Routing to Models
     LocalRouter --> L_Coder & L_Mistral & L_Qwen & L_GLM
     OmniRouter --> CodingModel & HighModel & MiniModel
 
-    %% Models to Tools (Direct & Compact)
-    MiniModel & L_Mistral --> T_Img & T_Voice
-    HighModel & L_Qwen --> T_Vid & T_Search
-    CodingModel & L_Coder --> T_Search
-    L_GLM --> T_Voice
+    %% 3. Tools Layer
+    subgraph Tools ["🛠️ Advanced Tools"]
+        direction LR
+        T_Search["🔍 Search\n(Google)"]:::tool
+        T_Vid["🎥 Video\n(Sora)"]:::tool
+        T_Img["🎨 Image\n(DALL-E 3)"]:::tool
+        T_Voice["🎤 Voice\n(TTS)"]:::tool
+    end
 
-    %% Direct to Response (Text)
-    CodingModel & HighModel & MiniModel --> Response["Final Reply"]:::final
-    L_Coder & L_Mistral & L_Qwen & L_GLM --> Response
+    %% 4. Specific Connections (No Crossing)
+    %% Search Users
+    CodingModel & L_Coder & HighModel & L_Qwen --> T_Search
+    
+    %% Video Users
+    HighModel & L_Qwen --> T_Vid
+    
+    %% Image Users
+    MiniModel & L_Mistral --> T_Img
+    
+    %% Voice Users
+    MiniModel & L_Mistral & L_GLM --> T_Voice
 
-    %% Tools to Response
-    T_Img & T_Vid & T_Search & T_Voice --> Response
+    %% 5. Final Output
+    T_Search & T_Vid & T_Img & T_Voice --> Response["Final Reply"]:::final
+    
+    %% Direct Text fallback
+    CodingModel & HighModel & MiniModel -.-> Response
+    L_Coder & L_Mistral & L_Qwen & L_GLM -.-> Response
 ```
 
 *   **Smart Routing**: She analyzes prompt length and keywords (e.g., "fix code" -> Codex).
