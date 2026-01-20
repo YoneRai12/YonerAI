@@ -62,7 +62,7 @@ graph TD
     UserInput["ユーザープロンプト"] --> RouteCheck{ローカル or API?}
 
     %% Right Branch: Local
-    RouteCheck -- "ローカルのみ" --> LocalPath
+    RouteCheck -- "ローカルのみ" --> LocalRouter{Local Router}
 
     %% Left Branch: Cloud (API)
     RouteCheck -- "API許可 (Cloud)" --> OmniRouter{解析ロジック}
@@ -77,8 +77,17 @@ graph TD
 
     %% Local Subgraph
     subgraph Local ["🏠 Local PC (Localhost)"]
-        LocalPath["Local VLLM"]
+        direction TB
+        L_Coder["💻 Coder (DeepSeek)"]
+        L_Mistral["🌪️ Mistral (Mithril)"]
+        L_Qwen["🦉 Qwen (Quarter)"]
+        L_GLM["⚡ GLM-4.7-Flash"]
     end
+
+    LocalRouter --> L_Coder
+    LocalRouter --> L_Mistral
+    LocalRouter --> L_Qwen
+    LocalRouter --> L_GLM
 
     OmniRouter -- "キーワード: Code/Fix" --> CodingModel
     OmniRouter -- "50文字以上 OR 解説/Deep" --> HighModel
@@ -88,7 +97,11 @@ graph TD
     CodingModel --> Response["最終回答"]
     HighModel --> Response
     MiniModel --> Response
-    LocalPath --> Response
+    
+    L_Coder --> Response
+    L_Mistral --> Response
+    L_Qwen --> Response
+    L_GLM --> Response
 ```
 
 ### 👥 Shadow Clone: Zombie Killer

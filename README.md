@@ -62,7 +62,7 @@ graph TD
     UserInput["User Prompt"] --> RouteCheck{Local or Cloud?}
 
     %% Right Branch: Local
-    RouteCheck -- "Local Only" --> LocalPath
+    RouteCheck -- "Local Only" --> LocalRouter{Local Router}
 
     %% Left Branch: Cloud (API)
     RouteCheck -- "Allow Cloud" --> OmniRouter{Analysis Logic}
@@ -77,8 +77,17 @@ graph TD
     
     %% Local Subgraph
     subgraph Local ["🏠 Local PC (Localhost)"]
-        LocalPath["Local VLLM"]
+        direction TB
+        L_Coder["💻 Coder (DeepSeek)"]
+        L_Mistral["🌪️ Mistral (Mithril)"]
+        L_Qwen["🦉 Qwen (Quarter)"]
+        L_GLM["⚡ GLM-4.7-Flash"]
     end
+
+    LocalRouter --> L_Coder
+    LocalRouter --> L_Mistral
+    LocalRouter --> L_Qwen
+    LocalRouter --> L_GLM
 
     OmniRouter -- "Keyword: Code/Fix" --> CodingModel
     OmniRouter -- "Length > 50 chars" --> HighModel
@@ -88,7 +97,11 @@ graph TD
     CodingModel --> Response["Final Reply"]
     HighModel --> Response
     MiniModel --> Response
-    LocalPath --> Response
+    
+    L_Coder --> Response
+    L_Mistral --> Response
+    L_Qwen --> Response
+    L_GLM --> Response
 ```
 
 *   **Smart Routing**: She analyzes prompt length and keywords (e.g., "fix code" -> Codex).
