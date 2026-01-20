@@ -59,51 +59,34 @@ ORAは「キーワード」「文脈長」「画像有無」を判断し、**ロ
 
 ```mermaid
 graph TD
-    User((User)) --> Router{Omni-Router}
+    UserInput["ユーザープロンプト"] --> RouteCheck{ローカル or API?}
 
-    %% Central Hub: Capabilities
-    Router --> |"テキスト & コード"| TextTask(📝 Text / Code)
-    Router --> |"画像認識 (Vision)"| VisTask(👁️ Vision Analysis)
-    Router --> |"画像生成"| GenTask(🎨 Image Generation)
-    Router --> |"音声合成"| VoiceTask(🎤 Voice Output)
-    Router --> |"検索 / 動画"| WebTask(🔍 Search & Video)
+    %% Right Branch: Local
+    RouteCheck -- "ローカルのみ" --> LocalPath["🏠 Local VLLM (Localhost)"]
+
+    %% Left Branch: Cloud (API)
+    RouteCheck -- "API許可 (Cloud)" --> OmniRouter{解析ロジック}
 
     %% Cloud Subgraph
     subgraph Cloud ["☁️ OpenAI API (Cloud)"]
         direction TB
-        C_Codex["gpt-5.1-codex"]
-        C_High["gpt-5.1 / o3"]
-        C_Mini["gpt-5-mini"]
-        C_Dalle["DALL-E 3 / Sora"]
-        C_Voice["OpenAI TTS"]
+        VisionModel["👁️ Vision: gpt-5-mini"]
+        CodingModel["💻 Coding: gpt-5.1-codex"]
+        HighModel["🧠 Deep: gpt-5.1 / o3"]
+        StdModel["💬 Chat: gpt-5-mini"]
     end
 
-    %% Local Subgraph
-    subgraph Local ["🏠 Local PC (RTX 5090)"]
-        direction TB
-        L_LLM["Qwen 2.5-VL"]
-        L_Flux["FLUX.2 (4K)"]
-        L_Voice["VoiceVox"]
-    end
+    OmniRouter -- "画像あり" --> VisionModel
+    OmniRouter -- "キーワード: Code/Fix" --> CodingModel
+    OmniRouter -- "50文字以上 OR 解説/Deep" --> HighModel
+    OmniRouter -- "標準会話" --> StdModel
 
-    %% Connections
-    %% Text Routing
-    TextTask -- "Coding" --> C_Codex
-    TextTask -- "Deep" --> C_High
-    TextTask -- "Chat" --> C_Mini
-    TextTask -.-> |"Private"| L_LLM
-
-    %% Vision Routing
-    VisTask --> C_Mini
-    VisTask -.-> |"Private"| L_LLM
-
-    %% Generation Routing
-    GenTask --> C_Dalle
-    GenTask -.-> |"Private"| L_Flux
-
-    %% Voice Routing
-    VoiceTask --> C_Voice
-    VoiceTask -.-> |"Private"| L_Voice
+    %% Final Output
+    VisionModel --> Response["最終回答"]
+    CodingModel --> Response
+    HighModel --> Response
+    StdModel --> Response
+    LocalPath --> Response
 ```
 
 ### 👥 Shadow Clone: Zombie Killer
