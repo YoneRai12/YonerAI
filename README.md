@@ -128,7 +128,23 @@ graph TD
 
 *   **Smart Routing**: She analyzes prompt length and keywords (e.g., "fix code" -> Codex).
 *   **Cost Control**: Falls back to Local LLM if quotas are exceeded.
+```
 *   **Universal Connection**: Automatically routes `gpt-*` models to OpenAI Cloud and others to Local VLLM.
+
+### 📡 Policy Router Rules (Decision Logic)
+ORA is not a black box. Routing follows strict policies to ensure safety and efficiency:
+
+1.  **🛡️ Privacy Guard**: If PII (Phone #, Address, etc.) is detected, ORA **Force-Switches to Local Mode** to prevent data leak.
+2.  **⚡ Budget Guard**: If GPU VRAM usage exceeds **25GB**, Cloud API usage is throttled, and lightweight Local models (7B) are prioritized.
+3.  **💻 Coding Priority**: Prompts with code blocks or error stack traces are routed to **GPT-5.1-Codex**.
+4.  **👁️ Vision Handling**: Images are automatically routed to **GPT-5-Vision** (Cloud) or **Qwen-VL** (Local).
+
+### ⚡ Resource Manager (VRAM Modes)
+Standard AI slows down your PC. ORA "co-exists" with your workflow.
+
+*   **Normal Mode (Cap: 25GB)**: Quality First. Uses Deep Thinking models and Qwen-32B for best answers.
+*   **Gaming Mode (Cap: 18GB)**: Detects games (e.g., `valorant.exe`) and swaps to lightweight models to ensure **0 FPS drop**.
+*   **Safety Mode (Cloud Block)**: Offline-only mode for high-security environments.
 
 ### 3. 👥 Shadow Clone (Zero Downtime)
 Updates usually mean "Downtime". Not for ORA.
