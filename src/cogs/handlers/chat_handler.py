@@ -335,17 +335,15 @@ class ChatHandler:
                     can_stable_openai = self.cog.cost_manager.can_call("stable", "openai", message.author.id, est_usage)
 
                     if has_image:
-                        selected_route = {}  # type: ignore
-                        if can_burn_gemini.allowed and self.bot.google_client:
-                            target_provider = "gemini_trial"
-                            target_model = ROUTER_CONFIG.get("vision_model", "gemini-2.0-flash-exp")
-                            selected_route = {"provider": "gemini_trial", "lane": "burn", "model": target_model}
-                            actual_sys = await self._build_system_prompt(message, model_hint=target_model)
-                            clean_messages = [
-                                {"role": "system", "content": actual_sys},
-                                {"role": "user", "content": pkt.text},
-                            ]
+                        # User requested OpenAI for Vision
+                        target_model = ROUTER_CONFIG.get("vision_model", "gpt-5-mini")
+                        # Use stable lane for vision by default
+                        if self.cog.cost_manager.can_call("stable", "openai", message.author.id, est_usage).allowed:
+                            target_provider = "openai"
+                            selected_route = {"provider": "openai", "lane": "stable", "model": target_model}
+                            # OpenAI handles images in messages list naturally
                         else:
+                            # Fallback to Local if quota exceeded
                             target_provider = "local"
 
                     elif self.cog.unified_client.openai_client:
@@ -356,20 +354,33 @@ class ChatHandler:
                         is_code = any(k in prompt_lower for k in coding_kws)
                         is_high_intel = (len(prompt) > 50) or any(k in prompt_lower for k in high_intel_kws)
 
+                        # Helper to resolve lane from config
+                        from src.config import COST_LIMITS
+                        def _get_lane(m: str) -> str:
+                            if m in COST_LIMITS["high"]["openai"]["models"]:
+                                return "high"
+                            return "stable"
+
                         if is_code:
-                            if can_high_openai.allowed:
+                            target_model = ROUTER_CONFIG.get("coding_model", "gpt-5.1-codex")
+                            target_lane = _get_lane(target_model)
+                            
+                            if self.cog.cost_manager.can_call(target_lane, "openai", message.author.id, est_usage).allowed:
                                 target_provider = "openai"
-                                target_model = ROUTER_CONFIG.get("coding_model", "gpt-5.1-codex")
-                                selected_route = {"provider": "openai", "lane": "high", "model": target_model}
-                            elif can_stable_openai.allowed:
+                                selected_route = {"provider": "openai", "lane": target_lane, "model": target_model}
+                            # Fallback logic simplified: if primary lane fails, try stable (if different)
+                            elif target_lane != "stable" and can_stable_openai.allowed:
                                 target_provider = "openai"
                                 target_model = ROUTER_CONFIG.get("standard_model", "gpt-5-mini")
                                 selected_route = {"provider": "openai", "lane": "stable", "model": target_model}
+
                         elif is_high_intel:
-                            if can_high_openai.allowed:
+                            target_model = ROUTER_CONFIG.get("high_intel_model", "gpt-5.1")
+                            target_lane = _get_lane(target_model)
+
+                            if self.cog.cost_manager.can_call(target_lane, "openai", message.author.id, est_usage).allowed:
                                 target_provider = "openai"
-                                target_model = ROUTER_CONFIG.get("high_intel_model", "gpt-5.1")
-                                selected_route = {"provider": "openai", "lane": "high", "model": target_model}
+                                selected_route = {"provider": "openai", "lane": target_lane, "model": target_model}
                             elif can_stable_openai.allowed:
                                 target_provider = "openai"
                                 target_model = ROUTER_CONFIG.get("standard_model", "gpt-5-mini")
@@ -429,17 +440,35 @@ class ChatHandler:
                     current_turn = 0
                     while current_turn < max_turns:
                         current_turn += 1
-                        est_turn_cost = Usage(tokens_in=0, tokens_out=0, usd=0.01)
-                        if not self.cog.cost_manager.can_call(lane, "openai", message.author.id, est_turn_cost).allowed:
+                        
+                        # Fix: Use realistic estimate for next turn check to prevent free infinite loops
+                        est_loop_cost = Usage(tokens_in=0, tokens_out=150, usd=0.01)
+                        if not self.cog.cost_manager.can_call(lane, "openai", message.author.id, est_loop_cost).allowed:
+                            logger.warning(f"Cost Limit Hard Stop triggered at turn {current_turn}.")
                             break
 
                         content, tool_calls, usage = await self.cog.unified_client.chat(
                             "openai", clean_messages, model=model, tools=openai_tools
                         )
+                        
+                        # Fix: Commit Usage IMMEDIATELY per turn
+                        # This prevents loss of usage data if bot crashes or loop breaks early
+                        u_in = usage.get("prompt_tokens") or 0
+                        u_out = usage.get("completion_tokens") or 0
+                        actual_usd = (u_in * 0.0000025) + (u_out * 0.000010)
+                        actual_turn_usage = Usage(tokens_in=u_in, tokens_out=u_out, usd=actual_usd)
+                        
+                        self.cog.cost_manager.commit(
+                            lane, "openai", message.author.id, rid, actual_turn_usage
+                        )
 
                         if tool_calls:
                             clean_messages.append({"role": "assistant", "content": content, "tool_calls": tool_calls})
                             await status_manager.next_step(f"🛠️ ツール実行中 ({len(tool_calls)}件)...")
+                            
+                            # Fix: Prepare Reservation for NEXT turn
+                            rid = secrets.token_hex(4)
+                            self.cog.cost_manager.reserve(lane, "openai", message.author.id, rid, est_loop_cost)
 
                             for tc in tool_calls:
                                 func = tc.get("function", {})
@@ -467,18 +496,7 @@ class ChatHandler:
                                 )
                             continue
                         else:
-                            # Commit
-                            lane = selected_route.get("lane", "stable")
-                            u_in = usage.get("prompt_tokens") or 0
-                            u_out = usage.get("completion_tokens") or 0
-                            actual_usd = (u_in * 0.0000025) + (u_out * 0.000010)
-                            self.cog.cost_manager.commit(
-                                lane,
-                                "openai",
-                                message.author.id,
-                                rid,
-                                Usage(tokens_in=u_in, tokens_out=u_out, usd=actual_usd),
-                            )
+                            # Final turn (Answer generated) - Usage already committed above.
                             break
                 except Exception:
                     self.cog.cost_manager.rollback(lane, "openai", message.author.id, rid)
