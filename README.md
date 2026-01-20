@@ -59,55 +59,64 @@ ORA uses a "Hybrid Brain" architecture to balance **Intelligence** vs **Cost**.
 
 ```mermaid
 graph TD
-    UserInput["User Prompt"] --> RouteCheck{Local or Cloud?}
+    %% Styling Definitions
+    classDef user fill:#ffecb3,stroke:#ffb74d,stroke-width:2px,color:#000
+    classDef router fill:#e1f5fe,stroke:#29b6f6,stroke-width:2px,color:#000
+    classDef cloud fill:#e8f5e9,stroke:#66bb6a,stroke-width:2px,color:#000
+    classDef local fill:#333,stroke:#b2dfdb,stroke-width:2px,color:#fff
+    classDef tool fill:#fff3e0,stroke:#ffcc80,stroke-width:2px,color:#000
+    classDef final fill:#fce4ec,stroke:#f48fb1,stroke-width:2px,color:#000
+
+    UserInput["User Prompt"]:::user --> RouteCheck{Local or Cloud?}:::router
 
     %% Right Branch: Local
-    RouteCheck -- "Local Only" --> LocalRouter{Local Router}
+    RouteCheck -- "Local Only" --> LocalRouter{Local Router}:::local
 
     %% Left Branch: Cloud (API)
-    RouteCheck -- "Allow Cloud" --> OmniRouter{Analysis Logic}
+    RouteCheck -- "Allow Cloud" --> OmniRouter{Analysis Logic}:::router
 
     %% Cloud Subgraph
     subgraph Cloud ["☁️ OpenAI API (Cloud)"]
         direction TB
-        CodingModel["💻 Coding: gpt-5.1-codex"]
-        HighModel["🧠 Deep: gpt-5.1 / o3"]
-        MiniModel["👁️🗨️ Chat & Vision: gpt-5-mini"]
+        CodingModel["💻 Coding: gpt-5.1-codex"]:::cloud
+        HighModel["🧠 Deep: gpt-5.1 / o3"]:::cloud
+        MiniModel["👁️🗨️ Chat & Vision: gpt-5-mini"]:::cloud
     end
     
     %% Local Subgraph
     subgraph Local ["🏠 Local PC (Localhost)"]
         direction TB
-        L_Coder["💻 Coder (DeepSeek)"]
-        L_Mistral["🌪️ Mistral (Mithril)"]
-        L_Qwen["🦉 Qwen (Quarter)"]
-        L_GLM["⚡ GLM-4.7-Flash"]
+        L_Coder["💻 Coder (DeepSeek)"]:::local
+        L_Mistral["🌪️ Mistral (Mithril)"]:::local
+        L_Qwen["🦉 Qwen (Quarter)"]:::local
+        L_GLM["⚡ GLM-4.7-Flash"]:::local
     end
 
     %% Tools Layer
     subgraph Tools ["🛠️ Advanced Tools"]
         direction TB
-        T_Img["🎨 Image Gen"]
-        T_Vid["🎥 Video Gen"]
-        T_Search["🔍 Web Search"]
-        T_Voice["🎤 Voice Synth"]
+        ToolHub{Tool Choice}:::router
+        T_Img["🎨 Image Gen"]:::tool
+        T_Vid["🎥 Video Gen"]:::tool
+        T_Search["🔍 Web Search"]:::tool
+        T_Voice["🎤 Voice Synth"]:::tool
     end
 
     %% Routing to Models
     LocalRouter --> L_Coder & L_Mistral & L_Qwen & L_GLM
-    OmniRouter -- "Keyword: Code/Fix" --> CodingModel
-    OmniRouter -- "Length > 50 chars" --> HighModel
-    OmniRouter -- "Standard / Image" --> MiniModel
+    OmniRouter -- "Code/Fix" --> CodingModel
+    OmniRouter -- "Deep Think" --> HighModel
+    OmniRouter -- "Chat/Image" --> MiniModel
 
-    %% Models to Tools
-    CodingModel & L_Coder --> T_Search
-    HighModel & L_Qwen --> T_Vid & T_Search
-    MiniModel & L_Mistral --> T_Img & T_Voice
-    L_GLM --> T_Voice
+    %% Models to Tool Hub (Bundling)
+    CodingModel & HighModel & MiniModel --> ToolHub
+    L_Coder & L_Mistral & L_Qwen & L_GLM --> ToolHub
 
-    %% Models Direct Response (Chat)
-    CodingModel & HighModel & MiniModel --> Response["Final Reply"]
-    L_Coder & L_Mistral & L_Qwen & L_GLM --> Response
+    %% Tool Hub to Specific Tools
+    ToolHub --> T_Img & T_Vid & T_Search & T_Voice
+    
+    %% Direct Path (No Tool)
+    ToolHub -- "Text Only" --> Response["Final Reply"]:::final
 
     %% Tools to Response
     T_Img & T_Vid & T_Search & T_Voice --> Response

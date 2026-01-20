@@ -59,55 +59,64 @@ ORAは「キーワード」「文脈長」「画像有無」を判断し、**ロ
 
 ```mermaid
 graph TD
-    UserInput["ユーザープロンプト"] --> RouteCheck{ローカル or API?}
+    %% Styling Definitions
+    classDef user fill:#ffecb3,stroke:#ffb74d,stroke-width:2px,color:#000
+    classDef router fill:#e1f5fe,stroke:#29b6f6,stroke-width:2px,color:#000
+    classDef cloud fill:#e8f5e9,stroke:#66bb6a,stroke-width:2px,color:#000
+    classDef local fill:#333,stroke:#b2dfdb,stroke-width:2px,color:#fff
+    classDef tool fill:#fff3e0,stroke:#ffcc80,stroke-width:2px,color:#000
+    classDef final fill:#fce4ec,stroke:#f48fb1,stroke-width:2px,color:#000
+
+    UserInput["ユーザープロンプト"]:::user --> RouteCheck{ローカル or API?}:::router
 
     %% Right Branch: Local
-    RouteCheck -- "ローカルのみ" --> LocalRouter{Local Router}
+    RouteCheck -- "ローカルのみ" --> LocalRouter{Local Router}:::local
 
     %% Left Branch: Cloud (API)
-    RouteCheck -- "API許可 (Cloud)" --> OmniRouter{解析ロジック}
+    RouteCheck -- "API許可 (Cloud)" --> OmniRouter{解析ロジック}:::router
 
     %% Cloud Subgraph
     subgraph Cloud ["☁️ OpenAI API (Cloud)"]
         direction TB
-        CodingModel["💻 Coding: gpt-5.1-codex"]
-        HighModel["🧠 Deep: gpt-5.1 / o3"]
-        MiniModel["👁️🗨️ Chat & Vision: gpt-5-mini"]
+        CodingModel["💻 Coding: gpt-5.1-codex"]:::cloud
+        HighModel["🧠 Deep: gpt-5.1 / o3"]:::cloud
+        MiniModel["👁️🗨️ Chat & Vision: gpt-5-mini"]:::cloud
     end
     
     %% Local Subgraph
     subgraph Local ["🏠 Local PC (Localhost)"]
         direction TB
-        L_Coder["💻 Coder (DeepSeek)"]
-        L_Mistral["🌪️ Mistral (Mithril)"]
-        L_Qwen["🦉 Qwen (Quarter)"]
-        L_GLM["⚡ GLM-4.7-Flash"]
+        L_Coder["💻 Coder (DeepSeek)"]:::local
+        L_Mistral["🌪️ Mistral (Mithril)"]:::local
+        L_Qwen["🦉 Qwen (Quarter)"]:::local
+        L_GLM["⚡ GLM-4.7-Flash"]:::local
     end
 
     %% Tools Layer
     subgraph Tools ["🛠️ Advanced Tools"]
         direction TB
-        T_Img["🎨 画像生成 (Image)"]
-        T_Vid["🎥 動画生成 (Video)"]
-        T_Search["🔍 検索 (Web Search)"]
-        T_Voice["🎤 音声合成 (Voice)"]
+        ToolHub{Tool Choice}:::router
+        T_Img["🎨 画像生成 (Image)"]:::tool
+        T_Vid["🎥 動画生成 (Video)"]:::tool
+        T_Search["🔍 検索 (Web Search)"]:::tool
+        T_Voice["🎤 音声合成 (Voice)"]:::tool
     end
 
     %% Routing to Models
     LocalRouter --> L_Coder & L_Mistral & L_Qwen & L_GLM
-    OmniRouter -- "キーワード: Code/Fix" --> CodingModel
-    OmniRouter -- "50文字以上 OR 解説/Deep" --> HighModel
-    OmniRouter -- "標準会話 / 画像" --> MiniModel
+    OmniRouter -- "Code/Fix" --> CodingModel
+    OmniRouter -- "Deep Think" --> HighModel
+    OmniRouter -- "Chat/Image" --> MiniModel
 
-    %% Models to Tools
-    CodingModel & L_Coder --> T_Search
-    HighModel & L_Qwen --> T_Vid & T_Search
-    MiniModel & L_Mistral --> T_Img & T_Voice
-    L_GLM --> T_Voice
+    %% Models to Tool Hub (Bundling)
+    CodingModel & HighModel & MiniModel --> ToolHub
+    L_Coder & L_Mistral & L_Qwen & L_GLM --> ToolHub
 
-    %% Models Direct Response (Chat)
-    CodingModel & HighModel & MiniModel --> Response["最終回答"]
-    L_Coder & L_Mistral & L_Qwen & L_GLM --> Response
+    %% Tool Hub to Specific Tools
+    ToolHub --> T_Img & T_Vid & T_Search & T_Voice
+    
+    %% Direct Path (No Tool)
+    ToolHub -- "Text Only" --> Response["最終回答"]:::final
 
     %% Tools to Response
     T_Img & T_Vid & T_Search & T_Voice --> Response
