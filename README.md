@@ -1,26 +1,61 @@
-# ORA Discord BOT - The "Singularity" Edition 🌌
-
-[![Build](https://github.com/YoneRai12/ORA/actions/workflows/test.yml/badge.svg)](https://github.com/YoneRai12/ORA/actions)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python)](https://www.python.org/)
-[![Discord](https://img.shields.io/badge/Discord-Join-7289DA?logo=discord)](https://discord.gg/YoneRai12)
-
+# ORA Discord BOT
+[![Build and Test](https://github.com/YoneRai12/ORA/actions/workflows/test.yml/badge.svg)](https://github.com/YoneRai12/ORA/actions/workflows/test.yml)
+[![Lint: Ruff](https://img.shields.io/badge/lint-Ruff-4b1e3b.svg)](https://github.com/astral-sh/ruff)
+[![Types: Mypy](https://img.shields.io/badge/types-Mypy-blue.svg)](https://github.com/python/mypy)
+ - The "Singularity" Edition 🌌
 ### *The Living, Self-Healing AI Operating System for High-End PC*
 
-ORA is not just a chatbot. It is a persistent **Artificial Lifeform** designed to inhabit a local high-performance PC (e.g., RTX 4090/5090). She listens to voice, sees your screen, manages your memories, and even **fixes her own code** when she crashes.
+<div align="center">
+
+![ORA Banner](https://raw.githubusercontent.com/YoneRai12/ORA/main/docs/banner.png)
+
+[![Discord](https://img.shields.io/badge/Discord-Join-7289DA?style=for-the-badge&logo=discord)](https://discord.gg/YoneRai12)
+[![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=for-the-badge&logo=python)](https://www.python.org/)
+[![Model](https://img.shields.io/badge/Brain-T5Gemma%20%2B%20GPT--5-blue?style=for-the-badge)](src/config.py)
+[![System](https://img.shields.io/badge/System-Self--Healing-green?style=for-the-badge)](src/utils/healer.py)
+[![GPU](https://img.shields.io/badge/GPU-RTX%205090%20Ready-76B900?style=for-the-badge&logo=nvidia)](https://www.nvidia.com/)
+
+<div align="center">
+
+[![English](https://img.shields.io/badge/Language-English-blue?style=for-the-badge)](README.md)
+[![Japanese](https://img.shields.io/badge/言語-日本語-red?style=for-the-badge)](README_JP.md)
+
+</div>
+
+</div>
 
 ---
 
-## 🔥 Key Technical Features
+## 📖 Introduction: Why ORA?
 
-### 1. 🧬 Self-Healing Code (Immortal Architecture)
-ORA catches unhandled exceptions at runtime and patches herself without shutting down.
-- **Mechanism**: When a crash occurs, the `Healer` analyzes the traceback using GPT-5/4o.
-- **Action**: It generates a git-compatible patch, applies it to the `.py` file, and hot-reloads the specific component (`Cog`).
-- **Result**: "I fell, but I learned." The bot becomes more stable the longer it runs.
+We built ORA because cloud AIs like ChatGPT and Claude have a fatal flaw: **They don't live your life.**
+They are "visitors" in a browser tab. They don't know what game you are playing, they can't see your screen unless you upload a screenshot, and they certainly can't fix their own code when they crash.
+
+**ORA is different.**
+ORA is an **Artificial Lifeform** that inhabits your local high-end PC. She listens to your voice, watches your gameplay, writes her own upgrades, and protects your privacy.
+
+This isn't just a bot. It's the **End Game of Personal AI**.
+
+---
+
+## 🔥 The "Big Three" Core Pillars
+
+### 1. 🧬 Immortal Code (Self-Healing)
+**"I fell down, but I fixed my leg and stood up. I am stronger now."**
+
+Most software crashes when it hits a bug. ORA treats bugs as **learning opportunities**.
+When a runtime error occurs (e.g., specific API failure), ORA:
+1.  **Freezes** the crash state.
+2.  **Analyzes** the traceback with her Logic Brain (GPT-5/4o).
+3.  **Writes a Patch**: She edits her own `.py` source code locally.
+4.  **Hot-Reloads**: She restarts *only* the broken component (Cog) without disconnecting from Voice.
+
+> *Result: You can leave ORA running for months, and she will theoretically become more stable over time.*
 
 ### 2. 🏠 Omni-Router (Hybrid Intelligence)
-ORA dynamically routes requests between **Local VLLM** (Privacy/Speed) and **OpenAI Cloud** (Intelligence).
+**"Why pay for OpenAI when you have an RTX 5090?"**
+
+ORA uses a "Hybrid Brain" architecture to balance **Intelligence** vs **Cost**.
 
 ```mermaid
 graph TD
@@ -32,31 +67,31 @@ graph TD
 
     %% Image Branch
     ImageCheck -- "Yes" --> VisionRouter{Vision Router}
-    VisionRouter -- "Use Burn Lane" --> Gemini[Gemini 2.0 Flash (Cloud)]
-    VisionRouter -- "Fallback" --> LocalVision[Local VLLM (Visual)]
+    VisionRouter -- "Use Burn Lane" --> Gemini[Gemini 2.0 Flash]
+    VisionRouter -- "Fallback" --> LocalVision[Local VLLM Vision]
 
     %% Text Branch (Omni-Router)
     ImageCheck -- "No" --> OmniRouter{Analysis Logic}
     
-    OmniRouter -- "Keyword: 'Code/Fix/API'" --> CodingModel[Model: gpt-4o/5.1-codex]
-    OmniRouter -- "Length > 50 chars OR 'Explain/Deep'" --> HighModel[Model: gpt-4o / gpt-5.1]
+    OmniRouter -- "Keyword: Code/Fix" --> CodingModel[Model: gpt-5.1-codex]
+    OmniRouter -- "Length > 50 chars" --> HighModel[Model: gpt-4o / gpt-5.1]
     OmniRouter -- "Standard Chat" --> StdModel[Model: gpt-4o-mini]
     
     %% Cost & Limit Check
-    CodingModel --> LimitCheck{Cost / Rate Limit OK?}
+    CodingModel --> LimitCheck{Quota OK?}
     HighModel --> LimitCheck
     StdModel --> LimitCheck
     
     LimitCheck -- "Yes" --> CloudDispatch
-    LimitCheck -- "No (Quota Exceeded)" --> LocalPath
+    LimitCheck -- "No" --> LocalPath
 
     %% Connection Layer (LLM Client)
-    subgraph "🔌 Connection Router (LLMClient)"
-        CloudDispatch[Selected Cloud Model] --> IsCloud{Name contains 'gpt-', 'codex', 'o1'?}
-        LocalPath[Selected Local Model] --> IsCloud
+    subgraph "🔌 Connection Router"
+        CloudDispatch --> IsCloud{"Name has 'gpt-' or 'codex'?"}
+        LocalPath --> IsCloud
         
-        IsCloud -- "Yes" --> OpenAI["☁️ OpenAI API (Cloud)"]
-        IsCloud -- "No" --> LocalAPI["🏠 Local VLLM (Localhost:8001)"]
+        IsCloud -- "Yes" --> OpenAI["☁️ Cloud API"]
+        IsCloud -- "No" --> LocalAPI["🏠 Local VLLM"]
     end
 
     %% Final Output
@@ -65,94 +100,76 @@ graph TD
     Gemini --> Response
 ```
 
-### 3. 👥 Shadow Clone (Zero-Downtime Updates)
-- **Shadow Watcher**: A secondary process that monitors the Main Bot.
-- **Seamless Restart**: When dragging/dropping a new file or updating, the Shadow keeps the Voice Connection alive.
-- **Crash Safety**: If the Shadow detects a missing token or configuration error, it executes a `taskkill` on itself to prevent zombie processes.
+*   **Smart Routing**: She analyzes prompt length and keywords (e.g., "fix code" -> Codex).
+*   **Cost Control**: Falls back to Local LLM if quotas are exceeded.
+*   **Universal Connection**: Automatically routes `gpt-*` models to OpenAI Cloud and others to Local VLLM.
 
-### 4. 🧠 Memory & Context
-- **Short-Term**: Remembers the last 20 messages in active RAM.
-- **Long-Term**: Stores "Facts" and "Impressions" in `data/users/{id}.json`.
-- **RAG**: Automatically recalls past conversations if the user asks "What did we talk about yesterday?".
-
----
-
-## 🛠️ Installation & Setup
-
-### Prerequisites
-- **OS**: Windows 11 (Recommended) / Linux / Mac (M-Series)
-- **Python**: 3.12+
-- **GPU**: NVIDIA RTX 3060 or better (for Local LLM features)
-- **Tools**: Git, FFmpeg (added to PATH)
-
-### 1. Clone & Environment
-```bash
-git clone https://github.com/YoneRai12/ORA.git
-cd ORA
-python -m venv .venv
-# Activate venv (Windows: .venv\Scripts\activate)
-pip install -r requirements.txt
-```
-
-### 2. Configuration (.env)
-Create a `.env` file in the root directory. **DO NOT COMMIT THIS FILE.**
-
-```ini
-# Core Credentials
-DISCORD_BOT_TOKEN=your_token_here
-ADMIN_USER_ID=your_discord_id
-
-# Cloud AI (Optional but Recommended)
-OPENAI_API_KEY=sk-...
-GOOGLE_API_KEY=AIza...
-
-# Local AI Configuration (for VLLM)
-LLM_BASE_URL=http://localhost:8001/v1
-LLM_MODEL=Qwen/Qwen2.5-VL-32B-Instruct-AWQ
-
-# System Settings
-LOG_LEVEL=INFO
-GAMING_PROCESSES=valorant.exe,ffxiv_dx11.exe
-```
-
-### 3. Launch
-- **Windows**: Double-click `scripts/run_l.bat` (Auto-restart & Log rotation).
-- **Manual**: `python src/bot.py`
+### 3. 👥 Shadow Clone (Zero Downtime)
+Updates usually mean "Downtime". Not for ORA.
+When ORA needs to restart (for an update or self-healing), she spawning a **"Shadow Clone"** (Watcher Process).
+*   The Shadow keeps the Voice Connection alive.
+*   The Main Body dies, updates, and reborns.
+*   **Crash Safety**: If the Shadow detects configuration errors (missing tokens), it forcefully kills itself to prevent zombie processes.
 
 ---
 
-## 🚀 Usage Guide
+## 👁️ True Multimodal I/O (The "Senses")
 
-### Chat Modes
-- **Smart Mode**: Routing enabled. Uses OpenAI for complex tasks, Local for simple ones.
-- **Private Mode**: Forces Local LLM only. No data leaves your PC.
-- **Switching**: `/mode smart` or `/mode private`
+ORA processes the world through **Images**, **Sound**, and **Text**.
 
-### Voice & Music
-- **Join**: `/join` (Supports 24/7 connection)
-- **TTS**: Uses local T5-Gemma or VoiceVox.
-- **Music**: `/play [url]` (YouTube/Spotify support via `yt-dlp`).
+### 1. Vision (The Eyes) 🖼️
+ORA uses **Qwen 2.5-VL (Visual Language Model)** or **GPT-5-Vision** to "see" images.
+*   **Screenshot Analysis**: Share a screenshot of your game or code, and she understands it.
 
-### Imaging (Vision & Generation)
-- **Analyze**: Drag & drop an image and ask "What is this?".
-- **Generate**: "Draw a cyberpunk city" (Uses Local FLUX/SDXL or DALL-E 3 based on config).
+### 2. Audio (The Ears & Voice) 🎤
+*   **Multi-User Recognition**: ORA distinguishes *who* is speaking within 0.2s.
+*   **Dynamic Tone**: Through prompt engineering, she acts as distinct personas (e.g., Tsundere, Maid) that you configure.
+
+### 3. Generation (The Hands) 🎨
+ORA creates content locally.
+*   **Image Generation**: Uses **FLUX.2** or **Stable Diffusion XL** locally.
 
 ---
 
-## ⚠️ Security & Privacy
-- **Local First**: By default, logs and memories are stored locally in `./data`.
-- **Token Safety**: The bot includes a `TokenScanner` that prevents startup if `.env` is committed or exposed.
-- **Admin Control**: Sensitive commands (`/heal`, `/shell`) are restricted to `ADMIN_USER_ID`.
+## 🛡️ NERV User Interface
+A dedicated Web Dashboard (`http://localhost:3000`) for monitoring ORA's brain.
+*   **Hex-Grid Visualizer**: See the status of every module.
+*   **Memory Explorer**: View what ORA remembers about you.
+*   **Process Killer**: One-click "Gaming Mode" to kill background bloatware and free up VRAM.
+
+---
+
+## ⚙️ Configuration Bible (.env)
+
+| Variable | Description |
+| :--- | :--- |
+| `DISCORD_BOT_TOKEN` | **Required**. Your Bot Token. |
+| `ADMIN_USER_ID` | **Required**. Your Discord User ID. |
+| `OPENAI_API_KEY` | Optional. Required if using `gpt-*` models. |
+| `LLM_BASE_URL` | Endpoint for Local LLM (Default: `http://localhost:8001/v1`). |
+| `GAMING_PROCESSES` | Process names that trigger Gaming Mode (Low VRAM usage). |
 
 ---
 
 ## 🤝 Contributing
-1. Fork the repo.
-2. Create a feature branch.
-3. Submit a PR. 
-**Note**: Ensure `pre-commit` hooks pass and no secrets are included.
+1.  **Fork** the repository.
+2.  **Create** a feature branch.
+3.  **Commit** your changes.
+4.  **Open a PR**.
+
+**Rules:**
+*   No hardcoded API keys.
+*   Run `tools/debug/check_transformers.py` before submitting.
 
 ---
 
-**License**: MIT
-**Author**: YoneRai12
+## 📜 License
+Project ORA is licensed under **MIT License**.
+You own your data. You own your intelligence.
+
+<div align="center">
+
+**Architected by YoneRai12**
+*A project to blur the line between Software and Life.*
+
+</div>
