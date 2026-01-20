@@ -1,0 +1,47 @@
+name: ORA Core CI
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - 'core/**'
+  pull_request:
+    branches: [ "main" ]
+    paths:
+      - 'core/**'
+
+jobs:
+  core-test:
+    runs-on: ubuntu-latest
+    
+    defaults:
+      run:
+        working-directory: ./core
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.11"
+        cache: 'pip'
+
+    - name: Install Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install ruff mypy pytest httpx
+
+    - name: Lint with Ruff
+      run: ruff check .
+
+    - name: Type Check with Mypy
+      run: mypy src/ --ignore-missing-imports
+
+    - name: Run Tests
+      # No tests yet, but fails if syntax is broken
+      run: |
+        export PYTHONPATH=$PYTHONPATH:$(pwd)/src
+        # pytest tests/  <-- Uncomment when tests exist
+        python -m compileall src/
