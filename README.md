@@ -59,27 +59,51 @@ ORA uses a "Hybrid Brain" architecture to balance **Intelligence** vs **Cost**.
 
 ```mermaid
 graph TD
-    UserInput["User Prompt"] --> RouteCheck{Local or Cloud?}
+    User((User)) --> Router{Omni-Router}
 
-    %% Left Branch: Cloud (API)
-    RouteCheck -- "Allow Cloud" --> OmniRouter{Analysis Logic}
-    
-    OmniRouter -- "Has Image" --> VisionModel["Vision Model: gpt-5-mini"]
-    OmniRouter -- "Keyword: Code/Fix" --> CodingModel["Model: gpt-5.1-codex"]
-    OmniRouter -- "Length > 50 chars" --> HighModel["Model: gpt-5.1 / o3"]
-    OmniRouter -- "Standard Chat" --> StdModel["Model: gpt-5-mini"]
-    
-    VisionModel --> CloudAPI["☁️ OpenAI API (Cloud)"]
-    CodingModel --> CloudAPI
-    HighModel --> CloudAPI
-    StdModel --> CloudAPI
+    %% Central Hub: Capabilities
+    Router --> |"Text & Code"| TextTask(📝 Text / Code)
+    Router --> |"Vision"| VisTask(👁️ Vision Analysis)
+    Router --> |"Image Gen"| GenTask(🎨 Image Generation)
+    Router --> |"Voice / TTS"| VoiceTask(🎤 Voice Output)
+    Router --> |"Search / Video"| WebTask(🔍 Search & Video)
 
-    %% Right Branch: Local
-    RouteCheck -- "Local Only" --> LocalPath["🏠 Local VLLM (Localhost)"]
+    %% Cloud Subgraph
+    subgraph Cloud ["☁️ OpenAI API (Cloud)"]
+        direction TB
+        C_Codex["gpt-5.1-codex"]
+        C_High["gpt-5.1 / o3"]
+        C_Mini["gpt-5-mini"]
+        C_Dalle["DALL-E 3 / Sora"]
+        C_Voice["OpenAI TTS"]
+    end
 
-    %% Final Output
-    CloudAPI --> Response["Final Reply"]
-    LocalPath --> Response
+    %% Local Subgraph
+    subgraph Local ["🏠 Local PC (RTX 5090)"]
+        direction TB
+        L_LLM["Qwen 2.5-VL"]
+        L_Flux["FLUX.2 (4K)"]
+        L_Voice["VoiceVox"]
+    end
+
+    %% Connections
+    %% Text Routing
+    TextTask -- "Coding" --> C_Codex
+    TextTask -- "Deep" --> C_High
+    TextTask -- "Chat" --> C_Mini
+    TextTask -.-> |"Private"| L_LLM
+
+    %% Vision Routing
+    VisTask --> C_Mini
+    VisTask -.-> |"Private"| L_LLM
+
+    %% Generation Routing
+    GenTask --> C_Dalle
+    GenTask -.-> |"Private"| L_Flux
+
+    %% Voice Routing
+    VoiceTask --> C_Voice
+    VoiceTask -.-> |"Private"| L_Voice
 ```
 
 *   **Smart Routing**: She analyzes prompt length and keywords (e.g., "fix code" -> Codex).
