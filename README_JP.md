@@ -74,7 +74,7 @@ graph TD
         HighModel["🧠 Deep: gpt-5.1 / o3"]
         MiniModel["👁️🗨️ Chat & Vision: gpt-5-mini"]
     end
-
+    
     %% Local Subgraph
     subgraph Local ["🏠 Local PC (Localhost)"]
         direction TB
@@ -84,24 +84,33 @@ graph TD
         L_GLM["⚡ GLM-4.7-Flash"]
     end
 
-    LocalRouter --> L_Coder
-    LocalRouter --> L_Mistral
-    LocalRouter --> L_Qwen
-    LocalRouter --> L_GLM
+    %% Tools Layer
+    subgraph Tools ["🛠️ Advanced Tools"]
+        direction TB
+        T_Img["🎨 画像生成 (Image)"]
+        T_Vid["🎥 動画生成 (Video)"]
+        T_Search["🔍 検索 (Web Search)"]
+        T_Voice["🎤 音声合成 (Voice)"]
+    end
 
+    %% Routing to Models
+    LocalRouter --> L_Coder & L_Mistral & L_Qwen & L_GLM
     OmniRouter -- "キーワード: Code/Fix" --> CodingModel
     OmniRouter -- "50文字以上 OR 解説/Deep" --> HighModel
     OmniRouter -- "標準会話 / 画像" --> MiniModel
 
-    %% Final Output
-    CodingModel --> Response["最終回答"]
-    HighModel --> Response
-    MiniModel --> Response
-    
-    L_Coder --> Response
-    L_Mistral --> Response
-    L_Qwen --> Response
-    L_GLM --> Response
+    %% Models to Tools
+    CodingModel & L_Coder --> T_Search
+    HighModel & L_Qwen --> T_Vid & T_Search
+    MiniModel & L_Mistral --> T_Img & T_Voice
+    L_GLM --> T_Voice
+
+    %% Models Direct Response (Chat)
+    CodingModel & HighModel & MiniModel --> Response["最終回答"]
+    L_Coder & L_Mistral & L_Qwen & L_GLM --> Response
+
+    %% Tools to Response
+    T_Img & T_Vid & T_Search & T_Voice --> Response
 ```
 
 ### 👥 Shadow Clone: Zombie Killer

@@ -84,24 +84,33 @@ graph TD
         L_GLM["⚡ GLM-4.7-Flash"]
     end
 
-    LocalRouter --> L_Coder
-    LocalRouter --> L_Mistral
-    LocalRouter --> L_Qwen
-    LocalRouter --> L_GLM
+    %% Tools Layer
+    subgraph Tools ["🛠️ Advanced Tools"]
+        direction TB
+        T_Img["🎨 Image Gen"]
+        T_Vid["🎥 Video Gen"]
+        T_Search["🔍 Web Search"]
+        T_Voice["🎤 Voice Synth"]
+    end
 
+    %% Routing to Models
+    LocalRouter --> L_Coder & L_Mistral & L_Qwen & L_GLM
     OmniRouter -- "Keyword: Code/Fix" --> CodingModel
     OmniRouter -- "Length > 50 chars" --> HighModel
     OmniRouter -- "Standard / Image" --> MiniModel
 
-    %% Final Output
-    CodingModel --> Response["Final Reply"]
-    HighModel --> Response
-    MiniModel --> Response
-    
-    L_Coder --> Response
-    L_Mistral --> Response
-    L_Qwen --> Response
-    L_GLM --> Response
+    %% Models to Tools
+    CodingModel & L_Coder --> T_Search
+    HighModel & L_Qwen --> T_Vid & T_Search
+    MiniModel & L_Mistral --> T_Img & T_Voice
+    L_GLM --> T_Voice
+
+    %% Models Direct Response (Chat)
+    CodingModel & HighModel & MiniModel --> Response["Final Reply"]
+    L_Coder & L_Mistral & L_Qwen & L_GLM --> Response
+
+    %% Tools to Response
+    T_Img & T_Vid & T_Search & T_Voice --> Response
 ```
 
 *   **Smart Routing**: She analyzes prompt length and keywords (e.g., "fix code" -> Codex).
