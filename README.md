@@ -128,7 +128,6 @@ graph TD
 
 *   **Smart Routing**: She analyzes prompt length and keywords (e.g., "fix code" -> Codex).
 *   **Cost Control**: Falls back to Local LLM if quotas are exceeded.
-```
 *   **Universal Connection**: Automatically routes `gpt-*` models to OpenAI Cloud and others to Local VLLM.
 
 ### 📡 Policy Router Rules (Decision Logic)

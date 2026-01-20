@@ -64,64 +64,82 @@ graph TD
     classDef router fill:#e1f5fe,stroke:#039be5,stroke-width:2px,color:#000
     classDef cloud fill:#e8f5e9,stroke:#4caf50,stroke-width:2px,color:#000
     classDef local fill:#212121,stroke:#90a4ae,stroke-width:2px,color:#fff
+    classDef core fill:#bbdefb,stroke:#1565c0,stroke-width:3px,color:#000
     classDef tool fill:#fff3e0,stroke:#fb8c00,stroke-width:2px,color:#000
     classDef final fill:#fce4ec,stroke:#f06292,stroke-width:2px,color:#000
-
-    %% 1. User Input
-    UserInput["ユーザープロンプト"]:::user --> RouteCheck{ローカル or API?}:::router
-
-    %% 2. Models Layer
-    %% Left: Cloud
-    subgraph Cloud ["☁️ OpenAI API (Cloud)"]
-        direction TB
-        CodingModel["💻 Coding: gpt-5.1-codex"]:::cloud
-        HighModel["🧠 Deep: gpt-5.1 / o3"]:::cloud
-        MiniModel["👁️🗨️ Vision: gpt-5-mini"]:::cloud
-    end
     
-    %% Right: Local
-    subgraph Local ["🏠 Local PC (Private)"]
+    %% 1. User Input & Decision
+    User["Q: ユーザー"]:::user --> Check{Route Check}:::router
+    Check -.-> Criteria["❓ 判定基準:<br/>- 個人情報 (PII)?<br/>- 画像/トークン数?<br/>- VRAM残量?"]:::router
+
+    %% 2. Resource Manager (VRAM Budget)
+    subgraph Resources ["⚡ Resource Manager (VRAM Budget: 25GB)"]
         direction TB
-        L_Coder["💻 Coder: DeepSeek"]:::local
-        L_Qwen["🦉 Deep: Qwen-2.5"]:::local
-        L_Mistral["🌪️ Chat: Mistral"]:::local
-        L_GLM["⚡ Fast: GLM-4.7"]:::local
+        style Resources fill:#fafafa,stroke:#d32f2f,stroke-width:2px,stroke-dasharray: 5 5
+
+        %% Cloud
+        subgraph Cloud ["☁️ OpenAI API (Cloud)"]
+            direction TB
+            M_Code["💻 Codex"]:::cloud
+            M_Deep["🧠 Deep"]:::cloud
+            M_Mini["👁️ Vision"]:::cloud
+        end
+
+        %% Local
+        subgraph Local ["🏠 Local PC (Priv)"]
+            direction TB
+            L_Deep["🦉 Qwen"]:::local
+            L_Code["💻 Coder"]:::local
+            L_Chat["🌪️ Mistral"]:::local
+        end
     end
 
-    %% Routing
-    RouteCheck -- "API許可 (Cloud)" --> OmniRouter{解析ロジック}:::router
-    RouteCheck -- "ローカルのみ" --> LocalRouter{Local Router}:::local
+    Check -- "クラウド許可" --> Cloud
+    Check -- "ローカルのみ" --> Local
 
-    OmniRouter --> CodingModel & HighModel & MiniModel
-    LocalRouter --> L_Coder & L_Qwen & L_Mistral & L_GLM
+    %% 3. ORA CORE
+    subgraph CoreSystem ["💎 ORA CORE System"]
+        direction TB
+        Policy["📡 Policy Router"]:::core
+        Runner["⚙️ Tool Runner\n(Safe/Dedup)"]:::core
+        Mem["💾 Memory"]:::core
+    end
 
-    %% 3. Tools Layer (Aligned with Models)
+    Cloud --> Policy
+    Local --> Policy
+    Policy --> Runner
+    Policy --> Mem
+
+    %% 4. Tools
     subgraph Tools ["🛠️ Advanced Tools"]
         direction LR
-        %% Order: Code/Deep -> Search/Vid | Mini/Chat -> Img/Voice
-        T_Search["🔍 検索\n(Google)"]:::tool
-        T_Vid["🎥 動画\n(Sora)"]:::tool
-        T_Img["🎨 画像\n(DALL-E 3)"]:::tool
-        T_Voice["🎤 音声\n(TTS)"]:::tool
+        T_Search["🔍 Search"]:::tool
+        T_Vid["🎥 Video"]:::tool
+        T_Img["🎨 Image"]:::tool
+        T_Voice["🎤 Voice"]:::tool
     end
 
-    %% 4. Strict Capability Routing (No Crossing)
-    %% Coding/Logic -> Search (Debugging/Research)
-    CodingModel & L_Coder --> T_Search
-    HighModel & L_Qwen --> T_Search
-
-    %% Deep Logic -> Video (Complex Prompting)
-    HighModel & L_Qwen --> T_Vid
-
-    %% Chat/Vision -> Image & Voice (Creative/Interaction)
-    MiniModel & L_Mistral --> T_Img
-    MiniModel & L_Mistral & L_GLM --> T_Voice
+    Runner --> T_Search & T_Vid & T_Img & T_Voice
 
     %% 5. Output
-    T_Search & T_Vid & T_Img & T_Voice --> Response["最終回答"]:::final
-    CodingModel & HighModel & MiniModel -.-> Response
-    L_Coder & L_Qwen & L_Mistral & L_GLM -.-> Response
+    Runner --> Response["最終回答"]:::final
+    Policy -- "Text Only" --> Response
 ```
+
+### 📡 Policy Router Rules (決定ロジック)
+ORAはブラックボックスではありません。以下の厳密なポリシーに基づいてルーティングを決定します。
+
+1.  **🛡️ Privacy Guard**: 電話番号、住所、クレジットカード番号等の個人情報(PII)を検知した場合、強制的に **ローカルモデル** に固定され、クラウド通信を遮断します。
+2.  **⚡ Budget Guard**: GPU VRAM使用量が **25GB** を超えている場合、クラウドAPIの使用を制限し、軽量なローカルモデル(7B)へフォールバックします。
+3.  **💻 Coding Priority**: コードブロックやエラースタックトレースを含むプロンプトは、優先的に **GPT-5.1-Codex** へルーティングされます。
+4.  **👁️ Vision Handling**: 画像が添付されている場合、**GPT-5-Vision** (Cloud) または **Qwen-VL** (Local) が自動選択されます。
+
+### ⚡ Resource Manager (VRAM Modes)
+通常のAIはPCを重くしますが、ORAは「共存」します。
+
+*   **Normal Mode (制限: 25GB)**: クオリティ優先。O3やQwen-32Bをフル活用し、最高の回答を提供します。
+*   **Gaming Mode (制限: 18GB)**: ゲームプロセス(`valorant.exe`等)を検知すると自動移行。モデルを軽量化し、FPSへの影響をゼロにします。
+*   **Safety Mode (Cloud Block)**: インターネット切断時やセキュリティ要件が高い場合、外部通信を一切行わない完全オフラインモードになります。
 
 ### 👥 Shadow Clone: Zombie Killer
 Watcherプロセスが強化されました。
