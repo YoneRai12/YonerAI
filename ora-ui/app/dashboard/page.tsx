@@ -42,9 +42,11 @@ const SPRING_CONFIG = { stiffness: 120, damping: 25, mass: 1 } as const;
 const SPRING_SLOW = { stiffness: 40, damping: 20, mass: 2 } as const; // Slower, heavier feel for bars/counters
 
 // Hardcoded limits
-const LIMIT_HIGH = 100000;
-const LIMIT_STABLE = 2500000;
-const LIMIT_OPT_VISUAL = 2500000;
+// Limits State (Default to hardcoded, update via API)
+// Hardcoded limits as fallback
+const DEFAULT_LIMIT_HIGH = 1000000; // Free Tier Limit
+const DEFAULT_LIMIT_STABLE = 10000000; // Free Tier Limit
+const LIMIT_OPT_VISUAL = 10000000; // Free Tier Limit
 
 const topCardVariants = {
     hidden: { opacity: 0, y: 20, scale: 0.95, filter: "blur(10px)" },
@@ -337,14 +339,14 @@ const LANE_META: Record<Exclude<LaneKey, "burn">, { label: string; chip: string;
         ring: "ring-cyan-500/40"
     },
     stable: {
-        label: "会話モデル",
+        label: "共有モデル (Shared)",
         chip: "bg-green-500/15 text-green-200 border-green-500/40",
         text: "text-green-300",
         bar: "bg-green-500",
         ring: "ring-green-500/40"
     },
     optimization: {
-        label: "記憶整理",
+        label: "自動最適化 (Opt)",
         chip: "bg-purple-500/15 text-purple-200 border-purple-500/40",
         text: "text-purple-300",
         bar: "bg-purple-500",
@@ -1185,6 +1187,33 @@ export default function DashboardPage() {
     const [users, setUsers] = useState<User[]>([]);
     const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
     const [usage, setUsage] = useState<CostState | null>(null);
+    // Dynamic Limits State
+    const [limits, setLimits] = useState({
+        high: DEFAULT_LIMIT_HIGH,
+        stable: DEFAULT_LIMIT_STABLE,
+        optimization: LIMIT_OPT_VISUAL
+    });
+
+    // Fetch Limits on Mount
+    useEffect(() => {
+        const fetchLimits = async () => {
+            try {
+                const res = await fetch("/api/config/limits");
+                if (res.ok) {
+                    const data = await res.json();
+                    setLimits({
+                        high: data.high?.limit ?? DEFAULT_LIMIT_HIGH,
+                        stable: data.stable?.limit ?? DEFAULT_LIMIT_STABLE,
+                        optimization: data.optimization?.limit ?? LIMIT_OPT_VISUAL
+                    });
+                }
+            } catch (e) {
+                console.error("Failed to fetch limits", e);
+            }
+        };
+        fetchLimits();
+    }, []);
+
     const [historyData, setHistoryData] = useState<HistoryData | null>(null);
     const [historyLoading, setHistoryLoading] = useState(true);
     const [loading, setLoading] = useState(true);
@@ -1933,19 +1962,19 @@ export default function DashboardPage() {
                                     <span className="text-3xl md:text-5xl font-mono font-medium tracking-tight leading-none">
                                         <AnimatedCounter value={usage?.daily_tokens.high || 0} delay={0.1} />
                                     </span>
-                                    <span className="text-sm text-neutral-600 leading-none">/ {LIMIT_HIGH.toLocaleString()}</span>
+                                    <span className="text-sm text-neutral-600 leading-none">/ {limits.high.toLocaleString()}</span>
                                 </div>
                                 <div className="h-2 bg-neutral-800 rounded-full overflow-hidden mt-2">
                                     <motion.div
                                         className="h-full bg-cyan-500"
                                         initial={{ width: 0 }}
-                                        animate={{ width: `${Math.min(((usage?.daily_tokens.high || 0) / LIMIT_HIGH) * 100, 100)}%` }}
+                                        animate={{ width: `${Math.min(((usage?.daily_tokens.high || 0) / limits.high) * 100, 100)}%` }}
                                         transition={{ type: "spring", ...SPRING_SLOW, delay: 0.1 }}
                                     />
                                 </div>
                             </div>
                             <AnimatePresence initial={false} mode="popLayout">
-                                {expandedCard === "high" && renderExpandedUsage(LIMIT_HIGH)}
+                                {expandedCard === "high" && renderExpandedUsage(limits.high)}
                             </AnimatePresence>
                         </div>
                     </motion.div>
@@ -1987,19 +2016,20 @@ export default function DashboardPage() {
                                 <span className="text-3xl md:text-5xl font-mono font-medium tracking-tight leading-none">
                                     <AnimatedCounter value={usage?.daily_tokens.stable || 0} delay={0.2} />
                                 </span>
-                                <span className="text-sm text-neutral-600 leading-none">/ {LIMIT_STABLE.toLocaleString()}</span>
+                                {/* Shared Budget Calculation: Stable Limit = Total - Opt Usage */}
+                                <span className="text-sm text-neutral-600 leading-none">/ {(limits.stable - (usage?.daily_tokens.optimization || 0)).toLocaleString()}</span>
                             </div>
                             <div className="h-2 bg-neutral-800 rounded-full overflow-hidden">
                                 <motion.div
                                     className="h-full bg-green-500"
                                     initial={{ width: 0 }}
-                                    animate={{ width: `${Math.min(((usage?.daily_tokens.stable || 0) / LIMIT_STABLE) * 100, 100)}%` }}
+                                    animate={{ width: `${Math.min(((usage?.daily_tokens.stable || 0) / (limits.stable - (usage?.daily_tokens.optimization || 0))) * 100, 100)}%` }}
                                     transition={{ type: "spring", ...SPRING_SLOW, delay: 0.2 }}
                                 />
                             </div>
                         </div>
                         <AnimatePresence initial={false} mode="popLayout">
-                            {expandedCard === "stable" && renderExpandedUsage(LIMIT_STABLE)}
+                            {expandedCard === "stable" && renderExpandedUsage(limits.stable)}
                         </AnimatePresence>
                     </motion.div>
                 );
@@ -2040,19 +2070,20 @@ export default function DashboardPage() {
                                 <span className="text-3xl md:text-5xl font-mono font-medium tracking-tight leading-none">
                                     <AnimatedCounter value={usage?.daily_tokens.optimization || 0} delay={0.3} />
                                 </span>
-                                <span className="text-sm text-neutral-600 leading-none">/ {LIMIT_OPT_VISUAL.toLocaleString()}</span>
+                                {/* Shared Budget Calculation: Opt Limit = Total - Stable Usage */}
+                                <span className="text-sm text-neutral-600 leading-none">/ {(limits.optimization - (usage?.daily_tokens.stable || 0)).toLocaleString()}</span>
                             </div>
                             <div className="h-2 bg-neutral-800 rounded-full overflow-hidden">
                                 <motion.div
                                     className="h-full bg-purple-500"
                                     initial={{ width: 0 }}
-                                    animate={{ width: `${Math.min(((usage?.daily_tokens.optimization || 0) / LIMIT_OPT_VISUAL) * 100, 100)}%` }}
+                                    animate={{ width: `${Math.min(((usage?.daily_tokens.optimization || 0) / (limits.optimization - (usage?.daily_tokens.stable || 0))) * 100, 100)}%` }}
                                     transition={{ type: "spring", ...SPRING_SLOW, delay: 0.3 }}
                                 />
                             </div>
                         </div>
                         <AnimatePresence initial={false} mode="popLayout">
-                            {expandedCard === "optimization" && renderExpandedUsage(LIMIT_OPT_VISUAL)}
+                            {expandedCard === "optimization" && renderExpandedUsage(limits.optimization)}
                         </AnimatePresence>
                     </motion.div>
                 );

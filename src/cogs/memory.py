@@ -168,14 +168,14 @@ class MemoryCog(commands.Cog):
         """Reset 'Processing' users to 'Error' on startup to fix stuck yellow status."""
         await self.bot.wait_until_ready()
         logger.info("Memory: スタックした 'Processing' ステータスのプロファイルをチェック中...")
-        if not os.path.exists(MEMORY_DIR):
+        if not os.path.exists(USER_MEMORY_DIR):
             return
 
         count = 0
-        for f in os.listdir(MEMORY_DIR):
+        for f in os.listdir(USER_MEMORY_DIR):
             if not f.endswith(".json"):
                 continue
-            path = os.path.join(MEMORY_DIR, f)
+            path = os.path.join(USER_MEMORY_DIR, f)
             try:
                 # Lockless read for speed (snapshot)
                 async with aiofiles.open(path, "r", encoding="utf-8") as file:
@@ -465,8 +465,8 @@ class MemoryCog(commands.Cog):
         """Get path to user memory file. Supports Scope Partitioning."""
         if guild_id:
             suffix = "_public.json" if is_public else "_private.json"
-            return os.path.join(MEMORY_DIR, f"{user_id}_{guild_id}{suffix}")
-        return os.path.join(MEMORY_DIR, f"{user_id}.json")
+            return os.path.join(USER_MEMORY_DIR, f"{user_id}_{guild_id}{suffix}")
+        return os.path.join(USER_MEMORY_DIR, f"{user_id}.json")
 
     async def _ensure_user_name(self, user: discord.User | discord.Member, guild: Optional[discord.Guild] = None):
         """Quickly ensure the user has a name in their profile (before optimization)."""
@@ -618,7 +618,22 @@ class MemoryCog(commands.Cog):
                 # 1. Local Save
                 async with aiofiles.open(temp_path, "w", encoding="utf-8") as f:
                     await f.write(json.dumps(data, indent=2, ensure_ascii=False))
-                os.replace(temp_path, path)
+                    await f.flush()
+                    
+                # Windows Robustness: Retry logic for os.replace (AV scanners etc)
+                for attempt in range(5):
+                    try:
+                        if os.path.exists(path):
+                            os.replace(temp_path, path)
+                        else:
+                            os.rename(temp_path, path)
+                        break
+                    except PermissionError:
+                        if attempt == 4:
+                            raise
+                        await asyncio.sleep(0.2 * (attempt + 1))
+                    except Exception:
+                        raise
                 
                 # 2. Cloud Sync (Async Trigger)
                 # Parse user_id from path if needed, but easier to pass data directly.
@@ -739,8 +754,13 @@ class MemoryCog(commands.Cog):
             if "metadata" in current and isinstance(current["metadata"], dict):
                 current["metadata"]["updated"] = current["last_updated"]
 
-            if data.get("name") and data["name"] != "Unknown":
-                current["name"] = data["name"]
+            # Resolve Name from Bot Cache if missing/Unknown
+            if not current.get("name") or current.get("name") == "Unknown" or current.get("name").isdigit():
+                user = self.bot.get_user(int(user_id))
+                if user:
+                    current["name"] = user.display_name
+                elif data.get("name") and data["name"] != "Unknown":
+                    current["name"] = data["name"]
 
             await self._save_user_profile_atomic(path, current)
         except Exception as e:
@@ -835,7 +855,7 @@ class MemoryCog(commands.Cog):
             )
 
             # Adjust down ONLY if we are literally about to hit the hard limit
-            usage_ratio = cost_manager.get_usage_ratio("optimization", "openai")
+            usage_ratio = cost_manager.get_usage_ratio("stable", "openai")
             if usage_ratio > 0.95:
                 depth_mode = "Standard"
                 max_output = 10000
@@ -888,6 +908,14 @@ class MemoryCog(commands.Cog):
         est_usage = Usage(tokens_in=len(chat_log) // 4 + 500, tokens_out=max_output, usd=0.0)
         rid = secrets.token_hex(4)
 
+        # [NEW] Atomic Check and Reserve BEFORE Execution
+        if cost_manager:
+            decision = cost_manager.can_call_and_reserve("optimization", "openai", user_id, rid, est_usage)
+            if not decision.allowed:
+                logger.warning(f"Memory: 最適化をスキップしました (ユーザー: {user_id}) - 理由: {decision.reason}")
+                await self.set_user_status(user_id, "Pending", f"⛔ 制限超過: {decision.reason}", guild_id, is_public)
+                return
+
         try:
             # 1. MARK AS PROCESSING (Visual Feedback)
             await self.set_user_status(user_id, "Processing", "Processing...", guild_id, is_public)
@@ -899,9 +927,7 @@ class MemoryCog(commands.Cog):
             try:
                 # Assuming _llm is UnifiedClient
                 if hasattr(self._llm, "openai_client") or hasattr(self._llm, "google_client"):
-                    if cost_manager:
-                        cost_manager.reserve("optimization", "openai", user_id, rid, est_usage)
-
+                    # [REMOVED] Redundant reserve call here, now handled atomically above.
                     try:
                         # o1/gpt-5 ready (mapped internally)
                         # Explicitly pass None for temperature if needed, but client handles it now.
@@ -958,7 +984,12 @@ class MemoryCog(commands.Cog):
                 l2 = data.get("layer2_user_memory", {})
                 l3_list = data.get("layer3_recent_summaries", [])
 
+                # Try to resolve real name before saving
+                user = self.bot.get_user(int(user_id))
+                name = user.display_name if user else data.get("name", "Unknown")
+
                 final_data = {
+                    "name": name,
                     "traits": l2.get("traits", []),
                     "impression": l2.get("impression", "Analyzed"),
                     "layer1_session_meta": l1_meta,
@@ -969,7 +1000,7 @@ class MemoryCog(commands.Cog):
                 }
 
                 await self.update_user_profile(user_id, final_data, guild_id, is_public)
-                logger.info(f"Memory: 分析完了: {user_id}")
+                logger.info(f"Memory: 分析完了: {name} ({user_id})")
 
                 # USER REQUEST: Sync OpenAI Usage immediately after optimization
                 if cost_manager:
@@ -1337,7 +1368,13 @@ class MemoryCog(commands.Cog):
                 status = profile.get("status", "New") if profile else "New"
 
                 is_target = False
-                if status == "New":
+                if status == "Error":
+                    logger.debug(f"AutoScan: Skipped Error user {member.display_name} ({member.id})")
+                    is_target = False
+                elif status == "Processing":
+                     logger.debug(f"AutoScan: Skipped Processing user {member.display_name} ({member.id})")
+                     is_target = False
+                elif status == "New":
                     is_target = True
                 elif status == "Optimized":
                     # Backlog check: Re-optimize if older than 7 days
@@ -1805,16 +1842,15 @@ class MemoryCog(commands.Cog):
                     async with aiofiles.open(queue_path, "w", encoding="utf-8") as f:
                         await f.write(json.dumps(remaining_jobs))
 
-                    logger.info(f"Memory: Claimed {len(my_jobs)} jobs. Left {len(remaining_jobs)}.")
+                    logger.info(f"Memory: {len(my_jobs)}件の最適化ジョブを開始します... (残り: {len(remaining_jobs)})")
 
                     # 4. Process
                     for req in my_jobs:
                         uid = req.get("user_id")
                         gid = req.get("guild_id")
                         if uid:
-                            logger.info(f"Memory: Processing optimization for {uid} (Guild: {gid})")
                             asyncio.create_task(self.force_user_optimization(uid, gid))
-                            await asyncio.sleep(0.5)
+                            await asyncio.sleep(0.1)  # Faster processing
 
             except Exception as e:
                 logger.error(f"Memory: Queue processing error inside lock: {e}")

@@ -1,0 +1,6 @@
+{
+    "conversation_id": "123e4567-e89b-12d3-a456-426614174000",
+    "content": "debug payload from file",
+    "idempotency_key": "debug-file-1",
+    "attachments": []
+}

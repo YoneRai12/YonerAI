@@ -215,6 +215,9 @@ class CostManager:
                 "unlimited_mode": self.unlimited_mode,
                 "unlimited_users": list(self.unlimited_users),
             }
+            if not os.path.exists(os.path.dirname(self.state_file)):
+                os.makedirs(os.path.dirname(self.state_file), exist_ok=True)
+                
             with open(self.state_file, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
         except Exception as e:
@@ -284,65 +287,79 @@ class CostManager:
 
         limits = COST_LIMITS.get(lane, {}).get(provider, {})
         if not limits:
-            # No limits defined = Allowed (e.g. Local)
             return AllowDecision(allowed=True)
 
         if limits.get("hard_stop", False) is False:
-            # Explicitly no hard stop (BYOK etc)
             return AllowDecision(allowed=True)
 
         bucket = self._get_or_create_bucket(lane, provider, user_id)
-
         if bucket.hard_stopped:
-            return AllowDecision(allowed=False, reason="Hard Stop Active", fallback_to="local")
+            return AllowDecision(allowed=False, reason="日次制限により停止中 (Hard Stop)", fallback_to="local")
 
-        # Check Daily Token Limit (Stable)
+        # --- SHARED POOL LOGIC (Stable + Optimization) ---
+        # If this is a shared lane, we must check the SUM of both buckets against the limit.
+        current_total = bucket.used.tokens_in + bucket.used.tokens_out + bucket.reserved.tokens_in + bucket.reserved.tokens_out
+        
+        shared_lanes = ["stable", "optimization"]
+        if lane in shared_lanes and provider == "openai":
+            # Identify the "other" lane
+            other_lane = "optimization" if lane == "stable" else "stable"
+            other_bucket = self._get_or_create_bucket(other_lane, provider, user_id)
+            
+            # Add other bucket's usage
+            current_total += other_bucket.used.tokens_in + other_bucket.used.tokens_out + other_bucket.reserved.tokens_in + other_bucket.reserved.tokens_out
+            
+            # Check if the OTHER lane is hard stopped (Shared Hard Stop)
+            if other_bucket.hard_stopped:
+                 return AllowDecision(allowed=False, reason="日次制限により停止中 (共有プール Hard Stop)", fallback_to="local")
+
+        # Check Limits (Pre-flight only)
+        # Use simple calculation for display/check.
         daily_limit = limits.get("daily_tokens")
         if daily_limit:
-            # Apply Safety Buffer
             safe_limit = daily_limit * SAFETY_BUFFER_RATIO
-
-            current_total = (
-                bucket.used.tokens_in + bucket.used.tokens_out + bucket.reserved.tokens_in + bucket.reserved.tokens_out
-            )
-            est_total = est.tokens_in + est.tokens_out
-            if current_total + est_total > safe_limit:
-                return AllowDecision(
-                    allowed=False,
-                    reason=f"Daily Token Limit Exceeded (Buffer {int(SAFETY_BUFFER_RATIO * 100)}%): {current_total}/{daily_limit})",
-                    fallback_to="local",
-                )
-
-            # Check Global Limit (if user_id is provided, we must ALSO check global)
-            if user_id is not None:
-                global_bucket = self._get_or_create_bucket(lane, provider, None)
-                global_current = (
-                    global_bucket.used.tokens_in
-                    + global_bucket.used.tokens_out
-                    + global_bucket.reserved.tokens_in
-                    + global_bucket.reserved.tokens_out
-                )
-                # Check Global vs Same Limit (assuming 2.5M is server total)
-                if global_current + est_total > safe_limit:
-                    return AllowDecision(
-                        allowed=False,
-                        reason=f"Global Daily Limit Exceeded (Buffer {int(SAFETY_BUFFER_RATIO * 100)}%): {global_current}/{daily_limit}",
-                        fallback_to="local",
-                    )
-
-        # Check Burn Limit (USD)
-        total_usd_limit = limits.get("total_usd")
-        if total_usd_limit:
-            current_usd = bucket.used.usd + bucket.reserved.usd
-            if current_usd + est.usd > total_usd_limit:
-                return AllowDecision(
-                    allowed=False,
-                    reason=f"Burn Budget Exceeded (${current_usd}/${total_usd_limit})",
-                    fallback_to="local",
-                )
+            if current_total + est.tokens_in + est.tokens_out > safe_limit:
+                return AllowDecision(allowed=False, reason=f"日次制限超過 (バッファ {int(SAFETY_BUFFER_RATIO * 100)}% - 共有プール)", fallback_to="local")
 
         return AllowDecision(allowed=True)
 
+    def can_call_and_reserve(self, lane: Lane, provider: Provider, user_id: Optional[int], reservation_id: str, est: Usage) -> AllowDecision:
+        """Atomic check and reserve. Pass reservation_id to immediately lock tokens if allowed."""
+        decision = self.can_call(lane, provider, user_id, est)
+        if not decision.allowed:
+            # If hit limit (or original hard stop), ensure bucket is permanently stopped for the day
+            limits = COST_LIMITS.get(lane, {}).get(provider, {})
+            # Also check shared lanes
+            shared_lanes = ["stable", "optimization"]
+            
+            should_hard_stop = limits.get("hard_stop", False)
+            
+            if should_hard_stop:
+                # 1. Stop Current Lane
+                bucket = self._get_or_create_bucket(lane, provider, user_id)
+                if not bucket.hard_stopped:
+                    bucket.hard_stopped = True
+                    logger.warning(f"⛔ [CostManager] Hard Stop Triggered for {lane}:{provider} user={user_id}")
+
+                # 2. Stop Shared Lane (if applicable)
+                if lane in shared_lanes and provider == "openai":
+                    other_lane = "optimization" if lane == "stable" else "stable"
+                    # Check if other lane has hard stop enabled (it should per config, but safety check)
+                    other_limits = COST_LIMITS.get(other_lane, {}).get(provider, {})
+                    if other_limits.get("hard_stop", False):
+                        other_bucket = self._get_or_create_bucket(other_lane, provider, user_id)
+                        if not other_bucket.hard_stopped:
+                            other_bucket.hard_stopped = True
+                            logger.warning(f"⛔ [CostManager] Shared Hard Stop Triggered for {other_lane}:{provider} user={user_id}")
+
+                self._save_state()
+            
+            return decision
+
+        # If allowed, reserve immediately
+        self.reserve(lane, provider, user_id, reservation_id, est)
+        return decision
+    
     # --- State Helper for In-Flight ---
     _reservations: Dict[str, Usage] = {}
 

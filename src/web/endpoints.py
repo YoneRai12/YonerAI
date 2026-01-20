@@ -10,7 +10,14 @@ from google.auth.transport import requests as g_requests
 from google.oauth2 import id_token
 from google_auth_oauthlib.flow import Flow
 
+from src.config import COST_LIMITS
+
 router = APIRouter()
+
+@router.get("/config/limits")
+async def get_config_limits():
+    """Return the current COST_LIMITS configuration."""
+    return COST_LIMITS
 
 
 # Dependency to get store (lazy import to avoid circular dependency)
@@ -542,11 +549,29 @@ async def get_dashboard_users(response: Response):
                         display_name = data.get("name", "Unknown")
                         guild_name = data.get("guild_name", "Unknown Server")
 
-                        # Fallback to Discord State if data is stale/missing
+                        # Fallback Logic:
+                        # 1. If memory file has a real name (not Unknown or User_ID), use it.
+                        # 2. If it's a generic name/ID, try discord_state (Live Cache).
+                        # 3. If still ID, and it starts with User_UID, try to resolve just the name part from ANY source.
                         d_user = discord_state["users"].get(real_discord_id, {})
-                        if display_name in ["Unknown", ""] or display_name.startswith("User "):
+                        
+                        is_generic = display_name in ["Unknown", ""] or display_name.startswith("User_") or display_name.isdigit()
+                        
+                        if is_generic:
                             if d_user.get("name"):
                                 display_name = d_user["name"]
+                            elif data.get("name") and not data["name"].startswith("User_") and not data["name"].isdigit():
+                                display_name = data["name"]
+                        
+                        # Strip "User_" prefix for cleaner display if all else fails
+                        if display_name.startswith("User_") and "_" in display_name:
+                            # User_123_456 -> 123
+                            parts = display_name.split("_")
+                            if len(parts) > 1:
+                                maybe_id = parts[1]
+                                # We still want a name, but if we CANNOT find one, 
+                                # we keep it as is or try to look up in a global name cache if we had one.
+                                # For now, let's just ensure the priority above works.
 
                         if guild_name == "Unknown Server":
                             # Try to find guild from file name if possible (UID_GID)

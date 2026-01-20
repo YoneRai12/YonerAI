@@ -1,14 +1,14 @@
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 
-DATABASE_URL = "sqlite:///./ora.db"
+# Use aiosqlite for async support
+from pathlib import Path
+# Use absolute path to avoid CWD issues (points to core/ora.db)
+DB_PATH = Path(__file__).resolve().parent.parent.parent.parent / "ora.db"
+DATABASE_URL = f"sqlite+aiosqlite:///{DB_PATH}"
 
-engine = create_engine(DATABASE_URL, future=True, connect_args={"check_same_thread": False})
-SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
+engine = create_async_engine(DATABASE_URL, echo=False, future=True, connect_args={"check_same_thread": False})
+AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+async def get_db() -> AsyncSession:
+    async with AsyncSessionLocal() as session:
+        yield session
