@@ -59,38 +59,38 @@ ORAは「キーワード」「文脈長」「画像有無」を判断し、**ロ
 
 ```mermaid
 graph TD
-    UserInput["ユーザープロンプト"] --> ModeCheck{ユーザーモード?}
+    UserInput["ユーザープロンプト"] --> RouteCheck{ローカル or API?}
 
-    %% Mode Selection
-    ModeCheck -- "Private Mode" --> LocalPath
-    ModeCheck -- "Smart Mode" --> ImageCheck{画像あり?}
+    %% Top Level Branch
+    RouteCheck -- "ローカルのみ" --> LocalPath["🏠 Local VLLM (Localhost)"]
+    RouteCheck -- "API許可 (Cloud)" --> ImageCheck{画像あり?}
 
-    %% Image Branch
+    %% Cloud Route (Omni-Router)
+    %% 1. Vision
     ImageCheck -- "Yes" --> VisionCheck{クォータ OK?}
     VisionCheck -- "Yes" --> VisionModel["Vision Model: gpt-5-mini"]
-    VisionCheck -- "No" --> LocalVision["Local VLLM (Visual)"]
+    VisionCheck -- "No" --> LocalPath
 
-    %% Text Branch (Omni-Router)
+    %% 2. Text Logic
     ImageCheck -- "No" --> OmniRouter{解析ロジック}
     
     OmniRouter -- "キーワード: Code/Fix" --> CodingModel["Model: gpt-5.1-codex"]
     OmniRouter -- "50文字以上 OR 解説/Deep" --> HighModel["Model: gpt-5.1 / o3"]
     OmniRouter -- "標準会話" --> StdModel["Model: gpt-5-mini"]
     
-    %% Cost Check
+    %% 3. Cost Check
     CodingModel --> QuotaCheck{クォータ OK?}
     HighModel --> QuotaCheck
     StdModel --> QuotaCheck
     
     QuotaCheck -- "Yes" --> CloudAPI["☁️ OpenAI API (Cloud)"]
-    QuotaCheck -- "No (超過)" --> LocalPath["🏠 Local VLLM (Localhost)"]
+    QuotaCheck -- "No" --> LocalPath
 
     VisionModel --> CloudAPI
 
     %% Final Output
-    CloudAPI --> Response[最終回答]
+    CloudAPI --> Response["最終回答"]
     LocalPath --> Response
-    LocalVision --> Response
 ```
 
 ### 👥 Shadow Clone: Zombie Killer

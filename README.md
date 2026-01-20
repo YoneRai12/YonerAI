@@ -59,38 +59,38 @@ ORA uses a "Hybrid Brain" architecture to balance **Intelligence** vs **Cost**.
 
 ```mermaid
 graph TD
-    UserInput["User Prompt"] --> ModeCheck{User Mode?}
+    UserInput["User Prompt"] --> RouteCheck{Local or Cloud?}
 
-    %% Mode Selection
-    ModeCheck -- "Private Mode" --> LocalPath
-    ModeCheck -- "Smart Mode" --> ImageCheck{Has Image?}
+    %% Top Level Branch
+    RouteCheck -- "Local Only" --> LocalPath["🏠 Local VLLM (Localhost)"]
+    RouteCheck -- "Allow Cloud" --> ImageCheck{Has Image?}
 
-    %% Image Branch
+    %% Cloud Route (Omni-Router)
+    %% 1. Vision
     ImageCheck -- "Yes" --> VisionCheck{Quota OK?}
     VisionCheck -- "Yes" --> VisionModel["Vision Model: gpt-5-mini"]
-    VisionCheck -- "No" --> LocalVision["Local VLLM (Visual)"]
+    VisionCheck -- "No" --> LocalPath
 
-    %% Text Branch (Omni-Router)
+    %% 2. Text Logic
     ImageCheck -- "No" --> OmniRouter{Analysis Logic}
     
     OmniRouter -- "Keyword: Code/Fix" --> CodingModel["Model: gpt-5.1-codex"]
     OmniRouter -- "Length > 50 chars" --> HighModel["Model: gpt-5.1 / o3"]
     OmniRouter -- "Standard Chat" --> StdModel["Model: gpt-5-mini"]
     
-    %% Cost Check
+    %% 3. Cost Check
     CodingModel --> QuotaCheck{Quota OK?}
     HighModel --> QuotaCheck
     StdModel --> QuotaCheck
     
     QuotaCheck -- "Yes" --> CloudAPI["☁️ OpenAI API (Cloud)"]
-    QuotaCheck -- "No (Exceeded)" --> LocalPath["🏠 Local VLLM (Localhost)"]
+    QuotaCheck -- "No" --> LocalPath
 
     VisionModel --> CloudAPI
 
     %% Final Output
     CloudAPI --> Response["Final Reply"]
     LocalPath --> Response
-    LocalVision --> Response
 ```
 
 *   **Smart Routing**: She analyzes prompt length and keywords (e.g., "fix code" -> Codex).
