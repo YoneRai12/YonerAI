@@ -36,13 +36,17 @@ async def post_message(
         )
 
     # 3. Conversation Resolution
-    conversation = await repo.get_or_create_conversation(req.conversation_id, user.id)
+    conv_id = await repo.resolve_conversation(
+        user_id=user.id,
+        conversation_id=req.conversation_id,
+        context_binding=req.context_binding.model_dump() if req.context_binding else None
+    )
 
     # 4. Create Message & Run
     att_dicts = [a.model_dump() for a in req.attachments]
     
     msg, run = await repo.create_user_message_and_run(
-        conversation_id=conversation.id,
+        conversation_id=conv_id,
         user_id=user.id,
         content=req.content,
         attachments=att_dicts,
@@ -51,10 +55,10 @@ async def post_message(
 
     # 5. Dispatch Brain Process
     # We must use a separate session for background tasks
-    background_tasks.add_task(run_brain_task, run.id, conversation.id, req)
+    background_tasks.add_task(run_brain_task, run.id, conv_id, req)
 
     return MessageResponse(
-        conversation_id=conversation.id,
+        conversation_id=conv_id,
         message_id=msg.id,
         run_id=run.id,
         status=run.status

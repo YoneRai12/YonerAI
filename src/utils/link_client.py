@@ -26,8 +26,12 @@ class LinkClient:
             logger.debug("Generated dummy link code", extra={"user_id": user_id, "code": code})
             return code
 
-        endpoint = f"{self._base_url}/api/link/init"
-        payload = {"user_id": str(user_id)}
+        # Canonical Core API endpoint
+        endpoint = f"{self._base_url}/v1/auth/link-code"
+        payload = {
+            "provider": "discord",
+            "provider_id": str(user_id)
+        }
         timeout = aiohttp.ClientTimeout(total=5)
 
         async with aiohttp.ClientSession(timeout=timeout) as session:
@@ -35,16 +39,15 @@ class LinkClient:
                 async with session.post(endpoint, json=payload) as response:
                     if response.status != 200:
                         body = await response.text()
-                        raise RuntimeError(f"ORA API returned status {response.status}: {body}")
+                        raise RuntimeError(f"Core API returned status {response.status}: {body}")
                     data = await response.json()
             except aiohttp.ClientError as exc:  # noqa: PERF203
-                raise RuntimeError("ORA APIへの接続に失敗しました。") from exc
+                raise RuntimeError("Core APIへの接続に失敗しました。") from exc
 
         code = data.get("code")
-        code = data.get("code")
         if not isinstance(code, str):
-            logger.error(f"Invalid response from ORA API: {data}")
-            raise RuntimeError(f"ORA APIの応答が不正です: {data}")
+            logger.error(f"Invalid response from Core API: {data}")
+            raise RuntimeError(f"Core APIの応答が不正です: {data}")
 
         logger.info("Link code issued", extra={"user_id": user_id})
         return code

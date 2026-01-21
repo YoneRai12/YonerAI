@@ -25,7 +25,32 @@ function safeJsonParse<T>(raw: string): T | null {
 
 export default function Page() {
     const apiBase = ''; // Next.js Rewritesを使用（CORS回避のためバックエンドへ転送）
-    const [conversationId, setConversationId] = useState<string>('');
+
+    // Persistent IDs
+    const [conversationId, setConversationIdState] = useState<string>(() => {
+        if (typeof window !== 'undefined') return localStorage.getItem('ora_conv_id') || '';
+        return '';
+    });
+    const [webUserId] = useState<string>(() => {
+        if (typeof window !== 'undefined') {
+            let id = localStorage.getItem('ora_user_id');
+            if (!id) {
+                id = crypto.randomUUID();
+                localStorage.setItem('ora_user_id', id);
+            }
+            return id;
+        }
+        return 'demo-user';
+    });
+
+    const [linkCode, setLinkCode] = useState('');
+    const [isLinking, setIsLinking] = useState(false);
+
+    const setConversationId = (id: string) => {
+        setConversationIdState(id);
+        if (typeof window !== 'undefined') localStorage.setItem('ora_conv_id', id);
+    };
+
     const [input, setInput] = useState('');
     const [messages, setMessages] = useState<ChatMsg[]>([
         { role: 'system', text: 'ORA Web Client (Phase 3) — SSEストリーミングデモへようこそ' },
@@ -42,6 +67,36 @@ export default function Page() {
             esRef.current = null;
         }
     };
+
+    const handleLinkAccount = async () => {
+        if (!linkCode || isLinking) return;
+        setIsLinking(true);
+        try {
+            const res = await fetch(`${apiBase}/v1/auth/link`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    current_user_id: webUserId,
+                    code: linkCode
+                })
+            });
+            if (res.ok) {
+                const data = await res.json();
+                alert("Account linked successfully!");
+                if (data.target_user_id) {
+                    localStorage.setItem('ora_user_id', data.target_user_id);
+                    window.location.reload();
+                }
+            } else {
+                const err = await res.json();
+                alert(`Link Failed: ${err.detail || 'Invalid code'}`);
+            }
+        } catch (e) {
+            alert("Linking error. Check Core API.");
+        } finally {
+            setIsLinking(false);
+        }
+    }
 
     const appendUser = (text: string) => {
         setMessages((prev) => [...prev, { role: 'user', text }]);
@@ -88,19 +143,24 @@ export default function Page() {
         // --- Canonical Adapter Logic ---
         const idempotencyKey = crypto.randomUUID();
 
-        // Minimal UserIdentity (In production: get from Context/Auth)
+        // Persistent UserIdentity
         const userIdentity = {
             provider: "web",
-            id: "local-user-demo-1",
-            display_name: "Demo User"
+            id: webUserId,
+            display_name: "Web User"
         };
 
         const payload = {
-            conversation_id: conversationId || null, // Allow null for new conv
+            conversation_id: conversationId || null,
             user_identity: userIdentity,
             content: text,
             attachments: [],
-            idempotency_key: idempotencyKey
+            idempotency_key: idempotencyKey,
+            context_binding: {
+                provider: "web",
+                kind: "room",
+                external_id: "room:default" // In multi-room apps, this would be the room ID
+            }
         };
 
         try {
@@ -214,7 +274,29 @@ export default function Page() {
                     </button>
                 </div>
 
-                <div className="p-4 border-t border-white/5">
+                <div className="p-4 border-t border-white/5 space-y-3">
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-neutral-600 uppercase tracking-wider px-2">
+                            Identity Link
+                        </label>
+                        <div className="flex gap-2">
+                            <input
+                                type="text"
+                                value={linkCode}
+                                onChange={(e) => setLinkCode(e.target.value.toUpperCase())}
+                                placeholder="CODE"
+                                className="flex-1 bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-emerald-500/50 transition-all uppercase"
+                            />
+                            <button
+                                onClick={handleLinkAccount}
+                                disabled={isLinking || !linkCode}
+                                className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+                            >
+                                {isLinking ? "..." : "Link"}
+                            </button>
+                        </div>
+                    </div>
+
                     <div className="flex items-center gap-3 px-2 py-2">
                         <div className="size-8 rounded-full bg-neutral-800 border border-neutral-700 flex items-center justify-center text-xs font-mono">
                             USR

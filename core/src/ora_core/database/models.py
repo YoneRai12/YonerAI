@@ -1,7 +1,7 @@
 from datetime import datetime
 from enum import Enum as PyEnum
 from typing import Optional
-from sqlalchemy import String, ForeignKey, DateTime, Enum, JSON, UniqueConstraint
+from sqlalchemy import String, ForeignKey, DateTime, Enum, JSON, UniqueConstraint, Integer, Boolean
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 class Base(DeclarativeBase):
@@ -33,6 +33,10 @@ class User(Base):
 
     id: Mapped[str] = mapped_column(String, primary_key=True) # UUID
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    
+    # Security for Identity Link
+    failed_link_attempts: Mapped[int] = mapped_column(Integer, default=0)
+    link_locked_until: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     
     # Relationships
     identities = relationship("UserIdentity", back_populates="user", cascade="all, delete-orphan")
@@ -66,13 +70,30 @@ class Conversation(Base):
     user = relationship("User", back_populates="conversations")
     messages = relationship("Message", back_populates="conversation", order_by="Message.created_at")
     runs = relationship("Run", back_populates="conversation")
+    bindings = relationship("ConversationBinding", back_populates="conversation")
+
+class ConversationBinding(Base):
+    __tablename__ = "conversation_bindings"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    conversation_id: Mapped[str] = mapped_column(String, ForeignKey("conversations.id"), index=True)
+    
+    provider: Mapped[str] = mapped_column(String) # discord, web, etc.
+    kind: Mapped[str] = mapped_column(String) # dm, thread, channel, room
+    external_id: Mapped[str] = mapped_column(String) # "dm:123", etc.
+
+    __table_args__ = (
+        UniqueConstraint("provider", "kind", "external_id", name="uq_binding_key"),
+    )
+
+    conversation = relationship("Conversation", back_populates="bindings")
 
 class Message(Base):
     __tablename__ = "messages"
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
     conversation_id: Mapped[str] = mapped_column(String, ForeignKey("conversations.id"), index=True)
-    author: Mapped[AuthorRole] = mapped_column(Enum(AuthorRole))
+    author: Mapped[str] = mapped_column(String(32)) # system, user, assistant, tool
     content: Mapped[Optional[str]] = mapped_column(String, nullable=True) # Text content
     attachments: Mapped[Optional[list[dict]]] = mapped_column(JSON, default=list) # List of file/image data
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
@@ -89,7 +110,7 @@ class Run(Base):
     conversation_id: Mapped[str] = mapped_column(String, ForeignKey("conversations.id"), index=True)
     # Added user_id for strict idempotency constraint per user
     user_id: Mapped[Optional[str]] = mapped_column(String, ForeignKey("users.id"), nullable=True)
-    status: Mapped[RunStatus] = mapped_column(Enum(RunStatus), default=RunStatus.queued)
+    status: Mapped[str] = mapped_column(String(32), default="queued") # queued, in_progress, etc.
     user_message_id: Mapped[str] = mapped_column(String, ForeignKey("messages.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     
@@ -116,9 +137,16 @@ class ToolCall(Base):
     status: Mapped[str] = mapped_column(String, default="queued") # queued, running, completed, failed
     result_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     error: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    
+    # New metrics & tracing
+    latency_ms: Mapped[int] = mapped_column(Integer, default=0)
+    artifact_ref: Mapped[Optional[str]] = mapped_column(String, nullable=True) # e.g. "file:///..."
+    
+    # Lease management for recovery
+    lease_token: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True) # Used for zombie recovery
-    lease_token: Mapped[Optional[str]] = mapped_column(String, nullable=True) # Prevent ghost overwrites
     
     run = relationship("Run", back_populates="tool_calls")
 
@@ -138,3 +166,23 @@ class ResourceLock(Base):
 
     def __repr__(self) -> str:
         return f"<ResourceLock(key={self.resource_key}, status={self.status}, holder={self.holder_tool_call_id})>"
+
+class IdentityLinkRequest(Base):
+    __tablename__ = "identity_link_requests"
+
+    code: Mapped[str] = mapped_column(String, primary_key=True)
+    user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), index=True)
+    ip_address: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+class IdentityLinkAudit(Base):
+    __tablename__ = "identity_link_audits"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    target_user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), index=True)
+    from_user_id: Mapped[str] = mapped_column(String)
+    ip_address: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    success: Mapped[bool] = mapped_column(Boolean, default=False)
+    details: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

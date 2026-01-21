@@ -20,7 +20,8 @@ class CoreAPIClient:
                            conversation_id: Optional[str] = None,
                            idempotency_key: Optional[str] = None,
                            attachments: list = None,
-                           stream: bool = False # Default False for Discord as requested
+                           context_binding: Optional[dict] = None,
+                           stream: bool = False
                            ) -> Dict[str, Any]:
         """
         POST to /v1/messages
@@ -29,17 +30,28 @@ class CoreAPIClient:
         if not idempotency_key:
             idempotency_key = str(uuid.uuid4())
 
+        # Normalize attachments (Defensive layer)
+        normalized_atts = []
+        for att in (attachments or []):
+            if isinstance(att, dict) and "type" in att:
+                normalized_atts.append(att)
+            elif isinstance(att, str):
+                normalized_atts.append({"type": "image_url", "url": att})
+            else:
+                logger.warning(f"Dropping invalid attachment: {att}")
+
         payload = {
             "conversation_id": conversation_id,
             "user_identity": {
-                "provider": "discord",
+                "provider": "discord", # Default for this client, can be tuned
                 "id": str(provider_id),
                 "display_name": display_name
             },
             "content": content,
-            "attachments": attachments or [],
+            "attachments": normalized_atts,
             "idempotency_key": idempotency_key,
-            "stream": stream
+            "stream": stream,
+            "context_binding": context_binding
         }
 
         async with aiohttp.ClientSession() as session:

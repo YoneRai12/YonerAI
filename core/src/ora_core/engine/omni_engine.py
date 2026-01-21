@@ -7,34 +7,14 @@ from ora_core.mcp.registry import tool_registry
 
 class OmniEngine:
     def __init__(self):
-        self.api_key = os.getenv("OPENAI_API_KEY")
+        self.api_key = os.getenv("LLM_API_KEY") or os.getenv("OPENAI_API_KEY")
+        self.base_url = os.getenv("LLM_BASE_URL") # if None, uses default OpenAI
+        self.model = os.getenv("LLM_MODEL") or "gpt-4o-mini"
+        
         if not self.api_key:
-            print("Warning: OPENAI_API_KEY not found in env.")
+            print("Warning: LLM API Key not found in env.")
         
-        self.client = AsyncOpenAI(api_key=self.api_key)
-        self.model = "gpt-4o-mini"
-
-    def _get_tools_param(self, client_type: str) -> list[dict] | None:
-        """Fetch tools from registry and format for OpenAI."""
-        tools = tool_registry.list_tools_for_client(client_type)
-        if not tools:
-            return None
-        
-        openai_tools = []
-        for t in tools:
-            openai_tools.append({
-                "type": "function",
-                "function": {
-                    "name": t.name,
-                    "description": t.description,
-                    "parameters": {
-                        "type": "object",
-                        "properties": t.parameters,
-                        "required": list(t.parameters.keys())
-                    }
-                }
-            })
-        return openai_tools
+        self.client = AsyncOpenAI(api_key=self.api_key, base_url=self.base_url)
 
     async def generate_response(self, messages: list[dict], client_type: str = "web"):
         """Non-streaming generation."""
@@ -49,6 +29,24 @@ class OmniEngine:
             stream=False,
             temperature=0.7
         )
+
+    def _get_tools_param(self, client_type: str) -> list[dict] | None:
+        """Fetch tools from registry and format for OpenAI."""
+        tools = tool_registry.list_tools_for_client(client_type)
+        if not tools:
+            return None
+        
+        openai_tools = []
+        for t in tools:
+            openai_tools.append({
+                "type": "function",
+                "function": {
+                    "name": t.name,
+                    "description": t.description,
+                    "parameters": t.parameters # Already a dict with type/properties/required
+                }
+            })
+        return openai_tools
 
     async def generate_stream(self, messages: list[dict], client_type: str = "web"):
         """Streaming generation (Yields chunks)."""

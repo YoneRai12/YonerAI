@@ -318,6 +318,27 @@ class ChatHandler:
             if not bot_voice or bot_voice.channel.id == user_voice.channel.id:
                 is_voice = True
 
+        # Determine Context Binding
+        # DM: kind="dm", external_id="dm:{author_id}"
+        # Thread: kind="thread", external_id="guild:channel:thread"
+        # Channel: kind="channel", external_id="guild:channel"
+        
+        kind = "channel"
+        ext_id = f"{message.guild.id}:{message.channel.id}" if message.guild else f"dm:{message.author.id}"
+        
+        if not message.guild:
+            kind = "dm"
+        elif hasattr(message.channel, "parent_id") and message.channel.parent_id:
+            # It's likely a thread if it has a parent
+            kind = "thread"
+            ext_id = f"{message.guild.id}:{message.channel.parent_id}:{message.channel.id}"
+
+        context_binding = {
+            "provider": "discord",
+            "kind": kind,
+            "external_id": ext_id
+        }
+
         # Delegate to Core
         try:
             # 1. Send Request
@@ -326,7 +347,9 @@ class ChatHandler:
                 content=prompt,
                 provider_id=str(message.author.id),
                 display_name=message.author.display_name,
-                conversation_id=None, # Core will resolve/create
+                conversation_id=None, # Core will resolve via binding
+                idempotency_key=f"discord:{message.id}",
+                context_binding=context_binding,
                 stream=False # Discord Requirement: No flickering
             )
 

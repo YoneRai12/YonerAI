@@ -1,7 +1,7 @@
 from sqlalchemy import select, update, or_, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from .models import User, UserIdentity, Conversation, Message, Run, RunStatus, AuthorRole, ConversationScope, ToolCall
+from .models import User, UserIdentity, Conversation, Message, Run, RunStatus, AuthorRole, ConversationScope, ToolCall, ConversationBinding, IdentityLinkRequest, IdentityLinkAudit
 import uuid
 from datetime import datetime
 import logging
@@ -74,6 +74,57 @@ class Repository:
         await self.db.flush()
         return new_conv
 
+    async def get_binding(self, provider: str, kind: str, external_id: str) -> ConversationBinding | None:
+        stmt = select(ConversationBinding).where(
+            ConversationBinding.provider == provider,
+            ConversationBinding.kind == kind,
+            ConversationBinding.external_id == external_id
+        )
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def create_binding(self, conversation_id: str, provider: str, kind: str, external_id: str) -> ConversationBinding:
+        binding = ConversationBinding(
+            id=str(uuid.uuid4()),
+            conversation_id=conversation_id,
+            provider=provider,
+            kind=kind,
+            external_id=external_id
+        )
+        self.db.add(binding)
+        await self.db.flush()
+        return binding
+
+    async def resolve_conversation(self, user_id: str, conversation_id: str | None, context_binding: dict | None) -> str:
+        """
+        Hub & Spoke resolution logic:
+        1. If explicit conversation_id is provided, use it.
+        2. If context_binding is provided (provider/kind/external_id), resolve via Bindings table.
+        3. Otherwise, create a new conversation.
+        """
+        # 1. Explicit ID
+        if conversation_id:
+            return conversation_id
+
+        # 2. Binding
+        if context_binding:
+            provider = context_binding.get("provider")
+            kind = context_binding.get("kind")
+            external_id = context_binding.get("external_id")
+            if provider and kind and external_id:
+                binding = await self.get_binding(provider, kind, external_id)
+                if binding:
+                    return binding.conversation_id
+                
+                # Create new conversation for this binding
+                new_conv = await self.get_or_create_conversation(None, user_id)
+                await self.create_binding(new_conv.id, provider, kind, external_id)
+                return new_conv.id
+
+        # 3. Default
+        conv = await self.get_or_create_conversation(None, user_id)
+        return conv.id
+
     async def create_user_message_and_run(
         self, conversation_id: str, user_id: str, content: str, attachments: list[dict], idempotency_key: str
     ) -> tuple[Message, Run]:
@@ -107,6 +158,18 @@ class Repository:
         stmt = update(Run).where(Run.id == run_id).values(status=status)
         await self.db.execute(stmt)
         await self.db.commit()
+
+    async def get_messages(self, conversation_id: str, limit: int = 20) -> list[Message]:
+        stmt = (
+            select(Message)
+            .where(Message.conversation_id == conversation_id)
+            .order_by(Message.created_at.desc())
+            .limit(limit)
+        )
+        result = await self.db.execute(stmt)
+        msgs = list(result.scalars().all())
+        msgs.reverse() # Cronological order
+        return msgs
 
     async def create_assistant_message(self, conversation_id: str, content: str) -> Message:
         msg = Message(
@@ -207,7 +270,9 @@ class Repository:
         self, tool_call_id: str, user_id: str, status: str, 
         lease_token: str | None = None,
         result: dict | None = None, error: str | None = None,
-        expires_at: datetime | None = None
+        expires_at: datetime | None = None,
+        latency_ms: int | None = None,
+        artifact_ref: str | None = None
     ):
         """
         Update tool call status, optionally verifying the lease_token to prevent ghost overwrites.
@@ -219,6 +284,10 @@ class Repository:
             values["error"] = error
         if expires_at is not None:
             values["expires_at"] = expires_at
+        if latency_ms is not None:
+            values["latency_ms"] = latency_ms
+        if artifact_ref is not None:
+            values["artifact_ref"] = artifact_ref
         
         stmt = update(ToolCall).where(
             ToolCall.id == tool_call_id,
@@ -298,6 +367,132 @@ class Repository:
         result = await self.db.execute(stmt)
         await self.db.commit()
         return result.rowcount == 1
+
+    async def create_link_request(self, user_id: str, code: str, ip: str | None = None, expires_in_sec: int = 300) -> IdentityLinkRequest:
+        from datetime import timedelta
+        request = IdentityLinkRequest(
+            code=code,
+            user_id=user_id,
+            ip_address=ip,
+            expires_at=datetime.utcnow() + timedelta(seconds=expires_in_sec)
+        )
+        self.db.add(request)
+        await self.db.flush()
+        return request
+
+    async def get_link_request(self, code: str) -> IdentityLinkRequest | None:
+        stmt = select(IdentityLinkRequest).where(
+            IdentityLinkRequest.code == code,
+            IdentityLinkRequest.expires_at > datetime.utcnow()
+        )
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def delete_link_request(self, code: str):
+        from sqlalchemy import delete
+        stmt = delete(IdentityLinkRequest).where(IdentityLinkRequest.code == code)
+        await self.db.execute(stmt)
+        await self.db.flush()
+
+    async def link_identities(self, from_user_id: str, target_user_id: str, ip: str | None = None):
+        """
+        Merges 'from_user_id' into 'target_user_id'.
+        All identities and data pointing to from_user_id will now point to target_user_id.
+        """
+        if from_user_id == target_user_id:
+            return
+
+        # 1. Update UserIdentity
+        stmt1 = update(UserIdentity).where(UserIdentity.user_id == from_user_id).values(user_id=target_user_id)
+        # 2. Update Conversation
+        stmt2 = update(Conversation).where(Conversation.user_id == from_user_id).values(user_id=target_user_id)
+        # 3. Update Run
+        stmt3 = update(Run).where(Run.user_id == from_user_id).values(user_id=target_user_id)
+        
+        await self.db.execute(stmt1)
+        await self.db.execute(stmt2)
+        await self.db.execute(stmt3)
+
+        # 4. Audit
+        audit = IdentityLinkAudit(
+            target_user_id=target_user_id,
+            from_user_id=from_user_id,
+            ip_address=ip,
+            success=True,
+            details=f"Merged {from_user_id} into {target_user_id}"
+        )
+        self.db.add(audit)
+        
+        await self.db.commit()
+        logger.info(f"Merged user {from_user_id} into {target_user_id}")
+
+    async def get_user(self, user_id: str) -> User | None:
+        stmt = select(User).where(User.id == user_id)
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def update_user_link_failure(self, user_id: str, ip: str | None = None):
+        from datetime import timedelta
+        user = await self.get_user(user_id)
+        if user:
+            user.failed_link_attempts += 1
+            if user.failed_link_attempts >= 5:
+                user.link_locked_until = datetime.utcnow() + timedelta(minutes=15)
+            
+            audit = IdentityLinkAudit(
+                target_user_id=user_id, # This is the web user who is failing
+                from_user_id=user_id, # not yet linked
+                ip_address=ip,
+                success=False,
+                details=f"Failed attempt {user.failed_link_attempts}"
+            )
+            self.db.add(audit)
+            await self.db.commit()
+
+    async def reset_user_link_failure(self, user_id: str):
+        user = await self.get_user(user_id)
+        if user:
+            user.failed_link_attempts = 0
+            user.link_locked_until = None
+            await self.db.flush()
+
+    async def get_dashboard_stats(self):
+        """Fetch summary stats for the dashboard."""
+        from sqlalchemy import func
+        from ora_core.database.models import ToolCall, Run
+        
+        # 1. Recent Runs
+        run_count = await self.db.execute(select(func.count(Run.id)))
+        
+        # 2. Tool Usage & Latency
+        tool_stats_stmt = select(
+            ToolCall.tool_name,
+            func.count(ToolCall.id).label("count"),
+            func.avg(ToolCall.latency_ms).label("avg_latency")
+        ).group_by(ToolCall.tool_name)
+        tool_stats_res = await self.db.execute(tool_stats_stmt)
+        
+        # 3. Recent tool calls (last 10)
+        recent_calls_stmt = select(ToolCall).order_by(ToolCall.created_at.desc()).limit(10)
+        recent_calls_res = await self.db.execute(recent_calls_stmt)
+        
+        return {
+            "total_runs": run_count.scalar(),
+            "tools": [
+                {"name": row.tool_name, "count": row.count, "avg_latency": float(row.avg_latency or 0)}
+                for row in tool_stats_res
+            ],
+            "recent_tool_calls": [
+                {
+                    "id": c.id,
+                    "tool": c.tool_name,
+                    "status": c.status,
+                    "latency": c.latency_ms,
+                    "created_at": c.created_at.isoformat()
+                }
+                for c in recent_calls_res.scalars().all()
+            ]
+        }
 
 
 

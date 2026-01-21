@@ -129,21 +129,21 @@ class MemoryCog(commands.Cog):
         self.sem = asyncio.Semaphore(limit)
         self._io_lock = asyncio.Lock()  # Prevent concurrent file access
 
-        # Start core loops
-        self.memory_worker.start()
-        self.name_sweeper.start()
+        # Start core loops (Bypassed for Hub & Spoke Step 2 Migration)
+        # self.memory_worker.start()
+        # self.name_sweeper.start()
         if self.worker_mode:
             self.status_loop.change_interval(seconds=5)
-            self.scan_history_task.start()
+            # self.scan_history_task.start()
             self.refresh_watcher.start()
             self.idle_log_archiver.start()
         else:
             self.status_loop.start()
-            self.scan_history_task.start()
+            # self.scan_history_task.start()
             self.refresh_watcher.start()
             # Archive logic is Worker-only
             # self.idle_log_archiver.start()
-            self.surplus_token_burner.start()  # [Feature] Daily Burner
+            # self.surplus_token_burner.start()  # [Feature] Daily Burner
 
         # Cleanup should run in ALL modes to ensure UI is clean
         asyncio.create_task(self.cleanup_stuck_profiles())

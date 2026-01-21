@@ -2,6 +2,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from ora_core.api.routes.messages import router as messages_router
 from ora_core.api.routes.runs import router as runs_router
+from ora_core.api.routes.auth import router as auth_router
+from ora_core.api.routes.stats import router as stats_router
 
 def create_app():
     app = FastAPI(title="ORA Core", version="0.1")
@@ -45,6 +47,8 @@ def create_app():
     
     app.include_router(messages_router, prefix="/v1")
     app.include_router(runs_router, prefix="/v1")
+    app.include_router(auth_router, prefix="/v1/auth")
+    app.include_router(stats_router, prefix="/v1")
     
     return app
 

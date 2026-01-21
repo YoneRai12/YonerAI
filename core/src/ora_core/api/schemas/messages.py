@@ -13,6 +13,11 @@ class Attachment(BaseModel):
     mime: Optional[str] = None
     name: Optional[str] = None
 
+class ContextBinding(BaseModel):
+    provider: Literal["discord", "web", "google", "apple", "mc"]
+    kind: Literal["dm", "thread", "channel", "room", "server"]
+    external_id: str  # e.g. "dm:123", "guild:chan:thread", "guild:chan"
+
 class MessageRequest(BaseModel):
     conversation_id: Optional[str] = None
     user_identity: UserIdentity
@@ -20,6 +25,8 @@ class MessageRequest(BaseModel):
     attachments: list[Attachment] = []
     idempotency_key: str = Field(min_length=8)
     stream: bool = True
+    source: Literal["discord", "web", "api"] = "web"
+    context_binding: Optional[ContextBinding] = None
 
 class MessageResponse(BaseModel):
     conversation_id: str
