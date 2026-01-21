@@ -301,6 +301,10 @@ class ChatHandler:
             # 1. Determine User Lane
             user_mode = self.cog.user_prefs.get_mode(message.author.id) or "private"
 
+        except Exception as e:
+            logger.error(f"Onboarding check failed: {e}")
+            # Continue anyway, non-fatal
+
         # ----------------------------------------------------
         # [Phase 5 Step 3] Core API Delegation (Thin Client)
         # ----------------------------------------------------
@@ -349,25 +353,20 @@ class ChatHandler:
             await message.reply(f"システムエラーが発生しました: {e}")
             return
 
-            # Final Processing
-            await status_manager.finish()
+        # Final Processing (Outside try-except, only reached on success)
+        await status_manager.finish()
 
-            # Send (Chunked Embed Cards)
-            from src.utils.ui import EmbedFactory
-            
-            if not content:
-                content = "応答を生成できませんでした。"
+        # Send (Chunked Embed Cards)
+        from src.utils.ui import EmbedFactory
+        
+        if not content:
+            content = "応答を生成できませんでした。"
 
-            while content:
-                curr = content[:4000] # Embed description limit is 4096
-                content = content[4000:]
-                embed = EmbedFactory.create_chat_embed(curr)
-                await message.reply(embed=embed)
-
-        except Exception as e:
-            logger.error(f"Chat Error: {e}")
-            await status_manager.finish()
-            await message.reply("システムエラーが発生しました。")
+        while content:
+            curr = content[:4000] # Embed description limit is 4096
+            content = content[4000:]
+            embed = EmbedFactory.create_chat_embed(curr)
+            await message.reply(embed=embed)
 
     async def _router_decision(self, prompt: str, user_name: str) -> str:
         """
