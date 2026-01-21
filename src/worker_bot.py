@@ -37,7 +37,7 @@ load_dotenv(override=True)
 TOKEN = os.getenv("DISCORD_TOKEN_2")
 if not TOKEN:
     logger.critical("DISCORD_TOKEN_2 not found in .env! Exiting.")
-    sys.exit(1)
+    sys.exit(99) # Specific exit code for "no token" to stop batch loop
 
 # Paths
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

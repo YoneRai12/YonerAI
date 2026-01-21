@@ -422,7 +422,7 @@ class MemoryCog(commands.Cog):
 
 
         # Cap buffer size (Safety net if trigger fails or backlog)
-        elif len(self.message_buffer[message.author.id]) > 50:
+        if len(self.message_buffer[message.author.id]) > 50:
             self.message_buffer[message.author.id].pop(0)
 
         # Phase 32: Per-User History Persistence (with scope)

@@ -163,7 +163,17 @@ export default function Page() {
             });
 
             es.addEventListener('error', (ev) => {
-                console.error('SSE Error:', ev);
+                // EventSource errors are notoriously opaque, but we can log the readyState
+                const target = ev.target as EventSource;
+                console.error('SSE Error Context:', {
+                    readyState: target.readyState, // 0: connecting, 1: open, 2: closed
+                    url: target.url,
+                    event: ev
+                });
+                setMessages(p => [...p, {
+                    role: 'system',
+                    text: `⚠️ Stream Connection Error (ReadyState: ${target.readyState}). Check if Core API (Port 8001) is running.`
+                }]);
                 closeStream();
                 setStatus('idle');
             });

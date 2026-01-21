@@ -366,7 +366,7 @@ async def run_bot() -> None:
         config.validate()
     except ConfigError as exc:
         print(exc, file=sys.stderr)
-        raise SystemExit(1) from exc
+        raise SystemExit(99) from exc
 
     setup_logging(config.log_level)
     logger.info("ORA Discord Botを起動します", extra={"app_id": config.app_id})
