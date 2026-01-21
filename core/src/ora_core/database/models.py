@@ -1,6 +1,6 @@
 from datetime import datetime
 from enum import Enum as PyEnum
-from typing import List, Optional
+from typing import Optional
 from sqlalchemy import String, ForeignKey, DateTime, Enum, JSON, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -74,7 +74,7 @@ class Message(Base):
     conversation_id: Mapped[str] = mapped_column(String, ForeignKey("conversations.id"), index=True)
     author: Mapped[AuthorRole] = mapped_column(Enum(AuthorRole))
     content: Mapped[Optional[str]] = mapped_column(String, nullable=True) # Text content
-    attachments: Mapped[Optional[List[dict]]] = mapped_column(JSON, default=list) # List of file/image data
+    attachments: Mapped[Optional[list[dict]]] = mapped_column(JSON, default=list) # List of file/image data
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     
     # Context Logic
@@ -99,7 +99,42 @@ class Run(Base):
     # Relationships
     conversation = relationship("Conversation", back_populates="runs")
     user_message = relationship("Message", foreign_keys=[user_message_id])
+    tool_calls = relationship("ToolCall", back_populates="run")
 
     __table_args__ = (
         UniqueConstraint("user_id", "idempotency_key", name="uq_runs_user_idempotency"),
     )
+
+class ToolCall(Base):
+    __tablename__ = "tool_calls"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True) # tool_call_id from LLM
+    run_id: Mapped[str] = mapped_column(String, ForeignKey("runs.id"), index=True)
+    user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), index=True)
+    tool_name: Mapped[str] = mapped_column(String)
+    args_json: Mapped[dict] = mapped_column(JSON)
+    status: Mapped[str] = mapped_column(String, default="queued") # queued, running, completed, failed
+    result_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    error: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True) # Used for zombie recovery
+    lease_token: Mapped[Optional[str]] = mapped_column(String, nullable=True) # Prevent ghost overwrites
+    
+    run = relationship("Run", back_populates="tool_calls")
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "id", name="uq_tool_call_user_id"),
+    )
+
+
+class ResourceLock(Base):
+    __tablename__ = "resource_locks"
+
+    resource_key: Mapped[str] = mapped_column(String, primary_key=True) # e.g., "gpu:0"
+    status: Mapped[str] = mapped_column(String, default="free") # "free" or "held"
+    lease_token: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    holder_tool_call_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
+    def __repr__(self) -> str:
+        return f"<ResourceLock(key={self.resource_key}, status={self.status}, holder={self.holder_tool_call_id})>"

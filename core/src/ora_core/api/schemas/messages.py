@@ -1,4 +1,4 @@
-from typing import Literal, Optional, List
+from typing import Literal, Optional
 from pydantic import BaseModel, Field
 
 class UserIdentity(BaseModel):
@@ -16,9 +16,10 @@ class Attachment(BaseModel):
 class MessageRequest(BaseModel):
     conversation_id: Optional[str] = None
     user_identity: UserIdentity
-    content: str = Field(min_length=1)
-    attachments: List[Attachment] = []
+    content: str
+    attachments: list[Attachment] = []
     idempotency_key: str = Field(min_length=8)
+    stream: bool = True
 
 class MessageResponse(BaseModel):
     conversation_id: str

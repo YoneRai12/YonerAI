@@ -1,8 +1,12 @@
-from sqlalchemy import select, update
+from sqlalchemy import select, update, or_, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from .models import User, UserIdentity, Conversation, Message, Run, RunStatus, AuthorRole, ConversationScope
+from .models import User, UserIdentity, Conversation, Message, Run, RunStatus, AuthorRole, ConversationScope, ToolCall
 import uuid
+from datetime import datetime
+import logging
+
+logger = logging.getLogger(__name__)
 
 class Repository:
     def __init__(self, db: AsyncSession):
@@ -33,6 +37,11 @@ class Repository:
         self.db.add(new_identity)
         await self.db.flush()
         return new_user
+
+    async def get_run(self, run_id: str) -> Run | None:
+        stmt = select(Run).where(Run.id == run_id)
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
 
     async def get_run_by_idempotency(self, user_id: str, idempotency_key: str) -> Run | None:
         stmt = select(Run).where(
@@ -111,6 +120,184 @@ class Repository:
         await self.db.commit()
         await self.db.refresh(msg)
         return msg
+
+    async def get_or_create_tool_call(
+        self, tool_call_id: str, run_id: str, user_id: str, tool_name: str, args: dict
+    ) -> tuple[ToolCall, bool]:
+        """
+        Idempotent tool call registration using DB constraints.
+        Scoped by user_id to prevent cross-user ID guessing/collision.
+        """
+        # 1. Check existing
+        stmt = select(ToolCall).where(
+            ToolCall.id == tool_call_id,
+            ToolCall.user_id == user_id
+        )
+        result = await self.db.execute(stmt)
+        existing = result.scalar_one_or_none()
+        
+        # Zombie Check: If running but expired, we treat it as "stale" and allow retry
+        if existing and existing.status == "running" and existing.expires_at:
+            if datetime.utcnow() > existing.expires_at:
+                # MARK AS FAILED (or let the runner overwrite it)
+                # For safety, we just return it and let the runner decide to retry
+                return existing, False
+
+        if existing:
+            return existing, False
+
+        # 2. Try to insert
+        new_call = ToolCall(
+            id=tool_call_id,
+            run_id=run_id,
+            user_id=user_id,
+            tool_name=tool_name,
+            args_json=args,
+            status="queued"
+        )
+        self.db.add(new_call)
+        try:
+            await self.db.commit()
+            await self.db.refresh(new_call)
+            return new_call, True
+        except Exception: # Likely IntegrityError on race condition
+            await self.db.rollback()
+            stmt = select(ToolCall).where(
+                ToolCall.id == tool_call_id,
+                ToolCall.user_id == user_id
+            )
+            result = await self.db.execute(stmt)
+            existing = result.scalar_one_or_none()
+            if existing:
+                return existing, False
+            raise
+
+    async def claim_tool_call(
+        self, tool_call_id: str, user_id: str, lease_token: str, expires_at: datetime
+    ) -> bool:
+        """
+        Atomically claim a tool call for execution.
+        Winning criteria: status is queued/failed OR it's a timed-out zombie.
+        """
+        now = datetime.utcnow()
+        stmt = (
+            update(ToolCall)
+            .where(
+                ToolCall.id == tool_call_id,
+                ToolCall.user_id == user_id
+            )
+            .where(
+                or_(
+                    ToolCall.status.in_(["queued", "failed"]),
+                    and_(ToolCall.status == "running", ToolCall.expires_at < now)
+                )
+            )
+            .values(
+                status="running",
+                lease_token=lease_token,
+                expires_at=expires_at,
+                error=None # Clear previous error if retrying
+            )
+        )
+        result = await self.db.execute(stmt)
+        await self.db.commit()
+        return result.rowcount == 1
+
+    async def update_tool_call(
+        self, tool_call_id: str, user_id: str, status: str, 
+        lease_token: str | None = None,
+        result: dict | None = None, error: str | None = None,
+        expires_at: datetime | None = None
+    ):
+        """
+        Update tool call status, optionally verifying the lease_token to prevent ghost overwrites.
+        """
+        values = {"status": status}
+        if result is not None:
+            values["result_json"] = result
+        if error is not None:
+            values["error"] = error
+        if expires_at is not None:
+            values["expires_at"] = expires_at
+        
+        stmt = update(ToolCall).where(
+            ToolCall.id == tool_call_id,
+            ToolCall.user_id == user_id
+        )
+        
+        if lease_token is not None:
+            stmt = stmt.where(ToolCall.lease_token == lease_token)
+            
+        stmt = stmt.values(**values)
+        res = await self.db.execute(stmt)
+        await self.db.commit()
+        
+        if lease_token is not None and res.rowcount == 0:
+            # This means someone else reclaimed the tool or we are a "ghost"
+            logger.warning(f"Update failed for tool {tool_call_id}: lease_token mismatch (Ghost overwrite prevented).")
+
+    async def acquire_resource_lock(
+        self, resource_key: str, tool_call_id: str, lease_token: str, expires_at: datetime
+    ) -> bool:
+        """
+        Atomically acquire a resource lock.
+        Wins if: status is free OR it's a timed-out zombie.
+        """
+        from .models import ResourceLock
+        now = datetime.utcnow()
+        
+        # 1. Ensure the resource row exists (Initial seed if not present)
+        stmt_check = select(ResourceLock).where(ResourceLock.resource_key == resource_key)
+        res_check = await self.db.execute(stmt_check)
+        if not res_check.scalar_one_or_none():
+            lock_obj = ResourceLock(resource_key=resource_key, status="free")
+            self.db.add(lock_obj)
+            await self.db.commit()
+
+        # 2. Atomic Update
+        stmt = (
+            update(ResourceLock)
+            .where(ResourceLock.resource_key == resource_key)
+            .where(
+                or_(
+                    ResourceLock.status == "free",
+                    and_(ResourceLock.status == "held", ResourceLock.expires_at < now)
+                )
+            )
+            .values(
+                status="held",
+                lease_token=lease_token,
+                expires_at=expires_at,
+                holder_tool_call_id=tool_call_id
+            )
+        )
+        result = await self.db.execute(stmt)
+        await self.db.commit()
+        return result.rowcount == 1
+
+    async def release_resource_lock(
+        self, resource_key: str, lease_token: str
+    ) -> bool:
+        """
+        Release a resource lock if the lease_token matches.
+        """
+        from .models import ResourceLock
+        stmt = (
+            update(ResourceLock)
+            .where(
+                ResourceLock.resource_key == resource_key,
+                ResourceLock.lease_token == lease_token
+            )
+            .values(
+                status="free",
+                lease_token=None,
+                expires_at=None,
+                holder_tool_call_id=None
+            )
+        )
+        result = await self.db.execute(stmt)
+        await self.db.commit()
+        return result.rowcount == 1
 
 
 

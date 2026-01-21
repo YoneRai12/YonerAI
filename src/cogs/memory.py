@@ -405,18 +405,21 @@ class MemoryCog(commands.Cog):
         }
         self.message_buffer[message.author.id].append(entry)
 
-        # Trigger Optimization immediately if threshold reached (User Request: "5 messages")
-        if len(self.message_buffer[message.author.id]) >= 5:
-            logger.info(f"Memory: Instant Optimization Trigger for {message.author.display_name} (5+ new msgs)")
-            msgs_to_process = self.message_buffer[message.author.id][:]  # Copy
-            self.message_buffer[message.author.id] = []  # Clear
+        # [LOGIC CUT-OFF] Logic moved to Core API (MainProcess)
+        # ---------------------------------------------------------------------
+        # if len(self.message_buffer[message.author.id]) >= 5:
+        #     logger.info(f"Memory: Instant Optimization Trigger for {message.author.display_name} (5+ new msgs)")
+        #     msgs_to_process = self.message_buffer[message.author.id][:]  # Copy
+        #     self.message_buffer[message.author.id] = []  # Clear
+        #
+        #     # Fire off analysis (Background)
+        #     asyncio.create_task(
+        #         self._analyze_wrapper(
+        #             message.author.id, msgs_to_process, message.guild.id if message.guild else None, is_pub
+        #         )
+        #     )
+        # ---------------------------------------------------------------------
 
-            # Fire off analysis (Background)
-            asyncio.create_task(
-                self._analyze_wrapper(
-                    message.author.id, msgs_to_process, message.guild.id if message.guild else None, is_pub
-                )
-            )
 
         # Cap buffer size (Safety net if trigger fails or backlog)
         elif len(self.message_buffer[message.author.id]) > 50:
@@ -440,12 +443,15 @@ class MemoryCog(commands.Cog):
         }
         self.channel_buffer[message.channel.id].append(chan_entry)
 
-        # Trigger Channel Optimization (10 messages)
-        if len(self.channel_buffer[message.channel.id]) >= 10:
-            # logger.info(f"Memory: Channel Optimization Trigger for {message.channel.name}")
-            c_msgs = self.channel_buffer[message.channel.id][:]
-            self.channel_buffer[message.channel.id] = []
-            asyncio.create_task(self._analyze_channel_wrapper(message.channel.id, c_msgs))
+        # [LOGIC CUT-OFF] Channel analysis moved to Core API
+        # ---------------------------------------------------------
+        # if len(self.channel_buffer[message.channel.id]) >= 10:
+        #     # logger.info(f"Memory: Channel Optimization Trigger for {message.channel.name}")
+        #     c_msgs = self.channel_buffer[message.channel.id][:]
+        #     self.channel_buffer[message.channel.id] = []
+        #     asyncio.create_task(self._analyze_channel_wrapper(message.channel.id, c_msgs))
+        # ---------------------------------------------------------
+
 
         # ---------------------------------------------------------
         # INSTANT NAME UPDATE (Fix for Dashboard "Unknown" Issue)

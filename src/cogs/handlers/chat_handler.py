@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional
 import discord
 
 from src.config import ROUTER_CONFIG
+from src.utils.core_client import core_client
 from src.utils.cost_manager import Usage
 
 logger = logging.getLogger(__name__)
@@ -300,217 +301,53 @@ class ChatHandler:
             # 1. Determine User Lane
             user_mode = self.cog.user_prefs.get_mode(message.author.id) or "private"
 
-            # 2. Build Context
-            system_prompt = await self._build_system_prompt(message, model_hint="Ministral 3 (14B)")
-            history = []
-            try:
-                history = await self._build_history(message)
-            except Exception as e:
-                logger.error(f"History build failed: {e}")
+        # ----------------------------------------------------
+        # [Phase 5 Step 3] Core API Delegation (Thin Client)
+        # ----------------------------------------------------
+        await status_manager.update_current("📡 ORA Core Brain へ接続中...")
+        
+        # Determine if we should speak/join (Voice Logic)
+        is_voice = False
+        user_voice = message.author.voice
+        if user_voice and user_voice.channel:
+            bot_voice = message.guild.voice_client
+            if not bot_voice or bot_voice.channel.id == user_voice.channel.id:
+                is_voice = True
 
-            messages = [{"role": "system", "content": system_prompt}] + history + [{"role": "user", "content": prompt}]
+        # Delegate to Core
+        try:
+            # 1. Send Request
+            # Note: Core handles context build, routing, and memory injection internally.
+            response = await core_client.send_message(
+                content=prompt,
+                provider_id=str(message.author.id),
+                display_name=message.author.display_name,
+                conversation_id=None, # Core will resolve/create
+                stream=False # Discord Requirement: No flickering
+            )
 
-            # Check Multimodal
-            has_image = False
-            if message.attachments:
-                has_image = True
+            if "error" in response:
+                await status_manager.finish()
+                await message.reply(f"❌ Core API 接続エラー: {response['error']}")
+                return
 
-            # 4. Routing Decision (Universal Brain Router V3)
-            target_provider = "local"
-            clean_messages = messages
-            selected_route: Dict[str, Any] = {"provider": "local", "lane": "stable", "model": None}
+            run_id = response.get("run_id")
+            await status_manager.next_step(f"🧠 Brain 思考中... (Run: {run_id[:8]})")
 
-            logger.info(f"🧩 [Router] User Mode: {user_mode} | Has Image: {has_image}")
+            # 2. Wait for Final Result (SSE Listener)
+            # Since stream=False, we just wait for the 'final' event.
+            content = await core_client.get_final_response(run_id)
 
-            if user_mode == "smart":
-                pkt = self.cog.sanitizer.sanitize(prompt, has_image=has_image)
-                if pkt.ok:
-                    est_usd = len(prompt) / 4000 * 0.00001
-                    est_usage = Usage(tokens_in=len(prompt) // 4, usd=est_usd)
+            if not content:
+                await status_manager.finish()
+                await message.reply("❌ 応答の取得に失敗しました。")
+                return
 
-                    can_burn_gemini = self.cog.cost_manager.can_call(
-                        "burn", "gemini_trial", message.author.id, est_usage
-                    )
-                    can_high_openai = self.cog.cost_manager.can_call("high", "openai", message.author.id, est_usage)
-                    can_stable_openai = self.cog.cost_manager.can_call("stable", "openai", message.author.id, est_usage)
-
-                    if has_image:
-                        # User requested OpenAI for Vision
-                        target_model = ROUTER_CONFIG.get("vision_model", "gpt-5-mini")
-                        # Use stable lane for vision by default
-                        if self.cog.cost_manager.can_call("stable", "openai", message.author.id, est_usage).allowed:
-                            target_provider = "openai"
-                            selected_route = {"provider": "openai", "lane": "stable", "model": target_model}
-                            # OpenAI handles images in messages list naturally
-                        else:
-                            # Fallback to Local if quota exceeded
-                            target_provider = "local"
-
-                    elif self.cog.unified_client.openai_client:
-                        prompt_lower = prompt.lower()
-                        coding_kws = ROUTER_CONFIG.get("coding_keywords", [])
-                        high_intel_kws = ROUTER_CONFIG.get("high_intel_keywords", [])
-
-                        is_code = any(k in prompt_lower for k in coding_kws)
-                        is_high_intel = (len(prompt) > 50) or any(k in prompt_lower for k in high_intel_kws)
-
-                        # Helper to resolve lane from config
-                        from src.config import COST_LIMITS
-                        def _get_lane(m: str) -> str:
-                            if m in COST_LIMITS["high"]["openai"]["models"]:
-                                return "high"
-                            return "stable"
-
-                        if is_code:
-                            target_model = ROUTER_CONFIG.get("coding_model", "gpt-5.1-codex")
-                            target_lane = _get_lane(target_model)
-                            
-                            if self.cog.cost_manager.can_call(target_lane, "openai", message.author.id, est_usage).allowed:
-                                target_provider = "openai"
-                                selected_route = {"provider": "openai", "lane": target_lane, "model": target_model}
-                            # Fallback logic simplified: if primary lane fails, try stable (if different)
-                            elif target_lane != "stable" and can_stable_openai.allowed:
-                                target_provider = "openai"
-                                target_model = ROUTER_CONFIG.get("standard_model", "gpt-5-mini")
-                                selected_route = {"provider": "openai", "lane": "stable", "model": target_model}
-
-                        elif is_high_intel:
-                            target_model = ROUTER_CONFIG.get("high_intel_model", "gpt-5.1")
-                            target_lane = _get_lane(target_model)
-
-                            if self.cog.cost_manager.can_call(target_lane, "openai", message.author.id, est_usage).allowed:
-                                target_provider = "openai"
-                                selected_route = {"provider": "openai", "lane": target_lane, "model": target_model}
-                            elif can_stable_openai.allowed:
-                                target_provider = "openai"
-                                target_model = ROUTER_CONFIG.get("standard_model", "gpt-5-mini")
-                                selected_route = {"provider": "openai", "lane": "stable", "model": target_model}
-                        elif can_stable_openai.allowed:
-                            target_provider = "openai"
-                            target_model = ROUTER_CONFIG.get("standard_model", "gpt-5-mini")
-                            selected_route = {"provider": "openai", "lane": "stable", "model": target_model}
-
-                        if target_provider == "openai":
-                            actual_sys = await self._build_system_prompt(
-                                message, model_hint=target_model, provider="openai"
-                            )
-                            clean_messages = [
-                                {"role": "system", "content": actual_sys},
-                                {"role": "user", "content": pkt.text},
-                            ]
-
-            # 4. Execution
-            content = None
-            if target_provider == "gemini_trial":
-                await status_manager.next_step("🔥 Gemini (Vision) Analysis...")
-                rid = secrets.token_hex(4)
-                self.cog.cost_manager.reserve("burn", "gemini_trial", message.author.id, rid, est_usage)
-                try:
-                    content, tool_calls, usage = await self.bot.google_client.chat(
-                        messages=clean_messages, model_name="gemini-1.5-pro"
-                    )
-                    self.cog.cost_manager.commit("burn", "gemini_trial", message.author.id, rid, est_usage)
-                except Exception:
-                    self.cog.cost_manager.rollback("burn", "gemini_trial", message.author.id, rid)
-                    target_provider = "local"
-
-            elif target_provider == "openai":
-                lane = selected_route["lane"]
-                model = selected_route["model"]
-                icon = "💎" if lane == "high" else "⚡"
-                await status_manager.next_step(f"{icon} OpenAI Shared ({model})...")
-
-                rid = secrets.token_hex(4)
-                self.cog.cost_manager.reserve(lane, "openai", message.author.id, rid, est_usage)
-                try:
-                    candidate_tools = self._select_tools(prompt, self.cog.tool_definitions)
-                    candidate_tools = [
-                        t for t in candidate_tools if t["name"] not in ["recall_memory", "search_knowledge_base"]
-                    ]
-                    openai_tools = (
-                        [
-                            {"type": "function", "function": {k: v for k, v in t.items() if k != "tags"}}
-                            for t in candidate_tools
-                        ]
-                        if candidate_tools
-                        else None
-                    )
-
-                    max_turns = 5
-                    current_turn = 0
-                    while current_turn < max_turns:
-                        current_turn += 1
-                        
-                        # Fix: Use realistic estimate for next turn check to prevent free infinite loops
-                        est_loop_cost = Usage(tokens_in=0, tokens_out=150, usd=0.01)
-                        if not self.cog.cost_manager.can_call(lane, "openai", message.author.id, est_loop_cost).allowed:
-                            logger.warning(f"Cost Limit Hard Stop triggered at turn {current_turn}.")
-                            break
-
-                        content, tool_calls, usage = await self.cog.unified_client.chat(
-                            "openai", clean_messages, model=model, tools=openai_tools
-                        )
-                        
-                        # Fix: Commit Usage IMMEDIATELY per turn
-                        # This prevents loss of usage data if bot crashes or loop breaks early
-                        u_in = usage.get("prompt_tokens") or 0
-                        u_out = usage.get("completion_tokens") or 0
-                        actual_usd = (u_in * 0.0000025) + (u_out * 0.000010)
-                        actual_turn_usage = Usage(tokens_in=u_in, tokens_out=u_out, usd=actual_usd)
-                        
-                        self.cog.cost_manager.commit(
-                            lane, "openai", message.author.id, rid, actual_turn_usage
-                        )
-
-                        if tool_calls:
-                            clean_messages.append({"role": "assistant", "content": content, "tool_calls": tool_calls})
-                            await status_manager.next_step(f"🛠️ ツール実行中 ({len(tool_calls)}件)...")
-                            
-                            # Fix: Prepare Reservation for NEXT turn
-                            rid = secrets.token_hex(4)
-                            self.cog.cost_manager.reserve(lane, "openai", message.author.id, rid, est_loop_cost)
-
-                            for tc in tool_calls:
-                                func = tc.get("function", {})
-                                fname = func.get("name")
-                                fargs_str = func.get("arguments", "{}")
-                                call_id = tc.get("id")
-                                try:
-                                    fargs = json.loads(fargs_str)
-                                except Exception:
-                                    fargs = {}
-
-                                if fname in ["recall_memory", "search_knowledge_base"]:
-                                    # Not passed to OpenAI anyway
-                                    pass
-
-                                # Execute Trigger
-                                tool_output = await self.cog._execute_tool(fname, fargs, message, status_manager)
-                                clean_messages.append(
-                                    {
-                                        "role": "tool",
-                                        "tool_call_id": call_id,
-                                        "name": fname,
-                                        "content": str(tool_output),
-                                    }
-                                )
-                            continue
-                        else:
-                            # Final turn (Answer generated) - Usage already committed above.
-                            break
-                except Exception:
-                    self.cog.cost_manager.rollback(lane, "openai", message.author.id, rid)
-                    target_provider = "local"
-
-            if target_provider == "local" or not content:
-                await status_manager.next_step("🏠 Local Brain (Ministral) で思考中...")
-                # Local logic simplified for brevity (Multimodal handled in original)
-                try:
-                    content, _, _ = await asyncio.wait_for(
-                        self.cog._llm.chat(messages=messages, temperature=0.7), timeout=60.0
-                    )
-                except asyncio.TimeoutError:
-                    content = "Time out."
+        except Exception as e:
+            logger.error(f"Core API Delegation Failed: {e}")
+            await status_manager.finish()
+            await message.reply(f"システムエラーが発生しました: {e}")
+            return
 
             # Final Processing
             await status_manager.finish()

@@ -5,10 +5,14 @@ on:
     branches: [ "main" ]
     paths:
       - 'core/**'
+      - 'TASK_HISTORY.md'
+      - 'TASKS.md'
   pull_request:
     branches: [ "main" ]
     paths:
       - 'core/**'
+      - 'TASK_HISTORY.md'
+      - 'TASKS.md'
 
 jobs:
   core-test:
@@ -20,6 +24,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0 # Need full history for git diff
 
     - name: Set up Python 3.11
       uses: actions/setup-python@v4
@@ -39,9 +45,12 @@ jobs:
     - name: Type Check with Mypy
       run: mypy src/ --ignore-missing-imports
 
+    - name: Run Task History Safety Check
+      run: python ../scripts/check_task_history.py
+
     - name: Run Tests
       # No tests yet, but fails if syntax is broken
       run: |
-        export PYTHONPATH=$PYTHONPATH:$(pwd)/src
-        # pytest tests/  <-- Uncomment when tests exist
+        export PYTHONPATH=$PYTHONPATH:$(pwd)/src:$(pwd)/..
         python -m compileall src/
+        python ../scripts/test_imports.py

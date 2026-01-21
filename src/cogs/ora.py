@@ -50,6 +50,7 @@ from ..storage import Store
 from ..utils.ascii_art import AsciiGenerator
 from ..utils.cost_manager import CostManager, Usage
 from ..utils.desktop_watcher import DesktopWatcher
+from ..utils.core_client import core_client
 from ..utils.drive_client import DriveClient
 from ..utils.llm_client import LLMClient
 from ..utils.logger import GuildLogger
@@ -880,25 +881,34 @@ class ORACog(commands.Cog):
             f"システムコマンドの既定公開範囲を {mode.value} に更新しました。", ephemeral=True
         )
 
-    @app_commands.command(name="chat", description="LM Studio 経由で応答を生成します。")
-    @app_commands.describe(prompt="送信する内容")
-    # REMOVED due to sync crash
-    # @app_commands.allowed_installs(guilds=True, users=True)
-    # @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
     async def chat(self, interaction: discord.Interaction, prompt: str) -> None:
         await self._store.ensure_user(interaction.user.id, self._privacy_default)
         ephemeral = await self._ephemeral_for(interaction.user)
         await interaction.response.defer(ephemeral=ephemeral, thinking=True)
         try:
-            content, _, _ = await self._llm.chat(
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.7,
+            # Delegate to Core
+            response = await core_client.send_message(
+                content=prompt,
+                provider_id=str(interaction.user.id),
+                display_name=interaction.user.display_name,
+                stream=False
             )
+            
+            if "error" in response:
+                await interaction.followup.send(f"❌ Core API Error: {response['error']}", ephemeral=True)
+                return
+
+            content = await core_client.get_final_response(response["run_id"])
         except Exception as e:
-            logger.exception("LLM call failed", extra={"user_id": interaction.user.id})
-            await interaction.followup.send(f"LLM 呼び出しに失敗しました: {e}", ephemeral=True)
+            logger.exception("Core API call failed", extra={"user_id": interaction.user.id})
+            await interaction.followup.send(f"Core API 呼び出しに失敗しました: {e}", ephemeral=True)
             return
-        await interaction.followup.send(content, ephemeral=ephemeral)
+        
+        if content:
+            await interaction.followup.send(content, ephemeral=ephemeral)
+        else:
+            await interaction.followup.send("❌ 応答を生成できませんでした。", ephemeral=True)
+
 
     dataset_group = app_commands.Group(name="dataset", description="データセット管理コマンド")
 
