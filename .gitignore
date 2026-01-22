@@ -1,61 +1,27 @@
-# Tools logs
-*.log
-*.log.*
-bot.log
-*.txt
-
-# Project Artifacts
-*.db
-*.db.*
-*.bak
-*.zip
-*.7z
-*.rar
-*.mp3
-*.wav
-*.db-shm
-*.db-wal
-test_output*.txt
-
-
-# Large Data & Models
-data/
-downloads/
-checkpoints/
-models/
-loras/
-vae/
-
-# Scripts moving to tools/ (legacy cleanup)
-# If people still have them locally, these ignores won't hurt, but we've moved them.
-
-# IDEs & System
-.vscode/
-.idea/
-.DS_Store
-Thumbs.db
-
-# Virtual Envs
-venv/
-.venv/
-env/
+# Credentials
 .env
-
-# Google Cloud
+.env.*
+ngrok.yml
 service-account.json
 client_secret_*.json
 
-# Backups
-backups/
-_sandbox/
-timestamped_backups/
+# Debug & Temporary files
+*.log
+*.txt
+Port
+local_*.txt
+ruff_*.json
+mypy_*.txt
+debug_*.txt
+debug_*.json
+defs.txt
 
-# ORA Artifacts (Brain)
-.gemini/
-.agent/
-brain/
+# Databases
+*.db
+*.db-shm
+*.db-wal
 
-# Build
+# Build & Cache
 __pycache__/
 *.pyc
 node_modules/
@@ -63,28 +29,46 @@ node_modules/
 out/
 build/
 dist/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
 
-# Exclude entire backup/sub-p
-# System & Env
-.env
-.env.local
-__pycache__/
-*.pyc
+# System
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+venv/
+.venv/
+.venv_broken/
 
-# Project Artifacts
-*.db
-*.db.*
-*.bak
-*.zip
+# ORA State & Brain
 .gemini/
+.agent/
 brain/
 
-# Exclude entire backup/sub-project folders forcefully
+# Backup & Legacy
 Discord-mainORA2/
 RTX5090-DebugSystem-main/
 ORAA/
 ORAA_extracted/
 temp_oraa_analysis/
+backups/
+_sandbox/
+timestamped_backups/
 
+# Test utilities & Temp scripts
 test.bat
 run_tests_local.py
+test_import.py
+test_chat_handler.py
+analyze_cost.py
+find_dup_defs.py
+fix_css.py
+fix_css_v2.py
+fix_excepts.py
+migrate_cost.py
+recover_memory.py
+patch_ora.py
+clean_ora.py
+verify_step3_mcp.py
