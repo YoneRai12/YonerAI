@@ -192,13 +192,13 @@ class Healer:
             }}
             """
 
-            # Using 'gpt-5.1-codex' (Cloud) as requested by user ("Use this!")
+            # Using 'gpt-4o' (Standard High-Intelligence Model)
             try:
                 analysis_json, _, _ = await self.llm.chat(
-                    messages=[{"role": "user", "content": prompt}], temperature=0.0, model="gpt-5.1-codex"
+                    messages=[{"role": "user", "content": prompt}], temperature=0.0, model="gpt-4o"
                 )
             except Exception as e:
-                logger.warning(f"Primary Cloud LLM (gpt-5.1-codex) failed: {e}. Fallback to Standard (gpt-4o).")
+                logger.warning(f"Primary LLM (gpt-4o) failed: {e}. Retrying.")
                 analysis_json, _, _ = await self.llm.chat(
                     messages=[{"role": "user", "content": prompt}], temperature=0.0, model="gpt-4o"
                 )
@@ -579,7 +579,7 @@ class Healer:
             import json
 
             analysis_json, _, _ = await self.llm.chat(
-                messages=[{"role": "user", "content": prompt}], temperature=0.2, model="gpt-5.1-codex"
+                messages=[{"role": "user", "content": prompt}], temperature=0.2, model="gpt-4o"
             )
 
             cleaned_json = analysis_json.strip()

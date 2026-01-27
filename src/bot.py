@@ -21,8 +21,8 @@ import aiohttp  # noqa: E402
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
-# Load environment variables from .env file (Force override system vars, Explicit Path)
-load_dotenv(r"C:\Users\YoneRai12\Desktop\ORADiscordBOT-main3\.env", override=True)
+# Load environment variables from .env file
+load_dotenv(".env", override=True)
 
 import discord  # noqa: E402
 from discord import app_commands  # noqa: E402
@@ -365,8 +365,8 @@ class ORABot(commands.Bot):
                                 public_url = match.group(0)
                                 if name == "ora-dashboard":
                                     public_url = f"{public_url.rstrip('/')}/api/dashboard/admin?token=ADMIN_VIEW"
-                                    # [User Request] Hardcoded Admin Channel
-                                    target_id = 1454335076048568401 
+                                    # Use configured Admin User ID
+                                    target_id = self.config.admin_user_id 
                                 elif name == "ora-api":
                                     public_url = f"{public_url.rstrip('/')}/docs"
 
