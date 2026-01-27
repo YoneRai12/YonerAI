@@ -32,7 +32,7 @@ class UnifiedClient:
             self.openai_client = LLMClient(
                 base_url="https://api.openai.com/v1",
                 api_key=self.config.openai_api_key,
-                model="gpt-4o-mini",  # Best Performance in Stable Lane
+                model=self.config.openai_default_model,  # Best Performance in Stable Lane
             )
             logger.info("✅ UnifiedClient: OpenAI Adapter initialized.")
         else:
@@ -112,7 +112,7 @@ class UnifiedClient:
                     # Safety: If model name looks like a local model, swap for a cloud one
                     model_name = kwargs.get("model", "")
                     if "qwen" in model_name.lower() or "mistral" in model_name.lower() or not model_name:
-                        kwargs["model"] = "gpt-4o-mini"
+                        kwargs["model"] = self.config.openai_default_model
                         if "max_tokens" in kwargs and kwargs["max_tokens"] > 16384:
                             kwargs["max_tokens"] = 16384
                     return await self.openai_client.chat(messages, **kwargs)

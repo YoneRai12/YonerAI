@@ -76,62 +76,7 @@ else:
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 
-async def _get_gpu_stats() -> Optional[str]:
-    """Fetch GPU stats using nvidia-smi."""
-    try:
-        # 1. Global Stats
-        # name, utilization.gpu, memory.used, memory.total
-        cmd1 = "nvidia-smi --query-gpu=name,utilization.gpu,memory.used,memory.total --format=csv,noheader,nounits"
-        proc1 = await asyncio.create_subprocess_shell(
-            cmd1, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-        )
-        out1, _ = await proc1.communicate()
-
-        if proc1.returncode != 0:
-            return None
-
-        gpu_info = out1.decode().strip().split(",")
-        if len(gpu_info) < 4:
-            return "Unknown GPU Data"
-
-        name = gpu_info[0].strip()
-        util = gpu_info[1].strip()
-        mem_used = int(gpu_info[2].strip())
-        mem_total = int(gpu_info[3].strip())
-        mem_free = mem_total - mem_used
-
-        text = f"**{name}**\nUtilization: {util}%\nVRAM: {mem_used}MB / {mem_total}MB (Free: {mem_free}MB)"
-
-        # 2. Process List
-        # pid, process_name
-        cmd2 = "nvidia-smi --query-compute-apps=pid,process_name --format=csv,noheader"
-        proc2 = await asyncio.create_subprocess_shell(
-            cmd2, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-        )
-        out2, _ = await proc2.communicate()
-
-        if proc2.returncode == 0 and out2:
-            lines = out2.decode().strip().splitlines()
-            processes = []
-            for line in lines:
-                parts = line.split(",")
-                if len(parts) >= 2:
-                    pid = parts[0].strip()
-                    # Clean up path to just filename
-                    path = parts[1].strip()
-                    exe_name = path.split("\\")[-1]
-                    processes.append(f"{exe_name} ({pid})")
-
-            if processes:
-                text += f"\nProcesses: {', '.join(processes)}"
-            else:
-                text += "\nProcesses: None (or hidden)"
-
-        return text
-
-    except Exception as e:
-        logger.error(f"Failed to get GPU stats: {e}")
-        return None
+from ..managers.hardware_manager import HardwareManager
 
 
 def _nonce(length: int = 32) -> str:
@@ -198,6 +143,7 @@ class ORACog(commands.Cog):
         self.llm = llm  # Public Alias for Views
         self._search_client = search_client
         self._drive_client = DriveClient()
+        self.hardware_manager = HardwareManager()
         self._watcher = DesktopWatcher()
         # Shared Resources
         self.unified_client = UnifiedClient(bot.config, llm, bot.google_client)
@@ -1110,6 +1056,25 @@ class ORACog(commands.Cog):
             await interaction.response.send_message("❌ Media system not available.", ephemeral=True)
 
     # --- Creative & Vision Commands ---
+
+    @app_commands.command(name="status", description="Show basic system and GPU status.")
+    async def status(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+        
+        # Hardware Stats
+        gpu_stats = await self.hardware_manager.get_gpu_stats()
+        
+        # Disk Stats (local)
+        import shutil
+        total, used, free = shutil.disk_usage(".")
+        free_gb = free / (2**30)
+        
+        embed = discord.Embed(title="🖥️ System Status", color=discord.Color.blue())
+        embed.add_field(name="GPU", value=gpu_stats or "Unavailable", inline=False)
+        embed.add_field(name="Disk (Data)", value=f"{free_gb:.1f} GB Free", inline=True)
+        embed.set_footer(text=f"Requested by {interaction.user.display_name}")
+        
+        await interaction.followup.send(embed=embed)
 
     @app_commands.command(name="imagine", description="Generate an image using AI (Flux.1)")
     @app_commands.describe(prompt="Image description", negative_prompt="What to exclude (optional)")

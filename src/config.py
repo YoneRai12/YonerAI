@@ -10,14 +10,32 @@ from typing import Dict, List, Optional
 # --- Cost Management Constants ---
 COST_TZ = "UTC"
 # --- Storage & state directory ---
-if os.name == "nt":
-    DEFAULT_STATE_DIR = r"L:\ORA_State"
-    DEFAULT_MEMORY_DIR = r"L:\ORA_Memory"
-    DEFAULT_LOG_DIR = r"L:\ORA_Logs"
+# 1. Environment Variable Priority
+# 2. Legacy L: Drive Check (User Environment)
+# 3. Default Local 'data' directory
+
+_env_root = os.getenv("ORA_DATA_ROOT")
+_legacy_root = "L:\\"
+
+if _env_root:
+    DATA_ROOT = _env_root
+elif os.name == "nt" and os.path.exists(os.path.join(_legacy_root, "ORA_State")):
+    # Detect User's existing environment
+    DATA_ROOT = _legacy_root
 else:
-    DEFAULT_STATE_DIR = os.path.expanduser("~/ORA_State")
-    DEFAULT_MEMORY_DIR = os.path.expanduser("~/ORA_Memory")
-    DEFAULT_LOG_DIR = os.path.expanduser("~/ORA_Logs")
+    # Default portable path
+    DATA_ROOT = os.path.join(os.getcwd(), "data")
+
+# Define Subdirectories based on Root
+# Legacy layout had folders at root (L:\ORA_State), Portable layout has data/state
+if DATA_ROOT == _legacy_root:
+    DEFAULT_STATE_DIR = os.path.join(DATA_ROOT, "ORA_State")
+    DEFAULT_MEMORY_DIR = os.path.join(DATA_ROOT, "ORA_Memory")
+    DEFAULT_LOG_DIR = os.path.join(DATA_ROOT, "ORA_Logs")
+else:
+    DEFAULT_STATE_DIR = os.path.join(DATA_ROOT, "state")
+    DEFAULT_MEMORY_DIR = os.path.join(DATA_ROOT, "memory")
+    DEFAULT_LOG_DIR = os.path.join(DATA_ROOT, "logs")
 
 STATE_DIR = os.getenv("ORA_STATE_DIR", DEFAULT_STATE_DIR)
 MEMORY_DIR = os.getenv("ORA_MEMORY_DIR", DEFAULT_MEMORY_DIR)
@@ -202,6 +220,7 @@ class Config:
     comfy_bat: Optional[str] = None
 
     openai_api_key: Optional[str] = None
+    openai_default_model: str = "gpt-4o-mini"
     gemini_api_key: Optional[str] = None
     
     # Architecture Mode
@@ -424,6 +443,7 @@ class Config:
             model_modes=model_modes,
             router_thresholds=router_thresholds,
             openai_api_key=openai_key,
+            openai_default_model=os.getenv("OPENAI_DEFAULT_MODEL", "gpt-4o-mini"),
             gemini_api_key=os.getenv("GOOGLE_API_KEY"),
             log_channel_id=log_channel_id,
             startup_notify_channel_id=startup_notify_channel_id,

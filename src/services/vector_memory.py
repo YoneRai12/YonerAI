@@ -7,8 +7,19 @@ from typing import List, Dict, Optional, Any
 import chromadb
 from chromadb.config import Settings
 
-# Use local storage
-DB_DIR = os.path.join(os.getcwd(), "data", "vector_store")
+from src.config import Config
+import sys
+
+# Load config to get the correct path
+try:
+    _cfg = Config.load()
+    DB_DIR = os.path.join(_cfg.db_path.replace("ora_bot.db", ""), "vector_store")
+    # Better: Use MEMORY_DIR from config module if available, or load it
+    from src.config import MEMORY_DIR
+    DB_DIR = os.path.join(MEMORY_DIR, "vector_store")
+except ImportError:
+    # Fallback to local if config import fails (circular dependency risk)
+    DB_DIR = os.path.join(os.getcwd(), "data", "vector_store")
 
 logger = logging.getLogger(__name__)
 

@@ -100,7 +100,11 @@ class ORABot(commands.Bot):
 
         # 0.5 Initialize Unified Brain (Router)
         self.unified_client = UnifiedClient(self.config, self.llm_client, self.google_client)
-        logger.info("✅ UnifiedClient (Universal Brain) 初期化完了")
+        
+        # [Clawdbot] RAG Vector Memory
+        from src.services.vector_memory import VectorMemory
+        self.vector_memory = VectorMemory()
+        logger.info("✅ UnifiedClient (Universal Brain) & VectorMemory 初期化完了")
 
         # 1. Initialize Shared Resources
         # Search client using SerpApi or similar
