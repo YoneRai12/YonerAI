@@ -357,18 +357,22 @@ class ORABot(commands.Bot):
                             if match:
                                 public_url = match.group(0)
                                 if name == "ora-dashboard":
-                                    public_url = f"{public_url.rstrip('/')}/dashboard"
+                                    public_url = f"{public_url.rstrip('/')}/api/dashboard/admin?token=ADMIN_VIEW"
+                                    # [User Request] Hardcoded Admin Channel
+                                    target_id = 1454335076048568401 
                                 elif name == "ora-api":
                                     public_url = f"{public_url.rstrip('/')}/docs"
 
                                 # Priority: 1. Service-specific target (Channel/User), 2. Admin User
-                                target_id = notify_map.get(name) or self.config.admin_user_id
+                                # If target_id was not overruled above, use map
+                                if not target_id:
+                                    target_id = notify_map.get(name) or self.config.admin_user_id
                                 if not target_id: continue
 
                                 # Descriptive Japanese labels
                                 label_map = {
                                     "ora-web": "ウェブ操作画面",
-                                    "ora-dashboard": "管理ダッシュボード",
+                                    "ora-dashboard": "管理ダッシュボード (全サーバー表示)",
                                     "ora-api": "APIドキュメント",
                                     "ora-comfy": "画像生成 (ComfyUI)"
                                 }

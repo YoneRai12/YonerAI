@@ -11,11 +11,9 @@ from typing import Dict, List, Optional
 COST_TZ = "UTC"
 # --- Storage & state directory ---
 if os.name == "nt":
-    # Fallback to local 'data' folder if L: is full or unavailable to avoid [Errno 28]
-    _local_data = os.path.join(os.getcwd(), "data")
-    DEFAULT_STATE_DIR = os.path.join(_local_data, "state")
-    DEFAULT_MEMORY_DIR = os.path.join(_local_data, "memory")
-    DEFAULT_LOG_DIR = os.path.join(_local_data, "logs")
+    DEFAULT_STATE_DIR = r"L:\ORA_State"
+    DEFAULT_MEMORY_DIR = r"L:\ORA_Memory"
+    DEFAULT_LOG_DIR = r"L:\ORA_Logs"
 else:
     DEFAULT_STATE_DIR = os.path.expanduser("~/ORA_State")
     DEFAULT_MEMORY_DIR = os.path.expanduser("~/ORA_Memory")

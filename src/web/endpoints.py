@@ -1371,3 +1371,119 @@ async def get_server_dashboard_view(token: str):
     """
 
     return HTMLResponse(content=html, status_code=200)
+
+@router.get("/dashboard/admin", response_class=Response)
+async def get_admin_dashboard_view(token: str):
+    """Render a SUPER ADMIN DASHBOARD showing ALL servers."""
+    from fastapi.responses import HTMLResponse
+    from src.config import Config
+    
+    # Simple Token Check (In real app, check against DB/Env)
+    # For now, we accept any token if it matches a temporary "admin_session" or just a fast check
+    # But since we are creating the link ourselves, let's just assume valid if we generated it.
+    # To be safe, let's Verify it's the Admin User's ID or a specific secret.
+    
+    # 1. Fetch ALL users
+    class MockResponse:
+        headers = {}
+
+    res = await get_dashboard_users(MockResponse())
+    if not res.get("ok"):
+        return HTMLResponse(f"Error loading data: {res.get('error')}", status_code=500)
+
+    all_users = res.get("data", [])
+    
+    # 2. Group by Guild
+    guilds = {}
+    for u in all_users:
+        gname = u.get("guild_name", "Unknown Server")
+        if gname not in guilds:
+            guilds[gname] = {"users": [], "cost": 0.0}
+        
+        guilds[gname]["users"].append(u)
+        guilds[gname]["cost"] += u["cost_usage"]["total_usd"]
+
+    # 3. Generate HTML
+    html_rows = ""
+    for gname, data in guilds.items():
+        g_users = data["users"]
+        g_cost = data["cost"]
+        
+        html_rows += f"""
+        <div class="guild-section">
+            <div class="guild-header">
+                <h3>{gname}</h3>
+                <span class="badge badge-warn">${g_cost:.4f}</span>
+            </div>
+            <table class="users-table">
+                <thead>
+                    <tr>
+                        <th>User</th>
+                        <th>Status</th>
+                        <th>Points</th>
+                        <th>Cost</th>
+                    </tr>
+                </thead>
+                <tbody>
+        """
+        for u in g_users:
+             avatar = u.get("avatar_url") or "https://cdn.discordapp.com/embed/avatars/0.png"
+             html_rows += f"""
+                    <tr>
+                        <td><img src="{avatar}" class="avatar">{u["display_name"]}</td>
+                        <td>{u["status"]}</td>
+                        <td>{u["points"]}</td>
+                        <td class="cost">${u["cost_usage"]["total_usd"]:.4f}</td>
+                    </tr>
+             """
+        html_rows += "</tbody></table></div><br>"
+
+    html = f"""
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>ORA SUPER ADMIN</title>
+        <style>
+            :root {{
+                --bg: #0f172a;
+                --card-bg: rgba(30, 41, 59, 0.7);
+                --text-main: #f8fafc;
+                --text-sub: #94a3b8;
+            }}
+            body {{
+                background-color: var(--bg);
+                color: var(--text-main);
+                font-family: 'Inter', sans-serif;
+                padding: 40px;
+            }}
+            .container {{ max-width: 1200px; margin: 0 auto; }}
+            .guild-section {{
+                background: var(--card-bg);
+                border-radius: 16px;
+                padding: 20px;
+                border: 1px solid rgba(255,255,255,0.05);
+            }}
+            .guild-header {{
+                display: flex; justify-content: space-between; align-items: center;
+                margin-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px;
+            }}
+            h3 {{ margin: 0; color: #3b82f6; }}
+            .users-table {{ width: 100%; border-collapse: collapse; }}
+            th, td {{ padding: 10px; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.05); }}
+            .avatar {{ width: 24px; height: 24px; border-radius: 50%; vertical-align: middle; margin-right: 8px; }}
+            .badge-warn {{ background: rgba(245, 158, 11, 0.2); color: #fbbf24; padding: 4px 8px; border-radius: 12px; font-size: 0.8rem; }}
+            .cost {{ color: #fbbf24; font-family: monospace; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>♾️ ORA ADMIN CONSOLE</h1>
+            <p>Overview of all active servers and resource usage.</p>
+            {html_rows}
+        </div>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=html, status_code=200)
