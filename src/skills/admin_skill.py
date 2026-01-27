@@ -24,7 +24,8 @@ class AdminSkill:
         return None
 
     async def _handle_role_management(self, args: dict, message: discord.Message) -> str:
-        if not message.guild: return "Error: Server context required."
+        if not message.guild:
+            return "Error: Server context required."
         user_query = args.get("user_query")
         role_query = args.get("role_query")
         action = args.get("action")
@@ -47,7 +48,8 @@ class AdminSkill:
                 m = discord.utils.find(lambda m: m.name == user_query or m.display_name == user_query, guild.members)
                 if m: target_members.append(m)
         
-        if not target_members: return f"Error: User '{user_query}' not found."
+        if not target_members:
+            return f"Error: User '{user_query}' not found."
 
         target_role = None
         role_id_match = re.search(r"<@&(\d+)>", role_query)

@@ -293,10 +293,12 @@ class ORABot(commands.Bot):
                     for t in tunnels:
                         name = t.get("name")
                         public_url = t.get("public_url")
-                        if not public_url: continue
+                        if not public_url:
+                            continue
                         
                         target_id = notify_map.get(name) or self.config.admin_user_id
-                        if not target_id: continue
+                        if not target_id:
+                            continue
 
                         # Formatting
                         final_url = public_url

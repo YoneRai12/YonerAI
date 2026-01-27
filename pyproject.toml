@@ -7,11 +7,20 @@ exclude = [
     "node_modules",
     "venv",
     ".venv",
+    "reference_clawdbot",
+    "core/alembic",
 ]
 
 [tool.ruff.lint]
 select = ["E", "F", "B", "I"]
-ignore = ["E501"] # Line too long (handled by formatter or ignored)
+ignore = [
+    "E501", # Line too long
+    "B008", # Do not perform function call `Depends` in argument defaults
+    "B904", # Within an `except` clause, raise exceptions with `raise ... from err`
+    "E402", # Module level import not at top of file (common in scripts)
+    "E701", # Multiple statements on one line (colon)
+    "E702", # Multiple statements on one line (semicolon)
+]
 
 [tool.ruff.format]
 quote-style = "double"

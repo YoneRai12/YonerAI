@@ -36,7 +36,8 @@ class SystemSkill:
         elif tool_name == "system_control":
              # Delegate to SystemCog
              sys_cog = self.bot.get_cog("SystemCog")
-             if not sys_cog: return "SystemCog offline."
+             if not sys_cog:
+                 return "SystemCog offline."
              res = await sys_cog.execute_tool(message.author.id, args.get("action"), args.get("value"))
              status = "✅" if res.get("status") else "❌"
              return f"{status} {res.get('message')}"
