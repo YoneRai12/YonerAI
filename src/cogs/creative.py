@@ -16,6 +16,129 @@ class CreativeCog(commands.Cog):
         self.bot = bot
         self.layer_api = "http://127.0.0.1:8003/decompose"
         self.comfy_client = ComfyWorkflow()
+        # Ensure we have access to UserPrefs via Bot's store
+        from ..utils.user_prefs import UserPrefs
+        if hasattr(bot, "store"):
+            self.user_prefs = UserPrefs(bot.store)
+        else:
+            self.user_prefs = None # Fallback or Error?
+
+        # Check ComfyUI connection on startup
+        self.bot.loop.create_task(self._check_comfy_connection())
+
+    async def _check_comfy_connection(self):
+        """Check if ComfyUI is reachable on startup."""
+        if not hasattr(self.bot, "config") or not self.bot.config.sd_api_url:
+            return
+
+        url = f"{self.bot.config.sd_api_url}/system_stats"
+        for i in range(12):
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(url, timeout=5) as resp:
+                        if resp.status == 200:
+                            logger.info(f"🎨 ComfyUI Connected at {self.bot.config.sd_api_url}")
+                            return
+            except Exception:
+                pass
+            await __import__("asyncio").sleep(5)
+        logger.error("🎨 Could not connect to ComfyUI after 60 seconds.")
+
+    @app_commands.command(name="imagine", description="Generate an image using AI (Flux.1)")
+    @app_commands.describe(prompt="Image description", negative_prompt="What to exclude (optional)")
+    async def imagine(self, interaction: discord.Interaction, prompt: str, negative_prompt: str = ""):
+        """Generate an image using Flux.1 (ComfyUI)"""
+        from ..views.image_gen import AspectRatioSelectView
+        view = AspectRatioSelectView(self, prompt, negative_prompt, model_name="FLUX.2")
+        await interaction.response.send_message(
+            f"🎨 **Image Generation Assistant**\nPrompt: `{prompt}`\nPlease select an aspect ratio to begin.",
+            view=view,
+        )
+
+    @app_commands.command(name="analyze", description="Analyze an image (Vision)")
+    @app_commands.describe(
+        image="Image to analyze",
+        prompt="Question about the image (default: Describe this)",
+        model="Model to use (Auto/Local/Smart)",
+    )
+    @app_commands.choices(
+        model=[
+            app_commands.Choice(name="Auto (Default)", value="auto"),
+            app_commands.Choice(name="Local (Qwen/Ministral)", value="local"),
+            app_commands.Choice(name="Smart (OpenAI/Gemini)", value="smart"),
+        ]
+    )
+    async def analyze(
+        self,
+        interaction: discord.Interaction,
+        image: discord.Attachment,
+        prompt: str = "Describe this image in detail.",
+        model: app_commands.Choice[str] = None,
+    ):
+        """Analyze an image using Vision AI"""
+        if not image.content_type.startswith("image/"):
+            await interaction.response.send_message("❌ Image file required.", ephemeral=True)
+            return
+
+        await interaction.response.defer(thinking=True)
+
+        target_model = "Qwen/Qwen2.5-VL-32B-Instruct-AWQ"
+        provider = "local"
+        choice = model.value if model else "auto"
+
+        if choice == "smart":
+            target_model = "gpt-4o-mini"
+            provider = "openai"
+        elif choice == "local":
+            target_model = "Qwen/Qwen2.5-VL-32B-Instruct-AWQ"
+            provider = "local"
+        else:
+            # Auto: Use User Preference if available
+            user_mode = "private"
+            if self.user_prefs:
+                user_mode = self.user_prefs.get_mode(interaction.user.id) or "private"
+            
+            if user_mode == "smart":
+                target_model = "gpt-4o-mini"
+                provider = "openai"
+            else:
+                target_model = "Qwen/Qwen2.5-VL-32B-Instruct-AWQ"
+                provider = "local"
+
+        try:
+            import base64
+            img_data = await image.read()
+            b64_img = base64.b64encode(img_data).decode("utf-8")
+
+            messages = [
+                {"role": "system", "content": "You are a helpful Vision AI."},
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64_img}"}},
+                    ],
+                },
+            ]
+
+            start_msg = f"👁️ **Vision Analysis**\nModel: `{target_model}` ({provider.upper()})\nProcessing..."
+            await interaction.followup.send(start_msg)
+
+            # Access LLM via Bot
+            if not hasattr(self.bot, "llm_client"):
+                 await interaction.followup.send("❌ LLM Client not found on Bot.")
+                 return
+                 
+            response, _, _ = await self.bot.llm_client.chat(messages=messages, model=target_model, temperature=0.1)
+
+            if response:
+                await interaction.followup.send(f"✅ **Analysis Result**:\n{response}")
+            else:
+                await interaction.followup.send("❌ Empty response from Vision Model.")
+
+        except Exception as e:
+            await interaction.followup.send(f"❌ Error during analysis: {e}")
+
 
     @app_commands.command(name="generate_video", description="Generate video using LTX-2 (ComfyUI)")
     @app_commands.describe(

@@ -50,120 +50,34 @@ AUTO_SYNC_INTERVAL = 20  # Increased from 5 to reduce blocking latency
 # High Lane: OpenAI Shared High (gpt-4o: 250k tokens/day)
 # BYOK Lane: User Keys (Optional Limits)
 #
-# --- USER DEFINED MODEL LIMITS (2026 Policy) ---
-# "gpt-5.1, gpt-5.1-codex, gpt-5, gpt-5-codex, gpt-5-chat-latest, gpt-4.1, gpt-4o, o1, o3
-#  全体で 1 日あたり最大 25 万トークン"
-#
-# "gpt-5.1-codex-mini, gpt-5-mini, gpt-5-nano, gpt-4.1-mini, gpt-4.1-nano, gpt-4o-mini,
-#  o1-mini, o3-mini, o4-mini, codex-mini-latest
-#  全体で 1 日あたり最大 250 万トークン"
-# -----------------------------------------------
-COST_LIMITS = {
-    "high": {
-        "openai": {
-            "daily_tokens": 1_000_000,  # Free Tier Limit: 1M TPD
-            "tpm": 800_000,
-            "rpm": 5_000,
-            "hard_stop": True,
-            "models": {
-                # Specified Free Tier Models (High)
-                "gpt-5.1",
-                "gpt-5.1-codex",
-                "gpt-5",
-                "gpt-5-codex",
-                "gpt-5-chat-latest",
-                "gpt-4.1",
-                "gpt-4o",
-                "o1",
-                "o3",
-            },
-        },
-    },
-    "stable": {
-        "openai": {
-            "daily_tokens": 10_000_000,  # Free Tier Limit: 10M TPD
-            "tpm": 4_000_000,
-            "rpm": 5_000,
-            "hard_stop": True,
-            "models": {
-                # Specified Free Tier Models (Mini)
-                "gpt-5.1-codex-mini",
-                "gpt-5-mini",
-                "gpt-5-nano",
-                "gpt-4.1-mini",
-                "gpt-4.1-nano",
-                "gpt-4o-mini",
-                "o1-mini",
-                "o3-mini",
-                "o4-mini",
-                "codex-mini-latest",
-                # Extras (Assumed Safe or Low Cost)
-                "text-embedding-3-large",
-                "text-embedding-3-small",
-                "omni-moderation-latest",
-            },
-        },
-        "gemini_dev": {"daily_tokens": 200_000, "monthly_tokens": 2_000_000, "hard_stop": True},
-    },
-    "burn": {
-        "gemini_trial": {"total_usd": 300.0, "hard_stop": True},
-    },
-    "byok": {
-        "openai": {"hard_stop": False},
-        "claude": {"hard_stop": False},
-        "grok": {"hard_stop": False},
-    },
-}
+# --- External Config Loading ---
+import yaml
 
-# --- Router Configuration ---
-ROUTER_CONFIG = {
-    "coding_model": "gpt-5.1-codex",  # Flagship Coding
-    "high_intel_model": "gpt-5.1",  # Flagship Reasoning
-    "standard_model": "gpt-5-mini",  # High-End Mini
-    "vision_model": "gpt-5-mini",  # Multimodal Mini
-    "coding_keywords": [
-        "コード",
-        "実装",
-        "バグ",
-        "エラー",
-        "修正",
-        "関数",
-        "変数",
-        "API",
-        "python",
-        "javascript",
-        "program",
-        "tree",
-        "structure",
-        "file",
-        "list",
-        "check",
-        "system",
-        "deploy",
-        "debug",
-        "fix",
-        "html",
-        "css",
-        "ts",
-        "tsx",
-        "jsx",
-        "json",
-        "config",
-        "ツリー",
-        "構成",
-        "ファイル",
-        "システム",
-        "デバッグ",
-        "直して",
-        "確認",
-        "フォルダ",
-        "ディレクトリ",
-        "階層",
-    ],
-    "high_intel_keywords": ["解説", "詳しく", "理由", "分析", "なぜ", "とは", "比較", "設計"],
-    "complexity_char_threshold": 50,
-}
+def _load_yaml_config() -> dict:
+    """Load config.yaml if it exists, otherwise return defaults."""
+    path = os.path.join(os.getcwd(), "config.yaml")
+    if os.path.exists(path):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return yaml.safe_load(f) or {}
+        except Exception as e:
+            logging.getLogger(__name__).error(f"Failed to load config.yaml: {e}")
+    return {}
 
+_external_config = _load_yaml_config()
+COST_LIMITS = _external_config.get("cost_limits", {})
+ROUTER_CONFIG = _external_config.get("router_config", {})
+
+# Fallback Defaults (Minimal) if YAML is missing
+if not COST_LIMITS:
+    # (Leaving empty as indicator, or provide minimal fallback)
+    COST_LIMITS = {"high": {}, "stable": {}}
+
+if not ROUTER_CONFIG:
+    ROUTER_CONFIG = {
+        "coding_model": "gpt-4o-mini",
+        "standard_model": "gpt-4o-mini"
+    }
 
 class ConfigError(RuntimeError):
     """Raised when configuration is invalid."""
@@ -228,6 +142,9 @@ class Config:
     
     # Auth Strategy (added for Cloudflare Tunnel)
     auth_strategy: str = "local" 
+    
+    # Model Policies (from YAML)
+    model_policies: Dict[str, List[str]] = None 
 
     @classmethod
     def load(cls) -> "Config":
@@ -456,6 +373,7 @@ class Config:
             ora_api_notify_id=ora_api_notify_id,
             force_standalone=os.getenv("FORCE_STANDALONE", "false").lower() == "true",
             auth_strategy=auth_strategy,
+            model_policies=_external_config.get("model_policies", {}),
         )
 
     def validate(self) -> None:

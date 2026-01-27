@@ -495,28 +495,7 @@ class ORACog(commands.Cog):
         finally:
             self._gaming_restore_task = None
 
-    async def _check_comfy_connection(self):
-        """Check if ComfyUI is reachable on startup."""
-        url = f"{self.bot.config.sd_api_url}/system_stats"
-
-        # Retry up to 12 times (60 seconds)
-        for i in range(12):
-            try:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(url, timeout=5) as resp:
-                        if resp.status == 200:
-                            logger.info(f"笨・ComfyUI Connected at {self.bot.config.sd_api_url}")
-                            return
-                        else:
-                            logger.warning(f"笞・・ComfyUI returned status {resp.status}. Retrying... ({i + 1}/12)")
-            except Exception as e:
-                # Connection Refused etc.
-                if i % 2 == 0:
-                    logger.warning(f"竢ｳ Waiting for ComfyUI to start... ({e}) ({i + 1}/12)")
-
-            await asyncio.sleep(5)
-
-        logger.error("笶・Could not connect to ComfyUI after 60 seconds.")
+    # _check_comfy_connection moved to src/cogs/creative.py
 
     # --- PERMISSION SYSTEM ---
     SUB_ADMIN_IDS = set()  # Now loaded from config dynamically
@@ -1011,49 +990,7 @@ class ORACog(commands.Cog):
     # Removed to avoid CommandAlreadyRegistered error with src.cogs.voice_engine
 
     # Music Commands (Fallback)
-    music_group = app_commands.Group(name="music", description="Music Playback (Fallback)")
-
-    @music_group.command(name="play", description="Play music from YouTube")
-    @app_commands.describe(query="Song Name or URL")
-    async def music_play(self, interaction: discord.Interaction, query: str) -> None:
-        media_cog = self.bot.get_cog("MediaCog")
-        if not media_cog:
-            await interaction.response.send_message("Media system unavailable.", ephemeral=True)
-            return
-        await media_cog.ytplay(interaction, query)
-
-    @music_group.command(name="stop", description="Stop Playback")
-    async def music_stop(self, interaction: discord.Interaction) -> None:
-        media_cog = self.bot.get_cog("MediaCog")
-        if not media_cog:
-            await interaction.response.send_message("Media system unavailable.", ephemeral=True)
-            return
-        await media_cog.stop(interaction)
-
-    @music_group.command(name="skip", description="Skip to next track")
-    async def music_skip(self, interaction: discord.Interaction) -> None:
-        media_cog = self.bot.get_cog("MediaCog")
-        if not media_cog:
-            await interaction.response.send_message("Media system unavailable.", ephemeral=True)
-            return
-        await media_cog.skip(interaction)
-
-    @music_group.command(name="loop", description="Loop music (off/track/queue)")
-    @app_commands.describe(mode="Loop mode")
-    @app_commands.choices(
-        mode=[
-            app_commands.Choice(name="Off", value="off"),
-            app_commands.Choice(name="Track", value="track"),
-            app_commands.Choice(name="Queue", value="queue"),
-        ]
-    )
-    async def music_loop(self, interaction: discord.Interaction, mode: app_commands.Choice[str]):
-        """Loop music"""
-        media_cog = self.bot.get_cog("MediaCog")
-        if media_cog:
-            await media_cog.loop(interaction, mode.value)
-        else:
-            await interaction.response.send_message("❌ Media system not available.", ephemeral=True)
+    # Music Commands moved to src/cogs/music.py
 
     # --- Creative & Vision Commands ---
 
@@ -1076,110 +1013,7 @@ class ORACog(commands.Cog):
         
         await interaction.followup.send(embed=embed)
 
-    @app_commands.command(name="imagine", description="Generate an image using AI (Flux.1)")
-    @app_commands.describe(prompt="Image description", negative_prompt="What to exclude (optional)")
-    async def imagine(self, interaction: discord.Interaction, prompt: str, negative_prompt: str = ""):
-        """Generate an image using Flux.1 (ComfyUI)"""
-        # Unload LLM if running to free VRAM for ComfyUI
-        # This is handled by AspectRatioSelectView's start_generation, but we can preemptively check.
-
-        from ..views.image_gen import AspectRatioSelectView
-
-        view = AspectRatioSelectView(self, prompt, negative_prompt, model_name="FLUX.2")
-        await interaction.response.send_message(
-            f"🎨 **Image Generation Assistant**\nPrompt: `{prompt}`\nPlease select an aspect ratio to begin.",
-            view=view,
-        )
-
-    @app_commands.command(name="analyze", description="Analyze an image (Vision)")
-    @app_commands.describe(
-        image="Image to analyze",
-        prompt="Question about the image (default: Describe this)",
-        model="Model to use (Auto/Local/Smart)",
-    )
-    @app_commands.choices(
-        model=[
-            app_commands.Choice(name="Auto (Default)", value="auto"),
-            app_commands.Choice(name="Local (Qwen/Ministral)", value="local"),
-            app_commands.Choice(name="Smart (OpenAI/Gemini)", value="smart"),
-        ]
-    )
-    async def analyze(
-        self,
-        interaction: discord.Interaction,
-        image: discord.Attachment,
-        prompt: str = "Describe this image in detail.",
-        model: app_commands.Choice[str] = None,
-    ):
-        """Analyze an image using Vision AI"""
-        if not image.content_type.startswith("image/"):
-            await interaction.response.send_message("❌ Image file required.", ephemeral=True)
-            return
-
-        await interaction.response.defer(thinking=True)
-
-        # Determine Model
-        target_model = "Qwen/Qwen2.5-VL-32B-Instruct-AWQ"  # Local Default
-        provider = "local"
-
-        # User Choice Override
-        choice = model.value if model else "auto"
-
-        if choice == "smart":
-            # Smart Mode: Use Shared Traffic (gpt-4o-mini is efficient and free-tier friendly)
-            target_model = "gpt-4o-mini"
-            provider = "openai"
-        elif choice == "local":
-            target_model = "Qwen/Qwen2.5-VL-32B-Instruct-AWQ"
-            provider = "local"
-        else:  # Auto
-            # Use User Preference
-            user_mode = self.user_prefs.get_mode(interaction.user.id) or "private"
-            if user_mode == "smart":
-                target_model = "gpt-4o-mini"
-                provider = "openai"
-            else:
-                target_model = "Qwen/Qwen2.5-VL-32B-Instruct-AWQ"
-                provider = "local"
-
-        try:
-            # Prepare Multimodal Message
-            import base64
-
-            img_data = await image.read()
-            b64_img = base64.b64encode(img_data).decode("utf-8")
-
-            messages = [
-                {
-                    "role": "system",
-                    "content": "You are a helpful Vision AI. Describe the image or answer the user's question about it.",
-                },
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": prompt},
-                        {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64_img}"}},
-                    ],
-                },
-            ]
-
-            # Use LLM Client
-            # Note: _llm is our LLMClient instance.
-            # We override model and potentially provider-specific logic is handled inside LLMClient (it checks model name)
-
-            start_msg = f"早・・**Vision Analysis**\nModel: `{target_model}` ({provider.upper()})\nProcessing..."
-            await interaction.followup.send(start_msg)
-
-            response, _, _ = await self._llm.chat(messages=messages, model=target_model, temperature=0.1)
-
-            if response:
-                await interaction.followup.send(f"✅ **Analysis Result**:\n{response}")
-            else:
-                await interaction.followup.send("❌ Empty response from Vision Model.")
-
-        except Exception as e:
-            await interaction.followup.send(f"❌ Error during analysis: {e}")
-            return
+    # imagine and analyze moved to src/cogs/creative.py
 
     # Memory Commands
     memory_group = app_commands.Group(name="memory", description="Memory Management Commands")

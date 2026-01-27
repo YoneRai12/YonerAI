@@ -151,6 +151,7 @@ class ORABot(commands.Bot):
             "src.cogs.heartbeat",
             "src.cogs.visual_cortex",
             "src.cogs.proactive", # [Clawdbot] Proactive Agent
+            "src.cogs.music", # [Decomposition] Music Commands
         ]
         for ext in extensions:
             try:

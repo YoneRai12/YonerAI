@@ -1,0 +1,119 @@
+# ORA Bot Configuration
+# This file defines the operational policies, limits, and router settings.
+# It is loaded by src/config.py at startup.
+
+cost_limits:
+  high:
+    openai:
+      daily_tokens: 1_000_000  # 1M TPD
+      tpm: 800_000
+      rpm: 5_000
+      hard_stop: true
+      models:
+        - gpt-5.1
+        - gpt-5.1-codex
+        - gpt-5
+        - gpt-5-codex
+        - gpt-5-chat-latest
+        - gpt-4.1
+        - gpt-4o
+        - o1
+        - o3
+  stable:
+    openai:
+      daily_tokens: 10_000_000 # 10M TPD
+      tpm: 4_000_000
+      rpm: 5_000
+      hard_stop: true
+      models:
+        - gpt-5.1-codex-mini
+        - gpt-5-mini
+        - gpt-5-nano
+        - gpt-4.1-mini
+        - gpt-4.1-nano
+        - gpt-4o-mini
+        - o1-mini
+        - o3-mini
+        - o4-mini
+        - codex-mini-latest
+        - text-embedding-3-large
+        - text-embedding-3-small
+        - omni-moderation-latest
+    gemini_dev:
+      daily_tokens: 200_000
+      monthly_tokens: 2_000_000
+      hard_stop: true
+  burn:
+    gemini_trial:
+      total_usd: 300.0
+      hard_stop: true
+  byok:
+    # User-provided keys likely don't need hard stops
+    openai:
+      hard_stop: false
+    claude:
+      hard_stop: false
+    grok:
+      hard_stop: false
+
+router_config:
+  coding_model: gpt-5.1-codex
+  high_intel_model: gpt-5.1
+  standard_model: gpt-5-mini
+  vision_model: gpt-5-mini
+  complexity_char_threshold: 50
+  high_intel_keywords:
+    - 解説
+    - 詳しく
+    - 理由
+    - 分析
+    - なぜ
+    - とは
+    - 比較
+    - 設計
+  coding_keywords:
+    - コード
+    - 実装
+    - バグ
+    - エラー
+    - 修正
+    - 関数
+    - 変数
+    - API
+    - python
+    - javascript
+    - program
+    - tree
+    - structure
+    - file
+    - list
+    - check
+    - system
+    - deploy
+    - debug
+    - fix
+    - html
+    - css
+    - ts
+    - tsx
+    - jsx
+    - json
+    - config
+    - ツリー
+    - 構成
+    - ファイル
+    - システム
+    - デバッグ
+    - 直して
+    - 確認
+    - フォルダ
+    - ディレクトリ
+    - 階層
+
+model_policies:
+  # Models that strictly forbid the 'temperature' parameter
+  no_temperature_models:
+    - o1
+    - o3
+    - gpt-5
+    - gpt-5-chat-latest

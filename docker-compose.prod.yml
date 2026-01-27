@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  # 🤖 ORA Main Brain
+  ora-bot:
+    build: .
+    container_name: ora-bot
+    restart: always
+    env_file: .env
+    volumes:
+      # ONLY mount data, never code in production
+      - ./data:/app/data
+      # If using L drive persistence, verify path existence on host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    command: python main.py
+    # No stdin_open/tty needed for background procs typically, but harmless
+
+  # 🌐 NERV Dashboard Backend
+  ora-web:
+    build: .
+    container_name: ora-web
+    restart: always
+    env_file: .env
+    # No volume mount for code
+    ports:
+      - "8000:8000"
+    # Run WITHOUT reload for performance & security
+    command: uvicorn src.web.app:app --host 0.0.0.0 --port 8000
+    depends_on:
+      - ora-bot

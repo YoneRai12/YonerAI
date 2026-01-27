@@ -38,6 +38,17 @@ class UnifiedClient:
         else:
             logger.info("ℹ️ UnifiedClient: OpenAI API Key missing. OpenAI Lane disabled.")
 
+    def _apply_policy_guard(self, model_name: str, kwargs: Dict[str, Any]) -> None:
+        """Applies model-specific policies (e.g. stripping temperature)."""
+        if not hasattr(self.config, "model_policies") or not self.config.model_policies:
+            return
+
+        no_temp_list = self.config.model_policies.get("no_temperature_models", [])
+        if model_name in no_temp_list:
+            if "temperature" in kwargs:
+                logger.warning(f"🛡️ Security: Stripped 'temperature' param for reasoning model '{model_name}'")
+                kwargs.pop("temperature")
+
     async def chat(
         self, provider: str, messages: List[Dict[str, Any]], **kwargs
     ) -> tuple[Optional[str], Optional[List[Dict[str, Any]]], Dict[str, Any]]:
@@ -113,8 +124,13 @@ class UnifiedClient:
                     model_name = kwargs.get("model", "")
                     if "qwen" in model_name.lower() or "mistral" in model_name.lower() or not model_name:
                         kwargs["model"] = self.config.openai_default_model
+                        model_name = self.config.openai_default_model # Update local var
                         if "max_tokens" in kwargs and kwargs["max_tokens"] > 16384:
                             kwargs["max_tokens"] = 16384
+                    
+                    # Apply Policy Guard
+                    self._apply_policy_guard(model_name, kwargs)
+
                     return await self.openai_client.chat(messages, **kwargs)
 
             except Exception as e:

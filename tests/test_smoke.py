@@ -34,12 +34,30 @@ async def test_bot_setup_hook():
     mock_config.openai_api_key = "test_openai"  # Used in UnifiedClient
     mock_config.admin_user_id = 12345
     mock_config.startup_notify_channel_id = 12345
+    mock_config.llm_priority = "cloud"
+    mock_config.auth_strategy = "local"
+    mock_config.model_policies = {}
+    mock_config.vision_provider = "openai"
+    mock_config.sub_admin_ids = set()
+    mock_config.vc_admin_ids = set()
+    mock_config.feature_proposal_channel_id = None
+    mock_config.ora_web_notify_id = None
+    mock_config.ora_api_notify_id = None
+    mock_config.force_standalone = False
+    mock_config.comfy_dir = None
+    mock_config.comfy_bat = None
+    mock_config.gaming_processes = []
+    mock_config.model_modes = {}
+    mock_config.router_thresholds = {}
+    mock_config.log_channel_id = 0
 
     # Mock Dependencies
     mock_link_client = MagicMock()
     mock_store = MagicMock()
     mock_llm_client = MagicMock()
     mock_session = MagicMock()
+    mock_connection_manager = MagicMock()
+    mock_connection_manager.check_health = AsyncMock(return_value=True)
 
     # Real Intents (Type check fix)
     mock_intents = discord.Intents.default()
@@ -52,6 +70,7 @@ async def test_bot_setup_hook():
         llm_client=mock_llm_client,
         intents=mock_intents,
         session=mock_session,
+        connection_manager=mock_connection_manager,
     )
 
     # Manually set loop for test (simulating Bot runner)
