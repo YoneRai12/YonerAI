@@ -100,13 +100,13 @@ class CoreAPIClient:
                         if not line:
                             continue
                         
-                        l = line.decode("utf-8").strip()
-                        if not l:
+                        decoded_line = line.decode("utf-8").strip()
+                        if not decoded_line:
                             continue
                         
-                        if l.startswith("data: "):
+                        if decoded_line.startswith("data: "):
                             try:
-                                event_data = json.loads(l[6:])
+                                event_data = json.loads(decoded_line[6:])
                                 yield event_data
                                 
                                 # Terminate on final or error

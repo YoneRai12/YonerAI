@@ -1,4 +1,7 @@
 # ruff: noqa: B904
+# --- CHAT API IMPLEMENTATION ---
+import asyncio
+import json
 import os
 import uuid
 from datetime import datetime
@@ -9,16 +12,15 @@ from fastapi.responses import RedirectResponse
 from google.auth.transport import requests as g_requests
 from google.oauth2 import id_token
 from google_auth_oauthlib.flow import Flow
+from sse_starlette.sse import EventSourceResponse
 
 from src.config import COST_LIMITS
 
 router = APIRouter()
 
 # --- CHAT API IMPLEMENTATION (Simple/Fake Stream) ---
-import asyncio
-import json
+# Imports moved to top
 
-from sse_starlette.sse import EventSourceResponse
 
 # Simple in-memory store for active runs (UUID -> Result Text)
 _RUN_RESULTS = {}
