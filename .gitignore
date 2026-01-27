@@ -80,3 +80,5 @@ verify_step3_mcp.py
 # Large Binaries
 tools/cloudflare/cloudflared.exe
 data/
+
+!requirements.txt
