@@ -41,6 +41,7 @@ google-cloud-vision
 google-auth-oauthlib
 google-auth
 firebase-admin
+beautifulsoup4
 
 # System
 psutil

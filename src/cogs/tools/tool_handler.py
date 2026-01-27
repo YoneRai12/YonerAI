@@ -5,13 +5,14 @@ from typing import Optional
 
 import aiohttp
 import discord
-from duckduckgo_search import DDGS
 
 from src.skills.admin_skill import AdminSkill
+from src.skills.chat_skill import ChatSkill
 from src.skills.music_skill import MusicSkill
 
 # Modular Skills
 from src.skills.system_skill import SystemSkill
+from src.skills.web_skill import WebSkill
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +25,8 @@ class ToolHandler:
         self.system_skill = SystemSkill(bot)
         self.admin_skill = AdminSkill(bot)
         self.music_skill = MusicSkill(bot)
+        self.web_skill = WebSkill(bot)
+        self.chat_skill = ChatSkill(bot)
 
     async def handle_dispatch(self, tool_name: str, args: dict, message: discord.Message, status_manager=None) -> None:
         """Entry point from SSE dispatch event."""
@@ -54,6 +57,16 @@ class ToolHandler:
         # Music Skill (Media, Voice, TTS)
         elif tool_name in {"music_play", "music_control", "music_tune", "music_seek", "music_queue", "tts_speak", "join_voice_channel", "leave_voice_channel"}:
             return await self.music_skill.execute(tool_name, args, message)
+
+        # --- Web / Chat Skills ---
+        elif tool_name in {"web_search", "google_search", "search"}:
+             return await self._handle_google_search(args, status_manager)
+            
+        elif tool_name == "read_web_page":
+             return await self._handle_read_page(args, status_manager)
+             
+        elif tool_name in {"read_chat_history", "check_previous_context"}:
+             return await self._handle_read_history(args, message)
 
         # --- Legacy / Unmigrated Tools (Keep Local) ---
         
@@ -89,15 +102,35 @@ class ToolHandler:
                 return "Error: No query."
             if status_manager:
                 await status_manager.next_step(f"Web Search: {query}")
-            results = DDGS().text(query, max_results=3)
-            if not results:
-                return "No results found."
-            formatted = []
-            for r in results:
-                formatted.append(f"### [{r.get('title', 'No Title')}]({r.get('href', '')})\n{r.get('body', '')}")
-            return "\\n\\n".join(formatted)
+            return await self.web_skill.search(query)
         except Exception as e:
             return f"Search Error: {e}"
+
+    async def _handle_read_page(self, args: dict, status_manager) -> str:
+        try:
+            url = args.get("url")
+            if not url:
+                return "Error: No URL provided."
+            if status_manager:
+                await status_manager.next_step(f"Reading URL: {url}")
+            return await self.web_skill.read_page(url)
+        except Exception as e:
+            return f"Read Page Failed: {e}"
+
+    async def _handle_read_history(self, args: dict, message: discord.Message) -> str:
+        try:
+            channel_id = args.get("channel_id")
+            # Default to current channel
+            if not channel_id and message.channel:
+                channel_id = message.channel.id
+            
+            if not channel_id:
+                return "Error: Could not determine channel ID."
+
+            limit = args.get("limit", 20) 
+            return await self.chat_skill.read_recent_messages(int(channel_id), limit=int(limit))
+        except Exception as e:
+            return f"Read History Failed: {e}"
 
     async def _handle_request_feature(self, args: dict, message: discord.Message) -> str:
         feature = args.get("feature_request")
