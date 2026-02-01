@@ -1,6 +1,7 @@
 # Credentials
 .env
 .env.*
+!.env.example
 ngrok.yml
 service-account.json
 client_secret_*.json
