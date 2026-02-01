@@ -95,10 +95,41 @@ Traits: {traits}
 [SOURCE: DISCORD]
 [SERVER: {message.guild.name if message.guild else 'Direct Message'}]
 [CHANNEL: {message.channel.name if hasattr(message.channel, 'name') else 'DM'}]
+[INSTRUCTION: If the user mentions an SNS profile (e.g., '〜のX', '〜のGithub'), YOU MUST USE 'web_jump_to_profile' with the handle. NEVER guess generic URLs like 'https://x.com/' or 'https://github.com/'.]
+[SECURITY WARNING: You are running on a hosted server. NEVER screenshot or display pages that reveal the HOST SERVER's Global IP Address (e.g. 'What is my IP' sites). If the user asks for 'my IP', explain that you cannot show the server's IP for security reasons.]
+[AGENT PROTOCOL: DEEP RESEARCH]
+If the user asks to "research" (調べて), "investigate" (調査して), or "summarize" (要約して) a topic:
+1. USE 'web_search' to gather information from multiple sources (Web, Note, etc).
+2. VERIFY the information (cross-reference).
+3. SUMMARIZE findings with citations. Do NOT just copy-paste the first search result.
 {memory_context}
 """
+            # [DEVICE AWARENESS]
+            is_mobile = False
+            if message.guild and isinstance(message.author, discord.Member):
+                if message.author.is_on_mobile():
+                    is_mobile = True
+            
+            if is_mobile:
+                system_context += "\n[DEVICE: MOBILE] User is on a mobile device. Keep responses CONCISE and avoid complex formatting."
+
             # Prepend to prompt
             full_prompt = system_context.strip() + "\n\n" + prompt
+
+            # [CONTEXT INJECTION] Referenced Message (Reply)
+            if message.reference:
+                try:
+                    if message.reference.cached_message:
+                        ref_msg = message.reference.cached_message
+                    else:
+                        ref_msg = await message.channel.fetch_message(message.reference.message_id)
+                    
+                    if ref_msg and ref_msg.content:
+                         full_prompt += f"\n\n[REPLYING TO MESSAGE (Author: {ref_msg.author.display_name})]:\n{ref_msg.content}"
+                         for embed in ref_msg.embeds:
+                             if embed.url: full_prompt += f"\n[EMBED URL]: {embed.url}"
+                except Exception as e:
+                    logger.warning(f"Failed to fetch referenced message: {e}")
 
             # Prepare attachments
             attachments = []
@@ -187,13 +218,13 @@ Traits: {traits}
                     
                     # Call ToolHandler (Handles music, imagine, tts, etc.)
                     # We pass the message context so it knows where to reply or join voice.
-                    asyncio.create_task(
-                        self.cog.tool_handler.handle_dispatch(
-                            tool_name=tool_name,
-                            args=tool_args,
-                            message=message,
-                            status_manager=status_manager
-                        )
+                    # [FIX] Use await instead of create_task to ensure SEQUENTIAL execution.
+                    # This is critical for chains like "Screenshot -> Download -> Screenshot".
+                    await self.cog.tool_handler.handle_dispatch(
+                        tool_name=tool_name,
+                        args=tool_args,
+                        message=message,
+                        status_manager=status_manager
                     )
 
                 elif ev_type == "final":
@@ -207,7 +238,17 @@ Traits: {traits}
                     return
 
             # 5. Final Output Handover
-            await status_manager.finish()
+            try:
+                # [FIX] Flush any buffered files (Smart Bundling)
+                if status_manager and hasattr(status_manager, "flush_files"):
+                    try:
+                        await status_manager.flush_files(message)
+                    except Exception as e:
+                        logger.error(f"Failed to flush files: {e}")
+                        await message.reply(f"⚠️ ファイル送信中にエラーが発生しました: {e}")
+            finally:
+                # Always finish status manager
+                await status_manager.finish()
             
             if not full_content and not response.get("run_id"): # If we had tools, content might be empty but OK
                 await message.reply("❌ 応答を生成できませんでした。")

@@ -29,6 +29,7 @@ from discord import app_commands
 from discord.ext import commands, tasks
 
 from src.config import MEMORY_DIR
+from src.services.markdown_memory import MarkdownMemory
 from src.utils.cloud_sync import cloud_sync
 
 logger = logging.getLogger(__name__)
@@ -155,6 +156,12 @@ class MemoryCog(commands.Cog):
 
         # [Phase 29] Multi-Modal Understanding
         self.captioner = None
+        
+        # [Clawdbot] Markdown Memory Service
+        md_path = os.path.join(MEMORY_DIR, "markdown_logs")
+        self.md_memory = MarkdownMemory(root_dir=md_path)
+
+
 
     def cog_unload(self):
         self.status_loop.cancel()
@@ -381,7 +388,8 @@ class MemoryCog(commands.Cog):
         if message.author.bot:
             return
         if not message.guild:
-            return  # Ignore DM for now
+            # Allow DM buffering for cross-platform memory
+            pass
 
         # [NEW] Multi-Modal Analysis Hook
         if message.attachments:
@@ -427,6 +435,14 @@ class MemoryCog(commands.Cog):
         asyncio.create_task(
             self._persist_message(message.author.id, entry, message.guild.id if message.guild else None, is_pub)
         )
+        # [Clawdbot] Persistent Markdown Log
+        sess_id = f"open-session-{message.guild.id if message.guild else 'dm'}"
+        asyncio.create_task(
+            self.md_memory.append_message(sess_id, "user", message.content)
+        )
+
+
+
 
         # ---------------------------------------------------------
         # CHANNEL MEMORY BUFFERING
@@ -497,6 +513,17 @@ class MemoryCog(commands.Cog):
         asyncio.create_task(
             self._persist_message(user_id, entry, guild_id, is_public)
         )
+        
+        # [Clawdbot] Persistent Markdown Log
+        # Determine session ID (fallback to channel/guild)
+        sess_id = f"open-session-{guild_id if guild_id else 'dm'}"
+        asyncio.create_task(
+            self.md_memory.append_message(sess_id, "assistant", content)
+        )
+
+        
+
+
 
     def _get_memory_path(self, user_id: int, guild_id: int | str = None, is_public: bool = True) -> str:
         """Get path to user memory file. Supports Scope Partitioning."""
