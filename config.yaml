@@ -57,7 +57,7 @@ cost_limits:
       hard_stop: false
 
 router_config:
-  coding_model: gpt-5.1-codex
+  coding_model: gpt-5.1
   high_intel_model: gpt-5.1
   standard_model: gpt-5-mini
   vision_model: gpt-5-mini

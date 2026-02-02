@@ -16,7 +16,7 @@ from typing import Any, Awaitable, Callable, Dict, Optional, cast
 
 import discord
 
-from ..config import STATE_DIR
+from ..config import STATE_DIR, TEMP_DIR
 from .edge_tts_client import EdgeTTSClient
 from .gtts_client import GTTSClient
 
@@ -386,6 +386,9 @@ class VoiceManager:
         # Audio Cache for static notifications (join/leave)
         self.cache_dir = Path("src/data/cache/audio_notify")
         self.cache_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Ensure TEMP_DIR exists
+        os.makedirs(TEMP_DIR, exist_ok=True)
 
     def get_music_state(self, guild_id: int) -> GuildMusicState:
         return self._music_states[guild_id]
@@ -808,7 +811,7 @@ class VoiceManager:
         # We can use a custom cleanup to delete it.
 
         # For simplicity, we use the same tempfile logic but return the source
-        f = tempfile.NamedTemporaryFile("wb", delete=False, suffix=".mp3")
+        f = tempfile.NamedTemporaryFile("wb", delete=False, dir=TEMP_DIR, suffix=".mp3")
         f.write(audio)
         f.close()  # Close handle, let ffmpeg open by path
         path = f.name
@@ -836,7 +839,7 @@ class VoiceManager:
 
     async def _play_raw_audio(self, voice_client: discord.VoiceClient, audio: bytes) -> None:
         # Helper for TTS which uses raw bytes
-        with tempfile.NamedTemporaryFile("wb", delete=False, suffix=".wav") as tmp:
+        with tempfile.NamedTemporaryFile("wb", delete=False, dir=TEMP_DIR, suffix=".wav") as tmp:
             tmp.write(audio)
             path = tmp.name
 

@@ -41,9 +41,9 @@ async def test_proxy_dispatch():
     async with aiohttp.ClientSession() as session:
         async with session.get(f"{base_url}/v1/runs/{run_id}/events") as resp:
             async for line in resp.content:
-                l = line.decode("utf-8").strip()
-                if l.startswith("data: "):
-                    event_data = json.loads(l[6:])
+                line_str = line.decode("utf-8").strip()
+                if line_str.startswith("data: "):
+                    event_data = json.loads(line_str[6:])
                     event_type = event_data.get("event")
                     print(f"Event: {event_type}")
                     

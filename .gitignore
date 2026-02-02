@@ -80,6 +80,17 @@ verify_step3_mcp.py
 
 # Large Binaries
 tools/cloudflare/cloudflared.exe
+cloudflared.exe
+*.exe
+ffmpeg/
+ffmpeg-*/
+*.zip
+
+# Auth scripts
+
+# Auth scripts
+auth.py
+
 data/
 
 !requirements.txt

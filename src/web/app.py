@@ -1,6 +1,7 @@
 import os
 
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.storage import Store
@@ -30,6 +31,25 @@ app.add_middleware(
 
 # Mount router
 app.include_router(endpoints.router, prefix="/api")
+
+# Mount Browser Router
+from src.web.routers import browser
+app.include_router(browser.router, prefix="/api/browser")
+
+# Mount Static Files
+from fastapi.staticfiles import StaticFiles
+static_dir = os.path.join(os.path.dirname(__file__), "static")
+if not os.path.exists(static_dir):
+    os.makedirs(static_dir)
+app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
+@app.get("/")
+async def read_index():
+    """Serve the Remote Loader at the root."""
+    index_path = os.path.join(static_dir, "index.html")
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
+    return {"detail": "ORA Web API is running, but index.html is missing."}
 
 
 @app.on_event("startup")

@@ -14,7 +14,7 @@ logger = logging.getLogger("CreativeCog")
 class CreativeCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.layer_api = "http://127.0.0.1:8003/decompose"
+        self.layer_api = "http://127.0.0.1:8010/decompose"
         self.comfy_client = ComfyWorkflow()
         # Ensure we have access to UserPrefs via Bot's store
         from ..utils.user_prefs import UserPrefs

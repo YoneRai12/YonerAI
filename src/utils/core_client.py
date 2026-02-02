@@ -130,4 +130,27 @@ class CoreAPIClient:
     async def poll_completion(self, run_id: str, timeout: int = 300) -> Optional[str]:
         return await self.get_final_response(run_id, timeout)
 
+    async def submit_tool_output(self, run_id: str, tool_name: str, result: Any) -> bool:
+        """
+        POST tool results back to Core brain.
+        """
+        url = f"{self.base_url}/v1/runs/{run_id}/results"
+        payload = {
+            "tool": tool_name,
+            "output": str(result)
+        }
+        async with aiohttp.ClientSession() as session:
+            try:
+                async with session.post(url, json=payload) as resp:
+                    if resp.status == 200:
+                        logger.info(f"✅ Successfully submitted output for {tool_name}")
+                        return True
+                    else:
+                        text = await resp.text()
+                        logger.error(f"❌ Failed to submit output ({resp.status}): {text}")
+                        return False
+            except Exception as e:
+                logger.error(f"❌ Error submitting tool output: {e}")
+                return False
+
 core_client = CoreAPIClient()

@@ -61,8 +61,8 @@ set "CF_HELPER=%ROOT_DIR%\scripts\start_tunnel_helper.bat"
 
 if defined CF_EXE (
     echo [ OK ] トンネルを開始: !CF_EXE!
-    start "ORA-CF-Web" cmd /c ""%CF_HELPER%" "!CF_EXE!" http://localhost:3000 "logs\cf_web.log""
-    start "ORA-CF-Dash" cmd /c ""%CF_HELPER%" "!CF_EXE!" http://localhost:3333 "logs\cf_dash.log""
+    :: start "ORA-CF-Web" cmd /c ""%CF_HELPER%" "!CF_EXE!" http://localhost:3000 "logs\cf_web.log""
+    :: start "ORA-CF-Dash" cmd /c ""%CF_HELPER%" "!CF_EXE!" http://localhost:3333 "logs\cf_dash.log""
     start "ORA-CF-API" cmd /c ""%CF_HELPER%" "!CF_EXE!" http://localhost:8001 "logs\cf_api.log""
     start "ORA-CF-Comfy" cmd /c ""%CF_HELPER%" "!CF_EXE!" http://localhost:8188 "logs\cf_comfy.log""
 ) else (
@@ -96,7 +96,7 @@ timeout /t 2 >nul
 :: 10. Final Browser Open
 echo [STEP 11] ローカル画面を表示しています...
 timeout /t 8 >nul
-start http://localhost:3000
+:: start http://localhost:3000
 
 echo ========================================================
 echo [ OK ] 全システム起動完了！

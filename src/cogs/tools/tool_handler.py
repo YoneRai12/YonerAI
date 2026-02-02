@@ -1,13 +1,16 @@
-import asyncio
-import io
 import logging
 from typing import Optional
+import os
+import uuid
+import asyncio
 
 import aiohttp
 import discord
 
-from src.skills.loader import SkillLoader
-from src.skills.music_skill import MusicSkill
+# S5 Optimization: Removed top-level imports of Skills
+# from src.skills.loader import SkillLoader
+# from src.skills.music_skill import MusicSkill
+# from src.utils.browser import browser_manager
 
 logger = logging.getLogger(__name__)
 
@@ -15,16 +18,26 @@ class ToolHandler:
     def __init__(self, bot, cog):
         self.bot = bot
         self.cog = cog
+        self._music_skill = None
+        self._skill_loader = None
         
-        # Initialize Skills
-        self.music_skill = MusicSkill(bot)
-        
-        # [Clawdbot] Dynamic Skill Loader
-        self.skill_loader = SkillLoader()
-        self.skill_loader.load_skills()
+    @property
+    def music_skill(self):
+        if self._music_skill is None:
+            from src.skills.music_skill import MusicSkill
+            self._music_skill = MusicSkill(self.bot)
+        return self._music_skill
+
+    @property
+    def skill_loader(self):
+        if self._skill_loader is None:
+            from src.skills.loader import SkillLoader
+            self._skill_loader = SkillLoader()
+            self._skill_loader.load_skills()
+        return self._skill_loader
 
 
-    async def handle_dispatch(self, tool_name: str, args: dict, message: discord.Message, status_manager=None) -> None:
+    async def handle_dispatch(self, tool_name: str, args: dict, message: discord.Message, status_manager=None) -> Optional[str]:
         """Entry point from SSE dispatch event."""
         result = await self.execute(tool_name, args, message, status_manager)
         
@@ -40,6 +53,8 @@ class ToolHandler:
 
         elif result:
              logger.info(f"Tool {tool_name} completed silently.")
+        
+        return result
 
     async def execute(self, tool_name: str, args: dict, message: discord.Message, status_manager=None) -> Optional[str]:
         """Executes a tool by delegating to the appropriate Skill or handling locally."""
@@ -48,17 +63,35 @@ class ToolHandler:
         if tool_name in self.skill_loader.skills:
              return await self.skill_loader.execute_tool(tool_name, args, message, bot=self.bot)
 
-
-
-        # Music Skill (Media, Voice, TTS)
-        elif tool_name in {"music_play", "music_control", "music_tune", "music_seek", "music_queue", "tts_speak", "join_voice_channel", "leave_voice_channel", "speak", "join_voice", "leave_voice"}:
-            return await self.music_skill.execute(tool_name, args, message)
-
-
+        # S5: Lazy Load from Registry
+        from src.cogs.tools.registry import get_tool_impl
+        impl_path = get_tool_impl(tool_name)
+        
+        if impl_path:
+            try:
+                # Lazy Import Logic
+                # Path format: "module.path:function_name"
+                import importlib
+                mod_path, func_name = impl_path.split(":")
+                
+                module = importlib.import_module(mod_path)
+                func = getattr(module, func_name)
+                
+                # Execute
+                if asyncio.iscoroutinefunction(func):
+                    # S5: Pass bot instance explicitly for independent tools
+                    return await func(args, message, status_manager, bot=self.bot)
+                else:
+                    return await self.bot.loop.run_in_executor(None, lambda: func(args, message, status_manager, bot=self.bot))
+            except Exception as e:
+                logger.error(f"Lazy Tool Execution Failed ({tool_name}): {e}", exc_info=True)
+                return f"❌ Tool Error ({tool_name}): {e}"
 
         # --- Legacy / Unmigrated Tools (Keep Local) ---
-        
 
+        # Music Skill (Media, Voice, TTS) - Kept for compatibility if not in registry yet
+        elif tool_name in {"music_play", "music_control", "music_tune", "music_seek", "music_queue", "tts_speak", "join_voice_channel", "leave_voice_channel", "speak", "join_voice", "leave_voice"}:
+            return await self.music_skill.execute(tool_name, args, message)
 
         elif tool_name == "request_feature":
             return await self._handle_request_feature(args, message)
@@ -72,28 +105,24 @@ class ToolHandler:
             return await self._handle_summarize(args, message)
 
         elif tool_name == "web_remote_control":
+            if not await self._check_permission(message.author.id): return "⛔ Access Denied: Admin Only."
             return await self._handle_web_remote_control(args, message, status_manager)
 
-        elif tool_name == "web_screenshot":
-            return await self._handle_web_screenshot(args, message, status_manager)
-
-        elif tool_name == "web_search":
-            return await self._handle_web_search(args, message, status_manager)
-
-        elif tool_name == "web_download":
-            return await self._handle_web_download(args, message, status_manager)
-
         elif tool_name == "web_record_screen":
+            if not await self._check_permission(message.author.id): return "⛔ Access Denied: Admin Only."
             return await self._handle_web_record_screen(args, message, status_manager)
         
         elif tool_name == "web_jump_to_profile":
+             # This is safe, allow public
             return await self._handle_web_jump_to_profile(args, message, status_manager)
         
         elif tool_name == "web_set_view":
-            return await self._handle_web_set_view(args, message, status_manager)
+             if not await self._check_permission(message.author.id): return "⛔ Access Denied: Admin Only."
+             return await self._handle_web_set_view(args, message, status_manager)
         
         elif tool_name == "web_navigate":
-            return await self._handle_web_navigate(args, message, status_manager)
+             if not await self._check_permission(message.author.id): return "⛔ Access Denied: Admin Only."
+             return await self._handle_web_navigate(args, message, status_manager)
         
         return None
 
@@ -819,6 +848,52 @@ class ToolHandler:
             if status_manager: await status_manager.finish()
             return f"❌ Screenshot failed: {e}"
 
+    async def _handle_web_download(self, args: dict, message: discord.Message, status_manager) -> str:
+        """Handles web_download: Downloads video/audio using yt-dlp."""
+        import tempfile
+        import glob
+        import os
+        
+        url = args.get("url")
+        if not url: return "❌ URL required."
+        
+        if status_manager: await status_manager.next_step(f"Downloading media from {url}...")
+        
+        # Create temp dir
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            # yt-dlp command
+            cmd = f'yt-dlp "{url}" -o "{tmpdirname}/%(title)s.%(ext)s" --no-playlist'
+            
+            proc = await asyncio.create_subprocess_shell(
+                cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await proc.communicate()
+            
+            if proc.returncode != 0:
+                err_msg = stderr.decode()
+                logger.error(f"yt-dlp failed: {err_msg}")
+                return f"❌ Download failed: {err_msg[:200]}"
+            
+            files = glob.glob(os.path.join(tmpdirname, "*"))
+            if not files:
+                 return "❌ Download finished but no file found."
+            
+            target_file = max(files, key=os.path.getsize)
+            filename = os.path.basename(target_file)
+            size_mb = os.path.getsize(target_file) / (1024 * 1024)
+            
+            if status_manager: await status_manager.next_step(f"Uploading {filename} ({size_mb:.1f}MB)...")
+            
+            try:
+                f_obj = discord.File(target_file, filename=filename)
+                await message.reply(content=f"💾 **Saved**: {url}", file=f_obj)
+            except discord.HTTPException as e:
+                return f"❌ Upload failed (File size {size_mb:.1f}MB too large for Discord): {e}"
+            
+            return f"Download completed. {filename} sent. [SILENT_COMPLETION]"
+
     async def _handle_fs_action(self, args: dict, message: discord.Message, status_manager) -> str:
         """Handles filesystem actions: ls, cat, grep, tree, diff."""
         from src.utils.filesystem import fs_tools
@@ -948,6 +1023,92 @@ class ToolHandler:
             return "❌ Stop failed."
         
         return "❌ Invalid action."
+
+    async def _handle_web_navigate(self, args: dict, message: discord.Message, status_manager) -> str:
+        """Handles web_navigate: Go to a specific URL."""
+        from src.utils.browser import browser_manager
+        
+        url = args.get("url")
+        if not url: return "❌ URL required."
+        
+        if not browser_manager.is_ready():
+             if status_manager: await status_manager.next_step("Starting Browser...")
+             await browser_manager.start()
+             
+        if status_manager: await status_manager.next_step(f"Navigating to {url}...")
+        
+        try:
+            # Navigate
+            await browser_manager.agent.act({"type": "goto", "url": url})
+            await asyncio.sleep(2.0) # Wait for load
+            
+            # Screenshot confirmation
+            image_bytes = await browser_manager.agent.page.screenshot(type='jpeg', quality=80)
+            if image_bytes:
+                f = discord.File(io.BytesIO(image_bytes), filename="nav_result.jpg")
+                await message.reply(content=f"🌍 **Navigated**: {url}", file=f)
+            else:
+                await message.reply(f"🌍 **Navigated**: {url} (No screenshot)")
+                
+            return f"Navigated to {url}. [SILENT_COMPLETION]"
+        except Exception as e:
+            return f"❌ Navigation failed: {e}"
+
+    async def _handle_web_set_view(self, args: dict, message: discord.Message, status_manager) -> str:
+        """Handles web_set_view: Change viewport/mode."""
+        from src.utils.browser import browser_manager
+        
+        orientation = args.get("orientation", "horizontal")
+        # width/height mapping
+        if orientation == "vertical":
+            w, h = 375, 812
+            icon = "📱"
+        else:
+            w, h = 1280, 720
+            icon = "🖥️"
+            
+        if not browser_manager.is_ready():
+             await browser_manager.start()
+             
+        if status_manager: await status_manager.next_step(f"Setting View: {orientation}...")
+        
+        try:
+            # Direct playwright Viewport access if possible, or via agent if it exposes it.
+            # Agent.act usually handles basic actions. Assuming agent.page is accessible.
+            if browser_manager.agent.page:
+                await browser_manager.agent.page.set_viewport_size({"width": w, "height": h})
+                return f"{icon} Viewport set to **{orientation}** ({w}x{h}). [SILENT_COMPLETION]"
+            else:
+                return "❌ Browser not active."
+        except Exception as e:
+            return f"❌ Set View failed: {e}"
+
+    async def _handle_web_jump_to_profile(self, args: dict, message: discord.Message, status_manager) -> str:
+        """Handles web_jump_to_profile: Constructs SNS URLs."""
+        platform = args.get("platform", "").lower()
+        handle = args.get("username", "")
+        
+        if not platform or not handle: return "❌ Platform and Username required."
+        
+        # Strip @ if present
+        handle = handle.lstrip("@")
+        
+        url_map = {
+            "twitter": f"https://x.com/{handle}",
+            "x": f"https://x.com/{handle}",
+            "github": f"https://github.com/{handle}",
+            "tiktok": f"https://www.tiktok.com/@{handle}",
+            "instagram": f"https://www.instagram.com/{handle}/",
+            "youtube": f"https://www.youtube.com/@{handle}"
+        }
+        
+        target_url = url_map.get(platform)
+        if not target_url:
+            return f"❌ Unknown platform: {platform}"
+            
+        # Delegate to navigate logic reuse? Or just call it.
+        # Calling _handle_web_navigate directly is cleaner.
+        return await self._handle_web_navigate({"url": target_url}, message, status_manager)
 
     async def _handle_web_action(self, args: dict, message: discord.Message, status_manager) -> str:
         """Handles generic web actions (click, type, scroll, goto) via BrowserAgent."""

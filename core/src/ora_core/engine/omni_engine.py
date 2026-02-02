@@ -21,7 +21,8 @@ class OmniEngine:
         self.cloud_client = None
         openai_key = (os.getenv("OPENAI_API_KEY") or "").strip()
         if openai_key and not openai_key.startswith("sk-xxxx"):
-            self.cloud_client = AsyncOpenAI(api_key=openai_key, base_url="https://api.openai.com/v1", timeout=60.0)
+            base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
+            self.cloud_client = AsyncOpenAI(api_key=openai_key, base_url=base_url, timeout=60.0)
         
         # Priority Preference: Default to 'cloud' (API) as per user request
         self.default_priority = os.getenv("ORA_LLM_PRIORITY", "cloud").lower()

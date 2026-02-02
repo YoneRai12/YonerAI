@@ -23,7 +23,16 @@ from PIL import Image
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("LayerService")
 
-app = FastAPI(title="ORA Layer Service", version="1.0")
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("Service Started (Lazy Mode).")
+    asyncio.create_task(garbage_collector())
+    yield
+
+app = FastAPI(title="ORA Layer Service", version="1.0", lifespan=lifespan)
+
 
 # Model Settings
 MODEL_ID = "Qwen/Qwen-Image-Layered"  # Hypothetical ID based on user request
@@ -55,10 +64,6 @@ async def get_model():
     return model, processor
 
 
-@app.on_event("startup")
-async def startup_event():
-    logger.info("Service Started (Lazy Mode).")
-    asyncio.create_task(garbage_collector())
 
 
 async def garbage_collector():
@@ -141,4 +146,4 @@ if __name__ == "__main__":
         log_config = get_privacy_log_config()
     except ImportError:
         log_config = None
-    uvicorn.run(app, host="127.0.0.1", port=8003, log_config=log_config)
+    uvicorn.run(app, host="127.0.0.1", port=8010, log_config=log_config)

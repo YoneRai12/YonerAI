@@ -178,6 +178,64 @@ class MemoryCog(commands.Cog):
         if not os.path.exists(USER_MEMORY_DIR):
             return
 
+    # ----- Privacy Commands -----
+    privacy_group = app_commands.Group(name="privacy", description="プライバシー設定")
+
+    @privacy_group.command(name="set", description="記憶の公開設定を変更します (Public/Private)")
+    @app_commands.describe(mode="Public: サーバー内で共有, Private: 自分のみ")
+    @app_commands.choices(
+        mode=[
+            app_commands.Choice(name="Public", value="public"),
+            app_commands.Choice(name="Private", value="private"),
+        ]
+    )
+    async def privacy_set(self, interaction: discord.Interaction, mode: str):
+        """Set privacy mode."""
+        # Force lower case
+        mode_val = mode.lower()
+        if mode_val not in ["public", "private"]:
+            await interaction.response.send_message("❌ 無効な設定です。", ephemeral=True)
+            return
+
+        # We actually don't have a direct "set_privacy" helper in MemoryCog exposed easily without Store abstraction,
+        # BUT MemoryCog *is* the store essentially.
+        # We need to update the user profile's "privacy_mode" maybe?
+        # Or just use filenames?
+        # The logic in `get_user_profile` merges based on channel visibility.
+        # But `ora.py` or others use `store.get_privacy`.
+        # `Store` class usually wraps DB.
+        # Let's check `src/storage.py` or `store` injection.
+        # Wait, `MemoryCog` IS the persistence layer?
+        # `MediaCog` uses `self._store`.
+        # Let's see if `MemoryCog` has `set_privacy`.
+        # It does NOT.
+        # However, `MediaCog` uses `self._store`.
+        # I should probably update `src/utils/user_prefs.py` or similar if that's what controls it.
+        # But for now, I will implement a basic toggle here if `Store` is not available.
+        # Ah, `MediaCog` has `ensure_user`.
+        
+        # Let's assume we can import `Store` or similar, OR just save a preference file.
+        # Simplest: Update the profile with "privacy_mode": "private/public"
+        
+        await interaction.response.defer(ephemeral=True)
+        
+        profile = await self.get_user_profile(interaction.user.id, interaction.guild.id)
+        if not profile:
+             profile = {}
+        
+        profile["privacy_mode"] = mode_val
+        await self.update_user_profile(interaction.user.id, profile, interaction.guild.id)
+        
+        await interaction.followup.send(f"✅ プライバシー設定を **{mode}** に変更しました。", ephemeral=True)
+
+    @privacy_group.command(name="check", description="現在のプライバシー設定を確認します")
+    async def privacy_check(self, interaction: discord.Interaction):
+        """Check privacy setting."""
+        profile = await self.get_user_profile(interaction.user.id, interaction.guild.id)
+        mode = profile.get("privacy_mode", "public") if profile else "public"
+        await interaction.response.send_message(f"現在の設定: **{mode.capitalize()}**", ephemeral=True)
+
+
         count = 0
         for f in os.listdir(USER_MEMORY_DIR):
             if not f.endswith(".json"):
@@ -963,12 +1021,13 @@ class MemoryCog(commands.Cog):
                     f"3. **Layer 3 - Digest**: 今回の会話の「タイトル＋タイムスタンプ＋ユーザー発言の要約」のリスト。\n"
                     f"4. **Interests/Impression**: 補足的な興味・印象データ。\n"
                     f"   - **Impression**: ユーザーを表す短い「一言」キャッチフレーズ（20文字以内・UI表示用）。\n"
+                    f"   - **deep_analysis**: Item 5, 6, 7の内容（心理分析・人間関係・予測）をまとめた詳細テキスト。\n"
                     f"{extra_instructions}\n\n"
                     f"Chat Log:\n{chat_log}\n\n"
                     f"Output strictly in this JSON format (All values in Japanese):\n"
                     f"{{ \n"
                     f'  "layer1_session_meta": {{ "environment": "...", "mood": "...", "device_est": "..." }},\n'
-                    f'  "layer2_user_memory": {{ "facts": ["..."], "traits": ["..."], "impression": "...", "interests": ["..."] }},\n'
+                    f'  "layer2_user_memory": {{ "facts": ["..."], "traits": ["..."], "impression": "...", "interests": ["..."], "deep_analysis": "..." }},\n'
                     f'  "layer3_recent_summaries": [ {{ "title": "...", "timestamp": "...", "snippet": "..." }} ]\n'
                     f"}}\n"
                     f"IMPORTANT: Output ONLY the raw JSON. Do NOT use markdown code blocks (```json). Do not add any preamble."
@@ -2162,6 +2221,182 @@ class MemoryCog(commands.Cog):
 
         except Exception as e:
             logger.error(f"Failed to save channel memory {channel_id}: {e}")
+
+
+    # --------------------------------------------------------------------------
+    # OpenClaw-style "Digital Immortality" & "Journaling" (Moltbook Features)
+    # --------------------------------------------------------------------------
+
+    # [RESTORED & ENHANCED] Hybrid Git Backup (Local + Cloud)
+    # ⚠️ WARNING: USER MUST ENSURE REPO IS PRIVATE ⚠️
+    async def backup_brain_to_git(self):
+        """
+        [Hybrid Backup] Pushes memory/ to Git Remotes.
+        Priority:
+        1. 'local_backup' (C:\... Bare Repo) - Always attempted if configured.
+        2. 'origin' (GitHub/Cloud) - Only if ENABLE_PRIVATE_BACKUP=true.
+        """
+        import os
+        import subprocess
+
+        try:
+            repo_path = os.getcwd() # Assuming bot root is repo root
+            
+            # Simple check: Is .git present?
+            if not os.path.exists(os.path.join(repo_path, ".git")):
+                logger.warning("Memory: 💾 Backup Skipped: Not a Git repository.")
+                return
+
+            # Defines
+            has_local_remote = False
+            has_origin_remote = False
+            
+            # Check Remotes
+            try:
+                result = subprocess.run(["git", "remote"], cwd=repo_path, capture_output=True, text=True)
+                remotes = result.stdout.splitlines()
+                has_local_remote = "local_backup" in remotes
+                has_origin_remote = "origin" in remotes
+            except Exception:
+                pass
+
+            # 1. STAGE & COMMIT (Common)
+            # We want to commit changes so they can be pushed anywhere.
+            # Only commit if there are changes.
+            status = subprocess.run(["git", "status", "--porcelain"], cwd=repo_path, capture_output=True, text=True)
+            if status.stdout.strip():
+                logger.info("Memory: 💾 Committing recent changes for backup...")
+                subprocess.run(["git", "add", "data/memory/"], cwd=repo_path, capture_output=True)
+                # Should we add all? Maybe just memory.
+                # User asked for "Backup", implying safety. Let's stick to memory folder to avoid committing code changes/logs accidentally?
+                # Actually, `git add .` might be risky if user is dev-ing.
+                # Let's target data directory specifically: `data/`
+                subprocess.run(["git", "add", "data/"], cwd=repo_path, capture_output=True)
+                
+                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                commit_msg = f"Auto-Backup: {timestamp}"
+                subprocess.run(["git", "commit", "-m", commit_msg], cwd=repo_path, capture_output=True)
+            else:
+                pass # Nothing to commit, but might need to push if previous push failed.
+
+            # 2. PUSH TO LOCAL (Priority)
+            if has_local_remote:
+                logger.info("Memory: 💾 Pushing to LOCAL backup (C: Drive)...")
+                proc = subprocess.run(["git", "push", "local_backup", "main"], cwd=repo_path, capture_output=True, text=True)
+                if proc.returncode == 0:
+                    logger.info("Memory: ✅ Local Backup Complete.")
+                else:
+                    logger.error(f"Memory: ❌ Local Backup Failed: {proc.stderr}")
+
+            # 3. PUSH TO CLOUD (Optional)
+            if has_origin_remote and os.getenv("ENABLE_PRIVATE_BACKUP", "false").lower() == "true":
+                logger.info("Memory: ☁️ Pushing to CLOUD backup (GitHub/Origin)...")
+                proc = subprocess.run(["git", "push", "origin", "main"], cwd=repo_path, capture_output=True, text=True)
+                if proc.returncode == 0:
+                    logger.info("Memory: ✅ Cloud Backup Complete.")
+                else:
+                    logger.warning(f"Memory: ⚠️ Cloud Backup Failed (Auth/Net?): {proc.stderr}")
+
+        except Exception as e:
+            logger.error(f"Memory: Backup Process Failed: {e}")
+
+    
+    async def process_daily_compaction(self):
+        """
+        [OpenClaw Port] 'Memory Flush' Protocol.
+        Summarize previous day's logs into 'journal.md' using OpenClaw's exact strategy.
+        """
+        logger.info("Memory: 🦞 Starting OpenClaw-style Memory Flush...")
+        if not os.path.exists(USER_MEMORY_DIR):
+            return
+
+        count = 0
+        now = datetime.now(pytz.utc)
+        yesterday = now - timedelta(days=1)
+        yesterday_str = yesterday.strftime("%Y-%m-%d")
+
+        for f in os.listdir(USER_MEMORY_DIR):
+            if not f.endswith(".json") or "_private" in f:
+                continue
+
+            user_id = f.replace(".json", "")
+            if not user_id.isdigit():
+                continue
+
+            try:
+                # Read raw memory
+                path = os.path.join(USER_MEMORY_DIR, f)
+                async with aiofiles.open(path, "r", encoding="utf-8") as f_obj:
+                    data = json.loads(await f_obj.read())
+
+                raw_history = data.get("raw_history", [])
+                if not raw_history:
+                    continue
+
+                # Filter for yesterday
+                target_msgs = []
+                for m in raw_history:
+                    # Check timestamp (ISO format)
+                    ts = m.get("timestamp", "")
+                    if ts.startswith(yesterday_str):
+                        target_msgs.append(f"{m.get('role', 'User')}: {m.get('content', '')}")
+                
+                if not target_msgs:
+                    continue
+
+                # [OpenClaw Mechanism]
+                summary = await self._generate_journal_summary(user_id, target_msgs, yesterday_str)
+                
+                # Check for [SILENT] token from OpenClaw protocol
+                if summary and "[SILENT]" not in summary:
+                    # Append to Journal
+                    # OpenClaw says "use memory/YYYY-MM-DD.md". 
+                    # We create a per-user journal to avoid conflicts in a multi-user bot.
+                    journal_filename = f"{user_id}_journal.md"
+                    journal_path = os.path.join(USER_MEMORY_DIR, journal_filename)
+                    
+                    mode = "a" if os.path.exists(journal_path) else "w"
+                    async with aiofiles.open(journal_path, mode, encoding="utf-8") as j_file:
+                        await j_file.write(f"\n## {yesterday_str}\n{summary}\n")
+                    count += 1
+                    logger.debug(f"Memory: Flushed {user_id} to {journal_filename}")
+
+            except Exception as e:
+                logger.warning(f"Memory Flush failed for {user_id}: {e}")
+
+        logger.info(f"Memory: Flush Complete. Processed {count} users.")
+
+    async def _generate_journal_summary(self, user_id: str, messages: list[str], date_str: str) -> str:
+        """Helper to summarize messages via LLM using OpenClaw prompts."""
+        if not self._llm:
+            return ""
+
+        # OpenClaw-style "Memory Flush" Prompt
+        # Source: src/auto-reply/reply/memory-flush.ts
+        SILENT_REPLY_TOKEN = "[SILENT]"
+        
+        system_prompt = (
+            "Pre-compaction memory flush turn.\n"
+            "The session is near auto-compaction; capture durable memories to disk.\n"
+            f"You may reply, but usually {SILENT_REPLY_TOKEN} is correct."
+        )
+
+        user_prompt = (
+            f"Chat Log ({date_str}):\n" + "\n".join(messages[-100:]) + "\n\n"
+            "Pre-compaction memory flush.\n"
+            f"Store durable memories now (use memory/{date_str}.md).\n"
+            f"If nothing to store, reply with {SILENT_REPLY_TOKEN}."
+        )
+        
+        try:
+            prompt = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ]
+            return await self._llm.chat("openai", prompt, max_tokens=300)
+        except Exception:
+             return ""
+
 
 
 async def setup(bot: commands.Bot):

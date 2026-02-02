@@ -33,6 +33,14 @@ class CoreCog(commands.Cog):
         self.bot = bot
         self._link_client = link_client
         self._store = store
+        
+        # S8-B: Inject bot for Router Alert Delivery
+        try:
+            from .handlers.router_monitor import router_monitor
+            router_monitor.set_bot(bot)
+        except ImportError:
+            logger.warning("RouterHealthMonitor not found (S8 skipped).")
+            
         self.status_task.start()
 
     async def _get_privacy(self, user_id: int) -> bool:

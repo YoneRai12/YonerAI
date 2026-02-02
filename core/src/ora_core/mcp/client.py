@@ -71,31 +71,26 @@ class MCPClientManager:
             # ORA ToolDefinition expects 'parameters' as the 'properties' part or full schema?
             # Looking at OmniEngine, it expects t.parameters to be the full schema.
             
-            def create_handler(t_name, s_name):
-                # We need to capture variables in closure
-                async def handler(args, context):
-                    target_session = self.sessions.get(s_name)
-                    if not target_session:
-                        raise RuntimeError(f"MCP Session for '{s_name}' lost.")
-                    
-                    mcp_res = await target_session.call_tool(t_name, args)
-                    
-                    # Convert MCP CallToolResult to ORA standardized result
-                    # MCP content is a list of TextContent/ImageContent/etc.
-                    content_list = []
-                    for item in mcp_res.content:
-                        if hasattr(item, 'text'):
-                            content_list.append({"type": "text", "text": item.text})
-                        # Add image support later
-                    
-                    return {
-                        "ok": not mcp_res.isError,
-                        "content": content_list,
-                        "metrics": {"source": f"mcp:{s_name}"}
-                    }
-                return handler
+            # Define handler factory
+            async def handler(args, context, t_name=tool.name, s_name=server_name):
+                target_session = self.sessions.get(s_name)
+                if not target_session:
+                    raise RuntimeError(f"MCP Session for '{s_name}' lost.")
+                
+                mcp_res = await target_session.call_tool(t_name, args)
+                
+                content_list = []
+                for item in mcp_res.content:
+                    if hasattr(item, 'text'):
+                        content_list.append({"type": "text", "text": item.text})
+                
+                return {
+                    "ok": not mcp_res.isError,
+                    "content": content_list,
+                    "metrics": {"source": f"mcp:{s_name}"}
+                }
 
-            handler = create_handler(tool.name, server_name)
+
             ora_def = ToolDefinition(
                 name=f"{server_name}_{tool.name}", # Namespace to avoid collisions
                 description=tool.description or "",

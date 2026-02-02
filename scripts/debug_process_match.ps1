@@ -1,0 +1,1 @@
+Get-Process | Where-Object { $_.MainWindowTitle -like '*ORA*' -or $_.MainWindowTitle -like '*Tunnel:*' -or $_.MainWindowTitle -like '*next-server*' } | Select-Object Id, ProcessName, MainWindowTitle | Format-Table -AutoSize

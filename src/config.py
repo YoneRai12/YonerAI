@@ -17,31 +17,33 @@ COST_TZ = "UTC"
 # 3. Default Local 'data' directory
 
 _env_root = os.getenv("ORA_DATA_ROOT")
-_legacy_root = "L:\\"
 
 if _env_root:
     DATA_ROOT = _env_root
-elif os.name == "nt" and os.path.exists(os.path.join(_legacy_root, "ORA_State")):
-    # Detect User's existing environment
-    DATA_ROOT = _legacy_root
 else:
     # Default portable path
     DATA_ROOT = os.path.join(os.getcwd(), "data")
 
 # Define Subdirectories based on Root
-# Legacy layout had folders at root (L:\ORA_State), Portable layout has data/state
-if DATA_ROOT == _legacy_root:
+# Legacy logic: If simple string like "L:\" is used, we assume root-level folders if matching legacy
+_is_legacy_style = _env_root and (":" in _env_root) and (len(_env_root) <= 4) 
+
+if _is_legacy_style and os.name == "nt":
+    # If explicitly set to a drive root (e.g. L:\), use legacy ORA_* folder structure
     DEFAULT_STATE_DIR = os.path.join(DATA_ROOT, "ORA_State")
     DEFAULT_MEMORY_DIR = os.path.join(DATA_ROOT, "ORA_Memory")
+    DEFAULT_TEMP_DIR = os.path.join(DATA_ROOT, "ORA_Temp")
     DEFAULT_LOG_DIR = os.path.join(DATA_ROOT, "ORA_Logs")
 else:
     DEFAULT_STATE_DIR = os.path.join(DATA_ROOT, "state")
     DEFAULT_MEMORY_DIR = os.path.join(DATA_ROOT, "memory")
+    DEFAULT_TEMP_DIR = os.path.join(DATA_ROOT, "temp")
     DEFAULT_LOG_DIR = os.path.join(DATA_ROOT, "logs")
 
 STATE_DIR = os.getenv("ORA_STATE_DIR", DEFAULT_STATE_DIR)
 MEMORY_DIR = os.getenv("ORA_MEMORY_DIR", DEFAULT_MEMORY_DIR)
 LOG_DIR = os.getenv("ORA_LOG_DIR", DEFAULT_LOG_DIR)
+TEMP_DIR = os.getenv("ORA_TEMP_DIR", DEFAULT_TEMP_DIR)
 
 # Buffer & Sync Constants
 SAFETY_BUFFER_RATIO = 0.95
@@ -77,8 +79,8 @@ if not COST_LIMITS:
 
 if not ROUTER_CONFIG:
     ROUTER_CONFIG = {
-        "coding_model": "gpt-4o-mini",
-        "standard_model": "gpt-4o-mini"
+        "coding_model": "gpt-5.1-codex-mini",
+        "standard_model": "gpt-5.1-codex-mini"
     }
 
 class ConfigError(RuntimeError):
@@ -96,7 +98,11 @@ class Config:
     public_base_url: Optional[str]
     dev_guild_id: Optional[int]
     log_level: str
+    log_level: str
     log_dir: str
+    state_dir: str  # Added
+    memory_dir: str # Added
+    temp_dir: str   # Added
     db_path: str
     llm_base_url: str
     llm_api_key: str
@@ -130,13 +136,17 @@ class Config:
     # Notification IDs (Phase 42)
     ora_web_notify_id: Optional[int] = None
     ora_api_notify_id: Optional[int] = None
+    config_ui_notify_id: Optional[int] = None
+    web_chat_notify_id: Optional[int] = None
+    config_page_notify_id: Optional[int] = None
     
     # ComfyUI (Optional)
     comfy_dir: Optional[str] = None
     comfy_bat: Optional[str] = None
 
     openai_api_key: Optional[str] = None
-    openai_default_model: str = "gpt-4o-mini"
+    openai_base_url: str = "https://api.openai.com/v1"
+    openai_default_model: str = "gpt-5.1-codex-mini"
     gemini_api_key: Optional[str] = None
     
     # Architecture Mode
@@ -147,6 +157,15 @@ class Config:
     
     # Model Policies (from YAML)
     model_policies: Dict[str, List[str]] = None 
+    
+    # Browser Proxy (Software Kill Switch)
+    browser_proxy: Optional[str] = None
+    
+    # Remote Control Auth Token
+    browser_remote_token: Optional[str] = None
+
+    # Tunnel Hostname (Phase 62)
+    tunnel_hostname: Optional[str] = None
 
     @classmethod
     def load(cls) -> "Config":
@@ -169,7 +188,11 @@ class Config:
         if vision_provider not in {"local", "openai"}:
             vision_provider = llm_priority if llm_priority != "cloud" else "openai"
 
+        # Browser Proxy
+        browser_proxy = os.getenv("BROWSER_PROXY")
+
         openai_key = os.getenv("OPENAI_API_KEY")
+
 
         app_id_raw = os.getenv("DISCORD_APP_ID")
         if app_id_raw:
@@ -289,7 +312,8 @@ class Config:
         startup_notify_channel_id: Optional[int] = None
         if startup_channel_raw:
             try:
-                startup_notify_channel_id = int(startup_channel_raw)
+                # Robustly strip whitespace/garbage (e.g. full-width spaces)
+                startup_notify_channel_id = int(startup_channel_raw.strip())
             except ValueError:
                 pass
 
@@ -314,6 +338,17 @@ class Config:
         
         ora_api_notify_raw = os.getenv("ORA_API_NOTIFY_ID")
         ora_api_notify_id = int(ora_api_notify_raw) if ora_api_notify_raw and ora_api_notify_raw.isdigit() else None
+
+        config_ui_notify_raw = os.getenv("CONFIG_UI_NOTIFY_ID")
+        config_ui_notify_id = int(config_ui_notify_raw) if config_ui_notify_raw and config_ui_notify_raw.isdigit() else None
+
+        web_chat_notify_raw = os.getenv("WEB_CHAT_NOTIFY_ID")
+        web_chat_notify_id = int(web_chat_notify_raw) if web_chat_notify_raw and web_chat_notify_raw.isdigit() else None
+
+        config_page_notify_raw = os.getenv("CONFIG_PAGE_NOTIFY_ID")
+        config_page_notify_id = int(config_page_notify_raw) if config_page_notify_raw and config_page_notify_raw.isdigit() else None
+
+        tunnel_hostname = os.getenv("TUNNEL_HOSTNAME")
 
         # Model Modes Configuration
         # Maps mode name to batch file name
@@ -343,6 +378,9 @@ class Config:
             dev_guild_id=dev_guild_id,
             log_level=log_level,
             log_dir=LOG_DIR,
+            state_dir=STATE_DIR,
+            memory_dir=MEMORY_DIR,
+            temp_dir=TEMP_DIR,
             db_path=db_path,
             llm_base_url=llm_base_url,
             llm_api_key=llm_api_key,
@@ -373,9 +411,16 @@ class Config:
             llm_priority=llm_priority,
             ora_web_notify_id=ora_web_notify_id,
             ora_api_notify_id=ora_api_notify_id,
+            config_ui_notify_id=config_ui_notify_id,
+            web_chat_notify_id=web_chat_notify_id,
+            config_page_notify_id=config_page_notify_id,
+            tunnel_hostname=tunnel_hostname,
+            # comfy_dir already passed above at line 373
             force_standalone=os.getenv("FORCE_STANDALONE", "false").lower() == "true",
             auth_strategy=auth_strategy,
             model_policies=_external_config.get("model_policies", {}),
+            browser_proxy=browser_proxy,
+            browser_remote_token=os.getenv("BROWSER_REMOTE_TOKEN"),
         )
 
     def validate(self) -> None:

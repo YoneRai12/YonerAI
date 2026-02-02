@@ -1,7 +1,6 @@
 
-import sys
 import os
-import asyncio
+import sys
 
 # Add src to path
 sys.path.append(os.path.join(os.getcwd(), "src"))

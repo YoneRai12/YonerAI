@@ -7,9 +7,12 @@ from ora_core.database.repo import Repository
 
 logger = logging.getLogger(__name__)
 
+def get_repo(request: Request) -> Repository:
+    return request.state.repo
+
 async def get_current_user_from_header(
     request: Request,
-    repo: Annotated[Repository, Depends(lambda: request.state.repo)] # Assumes repo is injected into request.state or handled via dependency injection from main
+    repo: Annotated[Repository, Depends(get_repo)] # Assumes repo is injected into request.state
 ) -> User:
     """
     Authentication Middleware for Cloudflare Access.

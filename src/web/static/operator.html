@@ -1,0 +1,822 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Operator Panel</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+            background: #0b0d12;
+            color: #f2f4f8;
+            margin: 0;
+            padding: 16px;
+        }
+
+        h1 {
+            font-size: 20px;
+            margin-bottom: 12px;
+        }
+
+        .layout {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 320px;
+            gap: 16px;
+        }
+
+        .panel {
+            background: #151a24;
+            border: 1px solid #1f2533;
+            border-radius: 12px;
+            padding: 12px;
+            min-width: 0;
+        }
+
+        .status-banner {
+            background: #2a1b1b;
+            border: 1px solid #5a2a2a;
+            color: #f9c0c0;
+            border-radius: 10px;
+            padding: 10px;
+            font-size: 13px;
+            margin-bottom: 12px;
+            white-space: pre-wrap;
+        }
+
+        .status-banner.hidden {
+            display: none;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        label {
+            font-size: 12px;
+            color: #a5b0c4;
+            margin-bottom: 4px;
+        }
+
+        input,
+        select,
+        button {
+            border-radius: 8px;
+            border: 1px solid #263042;
+            background: #0f141d;
+            color: #f2f4f8;
+            padding: 8px;
+            font-size: 14px;
+        }
+
+        select {
+            width: 100%;
+        }
+
+        button {
+            cursor: pointer;
+            background: #5865f2;
+            border: none;
+        }
+
+        button.secondary {
+            background: #1f2736;
+        }
+
+        .row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .row input {
+            flex: 1;
+        }
+
+        .screen-wrap {
+            position: relative;
+        }
+
+        #screen {
+            width: 100%;
+            border-radius: 10px;
+            border: 1px solid #1f2533;
+            cursor: crosshair;
+            background: #0b0d12;
+            display: block;
+        }
+
+        .screen-error {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 12px;
+            text-align: center;
+            font-size: 13px;
+            color: #f7d7d7;
+            background: rgba(11, 13, 18, 0.88);
+            border-radius: 10px;
+        }
+
+        .screen-error.hidden {
+            display: none;
+        }
+
+        #status {
+            font-size: 12px;
+            color: #9aa6bd;
+            margin-top: 8px;
+            white-space: pre-wrap;
+        }
+
+        .meta {
+            font-size: 12px;
+            color: #a5b0c4;
+            margin-bottom: 6px;
+            word-break: break-word;
+            overflow-wrap: anywhere;
+        }
+
+        .meta-scroll {
+            max-height: 4.5em;
+            overflow-y: auto;
+        }
+
+        .row .meta {
+            margin-bottom: 0;
+        }
+
+        .link {
+            color: #8ab4f8;
+            text-decoration: none;
+            font-size: 12px;
+        }
+
+        .link:hover {
+            text-decoration: underline;
+        }
+
+        code {
+            background: #0f141d;
+            border: 1px solid #263042;
+            border-radius: 8px;
+            padding: 6px 8px;
+            font-size: 12px;
+            color: #d4dcf4;
+            word-break: break-all;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Operator Panel</h1>
+    <div id="statusBanner" class="status-banner hidden"></div>
+    <div class="layout">
+        <div class="panel">
+            <div class="meta meta-scroll" id="pageMeta">Loading...</div>
+            <div class="screen-wrap">
+                <img id="screen" alt="browser screenshot" />
+                <div id="screenError" class="screen-error hidden"></div>
+            </div>
+            <div id="status"></div>
+        </div>
+        <div class="panel controls">
+            <div>
+                <label for="tabSelect">Tabs</label>
+                <select id="tabSelect"></select>
+                <div class="row" style="margin-top: 6px;">
+                    <button class="secondary" id="tabRefreshBtn">Refresh</button>
+                    <button class="secondary" id="tabSwitchBtn">Switch</button>
+                    <button class="secondary" id="tabCloseBtn">Close</button>
+                </div>
+            </div>
+            <div>
+                <label>Browser mode</label>
+                <div class="row">
+                    <button class="secondary" id="headlessToggleBtn">Headless: --</button>
+                    <button class="secondary" id="headlessApplyDomainBtn">Apply to domain</button>
+                    <button class="secondary" id="headlessApplySessionBtn">Apply to session</button>
+                </div>
+                <div class="meta" id="headlessMeta">Mode: --</div>
+                <div class="meta hidden" id="cdpRow">
+                    <a class="link" id="cdpLink" href="#" target="_blank" rel="noreferrer">
+                        Open CDP endpoint
+                    </a>
+                    <div class="meta hidden" id="cdpNote"></div>
+                    <div class="meta hidden" id="cdpSshRow">
+                        <div class="meta">Suggested SSH tunnel:</div>
+                        <div class="row">
+                            <code id="cdpSshCommand"></code>
+                            <button class="secondary" id="cdpCopyBtn">Copy</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div>
+                <label for="urlInput">Go to URL</label>
+                <div class="row">
+                    <input id="urlInput" placeholder="https://example.com" />
+                    <button id="gotoBtn">Go</button>
+                </div>
+            </div>
+            <div>
+                <label>Scroll</label>
+                <div class="row">
+                    <button class="secondary" data-scroll="-800">Up</button>
+                    <button class="secondary" data-scroll="800">Down</button>
+                </div>
+            </div>
+            <div>
+                <label for="typeInput">Type text</label>
+                <div class="row">
+                    <input id="typeInput" placeholder="Type into the focused field" />
+                    <button id="typeBtn">Send</button>
+                </div>
+                <div class="row" style="margin-top: 6px;">
+                    <button class="secondary" id="pasteBtn">Paste clipboard</button>
+                    <span class="meta">Requires HTTPS for clipboard access.</span>
+                </div>
+            </div>
+            <div>
+                <label>Keys</label>
+                <div class="row">
+                    <button class="secondary" data-key="Enter">Enter</button>
+                    <button class="secondary" data-key="Tab">Tab</button>
+                    <button class="secondary" data-key="Escape">Esc</button>
+                    <button class="secondary" data-key="Backspace">⌫</button>
+                </div>
+            </div>
+            <div class="row">
+                <button id="refreshBtn">Refresh screenshot</button>
+                <button class="secondary" id="autoRefreshBtn">Auto refresh: Off</button>
+            </div>
+            <div>
+                <label for="refreshRange">Auto refresh interval</label>
+                <div class="row">
+                    <input id="refreshRange" type="range" min="300" max="3000" step="50" value="300" />
+                    <span class="meta" id="refreshLabel">300 ms</span>
+                </div>
+                <div class="row" style="margin-top: 6px;">
+                    <span class="meta" id="fpsLabel">FPS: --</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        const token = "default";
+        const screen = document.getElementById("screen");
+        const statusEl = document.getElementById("status");
+        const metaEl = document.getElementById("pageMeta");
+        const bannerEl = document.getElementById("statusBanner");
+        const screenErrorEl = document.getElementById("screenError");
+        const tabSelect = document.getElementById("tabSelect");
+        const tabRefreshBtn = document.getElementById("tabRefreshBtn");
+        const tabSwitchBtn = document.getElementById("tabSwitchBtn");
+        const tabCloseBtn = document.getElementById("tabCloseBtn");
+        const headlessToggleBtn = document.getElementById("headlessToggleBtn");
+        const headlessApplyDomainBtn = document.getElementById("headlessApplyDomainBtn");
+        const headlessApplySessionBtn = document.getElementById("headlessApplySessionBtn");
+        const headlessMeta = document.getElementById("headlessMeta");
+        const cdpRow = document.getElementById("cdpRow");
+        const cdpLink = document.getElementById("cdpLink");
+        const cdpNote = document.getElementById("cdpNote");
+        const cdpSshRow = document.getElementById("cdpSshRow");
+        const cdpSshCommand = document.getElementById("cdpSshCommand");
+        const cdpCopyBtn = document.getElementById("cdpCopyBtn");
+        const refreshRange = document.getElementById("refreshRange");
+        const refreshLabel = document.getElementById("refreshLabel");
+        const fpsLabel = document.getElementById("fpsLabel");
+        let lastScreenUrl = null;
+        let autoRefresh = false;
+        let autoRefreshTimer = null;
+        let refreshInFlight = false;
+        let pendingRefresh = false;
+        let baseIntervalMs = Number.parseFloat(refreshRange?.value || "300");
+        let adaptiveIntervalMs = baseIntervalMs;
+        let lastFrameAt = null;
+        let smoothFps = null;
+        let headlessState = null;
+        let desiredHeadless = null;
+
+        const operatorBase = (() => {
+            const params = new URLSearchParams(window.location.search);
+            const apiParam = params.get("api");
+            if (apiParam) {
+                // Remote Backend (Tunnel)
+                // Ensure no trailing slash
+                return apiParam.replace(/\/+$/, "") + "/api/browser";
+            }
+            // Local Backend (Same Origin)
+            return "/api/browser";
+        })();
+        async function parseError(response) {
+            const contentType = response.headers.get("content-type") || "";
+            if (contentType.includes("application/json")) {
+                try {
+                    const data = await response.json();
+                    if (data && data.error) {
+                        return data.error;
+                    }
+                    return JSON.stringify(data);
+                } catch (err) {
+                    return err.message || response.statusText;
+                }
+            }
+            const text = await response.text();
+            return text || response.statusText;
+        }
+
+        async function api(path, body) {
+            // Use operatorBase + endpoint.
+            // MeteoBOT used {operatorBase}/{token}/{path}
+            // We will use {operatorBase}/{path} since token is dummy
+            const response = await fetch(`${operatorBase}/${path}`, {
+                method: body ? "POST" : "GET",
+                headers: body ? { "Content-Type": "application/json" } : undefined,
+                body: body ? JSON.stringify(body) : undefined,
+            });
+            if (!response.ok) {
+                const message = await parseError(response);
+                throw new Error(message);
+            }
+            if (path === "screenshot") {
+                return await response.blob();
+            }
+            return await response.json();
+        }
+
+        function clamp(value, min, max) {
+            return Math.min(max, Math.max(min, value));
+        }
+
+        function updateRefreshLabel() {
+            if (refreshLabel) {
+                refreshLabel.textContent = `${Math.round(baseIntervalMs)} ms`;
+            }
+        }
+
+        function updateFps(now) {
+            if (lastFrameAt) {
+                const delta = Math.max(1, now - lastFrameAt);
+                const instant = 1000 / delta;
+                smoothFps = smoothFps === null ? instant : smoothFps * 0.8 + instant * 0.2;
+                if (fpsLabel) {
+                    fpsLabel.textContent = `FPS: ${smoothFps.toFixed(1)}`;
+                }
+            }
+            lastFrameAt = now;
+        }
+
+        function resolveDesiredHeadless() {
+            if (desiredHeadless !== null) {
+                return desiredHeadless;
+            }
+            if (headlessState && typeof headlessState.running === "boolean") {
+                return headlessState.running;
+            }
+            if (headlessState && typeof headlessState.session === "boolean") {
+                return headlessState.session;
+            }
+            if (headlessState && typeof headlessState.default === "boolean") {
+                return headlessState.default;
+            }
+            return false;
+        }
+
+        function updateHeadlessUi() {
+            if (!headlessToggleBtn || !headlessMeta) return;
+            const desired = resolveDesiredHeadless();
+            const running = headlessState?.running;
+            const domain = headlessState?.domain_name || "unknown";
+            const domainPref =
+                typeof headlessState?.domain === "boolean" ? headlessState.domain : null;
+            const sessionPref =
+                typeof headlessState?.session === "boolean" ? headlessState.session : null;
+            headlessToggleBtn.textContent = `Headless: ${desired ? "On" : "Off"}`;
+            const parts = [
+                `Running: ${typeof running === "boolean" ? (running ? "On" : "Off") : "--"}`,
+                `Domain (${domain}): ${domainPref === null ? "--" : domainPref ? "On" : "Off"
+                }`,
+                `Session: ${sessionPref === null ? "--" : sessionPref ? "On" : "Off"}`,
+            ];
+            headlessMeta.textContent = parts.join(" | ");
+        }
+
+        function scheduleAutoRefresh() {
+            if (!autoRefresh) return;
+            if (autoRefreshTimer) {
+                clearTimeout(autoRefreshTimer);
+            }
+            const delay = clamp(adaptiveIntervalMs, 300, 5000);
+            autoRefreshTimer = setTimeout(() => {
+                refreshScreenshot();
+            }, delay);
+        }
+
+        function updateCdpTunnel(urlText, serverHost) {
+            if (!cdpSshRow || !cdpSshCommand) return;
+            if (!urlText) {
+                cdpSshRow.classList.add("hidden");
+                return;
+            }
+            let port = "9222";
+            try {
+                const parsed = new URL(urlText);
+                if (parsed.port) {
+                    port = parsed.port;
+                } else if (parsed.protocol === "https:") {
+                    port = "443";
+                }
+            } catch (err) {
+                // Keep default port.
+            }
+            const host = serverHost || window.location.hostname || "simajilord.com";
+            const command = `ssh -N -L ${port}:127.0.0.1:${port} user@${host}`;
+            cdpSshCommand.textContent = command;
+            cdpSshRow.classList.remove("hidden");
+        }
+
+        if (cdpCopyBtn && cdpSshCommand) {
+            cdpCopyBtn.addEventListener("click", async () => {
+                try {
+                    await navigator.clipboard.writeText(cdpSshCommand.textContent || "");
+                    cdpCopyBtn.textContent = "Copied!";
+                    setTimeout(() => {
+                        cdpCopyBtn.textContent = "Copy";
+                    }, 1200);
+                } catch (err) {
+                    cdpCopyBtn.textContent = "Copy failed";
+                    setTimeout(() => {
+                        cdpCopyBtn.textContent = "Copy";
+                    }, 1200);
+                }
+            });
+        }
+
+        function showBanner(message) {
+            bannerEl.textContent = message;
+            bannerEl.classList.remove("hidden");
+        }
+
+        function clearBanner() {
+            bannerEl.textContent = "";
+            bannerEl.classList.add("hidden");
+        }
+
+        function showScreenError(message) {
+            screenErrorEl.textContent = message;
+            screenErrorEl.classList.remove("hidden");
+            screen.alt = message;
+            screen.title = message;
+        }
+
+        function clearScreenError() {
+            screenErrorEl.textContent = "";
+            screenErrorEl.classList.add("hidden");
+            screen.alt = "browser screenshot";
+            screen.title = "";
+        }
+
+        async function refreshState() {
+            try {
+                const data = await api("state");
+                if (data.ok && data.observation) {
+                    metaEl.textContent = `${data.observation.title || "Untitled"} — ${data.observation.url || ""}`;
+                    if (data.warning === "cdp_fallback_missing_url") {
+                        showBanner("CDP URL is not set. Using a server-launched browser.");
+                    } else if (data.warning === "cdp_fallback_connect_failed") {
+                        showBanner("CDP connection failed. Using a server-launched browser.");
+                    } else {
+                        clearBanner();
+                    }
+                    headlessState = data.headless || null;
+                    updateHeadlessUi();
+                    if (cdpRow && cdpLink && data.cdp_url) {
+                        const serverHost = data.server_host || "";
+                        let localPort = "9222";
+                        try {
+                            const parsed = new URL(data.cdp_url);
+                            if (parsed.port) {
+                                localPort = parsed.port;
+                            } else if (parsed.protocol === "https:") {
+                                localPort = "443";
+                            }
+                        } catch (err) {
+                            // Keep default port.
+                        }
+                        cdpLink.href = data.cdp_url;
+                        cdpLink.textContent = `Open CDP endpoint (${data.cdp_url})`;
+                        cdpRow.classList.remove("hidden");
+                        if (cdpNote) {
+                            try {
+                                const parsed = new URL(data.cdp_url);
+                                const host = parsed.hostname;
+                                if (["127.0.0.1", "localhost", "::1"].includes(host)) {
+                                    cdpNote.textContent =
+                                        "CDP is bound to localhost. Open via SSH tunnel or run the UI on the same host.";
+                                    cdpNote.classList.remove("hidden");
+                                    updateCdpTunnel(data.cdp_url, serverHost);
+                                    cdpLink.href = `http://localhost:${localPort}`;
+                                    cdpLink.textContent = `Open CDP endpoint (http://localhost:${localPort})`;
+                                } else {
+                                    cdpNote.classList.add("hidden");
+                                    updateCdpTunnel(null, serverHost);
+                                }
+                            } catch (err) {
+                                cdpNote.classList.add("hidden");
+                                updateCdpTunnel(null, serverHost);
+                            }
+                        }
+                    } else if (cdpRow) {
+                        cdpRow.classList.add("hidden");
+                        if (cdpNote) {
+                            cdpNote.classList.add("hidden");
+                        }
+                        updateCdpTunnel(null, "");
+                    }
+                }
+            } catch (err) {
+                metaEl.textContent = `State error: ${err.message}`;
+                showBanner(`State error: ${err.message}`);
+            }
+        }
+
+        async function refreshTabs({ preserveSelection = true } = {}) {
+            if (!tabSelect) return;
+            const previous = tabSelect.value;
+            try {
+                const data = await api("action", { action: { type: "list_tabs" } });
+                const tabs = data?.result?.tabs || [];
+                tabSelect.innerHTML = "";
+                if (!tabs.length) {
+                    const option = document.createElement("option");
+                    option.value = "";
+                    option.textContent = "No tabs";
+                    tabSelect.appendChild(option);
+                    return;
+                }
+                let activeId = "";
+                tabs.forEach((tab) => {
+                    const option = document.createElement("option");
+                    option.value = tab.tab_id;
+                    option.textContent = `${tab.active ? "● " : ""}${tab.title || tab.url || "Untitled"}`;
+                    option.title = tab.url || "";
+                    if (tab.active) {
+                        activeId = tab.tab_id;
+                    }
+                    tabSelect.appendChild(option);
+                });
+                if (preserveSelection && previous) {
+                    tabSelect.value = previous;
+                }
+                if (!tabSelect.value && activeId) {
+                    tabSelect.value = activeId;
+                }
+            } catch (err) {
+                statusEl.textContent = `Tab list error: ${err.message}`;
+            }
+        }
+
+        async function refreshScreenshot() {
+            if (refreshInFlight) {
+                pendingRefresh = true;
+                return;
+            }
+            refreshInFlight = true;
+            const startedAt = performance.now();
+            try {
+                const blob = await api("screenshot");
+                const nextUrl = URL.createObjectURL(blob);
+                screen.src = nextUrl;
+                if (lastScreenUrl && lastScreenUrl.startsWith("blob:")) {
+                    URL.revokeObjectURL(lastScreenUrl);
+                }
+                lastScreenUrl = nextUrl;
+                clearScreenError();
+                clearBanner();
+                await refreshState();
+                await refreshTabs({ preserveSelection: true });
+                updateFps(performance.now());
+                const elapsed = performance.now() - startedAt;
+                const target = clamp(Math.max(baseIntervalMs, elapsed * 1.4 + 80), 300, 5000);
+                adaptiveIntervalMs = adaptiveIntervalMs * 0.7 + target * 0.3;
+            } catch (err) {
+                const message = `Screenshot error: ${err.message}`;
+                statusEl.textContent = message;
+                showScreenError(message);
+                showBanner(message);
+                const target = clamp(Math.max(baseIntervalMs * 1.6, adaptiveIntervalMs * 1.4), 300, 5000);
+                adaptiveIntervalMs = adaptiveIntervalMs * 0.5 + target * 0.5;
+            } finally {
+                refreshInFlight = false;
+                scheduleAutoRefresh();
+                if (pendingRefresh) {
+                    pendingRefresh = false;
+                    refreshScreenshot();
+                }
+            }
+        }
+
+        async function sendAction(action, { refresh = true } = {}) {
+            statusEl.textContent = "Sending action...";
+            try {
+                const data = await api("action", { action });
+                const errorDetail = data.error || data?.result?.error || data?.result?.reason;
+                statusEl.textContent = data.ok ? "Action complete." : `Action failed: ${errorDetail || "unknown"}`;
+                if (!data.ok) {
+                    showBanner(statusEl.textContent);
+                } else {
+                    clearBanner();
+                }
+                if (refresh) {
+                    await refreshScreenshot();
+                }
+            } catch (err) {
+                const message = `Action error: ${err.message}`;
+                statusEl.textContent = message;
+                showBanner(message);
+            }
+        }
+
+        screen.addEventListener("click", (event) => {
+            if (!screen.naturalWidth) return;
+            const rect = screen.getBoundingClientRect();
+            const scaleX = screen.naturalWidth / rect.width;
+            const scaleY = screen.naturalHeight / rect.height;
+            const x = (event.clientX - rect.left) * scaleX;
+            const y = (event.clientY - rect.top) * scaleY;
+            sendAction({ type: "click_xy", x, y });
+        });
+        let scrollDeltaX = 0;
+        let scrollDeltaY = 0;
+        let scrollTimer = null;
+        screen.addEventListener("wheel", (event) => {
+            event.preventDefault();
+            const mode = event.deltaMode || 0;
+            const multiplier = mode === 1 ? 16 : mode === 2 ? 800 : 1;
+            scrollDeltaX += (event.deltaX || 0) * multiplier;
+            scrollDeltaY += (event.deltaY || 0) * multiplier;
+            if (scrollTimer) return;
+            scrollTimer = setTimeout(() => {
+                const deltaX = scrollDeltaX;
+                const deltaY = scrollDeltaY;
+                scrollDeltaX = 0;
+                scrollDeltaY = 0;
+                scrollTimer = null;
+                if (deltaX || deltaY) {
+                    sendAction(
+                        { type: "scroll", delta_x: deltaX, delta_y: deltaY, after_ms: 120 },
+                        { refresh: false }
+                    );
+                }
+            }, 120);
+        }, { passive: false });
+
+        document.getElementById("gotoBtn").addEventListener("click", () => {
+            let url = document.getElementById("urlInput").value.trim();
+            if (url) {
+                if (!url.includes("://")) {
+                    url = `https://${url}`;
+                }
+                sendAction({ type: "goto", url });
+            }
+        });
+
+        document.querySelectorAll("[data-scroll]").forEach((button) => {
+            button.addEventListener("click", () => {
+                const deltaY = parseFloat(button.dataset.scroll || "0");
+                sendAction({ type: "scroll", delta_x: 0, delta_y: deltaY, after_ms: 150 });
+            });
+        });
+
+        document.getElementById("typeBtn").addEventListener("click", () => {
+            const text = document.getElementById("typeInput").value;
+            if (text) {
+                sendAction({ type: "type", text });
+            }
+        });
+        document.getElementById("pasteBtn").addEventListener("click", async () => {
+            try {
+                const text = await navigator.clipboard.readText();
+                if (text) {
+                    sendAction({ type: "type", text });
+                } else {
+                    statusEl.textContent = "Clipboard is empty.";
+                }
+            } catch (err) {
+                statusEl.textContent = `Clipboard error: ${err.message}`;
+            }
+        });
+
+        document.querySelectorAll("[data-key]").forEach((button) => {
+            button.addEventListener("click", () => {
+                const key = button.dataset.key;
+                sendAction({ type: "press", key });
+            });
+        });
+
+        document.getElementById("refreshBtn").addEventListener("click", () => {
+            refreshScreenshot();
+        });
+        document.getElementById("autoRefreshBtn").addEventListener("click", () => {
+            autoRefresh = !autoRefresh;
+            const label = autoRefresh ? "Auto refresh: On" : "Auto refresh: Off";
+            document.getElementById("autoRefreshBtn").textContent = label;
+            if (autoRefresh) {
+                scheduleAutoRefresh();
+            } else if (autoRefreshTimer) {
+                clearTimeout(autoRefreshTimer);
+                autoRefreshTimer = null;
+            }
+        });
+
+        if (headlessToggleBtn) {
+            headlessToggleBtn.addEventListener("click", () => {
+                desiredHeadless = !resolveDesiredHeadless();
+                updateHeadlessUi();
+            });
+        }
+
+        async function applyHeadless(scope) {
+            const desired = resolveDesiredHeadless();
+            try {
+                const data = await api("mode", {
+                    headless: desired,
+                    scope,
+                    domain: headlessState?.domain_name || "",
+                    apply: true,
+                });
+                headlessState = {
+                    running: data.running_headless,
+                    default: data.default_headless,
+                    session: data.session_headless,
+                    domain: scope === "domain" ? desired : headlessState?.domain,
+                    domain_name: headlessState?.domain_name,
+                };
+                desiredHeadless = null;
+                updateHeadlessUi();
+                statusEl.textContent = "Browser mode updated. Refreshing...";
+                await refreshScreenshot();
+            } catch (err) {
+                statusEl.textContent = `Mode update failed: ${err.message}`;
+                showBanner(statusEl.textContent);
+            }
+        }
+
+        if (headlessApplyDomainBtn) {
+            headlessApplyDomainBtn.addEventListener("click", () => {
+                applyHeadless("domain");
+            });
+        }
+
+        if (headlessApplySessionBtn) {
+            headlessApplySessionBtn.addEventListener("click", () => {
+                applyHeadless("session");
+            });
+        }
+
+        if (refreshRange) {
+            refreshRange.addEventListener("input", () => {
+                baseIntervalMs = Number.parseFloat(refreshRange.value || "300");
+                adaptiveIntervalMs = clamp(adaptiveIntervalMs, baseIntervalMs, 5000);
+                updateRefreshLabel();
+                if (autoRefresh) {
+                    scheduleAutoRefresh();
+                }
+            });
+            updateRefreshLabel();
+        }
+
+        if (tabRefreshBtn) {
+            tabRefreshBtn.addEventListener("click", () => {
+                refreshTabs({ preserveSelection: true });
+            });
+        }
+        if (tabSwitchBtn) {
+            tabSwitchBtn.addEventListener("click", () => {
+                if (!tabSelect || !tabSelect.value) return;
+                sendAction({ type: "switch_tab", tab_id: tabSelect.value });
+            });
+        }
+        if (tabCloseBtn) {
+            tabCloseBtn.addEventListener("click", () => {
+                if (!tabSelect || !tabSelect.value) return;
+                sendAction({ type: "close_tab", tab_id: tabSelect.value });
+                refreshTabs({ preserveSelection: false });
+            });
+        }
+
+        refreshTabs({ preserveSelection: true });
+        refreshScreenshot();
+    </script>
+</body>
+
+</html>

@@ -19,9 +19,9 @@ class MusicSkill:
             return await self._seek(args, message)
         elif tool_name == "music_queue":
             return await self._queue(message)
-        elif tool_name == "tts_speak":
+        elif tool_name == "tts_speak" or tool_name == "speak":
              return await self._tts_speak(args, message)
-        elif tool_name in {"join_voice_channel", "leave_voice_channel"}:
+        elif tool_name in {"join_voice_channel", "leave_voice_channel", "join_voice", "leave_voice"}:
              return await self._voice_connection(tool_name, message)
         return None
 
@@ -80,7 +80,7 @@ class MusicSkill:
     async def _voice_connection(self, tool_name: str, message: discord.Message) -> str:
         if not hasattr(self.bot, "voice_manager"): return "Voice system offline."
         
-        if tool_name == "join_voice_channel":
+        if tool_name in ["join_voice_channel", "join_voice"]:
             try:
                 await self.bot.voice_manager.ensure_voice_client(message.author)
                 self.bot.voice_manager.set_auto_read(message.guild.id, message.channel.id)
@@ -89,7 +89,7 @@ class MusicSkill:
                 return "Joined voice channel. [SILENT_COMPLETION]"
             except Exception as e: return f"Failed to join: {e}"
             
-        elif tool_name == "leave_voice_channel":
+        elif tool_name in ["leave_voice_channel", "leave_voice"]:
             if message.guild.voice_client:
                 await self.bot.voice_manager.play_tts(message.author, "ばいばい！")
                 await asyncio.sleep(1.5)

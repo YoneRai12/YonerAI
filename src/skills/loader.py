@@ -1,4 +1,5 @@
 
+import asyncio
 import importlib.util
 import logging
 import os
@@ -70,3 +71,21 @@ class SkillLoader:
             lines.append(data["description"])
             lines.append("")
         return "\n".join(lines)
+
+    async def execute_tool(self, tool_name: str, args: dict, message: Any, bot: Any = None) -> str:
+        skill = self.skills.get(tool_name)
+        if not skill or not skill["module"]:
+             return "Skill not found or no implementation."
+        
+        if hasattr(skill["module"], "execute"):
+             # Support both async and sync execute? Assuming async for now as per ToolHandler
+             try:
+                if asyncio.iscoroutinefunction(skill["module"].execute):
+                    return await skill["module"].execute(args, message, bot=bot)
+                else:
+                    return skill["module"].execute(args, message, bot=bot)
+             except Exception as e:
+                 logger.error(f"Error executing skill {tool_name}: {e}")
+                 return f"Error: {e}"
+        return "Skill implementation has no execute function."
+

@@ -63,3 +63,4 @@ ruff
 mypy
 pip-tools
 chromadb==0.6.3
+playwright

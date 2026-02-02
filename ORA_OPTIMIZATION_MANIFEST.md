@@ -70,3 +70,29 @@ ORA employs a hybrid strategy to ensure users are analyzed deeply without spammi
 
 *   **Failed Analysis**: Users marked as "Error" or "Processing" for >2 hours are auto-reset to "Error" state on reboot to prevent "Stuck Yellow Status" on Dashboard.
 *   **Atomic Saves**: All profile updates use `SimpleFileLock` and `.tmp` atomic writes to prevent JSON corruption.
+
+---
+
+## 5. System Performance Standards (S1-S7)
+
+These architectural guarantees are **mandatory** for all future dev.
+
+### A. Determinism & Safety (S1-S4)
+*   **Router**: Must use `temperature=0` and Strict JSON.
+*   **Safety**: If Router fails or JSON parses incorrectly, Fallback to Safe Tools (`SYSTEM_UTIL`). **Never crash**.
+*   **Granularity**: Tools must be split by intent (`WEB_READ` vs `WEB_FETCH`) to prevent accidental downloads.
+
+### B. Startup Speed (S5)
+*   **Lazy Loading**: Heavy libraries (`playwright`, `numpy`, `torch`) MUST NOT be imported at top-level in `ToolHandler` or `Bot`.
+*   **Registry**: Tool Metadata (Registry) is decoupled from Implementation.
+*   **Target**: Import time for `ToolSelector` must remain under **10ms**.
+
+### C. Observability & Cache (S6-S7)
+*   **Prefix Stability**: System Prompt and Tool Schemas must be **byte-perfect static** (Sorted Keys, Sorted List) to maximize KV Cache hits.
+*   **Log Integrity**: Every Router decision must log a JSON payload (`router_event`) with `request_id`, `prefix_hash`, and separated timing (`roundtrip` vs `local`).
+*   **Proactive Health**: The `RouterHealthMonitor` must be active. Anomalies (High Fallback >10%, Cache Thrashing) must trigger alerts.
+
+### D. Security & Automation (S8)
+*   **Privacy Masking**: Automated Context Dumps MUST use strict Regex to redact Keys (`sk-`, `ghp_`), Tokens (`Bearer`, `session`), and PII before disk I/O.
+*   **Alert Hygiene**: Alerts must utilize Client-Side Rate Limiting (15m Cooldown) and **Redundant Paths** (DM -> Log Channel) to guarantee delivery.
+*   **Loop Closure**: Critical failures must form a closed loop: `Detection -> Evidence Preservation -> Notification`.

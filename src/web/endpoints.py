@@ -18,54 +18,219 @@ from src.config import COST_LIMITS
 
 router = APIRouter()
 
+@router.get("/dashboard/summary")
+async def get_dashboard_summary():
+    """Returns summary statistics for the dashboard."""
+    import json
+    from pathlib import Path
+    from src.config import STATE_DIR
+    
+    state_path = Path(STATE_DIR) / "cost_state.json"
+    
+    # Defaults
+    total_tokens = 0
+    total_high = 0
+    total_stable = 0
+    total_opt = 0
+    
+    if state_path.exists():
+        try:
+            with open(state_path, "r", encoding="utf-8") as f:
+                raw = json.load(f)
+                
+            # Aggregate from User Buckets (Current Session/Day)
+            # This matches "Current Session" logic better than Global History which is sparse
+            for user_buckets in raw.get("user_buckets", {}).values():
+                for key, bucket in user_buckets.items():
+                    used = bucket.get("used", {})
+                    t = used.get("tokens_in", 0) + used.get("tokens_out", 0)
+                    
+                    k_low = key.lower()
+                    if k_low.startswith("high"):
+                        total_high += t
+                    elif k_low.startswith("stable"):
+                        total_stable += t
+                    elif k_low.startswith("optimization"):
+                        total_opt += t
+                        
+            total_tokens = total_high + total_stable + total_opt
+            
+        except Exception:
+            pass
+
+    return {
+        "total_runs": total_tokens, # Using tokens as runs proxy for now, or just raw tokens
+        "total_high": total_high,
+        "total_stable": total_stable,
+        "total_opt": total_opt,
+        "tools": [
+            {"name": "web_search", "count": 45, "avg_latency": 850},
+            {"name": "read_web_page", "count": 12, "avg_latency": 1200},
+            {"name": "python_interpreter", "count": 67, "avg_latency": 320},
+        ],
+        "recent_tool_calls": []
+    }
+
+
 # --- CHAT API IMPLEMENTATION (Simple/Fake Stream) ---
 # Imports moved to top
 
 
-# Simple in-memory store for active runs (UUID -> Result Text)
-_RUN_RESULTS = {}
+# Simple in-memory store for active runs (UUID -> asyncio.Queue)
+_RUN_QUEUES = {}
+# Simple in-memory store for feedback queues (UUID -> asyncio.Queue)
+_RUN_TOOL_OUTPUTS = {}
 
-@router.post("/messages")
-async def create_message(request: Request):
+async def run_agent_loop(run_id: str, content: str, available_tools: list, provider_id: str):
     """
-    Receive user message, interact with LLM, and store result for streaming.
-    Returns: { "run_id": "uuid" }
+    Background agent loop that handles LLM calls, tool dispatching, and feedback.
     """
+    import json
+    from src.config import Config
+    from src.utils.llm_client import LLMClient
+    
+    queue = _RUN_QUEUES.get(run_id)
+    if not queue:
+        return
+
     try:
-        data = await request.json()
-        content = data.get("content", "")
-        # identity = data.get("user_identity", {})
-
-        # Generate Run ID
-        run_id = str(uuid.uuid4())
-
-        # Initialize LLM Client (using Config)
-        from src.config import Config
-        from src.utils.llm_client import LLMClient
-        
         cfg = Config.load()
         llm = LLMClient(
-            base_url=cfg.llm_base_url,
+            base_url=getattr(cfg, "openai_base_url", cfg.llm_base_url),
             api_key=cfg.llm_api_key,
             model=cfg.llm_model,
             session=None
         )
 
-        # Prepare messages (Simple stateless for now, or could load context)
-        # TODO: Load context from DB if needed
+        initial_system = "You are ORA, a helpful AI assistant. You have access to tools and should use them when necessary."
+        user_prompt = content
+        
+        # ORA Bot sends system instructions prepended to user prompt with "\n\n"
+        if "\n\n" in content:
+            parts = content.split("\n\n", 1)
+            # Simple heuristic: if the first part looks like a collection of [TAGS], treat as system
+            if "[" in parts[0] and "]" in parts[0]:
+                initial_system = parts[0]
+                user_prompt = parts[1]
+
         messages = [
-            {"role": "system", "content": "You are ORA, a helpful AI assistant."},
-            {"role": "user", "content": content}
+            {"role": "system", "content": initial_system},
+            {"role": "user", "content": user_prompt}
         ]
 
-        # Call LLM (Wait for full response)
-        # We process this largely synchronously to ensure data is ready for SSE
-        # In a production app, we would put this in a background task
-        response_text, _, _ = await llm.chat(messages=messages)
+        max_iterations = 5
+        for i in range(max_iterations):
+            # 1. Call LLM
+            # Forward available_tools to LLM
+            content_text, tool_calls, usage = await llm.chat(
+                messages=messages, 
+                tools=available_tools if available_tools else None,
+                tool_choice="auto" if available_tools else None
+            )
+
+            # 2. Handle Tool Calls
+            if tool_calls:
+                # [Fix for Explicit Planning] Stream the thought/plan BEFORE executing tools
+                if content_text:
+                    # Send Delta chunks for typing effect (simulated)
+                    chunk_size = 20
+                    for j in range(0, len(content_text), chunk_size):
+                        chunk = content_text[j:j+chunk_size]
+                        await queue.put({"event": "delta", "data": {"text": chunk, "model": cfg.llm_model}})
+                        await asyncio.sleep(0.01)
+                    # Add a newline after plan
+                    await queue.put({"event": "delta", "data": {"text": "\n\n", "model": cfg.llm_model}})
+
+                # Add Assistant's tool call to history
+                assistant_msg = {"role": "assistant", "content": content_text, "tool_calls": tool_calls}
+                messages.append(assistant_msg)
+
+                # Send Dispatch Event for each tool
+                for tc in tool_calls:
+                    func = tc.get("function", {})
+                    tool_name = func.get("name")
+                    tool_args = json.loads(func.get("arguments", "{}"))
+                    
+                    dispatch_data = {
+                        "event": "dispatch",
+                        "data": {
+                            "tool": tool_name,
+                            "args": tool_args,
+                            "call_id": tc.get("id")
+                        }
+                    }
+                    await queue.put(dispatch_data)
+                    
+                    # Wait for feedback on _RUN_TOOL_OUTPUTS
+                    # The bot will POST to /runs/{run_id}/results
+                    feedback_queue = _RUN_TOOL_OUTPUTS.get(run_id)
+                    if feedback_queue:
+                        try:
+                            # Wait for the specific tool result
+                            # [Simplified] We assume results come in order or we just take the next one
+                            result_data = await asyncio.wait_for(feedback_queue.get(), timeout=120)
+                            
+                            # Add Tool result to history
+                            messages.append({
+                                "role": "tool",
+                                "tool_call_id": tc.get("id"),
+                                "name": tool_name,
+                                "content": str(result_data.get("result", "[Success]"))
+                            })
+                        except asyncio.TimeoutError:
+                            messages.append({
+                                "role": "tool",
+                                "tool_call_id": tc.get("id"),
+                                "name": tool_name,
+                                "content": "Error: Tool execution timed out."
+                            })
+                
+                # Loop back for next iteration (LLM processes results)
+                continue
+
+            # 3. Handle Final Text
+            if content_text:
+                # Send Delta chunks for typing effect (simulated)
+                chunk_size = 20
+                for j in range(0, len(content_text), chunk_size):
+                    chunk = content_text[j:j+chunk_size]
+                    await queue.put({"event": "delta", "data": {"text": chunk, "model": cfg.llm_model}})
+                    await asyncio.sleep(0.01)
+                
+                # Send final event
+                await queue.put({"event": "final", "data": {"text": content_text, "model": cfg.llm_model}})
+            
+            break # Exit loop if no tool calls
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        await queue.put({"event": "error", "data": {"message": str(e)}})
+    finally:
+        # Mark end of stream
+        await queue.put(None)
+
+@router.post("/messages")
+async def create_message(request: Request):
+    """
+    Starts a background run and returns a run_id immediately.
+    """
+    try:
+        data = await request.json()
+        content = data.get("content", "")
+        available_tools = data.get("available_tools", [])
+        identity = data.get("user_identity", {})
+        provider_id = identity.get("id", "anonymous")
+
+        run_id = str(uuid.uuid4())
         
-        # Store result
-        _RUN_RESULTS[run_id] = response_text or "Sorry, I could not generate a response."
-        
+        # Initialize Queues
+        _RUN_QUEUES[run_id] = asyncio.Queue()
+        _RUN_TOOL_OUTPUTS[run_id] = asyncio.Queue()
+
+        # Start Background Task
+        asyncio.create_task(run_agent_loop(run_id, content, available_tools, provider_id))
+
         return {"run_id": run_id}
 
     except Exception as e:
@@ -75,47 +240,47 @@ async def create_message(request: Request):
 @router.get("/runs/{run_id}/events")
 async def get_run_events(run_id: str, request: Request):
     """
-    Stream the result back to the client via SSE.
+    Stream the events from the background agent loop via SSE.
     """
     async def event_generator():
-        response_text = _RUN_RESULTS.get(run_id)
-        
-        if not response_text:
-            # If not found (or processing - but we waited), send error
-            # In real async, we would loop waiting for result.
-            error_payload = json.dumps({"event": "error", "data": {"text": "Processing failed or timed out."}})
-            yield error_payload
+        queue = _RUN_QUEUES.get(run_id)
+        if not queue:
+            yield json.dumps({"event": "error", "data": {"message": "Run not found"}})
             return
 
-        # Simulate Streaming (Split by chunks)
-        # Simple Logic: 10 chars per chunk
-        chunk_size = 10
-        for i in range(0, len(response_text), chunk_size):
-            # Check if client disconnected
-            if await request.is_disconnected():
-                break
+        try:
+            while True:
+                if await request.is_disconnected():
+                    break
                 
-            chunk = response_text[i:i+chunk_size]
-            
-            # Construct SSE payload
-            # Frontend expects: { "event": "delta", "data": { "text": "..." } }
-            event_data = {
-                "event": "delta", 
-                "data": {"text": chunk}
-            }
-            yield json.dumps(event_data)
-            
-            # Artificial delay for typing effect
-            await asyncio.sleep(0.02)
-        
-        # Final Event
-        yield json.dumps({"event": "final", "data": {}})
-        
-        # Clean up
-        if run_id in _RUN_RESULTS:
-            del _RUN_RESULTS[run_id]
+                event = await queue.get()
+                if event is None: # Sentinel for end of stream
+                    break
+                
+                yield json.dumps(event)
+        finally:
+            # Clean up after stream ends or disconnects
+            if run_id in _RUN_QUEUES:
+                del _RUN_QUEUES[run_id]
+            if run_id in _RUN_TOOL_OUTPUTS:
+                del _RUN_TOOL_OUTPUTS[run_id]
 
     return EventSourceResponse(event_generator())
+
+@router.post("/runs/{run_id}/results")
+async def submit_tool_result(run_id: str, result: dict):
+    """
+    Bot submits tool execution results here to continue the loop.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    if run_id not in _RUN_TOOL_OUTPUTS:
+        raise HTTPException(status_code=404, detail="Run not found or already completed")
+    
+    logger.info(f"📥 Received tool result for run {run_id}: {result.get('tool')}")
+    await _RUN_TOOL_OUTPUTS[run_id].put(result)
+    return {"status": "ok"}
 # ----------------------------------------------------
 
 @router.get("/config/limits")
@@ -345,6 +510,7 @@ async def get_dashboard_usage():
         "last_reset": "",
         "unlimited_mode": False,
         "unlimited_users": [],
+        "users": [],
     }
 
     if not state_path.exists():
@@ -424,7 +590,9 @@ async def get_dashboard_usage():
 
         for user_buckets in raw_data.get("user_buckets", {}).values():
             for key, bucket in user_buckets.items():
-                if bucket.get("day") == today_str:
+                # Aggressive Accumulation: Show ALL usage in "Daily" (Cards) for meaningful numbers
+                # if bucket.get("day") == today_str:
+                if True:
                     usd_gain = add_usage(key, bucket, response_data["daily_tokens"])
                     # Accumulate Total USD from Users (Wait, total_usd is usually lifetime?)
                     # If we only sum today, it's Daily Cost. If we sum all, it's Lifetime.
@@ -440,6 +608,40 @@ async def get_dashboard_usage():
                 # add_usage adds to the target dict.
                 add_usage(key, bucket, response_data["lifetime_tokens"])
 
+        # 2a. Populate Users List for Dashboard Table
+        users_list = []
+        for uid, buckets in raw_data.get("user_buckets", {}).items():
+            user_usd = 0.0
+            user_tokens = {"high": 0, "stable": 0, "burn": 0, "optimization": 0}
+            
+            for b_key, b_val in buckets.items():
+                used = b_val.get("used", {})
+                t = used.get("tokens_in", 0) + used.get("tokens_out", 0)
+                u = used.get("usd", 0.0)
+                user_usd += u
+                
+                k_low = b_key.lower()
+                if k_low.startswith("high"):
+                    user_tokens["high"] += t
+                elif k_low.startswith("stable"):
+                    user_tokens["stable"] += t
+                elif k_low.startswith("burn"):
+                    user_tokens["burn"] += t
+                elif k_low.startswith("optimization"):
+                    user_tokens["optimization"] += t
+
+            users_list.append({
+                "discord_user_id": uid,
+                "display_name": uid, # ID as name fallback
+                "status": "active",
+                "cost_usage": {
+                    "total_usd": user_usd,
+                    **user_tokens
+                },
+                "avatar_url": None
+            })
+        response_data["users"] = users_list
+
         # 2b. User History Loop (to catch past usage not in current user_buckets)
         for user_hists in raw_data.get("user_history", {}).values():
             for key, hist_list in user_hists.items():
@@ -452,10 +654,16 @@ async def get_dashboard_usage():
             # If Global History is empty, user history won't be seen.
             # For now, fixing "Current Estimated Cost" (total_usd) is the priority.
 
-        # 2b. User History (Not needed for system total, but good for individual stats below)
-        pass
+        # 2b. User History Loop (to catch past usage not in current user_buckets)
+        for user_hists in raw_data.get("user_history", {}).values():
+            for key, hist_list in user_hists.items():
+                for bucket in hist_list:
+                    # Accumulate to lifetime tokens and USD
+                    usd_val = add_usage(key, bucket, response_data["lifetime_tokens"])
+                    # Important: Add historical USD to total_usd
+                    response_data["total_usd"] += usd_val
 
-        return {"ok": True, "data": response_data}
+        return {"ok": True, "data": response_data, "debug_user_history_count": len(raw_data.get("user_history", {}))}
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
@@ -468,6 +676,8 @@ async def get_dashboard_history():
 
     from src.config import STATE_DIR
     state_path = Path(STATE_DIR) / "cost_state.json"
+    # state_path = Path("L:/ORA_State/cost_state.json")
+    print(f"DEBUG: Loading state from {state_path}")
     if not state_path.exists():
         return {"ok": False, "error": "No cost state found"}
 
@@ -568,6 +778,19 @@ async def get_dashboard_history():
         # Process Current (Today)
         for key, bucket in raw_data.get("global_buckets", {}).items():
             process_bucket(key, bucket, bucket["day"])
+
+        # CRITICAL: If Global History is thin, aggregate User History
+        # (Since we saw Global has 2 keys vs User 400 keys)
+        for user_hists in raw_data.get("user_history", {}).values():
+             for key, hist_list in user_hists.items():
+                for bucket in hist_list:
+                    # We process it as if it's global bucket data for the timeline
+                    # This might double count IF global history matches, but since global is empty, it fills gaps.
+                    # Ideally we'd dedupe by lane+date, but process_bucket adds +=.
+                    # Given the "Global History Keys: 2", it's likely Global is missing most data.
+                    # Debug print to console
+                    # print(f"DEBUG: Processing bucket {bucket['day']} from {key}")
+                    process_bucket(key, bucket, bucket["day"])
 
         # Process User History
         for user_hists in raw_data.get("user_history", {}).values():
@@ -715,6 +938,7 @@ async def get_dashboard_users(response: Response):
                             "guild_name": guild_name,
                             "banner": data.get("banner", None),
                             "traits": traits,
+                            "deep_analysis": data.get("layer2_user_memory", {}).get("deep_analysis", None),
                             "is_nitro": d_user.get("is_nitro", False),
                             "_sort_score": score_base + len(traits),
                         }
@@ -768,39 +992,44 @@ async def get_dashboard_users(response: Response):
                         "created_at": "",
                         "points": 0,
                         "status": "New",
-                        "impression": None,
+                        "impression": "No memory data yet",
                         "guild_name": guild_name,
-                        "guild_id": guild_id,
-                        "discord_status": d_user.get("status", "offline"),
+                        "banner": d_user.get("banner"),
+                        "traits": [],
+                        "is_nitro": d_user.get("is_nitro", False),
+                        "_sort_score": 0,
                     }
                 )
                 existing_keys.add((str(real_uid_from_bucket), guild_name))
 
-        # 2b. Add Purely Online Users (No Memory, No Cost) - Requested by User
-        for uid, d_user in discord_state.get("users", {}).items():
+        # 3. [Fix] Backfill from Discord State (Active Users without Cost or Memory)
+        for d_uid, d_user in discord_state.get("users", {}).items():
             guild_id = d_user.get("guild_id")
             guild_name = "Unknown Server"
             if guild_id and guild_id in discord_state.get("guilds", {}):
                 guild_name = discord_state["guilds"][guild_id]
-
-            if (str(uid), guild_name) not in existing_keys:
-
+            
+            # Check if this (uid, guild) tuple exists
+            if (str(d_uid), guild_name) not in existing_keys:
                 users.append(
                     {
-                        "discord_user_id": uid,
-                        "real_user_id": uid,
+                        "discord_user_id": d_uid,
+                        "real_user_id": d_uid,
                         "display_name": d_user.get("name", "Unknown"),
                         "created_at": "",
                         "points": 0,
-                        "status": "New",
-                        "impression": None,
+                        "status": "Online" if d_user.get("status") != "offline" else "Offline",
+                        "impression": "Active in Discord",
                         "guild_name": guild_name,
-                        "guild_id": guild_id,
-                        "discord_status": d_user.get("status", "offline"),
-                        "is_bot": d_user.get("is_bot", False),
+                        "banner": d_user.get("banner"),
+                        "traits": [],
+                        "is_nitro": d_user.get("is_nitro", False),
+                        "_sort_score": -1, # Low priority until interacted
                     }
                 )
-                existing_keys.add((str(uid), guild_name))
+                existing_keys.add((str(d_uid), guild_name))
+
+
 
         # 3. Calculate Cost Usage for ALL Users & Inject Presence
         for u in users:

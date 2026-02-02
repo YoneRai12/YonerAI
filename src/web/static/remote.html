@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>ORA Web Remote</title>
+    <style>
+        body { margin: 0; padding: 0; background: #222; color: #fff; font-family: sans-serif; display: flex; flex-direction: column; height: 100vh; }
+        #toolbar { padding: 10px; background: #333; display: flex; gap: 10px; align-items: center; }
+        #viewport { flex: 1; position: relative; overflow: auto; background: #000; display: flex; justify-content: center; align-items: center; }
+        #screen { cursor: crosshair; max-width: 100%; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+        input[type="text"] { flex: 1; padding: 8px; background: #444; border: 1px solid #555; color: #fff; border-radius: 4px; }
+        button { padding: 8px 15px; background: #666; border: none; color: white; cursor: pointer; border-radius: 4px; }
+        button:hover { background: #777; }
+        .status { font-size: 12px; color: #aaa; margin-left: 10px; }
+    </style>
+</head>
+<body>
+    <div id="toolbar">
+        <button onclick="launchBrowser()">Start Browser</button>
+        <button onclick="refreshScreen()">Refresh View</button>
+        <input type="text" id="urlInput" placeholder="https://..." onkeydown="if(event.key==='Enter') navigate()">
+        <button onclick="navigate()">Go</button>
+        <span id="status" class="status">Ready</span>
+    </div>
+    <div id="toolbar" style="border-top: 1px solid #444;">
+        <input type="text" id="textInput" placeholder="Type text here..." onkeydown="if(event.key==='Enter') sendText()">
+        <button onclick="sendText()">Type</button>
+        <button onclick="sendKey('Enter')">Enter</button>
+        <button onclick="sendKey('Backspace')">Backspace</button>
+        <button onclick="scrollPage(0, 100)">Scroll Down</button>
+        <button onclick="scrollPage(0, -100)">Scroll Up</button>
+    </div>
+    <div id="viewport">
+        <img id="screen" src="" alt="Browser Screen" draggable="false">
+    </div>
+
+    <script>
+        const screen = document.getElementById('screen');
+        const status = document.getElementById('status');
+
+        screen.addEventListener('click', async (e) => {
+            const rect = screen.getBoundingClientRect();
+            // Calculate scale if image is resized
+            const scaleX = screen.naturalWidth / rect.width;
+            const scaleY = screen.naturalHeight / rect.height;
+
+            const x = Math.round((e.clientX - rect.left) * scaleX);
+            const y = Math.round((e.clientY - rect.top) * scaleY);
+            
+            setStatus(`Clicking at ${x}, ${y}...`);
+            await api('input', { action: 'click', x, y });
+            setTimeout(refreshScreen, 500); // Wait a bit for update
+        });
+
+        async function api(endpoint, data) {
+            try {
+                const res = await fetch(`/api/browser/${endpoint}`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(data)
+                });
+                if (!res.ok) throw new Error(await res.text());
+                const json = await res.json();
+                setStatus('OK');
+                return json;
+            } catch (err) {
+                setStatus('Error: ' + err.message);
+                console.error(err);
+            }
+        }
+
+        async function launchBrowser() {
+            setStatus('Launching...');
+            await api('launch', {});
+            refreshScreen();
+        }
+
+        async function navigate() {
+            const url = document.getElementById('urlInput').value;
+            if (!url) return;
+            setStatus('Navigating...');
+            const res = await api('navigate', { url });
+            if (res && res.title) setStatus('Page: ' + res.title);
+            refreshScreen();
+        }
+
+        async function sendText() {
+            const text = document.getElementById('textInput').value;
+            if (!text) return;
+            setStatus('Typing...');
+            await api('input', { action: 'type', text });
+            document.getElementById('textInput').value = '';
+            setTimeout(refreshScreen, 500);
+        }
+
+        async function sendKey(key) {
+            setStatus(`Pressing ${key}...`);
+            await api('input', { action: 'key', key });
+            setTimeout(refreshScreen, 500);
+        }
+
+        async function scrollPage(dx, dy) {
+            await api('input', { action: 'scroll', delta_x: dx, delta_y: dy });
+            refreshScreen();
+        }
+
+        function refreshScreen() {
+            // Add timestamp to bypass cache
+            screen.src = `/api/browser/screenshot?t=${new Date().getTime()}`;
+        }
+
+        function setStatus(msg) {
+            status.textContent = msg;
+        }
+
+        // Auto refresh every 2 seconds if visible
+        setInterval(() => {
+            if (document.visibilityState === 'visible' && screen.src) {
+                refreshScreen();
+            }
+        }, 2000);
+    </script>
+</body>
+</html>

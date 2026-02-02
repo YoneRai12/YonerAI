@@ -198,17 +198,60 @@ class ORACog(commands.Cog):
         # Gaming Mode Watcher
         from ..managers.game_watcher import GameWatcher
         self.game_watcher = GameWatcher(
-            target_processes=bot.config.gaming_processes,
+            target_processes=["valorant.exe", "r5apex.exe", "minecraft.exe", "genshinimpact.exe", "monsterhunterwilds.exe", "ffxiv_dx11.exe"],
             on_game_start=self._on_game_start,
             on_game_end=self._on_game_end,
+            poll_interval=30
         )
+        
+        # [Moltbook] Load "Soul" (Persona)
+        self.soul_prompt = self._load_soul()
+
         self._gaming_restore_task: Optional[asyncio.Task] = None
 
         # Start background tasks
         if self.game_watcher:
             self.game_watcher.start()
 
-        logger.info("ORACog.__init__ 螳御ｺ・- 繝・せ繧ｯ繝医ャ繝礼屮隕悶ｒ髢句ｧ九＠縺ｾ縺励◆")
+        logger.info("ORACog.__init__ 完了 - デスクトップ監視を開始しました")
+
+    def _load_soul(self) -> str:
+        """Load the 'Soul' (Persona) prompt from data/soul.md."""
+        soul_path = os.path.join(os.getcwd(), "data", "soul.md")
+        if os.path.exists(soul_path):
+            try:
+                with open(soul_path, "r", encoding="utf-8") as f:
+                    return f.read()
+            except Exception as e:
+                logger.warning(f"Failed to load soul.md: {e}")
+        return "You are ORA, a helpful AI assistant."
+
+    def _get_tool_schemas(self):
+        """Return tool definitions for the Unified Brain."""
+        # For now, return empty or basic schemas.
+        # This was likely intended to load dynamic tools.
+        return {}
+
+    async def set_status(self, text: str, status_type: discord.Status = discord.Status.online):
+        """Helper to set bot status from callbacks."""
+        try:
+            activity = discord.Game(name=text)
+            await self.bot.change_presence(status=status_type, activity=activity)
+        except Exception as e:
+            logger.warning(f"Failed to set status: {e}")
+
+    async def _on_game_start(self):
+        """Callback for GameWatcher when game starts."""
+        logger.info("🎮 Game Started! Switching to gaming mode.")
+        if self.cost_manager:
+            # Hint: You might want to lock expensive tasks here
+            pass
+        await self.set_status("Gaming Mode 🎮", discord.Status.dnd)
+
+    async def _on_game_end(self):
+        """Callback for GameWatcher when game ends."""
+        logger.info("🛑 Game Ended. Returning to normal.")
+        await self.set_status("System Normal ✅", discord.Status.online)
 
     @app_commands.command(name="dashboard", description="Get the link to this server's web dashboard")
     async def dashboard(self, interaction: discord.Interaction):
@@ -1565,36 +1608,7 @@ class ORACog(commands.Cog):
         #     f"ORACog繝｡繝・そ繝ｼ繧ｸ蜿嶺ｿ｡: 繝ｦ繝ｼ繧ｶ繝ｼ={message.author.id}, 蜀・ｮｹ={message.content[:50]}, 豺ｻ莉・{len(message.attachments)}"
         # )
 
-        # --- [NEW] Auto-Read (Reading Bot) Logic ---
-        if message.guild and not message.author.bot:
-            media_cog = self.bot.get_cog("MediaCog")
-            if hasattr(self.bot, "voice_manager"):
-                auto_channel_id = self.bot.voice_manager.auto_read_channels.get(message.guild.id)
-                if auto_channel_id == message.channel.id:
-                    # Check reply to bot
-                    is_reply_to_bot = False
-                    if message.reference:
-                        try:
-                            # Use cached resolved if available for speed
-                            ref_msg = message.reference.resolved
-                            if ref_msg and ref_msg.author.id == self.bot.user.id:
-                                is_reply_to_bot = True
-                            elif message.reference.message_id:
-                                # Start async fetch task? No, just skip check if not resolved to keep it fast?
-                                # Or just accept duplicate read for uncached?
-                                # Better to be safe: if reference exists, skip auto-read?
-                                # No, people reply to each other.
-                                # Let's assume if it's a reply to BOT, it's an AI interaction.
-                                pass
-                        except Exception:
-                            pass
 
-                    # Only read if NOT a mention/AI interaction
-                    if not (self.bot.user in message.mentions or message.content.startswith(("@ORA", "@roa")) or is_reply_to_bot):
-                         # If it's a very short message or has attachments, we might want to skip or handle specially.
-                         # For now, just play TTS.
-                         asyncio.create_task(self.bot.voice_manager.play_tts(message.author, message.content))
-        # -------------------------------------------
 
         # --- Voice Triggers (Direct Bypass - Mentions Only) ---
         is_reply_to_me = False
@@ -1635,7 +1649,12 @@ class ORACog(commands.Cog):
             # Join: "縺阪※" / "譚･縺ｦ"
             # [DISABLED] Handled by AI Tool (join_voice_channel)
             # Join Trigger
-            clean_content = message.content.replace(f"<@{self.bot.user.id}>", "").strip()
+            # Clean content robustly (Handle Nickname Mentions too)
+            clean_content = message.content.replace(f"<@{self.bot.user.id}>", "").replace(f"<@!{self.bot.user.id}>", "").strip()
+            
+            # [DEBUG] Log content for tracing
+            # logger.info(f"Message content: {clean_content}")
+
             if len(clean_content) < 30 and any(k in clean_content.lower() for k in ["join", "connect"]):
                 media_cog = self.bot.get_cog("MediaCog")
                 if media_cog:
@@ -1671,42 +1690,13 @@ class ORACog(commands.Cog):
                 await self.tool_handler._handle_get_role_list(message)
                 return
 
-            # Music: "XX豬√＠縺ｦ" / "play XX"
-            content_stripped = message.content.replace(f"<@{self.bot.user.id}>", "").replace(f"<@!{self.bot.user.id}>", "").strip()
-            for t in ["@ORA", "@ROA", "・ORA", "・ROA", "@ora", "@roa"]:
-                content_stripped = content_stripped.replace(t, "").strip()
+            # [REMOVED] Legacy Keyword Bypasses are now handled by LLM intent in ChatHandler.
+            pass
 
-            # 1. Instant YouTube URL Trigger
-            youtube_regex = r"(https?://(?:www\.)?(?:youtube\.com/watch\?v=|youtu\.be/)[a-zA-Z0-9_-]+)"
-            yt_match = re.search(youtube_regex, message.content)
-            if yt_match:
-                url = yt_match.group(1)
-                media_cog = self.bot.get_cog("MediaCog")
-                if media_cog:
-                    await message.add_reaction("七")
-                    ctx = await self.bot.get_context(message)
-                    asyncio.create_task(media_cog.play_from_ai(ctx, url))
-                    return
+        # Check for User Mention
 
-            # 2. Search & Play Trigger (Regex)
-            music_match = re.search(r"(.*?)\s*(play|queue|start)", content_stripped, re.IGNORECASE)
-            if music_match:
-                query = music_match.group(1).strip()
-                if not query and "play" in content_stripped.lower():
-                     query = re.sub(r"^play\s*", "", content_stripped, flags=re.IGNORECASE).strip()
-
-                if query:
-                    media_cog = self.bot.get_cog("MediaCog")
-                    if media_cog:
-                        try:
-                            await message.add_reaction("剥")
-                            ctx = await self.bot.get_context(message)
-                            asyncio.create_task(media_cog.play_from_ai(ctx, query))
-                            return
-                        except Exception as e:
-                            logger.error(f"Music Trigger Failed: {e}")
-                            await message.add_reaction("❌")
-                    return
+            # [REMOVED] Music keyword triggers. LLM now chooses music_play when appropriate.
+            pass
         # Check for User Mention
         is_user_mention = self.bot.user in message.mentions
 
@@ -2402,6 +2392,258 @@ class ORACog(commands.Cog):
                 ],
             },
             {
+                "name": "web_jump_to_profile",
+                "description": "Directly navigate to a known social media profile (X/Twitter, GitHub, YouTube, Instagram) if a handle is provided (e.g., 'YoneRai12のXページ'). Use this instead of search if the handle is clear.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "site": {
+                            "type": "string",
+                            "enum": ["x", "twitter", "github", "youtube", "instagram"],
+                            "description": "The social media platform."
+                        },
+                        "handle": {
+                            "type": "string",
+                            "description": "The username or handle (e.g., YoneRai12)."
+                        }
+                    },
+                    "required": ["site", "handle"]
+                },
+                "tags": ["profile", "sns", "direct", "jump", "user", "page", "open"],
+            },
+            {
+                "name": "web_remote_control",
+                "description": "LAUNCH REMOTE BROWSER. Use this when the user wants to 'operate' (操作), 'control' (制御), 'use' (使う) the browser themselves, or asks for a 'panel' (パネル). This gives the user a LINK to click and control the browser in real-time. ESSENTIAL for complex interactions.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {},
+                    "required": [],
+                },
+                "tags": [
+                    "web", "browser", "control", "remote", "manipulate", "internet", "sandbox", "tunnel",
+                    "操作", "ブラウザ", "ウェブ", "リモート", "開く", "サンドボックス", "パネル"
+                ],
+            },
+            {
+                "name": "web_screenshot",
+                "description": "VISUAL CAPTURE: Opens a URL and captures a screenshot. Use this when the user's intent is to 'see', 'view', 'check', 'look at', or 'monitor' a web page visually. It also provides a text summary of the content.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "url": {"type": "string", "description": "The URL to navigate to (e.g. 'https://google.com'). If user says 'Open Google', use 'https://www.google.com'."},
+                        "dark_mode": {"type": "boolean", "description": "Set to true for Dark Mode/Night Mode.", "default": True},
+                        "mobile": {"type": "boolean", "description": "Set to true for Mobile View / Vertical Screen (creates a phone-like viewport)."},
+                        "scale": {"type": "number", "description": "Zoom scale factor (e.g. 1.5 for 150%, 0.75 for 75%)."},
+                        "resolution": {
+                            "type": "string", 
+                            "enum": ["SD", "HD", "FHD", "2K", "4K", "8K"],
+                            "description": "Standard Resolution (FHD=1920x1080, 4K=3840x2160, etc)."
+                        },
+                        "orientation": {
+                             "type": "string",
+                             "enum": ["landscape", "portrait"],
+                             "description": "Output Orientation."
+                        },
+                        "delay": {"type": "integer", "description": "Seconds to wait before capture. Default 2."},
+                        "full_page": {"type": "boolean", "description": "Capture full scrollable page? Default False."}
+                    },
+                    "required": [],
+                },
+                "tags": [
+                    "screenshot", "screen", "capture", "image", "show", "view", "display",
+                    "スクショ", "画面", "キャプチャ", "見る", "見せて", "どうなってる"
+                ],
+            },
+            {
+                "name": "web_search",
+                "description": "Search the web for information. Use this if the user asks a question or asks to find something general. If they ask for a specific SNS profile (e.g. 'YoneRai12's X'), 'web_jump_to_profile' is PREFERRED over search.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {"type": "string", "description": "The search query (e.g. 'YoneRai12', 'Python tutorial')."},
+                        "site": {"type": "string", "enum": ["google", "youtube", "github", "yahoo", "twitter", "bing"], "default": "google", "description": "The search engine to use."},
+                        "dark_mode": {"type": "boolean", "description": "Set to true for Dark Mode.", "default": True},
+                        "mobile": {"type": "boolean", "description": "Set to true for Mobile View."},
+                    },
+                    "required": ["query"],
+                },
+                "tags": ["search", "google", "find", "query", "lookup", "検索", "調べる", "ググる", "探す"],
+            },
+            {
+                "name": "web_download",
+                "description": "MEDIA PERSISTENCE: Downloads and saves video or audio files from a URL to the permanent storage. Use this when the user's intent is to 'save', 'download', 'keep', 'store', or 'archive' specific media content (video/audio).",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "url": {"type": "string", "description": "Target URL"},
+                        "format": {"type": "string", "enum": ["video", "audio", "image"], "default": "video", "description": "Media format."},
+                        "start_time": {"type": "integer", "description": "Start time in seconds for processing (for splitting/continuation)."},
+                        "force_compress": {"type": "boolean", "description": "Force compression to fit Discord upload limit even if it degrades quality."}
+                    },
+                    "required": [],
+                },
+                "tags": ["download", "video", "save", "movie", "mp4", "保存", "動画", "ダウンロード", "音声", "曲", "音楽", "clipping"],
+            },
+            {
+                "name": "web_record_screen",
+                "description": "[SCREEN RECORDING TOOL] Visually records the browser screen. Use ONLY when user says 'Screen Record', 'Record screen', 'Record this page', '画面録画', 'その画面を録画'. Capture the visual feed.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "action": {"type": "string", "enum": ["start", "stop"], "default": "start", "description": "Start recording (auto-stops) or Stop manually."},
+                        "duration": {"type": "integer", "default": 30, "description": "Duration in seconds (default 30)."}
+                    },
+                    "required": [],
+                },
+                "tags": ["record", "screen", "capture", "video", "recording", "録画", "記録", "画面録画", "キャプチャ"],
+            },
+            {
+                "name": "web_action",
+                "description": "Perform a browser action (click, type, scroll, goto). Use for navigating or interacting with the page. REQUIRES 'web_remote_control' or 'web_screenshot' to be called first to establish session.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "action": {"type": "string", "enum": ["click", "type", "key", "scroll", "goto"]},
+                        "url": {"type": "string", "description": "URL for 'goto' action"},
+                        "selector": {"type": "string", "description": "CSS selector for element interaction"},
+                        "ref": {"type": "string", "description": "Element reference ID from ARIA snapshot (e.g. '7', 'c12')"},
+                        "text": {"type": "string", "description": "Text to type"},
+                        "key": {"type": "string", "description": "Key to press (e.g. 'Enter')"},
+                    },
+                    "required": ["action"],
+                },
+                "tags": ["click", "type", "input", "scroll", "action"],
+            },
+            {
+                "name": "web_navigate",
+                "description": "Navigate to a VERIFIED URL. If the user mentions a name or site without a full URL, use 'web_jump_to_profile' for SNS profiles (X, GitHub, etc.) or 'web_search' for others. DO NOT guess URLs.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "url": {"type": "string", "description": "The target URL (e.g. https://google.com, https://wikipedia.org)."}
+                    },
+                    "required": ["url"],
+                },
+                "tags": ["goto", "open", "navigate", "browser", "url"],
+            },
+            {
+                "name": "web_set_view",
+                "description": "Configures the browser viewport orientation and color scheme. Use for 'vertical screen', 'light/dark mode'.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "orientation": {
+                            "type": "string",
+                            "enum": ["vertical", "horizontal"],
+                            "description": "The viewport orientation. vertical (375x812) or horizontal (1280x720)."
+                        },
+                        "mode": {
+                            "type": "string",
+                            "enum": ["light", "dark"],
+                            "description": "The color scheme (light/dark mode)."
+                        }
+                    }
+                },
+                "tags": ["view", "orientation", "light", "dark", "mode", "viewport"],
+            },
+            {
+                "name": "web_screenshot",
+                "description": "Takes a screenshot of the current page or a specific URL. If a URL is provided, it navigates there first. Supports 'full_page' or standard viewport.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "url": {"type": "string", "description": "Optional URL to screenshot. If omitted, captures current page."},
+                        "full_page": {"type": "boolean", "description": "If true, captures the entire scrollable area."}
+                    },
+                    "required": []
+                },
+                "tags": ["screenshot", "capture", "image", "photo", "ss"]
+            },
+            {
+                "name": "web_download",
+                "description": "Downloads video or audio from a supported URL (YouTube, TikTok, X/Twitter, etc.) using yt-dlp. Saves the file and uploads it to Discord. Use this when the user wants to 'save' or 'download' media.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "url": {"type": "string", "description": "The URL of the video/audio to download."}
+                    },
+                    "required": ["url"]
+                },
+                "tags": ["download", "save", "video", "mp4", "mp3", "youtube", "tiktok"]
+            },
+            {
+                "name": "fs_action",
+                "description": "Perform valid filesystem operations (ls, cat, grep, tree, diff). Use to inspect logs, code, or directory structure.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "command": {"type": "string", "enum": ["ls", "cat", "grep", "tree", "diff"]},
+                        "path": {"type": "string", "description": "Target file or directory path (relative to bot root)."},
+                        "pattern": {"type": "string", "description": "Regex pattern for grep."},
+                        "arg2": {"type": "string", "description": "Second file path for diff."}
+                    },
+                    "required": ["command", "path"],
+                },
+                "tags": ["file", "system", "ls", "grep", "read", "check", "log"],
+            },
+            # --- Voice & TTS ---
+            {
+                "name": "join_voice",
+                "description": "AUDIO PRESENCE: Joins the user's Voice Channel to establish an audio-based connection. Use this when the user's intent is for the bot to 'come' (きて), 'join' (はいって), 'listen' (きいて), or 'be present' in the talk.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {},
+                    "required": [],
+                },
+                "tags": ["join", "vc", "connect", "call", "voice", "来て", "入って", "通話"],
+            },
+            {
+                "name": "leave_voice",
+                "description": "COMMUNICATION TERMINATION: Leaves the Voice Channel and disconnects the audio session. Use this when the user's intent is to say 'goodbye', 'leave' (ぬけて/きって), 'exit', or 'stop listening'.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {},
+                    "required": [],
+                },
+                "tags": ["leave", "exit", "disconnect", "bye", "out", "抜けて", "切って"],
+            },
+            {
+                "name": "speak",
+                "description": "Speak text using TTS in the Voice Channel. Use this to read out responses or announcements.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "text": {"type": "string", "description": "The text to speak."}
+                    },
+                    "required": ["text"],
+                },
+                "tags": ["speak", "say", "talk", "read", "tts", "voice", "読み上げ", "しゃべって"],
+            },
+            {
+                "name": "generate_image_api",
+                "description": "Generate an image using OpenAI DALL-E 3 API. Use this when you need high-quality generation via API, or as a backup to local generation.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "prompt": {"type": "string", "description": "Description of the image."}
+                    },
+                    "required": ["prompt"],
+                },
+                "tags": ["draw", "image", "generate", "dall-e", "api", "picture"],
+            },
+            {
+                "name": "generate_video_api",
+                "description": "Generate a video using OpenAI Sora API (if available). Use for AI video creation requests.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "prompt": {"type": "string", "description": "Description of the video."}
+                    },
+                    "required": ["prompt"],
+                },
+                "tags": ["video", "movie", "sora", "generate", "api"],
+            },
+            {
                 "name": "remind_me",
                 "description": "[Discord/Util] Set a personal reminder.",
                 "parameters": {
@@ -2541,21 +2783,14 @@ class ORACog(commands.Cog):
                 "tags": ["seek", "jump", "time"],
             },
             # --- General ---
-            {
-                "name": "google_search",
-                "description": "[Search] Search Google for real-time info (News, Weather, Prices).",
-                "parameters": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]},
-                "tags": [
-                    "search",
-                    "google",
-                    "weather",
-                    "price",
-                    "news",
-                    "info",
-                    "lookup",
-                    "lookup",
-                ],
-            },
+            # [Dynamic Replacement] google_search replaced by web_search skill if loaded
+            # {
+            #     "name": "google_search",
+            #     "description": "[Search] Search Google for real-time info (News, Weather, Prices).",
+            #     "parameters": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]},
+            #     "tags": ["search", "google", "weather", "price", "news", "info", "lookup"],
+            # },
+
             {
                 "type": "function",
                 "name": "read_file",
@@ -2739,9 +2974,96 @@ class ORACog(commands.Cog):
         """
         Public method to get tools filtered by client context.
         Prevents usage of Discord-only tools in Web UI, or Web tools in Discord.
+        Also includes Dynamically Loaded Skills from SKILL.md files.
         """
         all_tools = self._get_tool_schemas()
         
+        # [Clawdbot] Dynamic Skill Injection
+        if hasattr(self, "tool_handler") and hasattr(self.tool_handler, "skill_loader"):
+             dynamic_skills = self.tool_handler.skill_loader.skills
+             for skill_name, _ in dynamic_skills.items():
+                 # Parse parameters from description or standard template? 
+                 # Currently SKILL.md is text description. 
+                 # We need a proper JSON schema for the router/LLM.
+                 # STARTUP: For now, we assume standard signature or try to parse 'tool.py' signature?
+                 # BETTER: The 'SkillLoader' should generate the schema!
+                 # Let's assume SkillLoader has a 'get_schema()' method or similar.
+                 # Implementation Plan: Add 'get_schema(skill_name)' to SkillLoader later.
+                 # For now, we manually map specific known skills or reconstruct schema from metadata?
+                 # Ah, SKILL.md is for HUMANS. `tool.py` is for CODE.
+                 # We need the Function Calling JSON Schema.
+                 # Ideally, we should add a 'schema' field to SKILL.md frontmatter or similar?
+                 # Or just generic "execute_skill" wrapper?
+                 
+                 # PROVISIONAL: We will manually inject the schemas for the migrated skills for now,
+                 # or constructs a generic schema if not found.
+                 
+                 # [Temporary] Map keys to schemas if they match known migrations
+                 if skill_name == "web_search":
+                      all_tools.append({
+                        "name": "web_search",
+                        "description": "Search the internet for real-time information.",
+                        "parameters": {
+                            "type": "object", 
+                            "properties": {"query": {"type": "string"}},
+                            "required": ["query"]
+                        },
+                        "tags": ["search", "web", "internet"]
+                      })
+                 elif skill_name == "read_web_page":
+                      all_tools.append({
+                        "name": "read_web_page",
+                        "description": "Read the contents of a URL.",
+                        "parameters": {
+                            "type": "object", 
+                            "properties": {"url": {"type": "string"}},
+                            "required": ["url"]
+                        },
+                        "tags": ["read", "url", "web"]
+                      })
+                 elif skill_name == "read_chat_history":
+                       all_tools.append({
+                        "name": "read_chat_history",
+                        "description": "Read recent chat messages from the channel.",
+                        "parameters": {
+                            "type": "object", 
+                            "properties": {
+                                "limit": {"type": "integer", "default": 20},
+                                "channel_id": {"type": "integer", "description": "Optional Channel ID"}
+                            },
+                            "required": []
+                        },
+                        "tags": ["read", "chat", "history"]
+                      })
+                 elif skill_name == "web_screenshot":
+                      all_tools.append({
+                        "name": "web_screenshot",
+                        "description": "[Browser] Take a screenshot of a webpage. Supports 'fhd' (default) or '4k' resolution.",
+                        "parameters": {
+                            "type": "object", 
+                            "properties": {
+                                "url": {"type": "string"},
+                                "resolution": {"type": "string", "enum": ["fhd", "4k"], "default": "fhd"}
+                            },
+                            "required": ["url"]
+                        },
+                        "tags": ["screenshot", "web", "browser", "image", "capture"]
+                      })
+                 elif skill_name == "web_download":
+                      all_tools.append({
+                        "name": "web_download",
+                        "description": "[Browser] Download video/audio from a URL (YouTube, X, etc.) using yt-dlp.",
+                        "parameters": {
+                            "type": "object", 
+                            "properties": {
+                                "url": {"type": "string"}
+                            },
+                            "required": ["url"]
+                        },
+                        "tags": ["download", "video", "youtube", "twitter", "save"]
+                      })
+                 # Future: Generic dynamic schema generation
+
         # Tools invalid for Discord (e.g. DOM manipulation, Browser events)
         web_only = {"dom_click", "dom_read", "browser_nav"}
         
@@ -2763,6 +3085,7 @@ class ORACog(commands.Cog):
             filtered.append(tool)
             
         return filtered
+
 
     async def handle_prompt(
         self,

@@ -67,6 +67,9 @@ class SystemCog(commands.Cog):
         except RuntimeError:
             pass  # Already running
 
+
+
+
     def cog_unload(self):
         self.sync_discord_state.cancel()
         self.log_forwarder.cancel()
@@ -76,7 +79,12 @@ class SystemCog(commands.Cog):
         """Dump Discord State (Presence/Names/Guilds) to JSON for the Web API."""
         await self.bot.wait_until_ready()
         try:
-            state_path = r"L:\ORA_State\discord_state.json"
+            # Use configured state directory
+            state_dir = getattr(self.bot.config, "state_dir", r"L:\ORA_State")
+            state_path = os.path.join(state_dir, "discord_state.json")
+            
+            # Ensure directory exists (self-healing)
+            os.makedirs(os.path.dirname(state_path), exist_ok=True)
             # Structure: users (presence), guilds (id->name map)
             data = {"users": {}, "guilds": {}, "last_updated": ""}
 

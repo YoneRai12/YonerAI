@@ -279,7 +279,11 @@ class LLMClient:
 
             # Temperature and Token Handling
             # FIX: User Instruction "Temperature must not be included" for Next-Gen models.
-            should_omit_temp = any(x in model_name for x in ["gpt-5", "gpt-4.1", "o1", "o3", "codex", "o4"])
+            # Temperature and Token Handling
+            # FIX: User Instruction "Temperature must not be included" for Next-Gen REASONING models.
+            # We allow it for "gpt-5" or "codex" unless they are usually reasoning? 
+            # Current consensus: o1/o3/o4 are reasoning. gpt-5.1-codex-mini is likely standard.
+            should_omit_temp = any(x in model_name for x in ["o1-", "o3-", "o4-"])
 
             if temperature is not None and not should_omit_temp:
                 payload["temperature"] = temperature

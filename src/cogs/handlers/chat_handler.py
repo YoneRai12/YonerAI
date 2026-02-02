@@ -6,6 +6,7 @@ from typing import Optional
 import discord
 
 from src.cogs.handlers.tool_selector import ToolSelector
+from src.cogs.handlers.rag_handler import RAGHandler
 from src.utils.core_client import core_client
 
 logger = logging.getLogger(__name__)
@@ -16,6 +17,7 @@ class ChatHandler:
         self.cog = cog
         self.bot = cog.bot
         self.tool_selector = ToolSelector(self.bot)
+        self.rag_handler = RAGHandler(self.bot)
         logger.info("ChatHandler v3.9.2 (RAG Enabled) Initialized")
 
     async def handle_prompt(
@@ -91,17 +93,47 @@ Traits: {traits}
                 logger.warning(f"Memory Fetch Failed: {e}")
 
             # [SOURCE INJECTION] Explicitly state this is Discord
+            # [Moltbook] Inject Soul (Persona) if available
+            soul_injection = getattr(self.cog, "soul_prompt", "")
+            if soul_injection:
+                soul_injection = f"\n[SYSTEM IDENTITY]\n{soul_injection}\n"
+            
             system_context = f"""
+{soul_injection}
 [SOURCE: DISCORD]
 [SERVER: {message.guild.name if message.guild else 'Direct Message'}]
 [CHANNEL: {message.channel.name if hasattr(message.channel, 'name') else 'DM'}]
 [INSTRUCTION: If the user mentions an SNS profile (e.g., '〜のX', '〜のGithub'), YOU MUST USE 'web_jump_to_profile' with the handle. NEVER guess generic URLs like 'https://x.com/' or 'https://github.com/'.]
-[SECURITY WARNING: You are running on a hosted server. NEVER screenshot or display pages that reveal the HOST SERVER's Global IP Address (e.g. 'What is my IP' sites). If the user asks for 'my IP', explain that you cannot show the server's IP for security reasons.]
+[SECURITY WARNING: You are running on a hosted server. NEVER screenshot sites that reveal the Global IP Address (e.g. 'What is my IP' sites). HOWEVER, you MUST take screenshots for normal sites (X, YouTube, News, etc.) when requested. Do NOT refuse normal screenshot requests.]
 [AGENT PROTOCOL: DEEP RESEARCH]
 If the user asks to "research" (調べて), "investigate" (調査して), or "summarize" (要約して) a topic:
 1. USE 'web_search' to gather information from multiple sources (Web, Note, etc).
 2. VERIFY the information (cross-reference).
 3. SUMMARIZE findings with citations. Do NOT just copy-paste the first search result.
+
+[AGENT PROTOCOL: VISIBLE PLANNING]
+If the user's request is complex, multi-step, or difficult (e.g., 'Take a 4K screenshot, then save video, then check logs'):
+1. FIRST, output a brief '📋 **Execution Plan**:' listing the steps you will take.
+2. THEN, generate the corresponding tool calls in the same response.
+3. This Transparency is CRITICAL for user trust.
+
+[AGENT PROTOCOL: AGENTIC MINDSET (CRITICAL)]
+You are an AGENT, not a wiki or a helpdesk.
+- **NEVER** explain how to do something manually if you have a tool to do it.
+- **NEVER** say "I cannot directly..." if you have a tool like `web_download` or `web_screenshot`.
+- **ALWAYS** EXECUTE the tool immediately.
+- If the user says "Save this URL", USE `web_download`. Do NOT tell them to right-click.
+- If the user says "Take a picture", USE `web_screenshot`.
+Users want YOU to do the work. Don't be lazy.
+
+[FEW-SHOT EXAMPLES]
+User: "スクショして動画を保存して https://example.com/video"
+Assistant: (Thinking: User wants both visual confirmation and file persistence.)
+Tool Calls: [web_screenshot(url="..."), web_download(url="...")]
+
+User: "ブラウザで開いて" (Open in browser)
+Assistant:
+Tool Calls: [web_navigate(url="...")]
 {memory_context}
 """
             # [DEVICE AWARENESS]
@@ -116,25 +148,71 @@ If the user asks to "research" (調べて), "investigate" (調査して), or "su
             # Prepend to prompt
             full_prompt = system_context.strip() + "\n\n" + prompt
 
-            # [CONTEXT INJECTION] Referenced Message (Reply)
-            if message.reference:
-                try:
-                    if message.reference.cached_message:
-                        ref_msg = message.reference.cached_message
-                    else:
-                        ref_msg = await message.channel.fetch_message(message.reference.message_id)
-                    
-                    if ref_msg and ref_msg.content:
-                         full_prompt += f"\n\n[REPLYING TO MESSAGE (Author: {ref_msg.author.display_name})]:\n{ref_msg.content}"
-                         for embed in ref_msg.embeds:
-                             if embed.url: full_prompt += f"\n[EMBED URL]: {embed.url}"
-                except Exception as e:
-                    logger.warning(f"Failed to fetch referenced message: {e}")
+            # [Vision Integration] Process Attachments & References
+            vision_suffix = ""
+            image_payloads = []
 
-            # Prepare attachments
-            attachments = []
-            for att in message.attachments:
-                attachments.append({"type": "image_url", "url": att.url})
+            try:
+                # 1. Current Message
+                if message.attachments:
+                    suffix, imgs = await self.cog.vision_handler.process_attachments(message.attachments)
+                    vision_suffix += suffix
+                    image_payloads.extend(imgs)
+
+                # 2. Referenced Message (Reply) context
+                if message.reference:
+                    try:
+                        if message.reference.cached_message:
+                            ref_msg = message.reference.cached_message
+                        else:
+                            ref_msg = await message.channel.fetch_message(message.reference.message_id)
+                        
+                        if ref_msg:
+                            full_prompt += f"\n\n[REPLYING TO MESSAGE (Author: {ref_msg.author.display_name})]:\n{ref_msg.content or '(No Text)'}"
+                            for embed in ref_msg.embeds:
+                                if embed.url: full_prompt += f"\n[EMBED URL]: {embed.url}"
+                            
+                            # Vision for References
+                            if ref_msg.attachments:
+                                 suffix, imgs = await self.cog.vision_handler.process_attachments(ref_msg.attachments, is_reference=True)
+                                 vision_suffix += suffix
+                                 image_payloads.extend(imgs)
+                            
+                            if ref_msg.embeds:
+                                 suffix, imgs = await self.cog.vision_handler.process_embeds(ref_msg.embeds, is_reference=True)
+                                 vision_suffix += suffix
+                                 image_payloads.extend(imgs)
+
+                    except Exception as e:
+                        logger.warning(f"Failed to fetch referenced message: {e}")
+            
+            except Exception as e:
+                logger.error(f"Vision Processing Failed: {e}")
+                # Fallback: Continue without vision data rather than crashing
+                full_prompt += "\n[SYSTEM ERROR: Image processing failed. Proceeding with text only.]"
+
+            # Append Vision Text Context
+            full_prompt += vision_suffix
+            
+            # Prepare attachments for LLM (UnifiedClient expects 'attachments' list of dicts)
+            # The structure from VisionHandler is already compatible or needs minor adapt?
+            # UnifiedClient.chat expects 'attachments' argument.
+            # But here we are building `messages` manually?
+            # Wait, `endpoints.py` handles `attachments` argument. 
+            # In `ChatHandler`, we delegate to `core_client` or `unified_client`.
+            
+            # Update: ChatHandler calls `core_client.submit_message`.
+            # We need to pass `image_payloads` to clean attachments.
+            # Currently `chat_handler.py` uses `self.cog.unified_client` or `core_client`.
+            # Let's see the call site further down.
+            
+            # Looking at previous code, `attachments` variable was created:
+            # attachments = []
+            # for att in message.attachments: ...
+            
+            # So I should assign `attachments = image_payloads`
+            
+            attachments = image_payloads
             
             # Send Request (Initial Handshake)
             # Fetch Context-Aware Tools (Discord Only)
@@ -145,18 +223,12 @@ If the user asks to "research" (調べて), "investigate" (調査して), or "su
             await status_manager.update_current("🔍 Intent Analysis (RAG)...")
             
             # [Clawdbot Feature] Vector Memory Retrieval (User + Guild Shared)
-            rag_context = ""
-            if hasattr(self.bot, "vector_memory") and self.bot.vector_memory:
-                guild_id_str = str(message.guild.id) if message.guild else None
-                memories = await self.bot.vector_memory.search_memory(
-                    query= prompt,
-                    user_id=str(message.author.id),
-                    guild_id=guild_id_str,
-                    limit=3
-                )
-                if memories:
-                    rag_context = "\n[Relevant Past Memories]:\n" + "\n".join([f"- {m}" for m in memories]) + "\n"
-                    logger.info(f"RAG: Injected {len(memories)} memories.")
+            guild_id_str = str(message.guild.id) if message.guild else None
+            rag_context = await self.rag_handler.get_context(
+                prompt=prompt,
+                user_id=str(message.author.id),
+                guild_id=guild_id_str
+            )
 
             # Append RAG context to system prompt or user prompt?
             # Ideally User prompt to make it visible to the model as "Context"
@@ -166,7 +238,8 @@ If the user asks to "research" (調べて), "investigate" (調査して), or "su
             selected_tools = await self.tool_selector.select_tools(
                 prompt=prompt, 
                 available_tools=discord_tools, 
-                platform="discord"
+                platform="discord",
+                rag_context=rag_context
             )
 
             # If tools were filtered, log it
@@ -197,6 +270,8 @@ If the user asks to "research" (調べて), "investigate" (調査して), or "su
             # 4. Process SSE Events (Streaming/Incremental Updates)
             full_content = ""
             model_name = "ORA Universal Brain"
+            if hasattr(self, "_plan_sent"):
+                del self._plan_sent
 
             async for event in core_client.stream_events(run_id):
                 ev_type = event.get("event")
@@ -206,6 +281,22 @@ If the user asks to "research" (調べて), "investigate" (調査して), or "su
                     # For non-streaming UI, we just accumulate. 
                     # If we want real-time typing, we'd update message here.
                     full_content += ev_data.get("text", "")
+                    
+                    # [VISUALIZATION] Check if content is an Execution Plan (Relaxed Match)
+                    if "Execution Plan" in full_content and "1." in full_content and not hasattr(self, "_plan_sent"):
+                        # Only send ONCE per run
+                        msg_lines = full_content.split("\n")
+                        plan_lines = [line.strip() for line in msg_lines if line.strip().startswith("1.") or line.strip().startswith("2.") or line.strip().startswith("3.") or line.strip().startswith("-")]
+                        
+                        if plan_lines:
+                             embed = discord.Embed(
+                                 title="🤖 Task Execution Plan", 
+                                 description="\n".join(plan_lines),
+                                 color=0x00ff00 # Green
+                             )
+                             embed.set_footer(text="ORA Intelligent Agent System")
+                             await message.reply(embed=embed)
+                             self._plan_sent = True # Flag to prevent duplicates
                 
                 elif ev_type == "meta":
                      model_name = ev_data.get("model", model_name)
@@ -220,12 +311,21 @@ If the user asks to "research" (調べて), "investigate" (調査して), or "su
                     # We pass the message context so it knows where to reply or join voice.
                     # [FIX] Use await instead of create_task to ensure SEQUENTIAL execution.
                     # This is critical for chains like "Screenshot -> Download -> Screenshot".
-                    await self.cog.tool_handler.handle_dispatch(
+                    tool_result = await self.cog.tool_handler.handle_dispatch(
                         tool_name=tool_name,
                         args=tool_args,
                         message=message,
                         status_manager=status_manager
                     )
+
+                    # [FIX/AGENTIC] Submit Tool Result back to Core to break deadlock
+                    if run_id:
+                        logger.info(f"📤 Auto-submitting tool output for {tool_name} to Core...")
+                        await core_client.submit_tool_output(
+                            run_id=run_id,
+                            tool_name=tool_name,
+                            result=tool_result or "[Success]"
+                        )
 
                 elif ev_type == "final":
                     full_content = ev_data.get("text", "")
