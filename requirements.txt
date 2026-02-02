@@ -62,5 +62,5 @@ pytest-asyncio
 ruff
 mypy
 pip-tools
-chromadb==0.6.3
+chromadb==1.4.1
 playwright
