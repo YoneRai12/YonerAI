@@ -55,33 +55,37 @@ When a runtime error occurs (e.g., specific API failure), ORA:
 ### 2. 🏠 Omni-Router (Hybrid Intelligence)
 **"Why pay for OpenAI when you have an RTX 5090?"**
 
-### 🔄 Agentic Platform Flow
-ORA is more than a bot; she is a **Personal AI Platform** accessible from Discord, Web, Mobile, and external applications.
+### 🔄 Hybrid Agentic Flow
+ORA is a **Hybrid Agent** that intelligently balances your local hardware power (Local) with world-class cloud intelligence (Cloud API).
 
 ```mermaid
 graph TD
     %% Styling
     classDef frontend fill:#f3e5f5,stroke:#9c27b0,stroke-width:2px,color:#000
     classDef router fill:#e1f5fe,stroke:#039be5,stroke-width:2px,color:#000
-    classDef core fill:#bbdefb,stroke:#1565c0,stroke-width:3px,color:#000
+    classDef cloud fill:#e8f5e9,stroke:#4caf50,stroke-width:2px,color:#000
+    classDef local fill:#212121,stroke:#90a4ae,stroke-width:2px,color:#fff
     classDef tool fill:#fff3e0,stroke:#fb8c00,stroke-width:2px,color:#000
     classDef final fill:#fce4ec,stroke:#f06292,stroke-width:2px,color:#000
 
-    subgraph Frontends ["🌐 Multi-Environment Access"]
+    subgraph Frontends ["🌐 Multi-Environment"]
         Discord([💬 Discord Bot]):::frontend
         WebDash([🖥️ Web Dashboard]):::frontend
         Mobile([📱 Mobile / API]):::frontend
     end
 
-    Frontends --> Router{🧠 Omni-Router}:::frontend
+    Frontends --> Router{🧠 Omni-Router}:::router
     
-    subgraph CoreSystem ["💎 Thinking Process (Agentic Logic)"]
-        Router -->|Intent Analysis| ToolSelect[🛠️ Tool Selection]:::core
-        ToolSelect -->|Execution Plan| Dispatcher[⚙️ Dispatcher]:::core
+    subgraph Thinking ["💎 Hybrid Thinking (Hybrid Brain)"]
+        Router -->|Privacy / Low Cost| Local[🏠 Local PC / Home Hardware]:::local
+        Router -->|Deep Reasoning / Code| Cloud[☁️ Cloud API / GPT-5.1]:::cloud
+        
+        Local -->|Fast Inference| Brain[🧠 ORA Core Logic]
+        Cloud -->|High Intel| Brain
     end
 
-    subgraph Execution ["⚡ Execution Layer (RTX 5090 / Cloud)"]
-        Dispatcher -->|Local/Cloud| Tools{🧰 Tools}:::tool
+    subgraph Execution ["⚡ Execution Layer (Action)"]
+        Brain --> Tools{🧰 Tools}:::tool
         
         Tools --> Web[🔍 Search/Save]:::tool
         Tools --> Vision[👁️ Vision/Screen]:::tool
@@ -89,7 +93,7 @@ graph TD
         Tools --> Media[🎨 Image/Voice]:::tool
     end
 
-    Tools --> Memory[(💾 Memory / RAG)]:::core
+    Tools --> Memory[(💾 Memory / RAG)]
     Memory --> Output([✨ Final Reply]):::final
     
     Output -.->|Real-time Notify| Frontends

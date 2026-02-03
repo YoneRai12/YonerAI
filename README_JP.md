@@ -54,19 +54,20 @@ ORAはもはや単なる「Bot」ではありません。あなたのPCに宿る
 ### 🧠 Omni-Router (Hybrid Intelligence)
 **「RTX 5090があるのに、なぜOpenAIに課金するのですか？」**
 
-### 🔄 System Flow (プラットフォーム全体像)
-ORAはDiscordだけでなく、Webやモバイル、外部アプリなど、あらゆる環境からアクセス可能な **「パーソナルAIプラットフォーム」** です。
+### 🔄 System Flow (ハイブリッド・インテリジェンス)
+ORAは、あなたのPCパワー（Local）と、世界最高峰の知能（Cloud API）を適材適所で使い分ける **「ハイブリッド・エージェント」** です。
 
 ```mermaid
 graph TD
     %% Styling
     classDef frontend fill:#f3e5f5,stroke:#9c27b0,stroke-width:2px,color:#000
     classDef router fill:#e1f5fe,stroke:#039be5,stroke-width:2px,color:#000
-    classDef core fill:#bbdefb,stroke:#1565c0,stroke-width:3px,color:#000
+    classDef cloud fill:#e8f5e9,stroke:#4caf50,stroke-width:2px,color:#000
+    classDef local fill:#212121,stroke:#90a4ae,stroke-width:2px,color:#fff
     classDef tool fill:#fff3e0,stroke:#fb8c00,stroke-width:2px,color:#000
     classDef final fill:#fce4ec,stroke:#f06292,stroke-width:2px,color:#000
 
-    subgraph Frontends ["🌐 マルチ環境アクセス (Interface)"]
+    subgraph Frontends ["🌐 マルチ環境 (Interface)"]
         Discord([💬 Discord Bot]):::frontend
         WebDash([🖥️ Web Dashboard]):::frontend
         Mobile([📱 Mobile / API]):::frontend
@@ -74,13 +75,16 @@ graph TD
 
     Frontends --> Router{🧠 Omni-Router}:::router
     
-    subgraph CoreSystem ["💎 思考プロセス (Agentic Logic)"]
-        Router -->|意図解析| ToolSelect[🛠️ ツール選択]:::core
-        ToolSelect -->|実行プラン作成| Dispatcher[⚙️ ディスパッチャー]:::core
+    subgraph Thinking ["💎 ハイブリッド・ブレイン (Hybrid Brain)"]
+        Router -->|プライバシー重要| Local[🏠 Local PC / RTX 5090]:::local
+        Router -->|高度な推論/コード| Cloud[☁️ Cloud API / GPT-5.1]:::cloud
+        
+        Local -->|高速推論| Brain[🧠 ORA Core Logic]
+        Cloud -->|最高知能| Brain
     end
 
-    subgraph Execution ["⚡ 実行レイヤー (RTX 5090 / Cloud)"]
-        Dispatcher -->|Local/Cloud| Tools{🧰 利用ツール}:::tool
+    subgraph Execution ["⚡ 実行レイヤー (Action)"]
+        Brain --> Tools{🧰 利用ツール}:::tool
         
         Tools --> Web[🔍 Web検索/保存]:::tool
         Tools --> Vision[👁️ 画面解析/OCR]:::tool
@@ -88,7 +92,7 @@ graph TD
         Tools --> Media[🎨 画像生成/音声]:::tool
     end
 
-    Tools --> Memory[(💾 記憶 / RAG)]:::core
+    Tools --> Memory[(💾 記憶 / RAG)]
     Memory --> Output([✨ 最終回答]):::final
     
     Output -.->|リアルタイム通知| Frontends
