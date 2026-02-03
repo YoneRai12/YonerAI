@@ -5,8 +5,7 @@ on:
     branches: [ "main" ]
     paths:
       - 'core/**'
-      - 'TASK_HISTORY.md'
-      - 'TASKS.md'
+      - 'FULL_TASK_HISTORY.md'
   pull_request:
     branches: [ "main" ]
     paths:
@@ -51,6 +50,6 @@ jobs:
     - name: Run Tests
       # No tests yet, but fails if syntax is broken
       run: |
-        export PYTHONPATH=$PYTHONPATH:$(pwd)/src:$(pwd)/..
+        export PYTHONPATH=$PYTHONPATH:$(pwd)/..:$(pwd)/src
         python -m compileall src/
         python ../scripts/test_imports.py

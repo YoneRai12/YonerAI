@@ -7,7 +7,7 @@ def check_task_history_deletions():
     Check if any lines were deleted from TASK_HISTORY.md or TASKS.md.
     In ORA project, history is append-only.
     """
-    file_to_check = "TASK_HISTORY.md"
+    file_to_check = "FULL_TASK_HISTORY.md"
     # Find the correct path for brain artifacts
     # Note: In CI, it might be different, but we can search for it or pass as arg.
     # For now, let's assume it's in the repo if we moved it, 

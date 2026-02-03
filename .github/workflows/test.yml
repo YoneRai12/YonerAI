@@ -45,6 +45,5 @@ jobs:
         
     - name: Run Smoke Tests
       run: |
-        # Ensure src is in python path
-        export PYTHONPATH=$PYTHONPATH:$(pwd)/src
+        export PYTHONPATH=$PYTHONPATH:$(pwd)
         pytest tests/test_smoke.py
