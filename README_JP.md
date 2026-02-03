@@ -54,39 +54,44 @@ ORAはもはや単なる「Bot」ではありません。あなたのPCに宿る
 ### 🧠 Omni-Router (Hybrid Intelligence)
 **「RTX 5090があるのに、なぜOpenAIに課金するのですか？」**
 
-ORAは「キーワード」「文脈長」「画像有無」を判断し、**ローカル(無料)** と **クラウド(GPT-5.1)** を使い分けます。
-4oは使いません。常に最高の **GPT-5.1-Codex / GPT-5.1 / GPT-5-mini** を使用します。
-
-### 🔄 System Flow (エージェントの思考プロセス)
-ORAは単なるボットではなく、以下のフローで自律的にツールを使いこなす「エージェント」として動作します。
+### 🔄 System Flow (プラットフォーム全体像)
+ORAはDiscordだけでなく、Webやモバイル、外部アプリなど、あらゆる環境からアクセス可能な **「パーソナルAIプラットフォーム」** です。
 
 ```mermaid
 graph TD
     %% Styling
-    classDef user fill:#fff9c4,stroke:#fbc02d,stroke-width:2px,color:#000
+    classDef frontend fill:#f3e5f5,stroke:#9c27b0,stroke-width:2px,color:#000
     classDef router fill:#e1f5fe,stroke:#039be5,stroke-width:2px,color:#000
     classDef core fill:#bbdefb,stroke:#1565c0,stroke-width:3px,color:#000
     classDef tool fill:#fff3e0,stroke:#fb8c00,stroke-width:2px,color:#000
     classDef final fill:#fce4ec,stroke:#f06292,stroke-width:2px,color:#000
 
-    User([👤 ユーザー入力]):::user --> Router{🧠 Omni-Router}:::router
+    subgraph Frontends ["🌐 マルチ環境アクセス (Interface)"]
+        Discord([💬 Discord Bot]):::frontend
+        WebDash([🖥️ Web Dashboard]):::frontend
+        Mobile([📱 Mobile / API]):::frontend
+    end
+
+    Frontends --> Router{🧠 Omni-Router}:::router
     
     subgraph CoreSystem ["💎 思考プロセス (Agentic Logic)"]
         Router -->|意図解析| ToolSelect[🛠️ ツール選択]:::core
         ToolSelect -->|実行プラン作成| Dispatcher[⚙️ ディスパッチャー]:::core
     end
 
-    subgraph Execution ["⚡ 実行レイヤー"]
+    subgraph Execution ["⚡ 実行レイヤー (RTX 5090 / Cloud)"]
         Dispatcher -->|Local/Cloud| Tools{🧰 利用ツール}:::tool
         
         Tools --> Web[🔍 Web検索/保存]:::tool
-        Tools --> Vision[👁️ 画像解析]:::tool
-        Tools --> Code[💻 コード実行]:::tool
+        Tools --> Vision[👁️ 画面解析/OCR]:::tool
+        Tools --> Code[💻 コード実行/修正]:::tool
         Tools --> Media[🎨 画像生成/音声]:::tool
     end
 
     Tools --> Memory[(💾 記憶 / RAG)]:::core
     Memory --> Output([✨ 最終回答]):::final
+    
+    Output -.->|リアルタイム通知| Frontends
 ```
 
 ### 📡 Policy Router Rules (決定ロジック)

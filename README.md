@@ -55,28 +55,32 @@ When a runtime error occurs (e.g., specific API failure), ORA:
 ### 2. 🏠 Omni-Router (Hybrid Intelligence)
 **"Why pay for OpenAI when you have an RTX 5090?"**
 
-ORA uses a "Hybrid Brain" architecture to balance **Intelligence** vs **Cost**.
-
-### 🔄 Agentic System Flow
-ORA is not just a bot; she is an "Agent" that autonomously manages tools with the following flow:
+### 🔄 Agentic Platform Flow
+ORA is more than a bot; she is a **Personal AI Platform** accessible from Discord, Web, Mobile, and external applications.
 
 ```mermaid
 graph TD
     %% Styling
-    classDef user fill:#fff9c4,stroke:#fbc02d,stroke-width:2px,color:#000
+    classDef frontend fill:#f3e5f5,stroke:#9c27b0,stroke-width:2px,color:#000
     classDef router fill:#e1f5fe,stroke:#039be5,stroke-width:2px,color:#000
     classDef core fill:#bbdefb,stroke:#1565c0,stroke-width:3px,color:#000
     classDef tool fill:#fff3e0,stroke:#fb8c00,stroke-width:2px,color:#000
     classDef final fill:#fce4ec,stroke:#f06292,stroke-width:2px,color:#000
 
-    User([👤 User Input]):::user --> Router{🧠 Omni-Router}:::router
+    subgraph Frontends ["🌐 Multi-Environment Access"]
+        Discord([💬 Discord Bot]):::frontend
+        WebDash([🖥️ Web Dashboard]):::frontend
+        Mobile([📱 Mobile / API]):::frontend
+    end
+
+    Frontends --> Router{🧠 Omni-Router}:::frontend
     
     subgraph CoreSystem ["💎 Thinking Process (Agentic Logic)"]
         Router -->|Intent Analysis| ToolSelect[🛠️ Tool Selection]:::core
         ToolSelect -->|Execution Plan| Dispatcher[⚙️ Dispatcher]:::core
     end
 
-    subgraph Execution ["⚡ Execution Layer"]
+    subgraph Execution ["⚡ Execution Layer (RTX 5090 / Cloud)"]
         Dispatcher -->|Local/Cloud| Tools{🧰 Tools}:::tool
         
         Tools --> Web[🔍 Search/Save]:::tool
@@ -87,6 +91,8 @@ graph TD
 
     Tools --> Memory[(💾 Memory / RAG)]:::core
     Memory --> Output([✨ Final Reply]):::final
+    
+    Output -.->|Real-time Notify| Frontends
 ```
 
 *   **Smart Routing**: She analyzes prompt length and keywords (e.g., "fix code" -> Codex).
