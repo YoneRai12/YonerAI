@@ -7,9 +7,9 @@
 
 [![Discord](https://img.shields.io/badge/Discord-Join-7289DA?style=for-the-badge&logo=discord)](https://discord.gg/YoneRai12)
 [![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=for-the-badge&logo=python)](https://www.python.org/)
-[![Model](https://img.shields.io/badge/Brain-GPT--5.1%20%2B%20Qwen2.5--VL-blue?style=for-the-badge)](src/config.py)
-[![System](https://img.shields.io/badge/System-Self--Healing-green?style=for-the-badge)](src/utils/healer.py)
-[![GPU](https://img.shields.io/badge/GPU-RTX%205090%20Optimized-76B900?style=for-the-badge&logo=nvidia)](https://www.nvidia.com/)
+[![Release](https://img.shields.io/github/v/release/YoneRai12/ORA?style=for-the-badge&logo=github)](https://github.com/YoneRai12/ORA/releases)
+[![Build and Test](https://github.com/YoneRai12/ORA/actions/workflows/test.yml/badge.svg)](https://github.com/YoneRai12/ORA/actions/workflows/test.yml)
+[![Lint: Ruff](https://img.shields.io/badge/lint-Ruff-4b1e3b.svg)](https://github.com/astral-sh/ruff)
 
 <div align="center">
 
