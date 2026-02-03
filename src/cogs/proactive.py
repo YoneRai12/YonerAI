@@ -24,14 +24,12 @@ class ProactiveCog(commands.Cog):
         # Start loops
         self.daily_briefing_task.start()
         self.autonomy_loop.start()
-        self.backup_loop.start()
         
         logger.info("ProactiveCog Initialized (Autonomous Mode Active)")
 
     def cog_unload(self):
         self.daily_briefing_task.cancel()
         self.autonomy_loop.cancel()
-        self.backup_loop.cancel()
 
     # --- 1. Daily Briefing (Scheduled) ---
     # --- 1. Daily Briefing (Scheduled) ---
@@ -245,7 +243,6 @@ class ProactiveCog(commands.Cog):
 
     @daily_briefing_task.before_loop
     @autonomy_loop.before_loop
-    @backup_loop.before_loop
     async def before_loops(self):
         await self.bot.wait_until_ready()
 

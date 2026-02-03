@@ -21,8 +21,8 @@ class ToolSelector:
     
     def __init__(self, bot):
         self.bot = bot
-        # Use a lightweight model for routing
-        self.model_name = "gpt-5.1-codex-mini" 
+        # Use a lightweight but capable model for routing
+        self.model_name = "gpt-4o-mini" 
         
         # Access key from bot config
         api_key = self.bot.config.openai_api_key or os.getenv("OPENAI_API_KEY")
@@ -150,6 +150,9 @@ class ToolSelector:
             f"- 'Screenshot this' -> [\"WEB_READ\"]\n"
             f"- 'Who is this user?' -> [\"DISCORD_SERVER\"]\n"
             f"- 'Play music' -> [\"VOICE_AUDIO\"]\n"
+            f"- '動画を保存して' -> [\"WEB_FETCH\"]\n"
+            f"- 'このページをスクショして' -> [\"WEB_READ\"]\n"
+            f"- 'これをダウンロードして' -> [\"WEB_FETCH\"]\n"
         )
         
         # S6: Prefix Hash for Cache Hit Verification
@@ -239,12 +242,27 @@ class ToolSelector:
             
             # -- ROBUST HEURISTICS (S2/S3/S4) --
             # Only map keywords to SAFE categories or necessary functional ones.
-            # S4 Critical: WEB_FETCH is STRICTLY EXCLUDED from Heuristics.
+            # S4 Critical: WEB_FETCH is allowed on fallback ONLY if highly certain
+            import re
+            
             lower_p = prompt.strip().lower()
             
+            # [DEBUG] Log raw prompt for fallback analysis
+            logger.info(f"Fallback Analysis Prompt: {lower_p}")
+            
+            # Robust URL detection (e.g. contains http:// or https://)
+            has_url = re.search(r'https?://[^\s]+', lower_p) is not None
+            
             # Simple Browsing (Safe)
-            if any(k in lower_p for k in ["http", "browse", "google", "search", "見せて", "開いて"]):
+            if has_url or any(k in lower_p for k in ["http", "browse", "google", "search", "見せて", "開いて", "スクショ", "撮って", "screenshot"]):
                  selected_categories.append("WEB_READ")
+            
+            # [CRITICAL UPDATE] WEB_FETCH allows on fallback ONLY if highly certain
+            # If prompt has URL AND download-related keywords, allow it.
+            # Expanded Japanese keywords: 保存, ダウンロード, 落として, 録画, download, save, record
+            download_keywords = ["save", "download", "fetch", "record", "保存", "ダウンロード", "落として", "録画", "持ってきて"]
+            if has_url and any(k in lower_p for k in download_keywords):
+                 selected_categories.append("WEB_FETCH")
             
             # Voice (Functional)
             if any(k in lower_p for k in ["vc", "join", "leave", "music", "play", "speak", "voice"]):

@@ -131,6 +131,24 @@ class MemoryCog(commands.Cog):
         self._io_lock = asyncio.Lock()  # Prevent concurrent file access
 
         # [RESTORED] Hub & Spoke: Re-enabled optimization for Discord users
+        
+        # Cleanup should run in ALL modes to ensure UI is clean
+        asyncio.create_task(self.cleanup_stuck_profiles())
+
+        if self.worker_mode:
+            logger.info("MemoryCog: WORKER MODE (ヘビータスク優先) で起動しました。")
+        else:
+            logger.info("MemoryCog: MAIN MODE (リアルタイム応答 + フォールバック) で起動しました。")
+
+        # [Phase 29] Multi-Modal Understanding
+        self.captioner = None
+
+        # [Clawdbot] Markdown Memory Service
+        md_path = os.path.join(MEMORY_DIR, "markdown_logs")
+        self.md_memory = MarkdownMemory(root_dir=md_path)
+        
+    async def cog_load(self):
+        """Start background tasks only when successfully loaded."""
         self.memory_worker.start()
         self.name_sweeper.start()
         if self.worker_mode:
@@ -142,26 +160,6 @@ class MemoryCog(commands.Cog):
             self.status_loop.start()
             self.scan_history_task.start()
             self.refresh_watcher.start()
-            # Archive logic is Worker-only
-            # self.idle_log_archiver.start()
-            # self.surplus_token_burner.start()  # [Feature] Daily Burner
-
-        # Cleanup should run in ALL modes to ensure UI is clean
-        asyncio.create_task(self.cleanup_stuck_profiles())
-
-        if self.worker_mode:
-            logger.info("MemoryCog: WORKER MODE (ヘビータスク優先) で起動しました。")
-        else:
-            logger.info("MemoryCog: MAIN MODE (リアルタイム応答 + フォールバック) で起動しました。")
-
-        # [Phase 29] Multi-Modal Understanding
-        self.captioner = None
-        
-        # [Clawdbot] Markdown Memory Service
-        md_path = os.path.join(MEMORY_DIR, "markdown_logs")
-        self.md_memory = MarkdownMemory(root_dir=md_path)
-
-
 
     def cog_unload(self):
         self.status_loop.cancel()

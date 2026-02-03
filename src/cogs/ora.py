@@ -695,9 +695,9 @@ class ORACog(commands.Cog):
     # ------------------------------------------------------------------
     # System Administration Commands
     # ------------------------------------------------------------------
-    system_group = app_commands.Group(name="system", description="System Management Commands")
+    ora_group = app_commands.Group(name="ora", description="ORA Management & System Commands")
 
-    @system_group.command(name="reload", description="Reload Bot Extensions")
+    @ora_group.command(name="reload", description="Reload Bot Extensions")
     @app_commands.describe(extension="Extension to reload (e.g. media, ora, all)")
     @app_commands.choices(
         extension=[
@@ -744,7 +744,7 @@ class ORACog(commands.Cog):
 
         await interaction.followup.send("\n".join(results), ephemeral=True)
 
-    @app_commands.command(name="desktop_watch", description="Toggle Desktop Watcher (DM Notifications)")
+    @ora_group.command(name="desktop_watch", description="Toggle Desktop Watcher (DM Notifications)")
     @app_commands.describe(mode="ON/OFF")
     @app_commands.choices(
         mode=[
@@ -761,7 +761,7 @@ class ORACog(commands.Cog):
             return
 
 
-    @system_group.command(name="info", description="Show System Info")
+    @ora_group.command(name="info", description="Show System Info")
     async def system_info(self, interaction: discord.Interaction) -> None:
         """Show system info."""
         # Privacy check (simple default or check DB if needed, but keeping it simple for now)
@@ -783,7 +783,7 @@ class ORACog(commands.Cog):
 
         await interaction.response.send_message(embed=embed, ephemeral=(self._privacy_default == "private"))
 
-    @system_group.command(name="process_list", description="Show Top Processes by CPU")
+    @ora_group.command(name="process_list", description="Show Top Processes by CPU")
     async def system_process_list(self, interaction: discord.Interaction) -> None:
         """List top processes."""
         procs = []
@@ -829,7 +829,7 @@ class ORACog(commands.Cog):
         privacy = await self._store.get_privacy(user.id)
         return privacy == "private"
 
-    @app_commands.command(name="whoami", description="Show Linked Account Informaton")
+    @ora_group.command(name="whoami", description="Show Linked Account Informaton")
     async def whoami(self, interaction: discord.Interaction) -> None:
         await self._store.ensure_user(interaction.user.id, self._privacy_default)
         google_sub = await self._store.get_google_sub(interaction.user.id)
@@ -841,23 +841,25 @@ class ORACog(commands.Cog):
         ]
         await interaction.response.send_message("\n".join(lines), ephemeral=True)
 
-    privacy_group = app_commands.Group(name="privacy", description="Privacy Settings")
-
-    @privacy_group.command(name="set", description="Set Privacy Mode")
-    @app_commands.describe(mode="private (Only you) / public (Everyone)")
+    @ora_group.command(name="privacy", description="View or set your Privacy Mode")
+    @app_commands.describe(mode="private (Only you) / public (Everyone) / None to just check")
     @app_commands.choices(
         mode=[
             app_commands.Choice(name="private", value="private"),
             app_commands.Choice(name="public", value="public"),
         ]
     )
-    async def privacy_set(self, interaction: discord.Interaction, mode: app_commands.Choice[str]) -> None:
+    async def ora_privacy(self, interaction: discord.Interaction, mode: Optional[app_commands.Choice[str]] = None) -> None:
         await self._store.ensure_user(interaction.user.id, self._privacy_default)
-        await self._store.set_privacy(interaction.user.id, mode.value)
-        await interaction.response.send_message(f"Privacy set to {mode.value}.", ephemeral=True)
+        if mode:
+            await self._store.set_privacy(interaction.user.id, mode.value)
+            await interaction.response.send_message(f"✅ Privacy set to **{mode.value}**", ephemeral=True)
+        else:
+            privacy = await self._store.get_privacy(interaction.user.id)
+            await interaction.response.send_message(f"Current Privacy Mode: **{privacy}**", ephemeral=True)
 
-    @privacy_group.command(name="set_system", description="Set Privacy for System Commands")
-    @app_commands.describe(mode="private (Only you) / public (Everyone)")
+    @ora_group.command(name="privacy_system", description="Set Privacy for System Commands")
+    @app_commands.describe(mode="private / public")
     @app_commands.choices(
         mode=[
             app_commands.Choice(name="private", value="private"),
@@ -868,7 +870,7 @@ class ORACog(commands.Cog):
         await self._store.ensure_user(interaction.user.id, self._privacy_default)
         await self._store.set_system_privacy(interaction.user.id, mode.value)
         await interaction.response.send_message(
-            f"System command privacy set to {mode.value}.", ephemeral=True
+            f"✅ System command privacy set to **{mode.value}**", ephemeral=True
         )
 
     async def chat(self, interaction: discord.Interaction, prompt: str) -> None:
@@ -3211,7 +3213,7 @@ class ORACog(commands.Cog):
             await message.remove_reaction("🤔", self.bot.user)
             await message.add_reaction("❌")
 
-    @app_commands.command(name="rank", description="Check your current points and rank.")
+    @ora_group.command(name="rank", description="Check your current points and rank.")
     async def rank(self, interaction: discord.Interaction):
         """Check your current points and rank."""
         await self._store.ensure_user(interaction.user.id, self._privacy_default)
@@ -3298,4 +3300,9 @@ class ORACog(commands.Cog):
 
 
 async def setup(bot):
-    await bot.add_cog(ORACog(bot))
+    cog = ORACog(bot)
+    await bot.add_cog(cog)
+    
+    # 既に登録済みなら追加しない（重複クラッシュ回避）
+    if bot.tree.get_command("ora") is None:
+        bot.tree.add_command(ORACog.ora_group)
