@@ -93,11 +93,11 @@ flowchart TD
     end
 
     subgraph Core["Core Layer"]
-        MSG[/POST /v1/messages/]
-        RUN[MainProcess loop]
-        EV[/GET /v1/runs/{id}/events/]
-        RES[/POST /v1/runs/{id}/results/]
-        DB[(SQLite: runs/messages/tool_calls)]
+        MSG["POST /v1/messages"]
+        RUN["MainProcess loop"]
+        EV["GET /v1/runs/{id}/events"]
+        RES["POST /v1/runs/{id}/results"]
+        DB["SQLite: runs/messages/tool_calls"]
     end
 
     CH --> VH
