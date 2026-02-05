@@ -34,10 +34,9 @@ logger = logging.getLogger("WorkerBot")
 
 # Load Env
 load_dotenv(override=True)
-TOKEN = os.getenv("DISCORD_TOKEN_2")
+TOKEN = (os.getenv("DISCORD_TOKEN_2") or "").strip()
 if not TOKEN:
-    logger.critical("DISCORD_TOKEN_2 not found in .env! Exiting.")
-    sys.exit(99) # Specific exit code for "no token" to stop batch loop
+    logger.warning("DISCORD_TOKEN_2 not found. WorkerBot is disabled for this run.")
 
 # Paths
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -78,6 +77,10 @@ class WorkerBot(commands.Bot):
 
 
 async def main():
+    if not TOKEN:
+        # Exit gracefully so external supervisors do not treat this as a crash loop.
+        return
+
     # Load configuration
     try:
         config = Config.load()

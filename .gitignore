@@ -9,6 +9,7 @@ client_secret_*.json
 # Debug & Temporary files
 *.log
 *.txt
+*.part
 Port
 local_*.txt
 ruff_*.json
@@ -57,6 +58,7 @@ temp_oraa_analysis/
 backups/
 _sandbox/
 timestamped_backups/
+temp/
 
 # Test utilities & Temp scripts
 test.bat

@@ -101,11 +101,16 @@ class ORABot(commands.Bot):
 
         # 0.5 Initialize Unified Brain (Router)
         self.unified_client = UnifiedClient(self.config, self.llm_client, self.google_client)
-        
+
         # [Clawdbot] RAG Vector Memory
         from src.services.vector_memory import VectorMemory
-        self.vector_memory = VectorMemory()
-        logger.info("✅ UnifiedClient (Universal Brain) & VectorMemory 初期化完了")
+        try:
+            self.vector_memory = VectorMemory()
+            logger.info("✅ UnifiedClient (Universal Brain) & VectorMemory 初期化完了")
+        except Exception as e:
+            # Keep startup resilient in CI/clean envs where vector DB metadata may be invalid.
+            self.vector_memory = None
+            logger.warning(f"⚠️ VectorMemory 初期化失敗。RAGを無効化して継続します: {e}")
 
         # 1. Initialize Shared Resources
         # Search client using SerpApi or similar
@@ -243,28 +248,28 @@ class ORABot(commands.Bot):
         )
         # Verify Ngrok and DM owner
         # self.loop.create_task(self._notify_ngrok_url())
-        
+
         # [User Request] Open all web interfaces locally
         self.loop.create_task(self._open_local_interfaces())
-        
+
         # [Auto-Tunnel] Start Cloudflare Tunnels if missing
         self.loop.create_task(self._start_tunnels())
 
     async def _open_local_interfaces(self) -> None:
         """Opens local web interfaces for Chat, Dashboard, API, and ComfyUI."""
         import webbrowser
-        
+
         # Wait a bit for servers to stabilize
         await asyncio.sleep(5)
-        
+
         urls = [
             ("Admin UI", "http://localhost:8000"),
             ("New Web UI", "http://localhost:3000"),
-            ("Dashboard", "http://localhost:3333"), 
+            ("Dashboard", "http://localhost:3333"),
             ("API Docs", "http://localhost:8001/docs"),
             ("ComfyUI", "http://127.0.0.1:8188"),
         ]
-        
+
         logger.info("🖥️ Opening local web interfaces...")
         for name, url in urls:
             try:
@@ -282,7 +287,7 @@ class ORABot(commands.Bot):
             "ora-dashboard": self.config.startup_notify_channel_id,
             "ora-comfy": self.config.admin_user_id
         }
-        
+
         ngrok_api = "http://127.0.0.1:4040/api/tunnels"
         await asyncio.sleep(15) # Wait for Ngrok tunnels to stabilize
 
@@ -291,7 +296,7 @@ class ORABot(commands.Bot):
                 if resp.status == 200:
                     data = await resp.json()
                     tunnels = data.get("tunnels", [])
-                    
+
                     if not tunnels:
                         logger.warning("Ngrok API reached but no tunnels found. Is Ngrok configured correctly?")
                         return
@@ -301,7 +306,7 @@ class ORABot(commands.Bot):
                         public_url = t.get("public_url")
                         if not public_url:
                             continue
-                        
+
                         target_id = notify_map.get(name) or self.config.admin_user_id
                         if not target_id:
                             continue
@@ -312,10 +317,10 @@ class ORABot(commands.Bot):
                             final_url = f"{public_url.rstrip('/')}/dashboard"
                         elif name == "ora-api":
                             final_url = f"{public_url.rstrip('/')}/docs"
-                        
+
                         label = name.upper().replace("-", " ")
                         message = f"🚀 ORA {label}：{final_url}"
-                        
+
                         # Send to target (Channel or User)
                         try:
                             # 1. Try User
@@ -326,7 +331,7 @@ class ORABot(commands.Bot):
                                 continue
                         except Exception:
                             pass
-                        
+
                         try:
                             # 2. Try Channel
                             target = self.get_channel(target_id) or await self.fetch_channel(target_id)
@@ -351,13 +356,13 @@ class ORABot(commands.Bot):
             "ora-api": os.path.join(log_dir, "cf_api.log"),
             "ora-comfy": os.path.join(log_dir, "cf_comfy.log")
         }
-        
+
         async def poll_cf_logs():
             import re
             logger.info("Starting Cloudflare log polling (max 60s)...")
             detected_urls = set()
             cfg = self.config
-            
+
             # Map of service names to their descriptive labels
             label_map = {
             "ora-main": "チャット画面",
@@ -372,14 +377,14 @@ class ORABot(commands.Bot):
                 for name, log_path in cf_logs.items():
                     if name in detected_urls: continue
                     if not os.path.exists(log_path): continue
-                    
+
                     try:
                         with open(log_path, "r", encoding="utf-8", errors="ignore") as f:
                             content = f.read()
                             # Find all matches (URLs or UUIDs)
                             url_matches = re.findall(r"(?:https://)?[a-zA-Z0-9.-]+\.trycloudflare\.com|(?:https://)?[a-zA-Z0-9.-]+\.cfargotunnel\.com", content)
                             id_matches = re.findall(r"[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}", content)
-                            
+
                             if url_matches or id_matches:
                                 jp_label = label_map.get(name, name.upper())
                                 # Priority: Check for Named Tunnel Hostname in environment
@@ -396,12 +401,12 @@ class ORABot(commands.Bot):
                                     public_url = f"https://{last_id}.cfargotunnel.com"
                                 else:
                                     continue
-                                
+
                                 # Construct URLs and find target channel
                                 local_url = "UNKNOWN"
                                 target_id = None
-                                
-                                if name == "ora-main": 
+
+                                if name == "ora-main":
                                     local_url = "http://localhost:3000"
                                     target_id = cfg.startup_notify_channel_id
                                 elif name == "ora-web": # This is Web Ops (Portal)
@@ -422,13 +427,13 @@ class ORABot(commands.Bot):
                                 # Final fallback for target_id
                                 if not target_id:
                                     target_id = cfg.log_channel_id or cfg.admin_user_id
-                                
+
                                 if not target_id:
                                     logger.warning(f"No notification target found for {name}")
                                     continue
 
                                 message = f"🚀 **ORA {jp_label}**\n{public_url}"
-                                
+
                                 # Send notification
                                 sent = False
                                 try:
@@ -440,7 +445,7 @@ class ORABot(commands.Bot):
                                         sent = True
                                 except Exception as channel_err:
                                     logger.debug(f"Channel notification failed for {target_id}: {channel_err}")
-                                
+
                                 if not sent:
                                     # Fallback to User DM
                                     try:
@@ -458,10 +463,10 @@ class ORABot(commands.Bot):
                                     continue
                     except Exception as e:
                         logger.error(f"Error processing Cloudflare log {log_path}: {e}")
-                
+
                 if len(detected_urls) == len(cf_logs):
                     break
-            
+
             logger.info(f"Cloudflare log polling finished. Detected: {len(detected_urls)}")
 
         # Start polling in background
@@ -478,24 +483,24 @@ class ORABot(commands.Bot):
             r"L:\tools\cloudflare\cloudflared.exe",
             "cloudflared" # PATH
         ]
-        
+
         # Check PATH last, or specifically
         import shutil
         if shutil.which("cloudflared"):
             cf_exe = "cloudflared"
-            
+
         # Check explicit paths
         for p in candidates:
             if os.path.exists(p):
                 cf_exe = p
                 break
-        
+
         if not cf_exe:
             logger.warning("Cloudflare Tunnel: cloudflared.exe not found. Skipping auto-tunnel.")
             return
 
         logger.info(f"Cloudflare Tunnel: Binary found at {cf_exe}")
-        
+
         # 2. Define Tunnels
         # Map: Name -> (Port, LogFile)
         # Optimized for 429 Prevention:
@@ -509,20 +514,20 @@ class ORABot(commands.Bot):
             "ora-chat": (3000, "cf_chat.log"),
             "ora-comfy": (8188, "cf_comfy.log")
         }
-        
+
         log_dir = self.config.log_dir
         os.makedirs(log_dir, exist_ok=True)
 
         for name, (port, log_name) in tunnels.items():
             log_path = os.path.join(log_dir, log_name)
-            
+
             # Simple check: If log exists and is recent/active, assume running?
             # Or just try to start and if port conflicts (already tunneled?), it might fail gracefully or redundant.
             # Cloudflared allows multiple generic tunnels usually.
-            
+
             # Better: Check if we already have a process tracked? No track here.
             # We simply check if the log file is "fresh" or empty.
-            
+
             is_stale = True
             if os.path.exists(log_path):
                 # If file modified < 10 seconds ago? No, that's unreliable.
@@ -530,14 +535,14 @@ class ORABot(commands.Bot):
                 # Safest: Use a lock file or PID?
                 # Given user context: They likely have nothing running.
                 pass
-            
+
             # Start process
             logger.info(f"Starting Tunnel {name} (Port {port})...")
             try:
                 with open(log_path, "w", encoding="utf-8") as f:
                     # Clear log
                     pass
-                
+
                 # Check for Named Tunnel Token in environment
                 token = os.getenv("CLOUDFLARE_TUNNEL_TOKEN")
                 if token and name == "ora-main":
@@ -548,7 +553,7 @@ class ORABot(commands.Bot):
                 else:
                     # Fallback to Quick Tunnel
                     cmd = [cf_exe, "tunnel", "--url", f"http://localhost:{port}"]
-                
+
                 # Windows specific: explicit creation flags to show window for debugging if user asked for CMD count
                 # Use CREATE_NEW_CONSOLE to ensure separate windows but keep process linked to bot
                 with open(log_path, "w", encoding="utf-8") as log_f:
@@ -559,11 +564,11 @@ class ORABot(commands.Bot):
                         shell=False,
                         creationflags=subprocess.CREATE_NEW_CONSOLE if os.name == 'nt' else 0
                     )
-                
+
                 # Wait 5 seconds between each tunnel (User Request) to avoid races/limits
                 logger.info("⏳ Waiting 5s before starting next tunnel...")
                 await asyncio.sleep(5)
-                
+
             except Exception as e:
                 logger.error(f"Failed to launch tunnel {name}: {e}")
 
@@ -678,7 +683,7 @@ async def run_bot() -> None:
     # Create shared ClientSession
     async with aiohttp.ClientSession() as session:
         connection_manager = ConnectionManager(
-            api_base_url=config.ora_api_base_url, 
+            api_base_url=config.ora_api_base_url,
             force_standalone=config.force_standalone
         )
 

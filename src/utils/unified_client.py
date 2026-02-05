@@ -55,32 +55,32 @@ class UnifiedClient:
         Unified chat interface with Intelligent Priority & Fallback.
         """
         attempts = []
-        
+
         # 0. Check Core API Health (If available)
         use_core_api = False
         if self.connection_manager:
             if await self.connection_manager.check_health():
                 use_core_api = True
-            
+
         # Determine Attempt Order
         if use_core_api:
              attempts.append("ora_core")
-        
+
         # Fallback Order
         priority = self.config.llm_priority
         if priority == "cloud":
             if self.openai_client:
                 attempts.append("openai")
-            if self.google_client:
-                attempts.append("gemini_trial")
             attempts.append("local")
+            if self.google_client:
+                attempts.append("gemini_trial") # Final fallback only
         else:
             attempts.append("local")
             if self.openai_client:
                 attempts.append("openai")
             if self.google_client:
                 attempts.append("gemini_trial")
-        
+
         # Optional: If a provider is explicitly requested, honor it (override start)
         if provider and provider in ["local", "openai", "gemini_trial"]:
              attempts.insert(0, provider)
@@ -93,12 +93,12 @@ class UnifiedClient:
                     # Using local_llm client structure but pointing to Core
                     if not self.connection_manager or not self.connection_manager.api_base_url:
                         continue
-                    
+
                     # Core API expects messages and can handle tools
                     # We use a temporary LLMClient pointing to Core for convenience
                     session = await self.connection_manager.get_session()
                     core_client = LLMClient(
-                        base_url=f"{self.connection_manager.api_base_url}", 
+                        base_url=f"{self.connection_manager.api_base_url}",
                         api_key="ora-internal-key",
                         model=self.config.llm_model,
                         session=session
@@ -108,10 +108,10 @@ class UnifiedClient:
                     # The LLMClient appends /chat/completions automatically to base_url + /v1 usually.
                     # Let's verify base path. Config has ora_api_base_url e.g. http://localhost:8000
                     # We likely need http://localhost:8000/v1
-                    
+
                     # Temp Override base_url for the call
                     core_client.base_url = f"{self.connection_manager.api_base_url}/v1"
-                    
+
                     return await core_client.chat(messages, **kwargs)
 
                 elif p == "local":
@@ -120,7 +120,8 @@ class UnifiedClient:
                 elif p == "gemini_trial":
                     if not self.google_client:
                         continue
-                    model_name = kwargs.get("model_name", "gemini-1.5-pro")
+                    # Priority: model -> model_name -> default
+                    model_name = kwargs.get("model") or kwargs.get("model_name", "gemini-1.5-flash")
                     return await self.google_client.chat(messages, model_name=model_name)
 
                 elif p == "openai":
@@ -133,7 +134,7 @@ class UnifiedClient:
                         model_name = self.config.openai_default_model # Update local var
                         if "max_tokens" in kwargs and kwargs["max_tokens"] > 16384:
                             kwargs["max_tokens"] = 16384
-                    
+
                     # Apply Policy Guard
                     self._apply_policy_guard(model_name, kwargs)
 

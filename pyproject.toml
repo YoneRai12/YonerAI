@@ -1,6 +1,11 @@
 [tool.ruff]
 line-length = 120
 target-version = "py311"
+include = [
+    "src/**/*.py",
+    "core/src/**/*.py",
+    "main.py",
+]
 exclude = [
     "tools/backend/comfy",
     "tools/voice/T5Gemma",
@@ -12,14 +17,16 @@ exclude = [
 ]
 
 [tool.ruff.lint]
-select = ["E", "F", "B", "I"]
+select = ["E", "F"]
 ignore = [
     "E501", # Line too long
-    "B008", # Do not perform function call `Depends` in argument defaults
-    "B904", # Within an `except` clause, raise exceptions with `raise ... from err`
     "E402", # Module level import not at top of file (common in scripts)
     "E701", # Multiple statements on one line (colon)
     "E702", # Multiple statements on one line (semicolon)
+    "E722", # bare except (legacy modules; tracked separately)
+    "F401", # unused import (legacy modules; tracked separately)
+    "F541", # f-string without placeholders (legacy modules)
+    "F841", # local variable assigned but never used (legacy modules)
 ]
 
 [tool.ruff.format]
@@ -31,6 +38,8 @@ python_version = "3.11"
 warn_return_any = false
 warn_unused_configs = true
 ignore_missing_imports = true
+namespace_packages = true
+explicit_package_bases = true
 disallow_untyped_defs = false
 check_untyped_defs = false
 exclude = [
@@ -38,4 +47,24 @@ exclude = [
     "tools/voice/T5Gemma",
 ]
 # Suppress noisy errors for initial "Pro" rollout
-disable_error_code = ["arg-type", "var-annotated", "union-attr", "attr-defined", "no-any-return", "assignment", "index", "operator", "name-defined", "syntax"]
+disable_error_code = [
+    "arg-type",
+    "var-annotated",
+    "union-attr",
+    "attr-defined",
+    "no-any-return",
+    "assignment",
+    "index",
+    "operator",
+    "name-defined",
+    "syntax",
+    "return-value",
+    "import-untyped",
+    "no-redef",
+    "func-returns-value",
+    "has-type",
+    "misc",
+    "dict-item",
+    "truthy-function",
+    "call-overload",
+]

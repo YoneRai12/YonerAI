@@ -31,6 +31,12 @@ from ..utils.voice_manager import VoiceManager
 # Import helper utilities for YouTube playback and flag translation
 from ..utils.youtube import download_youtube_audio, get_youtube_audio_stream_url
 
+import re
+from typing import Any, Dict, List
+from .tools import web_tools
+from ..utils.ui import StatusManager
+from src.utils.browser import browser_manager
+
 logger = logging.getLogger(__name__)
 
 
@@ -755,6 +761,102 @@ class MediaCog(commands.Cog):
         except ValueError:
             return None
         return None
+
+    # ------------------------------------------------------------------
+    # Force Save Command
+    # ------------------------------------------------------------------
+    @app_commands.command(name="save", description="現在表示中のページまたは最近のURLからメディアを保存します。")
+    @app_commands.describe(url="保存するURL (省略した場合は自動検出)", format="保存形式 (video/audio)")
+    @app_commands.choices(
+        format=[
+            app_commands.Choice(name="video", value="video"),
+            app_commands.Choice(name="audio", value="audio"),
+        ]
+    )
+    async def save_media(
+        self,
+        interaction: discord.Interaction,
+        url: Optional[str] = None,
+        format: str = "video"
+    ) -> None:
+        """Force save/download media from the active browser or history."""
+        await interaction.response.defer(thinking=True)
+
+        status = StatusManager(interaction.channel)
+        await status.start("保存対象を探索中...")
+
+        target_url = url
+
+        # 1. Manual URL cleanup
+        if target_url:
+            target_url = target_url.strip().strip('"').strip("'").strip("<").strip(">")
+
+        # 2. Browser URL detection
+        if not target_url:
+            if browser_manager.is_ready():
+                try:
+                    obs = await browser_manager.agent.observe()
+                    if obs.url and obs.url.startswith("http") and "about:blank" not in obs.url:
+                        target_url = obs.url
+                        await status.update_current(f"ブラウザからURLを検出しました: {target_url}")
+                except Exception as e:
+                    logger.debug(f"Save detection from browser failed: {e}")
+
+        # 3. Message History detection
+        if not target_url:
+            await status.update_current("最近のメッセージからURLを探索しています...")
+            url_pattern = r'https?://[^\s<>"]+|www\.[^\s<>"]+'
+            async for msg in interaction.channel.history(limit=25):
+                matches = re.findall(url_pattern, msg.content)
+                if matches:
+                    # Filter out ORA internal URLs if any, or just take the first candidate
+                    candidate = matches[0]
+                    if "discord.com/attachments" in candidate: continue # Skip discord attachments usually
+                    target_url = candidate
+                    await status.update_current(f"メッセージからURLを検出しました: {target_url}")
+                    break
+
+        if not target_url:
+            await status.finish()
+            await interaction.followup.send("❌ 保存対象のURLが見つかりませんでした。URLを直接指定してください。")
+            return
+
+        # Prepare arguments for the download tool
+        args = {
+            "url": target_url,
+            "format": format
+        }
+
+        # Create a proxy message object to bridge Interaction with Tool's message-based API
+        # The 'download' tool uses 'message.reply' and 'message.guild.filesize_limit'.
+        class InteractionProxy:
+            def __init__(self, inter: discord.Interaction):
+                self.interaction = inter
+                self.author = inter.user
+                self.guild = inter.guild
+                self.channel = inter.channel
+
+            async def reply(self, content=None, file=None, **kwargs):
+                if file:
+                    return await self.channel.send(content=content, file=file, **kwargs)
+                return await self.channel.send(content=content, **kwargs)
+
+        proxy = InteractionProxy(interaction)
+
+        try:
+            await status.next_step(f"ダウンロードを開始します: {format}")
+            result = await web_tools.download(args, proxy, status, self.bot)
+
+            if "❌" in result:
+                await interaction.followup.send(result)
+            else:
+                await interaction.followup.send(f"✅ 保存処理が完了しました。\n対象: {target_url}")
+
+        except Exception as e:
+            logger.exception("Save command failed")
+            await interaction.followup.send(f"❌ 保存処理中にエラーが発生しました: {e}")
+        finally:
+            await status.finish()
 
     # ------------------------------------------------------------------
     # Country flag translation

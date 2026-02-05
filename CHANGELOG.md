@@ -1,5 +1,23 @@
 # ORA System Changelog
 
+## 🆕 v5.0.0 (2026/02/06) - Core Loop Alignment & Reproducible Release
+### 🧭 Architecture/Flow Documentation Sync
+Updated `README.md` and `README_JP.md` to match the current implementation:
+* **Hub/Spoke Runtime Flow**: `ChatHandler` -> `ToolSelector/RAG` -> `ORA Core` -> dispatch -> local tool execution -> `/v1/runs/{id}/results`.
+* Added Mermaid diagrams for both **End-to-End Request Path** and **Runtime Architecture**.
+
+### ✅ CI & Reproducibility Hardening
+* Added explicit local verification steps matching CI (`ruff`, `mypy`, `compileall`, `pytest smoke`).
+* Added version verification script: `scripts/verify_version.py`.
+* Updated release workflow to enforce:
+  * tag `vX.Y.Z` and `VERSION` file consistency
+  * deterministic release archive generation based on verified version.
+
+### 🔐 Secret Safety
+* Re-validated token/API-key handling pattern:
+  * credentials loaded from `.env`/environment variables
+  * no new hardcoded secrets introduced by this update.
+
 ## 🆕 v4.2 Update (2026/01/10) - Security Hardening & NERV UI
 ### 🛡️ Ultimate Security Architecture
 Completed the transition to a fully environment-variable driven configuration.

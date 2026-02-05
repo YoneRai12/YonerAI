@@ -28,15 +28,15 @@ class ToolRunner:
         self.repo = repo
 
     async def run_tool(
-        self, 
-        tool_call_id: str, 
-        run_id: str, 
+        self,
+        tool_call_id: str,
+        run_id: str,
         user_id: str,
-        tool_name: str, 
-        args: dict, 
+        tool_name: str,
+        args: dict,
         client_type: str
     ) -> dict[str, Any]:
-        
+
         # 0. Emit Start Event
         await event_manager.emit(run_id, "tool_start", {
             "tool": tool_name,
@@ -50,7 +50,7 @@ class ToolRunner:
             err = f"Tool '{tool_name}' not found."
             await event_manager.emit(run_id, "tool_error", {"tool": tool_name, "error": err})
             return {"status": "failed", "error": err}
-        
+
         if client_type not in definition.allowed_clients:
             logger.warning(f"Access denied: {client_type} tried to use {tool_name}")
             err = f"Client '{client_type}' is forbidden from using '{tool_name}'."
@@ -61,11 +61,11 @@ class ToolRunner:
         call_record, created = await self.repo.get_or_create_tool_call(
             tool_call_id, run_id, user_id, tool_name, args
         )
-        
+
         import uuid
         from datetime import datetime, timedelta
         lease_token = str(uuid.uuid4())
-        
+
         # Helper for polling logic
         async def poll_for_result():
             logger.info(f"Tool {tool_call_id} is running elsewhere, waiting for results...")
@@ -95,7 +95,7 @@ class ToolRunner:
                     "error": call_record.error,
                     "artifact_ref": call_record.artifact_ref
                 }
-            
+
             # If it's running and NOT stale, we poll
             if call_record.status == "running":
                 is_stale = call_record.expires_at and datetime.utcnow() > call_record.expires_at
@@ -107,7 +107,7 @@ class ToolRunner:
         # 3. Atomic Claim
         expires_at = datetime.utcnow() + timedelta(seconds=definition.timeout_sec + 60)
         claimed = await self.repo.claim_tool_call(tool_call_id, user_id, lease_token, expires_at)
-        
+
         if not claimed:
             # We lost the race to claim it
             logger.info(f"Lost race to claim tool {tool_call_id}. Polling...")
@@ -135,11 +135,11 @@ class ToolRunner:
 
             # Update Success
             await self.repo.update_tool_call(
-                tool_call_id, user_id, "completed", 
+                tool_call_id, user_id, "completed",
                 lease_token=lease_token, result=result,
                 latency_ms=latency_ms, artifact_ref=artifact_ref
             )
-            
+
             # Emit Result Event
             summary = "Success"
             if isinstance(result, dict) and "content" in result:
@@ -150,6 +150,7 @@ class ToolRunner:
             if isinstance(result, dict) and "client_action" in result:
                 await event_manager.emit(run_id, "dispatch", {
                     "tool": tool_name,
+                    "args": result["client_action"],
                     "action": result["client_action"],
                     "tool_call_id": tool_call_id
                 })

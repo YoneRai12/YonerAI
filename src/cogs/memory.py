@@ -17,7 +17,7 @@ import json
 import logging
 import os
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 import aiofiles  # type: ignore
@@ -131,7 +131,7 @@ class MemoryCog(commands.Cog):
         self._io_lock = asyncio.Lock()  # Prevent concurrent file access
 
         # [RESTORED] Hub & Spoke: Re-enabled optimization for Discord users
-        
+
         # Cleanup should run in ALL modes to ensure UI is clean
         asyncio.create_task(self.cleanup_stuck_profiles())
 
@@ -146,7 +146,7 @@ class MemoryCog(commands.Cog):
         # [Clawdbot] Markdown Memory Service
         md_path = os.path.join(MEMORY_DIR, "markdown_logs")
         self.md_memory = MarkdownMemory(root_dir=md_path)
-        
+
     async def cog_load(self):
         """Start background tasks only when successfully loaded."""
         self.memory_worker.start()
@@ -175,6 +175,28 @@ class MemoryCog(commands.Cog):
         logger.info("Memory: スタックした 'Processing' ステータスのプロファイルをチェック中...")
         if not os.path.exists(USER_MEMORY_DIR):
             return
+        count = 0
+        for f in os.listdir(USER_MEMORY_DIR):
+            if not f.endswith(".json"):
+                continue
+            path = os.path.join(USER_MEMORY_DIR, f)
+            try:
+                # Lockless read for startup recovery speed (snapshot)
+                async with aiofiles.open(path, "r", encoding="utf-8") as file:
+                    content = await file.read()
+                    data = json.loads(content)
+
+                if data.get("status") in ["Processing", "Pending"]:
+                    data["status"] = "Idle"
+                    data["impression"] = "Optimization Reset (Ready)"
+                    data["last_updated"] = datetime.now().isoformat()
+                    await self._save_user_profile_atomic(path, data)
+                    count += 1
+            except Exception:
+                continue
+
+        if count > 0:
+            logger.info(f"Memory: Unstuck {count} profiles from 'Processing' state.")
 
     # ----- Privacy Commands -----
     privacy_group = app_commands.Group(name="privacy", description="プライバシー設定")
@@ -211,19 +233,19 @@ class MemoryCog(commands.Cog):
         # I should probably update `src/utils/user_prefs.py` or similar if that's what controls it.
         # But for now, I will implement a basic toggle here if `Store` is not available.
         # Ah, `MediaCog` has `ensure_user`.
-        
+
         # Let's assume we can import `Store` or similar, OR just save a preference file.
         # Simplest: Update the profile with "privacy_mode": "private/public"
-        
+
         await interaction.response.defer(ephemeral=True)
-        
+
         profile = await self.get_user_profile(interaction.user.id, interaction.guild.id)
         if not profile:
              profile = {}
-        
+
         profile["privacy_mode"] = mode_val
         await self.update_user_profile(interaction.user.id, profile, interaction.guild.id)
-        
+
         await interaction.followup.send(f"✅ プライバシー設定を **{mode}** に変更しました。", ephemeral=True)
 
     @privacy_group.command(name="check", description="現在のプライバシー設定を確認します")
@@ -232,32 +254,6 @@ class MemoryCog(commands.Cog):
         profile = await self.get_user_profile(interaction.user.id, interaction.guild.id)
         mode = profile.get("privacy_mode", "public") if profile else "public"
         await interaction.response.send_message(f"現在の設定: **{mode.capitalize()}**", ephemeral=True)
-
-
-        count = 0
-        for f in os.listdir(USER_MEMORY_DIR):
-            if not f.endswith(".json"):
-                continue
-            path = os.path.join(USER_MEMORY_DIR, f)
-            try:
-                # Lockless read for speed (snapshot)
-                async with aiofiles.open(path, "r", encoding="utf-8") as file:
-                    content = await file.read()
-                    data = json.loads(content)
-
-                if data.get("status") in ["Processing", "Pending"]:
-                    # Fix it
-                    data["status"] = "Idle"
-                    data["impression"] = "Optimization Reset (Ready)"
-
-                    # Atomic Write with Lock
-                    await self._save_user_profile_atomic(path, data)
-                    count += 1
-            except Exception:
-                continue
-
-        if count > 0:
-            logger.info(f"Memory: Unstuck {count} profiles from 'Processing' state.")
 
     def _ensure_memory_dir(self):
         """Ensure memory directory exists."""
@@ -394,8 +390,14 @@ class MemoryCog(commands.Cog):
                 # Lazy Init
                 ora_cog = self.bot.get_cog("ORACog")
                 if ora_cog and hasattr(ora_cog, "unified_client"):
-                    from ..utils.vision.captioner import ImageCaptioner
+                    # Check if model already has vision. If so, skip captioning to save time.
+                    # Per user request "Consolidate on GPT-5-mini", we don't need double-vision calls.
+                    current_model = os.getenv("LLM_MODEL", "gpt-5-mini").lower()
+                    if "gpt-5" in current_model or "o1" in current_model or "o3" in current_model:
+                        logger.info(f"⏭️ Skipping redundant captioning for vision-native model: {current_model}")
+                        return
 
+                    from ..utils.vision.captioner import ImageCaptioner
                     self.captioner = ImageCaptioner(ora_cog.unified_client)
                 else:
                     return
@@ -474,7 +476,7 @@ class MemoryCog(commands.Cog):
             logger.info(f"Memory: Instant Optimization Trigger for {message.author.display_name} (5+ new msgs)")
             msgs_to_process = self.message_buffer[message.author.id][:]  # Copy
             self.message_buffer[message.author.id] = []  # Clear
-        
+
             # Fire off analysis (Background)
             asyncio.create_task(
                 self._analyze_wrapper(
@@ -538,11 +540,11 @@ class MemoryCog(commands.Cog):
     async def add_ai_message(self, user_id: int, content: str, guild_id: Optional[int], channel_id: int, channel_name: str, guild_name: str, is_public: bool):
         """Manually inject an assistant message into the buffer to ensure balanced context."""
         timestamp = datetime.now().isoformat()
-        
+
         # User Buffer
         if user_id not in self.message_buffer:
             self.message_buffer[user_id] = []
-        
+
         entry = {
             "id": int(time.time() * 1000), # Pseudo-ID
             "content": f"[Assistant]: {content}",
@@ -553,23 +555,23 @@ class MemoryCog(commands.Cog):
             "is_public": is_public,
         }
         self.message_buffer[user_id].append(entry)
-        
+
         # Channel Buffer
         if channel_id not in self.channel_buffer:
             self.channel_buffer[channel_id] = []
-        
+
         chan_entry = {
             "content": f"[Assistant]: {content}",
             "timestamp": timestamp,
             "author": "ORA",
         }
         self.channel_buffer[channel_id].append(chan_entry)
-        
+
         # Persist as raw log
         asyncio.create_task(
             self._persist_message(user_id, entry, guild_id, is_public)
         )
-        
+
         # [Clawdbot] Persistent Markdown Log
         # Determine session ID (fallback to channel/guild)
         sess_id = f"open-session-{guild_id if guild_id else 'dm'}"
@@ -577,7 +579,7 @@ class MemoryCog(commands.Cog):
             self.md_memory.append_message(sess_id, "assistant", content)
         )
 
-        
+
 
 
 
@@ -739,7 +741,7 @@ class MemoryCog(commands.Cog):
                 async with aiofiles.open(temp_path, "w", encoding="utf-8") as f:
                     await f.write(json.dumps(data, indent=2, ensure_ascii=False))
                     await f.flush()
-                    
+
                 # Windows Robustness: Retry logic for os.replace (AV scanners etc)
                 for attempt in range(5):
                     try:
@@ -754,14 +756,14 @@ class MemoryCog(commands.Cog):
                         await asyncio.sleep(0.2 * (attempt + 1))
                     except Exception:
                         raise
-                
+
                 # 2. Cloud Sync (Async Trigger)
                 # Parse user_id from path if needed, but easier to pass data directly.
                 # The filename/path usually contains the user_id.
                 filename = os.path.basename(path)
                 if filename.endswith(".json"):
                     # Extract user_id from filename (e.g., "12345_guildid_public.json" or "12345.json")
-                    user_id_str = filename.split(".")[0].split("_")[0] 
+                    user_id_str = filename.split(".")[0].split("_")[0]
                     try:
                         user_id = int(user_id_str)
                         # Run sync in background task
@@ -890,14 +892,12 @@ class MemoryCog(commands.Cog):
         self, user_id: int, status: str, msg: str, guild_id: int | str = None, is_public: bool = True
     ):
         """Helper to quickly update user status for dashboard feedback."""
-        await self.update_user_profile(user_id, {"status": status, "status_msg": msg}, guild_id, is_public)
-
-        # Since I can't see the START of update_user_profile in the view (it starts at 400 inside the function?),
-        # I'll replace the block I see or scroll up.
-        # Ah, View showed 400-450. Line 429 is set_user_status.
-        # Update_user_profile ENDs at 428.
-        # I need to find where it STARTS.
-        pass
+        payload = {
+            "status": status,
+            "status_msg": msg,
+            "last_updated": datetime.now().isoformat(),
+        }
+        await self.update_user_profile(user_id, payload, guild_id, is_public)
 
     def _parse_analysis_json(self, text: str) -> Dict[str, Any]:
         """Robustly extract and parse JSON from LLM response."""
@@ -1202,11 +1202,11 @@ class MemoryCog(commands.Cog):
                         "provider": "discord",
                         "provider_id": str(user_id)
                     }]
-                    
+
                     # We need a proper HTTP client. bot.session is shared.
                     # API URL: bot.config.ora_api_base_url + /v1/memory/history
                     api_url = f"{self.bot.config.ora_api_base_url}/v1/memory/history"
-                    
+
                     async with self.bot.session.post(api_url, json=payload) as resp:
                         if resp.status != 200:
                             logger.warning(f"Memory Sync Failed ({resp.status}): {await resp.text()}")
@@ -1526,8 +1526,26 @@ class MemoryCog(commands.Cog):
 
                 is_target = False
                 if status == "Error":
-                    logger.debug(f"AutoScan: Skipped Error user {member.display_name} ({member.id})")
-                    is_target = False
+                    # Self-heal: retry failed users after cooldown instead of skipping forever.
+                    retry_after_sec = 30 * 60
+                    should_retry = False
+                    last_upd_raw = profile.get("last_updated") if profile else None
+                    if not last_upd_raw:
+                        should_retry = True
+                    else:
+                        try:
+                            dt = datetime.fromisoformat(str(last_upd_raw).replace("Z", "+00:00"))
+                            now = datetime.now(dt.tzinfo) if dt.tzinfo else datetime.now()
+                            should_retry = (now - dt).total_seconds() >= retry_after_sec
+                        except Exception:
+                            should_retry = True
+
+                    if should_retry:
+                        logger.info(f"AutoScan: Re-queueing Error user {member.display_name} ({member.id})")
+                        is_target = True
+                    else:
+                        logger.debug(f"AutoScan: Skipped Error user {member.display_name} ({member.id})")
+                        is_target = False
                 elif status == "Processing":
                      logger.debug(f"AutoScan: Skipped Processing user {member.display_name} ({member.id})")
                      is_target = False
@@ -2239,7 +2257,7 @@ class MemoryCog(commands.Cog):
 
         try:
             repo_path = os.getcwd() # Assuming bot root is repo root
-            
+
             # Simple check: Is .git present?
             if not os.path.exists(os.path.join(repo_path, ".git")):
                 logger.warning("Memory: 💾 Backup Skipped: Not a Git repository.")
@@ -2248,7 +2266,7 @@ class MemoryCog(commands.Cog):
             # Defines
             has_local_remote = False
             has_origin_remote = False
-            
+
             # Check Remotes
             try:
                 result = subprocess.run(["git", "remote"], cwd=repo_path, capture_output=True, text=True)
@@ -2270,7 +2288,7 @@ class MemoryCog(commands.Cog):
                 # Actually, `git add .` might be risky if user is dev-ing.
                 # Let's target data directory specifically: `data/`
                 subprocess.run(["git", "add", "data/"], cwd=repo_path, capture_output=True)
-                
+
                 timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 commit_msg = f"Auto-Backup: {timestamp}"
                 subprocess.run(["git", "commit", "-m", commit_msg], cwd=repo_path, capture_output=True)
@@ -2298,7 +2316,7 @@ class MemoryCog(commands.Cog):
         except Exception as e:
             logger.error(f"Memory: Backup Process Failed: {e}")
 
-    
+
     async def process_daily_compaction(self):
         """
         [OpenClaw Port] 'Memory Flush' Protocol.
@@ -2338,21 +2356,21 @@ class MemoryCog(commands.Cog):
                     ts = m.get("timestamp", "")
                     if ts.startswith(yesterday_str):
                         target_msgs.append(f"{m.get('role', 'User')}: {m.get('content', '')}")
-                
+
                 if not target_msgs:
                     continue
 
                 # [OpenClaw Mechanism]
                 summary = await self._generate_journal_summary(user_id, target_msgs, yesterday_str)
-                
+
                 # Check for [SILENT] token from OpenClaw protocol
                 if summary and "[SILENT]" not in summary:
                     # Append to Journal
-                    # OpenClaw says "use memory/YYYY-MM-DD.md". 
+                    # OpenClaw says "use memory/YYYY-MM-DD.md".
                     # We create a per-user journal to avoid conflicts in a multi-user bot.
                     journal_filename = f"{user_id}_journal.md"
                     journal_path = os.path.join(USER_MEMORY_DIR, journal_filename)
-                    
+
                     mode = "a" if os.path.exists(journal_path) else "w"
                     async with aiofiles.open(journal_path, mode, encoding="utf-8") as j_file:
                         await j_file.write(f"\n## {yesterday_str}\n{summary}\n")
@@ -2372,7 +2390,7 @@ class MemoryCog(commands.Cog):
         # OpenClaw-style "Memory Flush" Prompt
         # Source: src/auto-reply/reply/memory-flush.ts
         SILENT_REPLY_TOKEN = "[SILENT]"
-        
+
         system_prompt = (
             "Pre-compaction memory flush turn.\n"
             "The session is near auto-compaction; capture durable memories to disk.\n"
@@ -2385,7 +2403,7 @@ class MemoryCog(commands.Cog):
             f"Store durable memories now (use memory/{date_str}.md).\n"
             f"If nothing to store, reply with {SILENT_REPLY_TOKEN}."
         )
-        
+
         try:
             prompt = [
                 {"role": "system", "content": system_prompt},

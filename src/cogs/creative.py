@@ -87,7 +87,7 @@ class CreativeCog(commands.Cog):
         choice = model.value if model else "auto"
 
         if choice == "smart":
-            target_model = "gpt-4o-mini"
+            target_model = "gpt-5-mini"
             provider = "openai"
         elif choice == "local":
             target_model = "Qwen/Qwen2.5-VL-32B-Instruct-AWQ"
@@ -97,9 +97,9 @@ class CreativeCog(commands.Cog):
             user_mode = "private"
             if self.user_prefs:
                 user_mode = self.user_prefs.get_mode(interaction.user.id) or "private"
-            
+
             if user_mode == "smart":
-                target_model = "gpt-4o-mini"
+                target_model = "gpt-5-mini"
                 provider = "openai"
             else:
                 target_model = "Qwen/Qwen2.5-VL-32B-Instruct-AWQ"
@@ -111,7 +111,7 @@ class CreativeCog(commands.Cog):
             b64_img = base64.b64encode(img_data).decode("utf-8")
 
             messages = [
-                {"role": "system", "content": "You are a helpful Vision AI."},
+                {"role": "system", "content": "あなたは優秀な画像解析AIです。画像の内容を日本語で詳しく説明してください。"},
                 {
                     "role": "user",
                     "content": [
@@ -128,7 +128,7 @@ class CreativeCog(commands.Cog):
             if not hasattr(self.bot, "llm_client"):
                  await interaction.followup.send("❌ LLM Client not found on Bot.")
                  return
-                 
+
             response, _, _ = await self.bot.llm_client.chat(messages=messages, model=target_model, temperature=0.1)
 
             if response:

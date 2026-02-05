@@ -36,6 +36,10 @@ app.include_router(endpoints.router, prefix="/api")
 from src.web.routers import browser
 app.include_router(browser.router, prefix="/api/browser")
 
+# Temporary Download Router
+from src.web.routers import downloads
+app.include_router(downloads.router)
+
 # Mount Static Files
 from fastapi.staticfiles import StaticFiles
 static_dir = os.path.join(os.path.dirname(__file__), "static")

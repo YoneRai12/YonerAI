@@ -1,4 +1,5 @@
 import logging
+import os
 import json
 import asyncio
 from typing import List, Dict, Any, Optional
@@ -18,34 +19,42 @@ class ToolSelector:
     - S2: Safety Fallback (Default to Safe Tools on Error)
     - S3: Granular Categories (Split Web/Media for security)
     """
-    
+
     def __init__(self, bot):
         self.bot = bot
+        self.last_route_meta: Dict[str, Any] = {}
         # Use a lightweight but capable model for routing
-        self.model_name = "gpt-4o-mini" 
-        
+        # S4: Fetch from bot config with fallback to specific reliable models
+        self.model_name = getattr(self.bot.config, "standard_model", "gpt-5-mini")
+        if not self.model_name or self.model_name == "gpt-5-mini":
+             # If config says gpt-4o-mini but it fails (404), we might want to track this.
+             # In some environments, the user's provider might not support this name.
+             # Check if we have an environment override.
+             self.model_name = os.getenv("ROUTER_MODEL", self.model_name)
+
         # Access key from bot config
         api_key = self.bot.config.openai_api_key or os.getenv("OPENAI_API_KEY")
-        
+
         # Use Configured Base URL
         base_url = getattr(self.bot.config, "openai_base_url", "https://api.openai.com/v1")
-        
+
         self.llm_client = LLMClient(
             base_url=base_url,
             api_key=api_key,
             model=self.model_name
         )
 
-    async def select_tools(self, prompt: str, available_tools: Optional[List[dict]] = None, platform: str = "discord", rag_context: str = "") -> List[dict]:
+    async def select_tools(self, prompt: str, available_tools: Optional[List[dict]] = None, platform: str = "discord", rag_context: str = "", correlation_id: Optional[str] = None) -> List[dict]:
         """
         Analyzes prompt and selects relevant tool CATEGORIES (Granular).
         """
         import time
         import uuid
         import hashlib
-        
+
         start_time_total = time.perf_counter()
-        request_id = str(uuid.uuid4())[:8]
+        # S4-1: Use provided correlation_id or generate a request short-id
+        trace_id = correlation_id or str(uuid.uuid4())[:8]
 
         # S5: Use Registry if no tools provided
         if available_tools is None:
@@ -53,7 +62,7 @@ class ToolSelector:
 
         if not available_tools:
             return []
-            
+
         # S6: Generate Tools Bundle ID (Canonical Hash)
         # Sort by name first
         sorted_tools = sorted(available_tools, key=lambda x: x.get("name", ""))
@@ -98,43 +107,43 @@ class ToolSelector:
         for tool in sorted_tools:
             name = tool["name"].lower()
             tags = set(tool.get("tags", []))
-            
+
             # Web Split
             if name.startswith("web_"):
                 if any(x in name for x in ["download", "record", "save", "fetch"]):
                     categories["WEB_FETCH"]["tools"].append(tool)
                 else:
                     categories["WEB_READ"]["tools"].append(tool)
-            
+
             # Media Split
             elif any(x in name for x in ["generate", "create", "imagine", "sora", "painting"]):
                  categories["MEDIA_CREATE"]["tools"].append(tool)
             elif any(x in name for x in ["vision", "analyze", "ocr", "describe"]):
                  categories["MEDIA_ANALYZE"]["tools"].append(tool)
-            
+
             # Voice/Music
             elif any(x in name for x in ["voice", "speak", "tts", "music", "join", "leave"]) or "vc" in tags:
                  categories["VOICE_AUDIO"]["tools"].append(tool)
-            
+
             # Discord
             elif any(x in name for x in ["ban", "kick", "role", "user", "server", "channel", "wipe"]):
                  categories["DISCORD_SERVER"]["tools"].append(tool)
-            
+
             # System/Default
             else:
                  categories["SYSTEM_UTIL"]["tools"].append(tool)
 
         # 2. Build Prompt (S6: Prefix Stabilization)
         # Construct STATIC parts first for KV Cache optimization
-        
+
         # Sort categories for stability
         sorted_cats = sorted(categories.items()) # List of tuples, keys sorted alphabetically
-        
+
         cat_prompt_list = []
         for cat_key, cat_data in sorted_cats:
-            if cat_data["tools"]: 
+            if cat_data["tools"]:
                 cat_prompt_list.append(f"- {cat_key}: {cat_data['desc']}")
-        
+
         # Static System Prompt (Strictly Canonical)
         system_prompt = (
             f"You are the ORA System Category Router. Your goal is to select the TOOL CATEGORIES required to fulfill the user's intent.\n"
@@ -154,7 +163,7 @@ class ToolSelector:
             f"- 'このページをスクショして' -> [\"WEB_READ\"]\n"
             f"- 'これをダウンロードして' -> [\"WEB_FETCH\"]\n"
         )
-        
+
         # S6: Prefix Hash for Cache Hit Verification
         prefix_hash = hashlib.sha256(system_prompt.encode()).hexdigest()[:16]
 
@@ -162,7 +171,8 @@ class ToolSelector:
         messages = [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_content}]
 
         log_payload = {
-            "request_id": request_id,
+            "request_id": trace_id,
+            "correlation_id": correlation_id,
             "input_snippet": prompt[:50],
             "model": self.model_name,
             "retry_count": 0,
@@ -180,15 +190,15 @@ class ToolSelector:
             # S4: Retry Loop (Max 2 attempts) for JSON validity
             max_retries = 2
             selected_categories = []
-            
+
             for attempt in range(max_retries + 1):
                 t0_llm = time.perf_counter()
                 response_text, _, _ = await self.llm_client.chat(messages, temperature=0.0)
                 t1_llm = time.perf_counter()
-                
+
                 # Accumulate roundtrip time (last successful or attempted call)
                 log_payload["router_roundtrip_ms"] = round((t1_llm - t0_llm) * 1000, 2)
-                
+
                 if not response_text:
                     if attempt < max_retries:
                         logger.warning(f"Router returned empty response (Attempt {attempt+1}). Retrying...")
@@ -211,22 +221,22 @@ class ToolSelector:
                         # S4: Filter Unknown Categories (Strict Allowlist)
                         valid_keys = set(categories.keys())
                         selected_categories = [k for k in parsed if k in valid_keys]
-                        
+
                         if len(selected_categories) < len(parsed):
                             logger.warning(f"Filtered out unknown categories: {set(parsed) - set(selected_categories)}")
-                        
+
                         break # Success
                     else:
                         logger.warning(f"Router returned non-list: {type(parsed)}")
                 except json.JSONDecodeError:
                     logger.warning(f"Router JSON Decode Error: {clean_text}")
-                
+
                 if attempt < max_retries:
                     # Optional: Add error feedback to prompt? Simplified: just retry.
                     logger.warning(f"Retrying Router (Attempt {attempt+1})...")
                     log_payload["retry_count"] += 1
                     continue
-            
+
             # Use 'selected_categories' from loop
             if not selected_categories and not response_text: # actually if loop finished without break and no valid cat
                  # If we are here, we might have failed parsing fully
@@ -236,40 +246,43 @@ class ToolSelector:
         except Exception as e:
             logger.warning(f"⚠️ Router Failed via LLM ({e}). Invoking Safety Fallback.", extra={"error": str(e)})
             log_payload["fallback_triggered"] = True
-            
+
             # FALLBACK (S2): Do not return nothing. Return SAFE defaults + Heuristics.
             selected_categories = ["SYSTEM_UTIL"] # Always allow system safe tools
-            
+
             # -- ROBUST HEURISTICS (S2/S3/S4) --
             # Only map keywords to SAFE categories or necessary functional ones.
             # S4 Critical: WEB_FETCH is allowed on fallback ONLY if highly certain
             import re
-            
+
             lower_p = prompt.strip().lower()
-            
+
             # [DEBUG] Log raw prompt for fallback analysis
             logger.info(f"Fallback Analysis Prompt: {lower_p}")
-            
+
             # Robust URL detection (e.g. contains http:// or https://)
             has_url = re.search(r'https?://[^\s]+', lower_p) is not None
-            
-            # Simple Browsing (Safe)
-            if has_url or any(k in lower_p for k in ["http", "browse", "google", "search", "見せて", "開いて", "スクショ", "撮って", "screenshot"]):
+
+            # Simple Browsing & Searching (Safe)
+            # Expanded Japanese keywords: 検索, 調べて, 調査, 教えて, 見せて, 探し, wiki, whois, クローム, 記事, サイト
+            search_keywords = ["検索", "調べて", "調査", "教えて", "見せて", "探し", "wiki", "google", "search", "browse", "whois", "誰", "何者", "クローム", "chrome", "記事", "サイト"]
+            if has_url or any(k in lower_p for k in search_keywords) or any(k in lower_p for k in ["http", "google", "開いて", "スクショ", "撮って", "screenshot"]):
                  selected_categories.append("WEB_READ")
-            
+
             # [CRITICAL UPDATE] WEB_FETCH allows on fallback ONLY if highly certain
             # If prompt has URL AND download-related keywords, allow it.
-            # Expanded Japanese keywords: 保存, ダウンロード, 落として, 録画, download, save, record
+            # Expanded Japanese keywords: 保存, ダウンロード, 落として, 録画, download, save, record, 持ってきて
             download_keywords = ["save", "download", "fetch", "record", "保存", "ダウンロード", "落として", "録画", "持ってきて"]
-            if has_url and any(k in lower_p for k in download_keywords):
+            if (has_url or any(k in lower_p for k in ["動画", "ビデオ", "mp4"])) and any(k in lower_p for k in download_keywords):
                  selected_categories.append("WEB_FETCH")
-            
+
             # Voice (Functional)
-            if any(k in lower_p for k in ["vc", "join", "leave", "music", "play", "speak", "voice"]):
+            if any(k in lower_p for k in ["vc", "join", "leave", "music", "play", "speak", "voice", "歌って", "流して"]):
                  selected_categories.append("VOICE_AUDIO")
-                 
+
             # Discord (Safe-ish Info)
-            if any(k in lower_p for k in ["server", "user", "info", "role", "whois"]):
+            # Expanded: ロール, 権限, 誰, 何
+            if any(k in lower_p for k in ["server", "user", "info", "role", "whois", "鯖", "ユーザー", "誰", "ロール", "権限", "何"]):
                  selected_categories.append("DISCORD_SERVER")
 
             # Note: We do NOT auto-add WEB_FETCH (Download) on fallback for security.
@@ -277,10 +290,10 @@ class ToolSelector:
 
         # 5. Expand Categories -> Tools
         # (If LLM succeeded, we trust it. If failed, we use the fallback list above)
-        
+
         final_tools = []
         seen_tools = set()
-        
+
         for cat_key in selected_categories:
             if cat_key in categories:
                 # Tools inside buckets are already sorted by insertion order from sorted_tools
@@ -288,22 +301,65 @@ class ToolSelector:
                     if tool["name"] not in seen_tools:
                         final_tools.append(tool)
                         seen_tools.add(tool["name"])
-        
+
         # S6: Structured Logging (Timing Split)
         end_time_total = time.perf_counter()
         total_ms = round((end_time_total - start_time_total) * 1000, 2)
         log_payload["router_local_ms"] = round(total_ms - log_payload["router_roundtrip_ms"], 2)
         log_payload["selected_categories"] = selected_categories
-        
+
+        # Complexity estimation (for Agentic task planning gate)
+        complexity, reasons = self._assess_complexity(prompt, selected_categories, final_tools)
+        log_payload["complexity"] = complexity
+        if reasons:
+            log_payload["complexity_reasons"] = reasons
+        self.last_route_meta = {
+            "complexity": complexity,
+            "reasons": reasons,
+            "selected_categories": list(selected_categories),
+            "selected_tool_count": len(final_tools),
+        }
+
         logger.info(f"🧩 Router Decision", extra={"router_event": log_payload})
-        
+
         # S7: Proactive Monitoring Integration
         try:
             from src.cogs.handlers.router_monitor import router_monitor
             router_monitor.add_event(log_payload)
         except Exception as e:
             logger.error(f"Failed to push metrics to RouterMonitor: {e}")
-            
+
         return final_tools
+
+    def _assess_complexity(self, prompt: str, selected_categories: List[str], selected_tools: List[dict]) -> tuple[str, List[str]]:
+        """
+        Return ("high"|"medium"|"low", reasons[]) for light-weight orchestration.
+        """
+        reasons: List[str] = []
+        p = (prompt or "").lower()
+
+        if len(selected_categories) >= 3:
+            reasons.append("multi_category(>=3)")
+        if len(selected_tools) >= 5:
+            reasons.append("multi_tool(>=5)")
+
+        sequence_markers = [
+            "してから", "そのあと", "次に", "まず", "最後に",
+            "then", "after that", "first", "next", "finally",
+            "and then", "step", "workflow",
+        ]
+        if any(m in p for m in sequence_markers):
+            reasons.append("sequential_intent")
+
+        if "WEB_FETCH" in selected_categories and "WEB_READ" in selected_categories:
+            reasons.append("read_and_fetch_combo")
+        if "VOICE_AUDIO" in selected_categories and ("WEB_READ" in selected_categories or "WEB_FETCH" in selected_categories):
+            reasons.append("voice_plus_web_combo")
+
+        if len(reasons) >= 2:
+            return "high", reasons
+        if len(reasons) == 1:
+            return "medium", reasons
+        return "low", reasons
 
 

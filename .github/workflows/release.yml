@@ -12,15 +12,21 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: "3.11"
-          
+
+      - name: Verify Tag and VERSION
+        run: |
+          python scripts/verify_version.py --tag "${GITHUB_REF_NAME}"
+
       - name: Generate Release Archive
-        run: python scripts/create_release.py
-        
+        run: |
+          VERSION=$(cat VERSION | tr -d '[:space:]')
+          python scripts/create_release.py "$VERSION"
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:

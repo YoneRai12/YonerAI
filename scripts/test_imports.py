@@ -22,11 +22,11 @@ def test_imports():
     for mod in modules_to_test:
         try:
             __import__(mod)
-            print(f"✅ {mod}: OK")
+            print(f"[OK] {mod}")
         except Exception as e:
-            print(f"❌ {mod}: FAILED - {e}")
+            print(f"[FAIL] {mod}: {e}")
             failed = True
-    
+
     if failed:
         print("\nImport validation failed. Check log for details.")
         sys.exit(1)

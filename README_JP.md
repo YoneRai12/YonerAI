@@ -55,69 +55,70 @@ RTX 5090のパワーを極限まで引き出し、自己修復、自律進化、
 
 ---
 
-## 🆕 最新アップデート: v5.0 (2026/01/20) - The Omni-Router
+## 🧭 現在のシステムフロー（実装準拠）
 
-### 🧠 Omni-Router (Hybrid Intelligence)
-**「RTX 5090があるのに、なぜOpenAIに課金するのですか？」**
+ORA は現在、**Hub/Spoke 構成**で動作しています。
+- `ChatHandler` が Discord/Web の入力を受け、文脈・添付・利用可能ツールを整形
+- `RAGHandler` と `ToolSelector` が補助情報とツール候補を選定
+- `ORA Core API` が推論ループを実行し、必要ツールを `dispatch`
+- クライアント側 `ToolHandler` が実行し、`/v1/runs/{id}/results` で Core に返却
+- Core が続行して最終回答を返す
 
-### 🔄 System Flow (ハイブリッド・インテリジェンス)
-ORAは、あなたのPCパワー（Local）と、世界最高峰の知能（Cloud API）を適材適所で使い分ける **「ハイブリッド・エージェント」** です。
-
+### 🔄 End-to-End フロー図
 ```mermaid
-graph TD
-    %% Styling
-    classDef frontend fill:#f3e5f5,stroke:#9c27b0,stroke-width:2px,color:#000
-    classDef router fill:#e1f5fe,stroke:#039be5,stroke-width:2px,color:#000
-    classDef cloud fill:#e8f5e9,stroke:#4caf50,stroke-width:2px,color:#000
-    classDef local fill:#212121,stroke:#90a4ae,stroke-width:2px,color:#fff
-    classDef tool fill:#fff3e0,stroke:#fb8c00,stroke-width:2px,color:#000
-    classDef final fill:#fce4ec,stroke:#f06292,stroke-width:2px,color:#000
-
-    subgraph Frontends ["🌐 マルチ環境 (Interface)"]
-        Discord([💬 Discord Bot]):::frontend
-        WebDash([🖥️ Web Dashboard]):::frontend
-        Mobile([📱 Mobile / API]):::frontend
-    end
-
-    Frontends --> Router{🧠 Omni-Router}:::router
-    
-    subgraph Thinking ["💎 ハイブリッド・ブレイン (Hybrid Brain)"]
-        Router -->|プライバシー重要| Local[🏠 Local PC / RTX 5090]:::local
-        Router -->|高度な推論/コード| Cloud[☁️ Cloud API / GPT-5.1]:::cloud
-        
-        Local -->|高速推論| Brain[🧠 ORA Core Logic]
-        Cloud -->|最高知能| Brain
-    end
-
-    subgraph Execution ["⚡ 実行レイヤー (Action)"]
-        Brain --> Tools{🧰 利用ツール}:::tool
-        
-        Tools --> Web[🔍 Web検索/保存]:::tool
-        Tools --> Vision[👁️ 画面解析/OCR]:::tool
-        Tools --> Code[💻 コード実行/修正]:::tool
-        Tools --> Media[🎨 画像生成/音声]:::tool
-    end
-
-    Tools --> Memory[(💾 記憶 / RAG)]
-    Memory --> Output([✨ 最終回答]):::final
-    
-    Output -.->|リアルタイム通知| Frontends
+flowchart LR
+    U[ユーザー Discord/Web] --> C[ChatHandler]
+    C --> RAG[RAGHandler + ToolSelector]
+    RAG --> CORE[ORA Core API]
+    CORE --> SSE[SSE run events]
+    SSE --> DISP[dispatch: tool + args + tool_call_id]
+    DISP --> TH[ToolHandler]
+    TH --> TOOL[web/vision/media/system 実行]
+    TOOL --> SUBMIT[submit_tool_output]
+    SUBMIT --> CORE
+    CORE --> FINAL[final response]
+    FINAL --> C
+    C --> U
 ```
 
-### 📡 Policy Router Rules (決定ロジック)
-ORAはブラックボックスではありません。以下の厳密なポリシーに基づいてルーティングを決定します。
+### 🏗️ アーキテクチャ概要図
+```mermaid
+flowchart TD
+    subgraph Client["Client Layer"]
+        CH[ChatHandler]
+        VH[VisionHandler]
+        TS[ToolSelector]
+        RH[RAGHandler]
+        TH[ToolHandler]
+    end
 
-1.  **🛡️ Privacy Guard**: 電話番号、住所、クレジットカード番号等の個人情報(PII)を検知した場合、強制的に **ローカルモデル** に固定され、クラウド通信を遮断します。
-2.  **⚡ Budget Guard**: GPU VRAM使用量が **25GB** を超えている場合、クラウドAPIの使用を制限し、軽量なローカルモデル(7B)へフォールバックします。
-3.  **💻 Coding Priority**: コードブロックやエラースタックトレースを含むプロンプトは、優先的に **GPT-5.1-Codex** へルーティングされます。
-4.  **👁️ Vision Handling**: 画像が添付されている場合、**GPT-5-Vision** (Cloud) または **Qwen-VL** (Local) が自動選択されます。
+    subgraph Core["Core Layer"]
+        MSG[/POST /v1/messages/]
+        RUN[MainProcess loop]
+        EV[/GET /v1/runs/{id}/events/]
+        RES[/POST /v1/runs/{id}/results/]
+        DB[(SQLite: runs/messages/tool_calls)]
+    end
 
-### ⚡ Resource Manager (VRAM Modes)
-通常のAIはPCを重くしますが、ORAは「共存」します。
+    CH --> VH
+    CH --> TS
+    CH --> RH
+    CH --> MSG
+    MSG --> RUN
+    RUN --> DB
+    RUN --> EV
+    EV --> CH
+    CH --> TH
+    TH --> RES
+    RES --> RUN
+```
 
-*   **Normal Mode (制限: 25GB)**: クオリティ優先。O3やQwen-32Bをフル活用し、最高の回答を提供します。
-*   **Gaming Mode (制限: 18GB)**: ゲームプロセス(`valorant.exe`等)を検知すると自動移行。モデルを軽量化し、FPSへの影響をゼロにします。
-*   **Safety Mode (Cloud Block)**: インターネット切断時やセキュリティ要件が高い場合、外部通信を一切行わない完全オフラインモードになります。
+### 実装上のポイント
+1. プラットフォーム情報（source/guild/channel/admin など）を Core に明示的に渡す
+2. 高難度判定時は plan-first（先に実行計画）を強制可能
+3. 画像入力は canonical な `image_url` 形式に正規化
+4. `web_download` は Discord 容量上限を考慮し、30分限定DLページ発行に対応
+5. CAPTCHA 検知時は回避ではなく、戦略切替（API検索など）へ移行
 
 ### 👥 Shadow Clone: Zombie Killer
 Watcherプロセスが強化されました。
@@ -221,6 +222,37 @@ DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/... (任意: 緊急時通�
 ### 3. 起動
 *   **Windows**: `start_launcher.py` をダブルクリック
 *   **Mac**: `Double_Click_To_Start.command` を実行
+
+---
+
+## 🔁 再現可能な検証手順 / バージョン運用
+
+### CIと同じローカル検証
+```bash
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\\Scripts\\activate
+pip install -U pip
+pip install -r requirements.txt
+pip install ruff mypy pytest pytest-asyncio
+
+ruff check .
+mypy src/ --ignore-missing-imports
+python -m compileall src/
+pytest tests/test_smoke.py
+```
+
+### GitHub Release運用ルール
+1. `VERSION` を SemVer (`X.Y.Z`) で更新
+2. Changelog を更新
+3. タグ `vX.Y.Z` を作成して push
+
+```bash
+python scripts/verify_version.py --tag v5.0.0
+git tag v5.0.0
+git push origin v5.0.0
+```
+
+`release.yml` はタグと `VERSION` が一致しないと失敗するため、他者でも同じ手順で再現できます。
 
 ---
 

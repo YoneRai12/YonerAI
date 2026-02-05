@@ -1,6 +1,6 @@
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class UserIdentity(BaseModel):
@@ -14,6 +14,17 @@ class Attachment(BaseModel):
     base64: Optional[str] = None
     mime: Optional[str] = None
     name: Optional[str] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_legacy_image_shape(cls, data):
+        # Accept legacy payload:
+        # {"type":"image_url","image_url":{"url":"..."}}
+        if isinstance(data, dict) and data.get("type") == "image_url" and not data.get("url"):
+            nested = data.get("image_url")
+            if isinstance(nested, dict) and nested.get("url"):
+                data = {**data, "url": nested.get("url")}
+        return data
 
 class ContextBinding(BaseModel):
     provider: Literal["discord", "web", "google", "apple", "mc"]
@@ -43,6 +54,7 @@ class MessageRequest(BaseModel):
     user_identity: UserIdentity
     content: str
     attachments: list[Attachment] = []
+    available_tools: list[dict[str, Any]] = []
     idempotency_key: str = Field(min_length=8)
     stream: bool = True
     source: Literal["discord", "web", "api"] = "web"

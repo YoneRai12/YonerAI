@@ -3,6 +3,7 @@ import asyncio
 import logging
 import random
 from datetime import datetime, timedelta
+from pathlib import Path
 
 import pytz
 import discord
@@ -20,11 +21,11 @@ class ProactiveCog(commands.Cog):
         self.bot = bot
         self.last_action_time = datetime.now(pytz.utc)
         self.min_interval_hours = 1  # Minimum time between autonomous actions
-        
+
         # Start loops
         self.daily_briefing_task.start()
         self.autonomy_loop.start()
-        
+
         logger.info("ProactiveCog Initialized (Autonomous Mode Active)")
 
     def cog_unload(self):
@@ -39,7 +40,7 @@ class ProactiveCog(commands.Cog):
         now = datetime.now(pytz.timezone("Asia/Tokyo"))
         if now.hour == 8 and now.minute == 0:
             await self._run_briefing()
-            
+
             # [OpenClaw] Daily Journaling
             memory_cog = self.bot.get_cog("MemoryCog")
             if memory_cog:
@@ -53,7 +54,7 @@ class ProactiveCog(commands.Cog):
                         await memory_cog.backup_brain_to_github() # Fallback
 
                 asyncio.create_task(daily_memory_routine())
-            
+
             await asyncio.sleep(61)
 
     async def _run_briefing(self):
@@ -72,7 +73,7 @@ class ProactiveCog(commands.Cog):
                 if results:
                     links = [f"- {r['title']}: {r['link']}" for r in results[:3]]
                     news_context = "\n".join(links)
-            
+
             # Generation
             if hasattr(self.bot, "llm_client"):
                 system_prompt = (
@@ -99,7 +100,7 @@ class ProactiveCog(commands.Cog):
         # ... (Existing autonomy logic) ...
         """Periodically checks if ORA should speak voluntarily."""
         await self.bot.wait_until_ready()
-        
+
         # 1. Safety Checks
         now = datetime.now(pytz.utc)
         if (now - self.last_action_time) < timedelta(hours=self.min_interval_hours):
@@ -138,7 +139,7 @@ class ProactiveCog(commands.Cog):
                 if journal_path.exists():
                     with open(journal_path, "r", encoding="utf-8") as f:
                         journal_text = f.read()[-2000:]
-                        
+
                         personal_prompt = (
                             f"You are ORA, a Personal Assistant. Current time: {datetime.now(pytz.timezone('Asia/Tokyo'))}\n"
                             f"[Owner's Recent Journal]\n{journal_text}\n\n"
@@ -147,7 +148,7 @@ class ProactiveCog(commands.Cog):
                             "- If they had a bug, ask if it's fixed.\n"
                             "- Output: 'YES: [Reason]' or 'NO'."
                         )
-                        
+
                         resp = await self.bot.llm_client.chat(model=self.bot.config.LLM_MODEL, messages=[{"role": "user", "content": personal_prompt}], max_tokens=20)
                         if resp and resp.upper().startswith("YES"):
                             return True, f"PERSONAL: {resp}"
@@ -179,10 +180,10 @@ class ProactiveCog(commands.Cog):
             "- Output: 'YES: [Reason]' or 'NO'."
         )
         resp = await self.bot.llm_client.chat(model=self.bot.config.LLM_MODEL, messages=[{"role": "user", "content": community_prompt}], max_tokens=20)
-        
+
         if resp and resp.upper().startswith("YES"):
             return True, f"COMMUNITY: {resp}"
-            
+
         return False, "No Action Needed"
 
     async def _execute_autonomous_action(self, reason: str):
@@ -194,7 +195,7 @@ class ProactiveCog(commands.Cog):
 
         is_personal = reason.startswith("PERSONAL:")
         clean_reason = reason.replace("PERSONAL: ", "").replace("COMMUNITY: ", "")
-        
+
         # Topic selection
         if is_personal:
             # Personal: Focus on Owner
@@ -222,7 +223,7 @@ class ProactiveCog(commands.Cog):
                 {"role": "user", "content": topic_prompt}
             ]
         )
-        
+
         if response:
             await channel.send(response)
 
@@ -230,10 +231,10 @@ class ProactiveCog(commands.Cog):
     @app_commands.command(name="ora_wake", description="[Debug] Force ORA to think and potentially speak.")
     async def wake(self, interaction: discord.Interaction):
         await interaction.response.defer()
-        
+
         # Bypass cooldowns for debug
         should_act, reason = await self._decide_to_act()
-        
+
         if should_act:
             await self._execute_autonomous_action(reason)
             await interaction.followup.send(f"✅ Action Taken: {reason}")
@@ -259,7 +260,7 @@ class ProactiveCog(commands.Cog):
             # Ideally, we store this 'last_interaction' separately.
             # For now, we'll just log it to debug
             logger.debug(f"Deep Proc: Reaction detected from {payload.user_id}")
-            
+
             # Future: Update a 'mood' score in MemoryCog?
             pass
 

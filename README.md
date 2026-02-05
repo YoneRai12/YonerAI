@@ -58,71 +58,68 @@ When a runtime error occurs (e.g., specific API failure), ORA:
 
 > *Result: You can leave ORA running for months, and she will theoretically become more stable over time.*
 
-### 2. 🏠 Omni-Router (Hybrid Intelligence)
-**"Why pay for OpenAI when you have an RTX 5090?"**
+### 2. 🧠 Current System Flow (Hub + Spoke)
+ORA currently runs as a **Hub/Spoke agent pipeline**:
+- `ChatHandler` (Discord/Web thin client) builds context, attachments, and selected tool schemas.
+- `ORA Core API` (`/v1/messages`, `/v1/runs/{id}/events`) owns the reasoning loop.
+- Tool calls are dispatched to the client, executed locally, then submitted back to Core via `/v1/runs/{id}/results`.
+- Core resumes reasoning with tool outputs and emits the final answer.
 
-### 🔄 Hybrid Agentic Flow
-ORA is a **Hybrid Agent** that intelligently balances your local hardware power (Local) with world-class cloud intelligence (Cloud API).
-
+### 🔄 End-to-End Request Path
 ```mermaid
-graph TD
-    %% Styling
-    classDef frontend fill:#f3e5f5,stroke:#9c27b0,stroke-width:2px,color:#000
-    classDef router fill:#e1f5fe,stroke:#039be5,stroke-width:2px,color:#000
-    classDef cloud fill:#e8f5e9,stroke:#4caf50,stroke-width:2px,color:#000
-    classDef local fill:#212121,stroke:#90a4ae,stroke-width:2px,color:#fff
-    classDef tool fill:#fff3e0,stroke:#fb8c00,stroke-width:2px,color:#000
-    classDef final fill:#fce4ec,stroke:#f06292,stroke-width:2px,color:#000
-
-    subgraph Frontends ["🌐 Multi-Environment"]
-        Discord([💬 Discord Bot]):::frontend
-        WebDash([🖥️ Web Dashboard]):::frontend
-        Mobile([📱 Mobile / API]):::frontend
-    end
-
-    Frontends --> Router{🧠 Omni-Router}:::router
-    
-    subgraph Thinking ["💎 Hybrid Thinking (Hybrid Brain)"]
-        Router -->|Privacy / Low Cost| Local[🏠 Local PC / Home Hardware]:::local
-        Router -->|Deep Reasoning / Code| Cloud[☁️ Cloud API / GPT-5.1]:::cloud
-        
-        Local -->|Fast Inference| Brain[🧠 ORA Core Logic]
-        Cloud -->|High Intel| Brain
-    end
-
-    subgraph Execution ["⚡ Execution Layer (Action)"]
-        Brain --> Tools{🧰 Tools}:::tool
-        
-        Tools --> Web[🔍 Search/Save]:::tool
-        Tools --> Vision[👁️ Vision/Screen]:::tool
-        Tools --> Code[💻 Code Execution]:::tool
-        Tools --> Media[🎨 Image/Voice]:::tool
-    end
-
-    Tools --> Memory[(💾 Memory / RAG)]
-    Memory --> Output([✨ Final Reply]):::final
-    
-    Output -.->|Real-time Notify| Frontends
+flowchart LR
+    U[User on Discord/Web] --> C[ChatHandler]
+    C --> RAG[RAGHandler + ToolSelector]
+    RAG --> CORE[ORA Core API]
+    CORE --> SSE[SSE run events]
+    SSE --> DISP[dispatch: tool + args + tool_call_id]
+    DISP --> TH[ToolHandler]
+    TH --> TOOL[web/vision/media/system tools]
+    TOOL --> SUBMIT[submit_tool_output]
+    SUBMIT --> CORE
+    CORE --> FINAL[final response event]
+    FINAL --> C
+    C --> U
 ```
 
-*   **Smart Routing**: She analyzes prompt length and keywords (e.g., "fix code" -> Codex).
-*   **Cost Control**: Falls back to Local LLM if quotas are exceeded.
-*   **Universal Connection**: Automatically routes `gpt-*` models to OpenAI Cloud and others to Local VLLM.
+### 🏗️ Runtime Architecture (Current)
+```mermaid
+flowchart TD
+    subgraph Client["Client Layer"]
+        CH[ChatHandler]
+        VH[VisionHandler]
+        TS[ToolSelector]
+        RH[RAGHandler]
+        TH[ToolHandler]
+    end
 
-### 📡 Policy Router Rules (Decision Logic)
-ORA is not a black box. Routing follows strict policies to ensure safety and efficiency:
+    subgraph Core["Core Layer"]
+        MSG[/POST /v1/messages/]
+        RUN[MainProcess loop]
+        EV[/GET /v1/runs/{id}/events/]
+        RES[/POST /v1/runs/{id}/results/]
+        DB[(SQLite: runs/messages/tool_calls)]
+    end
 
-1.  **🛡️ Privacy Guard**: If PII (Phone #, Address, etc.) is detected, ORA **Force-Switches to Local Mode** to prevent data leak.
-2.  **⚡ Budget Guard**: If GPU VRAM usage exceeds **25GB**, Cloud API usage is throttled, and lightweight Local models (7B) are prioritized.
-3.  **💻 Coding Priority**: Prompts with code blocks or error stack traces are routed to **GPT-5.1-Codex**.
-4.  **👁️ Vision Handling**: Images are automatically routed to **GPT-5-Vision** (Cloud) or **Qwen-VL** (Local).
+    CH --> VH
+    CH --> TS
+    CH --> RH
+    CH --> MSG
+    MSG --> RUN
+    RUN --> DB
+    RUN --> EV
+    EV --> CH
+    CH --> TH
+    TH --> RES
+    RES --> RUN
+```
 
-### ⚡ Resource Manager (VRAM Modes)
-Standard AI slows down your PC. ORA "co-exists" with your workflow.
-
-*   **Normal Mode (Cap: 25GB)**: Quality First. Uses Deep Thinking models and Qwen-32B for best answers.
-*   **Gaming Mode (Cap: 18GB)**: Detects games (e.g., `valorant.exe`) and swaps to lightweight models to ensure **0 FPS drop**.
-*   **Safety Mode (Cloud Block)**: Offline-only mode for high-security environments.
+### Routing & Tooling Notes (As Implemented)
+1. Platform metadata (`source`, guild/channel context, admin flags) is injected before Core call.
+2. Complexity-aware routing is done in `ToolSelector`; high-complexity tasks can force plan-first behavior.
+3. Vision attachments are normalized and sent in canonical `image_url` shape for cloud models.
+4. `web_download` supports Discord size-aware delivery and temporary 30-minute download pages.
+5. CAPTCHA/anti-bot pages are detected and handled by strategy switch, not bypass attempts.
 
 ### 3. 👥 Shadow Clone (Zero Downtime)
 Updates usually mean "Downtime". Not for ORA.
@@ -168,6 +165,37 @@ A dedicated Web Dashboard (`http://localhost:3000`) for monitoring ORA's brain.
 | `OPENAI_API_KEY` | Optional. Required if using `gpt-*` models. |
 | `LLM_BASE_URL` | Endpoint for Local LLM (Default: `http://localhost:8001/v1`). |
 | `GAMING_PROCESSES` | Process names that trigger Gaming Mode (Low VRAM usage). |
+
+---
+
+## 🔁 Reproducible Setup & Versioning
+
+### Local Repro Steps (same as CI)
+```bash
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\\Scripts\\activate
+pip install -U pip
+pip install -r requirements.txt
+pip install ruff mypy pytest pytest-asyncio
+
+ruff check .
+mypy src/ --ignore-missing-imports
+python -m compileall src/
+pytest tests/test_smoke.py
+```
+
+### Release/Tag Rules
+1. Update `VERSION` using SemVer (`X.Y.Z`).
+2. Update changelog entries.
+3. Create a git tag as `vX.Y.Z` and push it.
+
+```bash
+python scripts/verify_version.py --tag v5.0.0
+git tag v5.0.0
+git push origin v5.0.0
+```
+
+`release.yml` now fails if tag and `VERSION` do not match, so others can reproduce the same release artifact.
 
 ---
 

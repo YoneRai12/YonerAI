@@ -1,8 +1,11 @@
 import logging
-from typing import Optional
+import io
 import os
-import uuid
+import re
+import subprocess
 import asyncio
+import uuid
+from typing import Any, Optional
 
 import aiohttp
 import discord
@@ -20,7 +23,7 @@ class ToolHandler:
         self.cog = cog
         self._music_skill = None
         self._skill_loader = None
-        
+
     @property
     def music_skill(self):
         if self._music_skill is None:
@@ -37,28 +40,38 @@ class ToolHandler:
         return self._skill_loader
 
 
-    async def handle_dispatch(self, tool_name: str, args: dict, message: discord.Message, status_manager=None) -> Optional[str]:
+    async def handle_dispatch(self, tool_name: str, args: dict, message: discord.Message, status_manager=None, correlation_id: Optional[str] = None) -> Any:
         """Entry point from SSE dispatch event."""
-        result = await self.execute(tool_name, args, message, status_manager)
-        
-        if result and "[SILENT_COMPLETION]" not in result:
-             logger.info(f"Tool {tool_name} completed with visible result.")
-             # Ensure the user sees the result/error if it wasn't handled inside the tool
-             try:
-                 # Check if message was already replied to? (Hard to know, but safe to double reply or reply to original)
-                 # Most tools return user-facing strings on error.
-                 await message.reply(result)
-             except Exception as e:
-                 logger.error(f"Failed to send tool result to user: {e}")
+        result = await self.execute(tool_name, args, message, status_manager, correlation_id=correlation_id)
 
-        elif result:
-             logger.info(f"Tool {tool_name} completed silently.")
-        
+        visible_text: Optional[str] = None
+        if isinstance(result, str):
+            visible_text = result
+        elif isinstance(result, dict):
+            if result.get("silent"):
+                visible_text = None
+            else:
+            # Prefer textual summary if present, but avoid duplicate message for screenshot/media payloads.
+                if "image_b64" not in result:
+                    candidate = result.get("result") or result.get("message")
+                    if isinstance(candidate, str):
+                        visible_text = candidate
+
+        if visible_text and "[SILENT_COMPLETION]" not in visible_text:
+            logger.info(f"Tool {tool_name} completed with visible result. CID: {correlation_id}")
+            # Ensure the user sees the result/error if it wasn't handled inside the tool
+            try:
+                await message.reply(visible_text)
+            except Exception as e:
+                logger.error(f"Failed to send tool result to user: {e}")
+
+        # Critical: return raw tool result so Core can continue multi-step agentic loops.
         return result
 
-    async def execute(self, tool_name: str, args: dict, message: discord.Message, status_manager=None) -> Optional[str]:
+    async def execute(self, tool_name: str, args: dict, message: discord.Message, status_manager=None, correlation_id: Optional[str] = None) -> Optional[str]:
         """Executes a tool by delegating to the appropriate Skill or handling locally."""
-        
+        logger.info(f"🛠️ [Tool] Executing: {tool_name} | CID: {correlation_id}")
+
         # [Clawdbot] Dynamic Skills (Priority)
         if tool_name in self.skill_loader.skills:
              return await self.skill_loader.execute_tool(tool_name, args, message, bot=self.bot)
@@ -66,17 +79,17 @@ class ToolHandler:
         # S5: Lazy Load from Registry
         from src.cogs.tools.registry import get_tool_impl
         impl_path = get_tool_impl(tool_name)
-        
+
         if impl_path:
             try:
                 # Lazy Import Logic
                 # Path format: "module.path:function_name"
                 import importlib
                 mod_path, func_name = impl_path.split(":")
-                
+
                 module = importlib.import_module(mod_path)
                 func = getattr(module, func_name)
-                
+
                 # Execute
                 if asyncio.iscoroutinefunction(func):
                     # S5: Pass bot instance explicitly for independent tools
@@ -111,19 +124,19 @@ class ToolHandler:
         elif tool_name == "web_record_screen":
             if not await self._check_permission(message.author.id): return "⛔ Access Denied: Admin Only."
             return await self._handle_web_record_screen(args, message, status_manager)
-        
+
         elif tool_name == "web_jump_to_profile":
              # This is safe, allow public
             return await self._handle_web_jump_to_profile(args, message, status_manager)
-        
+
         elif tool_name == "web_set_view":
              if not await self._check_permission(message.author.id): return "⛔ Access Denied: Admin Only."
              return await self._handle_web_set_view(args, message, status_manager)
-        
+
         elif tool_name == "web_navigate":
              if not await self._check_permission(message.author.id): return "⛔ Access Denied: Admin Only."
              return await self._handle_web_navigate(args, message, status_manager)
-        
+
         return None
 
     # --- Permission Helper ---
@@ -174,7 +187,7 @@ class ToolHandler:
                 target_img = ref.attachments[0]
         if not target_img:
             return "Error: No image found."
-        
+
         if status_manager:
             await status_manager.next_step("Separating Layers...")
         creative_cog = self.bot.get_cog("CreativeCog")
@@ -212,16 +225,21 @@ class ToolHandler:
         """
         if status_manager:
             await status_manager.next_step("ブラウザとトンネルを起動中...")
-        
+
         # 1. Start Browser via Manager
         from src.utils.browser import browser_manager
         try:
             await browser_manager.start()
         except Exception as e:
             return f"❌ Failed to start browser: {e}"
-        # 2. Start API Server (if not running)
+        # 2. Start API Server (if not running / unhealthy)
         import sys
-        
+        import aiohttp
+        log_dir = getattr(self.bot.config, "log_dir", os.path.join(os.getcwd(), "logs"))
+        if not isinstance(log_dir, str) or not log_dir.strip():
+            log_dir = os.path.join(os.getcwd(), "logs")
+        os.makedirs(log_dir, exist_ok=True)
+
         # Check if port 8000 is listening
         is_api_running = False
         import socket
@@ -231,75 +249,92 @@ class ToolHandler:
             is_api_running = True
         sock.close()
 
-        if not is_api_running:
+        async def _api_healthy() -> bool:
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get("http://127.0.0.1:8000/api/browser/state", timeout=3) as resp:
+                        return resp.status == 200
+            except Exception:
+                return False
+
+        api_healthy = await _api_healthy() if is_api_running else False
+
+        if not is_api_running or not api_healthy:
             if status_manager: await status_manager.next_step("APIサーバーを起動中...")
-            api_log_path = os.path.join(self.bot.config.log_dir, "api_server.log")
+            api_log_path = os.path.join(log_dir, "api_server.log")
             try:
                 # Ensure logs directory exists
                 os.makedirs(os.path.dirname(api_log_path), exist_ok=True)
-                
-                # Use the specific venv uvicorn
+
+                if is_api_running and not api_healthy:
+                    # Kill stale process bound to 8000 before restart.
+                    try:
+                        out = subprocess.check_output(
+                            "netstat -ano | findstr :8000",
+                            shell=True,
+                            stderr=subprocess.DEVNULL,
+                        ).decode(errors="ignore")
+                        pids = set()
+                        for line in out.splitlines():
+                            cols = line.split()
+                            if len(cols) >= 5 and cols[-1].isdigit():
+                                pids.add(cols[-1])
+                        for pid in pids:
+                            subprocess.run(f"taskkill /PID {pid} /F", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                        await asyncio.sleep(1)
+                    except Exception:
+                        pass
+
+                # Use venv uvicorn if available; fallback to `python -m uvicorn`.
                 uvicorn_exe = r"L:\ORADiscordBOT_Env\Scripts\uvicorn.exe"
-                if not os.path.exists(uvicorn_exe): uvicorn_exe = "uvicorn"
+                if os.path.exists(uvicorn_exe):
+                    launch_cmd = [uvicorn_exe, "src.web.app:app", "--host", "0.0.0.0", "--port", "8000"]
+                else:
+                    launch_cmd = [sys.executable, "-m", "uvicorn", "src.web.app:app", "--host", "0.0.0.0", "--port", "8000"]
 
                 subprocess.Popen(
-                    [uvicorn_exe, "src.web.app:app", "--host", "0.0.0.0", "--port", "8000"],
+                    launch_cmd,
                     cwd=os.getcwd(),
-                    stdout=open(api_log_path, "w"),
+                    stdout=open(api_log_path, "w", encoding="utf-8"),
                     stderr=subprocess.STDOUT,
-                    shell=True
+                    shell=False,
+                    creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
                 )
-                await asyncio.sleep(5) # Give Uvicorn more time to bind
-                
-                # Verify port is actually open
-                import socket
+
+                # Verify API health
                 is_ready = False
-                for _ in range(3):
-                    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                        if s.connect_ex(('127.0.0.1', 8000)) == 0:
-                            is_ready = True
-                            break
-                    await asyncio.sleep(2)
-                
+                for _ in range(10):
+                    if await _api_healthy():
+                        is_ready = True
+                        break
+                    await asyncio.sleep(1)
+
                 if not is_ready:
-                    logger.warning("Uvicorn started but Port 8000 not reachable yet.")
+                    logger.warning("Uvicorn started but /api/browser/state is still unhealthy.")
             except Exception as e:
                 return f"❌ Failed to start API Server: {e}"
 
         # 3. Start Cloudflare Tunnel (Always start fresh for reliability)
-        import os
-        import subprocess
-        import re
-        
-        log_dir = getattr(self.bot.config, "log_dir", os.path.join(os.getcwd(), "logs"))
-        os.makedirs(os.path.dirname(log_dir), exist_ok=True)
-        
         public_url = None
-        log_path = os.path.join(self.bot.config.log_dir, "cf_browser.log")
-        
-        # Kill any stray cloudflared instances first (Aggressive Cleanup)
-        try:
-             subprocess.run("taskkill /F /IM cloudflared.exe", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        except: pass
-        
-        # Kill existing tunnel for port 8000 (Surgical Kill)
+        log_path = os.path.join(log_dir, "cf_browser.log")
+        pid_path = os.path.join(log_dir, "cf_browser.pid")
+
+        # Kill previous browser tunnel only (do not touch download/API tunnels).
         if status_manager: await status_manager.next_step("Cloudflareトンネルをリセット中...")
         try:
-            cmd = "Get-WmiObject Win32_Process | Where-Object { $_.CommandLine -like '*localhost:8000*' } | Select-Object -ExpandProperty ProcessId"
-            proc = await asyncio.create_subprocess_shell(
-                f"powershell -Command \"{cmd}\"",
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
-            stdout, _ = await proc.communicate()
-            pids = stdout.decode().strip().split()
-            for pid in pids:
-                if pid:
-                    subprocess.run(f"taskkill /PID {pid} /F", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            
+            if os.path.exists(pid_path):
+                with open(pid_path, "r", encoding="utf-8", errors="ignore") as f:
+                    old_pid = f.read().strip()
+                if old_pid.isdigit():
+                    subprocess.run(f"taskkill /PID {old_pid} /F", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                try:
+                    os.remove(pid_path)
+                except Exception:
+                    pass
+
             # Brief wait for cleanup
             await asyncio.sleep(1)
-            
+
             # Also remote old log
             if os.path.exists(log_path):
                 try: os.remove(log_path)
@@ -307,36 +342,41 @@ class ToolHandler:
         except Exception as e:
             logger.warning(f"Failed to kill old tunnel: {e}")
 
-        
+
         if not public_url:
             # Start fresh if not running or no URL found
             if status_manager:
                   await status_manager.next_step("Cloudflareトンネルを接続中...")
-            
+
             # Note: We do NOT use taskkill here as it kills the Dashboard tunnel too.
             # We assume if the URL check failed, the old tunnel is dead or irrelevant.
             # We perform a targeted kill ONLY if we can identify the specific process, but for now
             # it is safer to just spawn a new one. Cloudflare allows multiple tunnels.
-            
+
             try:
                 # Truncate log file
                 with open(log_path, "w", encoding="utf-8") as f:
                     pass
-                
+
                 cf_bin = "cloudflared"
                 if os.path.exists("cloudflared.exe"):
                     cf_bin = os.path.abspath("cloudflared.exe")
 
                 # Revert to hidden background process as per user preference
                 cmd = [cf_bin, "tunnel", "--url", "http://localhost:8000"]
-                subprocess.Popen(
+                proc = subprocess.Popen(
                     cmd,
                     stdout=open(log_path, "w"),
                     stderr=subprocess.STDOUT,
                     shell=True, # Using shell=True for windows path handling if needed, but safer
                     creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
                 )
-                
+                try:
+                    with open(pid_path, "w", encoding="utf-8") as f:
+                        f.write(str(proc.pid))
+                except Exception:
+                    pass
+
                 for _ in range(15):
                     await asyncio.sleep(2)
                     if os.path.exists(log_path):
@@ -346,10 +386,10 @@ class ToolHandler:
                             if "Too Many Requests" in content:
                                 if status_manager: await status_manager.update_current("レート制限検知。Ngrokへ切り替え中...", force=True)
                                 logger.warning("Cloudflare Rate Limit detected. Attempting Ngrok fallback.")
-                                
+
                                 # Fallback to Ngrok
                                 return await self._start_ngrok_tunnel(message, status_manager)
-                                
+
                             match = re.search(r"https://[a-zA-Z0-9-]+\.trycloudflare\.com", content)
                             if match:
                                 public_url = match.group(0)
@@ -373,7 +413,7 @@ class ToolHandler:
             obs_text = f"\n**Current Page**: {obs.title} (`{display_url}`)"
         except Exception:
             pass
-            
+
         # [User Request] Default to Google Home for Remote Control Start
         try:
              await browser_manager.navigate("https://www.google.com")
@@ -382,28 +422,28 @@ class ToolHandler:
              obs_text = f"\n**Current Page**: {obs.title} (Google)"
         except:
              pass
-            
+
         if public_url:
             # [User Request] Web Operation Channel
             target_channel_id = getattr(self.bot.config, "ora_web_notify_id", None)
-            
+
             direct_url = f"{public_url.rstrip('/')}/static/operator.html"
-            
+
             # Success logic
             if status_manager: await status_manager.finish()
-            
+
             reply_content = (
                 f"🚀 **Remote Web Control Ready**\n"
                 f"🔗 **Access**: {direct_url}\n"
                 f"*(Expires in 30m)*"
             )
-            
+
             # Send reply directly to the user/channel where requested
             await message.reply(reply_content)
-            
+
             # Schedule expiration
-            self.bot.loop.create_task(self._schedule_session_timeout(message, log_path))
-            
+            self.bot.loop.create_task(self._schedule_session_timeout(message, log_path, pid_path))
+
             return "Remote control link sent. [SILENT_COMPLETION]"
         else:
             return "❌ Failed to obtain Cloudflare URL. Check `logs/cf_browser.log`."
@@ -414,7 +454,7 @@ class ToolHandler:
         import json
         import shutil
         import os
-        
+
         # 1. Locate Ngrok
         ngrok_bin = "ngrok"
         if os.path.exists("ngrok.exe"):
@@ -427,10 +467,10 @@ class ToolHandler:
 
         # 2. Start Ngrok (Background)
         try:
-            # Kill existing ngrok interacting with port 8000? 
+            # Kill existing ngrok interacting with port 8000?
             # Ngrok doesn't use --url arg like cloudflared, but we can kill all ngrok for now or rely on API check.
             subprocess.run("taskkill /IM ngrok.exe /F", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            
+
             # Start fresh
             # Using 'start' to ensure it runs headless/detached properly or just Popen
             subprocess.Popen(
@@ -440,7 +480,7 @@ class ToolHandler:
                 shell=True,
                 creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
             )
-            
+
             # 3. Poll Local API for URL
             public_url = None
             async with aiohttp.ClientSession() as session:
@@ -456,14 +496,14 @@ class ToolHandler:
                                     break
                     except:
                         pass
-            
+
             if public_url:
                 # The caller logic in _handle_web_remote_control
                 # [User Request] Web Operation Channel
                 target_channel_id = getattr(self.bot.config, "ora_web_notify_id", None)
-                
+
                 direct_url = f"{public_url.rstrip('/')}/static/operator.html"
-                
+
                 # Get Observation
                 obs_text = ""
                 try:
@@ -480,74 +520,90 @@ class ToolHandler:
                     f"{obs_text}\n"
                     f"*(Link expires in 30 minutes)*"
                 )
-                
+
                 # Reply directly
                 await message.reply(reply_content)
 
-                # Schedule timeout
-                asyncio.create_task(self._schedule_session_timeout(message, log_path))
-                
+                # Schedule timeout (no dedicated pid/log path for ngrok)
+                asyncio.create_task(self._schedule_session_timeout(message, None, None))
+
                 return "Remote control link sent. [SILENT_COMPLETION]"
-            
+
             else:
                 if status_manager: await status_manager.finish()
                 return "❌ Failed to start Ngrok tunnel (No API response)."
-                
+
         except Exception as e:
             if status_manager: await status_manager.finish()
             return f"❌ Ngrok Error: {e}"
 
-    async def _schedule_session_timeout(self, message: discord.Message, log_path: str) -> None:
+    async def _schedule_session_timeout(self, message: discord.Message, log_path: str | None, pid_path: str | None = None) -> None:
         """Waits 30 minutes then kills the browser tunnel."""
         await asyncio.sleep(1800) # 30 minutes
-        
-        # Check if tunnel is still active by log existence? 
+
+        # Check if tunnel is still active by log existence?
         # Actually, we just kill cloudflared.exe.
         # But we should be careful not to kill Dashboard tunnel.
         # Ideally we would have stored the PID.
         # For now, we'll try to identify it or just warn user.
         # But wait, we can just delete the log file? No, that doesn't kill the tunnel.
-        
+
         # Re-using the logic from start: "taskkill /IM cloudflared.exe" is bad.
         # We need to find the process that is writing to 'log_path'.
         # That's hard in Python without psutil.
-        
+
         # Fallback: Just notify user it's "expired" and let them know?
         # User asked to "cut" the link.
         # If we can't kill specific process easily, we might have to accept killing all or require user to stop it.
         # HOWEVER, we can use the 'fuser' equivalent or just assume we kill the latest spawned one? No.
-        
+
         # Let's try to find the process via command line args in tasklist?
         # "cloudflared tunnel --url http://localhost:8000"
-        
+
         try:
-            # Shutdown specific tunnel by command line matching
             import subprocess
-            # WMI or PowerShell to find PID of cloudflared with specific args
-            cmd = "Get-WmiObject Win32_Process | Where-Object { $_.CommandLine -like '*localhost:8000*' } | Select-Object -ExpandProperty ProcessId"
-            proc = await asyncio.create_subprocess_shell(
-                f"powershell -Command \"{cmd}\"",
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
-            stdout, _ = await proc.communicate()
-            pid = stdout.decode().strip()
-            
-            if pid:
-                subprocess.run(f"taskkill /PID {pid} /F", shell=True)
+            killed_by_pid = False
+            if pid_path and os.path.exists(pid_path):
                 try:
-                    target_id = self.bot.config.ora_web_notify_id
-                    target = self.bot.get_channel(target_id) or await self.bot.fetch_channel(target_id)
-                    if target:
-                        await target.send("🔒 **Remote Web Control session expired** (30 mins). \nTunnel has been closed.")
-                    else:
-                        await message.reply("🔒 **Remote Web Control session expired** (30 mins). \nTunnel has been closed.")
+                    with open(pid_path, "r", encoding="utf-8", errors="ignore") as f:
+                        pid = f.read().strip()
+                    if pid.isdigit():
+                        subprocess.run(f"taskkill /PID {pid} /F", shell=True)
+                        killed_by_pid = True
+                    try:
+                        os.remove(pid_path)
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
+
+            if not killed_by_pid:
+                # Fallback only when PID file wasn't available.
+                cmd = "Get-WmiObject Win32_Process | Where-Object { $_.CommandLine -like '*localhost:8000*' } | Select-Object -ExpandProperty ProcessId"
+                proc = await asyncio.create_subprocess_shell(
+                    f"powershell -Command \"{cmd}\"",
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                stdout, _ = await proc.communicate()
+                pid = stdout.decode().strip()
+
+                if pid:
+                    subprocess.run(f"taskkill /PID {pid} /F", shell=True)
+
+            try:
+                target_id = self.bot.config.ora_web_notify_id
+                target = self.bot.get_channel(target_id) or await self.bot.fetch_channel(target_id)
+                if target:
+                    await target.send("🔒 **Remote Web Control session expired** (30 mins). \nTunnel has been closed.")
+                else:
+                    await message.reply("🔒 **Remote Web Control session expired** (30 mins). \nTunnel has been closed.")
+            except: pass
+
+            # Cleanup log
+            if log_path and os.path.exists(log_path):
+                try: os.remove(log_path)
                 except: pass
-                
-                # Cleanup log
-                if os.path.exists(log_path):
-                    try: os.remove(log_path)
-                    except: pass
         except Exception as e:
             logger.error(f"Failed to kill session tunnel: {e}")
 
@@ -557,7 +613,7 @@ class ToolHandler:
         from src.utils.youtube import download_video_smart, download_youtube_audio
         from src.config import Config
         import os
-        
+
         # 1. Determine Target URL
         url = args.get("url")
         if not url:
@@ -568,27 +624,27 @@ class ToolHandler:
                      url = obs.url
                  except Exception:
                      pass
-        
+
         if url:
              url = url.strip().strip('"').strip("'").strip("<").strip(">")
-        
+
         if not url:
              return "❌ No URL specified and no active browser session."
 
         download_fmt = args.get("format", "video")
-        
+
         # New Params for Continuation
         start_time = int(args.get("start_time", 0))
         force_compress = args.get("force_compress", False)
-        
+
         label = "Image" if download_fmt == "image" else ("Audio" if download_fmt == "audio" else "Video")
-        
+
         if status_manager: await status_manager.next_step(f"{label} Downloading... ({url})")
-        
+
         # Load Config
         cfg = Config.load()
         proxy = cfg.browser_proxy if cfg.browser_proxy else None
-        
+
         split_strategy = args.get("split_strategy", "auto") # "auto", "compress", "split_all"
 
         try:
@@ -603,12 +659,12 @@ class ToolHandler:
                 limit_bytes = message.guild.filesize_limit if message.guild else 10*1024*1024
                 # Safety margin 1MB
                 safe_limit_mb = (limit_bytes / (1024*1024)) - 0.5
-                if safe_limit_mb < 5: safe_limit_mb = 5 
-                
+                if safe_limit_mb < 5: safe_limit_mb = 5
+
                 result = await download_video_smart(
-                    url, 
-                    start_time=start_time, 
-                    force_compress=force_compress, 
+                    url,
+                    start_time=start_time,
+                    force_compress=force_compress,
                     max_size_mb=safe_limit_mb,
                     proxy=proxy,
                     split_strategy=split_strategy
@@ -617,13 +673,13 @@ class ToolHandler:
                 title = result["title"]
                 next_start = result.get("next_start_time")
                 is_last = result.get("is_last", True)
-            
+
             if not final_path or not os.path.exists(final_path):
                  return "❌ Download failed (File not found)."
 
             # Upload / Buffer
             if status_manager: await status_manager.next_step("Buffering download...")
-            
+
             content = f"🎵 **{label} Downloaded**\nTitle: **{title}**\nSource: <{url}>"
             if next_start:
                 content += f"\n\n✂️ **Continuation Available**\nVideo was split to fit limits.\nTo get the next part, ask:\n`next part` or use tool with `start_time={next_start}`."
@@ -636,17 +692,17 @@ class ToolHandler:
                 # Legacy / No-buffer
                 f_obj = discord.File(final_path)
                 await message.reply(content=content, file=f_obj)
-                
+
                 # Cleanup (Only if not buffered)
                 try:
                     os.remove(final_path)
                 except: pass
-            
+
             # [FIX] Do NOT finish status_manager here. Let ChatHandler manage the lifecycle for sequential tools.
             # if status_manager: await status_manager.finish()
-            
+
             return f"Download completed. Next start: {next_start} [SILENT_COMPLETION]"
-            
+
         except Exception as e:
             if status_manager: await status_manager.finish()
             return f"❌ Download/Upload Error: {e}"
@@ -655,22 +711,18 @@ class ToolHandler:
         """Handles the web_screenshot tool: Takes a screenshot and returns ARIA snapshot."""
         if status_manager:
             await status_manager.next_step("Processing screenshot request...")
-            
+
         from src.utils.browser import browser_manager
-        import io
-        import uuid
-        import os
-        import asyncio
-        
+
         try:
             # Ensure active
             await browser_manager.ensure_active()
-            
+
             # Optional Navigation
             target_url = args.get("url")
             if target_url:
                  target_url = target_url.strip().strip('"').strip("'").strip("<").strip(">")
-            
+
             # View Settings
             dark_mode = args.get("dark_mode")
             width = args.get("width")
@@ -678,11 +730,11 @@ class ToolHandler:
             scale = args.get("scale")
             delay = int(args.get("delay", 2))
             full_page = args.get("full_page", False)
-            
+
             # New Params
             resolution = args.get("resolution")
             orientation = args.get("orientation", "landscape")
-            
+
             # Resolution Mapping
             RES_MAP = {
                 "SD": (640, 480),
@@ -692,7 +744,7 @@ class ToolHandler:
                 "4K": (3840, 2160),
                 "8K": (7680, 4320)
             }
-            
+
             if resolution and resolution in RES_MAP:
                 base_w, base_h = RES_MAP[resolution]
                 if orientation == "portrait" and base_w > base_h:
@@ -701,34 +753,34 @@ class ToolHandler:
                 else:
                     width = base_w
                     height = base_h
-            
+
             # Preset handling (Legacy "mobile" flag or keywords)
             if args.get("mobile"):
                 width = 375
                 height = 812
                 scale = 1.0
-            
+
             # Apply View Settings
             if any([width, height, dark_mode is not None, scale]):
                 await browser_manager.set_view(width=width, height=height, dark_mode=dark_mode, scale=scale)
-            
+
             # Navigate if URL provided
             if target_url:
                 if status_manager: await status_manager.next_step(f"Navigating to {target_url}...")
                 await browser_manager.navigate(target_url)
-            
+
             # Wait for content load + User specified delay
             if delay > 0:
                 await asyncio.sleep(delay)
-            
+
             # Take Screenshot
             if status_manager: await status_manager.update_current("Capturing screenshot...")
-            
+
             # 1. Get Image Data
             image_bytes = await browser_manager.get_screenshot()
             if not image_bytes:
                 return "❌ No screenshot data returned."
-            
+
             # 2. Save to File (Prefer L:\ORA_Temp)
             l_temp = r"L:\ORA_Temp"
             final_dir = self.bot.config.temp_dir
@@ -737,44 +789,44 @@ class ToolHandler:
                     os.makedirs(l_temp, exist_ok=True)
                     final_dir = l_temp
                 except: pass
-                
+
             filename = f"screenshot_{uuid.uuid4().hex[:8]}.jpg"
             file_path = os.path.join(final_dir, filename)
-            
+
             with open(file_path, "wb") as f:
                 f.write(image_bytes)
-            
+
             # 2.5 Smart Compression (Dynamic Limit)
             # 2025 Update: Default limit is moving to 10MB for non-boosted / DMs.
             # We trust the guild's explicit limit if available.
-            limit_bytes = 10 * 1024 * 1024 
+            limit_bytes = 10 * 1024 * 1024
             if message.guild:
                 limit_bytes = message.guild.filesize_limit
-            
+
             # Add safety margin (1MB) to be safe against request overhead
             safe_limit = limit_bytes - (1 * 1024 * 1024)
             file_size = len(image_bytes)
-            
+
             if file_size > safe_limit:
-                if status_manager: 
+                if status_manager:
                     await status_manager.update_current(f"Compressing large image ({file_size/1024/1024:.1f}MB > {safe_limit/1024/1024:.1f}MB)...")
                 try:
                     # Use ffmpeg to compress
                     import subprocess
                     compressed_path = file_path.replace(".jpg", "_comp.jpg")
-                    
+
                     # Strategy 1: Aggressive JPEG Compression
                     cmd = [
-                        "ffmpeg", "-y", "-i", file_path, 
+                        "ffmpeg", "-y", "-i", file_path,
                         "-q:v", "20",  # Increased compression (was 15)
                         compressed_path
                     ]
-                    
+
                     process = await asyncio.create_subprocess_exec(
                         *cmd, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL
                     )
                     await process.wait()
-                    
+
                     # Strategy 2: Resize if STILL too big
                     if os.path.exists(compressed_path) and os.path.getsize(compressed_path) > safe_limit:
                         # Resize to 50% width/height
@@ -789,10 +841,10 @@ class ToolHandler:
                              *cmd_resize, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL
                         )
                         await proc_resize.wait()
-                        
+
                         if os.path.exists(resized_path):
                              compressed_path = resized_path # Use resized version
-                    
+
                     # Final check
                     if os.path.exists(compressed_path):
                         # Even if larger (unlikely after resize), we try to send the smallest we have
@@ -800,10 +852,10 @@ class ToolHandler:
                             os.remove(file_path) # Remove original
                             file_path = compressed_path
                             filename = os.path.basename(file_path)
-                            
+
                 except Exception as e:
                     logger.error(f"Compression/Resize failed: {e}")
-            
+
             # 3. Get Context info
             try:
                 obs = await browser_manager.agent.observe()
@@ -818,28 +870,28 @@ class ToolHandler:
             # 4. Upload
             # 4. Upload / Buffer
             if status_manager: await status_manager.next_step("Buffering screenshot...")
-            
+
             content = f"📸 **{title}**\nURL: <{current_url}>"
             if width and height:
                 content += f"\nRes: {width}x{height}"
             if delay > 0:
                 content += f" (Delayed {delay}s)"
-                
+
             if status_manager and hasattr(status_manager, "add_file"):
                 # Buffer for smart bundling
                 status_manager.add_file(file_path, filename, content)
                 return f"Screenshot buffered. Title: {title}\nARIA: {aria}\n[SILENT_COMPLETION]"
             else:
                 # Legacy / No-buffer fallback
-                f_obj = discord.File(file_path, filename=filename)  
+                f_obj = discord.File(file_path, filename=filename)
                 await message.reply(content=content, file=f_obj)
-                
+
                 # Cleanup (Only delete if sent immediately)
                 try:
                     os.remove(file_path)
                 except: pass
 
-            
+
             # [FIX] Do NOT finish status_manager here. Let ChatHandler manage.
             # if status_manager: await status_manager.finish()
             return f"Screenshot taken. Title: {title}\nARIA: {aria}\n[SILENT_COMPLETION]"
@@ -853,62 +905,62 @@ class ToolHandler:
         import tempfile
         import glob
         import os
-        
+
         url = args.get("url")
         if not url: return "❌ URL required."
-        
+
         if status_manager: await status_manager.next_step(f"Downloading media from {url}...")
-        
+
         # Create temp dir
         with tempfile.TemporaryDirectory() as tmpdirname:
             # yt-dlp command
             cmd = f'yt-dlp "{url}" -o "{tmpdirname}/%(title)s.%(ext)s" --no-playlist'
-            
+
             proc = await asyncio.create_subprocess_shell(
                 cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
             stdout, stderr = await proc.communicate()
-            
+
             if proc.returncode != 0:
                 err_msg = stderr.decode()
                 logger.error(f"yt-dlp failed: {err_msg}")
                 return f"❌ Download failed: {err_msg[:200]}"
-            
+
             files = glob.glob(os.path.join(tmpdirname, "*"))
             if not files:
                  return "❌ Download finished but no file found."
-            
+
             target_file = max(files, key=os.path.getsize)
             filename = os.path.basename(target_file)
             size_mb = os.path.getsize(target_file) / (1024 * 1024)
-            
+
             if status_manager: await status_manager.next_step(f"Uploading {filename} ({size_mb:.1f}MB)...")
-            
+
             try:
                 f_obj = discord.File(target_file, filename=filename)
                 await message.reply(content=f"💾 **Saved**: {url}", file=f_obj)
             except discord.HTTPException as e:
                 return f"❌ Upload failed (File size {size_mb:.1f}MB too large for Discord): {e}"
-            
+
             return f"Download completed. {filename} sent. [SILENT_COMPLETION]"
 
     async def _handle_fs_action(self, args: dict, message: discord.Message, status_manager) -> str:
         """Handles filesystem actions: ls, cat, grep, tree, diff."""
         from src.utils.filesystem import fs_tools
-        
+
         command = args.get("command")
         path = args.get("path", ".")
         arg2 = args.get("arg2", None) # For diff
         pattern = args.get("pattern", None) # For grep
-        
+
         if not command:
             return "Error: command required (ls, cat, grep, tree, diff)"
 
         if status_manager:
             await status_manager.next_step(f"Filesystem: {command} {path}...")
-            
+
         try:
             output = ""
             if command == "ls":
@@ -932,7 +984,7 @@ class ToolHandler:
                 # Save to file if huge?
                 header = f"Output too long ({len(output)} chars). Showing first 1900:\n"
                 return header + output[:1900] + "\n..."
-            
+
             return output if output else "[No Output]"
 
         except Exception as e:
@@ -944,42 +996,42 @@ class ToolHandler:
         import asyncio
         import os
         import logging
-        
+
         logger = logging.getLogger(__name__)
-        
+
         action = args.get("action", "start")
         duration = args.get("duration", 30) # Default 30s
-        
+
         # [Auto Mode] If action is start and we want auto-recording
         if action == "start":
             if browser_manager.is_recording:
                 return "⚠️ Screen recording is already active. Say 'Stop recording' to finish early."
-            
+
             if status_manager: await status_manager.next_step(f"📷 Recording screen for {duration} seconds...")
-            
+
             success = await browser_manager.start_recording()
             if not success:
                  return "❌ Failed to start recording."
-            
+
             # Send initial feedback
             await message.reply(f"🔴 **Recording Started** ({duration}s auto-stop)\nPerforming browser actions now will be captured.")
-            
+
             # Wait for duration
             await asyncio.sleep(duration)
-            
+
             # Auto-Stop
             if status_manager: await status_manager.next_step("⏱️ Time's up! Stopping and processing...")
             video_path = await browser_manager.stop_recording()
-            
+
             if not video_path or not os.path.exists(video_path):
                 return "❌ Recording finished but file missing."
-                
+
             # Check size and compress if needed
             file_size_mb = os.path.getsize(video_path) / (1024 * 1024)
-            limit_mb = 25.0 # Safe limit for boosted servers, 8MB for free. 
-            
+            limit_mb = 25.0 # Safe limit for boosted servers, 8MB for free.
+
             final_path = video_path
-            
+
             if file_size_mb > limit_mb:
                 if status_manager: await status_manager.next_step(f"Compressing video ({file_size_mb:.1f}MB)...")
                 try:
@@ -989,12 +1041,12 @@ class ToolHandler:
                     cmd = f'ffmpeg -i "{video_path}" -vcodec libx264 -crf 30 -preset fast -acodec aac "{compressed_path}"'
                     proc = await asyncio.create_subprocess_shell(cmd)
                     await proc.communicate()
-                    
+
                     if os.path.exists(compressed_path) and os.path.getsize(compressed_path) < os.path.getsize(video_path):
                         final_path = compressed_path
                 except Exception as e:
                     logger.error(f"Compression failed: {e}")
-            
+
             # Upload
             if status_manager: await status_manager.next_step("Uploading video...")
             try:
@@ -1002,13 +1054,13 @@ class ToolHandler:
                 await message.reply(content="⏹️ **Recording Finished**", file=f_obj)
             except Exception as e:
                 return f"❌ Upload failed (too large?): {e}"
-            
+
             # Cleanup
             try:
                 if final_path != video_path: os.remove(final_path)
                 os.remove(video_path)
             except: pass
-                
+
             return "Screen recording completed. [SILENT_COMPLETION]"
 
         elif action == "stop":
@@ -1021,27 +1073,27 @@ class ToolHandler:
                  await message.reply(content="⏹️ **Stopped Early**", file=f_obj)
                  return "Stopped. [SILENT_COMPLETION]"
             return "❌ Stop failed."
-        
+
         return "❌ Invalid action."
 
     async def _handle_web_navigate(self, args: dict, message: discord.Message, status_manager) -> str:
         """Handles web_navigate: Go to a specific URL."""
         from src.utils.browser import browser_manager
-        
+
         url = args.get("url")
         if not url: return "❌ URL required."
-        
+
         if not browser_manager.is_ready():
              if status_manager: await status_manager.next_step("Starting Browser...")
              await browser_manager.start()
-             
+
         if status_manager: await status_manager.next_step(f"Navigating to {url}...")
-        
+
         try:
             # Navigate
             await browser_manager.agent.act({"type": "goto", "url": url})
             await asyncio.sleep(2.0) # Wait for load
-            
+
             # Screenshot confirmation
             image_bytes = await browser_manager.agent.page.screenshot(type='jpeg', quality=80)
             if image_bytes:
@@ -1049,7 +1101,7 @@ class ToolHandler:
                 await message.reply(content=f"🌍 **Navigated**: {url}", file=f)
             else:
                 await message.reply(f"🌍 **Navigated**: {url} (No screenshot)")
-                
+
             return f"Navigated to {url}. [SILENT_COMPLETION]"
         except Exception as e:
             return f"❌ Navigation failed: {e}"
@@ -1057,7 +1109,7 @@ class ToolHandler:
     async def _handle_web_set_view(self, args: dict, message: discord.Message, status_manager) -> str:
         """Handles web_set_view: Change viewport/mode."""
         from src.utils.browser import browser_manager
-        
+
         orientation = args.get("orientation", "horizontal")
         # width/height mapping
         if orientation == "vertical":
@@ -1066,12 +1118,12 @@ class ToolHandler:
         else:
             w, h = 1280, 720
             icon = "🖥️"
-            
+
         if not browser_manager.is_ready():
              await browser_manager.start()
-             
+
         if status_manager: await status_manager.next_step(f"Setting View: {orientation}...")
-        
+
         try:
             # Direct playwright Viewport access if possible, or via agent if it exposes it.
             # Agent.act usually handles basic actions. Assuming agent.page is accessible.
@@ -1087,12 +1139,12 @@ class ToolHandler:
         """Handles web_jump_to_profile: Constructs SNS URLs."""
         platform = args.get("platform", "").lower()
         handle = args.get("username", "")
-        
+
         if not platform or not handle: return "❌ Platform and Username required."
-        
+
         # Strip @ if present
         handle = handle.lstrip("@")
-        
+
         url_map = {
             "twitter": f"https://x.com/{handle}",
             "x": f"https://x.com/{handle}",
@@ -1101,11 +1153,11 @@ class ToolHandler:
             "instagram": f"https://www.instagram.com/{handle}/",
             "youtube": f"https://www.youtube.com/@{handle}"
         }
-        
+
         target_url = url_map.get(platform)
         if not target_url:
             return f"❌ Unknown platform: {platform}"
-            
+
         # Delegate to navigate logic reuse? Or just call it.
         # Calling _handle_web_navigate directly is cleaner.
         return await self._handle_web_navigate({"url": target_url}, message, status_manager)
@@ -1113,9 +1165,9 @@ class ToolHandler:
     async def _handle_web_action(self, args: dict, message: discord.Message, status_manager) -> str:
         """Handles generic web actions (click, type, scroll, goto) via BrowserAgent."""
         from src.utils.browser import browser_manager
-        
+
         action = args.get("action")
-        
+
         # Start browser if needed
         if not browser_manager.is_ready():
              if status_manager: await status_manager.next_step("Starting Browser...")
@@ -1126,39 +1178,39 @@ class ToolHandler:
 
         # Construct action dict for new agent.act()
         act_dict = {"type": action}
-        
+
         # Map args
         if action == "scroll":
             if "scroll_amount" in args:
                 act_dict["delta_y"] = args["scroll_amount"]
-        
+
         # Copy other known keys
         valid_keys = {"url", "text", "key", "x", "y", "delta_x", "delta_y", "selector"}
         for k, v in args.items():
             if k in valid_keys:
                 act_dict[k] = v
-                
+
         # Access agent directly
         agent = browser_manager.agent
         if not agent:
              return "Error: Browser Agent not available."
-             
+
         try:
              result = await agent.act(act_dict)
              if result.get("ok"):
                  # Action successful. Now capture screenshot to show result.
                  # Wait a moment for any render/scroll animation
                  await asyncio.sleep(1.0)
-                 
+
                  # Observe & Screenshot
                  obs = await browser_manager.agent.observe()
                  image_bytes = await browser_manager.agent.page.screenshot(type='jpeg', quality=80)
-                 
+
                  if image_bytes:
                      f = discord.File(io.BytesIO(image_bytes), filename="action_result.jpg")
                      if status_manager: await status_manager.complete()
                      await message.reply(content=f"✅ **Action '{action}' Completed**\nURL: <{obs.url}>", file=f)
-                 
+
                  return f"Action '{action}' completed. [SILENT_COMPLETION]"
              else:
                  return f"Action failed: {result.get('error')}"
@@ -1169,15 +1221,15 @@ class ToolHandler:
         """
         Navigates the browser to a specific URL.
         Args:
-           url (str): The full URL to visit (e.g., https://x.com/username, https://www.google.com). 
+           url (str): The full URL to visit (e.g., https://x.com/username, https://www.google.com).
            Be specific: dont just go to landing pages if user asks for profiles.
         """
         from src.utils.browser import browser_manager
-        
+
         url = args.get("url")
         if not url: return "Error: URL required."
         url = url.strip().strip('"').strip("'").strip("<").strip(">")
-        
+
         # Start browser if needed
         if not browser_manager.is_ready():
              if status_manager: await status_manager.next_step("Starting Browser...")
@@ -1202,10 +1254,10 @@ class ToolHandler:
         """
         site = args.get("site", "").lower()
         handle = args.get("handle", "").strip().lstrip("@")
-        
+
         if not site or not handle:
             return "Error: Site and handle (username) are required."
-            
+
         patterns = {
             "x": "https://x.com/{handle}",
             "twitter": "https://x.com/{handle}",
@@ -1213,15 +1265,15 @@ class ToolHandler:
             "youtube": "https://www.youtube.com/@{handle}",
             "instagram": "https://www.instagram.com/{handle}/"
         }
-        
+
         pattern = patterns.get(site)
         if not pattern:
             return f"Error: Site '{site}' is not yet supported for direct jump."
-            
+
         url = pattern.format(handle=handle)
-        
+
         from src.utils.browser import browser_manager
-        
+
         # Start browser if needed
         if not browser_manager.is_ready():
              if status_manager: await status_manager.next_step("Starting Browser...")
@@ -1243,38 +1295,38 @@ class ToolHandler:
         Configures browser orientation and color scheme.
         """
         from src.utils.browser import browser_manager
-        
+
         orientation = args.get("orientation")
         mode = args.get("mode")
-        
+
         if not orientation and not mode:
             return "Error: orientation or mode required."
-            
+
         # 1. Viewport Config
         width, height = None, None
         if orientation == "vertical":
             width, height = 375, 812 # iPhone X size
         elif orientation == "horizontal":
             width, height = 1280, 720
-            
+
         # 2. Color Scheme
         dark_mode = None
         if mode == "dark":
             dark_mode = True
         elif mode == "light":
             dark_mode = False
-            
+
         try:
             await browser_manager.set_view(width=width, height=height, dark_mode=dark_mode)
-            
+
             # Labeling
             parts = []
             if orientation: parts.append(f"Orientation: {orientation}")
             if mode: parts.append(f"Mode: {mode}")
-            
+
             # Automatically take a screenshot to show the result
             await self._handle_web_screenshot({}, message, status_manager)
-            
+
             return f"✅ **View Settings Applied**\n{', '.join(parts)}"
         except Exception as e:
             return f"❌ Failed to set view: {e}"
@@ -1282,23 +1334,23 @@ class ToolHandler:
     async def _handle_web_search(self, args: dict, message: discord.Message, status_manager) -> str:
         """Handles web_search: Mimic human behavior to avoid CAPTCHA."""
         from src.utils.browser import browser_manager
-        
+
         query = args.get("query")
         site = args.get("site", "google").lower()
-        
+
         if not query: return "Error: query required."
-        
+
         # Start browser if needed
         await browser_manager.ensure_active()
-        
+
         target_url = None
         human_search = False
-        
+
         if site == "google":
             if status_manager: await status_manager.next_step(f"Searching Google for '{query}'...")
             await browser_manager.navigate("https://www.google.com")
             await asyncio.sleep(2)
-            
+
             # Mimic human typing
             page = browser_manager.agent.page
             try:
@@ -1318,7 +1370,7 @@ class ToolHandler:
                 # Returning current state is better than triggering a CAPTCHA ban with direct URL.
                 human_search = True # Treat as "handled" so we don't trigger fallback
 
-        
+
         elif site == "youtube":
             if status_manager: await status_manager.next_step(f"Searching YouTube for '{query}'...")
             await browser_manager.navigate("https://www.youtube.com")
@@ -1337,14 +1389,14 @@ class ToolHandler:
             # Fallback to Direct URL
             import urllib.parse
             q_enc = urllib.parse.quote(query)
-            
+
             if site == "google": target_url = f"https://www.google.com/search?q={q_enc}"
             elif site == "youtube": target_url = f"https://www.youtube.com/results?search_query={q_enc}"
             elif site == "github": target_url = f"https://github.com/search?q={q_enc}"
             elif site == "yahoo": target_url = f"https://search.yahoo.co.jp/search?p={q_enc}"
             elif site == "twitter" or site == "x": target_url = f"https://twitter.com/search?q={q_enc}"
             elif site == "bing": target_url = f"https://www.bing.com/search?q={q_enc}"
-            
+
             if target_url:
                 if status_manager: await status_manager.next_step(f"Navigating to search results...")
                 await browser_manager.navigate(target_url)
@@ -1357,31 +1409,31 @@ class ToolHandler:
         scale = args.get("scale")
         if args.get("mobile"):
             width, height, scale = 375, 812, 1.0
-            
+
         if any([width, height, dark_mode is not None, scale]):
              await browser_manager.set_view(width, height, dark_mode, scale)
 
         # Delegate final screenshot capture to shared logic or do it here?
         # Let's do it here to return the result directly
-        
+
         obs = await browser_manager.agent.observe()
         image_bytes = await browser_manager.agent.page.screenshot(type='jpeg', quality=80)
-        
+
         if not image_bytes: return "❌ No screenshot available."
-        
+
         f = discord.File(io.BytesIO(image_bytes), filename="search_result.jpg")
         display_url = obs.url
         if len(display_url) > 50:
             display_url = display_url[:47] + "..."
         await message.reply(content=f"🔍 **{obs.title}**\nURL: <{display_url}>", file=f)
         return "Search completed. [SILENT_COMPLETION]"
-    
+
     async def _handle_generate_video_api(self, args: dict, message: discord.Message, status_manager) -> str:
         """Handles API-based video generation (Sora)."""
         from src.utils.media_api import media_api
         prompt = args.get("prompt")
         if not prompt: return "Error: prompt required."
-        
+
         if status_manager: await status_manager.next_step(f"Generating Video (API): {prompt}...")
         return await media_api.generate_video(prompt)
 

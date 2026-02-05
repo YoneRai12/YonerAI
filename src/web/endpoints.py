@@ -24,27 +24,27 @@ async def get_dashboard_summary():
     import json
     from pathlib import Path
     from src.config import STATE_DIR
-    
+
     state_path = Path(STATE_DIR) / "cost_state.json"
-    
+
     # Defaults
     total_tokens = 0
     total_high = 0
     total_stable = 0
     total_opt = 0
-    
+
     if state_path.exists():
         try:
             with open(state_path, "r", encoding="utf-8") as f:
                 raw = json.load(f)
-                
+
             # Aggregate from User Buckets (Current Session/Day)
             # This matches "Current Session" logic better than Global History which is sparse
             for user_buckets in raw.get("user_buckets", {}).values():
                 for key, bucket in user_buckets.items():
                     used = bucket.get("used", {})
                     t = used.get("tokens_in", 0) + used.get("tokens_out", 0)
-                    
+
                     k_low = key.lower()
                     if k_low.startswith("high"):
                         total_high += t
@@ -52,9 +52,9 @@ async def get_dashboard_summary():
                         total_stable += t
                     elif k_low.startswith("optimization"):
                         total_opt += t
-                        
+
             total_tokens = total_high + total_stable + total_opt
-            
+
         except Exception:
             pass
 
@@ -81,14 +81,14 @@ _RUN_QUEUES = {}
 # Simple in-memory store for feedback queues (UUID -> asyncio.Queue)
 _RUN_TOOL_OUTPUTS = {}
 
-async def run_agent_loop(run_id: str, content: str, available_tools: list, provider_id: str):
+async def run_agent_loop(run_id: str, content: str, available_tools: list, provider_id: str, attachments: list = None):
     """
     Background agent loop that handles LLM calls, tool dispatching, and feedback.
     """
     import json
     from src.config import Config
     from src.utils.llm_client import LLMClient
-    
+
     queue = _RUN_QUEUES.get(run_id)
     if not queue:
         return
@@ -102,9 +102,15 @@ async def run_agent_loop(run_id: str, content: str, available_tools: list, provi
             session=None
         )
 
-        initial_system = "You are ORA, a helpful AI assistant. You have access to tools and should use them when necessary."
+        initial_system = """あなたは ORA (Unified GPT-5 Environment) です。
+OpenAI の Codex Harness アーキテクチャに基づき、全ての操作を『コード（スキル）』によって制御する自律型エージェントとして振る舞ってください。
+
+[Harness Protocol]
+- 「思考」を極小化し、即座に「実行」へ移してください。
+- ツールは『スキル』と呼ばれます。利用可能なスキルを正確に把握し、最適なパラメータで制御してください。
+- 全ての進捗は Harness Event Stream 経由でリアルタイムに報告されます。"""
         user_prompt = content
-        
+
         # ORA Bot sends system instructions prepended to user prompt with "\n\n"
         if "\n\n" in content:
             parts = content.split("\n\n", 1)
@@ -113,20 +119,33 @@ async def run_agent_loop(run_id: str, content: str, available_tools: list, provi
                 initial_system = parts[0]
                 user_prompt = parts[1]
 
+        # Merge attachments into user prompt if present
+        user_content = [{"type": "text", "text": user_prompt}]
+        if attachments:
+            for att in attachments:
+                if isinstance(att, dict) and att.get("type") == "image_url":
+                    user_content.append(att)
+
         messages = [
             {"role": "system", "content": initial_system},
-            {"role": "user", "content": user_prompt}
+            {"role": "user", "content": user_content}
         ]
 
         max_iterations = 5
         for i in range(max_iterations):
+            # Emit Progress Event
+            await queue.put({"event": "progress", "data": {"status": f"Iteration {i+1} starting...", "model": cfg.llm_model}})
+
             # 1. Call LLM
-            # Forward available_tools to LLM
             content_text, tool_calls, usage = await llm.chat(
-                messages=messages, 
+                messages=messages,
                 tools=available_tools if available_tools else None,
                 tool_choice="auto" if available_tools else None
             )
+
+            # Emit Thought Event if text is present
+            if content_text:
+                await queue.put({"event": "thought", "data": {"text": content_text, "model": cfg.llm_model}})
 
             # 2. Handle Tool Calls
             if tool_calls:
@@ -150,7 +169,7 @@ async def run_agent_loop(run_id: str, content: str, available_tools: list, provi
                     func = tc.get("function", {})
                     tool_name = func.get("name")
                     tool_args = json.loads(func.get("arguments", "{}"))
-                    
+
                     dispatch_data = {
                         "event": "dispatch",
                         "data": {
@@ -160,7 +179,7 @@ async def run_agent_loop(run_id: str, content: str, available_tools: list, provi
                         }
                     }
                     await queue.put(dispatch_data)
-                    
+
                     # Wait for feedback on _RUN_TOOL_OUTPUTS
                     # The bot will POST to /runs/{run_id}/results
                     feedback_queue = _RUN_TOOL_OUTPUTS.get(run_id)
@@ -169,13 +188,33 @@ async def run_agent_loop(run_id: str, content: str, available_tools: list, provi
                             # Wait for the specific tool result
                             # [Simplified] We assume results come in order or we just take the next one
                             result_data = await asyncio.wait_for(feedback_queue.get(), timeout=120)
-                            
+
                             # Add Tool result to history
+                            raw_result = result_data.get("result", "[Success]")
+
+                            # Standardize: Extract result string if it's a dict
+                            result_text = raw_result
+                            tool_attachment = None
+
+                            if isinstance(raw_result, dict):
+                                result_text = raw_result.get("result", str(raw_result))
+                                # Extract Image if multimodal feedback present
+                                if "image_b64" in raw_result:
+                                    b64 = raw_result["image_b64"]
+                                    tool_attachment = {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}
+
+                            tool_msg_content = result_text
+                            if tool_attachment:
+                                tool_msg_content = [
+                                    {"type": "text", "text": result_text},
+                                    tool_attachment
+                                ]
+
                             messages.append({
                                 "role": "tool",
                                 "tool_call_id": tc.get("id"),
                                 "name": tool_name,
-                                "content": str(result_data.get("result", "[Success]"))
+                                "content": tool_msg_content
                             })
                         except asyncio.TimeoutError:
                             messages.append({
@@ -184,7 +223,7 @@ async def run_agent_loop(run_id: str, content: str, available_tools: list, provi
                                 "name": tool_name,
                                 "content": "Error: Tool execution timed out."
                             })
-                
+
                 # Loop back for next iteration (LLM processes results)
                 continue
 
@@ -196,10 +235,10 @@ async def run_agent_loop(run_id: str, content: str, available_tools: list, provi
                     chunk = content_text[j:j+chunk_size]
                     await queue.put({"event": "delta", "data": {"text": chunk, "model": cfg.llm_model}})
                     await asyncio.sleep(0.01)
-                
+
                 # Send final event
                 await queue.put({"event": "final", "data": {"text": content_text, "model": cfg.llm_model}})
-            
+
             break # Exit loop if no tool calls
 
     except Exception as e:
@@ -219,17 +258,18 @@ async def create_message(request: Request):
         data = await request.json()
         content = data.get("content", "")
         available_tools = data.get("available_tools", [])
+        attachments = data.get("attachments", [])
         identity = data.get("user_identity", {})
         provider_id = identity.get("id", "anonymous")
 
         run_id = str(uuid.uuid4())
-        
+
         # Initialize Queues
         _RUN_QUEUES[run_id] = asyncio.Queue()
         _RUN_TOOL_OUTPUTS[run_id] = asyncio.Queue()
 
         # Start Background Task
-        asyncio.create_task(run_agent_loop(run_id, content, available_tools, provider_id))
+        asyncio.create_task(run_agent_loop(run_id, content, available_tools, provider_id, attachments))
 
         return {"run_id": run_id}
 
@@ -252,11 +292,11 @@ async def get_run_events(run_id: str, request: Request):
             while True:
                 if await request.is_disconnected():
                     break
-                
+
                 event = await queue.get()
                 if event is None: # Sentinel for end of stream
                     break
-                
+
                 yield json.dumps(event)
         finally:
             # Clean up after stream ends or disconnects
@@ -277,7 +317,7 @@ async def submit_tool_result(run_id: str, result: dict):
 
     if run_id not in _RUN_TOOL_OUTPUTS:
         raise HTTPException(status_code=404, detail="Run not found or already completed")
-    
+
     logger.info(f"📥 Received tool result for run {run_id}: {result.get('tool')}")
     await _RUN_TOOL_OUTPUTS[run_id].put(result)
     return {"status": "ok"}
@@ -613,13 +653,13 @@ async def get_dashboard_usage():
         for uid, buckets in raw_data.get("user_buckets", {}).items():
             user_usd = 0.0
             user_tokens = {"high": 0, "stable": 0, "burn": 0, "optimization": 0}
-            
+
             for b_key, b_val in buckets.items():
                 used = b_val.get("used", {})
                 t = used.get("tokens_in", 0) + used.get("tokens_out", 0)
                 u = used.get("usd", 0.0)
                 user_usd += u
-                
+
                 k_low = b_key.lower()
                 if k_low.startswith("high"):
                     user_tokens["high"] += t
@@ -881,22 +921,22 @@ async def get_dashboard_users(response: Response):
                         # 2. If it's a generic name/ID, try discord_state (Live Cache).
                         # 3. If still ID, and it starts with User_UID, try to resolve just the name part from ANY source.
                         d_user = discord_state["users"].get(real_discord_id, {})
-                        
+
                         is_generic = display_name in ["Unknown", ""] or display_name.startswith("User_") or display_name.isdigit()
-                        
+
                         if is_generic:
                             if d_user.get("name"):
                                 display_name = d_user["name"]
                             elif data.get("name") and not data["name"].startswith("User_") and not data["name"].isdigit():
                                 display_name = data["name"]
-                        
+
                         # Strip "User_" prefix for cleaner display if all else fails
                         if display_name.startswith("User_") and "_" in display_name:
                             # User_123_456 -> 123
                             parts = display_name.split("_")
                             if len(parts) > 1:
                                 parts[1]
-                                # We still want a name, but if we CANNOT find one, 
+                                # We still want a name, but if we CANNOT find one,
                                 # we keep it as is or try to look up in a global name cache if we had one.
                                 # For now, let's just ensure the priority above works.
 
@@ -965,14 +1005,14 @@ async def get_dashboard_users(response: Response):
         all_user_buckets = cost_data.get("user_buckets", {})
         for uid in all_user_buckets:
             real_uid_from_bucket = uid.split("_")[0]  # Extract real UID
-            
+
             # Find name/guild for this bucket
             d_user = discord_state["users"].get(real_uid_from_bucket, {})
             guild_id = d_user.get("guild_id")
             guild_name = "Unknown Server"
             if guild_id and guild_id in discord_state.get("guilds", {}):
                 guild_name = discord_state["guilds"][guild_id]
-            
+
             if (str(real_uid_from_bucket), guild_name) not in existing_keys:
                 # Try to resolve Name/Guild from Discord State
                 d_user = discord_state["users"].get(real_uid_from_bucket, {})
@@ -1008,7 +1048,7 @@ async def get_dashboard_users(response: Response):
             guild_name = "Unknown Server"
             if guild_id and guild_id in discord_state.get("guilds", {}):
                 guild_name = discord_state["guilds"][guild_id]
-            
+
             # Check if this (uid, guild) tuple exists
             if (str(d_uid), guild_name) not in existing_keys:
                 users.append(
@@ -1457,7 +1497,7 @@ async def get_server_dashboard_view(token: str):
                 -webkit-text-fill-color: transparent;
                 margin: 0;
             }}
-            
+
             .stats-grid {{
                 display: grid;
                 grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -1479,7 +1519,7 @@ async def get_server_dashboard_view(token: str):
             }}
             .stat-label {{ color: var(--text-sub); font-size: 0.9rem; margin-bottom: 8px; }}
             .stat-value {{ font-size: 2rem; font-weight: 700; color: #fff; }}
-            
+
             .users-table {{
                 width: 100%;
                 border-collapse: collapse;
@@ -1504,7 +1544,7 @@ async def get_server_dashboard_view(token: str):
             }}
             tr:last-child td {{ border-bottom: none; }}
             tr:hover td {{ background: rgba(255,255,255,0.02); }}
-            
+
             .avatar {{
                 width: 32px;
                 height: 32px;
@@ -1523,9 +1563,9 @@ async def get_server_dashboard_view(token: str):
             .badge-success {{ background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.2); }}
             .badge-warn {{ background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.2); }}
             .badge-neutral {{ background: rgba(148, 163, 184, 0.2); color: #cbd5e1; border: 1px solid rgba(148, 163, 184, 0.2); }}
-            
+
             .cost {{ font-family: 'SF Mono', 'Roboto Mono', monospace; color: var(--sc-warn); }}
-            
+
         </style>
     </head>
     <body>
@@ -1540,7 +1580,7 @@ async def get_server_dashboard_view(token: str):
                      <span class="badge badge-neutral">ID: {guild_id}</span>
                 </div>
             </header>
-            
+
             <div class="stats-grid">
                 <div class="stat-card">
                     <div class="stat-label">Total Users</div>
@@ -1555,9 +1595,9 @@ async def get_server_dashboard_view(token: str):
                     <div class="stat-value" style="color: #fbbf24">${total_cost:.4f}</div>
                 </div>
             </div>
-            
+
             <h2 style="margin-bottom: 20px; font-weight: 600;">Member Activity</h2>
-            
+
             <table class="users-table">
                 <thead>
                     <tr>
@@ -1609,12 +1649,12 @@ async def get_admin_dashboard_view(token: str):
     """Render a SUPER ADMIN DASHBOARD showing ALL servers."""
     from fastapi.responses import HTMLResponse
 
-    
+
     # Simple Token Check (In real app, check against DB/Env)
     # For now, we accept any token if it matches a temporary "admin_session" or just a fast check
     # But since we are creating the link ourselves, let's just assume valid if we generated it.
     # To be safe, let's Verify it's the Admin User's ID or a specific secret.
-    
+
     # 1. Fetch ALL users
     class MockResponse:
         headers = {}
@@ -1624,14 +1664,14 @@ async def get_admin_dashboard_view(token: str):
         return HTMLResponse(f"Error loading data: {res.get('error')}", status_code=500)
 
     all_users = res.get("data", [])
-    
+
     # 2. Group by Guild
     guilds = {}
     for u in all_users:
         gname = u.get("guild_name", "Unknown Server")
         if gname not in guilds:
             guilds[gname] = {"users": [], "cost": 0.0}
-        
+
         guilds[gname]["users"].append(u)
         guilds[gname]["cost"] += u["cost_usage"]["total_usd"]
 
@@ -1640,7 +1680,7 @@ async def get_admin_dashboard_view(token: str):
     for gname, data in guilds.items():
         g_users = data["users"]
         g_cost = data["cost"]
-        
+
         html_rows += f"""
         <div class="guild-section">
             <div class="guild-header">

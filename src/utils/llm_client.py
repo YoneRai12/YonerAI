@@ -151,13 +151,12 @@ class LLMClient:
         model_name = kwargs.get("model", self._model)
         payload: Dict[str, Any] = {}
 
-        # --- CLOUD ROUTING LOGIC ---
-        # If the model is clearly an OpenAI Cloud Model, route to OpenAI API directly.
-        # This bypasses the Local LLM (vLLM) which might be down.
-        # Known Cloud Models: gpt-4, gpt-3.5, o1, o3, chatgpt, etc.
-        # [User Request] Treated as OpenAI Cloud Models (Not Local)
-        # Note: gpt-5 and codex are excluded here because they typically use /responses.
-        is_cloud_model = any(m in model_name for m in ["gpt-4", "gpt-3.5", "o1-", "o3-", "o4-", "chatgpt"])
+        # Known Cloud Models (2026 Update)
+        # Tier A: gpt-5.1, gpt-5, gpt-4.1, gpt-4o, o1, o3
+        # Tier B: gpt-5.1-mini, gpt-4.1-mini, o4-mini, etc.
+        is_cloud_model = any(m in model_name for m in [
+            "gpt-5", "gpt-4.1", "gpt-4o", "o1-", "o3-", "o4-", "chatgpt"
+        ])
 
         # Current Base URL and Key (Default to Local)
         request_base_url = self._base_url
@@ -231,6 +230,20 @@ class LLMClient:
                 "model": model_name,
                 "input": input_msgs,
             }
+
+            # Remap content parts for v1/responses (input_text/input_image)
+            # User confirmed 'text' is invalid for these endpoints.
+            for item in payload["input"]:
+                if isinstance(item.get("content"), list):
+                    for part in item["content"]:
+                        if isinstance(part, dict) and "type" in part:
+                            if part["type"] == "text":
+                                part["type"] = "input_text"
+                            elif part["type"] == "image_url":
+                                part["type"] = "input_image"
+                                if "image_url" in part and isinstance(part["image_url"], dict):
+                                     part["url"] = part["image_url"].get("url")
+
             if instructions.strip():
                 payload["instructions"] = instructions.strip()
 
@@ -260,17 +273,45 @@ class LLMClient:
             # Standard "v1/chat/completions" Endpoint
             url = f"{request_base_url}/chat/completions"
 
-            # Message Role Mapping (system -> developer for o1/gpt-5)
-            should_map_developer = any(x in model_name for x in ["gpt-5", "o1", "o3"])
+            # [LATEST 2025]: Reasoning models (o1/o3/o4) and latest gpt-4o support 'developer' role.
+            # Local ORA Models (gpt-5/codex) often expect 'input_text' schema even in chat/completions.
+            is_ora_vision = any(x in model_name for x in ["gpt-5", "codex"]) and not is_cloud_model
+            should_map_developer = any(x in model_name for x in ["gpt-5", "gpt-4.1", "o1", "o3", "o4", "gpt-4o"])
+
             final_messages = []
-            if should_map_developer:
-                for m in messages:
-                    new_m = m.copy()
-                    if new_m.get("role") == "system":
-                        new_m["role"] = "developer"
-                    final_messages.append(new_m)
-            else:
-                final_messages = messages
+            for m in messages:
+                new_m = m.copy()
+
+                # Dynamic Vision Schema Resolution
+                if isinstance(new_m.get("content"), list):
+                    new_content = []
+                    for part in new_m["content"]:
+                        if isinstance(part, dict) and "type" in part:
+                            new_part = part.copy()
+                            # Remap types for ORA vs Standard OpenAI
+                            if is_ora_vision:
+                                if new_part["type"] == "text":
+                                    new_part["type"] = "input_text"
+                                elif new_part["type"] == "image_url":
+                                    new_part["type"] = "input_image"
+                                    if "image_url" in new_part and isinstance(new_part["image_url"], dict):
+                                        new_part["url"] = new_part["image_url"].get("url")
+                            else:
+                                # Standard OpenAI
+                                if new_part["type"] == "input_text":
+                                    new_part["type"] = "text"
+                                elif new_part["type"] == "input_image":
+                                    new_part["type"] = "image_url"
+                            new_content.append(new_part)
+                        else:
+                            new_content.append(part)
+                    new_m["content"] = new_content
+
+                # Role Mapping
+                if should_map_developer and new_m.get("role") == "system":
+                    new_m["role"] = "developer"
+
+                final_messages.append(new_m)
 
             payload = {
                 "model": model_name,
@@ -279,22 +320,28 @@ class LLMClient:
             }
 
             # Temperature and Token Handling
-            # FIX: User Instruction "Temperature must not be included" for Next-Gen models.
-            # Temperature and Token Handling
-            # FIX: User Instruction "Temperature must not be included" for Next-Gen REASONING models.
-            # We allow it for "gpt-5" or "codex" unless they are usually reasoning? 
-            # Current consensus: o1/o3/o4 are reasoning. gpt-5.1-codex-mini is likely standard.
-            should_omit_temp = any(x in model_name for x in ["o1-", "o3-", "o4-"])
+            # [LATEST 2025]: Reasoning models REQUIRE temperature=1.0 or omission.
+            # Including temperature < 1.0 leads to 400 Bad Request.
+            # GPT-5 and O-Series also require 'max_completion_tokens'.
+            should_omit_temp = any(x in model_name for x in ["gpt-5", "gpt-4.1", "o1-", "o3-", "o4-"])
 
             if temperature is not None and not should_omit_temp:
                 payload["temperature"] = temperature
 
-            # Map max_tokens -> max_completion_tokens for o1/gpt-5 models
+            # [LATEST 2025]: O-Series exclusively uses 'max_completion_tokens'.
             if should_omit_temp:
                 if "max_tokens" in kwargs:
                     payload["max_completion_tokens"] = kwargs.pop("max_tokens")
                 elif "max_completion_tokens" in kwargs:
                     payload["max_completion_tokens"] = kwargs.pop("max_completion_tokens")
+                # Top_p must also be 1.0 or omitted for reasoning models
+                if "top_p" in kwargs:
+                    kwargs.pop("top_p")
+            else:
+                if "max_completion_tokens" in kwargs:
+                    payload["max_tokens"] = kwargs.pop("max_completion_tokens")
+                elif "max_tokens" in kwargs:
+                    payload["max_tokens"] = kwargs.pop("max_tokens")
 
         # Inject Tools and other kwargs (Common to both)
         # We exclude keys already handled or standard internally (model, messages, input, instructions)

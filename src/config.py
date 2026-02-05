@@ -26,7 +26,7 @@ else:
 
 # Define Subdirectories based on Root
 # Legacy logic: If simple string like "L:\" is used, we assume root-level folders if matching legacy
-_is_legacy_style = _env_root and (":" in _env_root) and (len(_env_root) <= 4) 
+_is_legacy_style = _env_root and (":" in _env_root) and (len(_env_root) <= 4)
 
 if _is_legacy_style and os.name == "nt":
     # If explicitly set to a drive root (e.g. L:\), use legacy ORA_* folder structure
@@ -132,35 +132,35 @@ class Config:
     vc_admin_ids: set[int]
     vision_provider: str
     llm_priority: str  # Added Phase 21: cloud or local
-    
+
     # Notification IDs (Phase 42)
     ora_web_notify_id: Optional[int] = None
     ora_api_notify_id: Optional[int] = None
     config_ui_notify_id: Optional[int] = None
     web_chat_notify_id: Optional[int] = None
     config_page_notify_id: Optional[int] = None
-    
+
     # ComfyUI (Optional)
     comfy_dir: Optional[str] = None
     comfy_bat: Optional[str] = None
 
     openai_api_key: Optional[str] = None
     openai_base_url: str = "https://api.openai.com/v1"
-    openai_default_model: str = "gpt-5.1-codex-mini"
+    openai_default_model: str = "gpt-5-mini"
     gemini_api_key: Optional[str] = None
-    
+
     # Architecture Mode
     force_standalone: bool = False
-    
+
     # Auth Strategy (added for Cloudflare Tunnel)
-    auth_strategy: str = "local" 
-    
+    auth_strategy: str = "local"
+
     # Model Policies (from YAML)
-    model_policies: Dict[str, List[str]] = None 
-    
+    model_policies: Dict[str, List[str]] = None
+
     # Browser Proxy (Software Kill Switch)
     browser_proxy: Optional[str] = None
-    
+
     # Remote Control Auth Token
     browser_remote_token: Optional[str] = None
 
@@ -239,7 +239,7 @@ class Config:
 
         llm_base_url = os.getenv("LLM_BASE_URL", "http://localhost:8008/v1").rstrip("/")
         llm_api_key = os.getenv("LLM_API_KEY", "EMPTY")
-        llm_model = os.getenv("LLM_MODEL", "GLM-4.7-Flash")
+        llm_model = os.getenv("LLM_MODEL", "gpt-5-mini")
 
         privacy_default = os.getenv("PRIVACY_DEFAULT", "private").lower()
         if privacy_default not in {"private", "public"}:
@@ -335,7 +335,7 @@ class Config:
         # Notification IDs
         ora_web_notify_raw = os.getenv("ORA_WEB_NOTIFY_ID")
         ora_web_notify_id = int(ora_web_notify_raw) if ora_web_notify_raw and ora_web_notify_raw.isdigit() else None
-        
+
         ora_api_notify_raw = os.getenv("ORA_API_NOTIFY_ID")
         ora_api_notify_id = int(ora_api_notify_raw) if ora_api_notify_raw and ora_api_notify_raw.isdigit() else None
 
@@ -400,7 +400,7 @@ class Config:
             model_modes=model_modes,
             router_thresholds=router_thresholds,
             openai_api_key=openai_key,
-            openai_default_model=os.getenv("OPENAI_DEFAULT_MODEL", "gpt-4o-mini"),
+            openai_default_model=os.getenv("OPENAI_DEFAULT_MODEL", "gpt-5-mini"),
             gemini_api_key=os.getenv("GOOGLE_API_KEY"),
             log_channel_id=log_channel_id,
             startup_notify_channel_id=startup_notify_channel_id,

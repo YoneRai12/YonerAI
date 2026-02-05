@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 
 class ImageCaptioner:
     """
-    Handles Multi-Modal understanding (Image/Video) using the VLM (Qwen2.5-VL).
+    Handles Multi-Modal understanding (Image/Video) using the VLM (gpt-5-mini).
     """
 
     def __init__(self, llm_client: UnifiedClient):
@@ -15,16 +15,16 @@ class ImageCaptioner:
         # Read from Config
         self.provider = self.llm.config.vision_provider
 
-        # Models
-        self.vision_model_local = "mistral-14b-vision"
-        self.vision_model_openai = "gpt-5-mini"  # Stable Lane (2.5M tokens/day)
+        # Models (2026 Tiers)
+        self.vision_model_local = "gpt-5.1-codex-mini"
+        self.vision_model_openai = "gpt-5-mini"  # Unified on GPT-5-mini per user request
 
     async def describe_media(self, url: str, media_type: str = "image") -> str:
         """
         Generates a description for the given media URL.
         media_type: "image" or "video"
         """
-        prompt = "この画像を詳細に描写してください。何が映っていますか？"
+        prompt = "あなたは高度な視覚認識エンジンです。現在、目の前の画像が完全に見えています。この画像を日本語で詳細に描写してください。何が映っていますか？"
         if media_type == "video":
             prompt = "この動画の内容を詳細に要約してください。何が起きていますか？"
 
@@ -35,41 +35,20 @@ class ImageCaptioner:
             }
         ]
 
-        # Select Model based on Provider
-        if self.provider == "openai":
-            if media_type == "video":
-                # OpenAI API doesn't support video URLs in standard chat completions easily.
-                # Usually requires frame extraction. For now, we prefer fallbacks.
-                logger.warning("Vision Analysis: OpenAI provider does not support direct video URLs. Requesting fallback.")
-                # We force trial gemini if available, or error out gracefully
-                if self.llm.google_client:
-                    model = "gemini-1.5-flash" # Use Flash for video
-                    target_provider = "gemini_trial"
-                else:
-                    return "(認識エラー: OpenAI は現在動画 URL を直接解析できません。Google Gemini API を有効にしてください。)"
-            else:
-                model = self.vision_model_openai
-                target_provider = "openai"
-        else:
-            model = self.vision_model_local
-            target_provider = self.provider
+        # Standardize on OpenAI (S2/S4/User Request)
+        model = self.vision_model_openai
+        target_provider = "openai"
 
         try:
-            logger.info(f"Vision Analysis ({target_provider}): {model} for {media_type}")
+            logger.info(f"Vision Analysis (OpenAI 2026): {model} for {media_type}")
 
+            # Note: We use temperature=1.0 for reasoning compatibility
             content, _, _ = await self.llm.chat(
-                provider=target_provider, messages=messages, model=model, temperature=0.7, max_tokens=1000
+                provider=target_provider, messages=messages, model=model, temperature=1.0, max_tokens=1000
             )
-            
-            # Robustness: Handle Google API 403 / Disabled errors specifically
-            if content and "Generative Language API has not been used" in content:
-                logger.error(f"Vision Analysis: Google API is disabled. {content}")
-                return "(認識失敗: Google Cloud Console で Generative Language API を有効にする必要があります。)"
 
-            return content if content else "(認識失敗: 応答なし)"
+            return content if content else "(認識失敗: OpenAI 側で解析できませんでした)"
         except Exception as e:
             err_msg = str(e)
-            if "SERVICE_DISABLED" in err_msg or "403" in err_msg:
-                 return "(認識エラー: Google Gemini API が未有効です。Cloud Console で有効化してください。)"
-            logger.error(f"Vision Analysis Failed ({target_provider}): {e}")
+            logger.error(f"Vision Analysis Failed (OpenAI): {e}")
             return f"(認識エラー: {err_msg})"

@@ -14,12 +14,12 @@ DB_NAME = os.getenv("ORA_BOT_DB", "ora.db")
 DB_PATH = Path(__file__).resolve().parent.parent.parent.parent.parent / DB_NAME
 DATABASE_URL = f"sqlite+aiosqlite:///{DB_PATH}"
 
-print(f"📡 Database: Connecting to {DB_PATH}")
+print(f"[DB] Connecting to {DB_PATH}")
 
 engine = create_async_engine(
-    DATABASE_URL, 
-    echo=False, 
-    future=True, 
+    DATABASE_URL,
+    echo=False,
+    future=True,
     connect_args={"check_same_thread": False, "timeout": 30}
 )
 

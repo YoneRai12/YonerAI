@@ -4,17 +4,19 @@ from typing import Dict, Any, List
 # This file MUST NOT import heavy libraries (torch, numpy, etc.)
 
 TOOL_REGISTRY: Dict[str, Dict[str, Any]] = {
-    # --- WEB TOOLS ---
+    # --- WEB SKILLS ---
     "web_navigate": {
         "impl": "src.cogs.tools.web_tools:navigate",
         "tags": ["browser", "web"],
+        "capability": "navigation",
+        "version": "2.1.0",
         "schema": {
             "name": "web_navigate",
-            "description": "Navigate the browser to a specific URL.",
+            "description": "ブラウザを指定したURLに移動させます。基本的なWeb閲覧の開始点です。",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "url": {"type": "string", "description": "The URL to navigate to."}
+                    "url": {"type": "string", "description": "移動先のURL。"}
                 },
                 "required": ["url"]
             }
@@ -23,13 +25,22 @@ TOOL_REGISTRY: Dict[str, Dict[str, Any]] = {
     "web_screenshot": {
         "impl": "src.cogs.tools.web_tools:screenshot",
         "tags": ["browser", "screenshot", "image"],
+        "capability": "vision_capture",
+        "version": "3.5.0",
         "schema": {
             "name": "web_screenshot",
-            "description": "Take a screenshot of the current page.",
+            "description": "ブラウザを撮影します。4K撮影対応。撮影内容は即座に視覚コンテキストとしてフィードバックされます。",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "full_page": {"type": "boolean", "description": "Whether to capture the full scrolling page."}
+                    "url": {"type": "string", "description": "移動先のURL（省略可）。"},
+                    "resolution": {"type": "string", "enum": ["SD", "HD", "FHD", "2K", "4K", "8K"], "description": "解像度。4K以上を推奨。"},
+                    "dark_mode": {"type": "boolean", "description": "ダークモード有効化。"},
+                    "mobile": {"type": "boolean", "description": "モバイル端末エミュレーション。"},
+                    "width": {"type": "integer", "description": "カスタム幅。"},
+                    "height": {"type": "integer", "description": "カスタム高さ。"},
+                    "delay": {"type": "integer", "description": "撮影待機。"},
+                    "full_page": {"type": "boolean", "description": "ページ全体。"}
                 }
             }
         }
@@ -37,46 +48,53 @@ TOOL_REGISTRY: Dict[str, Dict[str, Any]] = {
     "web_download": {
         "impl": "src.cogs.tools.web_tools:download",
         "tags": ["browser", "download", "save", "video", "image"],
+        "capability": "media_retrieval",
+        "version": "1.8.2",
         "schema": {
             "name": "web_download",
-            "description": "Download media (video/image) from the current page/URL.",
+            "description": "YouTube等のWebサイトから動画や音声をダウンロードして保存します。",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "url": {"type": "string", "description": "URL to download from (optional, defaults to current page)."},
-                    "file_type": {"type": "string", "description": "Type of file to expect (video, image, audio)."}
-                }
+                    "url": {"type": "string", "description": "対象URL。"},
+                    "format": {"type": "string", "enum": ["video", "audio"], "description": "保存形式。"},
+                    "start_time": {"type": "integer", "description": "開始位置。"}
+                },
+                "required": ["url"]
             }
         }
     },
     "web_record_screen": {
         "impl": "src.cogs.tools.web_tools:record_screen",
         "tags": ["browser", "record", "video"],
+        "capability": "dynamic_capture",
+        "version": "1.0.4",
         "schema": {
             "name": "web_record_screen",
-            "description": "Record a video of the browser viewport.",
+            "description": "ブラウザの操作画面を動画として録画します。",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "duration": {"type": "integer", "description": "Duration in seconds."}
+                    "duration": {"type": "integer", "description": "録画時間（秒単位）。"}
                 },
                 "required": ["duration"]
             }
         }
     },
 
-    # --- VOICE / MUSIC TOOLS ---
-    # Note: These might point to music_skill methods
+    # --- VOICE / MUSIC SKILLS ---
     "music_play": {
         "impl": "src.cogs.tools.music_tools:play",
         "tags": ["voice", "music", "vc"],
+        "capability": "audio_broadcast",
+        "version": "2.4.0",
         "schema": {
             "name": "music_play",
-            "description": "Play music from a query or URL in VC.",
+            "description": "ボイスチャンネルで音楽を再生します。",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "query": {"type": "string", "description": "Search query or URL."}
+                    "query": {"type": "string", "description": "楽曲の検索ワードまたはURL。"}
                 },
                 "required": ["query"]
             }
@@ -85,80 +103,169 @@ TOOL_REGISTRY: Dict[str, Dict[str, Any]] = {
     "join_voice_channel": {
         "impl": "src.cogs.tools.music_tools:join",
         "tags": ["voice", "vc", "join"],
+        "capability": "session_entry",
+        "version": "1.2.0",
         "schema": {
             "name": "join_voice_channel",
-            "description": "Join the user's voice channel.",
+            "description": "ユーザーのボイスチャンネルに参加します。",
             "parameters": {"type": "object", "properties": {}}
         }
     },
     "leave_voice_channel": {
         "impl": "src.cogs.tools.music_tools:leave",
         "tags": ["voice", "vc", "leave"],
+        "capability": "session_exit",
+        "version": "1.2.0",
         "schema": {
             "name": "leave_voice_channel",
-            "description": "Leave the voice channel.",
+            "description": "ボイスチャンネルから切断します。",
             "parameters": {"type": "object", "properties": {}}
         }
     },
     "tts_speak": {
-        "impl": "src.cogs.tools.music_tools:speak", 
+        "impl": "src.cogs.tools.music_tools:speak",
         "tags": ["voice", "tts", "speak"],
+        "capability": "speech_synthesis",
+        "version": "3.1.0",
         "schema": {
             "name": "tts_speak",
-            "description": "Speak text using TTS in VC.",
+            "description": "指定したテキストをボイスチャンネルで読み上げます。",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "text": {"type": "string", "description": "Text to speak."}
+                    "text": {"type": "string", "description": "読み上げる内容。"}
                 },
                 "required": ["text"]
             }
         }
     },
 
-    # --- MEDIA GEN TOOLS ---
+    # --- MEDIA GEN SKILLS ---
     "dall-e_gen": {
         "impl": "src.cogs.tools.media_tools:generate_image",
         "tags": ["image", "generate", "create"],
+        "capability": "generative_art",
+        "version": "4.0.0",
         "schema": {
             "name": "dall-e_gen",
-            "description": "Generate an image using DALL-E.",
+            "description": "指示に基づいてAI画像を生成します。",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "prompt": {"type": "string", "description": "Image description."}
+                    "prompt": {"type": "string", "description": "画像の記述語。"}
                 },
                 "required": ["prompt"]
             }
         }
     },
 
-    # --- SYSTEM TOOLS ---
+    # --- SYSTEM SKILLS ---
     "system_info": {
         "impl": "src.cogs.tools.system_tools:info",
         "tags": ["system", "info", "memory"],
+        "capability": "diagnostic",
+        "version": "2.0.0",
         "schema": {
             "name": "system_info",
-            "description": "Get bot system status and memory info.",
+            "description": "ボットのシステムステータスとメモリ情報を取得します。",
             "parameters": {"type": "object", "properties": {}}
         }
     },
     "check_privilege": {
         "impl": "src.cogs.tools.system_tools:check_privilege",
         "tags": ["system", "auth"],
+        "capability": "security",
+        "version": "1.5.0",
         "schema": {
              "name": "check_privilege",
-             "description": "Check user privilege level.",
+             "description": "ユーザーの権限レベルを確認します。",
              "parameters": {"type": "object", "properties": {}}
         }
     },
     "router_health": {
         "impl": "src.cogs.tools.system_tools:router_health",
         "tags": ["system", "health", "monitor", "router"],
+        "capability": "infrastructure_monitor",
+        "version": "1.1.0",
         "schema": {
             "name": "router_health",
-            "description": "View real-time Router Health Metrics (S7). Fallback rates, Latency, Cache Stability.",
+            "description": "ルーターのリアルタイムヘルス指標（レイテンシ、キャッシュ安定性等）を表示します。",
             "parameters": {"type": "object", "properties": {}}
+        }
+    },
+
+    # --- SEARCH / CODEBASE SKILLS ---
+    "code_grep": {
+        "impl": "src.cogs.tools.search_tools:code_grep",
+        "tags": ["search", "code", "grep"],
+        "capability": "content_indexing",
+        "version": "1.0.0",
+        "schema": {
+            "name": "code_grep",
+            "description": "コードベース内を文字列検索（grep）します。特定の機能や変数がどこで使われているか探すのに最適です。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "検索キーワード。"},
+                    "path": {"type": "string", "description": "検索対象ディレクトリ（デフォルト: '.'）。"},
+                    "ignore_case": {"type": "boolean", "description": "大文字小文字を区別しない。"}
+                },
+                "required": ["query"]
+            }
+        }
+    },
+    "code_find": {
+        "impl": "src.cogs.tools.search_tools:code_find",
+        "tags": ["search", "code", "find"],
+        "capability": "file_lookup",
+        "version": "1.0.0",
+        "schema": {
+            "name": "code_find",
+            "description": "ファイル名や拡張子を指定してファイルを検索します。特定のファイルを探す際に使用します。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "pattern": {"type": "string", "description": "ファイル名のパターン（正規表現）。"},
+                    "path": {"type": "string", "description": "検索対象ディレクトリ（デフォルト: '.'）。"}
+                },
+                "required": ["pattern"]
+            }
+        }
+    },
+    "code_read": {
+        "impl": "src.cogs.tools.search_tools:code_read",
+        "tags": ["read", "code", "file"],
+        "capability": "file_reading",
+        "version": "1.0.0",
+        "schema": {
+            "name": "code_read",
+            "description": "ファイルの内容を読み込みます。行指定も可能です。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "ファイルパス。"},
+                    "start": {"type": "integer", "description": "開始行（1開始）。"},
+                    "end": {"type": "integer", "description": "終了行。"}
+                },
+                "required": ["path"]
+            }
+        }
+    },
+    "code_tree": {
+        "impl": "src.cogs.tools.search_tools:code_tree",
+        "tags": ["search", "code", "tree"],
+        "capability": "hierarchy_mapping",
+        "version": "1.0.0",
+        "schema": {
+            "name": "code_tree",
+            "description": "ディレクトリ構造をツリー形式で表示し、プロジェクトの全体像を把握します。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "ルートディレクトリ。"},
+                    "depth": {"type": "integer", "description": "深さ（デフォルト: 2）。"}
+                }
+            }
         }
     }
 }
@@ -170,10 +277,10 @@ def get_tool_schemas() -> List[Dict[str, Any]]:
         # Inject tags into the schema for the Router to see?
         # Actually Router looks at tool['tags'] in our custom logic.
         # We should return a dict that includes 'tags' alongside the schema wrapper.
-        
+
         # Structure matching available_tools in ToolSelector:
         # { "name": "...", "tags": [], ... (schema fields) }
-        
+
         s = data["schema"].copy()
         s["tags"] = data["tags"]
         schemas.append(s)

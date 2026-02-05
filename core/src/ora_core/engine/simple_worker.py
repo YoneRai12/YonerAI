@@ -1,5 +1,5 @@
 import asyncio
-from typing import Dict
+from typing import Any, Dict
 
 from ora_core.database.models import RunStatus
 
@@ -8,6 +8,11 @@ class EventManager:
     def __init__(self):
         # run_id -> asyncio.Queue
         self.listeners: Dict[str, asyncio.Queue] = {}
+        # (run_id, tool_call_id) -> Future for external tool result handoff
+        self._tool_result_waiters: Dict[tuple[str, str], asyncio.Future] = {}
+        # Buffer early arrivals when submit lands before wait registration
+        self._tool_result_buffer: Dict[tuple[str, str], dict[str, Any]] = {}
+        self._tool_result_lock = asyncio.Lock()
 
     async def listen(self, run_id: str):
         queue = asyncio.Queue()
@@ -34,19 +39,19 @@ class EventManager:
         # 1. Fetch Context (Recent messages)
         # TODO: Ideally fetch from DB. For now, we'll just send the "latest" logic or minimal context.
         # Since 'simple_worker' is decoupled from the HTTP request context, we need to read from DB here.
-        
+
         input_messages = [{"role": "system", "content": "You are ORA, an advanced AI system. Respond concisely and helpfully."}]
-        
+
         async with AsyncSessionLocal() as db:
             repo = Repository(db)
             conv = await repo.get_conversation(conversation_id)
             if conv:
                 # Naive history loading (last 10 messages)
                 # Note: 'messages' relationship is loaded via selectinload in repo.get_conversation
-                for m in conv.messages[-10:]: 
+                for m in conv.messages[-10:]:
                     role = "user" if m.author == AuthorRole.user else "assistant"
                     # Simple sanitization
-                    if m.content: 
+                    if m.content:
                         input_messages.append({"role": role, "content": m.content})
 
         # 2. Stream from AI
@@ -59,15 +64,15 @@ class EventManager:
                 if isinstance(event_data, str):
                      full_text += event_data
                      await self.emit(run_id, "delta", {"text": event_data})
-                
+
                 # Handle Structured Dict
                 elif isinstance(event_data, dict):
                     evt_type = event_data.get("type")
-                    
+
                     if evt_type == "meta":
                         used_model = event_data.get("model", used_model)
                         await self.emit(run_id, "meta", {"model": used_model})
-                    
+
                     elif evt_type == "text":
                         content = event_data.get("content", "")
                         full_text += content
@@ -88,7 +93,7 @@ class EventManager:
                 content=full_text
             )
             await repo.update_run_status(run_id, RunStatus.done)
-            
+
         await self.emit(run_id, "final", {"text": full_text, "message_id": str(msg.id), "model": used_model})
 
     async def emit(self, run_id: str, event_type: str, data: dict):
@@ -97,5 +102,47 @@ class EventManager:
                 "event": event_type,
                 "data": data
             })
+        if event_type in {"final", "error"}:
+            async with self._tool_result_lock:
+                waiter_keys = [k for k in self._tool_result_waiters.keys() if k[0] == run_id]
+                for key in waiter_keys:
+                    fut = self._tool_result_waiters.pop(key, None)
+                    if fut and not fut.done():
+                        fut.cancel()
+                buffer_keys = [k for k in self._tool_result_buffer.keys() if k[0] == run_id]
+                for key in buffer_keys:
+                    self._tool_result_buffer.pop(key, None)
+
+    async def submit_tool_result(self, run_id: str, tool_call_id: str, payload: dict[str, Any]) -> None:
+        """
+        Accept tool output from external clients (e.g., Discord ToolHandler).
+        If a waiter is active, resolve it immediately; otherwise buffer it.
+        """
+        key = (run_id, tool_call_id)
+        async with self._tool_result_lock:
+            waiter = self._tool_result_waiters.get(key)
+            if waiter and not waiter.done():
+                waiter.set_result(payload)
+            else:
+                self._tool_result_buffer[key] = payload
+
+    async def wait_for_tool_result(self, run_id: str, tool_call_id: str, timeout_sec: int = 120) -> dict[str, Any]:
+        """
+        Wait for a previously dispatched external tool result.
+        """
+        key = (run_id, tool_call_id)
+
+        async with self._tool_result_lock:
+            buffered = self._tool_result_buffer.pop(key, None)
+            if buffered is not None:
+                return buffered
+            fut = asyncio.get_running_loop().create_future()
+            self._tool_result_waiters[key] = fut
+
+        try:
+            return await asyncio.wait_for(fut, timeout=timeout_sec)
+        finally:
+            async with self._tool_result_lock:
+                self._tool_result_waiters.pop(key, None)
 
 event_manager = EventManager()

@@ -24,7 +24,7 @@ class ChatHandlerLegacy:
     Legacy ChatHandler with full brain logic.
     Use this as reference or for hybrid mode where Discord handles some logic.
     """
-    
+
     def __init__(self, cog):
         self.cog = cog
         self.bot = cog.bot
@@ -32,7 +32,7 @@ class ChatHandlerLegacy:
 
     async def _router_decision(self, prompt: str, user_name: str) -> str:
         """
-        [Layer 1.5] Mini-Model Router (gpt-4o-mini).
+        [Layer 1.5] Mini-Model Router (gpt-5-mini).
         Decides if RAG (Memory/Knowledge) is needed BEFORE the Main LLM sees the prompt.
         Cost-Effective Agentic Behavior.
         """
@@ -41,7 +41,7 @@ class ChatHandlerLegacy:
                 {
                     "role": "system",
                     "content": (
-                        "You are the ORA Router (gpt-4o-mini). Your job is to classify the user's INTENT.\n"
+                        "You are the ORA Router (gpt-5-mini). Your job is to classify the user's INTENT.\n"
                         "Output ONLY one of the following labels:\n"
                         "- RECALL: User is asking about past conversations, 'what did I say?', or memory.\n"
                         "- KNOWLEDGE: User is asking for factual info that might be in the database (facts/wiki).\n"
@@ -58,7 +58,7 @@ class ChatHandlerLegacy:
 
             if self.cog.unified_client.openai_client:
                 content, _, _ = await self.cog.unified_client.chat(
-                    "openai", messages, model="gpt-4o-mini", temperature=0.0
+                    "openai", messages, model="gpt-5-mini", temperature=0.0
                 )
                 content = content.strip().upper()
                 if "RECALL" in content:

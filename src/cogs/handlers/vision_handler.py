@@ -88,7 +88,7 @@ class VisionHandler:
                             if is_reference
                             else f"[Attached Image {i + 1}: {attachment.filename}]"
                         )
-                        prompt_suffix += f"\n\n{header}\n(Image loaded into Qwen2.5-VL Vision Context)\n"
+                        prompt_suffix += f"\n\n{header}\n(Image loaded into LLM Vision Context)\n"
 
                 except Exception as e:
                     logger.error(f"Image process failed: {e}")
@@ -127,7 +127,7 @@ class VisionHandler:
                 if b64_img:
                     payload = {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64_img}"}}
                     image_payloads.append(payload)
-                    prompt_suffix += "\n\n[Embed Image]\n(Image loaded into Qwen2.5-VL Vision Context)\n"
+                    prompt_suffix += "\n\n[Embed Image]\n(Image loaded into LLM Vision Context)\n"
 
             except Exception as e:
                 logger.warning(f"Failed to process embed image {image_url}: {e}")

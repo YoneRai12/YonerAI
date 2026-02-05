@@ -83,7 +83,7 @@ el => {
     }
     path.unshift(selector);
     element = element.parentElement;
-    
+
   }
   return path.join(" > ");
 }
@@ -269,13 +269,20 @@ class BrowserAgent:
         self._playwright = await async_playwright().start()
         log.info("Playwright version: %s", getattr(playwright, "__version__", "unknown"))
 
-        # Load Proxy Config
-        from src.config import Config
-        cfg = Config.load()
+        # Load proxy config in a browser-only safe way.
+        # Do not hard-fail if full bot config (e.g., DISCORD_BOT_TOKEN) is missing.
         proxy_settings = None
-        if cfg.browser_proxy:
-            log.info(f"Using Browser Proxy: {cfg.browser_proxy}")
-            proxy_settings = {"server": cfg.browser_proxy}
+        browser_proxy = (os.getenv("BROWSER_PROXY") or "").strip()
+        if not browser_proxy:
+            try:
+                from src.config import Config
+                cfg = Config.load()
+                browser_proxy = (getattr(cfg, "browser_proxy", None) or "").strip()
+            except Exception as cfg_err:
+                log.warning("BrowserAgent: Config.load() unavailable; continuing without proxy. (%s)", cfg_err)
+        if browser_proxy:
+            log.info(f"Using Browser Proxy: {browser_proxy}")
+            proxy_settings = {"server": browser_proxy}
 
         # --- PARANOID SECURITY ARGS ---
         # 1. Disable WebRTC IP Leak (Critical for VPN users)
@@ -284,7 +291,7 @@ class BrowserAgent:
         PARANOID_ARGS = [
             "--force-webrtc-ip-handling-policy=disable_non_proxied_udp", # Kills WebRTC leaks
             "--disable-webrtc", # Try to disable entirely if possible (generic)
-            "--denying-new-preferences", 
+            "--denying-new-preferences",
             "--disable-blink-features=AutomationControlled", # Hide "navigator.webdriver"
             "--no-first-run",
             "--no-service-autorun",
@@ -313,7 +320,7 @@ class BrowserAgent:
                 self._owns_context = True
             else:
                 self._browser = await self._playwright.chromium.launch(
-                    headless=headless, 
+                    headless=headless,
                     proxy=proxy_settings,
                     args=PARANOID_ARGS # Security Injection
                 )
@@ -550,23 +557,23 @@ class BrowserAgent:
         entries: list[RefEntry] = []
         ref_index = 1
         max_scan = max_items * 2
-        
+
         # Safe viewport access
         try:
             viewport = page.viewport_size or {}
         except:
             viewport = {}
-            
+
         viewport_w = viewport.get("width")
         viewport_h = viewport.get("height")
-        
+
         # Scan frames as well
         frames = []
         try:
             frames = page.frames
         except:
             frames = []
-            
+
         for frame in frames:
             try:
                 handles = await frame.query_selector_all(selector)
