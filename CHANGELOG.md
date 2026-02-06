@@ -1,5 +1,10 @@
 # ORA System Changelog
 
+## v5.1.8 (2026-02-06) - Risk-Based Approvals + Tool Audit
+- Added risk scoring and an approvals gate at the ToolHandler "execute" boundary.
+- Owner also requires approvals for HIGH+ risk; CRITICAL requires a confirmation code (modal).
+- Added audit logging (JSONL tracing + SQLite tables `tool_audit` and `approval_requests`).
+
 ## v5.1.7 (2026-02-06) - MCP Routing Support
 - Tool router now has an `MCP` category so MCP tools can actually be selected when the user asks for MCP usage.
 

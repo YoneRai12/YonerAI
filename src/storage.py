@@ -79,6 +79,40 @@ CREATE TABLE IF NOT EXISTS scheduled_task_runs (
   error TEXT,
   FOREIGN KEY(task_id) REFERENCES scheduled_tasks(id)
 );
+
+-- Tool audit log (approvals + execution trail)
+CREATE TABLE IF NOT EXISTS tool_audit (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  ts INTEGER NOT NULL,
+  actor_id TEXT,
+  guild_id TEXT,
+  channel_id TEXT,
+  tool_name TEXT NOT NULL,
+  tool_call_id TEXT UNIQUE,
+  correlation_id TEXT,
+  risk_score INTEGER,
+  risk_level TEXT,
+  approval_required INTEGER NOT NULL DEFAULT 0,
+  approval_status TEXT,
+  args_json TEXT,
+  result_preview TEXT
+);
+
+-- Approval requests (idempotent per tool_call_id)
+CREATE TABLE IF NOT EXISTS approval_requests (
+  tool_call_id TEXT PRIMARY KEY,
+  created_at INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL,
+  actor_id TEXT NOT NULL,
+  tool_name TEXT NOT NULL,
+  correlation_id TEXT,
+  risk_score INTEGER,
+  risk_level TEXT,
+  requires_code INTEGER NOT NULL DEFAULT 0,
+  expected_code TEXT,
+  status TEXT NOT NULL DEFAULT 'pending',
+  decided_at INTEGER
+);
 """
 
 
@@ -314,6 +348,122 @@ class Store:
                 ),
             )
             await db.commit()
+
+    async def log_tool_audit(
+        self,
+        *,
+        ts: int,
+        actor_id: Optional[int],
+        guild_id: Optional[int],
+        channel_id: Optional[int],
+        tool_name: str,
+        tool_call_id: str | None,
+        correlation_id: str | None,
+        risk_score: int,
+        risk_level: str,
+        approval_required: bool,
+        approval_status: str | None,
+        args_json: str,
+        result_preview: str,
+    ) -> None:
+        async with aiosqlite.connect(self._db_path) as db:
+            try:
+                await db.execute(
+                    (
+                        "INSERT OR REPLACE INTO tool_audit("
+                        "ts, actor_id, guild_id, channel_id, tool_name, tool_call_id, correlation_id, "
+                        "risk_score, risk_level, approval_required, approval_status, args_json, result_preview"
+                        ") VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                    ),
+                    (
+                        int(ts),
+                        str(actor_id) if actor_id is not None else None,
+                        str(guild_id) if guild_id is not None else None,
+                        str(channel_id) if channel_id is not None else None,
+                        str(tool_name or ""),
+                        str(tool_call_id) if tool_call_id else None,
+                        str(correlation_id) if correlation_id else None,
+                        int(risk_score),
+                        str(risk_level or ""),
+                        1 if approval_required else 0,
+                        str(approval_status) if approval_status else None,
+                        str(args_json or ""),
+                        str(result_preview or "")[:2000],
+                    ),
+                )
+                await db.commit()
+            except Exception:
+                # Best-effort; never fail tool execution due to logging.
+                return
+
+    async def upsert_approval_request(
+        self,
+        *,
+        tool_call_id: str,
+        created_at: int,
+        expires_at: int,
+        actor_id: int,
+        tool_name: str,
+        correlation_id: str | None,
+        risk_score: int,
+        risk_level: str,
+        requires_code: bool,
+        expected_code: str | None,
+    ) -> None:
+        async with aiosqlite.connect(self._db_path) as db:
+            try:
+                await db.execute(
+                    (
+                        "INSERT OR REPLACE INTO approval_requests("
+                        "tool_call_id, created_at, expires_at, actor_id, tool_name, correlation_id, "
+                        "risk_score, risk_level, requires_code, expected_code, status, decided_at"
+                        ") VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT status FROM approval_requests WHERE tool_call_id=?), 'pending'), "
+                        "COALESCE((SELECT decided_at FROM approval_requests WHERE tool_call_id=?), NULL))"
+                    ),
+                    (
+                        str(tool_call_id),
+                        int(created_at),
+                        int(expires_at),
+                        str(actor_id),
+                        str(tool_name or ""),
+                        str(correlation_id) if correlation_id else None,
+                        int(risk_score),
+                        str(risk_level or ""),
+                        1 if requires_code else 0,
+                        str(expected_code) if expected_code else None,
+                        str(tool_call_id),
+                        str(tool_call_id),
+                    ),
+                )
+                await db.commit()
+            except Exception:
+                return
+
+    async def set_approval_status(self, *, tool_call_id: str, status: str) -> None:
+        now = int(time.time())
+        async with aiosqlite.connect(self._db_path) as db:
+            try:
+                await db.execute(
+                    "UPDATE approval_requests SET status=?, decided_at=? WHERE tool_call_id=?",
+                    (str(status), int(now), str(tool_call_id)),
+                )
+                await db.commit()
+            except Exception:
+                return
+
+    async def get_approval_status(self, *, tool_call_id: str) -> Optional[str]:
+        async with aiosqlite.connect(self._db_path) as db:
+            try:
+                async with db.execute(
+                    "SELECT status FROM approval_requests WHERE tool_call_id=?",
+                    (str(tool_call_id),),
+                ) as cur:
+                    row = await cur.fetchone()
+                if not row:
+                    return None
+                return str(row[0]) if row[0] is not None else None
+            except Exception:
+                return None
             return int(cur.lastrowid)
 
     async def list_scheduled_tasks(self, *, owner_id: int) -> list[dict]:

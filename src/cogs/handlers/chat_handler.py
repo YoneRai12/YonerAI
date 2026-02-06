@@ -573,12 +573,13 @@ Interests: {interests}
                     # [FIX] Use await instead of create_task to ensure SEQUENTIAL execution.
                     # This is critical for chains like "Screenshot -> Download -> Screenshot".
                     tool_result = await self.cog.tool_handler.handle_dispatch(
-                        tool_name=tool_name,
-                        args=tool_args,
-                        message=message,
-                        status_manager=status_manager,
-                        correlation_id=correlation_id
-                    )
+                         tool_name=tool_name,
+                         args=tool_args,
+                         message=message,
+                         status_manager=status_manager,
+                         correlation_id=correlation_id,
+                         tool_call_id=tool_call_id,
+                     )
 
                     if isinstance(tool_result, dict):
                         dl_meta = tool_result.get("download_meta")

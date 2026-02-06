@@ -41,9 +41,9 @@ class ToolHandler:
         return self._skill_loader
 
 
-    async def handle_dispatch(self, tool_name: str, args: dict, message: discord.Message, status_manager=None, correlation_id: Optional[str] = None) -> Any:
+    async def handle_dispatch(self, tool_name: str, args: dict, message: discord.Message, status_manager=None, correlation_id: Optional[str] = None, tool_call_id: Optional[str] = None) -> Any:
         """Entry point from SSE dispatch event."""
-        result = await self.execute(tool_name, args, message, status_manager, correlation_id=correlation_id)
+        result = await self.execute(tool_name, args, message, status_manager, correlation_id=correlation_id, tool_call_id=tool_call_id)
 
         visible_text: Optional[str] = None
         if isinstance(result, str):
@@ -69,7 +69,7 @@ class ToolHandler:
         # Critical: return raw tool result so Core can continue multi-step agentic loops.
         return result
 
-    async def execute(self, tool_name: str, args: dict, message: discord.Message, status_manager=None, correlation_id: Optional[str] = None) -> Optional[str]:
+    async def execute(self, tool_name: str, args: dict, message: discord.Message, status_manager=None, correlation_id: Optional[str] = None, tool_call_id: Optional[str] = None) -> Optional[str]:
         """Executes a tool by delegating to the appropriate Skill or handling locally."""
         logger.info(f"🛠️ [Tool] Executing: {tool_name} | CID: {correlation_id}")
 
@@ -78,6 +78,162 @@ class ToolHandler:
         from src.utils.access_control import is_tool_allowed
         if not is_tool_allowed(self.bot, getattr(message.author, "id", None), tool_name):
             return "⛔ Access Denied: Creator Only."
+
+        # ------------------------------------------------------------------
+        # Approvals gate (risk-based). Even owner requires approval for HIGH+.
+        # ------------------------------------------------------------------
+        try:
+            from src.cogs.tools.registry import get_tool_meta
+            from src.utils.risk_scoring import score_tool_risk
+            from src.utils.approvals import policy_for, request_approval
+            import json
+            import time
+
+            meta = get_tool_meta(tool_name)
+            tags = meta.get("tags") if isinstance(meta, dict) else []
+            ra = score_tool_risk(tool_name, args if isinstance(args, dict) else {}, tags=tags if isinstance(tags, list) else [])
+            pol = policy_for(bot=self.bot, actor_id=message.author.id, risk_level=ra.level, risk_score=ra.score)
+
+            # JSONL trace (sanitized) for observability
+            from src.utils.agent_trace import trace_event
+            trace_event(
+                "approval.risk_scored",
+                correlation_id=correlation_id or "",
+                tool=tool_name,
+                tool_call_id=tool_call_id,
+                risk_score=ra.score,
+                risk_level=ra.level,
+                reasons=ra.reasons,
+            )
+
+            # Persist pending approval request for idempotency (best-effort)
+            if pol.requires_approval and tool_call_id and hasattr(self.bot, "store"):
+                try:
+                    created = int(time.time())
+                    expires = created + int(pol.timeout_sec)
+                    await self.bot.store.upsert_approval_request(
+                        tool_call_id=tool_call_id,
+                        created_at=created,
+                        expires_at=expires,
+                        actor_id=int(message.author.id),
+                        tool_name=tool_name,
+                        correlation_id=correlation_id,
+                        risk_score=int(ra.score),
+                        risk_level=str(ra.level),
+                        requires_code=bool(pol.requires_code),
+                        expected_code=None,  # filled after request_approval returns
+                    )
+                except Exception:
+                    pass
+
+            # If already approved/denied, respect it (best-effort).
+            if pol.requires_approval and tool_call_id and hasattr(self.bot, "store"):
+                try:
+                    st = await self.bot.store.get_approval_status(tool_call_id=tool_call_id)
+                    if st in {"approved", "denied"}:
+                        if st == "denied":
+                            return "⛔ Denied (previous decision)."
+                        # approved: proceed
+                        pol = pol  # no-op
+                except Exception:
+                    pass
+
+            if pol.requires_approval:
+                dec = await request_approval(
+                    bot=self.bot,
+                    message=message,
+                    tool_name=tool_name,
+                    args=args if isinstance(args, dict) else {},
+                    risk_score=ra.score,
+                    risk_level=ra.level,
+                    reasons=ra.reasons,
+                    correlation_id=correlation_id or "",
+                    tool_call_id=tool_call_id or "",
+                    requires_code=pol.requires_code,
+                    timeout_sec=pol.timeout_sec,
+                )
+                status = dec.get("status")
+                expected_code = dec.get("expected_code")
+
+                if tool_call_id and hasattr(self.bot, "store"):
+                    try:
+                        await self.bot.store.set_approval_status(tool_call_id=tool_call_id, status=str(status))
+                        # Update expected code if we generated one (CRITICAL)
+                        if expected_code:
+                            # simplistic: overwrite row
+                            created = int(time.time())
+                            await self.bot.store.upsert_approval_request(
+                                tool_call_id=tool_call_id,
+                                created_at=created,
+                                expires_at=created + int(pol.timeout_sec),
+                                actor_id=int(message.author.id),
+                                tool_name=tool_name,
+                                correlation_id=correlation_id,
+                                risk_score=int(ra.score),
+                                risk_level=str(ra.level),
+                                requires_code=bool(pol.requires_code),
+                                expected_code=str(expected_code),
+                            )
+                    except Exception:
+                        pass
+
+                trace_event(
+                    "approval.decision",
+                    correlation_id=correlation_id or "",
+                    tool=tool_name,
+                    tool_call_id=tool_call_id,
+                    status=status,
+                    risk_score=ra.score,
+                    risk_level=ra.level,
+                )
+
+                if status != "approved":
+                    # Audit row (best-effort)
+                    if hasattr(self.bot, "store"):
+                        try:
+                            await self.bot.store.log_tool_audit(
+                                ts=int(time.time()),
+                                actor_id=int(message.author.id),
+                                guild_id=int(message.guild.id) if message.guild else None,
+                                channel_id=int(message.channel.id),
+                                tool_name=tool_name,
+                                tool_call_id=tool_call_id,
+                                correlation_id=correlation_id,
+                                risk_score=int(ra.score),
+                                risk_level=str(ra.level),
+                                approval_required=True,
+                                approval_status=str(status),
+                                args_json=json.dumps(args, ensure_ascii=False)[:5000],
+                                result_preview=f"blocked:{status}",
+                            )
+                        except Exception:
+                            pass
+                    return f"⛔ {status.upper()}: approval required."
+
+                # Approved: record audit (best-effort)
+                if hasattr(self.bot, "store"):
+                    try:
+                        await self.bot.store.log_tool_audit(
+                            ts=int(time.time()),
+                            actor_id=int(message.author.id),
+                            guild_id=int(message.guild.id) if message.guild else None,
+                            channel_id=int(message.channel.id),
+                            tool_name=tool_name,
+                            tool_call_id=tool_call_id,
+                            correlation_id=correlation_id,
+                            risk_score=int(ra.score),
+                            risk_level=str(ra.level),
+                            approval_required=True,
+                            approval_status="approved",
+                            args_json=json.dumps(args, ensure_ascii=False)[:5000],
+                            result_preview="approved",
+                        )
+                    except Exception:
+                        pass
+
+        except Exception:
+            # If approvals system fails, do NOT block tool execution (avoid bricking); still safer to proceed for owner.
+            pass
 
         # [Clawdbot] Dynamic Skills (Priority)
         if tool_name in self.skill_loader.skills:

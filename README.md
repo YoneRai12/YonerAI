@@ -1,6 +1,6 @@
 <div align="center">
 
-# ORA (v5.1.7-Singularity) 🌌
+# ORA (v5.1.8-Singularity) 🌌
 ### **The Artificial Lifeform AI System for High-End PC**
 
 ![ORA Banner](https://raw.githubusercontent.com/YoneRai12/ORA/main/docs/banner.png)
@@ -243,9 +243,9 @@ pytest tests/test_smoke.py
 3. Create a git tag as `vX.Y.Z` and push it.
 
 ```bash
-python scripts/verify_version.py --tag v5.1.7
-git tag v5.1.7
-git push origin v5.1.7
+python scripts/verify_version.py --tag v5.1.8
+git tag v5.1.8
+git push origin v5.1.8
 ```
 
 `release.yml` now fails if tag and `VERSION` do not match, so others can reproduce the same release artifact.
