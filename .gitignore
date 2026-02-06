@@ -7,6 +7,7 @@ service-account.json
 client_secret_*.json
 
 # Debug & Temporary files
+logs/
 *.log
 *.txt
 *.part
@@ -48,6 +49,9 @@ venv/
 .gemini/
 .agent/
 brain/
+
+# Local notes
+ORA_AI_HANDOVER_MAC.md
 
 # Backup & Legacy
 Discord-mainORA2/

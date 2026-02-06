@@ -302,6 +302,31 @@ class ToolSelector:
                         final_tools.append(tool)
                         seen_tools.add(tool["name"])
 
+        # Heuristic narrowing:
+        # The category router can over-expose remote browser tools (e.g., screenshot) when a URL is present.
+        # Only include "browser automation/screenshot" tools when the user explicitly asks for it.
+        p_low = (prompt or "").lower()
+        wants_screenshot = any(k in p_low for k in ["スクショ", "スクリーンショット", "screenshot", "画面", "キャプチャ"])
+        wants_browser_control = any(k in p_low for k in ["webひらいて", "web操作", "ブラウザ", "remote", "操作して", "開いて操作"])
+        is_code_review = ("github.com" in p_low or "gitlab.com" in p_low) and any(k in p_low for k in ["コード", "repo", "リポジトリ", "review", "監査", "読んで"])
+
+        remote_browser_tools = {
+            "web_remote_control",
+            "web_action",
+            "web_navigate",
+            "web_set_view",
+            "web_record_screen",
+            "web_screenshot",
+        }
+        if is_code_review and not wants_screenshot and not wants_browser_control:
+            final_tools = [t for t in final_tools if t.get("name") not in remote_browser_tools]
+        elif not wants_screenshot and not wants_browser_control:
+            final_tools = [t for t in final_tools if t.get("name") not in remote_browser_tools]
+        else:
+            # If only screenshot is requested, allow screenshot but still avoid remote control unless asked.
+            if wants_screenshot and not wants_browser_control:
+                final_tools = [t for t in final_tools if t.get("name") not in (remote_browser_tools - {"web_screenshot"})]
+
         # S6: Structured Logging (Timing Split)
         end_time_total = time.perf_counter()
         total_ms = round((end_time_total - start_time_total) * 1000, 2)

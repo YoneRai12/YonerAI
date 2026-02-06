@@ -19,4 +19,12 @@
     *   **CRITICAL**: The Core API must run with **`worker=1`** (e.g., `uvicorn ... --workers 1`) to ensure the `asyncio.Semaphore` correctly manages the 25GB VRAM budget across all requests.
 *   **Idempotency & Polling**:
     *   Tools must support `tool_call_id` and are scoped by `user_id`.
-    *   `ToolRunner` implements a polling mechanism (30s) for concurrent requests to the same tool call, preventing duplicate execution while ensuring consistent results.
+*   `ToolRunner` implements a polling mechanism (30s) for concurrent requests to the same tool call, preventing duplicate execution while ensuring consistent results.
+
+## 4. Secrets & Local Configuration (MUST)
+*   **Never commit `.env`** or any real credentials (Discord tokens, OpenAI keys, Cloudflare tunnel tokens, webhooks, OAuth secrets).
+*   Use `.env.example` as the public template, and keep `.env` in `.gitignore` (already enforced).
+*   If a secret is ever pasted into chat/issues or committed by mistake:
+    1. rotate/revoke it immediately (treat it as compromised)
+    2. remove it from git history if it reached the repository
+*   Avoid printing secrets in logs. If you add new logs, redact values that look like tokens/keys.

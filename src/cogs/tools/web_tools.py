@@ -238,16 +238,15 @@ async def screenshot(args: dict, message: discord.Message, status_manager, bot=N
         embed.set_image(url=f"attachment://{filename}")
         embed.set_footer(text=f"ORA Browser • {width or 'Default'}x{height or 'Default'}")
 
-        await message.reply(embed=embed, file=f_obj)
-
-        # Cleanup
         try:
-            # Wait a bit? No, Discord reads file into buffer on send usually?
-            # discord.py File accepts fp. If path string, it opens it.
-            # We should probably not delete immediately if sending async?
-            # actually await message.reply finishes the send.
-            os.remove(file_path)
-        except: pass
+            await message.reply(embed=embed, file=f_obj)
+        finally:
+            # Cleanup: always try to delete local artifact after use.
+            try:
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+            except Exception:
+                pass
 
         # [AGENTIC] Return dict with string result AND base64 for AI logic
         import base64
@@ -265,6 +264,12 @@ async def screenshot(args: dict, message: discord.Message, status_manager, bot=N
         }
 
     except Exception as e:
+        # Best-effort cleanup for partially created files
+        try:
+            if "file_path" in locals() and file_path and os.path.exists(file_path):
+                os.remove(file_path)
+        except Exception:
+            pass
         return f"❌ Screenshot failed: {e}"
 
 async def download(args: dict, message: discord.Message, status_manager, bot=None):

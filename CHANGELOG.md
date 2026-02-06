@@ -12,6 +12,21 @@
 * `web_download` no longer crashes on older deployments where `download_video_smart()` doesn’t accept `split_strategy`.
 * `web_screenshot` embed title is now short/stable (`ORA Screenshot`) to avoid Discord’s 256-char title hard limit.
 
+## 🆕 v5.1.2 (2026/02/06) - UX/Router Fixes + Cleanup Guarantees
+### 🧾 Task Card Is Now Dynamic
+* The initial “task board” no longer uses a fixed 3-step template; it adapts based on the request (attachments/web/save/logs).
+
+### 🧭 Stop Unwanted Screenshots
+* Tool router now avoids selecting remote browser/screenshot tools unless the user explicitly asks for “web操作/スクショ”.
+
+### 🧹 Cleanup Hardening
+* `web_screenshot` now cleans up local screenshot artifacts in a `finally` block (best-effort).
+* Web API now runs a periodic cleanup loop for expired temporary download entries (TTL=30 min).
+
+### 📚 Basic Repo Hygiene
+* Added explicit “Secrets & .env” rules to `CONTRIBUTING.md`.
+* Ignored `logs/` and local handover notes via `.gitignore`.
+
 ## 🆕 v5.1.0 (2026/02/06) - Diagram Clarity + Release Alignment
 ### 📈 Readable Architecture Diagrams
 Reworked README diagrams for practical readability:

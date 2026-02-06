@@ -65,6 +65,8 @@ class SwarmOrchestrator:
         decompose_prompt = f"""
 You are a task decomposition planner.
 Split the user request into {max_tasks} or fewer independent subtasks for parallel execution.
+Return ONLY the tasks that are actually needed; do NOT pad the list to reach the maximum.
+It is valid to return 1-2 tasks for simple requests.
 Subtasks must be analysis/research/planning oriented (not direct destructive operations).
 Return STRICT JSON:
 {{
@@ -114,6 +116,8 @@ Return STRICT JSON:
             {"id": "T1", "role": "researcher", "goal": "Collect facts and constraints", "success_criteria": "facts listed"},
             {"id": "T2", "role": "planner", "goal": "Create executable plan", "success_criteria": "step-by-step plan"},
             {"id": "T3", "role": "reviewer", "goal": "Risk and permission review", "success_criteria": "risks and mitigations"},
+            {"id": "T4", "role": "implementer", "goal": "Draft minimal patch outline", "success_criteria": "patch points identified"},
+            {"id": "T5", "role": "tester", "goal": "Define verification steps", "success_criteria": "tests/commands listed"},
         ][:max_tasks]
         trace_event("swarm.decomposed_fallback", correlation_id=correlation_id, tasks=fallback)
         return fallback

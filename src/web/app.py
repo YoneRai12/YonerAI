@@ -1,4 +1,5 @@
 import os
+import asyncio
 
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
@@ -6,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from src.storage import Store
 from src.web import endpoints
+from src.utils.temp_downloads import cleanup_expired_downloads
 
 store: Store | None = None
 
@@ -69,6 +71,17 @@ async def on_startup() -> None:
     store = Store(os.getenv("ORA_BOT_DB", "ora_bot.db"))
     await store.init()
 
+    # Ensure expired temporary downloads are eventually deleted even if nobody hits /download/* routes.
+    async def _cleanup_loop() -> None:
+        while True:
+            try:
+                cleanup_expired_downloads()
+            except Exception:
+                pass
+            await asyncio.sleep(600)  # 10 minutes
+
+    app.state._temp_download_cleanup_task = asyncio.create_task(_cleanup_loop())
+
 
 @app.on_event("shutdown")
 async def on_shutdown() -> None:
@@ -76,3 +89,6 @@ async def on_shutdown() -> None:
     # Store might not need explicit disconnect if using aiofiles/sqlite3 directly per request,
     # but good to have the hook.
     store = None
+    task = getattr(app.state, "_temp_download_cleanup_task", None)
+    if task:
+        task.cancel()

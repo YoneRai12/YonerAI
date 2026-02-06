@@ -96,9 +96,30 @@ class ChatHandler:
         )
 
         status_manager = StatusManager(message.channel, existing_message=existing_status_msg)
+
+        # Dynamic task board: do not hardcode 3 steps for every request.
+        # Keep it short for simple chats; expand only when the request implies multi-step work.
+        p_low = (prompt or "").lower()
+        tasks = ["依頼を解析"]
+        if message.attachments:
+            tasks.append("添付を解析")
+        if any(k in p_low for k in ["ログ", "trace", "エラー", "stack", "例外"]):
+            tasks += ["ログ/状況を確認", "原因を特定", "修正案を提示"]
+        elif any(k in p_low for k in ["保存", "ダウンロード", "download", "save", "mp3", "mp4", "動画"]):
+            tasks += ["保存/ダウンロードを実行", "結果を整理"]
+        elif any(k in p_low for k in ["スクショ", "スクリーンショット", "screenshot", "webひらいて", "web操作", "ブラウザ"]):
+            tasks += ["ページを開く", "スクショ/操作を実行"]
+        # Always end with a reply step.
+        tasks.append("回答を返す")
+
+        # De-dup + clamp
+        seen = set()
+        tasks = [t for t in tasks if not (t in seen or seen.add(t))]
+        tasks = tasks[:8]
+
         await status_manager.start_task_board(
             "⚡ ORA Universal Brain • 実行ステータス",
-            ["依頼を解析", "ツールを実行", "回答を返す"],
+            tasks,
             footer="Sanitized & Powered by ORA Universal Brain",
         )
         await status_manager.set_task_state(1, "running", "Coreへ接続中")
