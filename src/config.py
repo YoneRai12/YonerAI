@@ -166,6 +166,11 @@ class Config:
     # Tunnel Hostname (Phase 62)
     tunnel_hostname: Optional[str] = None
 
+    # Startup safety (default OFF)
+    auto_open_local_interfaces: bool = False
+    auto_start_tunnels: bool = False
+    tunnels_allow_quick: bool = False
+
     # Swarm Orchestration (2026 Prep)
     swarm_enabled: bool = False
     swarm_max_tasks: int = 3
@@ -365,6 +370,21 @@ class Config:
 
         tunnel_hostname = os.getenv("TUNNEL_HOSTNAME")
 
+        def _parse_bool_env(name: str, default: bool = False) -> bool:
+            raw = os.getenv(name)
+            if raw is None:
+                return default
+            return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+        # Startup safety toggles (default OFF unless explicitly enabled)
+        auto_open_local_interfaces = _parse_bool_env("ORA_AUTO_OPEN_LOCAL_INTERFACES", False) or _parse_bool_env(
+            "ORA_AUTO_OPEN_UI", False
+        )
+        auto_start_tunnels = _parse_bool_env("ORA_AUTO_START_TUNNELS", False) or _parse_bool_env(
+            "ORA_AUTO_TUNNEL", False
+        )
+        tunnels_allow_quick = _parse_bool_env("ORA_TUNNELS_ALLOW_QUICK", False)
+
         # Model Modes Configuration
         # Maps mode name to batch file name
         model_modes = {
@@ -438,6 +458,9 @@ class Config:
             web_chat_notify_id=web_chat_notify_id,
             config_page_notify_id=config_page_notify_id,
             tunnel_hostname=tunnel_hostname,
+            auto_open_local_interfaces=auto_open_local_interfaces,
+            auto_start_tunnels=auto_start_tunnels,
+            tunnels_allow_quick=tunnels_allow_quick,
             # comfy_dir already passed above at line 373
             force_standalone=os.getenv("FORCE_STANDALONE", "false").lower() == "true",
             auth_strategy=auth_strategy,

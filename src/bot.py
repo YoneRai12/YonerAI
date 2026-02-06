@@ -251,11 +251,18 @@ class ORABot(commands.Bot):
         # Verify Ngrok and DM owner
         # self.loop.create_task(self._notify_ngrok_url())
 
-        # [User Request] Open all web interfaces locally
-        self.loop.create_task(self._open_local_interfaces())
+        # Safety defaults: do not auto-open browsers or auto-expose tunnels unless explicitly enabled.
+        if getattr(self.config, "auto_open_local_interfaces", False):
+            self.loop.create_task(self._open_local_interfaces())
+            logger.info("Auto-open local interfaces: ENABLED (ORA_AUTO_OPEN_LOCAL_INTERFACES=1)")
+        else:
+            logger.info("Auto-open local interfaces: disabled")
 
-        # [Auto-Tunnel] Start Cloudflare Tunnels if missing
-        self.loop.create_task(self._start_tunnels())
+        if getattr(self.config, "auto_start_tunnels", False):
+            self.loop.create_task(self._start_tunnels())
+            logger.info("Auto-start tunnels: ENABLED (ORA_AUTO_START_TUNNELS=1)")
+        else:
+            logger.info("Auto-start tunnels: disabled")
 
     async def _open_local_interfaces(self) -> None:
         """Opens local web interfaces for Chat, Dashboard, API, and ComfyUI."""
@@ -477,6 +484,15 @@ class ORABot(commands.Bot):
 
     async def _start_tunnels(self) -> None:
         """Attempts to start Cloudflare tunnels for local services if not running."""
+        allow_quick = bool(getattr(self.config, "tunnels_allow_quick", False))
+        token = os.getenv("CLOUDFLARE_TUNNEL_TOKEN")
+        if not token and not allow_quick:
+            logger.warning(
+                "Auto-tunnel requested but CLOUDFLARE_TUNNEL_TOKEN is missing and quick tunnels are disabled. "
+                "Set ORA_TUNNELS_ALLOW_QUICK=1 to allow quick tunnels."
+            )
+            return
+
         # 1. Locate cloudflared
         cf_exe = None
         candidates = [
@@ -553,6 +569,9 @@ class ORABot(commands.Bot):
                     cmd = [cf_exe, "tunnel", "run", "--token", token]
                     logger.info(f"Using Named Tunnel for {name}")
                 else:
+                    if not allow_quick:
+                        logger.info("Skipping quick tunnel for %s (ORA_TUNNELS_ALLOW_QUICK=0)", name)
+                        continue
                     # Fallback to Quick Tunnel
                     cmd = [cf_exe, "tunnel", "--url", f"http://localhost:{port}"]
 
