@@ -1,6 +1,6 @@
 <div align="center">
 
-# ORA (v5.1.11-Singularity) 🌌
+# ORA (v5.1.12-Singularity) 🌌
 ### **The Artificial Lifeform AI System for High-End PC**
 
 ![ORA Banner](https://raw.githubusercontent.com/YoneRai12/ORA/main/docs/banner.png)

@@ -348,6 +348,8 @@ class Store:
                 ),
             )
             await db.commit()
+            # scheduled_tasks.id is AUTOINCREMENT.
+            return int(cur.lastrowid or 0)
 
     async def log_tool_audit(
         self,
