@@ -1,5 +1,9 @@
 # ORA System Changelog
 
+## v5.1.9 (2026-02-06) - Discord Embed Safety + Release Bump
+- Prevents Discord API 400s by truncating agent-activity embed titles to the 256-char limit.
+- Bumped `VERSION` and README header to match the new tag.
+
 ## v5.1.8 (2026-02-06) - Risk-Based Approvals + Tool Audit
 - Added risk scoring and an approvals gate at the ToolHandler "execute" boundary.
 - Owner also requires approvals for HIGH+ risk; CRITICAL requires a confirmation code (modal).

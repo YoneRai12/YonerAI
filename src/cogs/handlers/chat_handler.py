@@ -62,7 +62,11 @@ class ChatHandler:
                 return
         if not channel or not hasattr(channel, "send"):
             return
-        embed = discord.Embed(title=title, description=description[:3900], color=color)
+        # Discord embed title hard limit is 256 chars.
+        safe_title = (title or "").strip()
+        if len(safe_title) > 256:
+            safe_title = safe_title[:253] + "..."
+        embed = discord.Embed(title=safe_title or "ORA", description=description[:3900], color=color)
         embed.timestamp = discord.utils.utcnow()
         try:
             await channel.send(embed=embed)
