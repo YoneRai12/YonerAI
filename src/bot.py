@@ -151,6 +151,7 @@ class ORABot(commands.Bot):
             "src.cogs.system",
             "src.cogs.resource_manager",
             "src.cogs.memory",
+            "src.cogs.scheduler",
             "src.cogs.system_shell",
             "src.cogs.creative",
             "src.cogs.voice_engine",

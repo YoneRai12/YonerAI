@@ -51,6 +51,34 @@ CREATE TABLE IF NOT EXISTS dashboard_tokens (
   created_by TEXT,
   expires_at INTEGER NOT NULL
 );
+
+-- Owner-only scheduled tasks (safe-by-default: LLM-only unless explicitly extended later)
+CREATE TABLE IF NOT EXISTS scheduled_tasks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  owner_id TEXT NOT NULL,
+  guild_id TEXT,
+  channel_id TEXT NOT NULL,
+  prompt TEXT NOT NULL,
+  interval_sec INTEGER NOT NULL,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  model_pref TEXT,
+  next_run_at INTEGER NOT NULL,
+  last_run_at INTEGER,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS scheduled_task_runs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  task_id INTEGER NOT NULL,
+  started_at INTEGER NOT NULL,
+  finished_at INTEGER,
+  status TEXT NOT NULL,
+  core_run_id TEXT,
+  output TEXT,
+  error TEXT,
+  FOREIGN KEY(task_id) REFERENCES scheduled_tasks(id)
+);
 """
 
 
@@ -246,6 +274,175 @@ class Store:
             ) as cursor:
                 row = await cursor.fetchone()
         return row[0] if row else "private"
+
+    # -----------------------------
+    # Scheduler (Owner-Only)
+    # -----------------------------
+
+    async def create_scheduled_task(
+        self,
+        *,
+        owner_id: int,
+        guild_id: int | None,
+        channel_id: int,
+        prompt: str,
+        interval_sec: int,
+        model_pref: str | None = None,
+        enabled: bool = True,
+    ) -> int:
+        now = int(time.time())
+        interval_sec = max(30, int(interval_sec))
+        next_run_at = now + interval_sec
+        async with aiosqlite.connect(self._db_path) as db:
+            cur = await db.execute(
+                (
+                    "INSERT INTO scheduled_tasks(owner_id, guild_id, channel_id, prompt, interval_sec, enabled, model_pref, "
+                    "next_run_at, last_run_at, created_at, updated_at) "
+                    "VALUES(?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)"
+                ),
+                (
+                    str(owner_id),
+                    str(guild_id) if guild_id is not None else None,
+                    str(channel_id),
+                    prompt,
+                    interval_sec,
+                    1 if enabled else 0,
+                    model_pref,
+                    next_run_at,
+                    now,
+                    now,
+                ),
+            )
+            await db.commit()
+            return int(cur.lastrowid)
+
+    async def list_scheduled_tasks(self, *, owner_id: int) -> list[dict]:
+        async with aiosqlite.connect(self._db_path) as db:
+            async with db.execute(
+                (
+                    "SELECT id, guild_id, channel_id, prompt, interval_sec, enabled, model_pref, next_run_at, last_run_at, created_at "
+                    "FROM scheduled_tasks WHERE owner_id=? ORDER BY id DESC"
+                ),
+                (str(owner_id),),
+            ) as cur:
+                rows = await cur.fetchall()
+        out: list[dict] = []
+        for r in rows:
+            out.append(
+                {
+                    "id": int(r[0]),
+                    "guild_id": r[1],
+                    "channel_id": r[2],
+                    "prompt": r[3],
+                    "interval_sec": int(r[4]),
+                    "enabled": bool(r[5]),
+                    "model_pref": r[6],
+                    "next_run_at": int(r[7]),
+                    "last_run_at": int(r[8]) if r[8] is not None else None,
+                    "created_at": int(r[9]),
+                }
+            )
+        return out
+
+    async def delete_scheduled_task(self, *, owner_id: int, task_id: int) -> bool:
+        async with aiosqlite.connect(self._db_path) as db:
+            await db.execute("DELETE FROM scheduled_task_runs WHERE task_id=?", (int(task_id),))
+            cur = await db.execute(
+                "DELETE FROM scheduled_tasks WHERE owner_id=? AND id=?",
+                (str(owner_id), int(task_id)),
+            )
+            await db.commit()
+            return (cur.rowcount or 0) > 0
+
+    async def set_scheduled_task_enabled(self, *, owner_id: int, task_id: int, enabled: bool) -> bool:
+        now = int(time.time())
+        async with aiosqlite.connect(self._db_path) as db:
+            cur = await db.execute(
+                "UPDATE scheduled_tasks SET enabled=?, updated_at=? WHERE owner_id=? AND id=?",
+                (1 if enabled else 0, now, str(owner_id), int(task_id)),
+            )
+            await db.commit()
+            return (cur.rowcount or 0) > 0
+
+    async def get_due_scheduled_tasks(self, *, now_ts: int, limit: int = 5) -> list[dict]:
+        async with aiosqlite.connect(self._db_path) as db:
+            async with db.execute(
+                (
+                    "SELECT id, owner_id, guild_id, channel_id, prompt, interval_sec, model_pref, next_run_at "
+                    "FROM scheduled_tasks WHERE enabled=1 AND next_run_at<=? ORDER BY next_run_at ASC LIMIT ?"
+                ),
+                (int(now_ts), int(limit)),
+            ) as cur:
+                rows = await cur.fetchall()
+        out: list[dict] = []
+        for r in rows:
+            out.append(
+                {
+                    "id": int(r[0]),
+                    "owner_id": int(r[1]),
+                    "guild_id": r[2],
+                    "channel_id": int(r[3]),
+                    "prompt": r[4],
+                    "interval_sec": int(r[5]),
+                    "model_pref": r[6],
+                    "next_run_at": int(r[7]),
+                }
+            )
+        return out
+
+    async def claim_scheduled_task(self, *, task_id: int, now_ts: int) -> bool:
+        """
+        Atomically move next_run_at forward so multiple workers don't run the same task concurrently.
+        """
+        async with aiosqlite.connect(self._db_path) as db:
+            async with db.execute("SELECT interval_sec FROM scheduled_tasks WHERE id=? AND enabled=1", (int(task_id),)) as cur:
+                row = await cur.fetchone()
+            if not row:
+                return False
+            interval_sec = max(30, int(row[0] or 30))
+            next_run = int(now_ts) + interval_sec
+            cur2 = await db.execute(
+                "UPDATE scheduled_tasks SET next_run_at=?, last_run_at=?, updated_at=? WHERE id=? AND enabled=1 AND next_run_at<=?",
+                (next_run, int(now_ts), int(now_ts), int(task_id), int(now_ts)),
+            )
+            await db.commit()
+            return (cur2.rowcount or 0) > 0
+
+    async def insert_task_run(self, *, task_id: int, started_at: int, status: str = "running") -> int:
+        async with aiosqlite.connect(self._db_path) as db:
+            cur = await db.execute(
+                "INSERT INTO scheduled_task_runs(task_id, started_at, status) VALUES(?, ?, ?)",
+                (int(task_id), int(started_at), status),
+            )
+            await db.commit()
+            return int(cur.lastrowid)
+
+    async def finish_task_run(
+        self,
+        *,
+        run_row_id: int,
+        finished_at: int,
+        status: str,
+        core_run_id: str | None = None,
+        output: str | None = None,
+        error: str | None = None,
+    ) -> None:
+        # Keep output small to avoid DB bloat.
+        out = (output or "").strip()
+        if len(out) > 4000:
+            out = out[:3997] + "..."
+        err = (error or "").strip()
+        if len(err) > 2000:
+            err = err[:1997] + "..."
+        async with aiosqlite.connect(self._db_path) as db:
+            await db.execute(
+                (
+                    "UPDATE scheduled_task_runs SET finished_at=?, status=?, core_run_id=?, output=?, error=? "
+                    "WHERE id=?"
+                ),
+                (int(finished_at), status, core_run_id, out or None, err or None, int(run_row_id)),
+            )
+            await db.commit()
 
     async def set_system_privacy(self, discord_user_id: int, mode: str) -> None:
         async with aiosqlite.connect(self._db_path) as db:

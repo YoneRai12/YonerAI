@@ -62,6 +62,11 @@ DEFAULT_OWNER_ONLY_TOOLS: Set[str] = {
     "add_emoji",
     # Evolution hooks
     "request_feature",
+    # Scheduler
+    "schedule_task",
+    "list_scheduled_tasks",
+    "delete_scheduled_task",
+    "toggle_scheduled_task",
 }
 
 

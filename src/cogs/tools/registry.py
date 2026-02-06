@@ -268,6 +268,73 @@ TOOL_REGISTRY: Dict[str, Dict[str, Any]] = {
             }
         }
     }
+    ,
+    # --- SCHEDULER (OWNER ONLY) ---
+    "schedule_task": {
+        "impl": "src.cogs.tools.scheduler_tools:schedule_task",
+        "tags": ["scheduler", "automation", "owner"],
+        "capability": "scheduler_admin",
+        "version": "0.1.0",
+        "schema": {
+            "name": "schedule_task",
+            "description": "（オーナー専用）定期タスクを作成します。安全のためLLMのみで実行され、ツール呼び出しは行いません。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "prompt": {"type": "string", "description": "実行する指示文。"},
+                    "interval_sec": {"type": "integer", "description": "実行間隔（秒）。30以上。"},
+                    "channel_id": {"type": "integer", "description": "投稿先チャンネルID（省略時: 現在のチャンネル）。"},
+                    "model": {"type": "string", "description": "Coreへ渡すllm_preference（省略可）。"},
+                    "enabled": {"type": "boolean", "description": "有効/無効（デフォルトtrue）。"}
+                },
+                "required": ["prompt", "interval_sec"]
+            }
+        }
+    },
+    "list_scheduled_tasks": {
+        "impl": "src.cogs.tools.scheduler_tools:list_scheduled_tasks",
+        "tags": ["scheduler", "automation", "owner"],
+        "capability": "scheduler_admin",
+        "version": "0.1.0",
+        "schema": {
+            "name": "list_scheduled_tasks",
+            "description": "（オーナー専用）定期タスク一覧を表示します。",
+            "parameters": {"type": "object", "properties": {}}
+        }
+    },
+    "delete_scheduled_task": {
+        "impl": "src.cogs.tools.scheduler_tools:delete_scheduled_task",
+        "tags": ["scheduler", "automation", "owner"],
+        "capability": "scheduler_admin",
+        "version": "0.1.0",
+        "schema": {
+            "name": "delete_scheduled_task",
+            "description": "（オーナー専用）定期タスクを削除します。",
+            "parameters": {
+                "type": "object",
+                "properties": {"task_id": {"type": "integer", "description": "タスクID (#)"}},
+                "required": ["task_id"]
+            }
+        }
+    },
+    "toggle_scheduled_task": {
+        "impl": "src.cogs.tools.scheduler_tools:toggle_scheduled_task",
+        "tags": ["scheduler", "automation", "owner"],
+        "capability": "scheduler_admin",
+        "version": "0.1.0",
+        "schema": {
+            "name": "toggle_scheduled_task",
+            "description": "（オーナー専用）定期タスクの有効/無効を切り替えます。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "task_id": {"type": "integer", "description": "タスクID (#)"},
+                    "enabled": {"type": "boolean", "description": "trueで有効、falseで無効"}
+                },
+                "required": ["task_id", "enabled"]
+            }
+        }
+    },
 }
 
 def get_tool_schemas() -> List[Dict[str, Any]]:

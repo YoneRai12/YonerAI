@@ -27,6 +27,17 @@
 * Added explicit “Secrets & .env” rules to `CONTRIBUTING.md`.
 * Ignored `logs/` and local handover notes via `.gitignore`.
 
+## 🆕 v5.1.3 (2026/02/06) - Secure Automation Scaffold (Owner-Only)
+### ⏰ Scheduler (Safe-by-Default)
+* Added owner-only scheduled tasks stored in SQLite (`scheduled_tasks`, `scheduled_task_runs`).
+* Scheduler is **disabled by default** (`ORA_SCHEDULER_ENABLED=0`).
+* Automated runs are **LLM-only** (`available_tools=[]`) for reproducibility and safety.
+* Added scheduler management tools (owner-only):
+  * `schedule_task`, `list_scheduled_tasks`, `toggle_scheduled_task`, `delete_scheduled_task`
+
+### 🧱 Reproducibility + Audit Trail
+* Each scheduled run records start/finish/status/output snippet and Core run_id in DB.
+
 ## 🆕 v5.1.0 (2026/02/06) - Diagram Clarity + Release Alignment
 ### 📈 Readable Architecture Diagrams
 Reworked README diagrams for practical readability:
