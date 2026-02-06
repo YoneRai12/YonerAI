@@ -1,5 +1,6 @@
 import asyncio
 import datetime
+import json
 import logging
 from typing import Optional
 
@@ -19,6 +20,51 @@ class ChatHandler:
         self.tool_selector = ToolSelector(self.bot)
         self.rag_handler = RAGHandler(self.bot)
         logger.info("ChatHandler v3.9.2 (RAG Enabled) Initialized")
+
+    @staticmethod
+    def _sanitize_args_for_audit(args: dict) -> str:
+        """Mask sensitive keys and keep payload short for Discord audit posts."""
+        sensitive_markers = ("token", "secret", "password", "api_key", "authorization", "cookie")
+
+        def scrub(value):
+            if isinstance(value, dict):
+                out = {}
+                for k, v in value.items():
+                    lk = str(k).lower()
+                    if any(m in lk for m in sensitive_markers):
+                        out[k] = "[REDACTED]"
+                    else:
+                        out[k] = scrub(v)
+                return out
+            if isinstance(value, list):
+                return [scrub(v) for v in value]
+            return value
+
+        safe = scrub(args or {})
+        text = json.dumps(safe, ensure_ascii=False)
+        return text[:700] + ("..." if len(text) > 700 else "")
+
+    async def _notify_agent_activity(self, title: str, description: str, color: int = 0x2B6CB0) -> None:
+        cfg = getattr(self.bot, "config", None)
+        if not cfg:
+            return
+        target_id = getattr(cfg, "feature_proposal_channel_id", None) or getattr(cfg, "log_channel_id", None)
+        if not target_id:
+            return
+        channel = self.bot.get_channel(target_id)
+        if not channel:
+            try:
+                channel = await self.bot.fetch_channel(target_id)
+            except Exception:
+                return
+        if not channel or not hasattr(channel, "send"):
+            return
+        embed = discord.Embed(title=title, description=description[:3900], color=color)
+        embed.timestamp = discord.utils.utcnow()
+        try:
+            await channel.send(embed=embed)
+        except Exception as e:
+            logger.debug(f"Agent activity notify skipped: {e}")
 
     async def handle_prompt(
         self,
@@ -333,6 +379,14 @@ Traits: {traits}
                     tool_args = ev_data.get("args", {})
                     tool_call_id = ev_data.get("tool_call_id")
                     logger.info(f"🚀 [Dispatch] CID: {correlation_id} | Tool: {tool_name}")
+                    safe_args = self._sanitize_args_for_audit(tool_args if isinstance(tool_args, dict) else {})
+                    asyncio.create_task(
+                        self._notify_agent_activity(
+                            "🧩 Agent Dispatch",
+                            f"CID: `{correlation_id}`\nRun: `{run_id}`\nTool: `{tool_name}`\nArgs: `{safe_args}`",
+                            color=0x805AD5,
+                        )
+                    )
 
                     # Call ToolHandler (Handles music, imagine, tts, etc.)
                     # We pass the message context so it knows where to reply or join voice.
@@ -370,6 +424,13 @@ Traits: {traits}
                             tool_name=tool_name,
                             result=tool_result or "[Success]",
                             tool_call_id=tool_call_id,
+                        )
+                        asyncio.create_task(
+                            self._notify_agent_activity(
+                                "✅ Agent Tool Completed",
+                                f"CID: `{correlation_id}`\nRun: `{run_id}`\nTool: `{tool_name}`\nStatus: submitted to Core",
+                                color=0x2F855A,
+                            )
                         )
 
                 elif ev_type == "final":

@@ -18,6 +18,7 @@ from ora_core.api.routes.auth import router as auth_router
 from ora_core.api.routes.messages import router as messages_router
 from ora_core.api.routes.runs import router as runs_router
 from ora_core.api.routes.stats import router as stats_router
+import os
 
 
 def create_app():
@@ -66,10 +67,15 @@ def create_app():
             },
         )
 
+    cors_raw = os.getenv(
+        "ORA_CORS_ORIGINS",
+        "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3333,http://127.0.0.1:3333,http://localhost:8000,http://127.0.0.1:8000",
+    )
+    cors_origins = [o.strip() for o in cors_raw.split(",") if o.strip()]
+
     app.add_middleware(
         CORSMiddleware,
-
-        allow_origins=["*"],
+        allow_origins=cors_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

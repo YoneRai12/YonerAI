@@ -2983,88 +2983,21 @@ class ORACog(commands.Cog):
         # [Clawdbot] Dynamic Skill Injection
         if hasattr(self, "tool_handler") and hasattr(self.tool_handler, "skill_loader"):
              dynamic_skills = self.tool_handler.skill_loader.skills
-             for skill_name, _ in dynamic_skills.items():
-                 # Parse parameters from description or standard template? 
-                 # Currently SKILL.md is text description. 
-                 # We need a proper JSON schema for the router/LLM.
-                 # STARTUP: For now, we assume standard signature or try to parse 'tool.py' signature?
-                 # BETTER: The 'SkillLoader' should generate the schema!
-                 # Let's assume SkillLoader has a 'get_schema()' method or similar.
-                 # Implementation Plan: Add 'get_schema(skill_name)' to SkillLoader later.
-                 # For now, we manually map specific known skills or reconstruct schema from metadata?
-                 # Ah, SKILL.md is for HUMANS. `tool.py` is for CODE.
-                 # We need the Function Calling JSON Schema.
-                 # Ideally, we should add a 'schema' field to SKILL.md frontmatter or similar?
-                 # Or just generic "execute_skill" wrapper?
-                 
-                 # PROVISIONAL: We will manually inject the schemas for the migrated skills for now,
-                 # or constructs a generic schema if not found.
-                 
-                 # [Temporary] Map keys to schemas if they match known migrations
-                 if skill_name == "web_search":
-                      all_tools.append({
-                        "name": "web_search",
-                        "description": "Search the internet for real-time information.",
-                        "parameters": {
-                            "type": "object", 
-                            "properties": {"query": {"type": "string"}},
-                            "required": ["query"]
-                        },
-                        "tags": ["search", "web", "internet"]
-                      })
-                 elif skill_name == "read_web_page":
-                      all_tools.append({
-                        "name": "read_web_page",
-                        "description": "Read the contents of a URL.",
-                        "parameters": {
-                            "type": "object", 
-                            "properties": {"url": {"type": "string"}},
-                            "required": ["url"]
-                        },
-                        "tags": ["read", "url", "web"]
-                      })
-                 elif skill_name == "read_chat_history":
-                       all_tools.append({
-                        "name": "read_chat_history",
-                        "description": "Read recent chat messages from the channel.",
-                        "parameters": {
-                            "type": "object", 
-                            "properties": {
-                                "limit": {"type": "integer", "default": 20},
-                                "channel_id": {"type": "integer", "description": "Optional Channel ID"}
-                            },
-                            "required": []
-                        },
-                        "tags": ["read", "chat", "history"]
-                      })
-                 elif skill_name == "web_screenshot":
-                      all_tools.append({
-                        "name": "web_screenshot",
-                        "description": "[Browser] Take a screenshot of a webpage. Supports 'fhd' (default) or '4k' resolution.",
-                        "parameters": {
-                            "type": "object", 
-                            "properties": {
-                                "url": {"type": "string"},
-                                "resolution": {"type": "string", "enum": ["fhd", "4k"], "default": "fhd"}
-                            },
-                            "required": ["url"]
-                        },
-                        "tags": ["screenshot", "web", "browser", "image", "capture"]
-                      })
-                 elif skill_name == "web_download":
-                      all_tools.append({
-                        "name": "web_download",
-                        "description": "[Browser] Download video/audio from a URL (YouTube, X, etc.) using yt-dlp.",
-                        "parameters": {
-                            "type": "object", 
-                            "properties": {
-                                "url": {"type": "string"}
-                            },
-                            "required": ["url"]
-                        },
-                        "tags": ["download", "video", "youtube", "twitter", "save"]
-                      })
-                 # Future: Generic dynamic schema generation
+             for skill_name in dynamic_skills.keys():
+                 schema = self.tool_handler.skill_loader.get_schema(skill_name)
+                 if isinstance(schema, dict) and schema.get("name"):
+                     all_tools.append(schema)
+
+        # De-duplicate by tool name (built-in takes priority)
+        deduped_tools = []
+        seen = set()
+        for tool in all_tools:
+            t_name = tool.get("name")
+            if not t_name or t_name in seen:
+                continue
+            deduped_tools.append(tool)
+            seen.add(t_name)
+        all_tools = deduped_tools
 
         # Tools invalid for Discord (e.g. DOM manipulation, Browser events)
         web_only = {"dom_click", "dom_read", "browser_nav"}

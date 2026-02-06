@@ -20,10 +20,17 @@ app = FastAPI(
     version="0.1.0",
 )
 
+# CORS origins (comma-separated env)
+cors_raw = os.getenv(
+    "ORA_CORS_ORIGINS",
+    "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3333,http://127.0.0.1:3333,http://localhost:8000,http://127.0.0.1:8000",
+)
+cors_origins = [o.strip() for o in cors_raw.split(",") if o.strip()]
+
 # CORS configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Restrict in production
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

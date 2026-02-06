@@ -1,6 +1,7 @@
 # ruff: noqa: B904
 # --- CHAT API IMPLEMENTATION ---
 import asyncio
+import hmac
 import json
 import os
 import uuid
@@ -1649,11 +1650,16 @@ async def get_admin_dashboard_view(token: str):
     """Render a SUPER ADMIN DASHBOARD showing ALL servers."""
     from fastapi.responses import HTMLResponse
 
-
-    # Simple Token Check (In real app, check against DB/Env)
-    # For now, we accept any token if it matches a temporary "admin_session" or just a fast check
-    # But since we are creating the link ourselves, let's just assume valid if we generated it.
-    # To be safe, let's Verify it's the Admin User's ID or a specific secret.
+    # Strict token validation
+    # - ADMIN_DASHBOARD_TOKEN must be configured for production usage.
+    # - Legacy fallback can be enabled only with ALLOW_INSECURE_ADMIN_DASHBOARD=1.
+    admin_token = (os.getenv("ADMIN_DASHBOARD_TOKEN") or "").strip()
+    allow_legacy = (os.getenv("ALLOW_INSECURE_ADMIN_DASHBOARD") or "").strip().lower() in {"1", "true", "yes", "on"}
+    if admin_token:
+        if not token or not hmac.compare_digest(token, admin_token):
+            raise HTTPException(status_code=403, detail="Invalid admin dashboard token")
+    elif not allow_legacy:
+        raise HTTPException(status_code=503, detail="ADMIN_DASHBOARD_TOKEN is not configured")
 
     # 1. Fetch ALL users
     class MockResponse:

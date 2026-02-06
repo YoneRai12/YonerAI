@@ -143,6 +143,21 @@ class Healer:
         self.bot = bot
         self.llm = llm
 
+    async def _resolve_channel(self, channel_id: Optional[int]):
+        """Resolve a text-capable channel from cache or API."""
+        if not channel_id:
+            return None
+        channel = self.bot.get_channel(channel_id)
+        if channel and hasattr(channel, "send"):
+            return channel
+        try:
+            channel = await self.bot.fetch_channel(channel_id)
+            if channel and hasattr(channel, "send"):
+                return channel
+        except Exception as e:
+            logger.warning(f"Healer: failed to resolve channel {channel_id}: {e}")
+        return None
+
     async def handle_error(self, ctx, error: Exception):
         """
         Analyzes the error and proposes a fix to the Debug Channel.
@@ -237,7 +252,7 @@ class Healer:
                     embed.set_footer(text=f"Triggered by: {invoker}")
 
                     # Send to Channel
-                    channel = self.bot.get_channel(channel_id)
+                    channel = await self._resolve_channel(channel_id)
                     if channel:
                         await channel.send(embed=embed, view=view)
                     else:
@@ -245,7 +260,7 @@ class Healer:
 
                 except SyntaxError as syn_err:
                     # Report Syntax Failure
-                    channel = self.bot.get_channel(channel_id)
+                    channel = await self._resolve_channel(channel_id)
                     if channel:
                         await channel.send(f"⚠️ Healer generated invalid code: {syn_err}")
 
@@ -253,14 +268,14 @@ class Healer:
                 # Report Analysis Only (No fix found)
                 embed = discord.Embed(title="🚑 Healer Report (No Fix)", color=discord.Color.red())
                 embed.description = f"**Error**: `{str(error)}`\n\n**Analysis**: {analysis_msg}"
-                channel = self.bot.get_channel(channel_id)
+                channel = await self._resolve_channel(channel_id)
                 if channel:
                     await channel.send(embed=embed)
 
         except Exception as e:
             logger.error(f"Healer failed to Auto-Patch: {e}")
             try:
-                channel = self.bot.get_channel(channel_id)
+                channel = await self._resolve_channel(channel_id)
                 if channel:
                     await channel.send(f"⚠️ **Healer Critical Failure**: {e}\nOriginal Error: {error}")
             except Exception:
@@ -290,12 +305,9 @@ class Healer:
         if not cid:
             return False
 
-        channel = self.bot.get_channel(cid)
+        channel = await self._resolve_channel(cid)
         if not channel:
-            try:
-                channel = await self.bot.fetch_channel(cid)
-            except Exception:
-                return False
+            return False
 
         user = self.bot.get_user(user_id)
         user_mention = user.mention if user else f"User ID: {user_id}"
@@ -596,6 +608,7 @@ class Healer:
 
             # Step 2: Safety Critique
             is_safe = await self._critique_code(code)
+            target_path = os.path.join("src", "cogs", data.get("filename", "feature.py"))
 
             # Step 3: Decision (Auto vs Manual)
             # Admin Check
@@ -603,8 +616,11 @@ class Healer:
             auto_evolve = is_safe and is_admin
 
             # Config Channel
-            channel_id = getattr(self.bot.config, "log_channel_id", 0)
-            channel = self.bot.get_channel(channel_id)
+            channel_id = (
+                getattr(self.bot.config, "feature_proposal_channel_id", 0)
+                or getattr(self.bot.config, "log_channel_id", 0)
+            )
+            channel = await self._resolve_channel(channel_id)
 
             # Privacy Routing
             if not is_admin and ctx:
@@ -612,8 +628,6 @@ class Healer:
 
             if auto_evolve and channel:
                 # AUTONOMOUS EXECUTION
-                target_path = os.path.join("src", "cogs", data.get("filename", "feature.py"))
-
                 # Notify Start
                 embed = discord.Embed(title="🧬 Auto-Evolution Started", color=discord.Color.blue())
                 embed.description = f"Request: {feature}\nScope: {data.get('scope_analysis')}\nStatus: **Executing...**"
@@ -654,6 +668,14 @@ class Healer:
                 view = HealerView(self.bot, target_path, code, f"{target_path}.bak", data.get("analysis"))
 
                 await channel.send(embed=embed, file=file, view=view)
+            else:
+                logger.warning(
+                    "Self-Evolution notification skipped: no channel resolved (feature_proposal_channel_id=%s, log_channel_id=%s)",
+                    getattr(self.bot.config, "feature_proposal_channel_id", None),
+                    getattr(self.bot.config, "log_channel_id", None),
+                )
+                if ctx:
+                    await ctx.send("⚠️ 進化提案の通知先チャンネルが解決できませんでした。設定を確認してください。")
 
         except Exception as e:
             logger.error(f"Self-Evolution failed: {e}")

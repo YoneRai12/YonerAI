@@ -271,7 +271,10 @@
         </div>
     </div>
     <script>
-        const token = "default";
+        const token = (() => {
+            const params = new URLSearchParams(window.location.search);
+            return (params.get("token") || "").trim();
+        })();
         const screen = document.getElementById("screen");
         const statusEl = document.getElementById("status");
         const metaEl = document.getElementById("pageMeta");
@@ -336,11 +339,13 @@
 
         async function api(path, body) {
             // Use operatorBase + endpoint.
-            // MeteoBOT used {operatorBase}/{token}/{path}
-            // We will use {operatorBase}/{path} since token is dummy
+            // If token is provided via query string, forward it as x-auth-token.
+            const headers = {};
+            if (body) headers["Content-Type"] = "application/json";
+            if (token) headers["x-auth-token"] = token;
             const response = await fetch(`${operatorBase}/${path}`, {
                 method: body ? "POST" : "GET",
-                headers: body ? { "Content-Type": "application/json" } : undefined,
+                headers: Object.keys(headers).length ? headers : undefined,
                 body: body ? JSON.stringify(body) : undefined,
             });
             if (!response.ok) {

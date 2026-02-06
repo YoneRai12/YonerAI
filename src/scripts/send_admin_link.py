@@ -32,9 +32,12 @@ async def main():
         # Naive parse
         pass # Not implemented yet fully, relying on config or localhost fallback
 
-    # Construct Admin URL
-    # Using a dummy secure token or timestamp for now
-    dashboard_url = f"{public_url}/api/dashboard/admin?token=ADMIN_VIEW"
+    # Construct Admin URL (secure token from env)
+    admin_token = (os.getenv("ADMIN_DASHBOARD_TOKEN") or "").strip()
+    if not admin_token:
+        print("❌ ADMIN_DASHBOARD_TOKEN is not set. Refusing to generate insecure admin URL.")
+        return
+    dashboard_url = f"{public_url}/api/dashboard/admin?token={admin_token}"
     
     print(f"🔗 Generated URL: {dashboard_url}")
 

@@ -300,31 +300,28 @@ class Config:
             except Exception:
                 pass
 
+        def _parse_optional_int(value: Optional[str]) -> Optional[int]:
+            if value is None:
+                return None
+            cleaned = value.strip().strip('"').strip("'")
+            if not cleaned:
+                return None
+            try:
+                return int(cleaned)
+            except ValueError:
+                return None
+
         # Debug Log Channel
         log_channel_raw = os.getenv("ORA_LOG_CHANNEL_ID") or os.getenv("LOG_CHANNEL_ID", "0")  # Support both keys
-        try:
-            log_channel_id = int(log_channel_raw)
-        except ValueError:
-            log_channel_id = 0
+        log_channel_id = _parse_optional_int(log_channel_raw) or 0
 
         # Startup Notification Channel (Separate from logs)
         startup_channel_raw = os.getenv("STARTUP_NOTIFY_CHANNEL_ID")
-        startup_notify_channel_id: Optional[int] = None
-        if startup_channel_raw:
-            try:
-                # Robustly strip whitespace/garbage (e.g. full-width spaces)
-                startup_notify_channel_id = int(startup_channel_raw.strip())
-            except ValueError:
-                pass
+        startup_notify_channel_id: Optional[int] = _parse_optional_int(startup_channel_raw)
 
         # Feature Proposal Channel
         proposal_channel_raw = os.getenv("FEATURE_PROPOSAL_CHANNEL_ID")
-        feature_proposal_channel_id: Optional[int] = None
-        if proposal_channel_raw:
-            try:
-                feature_proposal_channel_id = int(proposal_channel_raw)
-            except ValueError:
-                pass
+        feature_proposal_channel_id: Optional[int] = _parse_optional_int(proposal_channel_raw)
 
         # Memory & State Dirs are handled globally at top
 
@@ -334,19 +331,19 @@ class Config:
 
         # Notification IDs
         ora_web_notify_raw = os.getenv("ORA_WEB_NOTIFY_ID")
-        ora_web_notify_id = int(ora_web_notify_raw) if ora_web_notify_raw and ora_web_notify_raw.isdigit() else None
+        ora_web_notify_id = _parse_optional_int(ora_web_notify_raw)
 
         ora_api_notify_raw = os.getenv("ORA_API_NOTIFY_ID")
-        ora_api_notify_id = int(ora_api_notify_raw) if ora_api_notify_raw and ora_api_notify_raw.isdigit() else None
+        ora_api_notify_id = _parse_optional_int(ora_api_notify_raw)
 
         config_ui_notify_raw = os.getenv("CONFIG_UI_NOTIFY_ID")
-        config_ui_notify_id = int(config_ui_notify_raw) if config_ui_notify_raw and config_ui_notify_raw.isdigit() else None
+        config_ui_notify_id = _parse_optional_int(config_ui_notify_raw)
 
         web_chat_notify_raw = os.getenv("WEB_CHAT_NOTIFY_ID")
-        web_chat_notify_id = int(web_chat_notify_raw) if web_chat_notify_raw and web_chat_notify_raw.isdigit() else None
+        web_chat_notify_id = _parse_optional_int(web_chat_notify_raw)
 
         config_page_notify_raw = os.getenv("CONFIG_PAGE_NOTIFY_ID")
-        config_page_notify_id = int(config_page_notify_raw) if config_page_notify_raw and config_page_notify_raw.isdigit() else None
+        config_page_notify_id = _parse_optional_int(config_page_notify_raw)
 
         tunnel_hostname = os.getenv("TUNNEL_HOSTNAME")
 

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Body, Depends, Header
+from fastapi import APIRouter, HTTPException, Body, Depends, Header, Query, Request
 from fastapi.responses import StreamingResponse, Response, JSONResponse
 from pydantic import BaseModel
 from typing import Optional, Any, Dict, List
@@ -32,7 +32,11 @@ def _write_browser_api_error(endpoint: str, exc: Exception) -> str:
         f.write(payload)
     return error_id
 
-async def verify_token(x_auth_token: Optional[str] = Header(None)):
+async def verify_token(
+    request: Request,
+    x_auth_token: Optional[str] = Header(None),
+    token: Optional[str] = Query(None),
+):
     # Do not call Config.load() here; browser API may run standalone without Discord env vars.
     # Token can be provided via env only.
     browser_token = (
@@ -40,11 +44,21 @@ async def verify_token(x_auth_token: Optional[str] = Header(None)):
         or os.getenv("ORA_BROWSER_REMOTE_TOKEN")
         or ""
     ).strip()
-    if not browser_token:
+
+    presented = (x_auth_token or token or "").strip()
+    if browser_token:
+        if presented != browser_token:
+            raise HTTPException(status_code=401, detail="Invalid Remote Control Token")
         return
 
-    if x_auth_token != browser_token:
-        raise HTTPException(status_code=401, detail="Invalid Remote Control Token")
+    # Security fallback: if no token is configured, only allow loopback callers.
+    host = (request.client.host if request.client else "") or ""
+    if host not in {"127.0.0.1", "::1", "localhost"}:
+        raise HTTPException(status_code=503, detail="Remote control token is not configured")
+
+    # Optional hardening switch: require token even on localhost.
+    if os.getenv("REQUIRE_BROWSER_TOKEN", "0").strip() in {"1", "true", "yes", "on"}:
+        raise HTTPException(status_code=503, detail="Browser token required but not configured")
 
 class ActionRequest(BaseModel):
     action: Dict[str, Any]
