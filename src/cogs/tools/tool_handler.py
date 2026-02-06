@@ -72,6 +72,12 @@ class ToolHandler:
         """Executes a tool by delegating to the appropriate Skill or handling locally."""
         logger.info(f"🛠️ [Tool] Executing: {tool_name} | CID: {correlation_id}")
 
+        # Creator lock: runtime guard (second layer). Even if Core dispatches a tool name,
+        # non-owner users cannot execute anything outside the safe allowlist.
+        from src.utils.access_control import is_tool_allowed
+        if not is_tool_allowed(self.bot, getattr(message.author, "id", None), tool_name):
+            return "⛔ Access Denied: Creator Only."
+
         # [Clawdbot] Dynamic Skills (Priority)
         if tool_name in self.skill_loader.skills:
              return await self.skill_loader.execute_tool(tool_name, args, message, bot=self.bot)
@@ -661,14 +667,26 @@ class ToolHandler:
                 safe_limit_mb = (limit_bytes / (1024*1024)) - 0.5
                 if safe_limit_mb < 5: safe_limit_mb = 5
 
-                result = await download_video_smart(
-                    url,
-                    start_time=start_time,
-                    force_compress=force_compress,
-                    max_size_mb=safe_limit_mb,
-                    proxy=proxy,
-                    split_strategy=split_strategy
-                )
+                # Backward/forward compatibility: older deployments may not yet support split_strategy.
+                try:
+                    result = await download_video_smart(
+                        url,
+                        start_time=start_time,
+                        force_compress=force_compress,
+                        max_size_mb=safe_limit_mb,
+                        proxy=proxy,
+                        split_strategy=split_strategy,
+                    )
+                except TypeError as e:
+                    if "split_strategy" not in str(e):
+                        raise
+                    result = await download_video_smart(
+                        url,
+                        start_time=start_time,
+                        force_compress=force_compress,
+                        max_size_mb=safe_limit_mb,
+                        proxy=proxy,
+                    )
                 final_path = result["path"]
                 title = result["title"]
                 next_start = result.get("next_start_time")

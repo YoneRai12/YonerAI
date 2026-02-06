@@ -137,6 +137,15 @@ def apply_fix_sync(sandbox_dir: Path, error_log: str) -> bool:
         fixed_code = asyncio.run(get_fix_from_ai(error_log[-2000:], source_code, str(rel_path)))
 
         if fixed_code:
+            # Safety: snapshot codebase before writing, so accidental deletions/garbage patches are recoverable.
+            try:
+                from src.utils.backup_manager import BackupManager
+
+                bm = BackupManager(str(sandbox_dir))
+                bm.create_snapshot(f"Before_AIRepair_{Path(str(rel_path)).stem}")
+            except Exception as e:
+                logger.warning(f"Snapshot before AI repair skipped: {e}")
+
             # Backup the broken file in sandbox just in case (e.g. .bak)
             shutil.copy(target_file, str(target_file) + ".bak")
 

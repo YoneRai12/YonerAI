@@ -121,18 +121,22 @@ class ChatHandler:
 
         try:
             # 2.5 Build Rich Client Context for Brain
+            from src.utils.access_control import is_owner
+
             client_context = {
                 "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "server_name": message.guild.name if message.guild else "Direct Message",
                 "guild_id": str(message.guild.id) if message.guild else None,
                 "channel_id": str(message.channel.id),
                 "channel_name": message.channel.name if hasattr(message.channel, "name") else "DM",
-                "is_admin": message.author.guild_permissions.administrator if message.guild else True
+                # ORA "admin" means creator/owner (ADMIN_USER_ID), not guild permissions.
+                "is_admin": is_owner(self.bot, message.author.id),
             }
 
             # 3. Call Core API
             # [MEMORY INJECTION] Fetch User Profile
             memory_context = ""
+            channel_memory_context = ""
             try:
                 memory_cog = self.cog.bot.get_cog("MemoryCog")
                 if memory_cog:
@@ -147,13 +151,51 @@ class ChatHandler:
                         name = user_profile.get("name", message.author.display_name)
                         impression = user_profile.get("impression", "None")
                         traits = ", ".join(user_profile.get("traits", []))
+                        l2 = user_profile.get("layer2_user_memory", {}) if isinstance(user_profile, dict) else {}
+                        facts = ""
+                        interests = ""
+                        try:
+                            if isinstance(l2, dict):
+                                facts = "; ".join([str(x) for x in (l2.get("facts") or []) if str(x).strip()])[:800]
+                                interests = "; ".join([str(x) for x in (l2.get("interests") or []) if str(x).strip()])[:400]
+                        except Exception:
+                            pass
 
                         memory_context = f"""
 [USER PROFILE]
 Name: {name}
 Impression: {impression}
 Traits: {traits}
+Facts: {facts}
+Interests: {interests}
 """
+
+                    # Channel-level memory (summary/topics/atmosphere)
+                    try:
+                        ch_profile = await asyncio.wait_for(
+                            memory_cog.get_channel_profile(message.channel.id),
+                            timeout=1.0,
+                        )
+                        if isinstance(ch_profile, dict) and ch_profile:
+                            c_sum = (ch_profile.get("summary") or "").strip()
+                            c_atm = (ch_profile.get("atmosphere") or "").strip()
+                            c_topics = ch_profile.get("topics") or []
+                            if not isinstance(c_topics, list):
+                                c_topics = []
+                            c_topics_s = ", ".join([str(x) for x in c_topics if str(x).strip()])[:200]
+
+                            lines = []
+                            if c_sum:
+                                lines.append(f"- Summary: {c_sum[:500]}")
+                            if c_topics_s:
+                                lines.append(f"- Topics: {c_topics_s}")
+                            if c_atm:
+                                lines.append(f"- Atmosphere: {c_atm[:120]}")
+
+                            if lines:
+                                channel_memory_context = "\n[CHANNEL MEMORY]\n" + "\n".join(lines) + "\n"
+                    except Exception:
+                        pass
             except Exception as e:
                 logger.warning(f"Memory Fetch Failed: {e}")
 
@@ -170,10 +212,10 @@ Traits: {traits}
                     is_mobile = True
 
             system_context = f"""
-{soul_injection}
-[ソース: DISCORD]
-[サーバー: {message.guild.name if message.guild else 'Direct Message'}]
-[チャンネル: {message.channel.name if hasattr(message.channel, 'name') else 'DM'}]
+ {soul_injection}
+ [ソース: DISCORD]
+ [サーバー: {message.guild.name if message.guild else 'Direct Message'}]
+ [チャンネル: {message.channel.name if hasattr(message.channel, 'name') else 'DM'}]
 
 [エージェント指令: Codex Harness アーキテクチャ]
 あなたは OpenAI Codex Harness に基づく自律型エージェントです。『Everything is controlled by code』の原則に従い、全ての操作を『スキル（Skill）』として制御してください。
@@ -190,18 +232,24 @@ Traits: {traits}
 [Harness Event Protocol]
 あなたの思考（Thought）と進捗（Progress）は、リアルタイムで Harness ストリームへ送出されます。
 
-[運用ルール: CAPTCHA / Anti-Bot]
-ブラウザ操作中に CAPTCHA や「I'm not a robot / unusual traffic」などの検知が出た場合、
-回避・突破を試みてはいけません。代わりに次の方針で自律的に解決してください:
-1) 直接ブラウザ検索を停止
-2) `web_search` / `read_web_page` などAPI系ツールへ切替
-3) 必要ならユーザーに手動確認を依頼し、確認後に次のタスクへ進む
+ [運用ルール: CAPTCHA / Anti-Bot]
+ ブラウザ操作中に CAPTCHA や「I'm not a robot / unusual traffic」などの検知が出た場合、
+ 回避・突破を試みてはいけません。代わりに次の方針で自律的に解決してください:
+ 1) 直接ブラウザ検索を停止
+ 2) `web_search` / `read_web_page` などAPI系ツールへ切替
+ 3) 必要ならユーザーに手動確認を依頼し、確認後に次のタスクへ進む
 
-[デバイス情報]
-{"[MOBILE] ユーザーはモバイル端末を使用しています。回答は簡潔にまとめ、複雑な表やフォーマットは避けてください。" if is_mobile else "[DESKTOP] ユーザーはPCを使用しています。詳細な解説とリッチなフォーマットが可能です。"}
+ [権限/安全ポリシー]
+ - このシステムはユーザーごとにツール権限が制限されます。許可されていないツールは選ばず、実行もできません。
+ - 非オーナー（製作者）ユーザーに対しては、破壊・削除・侵入・トークン要求などの危険な手順/スクリプトの提示をしないでください。
+   その場合は「できない」旨と、安全な代替（一般的説明、公式手順、オーナーへのエスカレーション）だけを提案してください。
 
-{memory_context}
-"""
+ [デバイス情報]
+ {"[MOBILE] ユーザーはモバイル端末を使用しています。回答は簡潔にまとめ、複雑な表やフォーマットは避けてください。" if is_mobile else "[DESKTOP] ユーザーはPCを使用しています。詳細な解説とリッチなフォーマットが可能です。"}
+
+ {memory_context}
+ {channel_memory_context}
+ """
 
             # Prepend to prompt
             full_prompt = system_context.strip() + "\n\n" + prompt
@@ -277,7 +325,8 @@ Traits: {traits}
 
             # Send Request (Initial Handshake)
             # Fetch Context-Aware Tools (Discord Only)
-            discord_tools = self.cog.get_context_tools("discord")
+            # Tool visibility is creator-locked: non-owner users only get safe allowlist tools.
+            discord_tools = self.cog.get_context_tools("discord", user_id=message.author.id)
 
             # [RAG ROUTER] Analyze Intent & Select Tools
             # This reduces context usage and improves accuracy
@@ -597,6 +646,8 @@ Traits: {traits}
             try:
                 memory_cog = self.bot.get_cog("MemoryCog")
                 if memory_cog:
+                    # Note: MemoryCog expects visibility scope; use same public/private decision as MemoryCog does.
+                    is_pub = memory_cog.is_public(message.channel) if hasattr(memory_cog, "is_public") else True
                     asyncio.create_task(
                         memory_cog.add_ai_message(
                             user_id=message.author.id,
@@ -605,7 +656,7 @@ Traits: {traits}
                             channel_id=message.channel.id,
                             channel_name=message.channel.name if hasattr(message.channel, "name") else "DM",
                             guild_name=message.guild.name if message.guild else "Direct Message",
-                            is_public=message.author.guild_permissions.administrator if message.guild else True # Use same logic as context
+                            is_public=is_pub,
                         )
                     )
             except Exception as e:

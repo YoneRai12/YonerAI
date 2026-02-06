@@ -257,7 +257,9 @@ class MemoryCog(commands.Cog):
 
     def _ensure_memory_dir(self):
         """Ensure memory directory exists."""
-        for d in [MEMORY_DIR, CHANNEL_MEMORY_DIR]:
+        # NOTE: Some code paths still read/write profiles under MEMORY_DIR directly,
+        # but current layout is MEMORY_DIR/{users,channels,...}. Ensure all exist.
+        for d in [MEMORY_DIR, USER_MEMORY_DIR, CHANNEL_MEMORY_DIR]:
             if not os.path.exists(d):
                 try:
                     os.makedirs(d, exist_ok=True)
@@ -386,17 +388,47 @@ class MemoryCog(commands.Cog):
     async def _process_media_attachments(self, message: discord.Message):
         """Analyzes attachments (Image/Video) and appends context to buffer."""
         try:
+            # Always record attachment metadata (even if we skip captioning) so the optimizer can learn
+            # "user sent a dog photo" style context from later assistant/user text.
+            meta_lines = []
+            for att in message.attachments:
+                try:
+                    meta_lines.append(
+                        f"- filename={att.filename} size_bytes={getattr(att, 'size', None)} content_type={getattr(att, 'content_type', None)} url={att.url}"
+                    )
+                except Exception:
+                    continue
+
+            if meta_lines:
+                if message.author.id not in self.message_buffer:
+                    self.message_buffer[message.author.id] = []
+                entry = {
+                    "id": message.id + 1,  # Pseudo-ID
+                    "content": "[System Media Attachment]\n" + "\n".join(meta_lines),
+                    "timestamp": datetime.now().isoformat(),
+                    "channel": message.channel.name if hasattr(message.channel, "name") else "DM",
+                    "guild": message.guild.name if message.guild else "DM",
+                    "guild_id": message.guild.id if message.guild else None,
+                    "is_public": self.is_public(message.channel),
+                }
+                self.message_buffer[message.author.id].append(entry)
+
+            # Optional: captioning for attachments (costly). Default is off unless explicitly enabled.
+            cap_mode = (os.getenv("ORA_MEMORY_MEDIA_CAPTION") or "off").strip().lower()
+            if cap_mode not in {"off", "on", "auto"}:
+                cap_mode = "off"
+
+            if cap_mode == "off":
+                return
+
+            current_model = os.getenv("LLM_MODEL", "gpt-5-mini").lower()
+            if cap_mode == "auto" and ("gpt-5" in current_model or "o1" in current_model or "o3" in current_model):
+                # In auto mode we avoid a second vision call when the main brain already sees images.
+                return
+
             if not self.captioner:
-                # Lazy Init
                 ora_cog = self.bot.get_cog("ORACog")
                 if ora_cog and hasattr(ora_cog, "unified_client"):
-                    # Check if model already has vision. If so, skip captioning to save time.
-                    # Per user request "Consolidate on GPT-5-mini", we don't need double-vision calls.
-                    current_model = os.getenv("LLM_MODEL", "gpt-5-mini").lower()
-                    if "gpt-5" in current_model or "o1" in current_model or "o3" in current_model:
-                        logger.info(f"⏭️ Skipping redundant captioning for vision-native model: {current_model}")
-                        return
-
                     from ..utils.vision.captioner import ImageCaptioner
                     self.captioner = ImageCaptioner(ora_cog.unified_client)
                 else:
@@ -758,18 +790,25 @@ class MemoryCog(commands.Cog):
                         raise
 
                 # 2. Cloud Sync (Async Trigger)
-                # Parse user_id from path if needed, but easier to pass data directly.
-                # The filename/path usually contains the user_id.
-                filename = os.path.basename(path)
-                if filename.endswith(".json"):
-                    # Extract user_id from filename (e.g., "12345_guildid_public.json" or "12345.json")
-                    user_id_str = filename.split(".")[0].split("_")[0]
-                    try:
-                        user_id = int(user_id_str)
-                        # Run sync in background task
-                        asyncio.create_task(cloud_sync.sync_user_data(user_id, data))
-                    except ValueError:
-                        logger.warning(f"Could not parse user_id from filename for cloud sync: {filename}")
+                # Only sync USER memory files. Channel memory lives under CHANNEL_MEMORY_DIR and
+                # its filenames are numeric (channel_id), which must NOT be treated as user_id.
+                try:
+                    norm_path = os.path.normpath(path)
+                    user_root = os.path.normpath(USER_MEMORY_DIR)
+                    is_user_profile = os.path.commonpath([norm_path, user_root]) == user_root
+                except Exception:
+                    is_user_profile = False
+
+                if is_user_profile:
+                    filename = os.path.basename(path)
+                    if filename.endswith(".json"):
+                        # Extract user_id from filename (e.g., "12345_guildid_public.json" or "12345.json")
+                        user_id_str = filename.split(".")[0].split("_")[0]
+                        try:
+                            user_id = int(user_id_str)
+                            asyncio.create_task(cloud_sync.sync_user_data(user_id, data))
+                        except ValueError:
+                            logger.warning(f"Could not parse user_id from filename for cloud sync: {filename}")
 
             except Exception as e:
                 if os.path.exists(temp_path):

@@ -96,6 +96,16 @@ async def run_agent_loop(run_id: str, content: str, available_tools: list, provi
 
     try:
         cfg = Config.load()
+
+        # Creator lock: web client must not be able to request restricted tools by sending them in available_tools.
+        # If provider_id is not the configured owner, shrink toolset to safe allowlist.
+        try:
+            from src.utils.access_control import filter_tool_schemas_for_user
+            user_id = int(provider_id) if str(provider_id).isdigit() else None
+            available_tools = filter_tool_schemas_for_user(bot=type("B", (), {"config": cfg})(), user_id=user_id, tools=available_tools)
+        except Exception:
+            # If filtering fails, default to no tools rather than risky exposure.
+            available_tools = []
         llm = LLMClient(
             base_url=getattr(cfg, "openai_base_url", cfg.llm_base_url),
             api_key=cfg.llm_api_key,

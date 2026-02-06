@@ -31,7 +31,8 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: ORA-*.zip
-          draft: true
+          # Publish automatically (no manual "Draft -> Publish" step in the GitHub UI).
+          draft: false
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

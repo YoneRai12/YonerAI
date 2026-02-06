@@ -2972,12 +2972,14 @@ class ORACog(commands.Cog):
             },
         ]
 
-    def get_context_tools(self, client_type: str = "discord") -> list[dict]:
+    def get_context_tools(self, client_type: str = "discord", user_id: int | None = None) -> list[dict]:
         """
         Public method to get tools filtered by client context.
         Prevents usage of Discord-only tools in Web UI, or Web tools in Discord.
         Also includes Dynamically Loaded Skills from SKILL.md files.
         """
+        from src.utils.access_control import filter_tool_schemas_for_user
+
         all_tools = self._get_tool_schemas()
         
         # [Clawdbot] Dynamic Skill Injection
@@ -3018,7 +3020,10 @@ class ORACog(commands.Cog):
                     continue
             
             filtered.append(tool)
-            
+             
+        # Creator lock: Non-owner users only see a small safe allowlist of tools.
+        if user_id is not None:
+            return filter_tool_schemas_for_user(self.bot, user_id, filtered)
         return filtered
 
 

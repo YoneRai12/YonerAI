@@ -46,4 +46,7 @@ jobs:
     - name: Run Smoke Tests
       run: |
         export PYTHONPATH=$PYTHONPATH:$(pwd)
+        # Keep CI green without requiring real secrets.
+        # Some import paths validate presence of DISCORD_BOT_TOKEN.
+        export DISCORD_BOT_TOKEN="ci_dummy_token"
         pytest tests/test_smoke.py

@@ -220,7 +220,21 @@ async def screenshot(args: dict, message: discord.Message, status_manager, bot=N
         if len(safe_url) > 2000:
             safe_url = safe_url[:2000]
 
-        embed = discord.Embed(title=safe_title, url=safe_url or None, color=0x00ff00)
+        # Discord embed title hard limit is 256 chars. Use a short stable title and move
+        # page metadata into description to avoid intermittent 400s on long/odd titles.
+        page_title = safe_title
+        if len(page_title) > 500:
+            page_title = page_title[:497] + "..."
+
+        desc_parts = []
+        if page_title:
+            desc_parts.append(f"**Title** {page_title}")
+        if safe_url:
+            desc_parts.append(f"**URL** <{safe_url}>")
+        if challenge_detected:
+            desc_parts.append(f"**Notice** {challenge_label}")
+
+        embed = discord.Embed(title="ORA Screenshot", description="\n".join(desc_parts)[:3900], color=0x00FF00)
         embed.set_image(url=f"attachment://{filename}")
         embed.set_footer(text=f"ORA Browser • {width or 'Default'}x{height or 'Default'}")
 
@@ -296,7 +310,24 @@ async def download(args: dict, message: discord.Message, status_manager, bot=Non
             safe_limit_mb = (limit_bytes / (1024*1024)) - 0.5
             if safe_limit_mb < 5: safe_limit_mb = 5
 
-            result = await download_video_smart(url, start_time=start_time, max_size_mb=safe_limit_mb, proxy=proxy, split_strategy=split_strategy)
+            # Backward/forward compatibility: older deployments may not yet support split_strategy.
+            try:
+                result = await download_video_smart(
+                    url,
+                    start_time=start_time,
+                    max_size_mb=safe_limit_mb,
+                    proxy=proxy,
+                    split_strategy=split_strategy,
+                )
+            except TypeError as e:
+                if "split_strategy" not in str(e):
+                    raise
+                result = await download_video_smart(
+                    url,
+                    start_time=start_time,
+                    max_size_mb=safe_limit_mb,
+                    proxy=proxy,
+                )
             final_path = result["path"]
             title = result["title"]
             next_start = result.get("next_start_time")

@@ -1,5 +1,17 @@
 # ORA System Changelog
 
+## 🆕 v5.1.1 (2026/02/06) - CI Fix + Memory/Download Robustness
+### ✅ CI Fix (No Secrets Needed)
+* GitHub Actions smoke test now sets a dummy `DISCORD_BOT_TOKEN` so tests don’t fail on missing secrets.
+
+### 🧠 Memory Safety
+* Ensures `memory/users/` is created at startup.
+* Prevents **channel memory** files (`memory/channels/<channel_id>.json`) from being misinterpreted as **user** files during cloud-sync.
+
+### 🎥 Download + 📸 Screenshot Hardening
+* `web_download` no longer crashes on older deployments where `download_video_smart()` doesn’t accept `split_strategy`.
+* `web_screenshot` embed title is now short/stable (`ORA Screenshot`) to avoid Discord’s 256-char title hard limit.
+
 ## 🆕 v5.1.0 (2026/02/06) - Diagram Clarity + Release Alignment
 ### 📈 Readable Architecture Diagrams
 Reworked README diagrams for practical readability:
