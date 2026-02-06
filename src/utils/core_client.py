@@ -106,40 +106,73 @@ class CoreAPIClient:
         Yields events from the Core SSE stream for a specific run_id.
         """
         import json
-
-        import aiohttp
         url = f"{self.base_url}/v1/runs/{run_id}/events"
 
-        # Increase timeout for long-running tool executions
-        timeout_cfg = aiohttp.ClientTimeout(total=timeout)
-        async with aiohttp.ClientSession(timeout=timeout_cfg) as session:
+        # Robustness:
+        # SSE streams can be interrupted (proxy resets, chunked transfer errors, etc.).
+        # Retry within the timeout window and de-duplicate already-seen events.
+        import asyncio
+        import time
+
+        deadline = time.monotonic() + max(1, int(timeout))
+        backoff = 0.5
+        seen: set[str] = set()
+
+        while time.monotonic() < deadline:
+            remaining = max(1, int(deadline - time.monotonic()))
+            timeout_cfg = aiohttp.ClientTimeout(total=remaining)
             try:
-                async with session.get(url) as resp:
-                    if resp.status != 200:
-                        logger.error(f"Failed to connect to events: {await resp.text()}")
-                        return
+                async with aiohttp.ClientSession(timeout=timeout_cfg) as session:
+                    async with session.get(url) as resp:
+                        if resp.status != 200:
+                            logger.error(f"Failed to connect to events: {await resp.text()}")
+                            return
 
-                    async for line in resp.content:
-                        if not line:
-                            continue
+                        async for line in resp.content:
+                            if not line:
+                                continue
 
-                        decoded_line = line.decode("utf-8").strip()
-                        if not decoded_line:
-                            continue
+                            decoded_line = line.decode("utf-8", errors="ignore").strip()
+                            if not decoded_line:
+                                continue
 
-                        if decoded_line.startswith("data: "):
+                            if not decoded_line.startswith("data: "):
+                                continue
+
                             try:
                                 event_data = json.loads(decoded_line[6:])
-                                yield event_data
-
-                                # Terminate on final or error
-                                if event_data.get("event") in ["final", "error"]:
-                                    break
                             except json.JSONDecodeError:
                                 continue
-            except Exception as e:
-                logger.error(f"Error reading SSE stream: {e}")
+
+                            # De-dupe by stable JSON (best-effort).
+                            try:
+                                key = json.dumps(event_data, sort_keys=True, ensure_ascii=False)
+                            except Exception:
+                                key = str(event_data)
+                            if key in seen:
+                                continue
+                            if len(seen) < 5000:
+                                seen.add(key)
+
+                            yield event_data
+
+                            # Terminate on final or error
+                            if event_data.get("event") in ["final", "error"]:
+                                return
+
+                        # If the stream ends without final/error, retry.
+                        raise aiohttp.ClientPayloadError("SSE ended without terminal event")
+
+            except asyncio.CancelledError:
                 return
+            except Exception as e:
+                # Common transient: TransferEncodingError / ClientPayloadError ("not enough data ...")
+                logger.warning(f"SSE stream interrupted for run_id={run_id}; retrying: {e}")
+                await asyncio.sleep(backoff)
+                backoff = min(backoff * 2, 5.0)
+
+        logger.error(f"SSE stream timeout for run_id={run_id}")
+        return
 
     async def get_final_response(self, run_id: str, timeout: int = 300) -> Optional[str]:
         """

@@ -38,6 +38,11 @@
 ### 🧱 Reproducibility + Audit Trail
 * Each scheduled run records start/finish/status/output snippet and Core run_id in DB.
 
+## 🆕 v5.1.4 (2026/02/06) - Core SSE Robustness
+### 🔁 SSE Auto-Retry
+* Core SSE (`/v1/runs/{id}/events`) stream now auto-retries within the timeout window on transient disconnects
+  (e.g. `TransferEncodingError: Not enough data to satisfy transfer length header.`), with best-effort de-duplication.
+
 ## 🆕 v5.1.0 (2026/02/06) - Diagram Clarity + Release Alignment
 ### 📈 Readable Architecture Diagrams
 Reworked README diagrams for practical readability:
