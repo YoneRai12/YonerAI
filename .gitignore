@@ -2,6 +2,7 @@
 .env
 .env.*
 !.env.example
+!.env.local.example
 ngrok.yml
 service-account.json
 client_secret_*.json
