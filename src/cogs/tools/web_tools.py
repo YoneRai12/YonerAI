@@ -32,6 +32,16 @@ def _fmt_duration_sec(seconds: Optional[float]) -> str:
     except Exception:
         return "unknown"
 
+def _guess_image_ext(image_bytes: bytes) -> str:
+    try:
+        if image_bytes.startswith(b"\x89PNG\r\n\x1a\n"):
+            return "png"
+        if image_bytes.startswith(b"\xff\xd8"):
+            return "jpg"
+    except Exception:
+        pass
+    return "png"
+
 
 def _build_download_message_lines(
     *,
@@ -118,6 +128,7 @@ async def screenshot(args: dict, message: discord.Message, status_manager, bot=N
         height = args.get("height")
         scale = args.get("scale")
         delay = int(args.get("delay", 2))
+        full_page = bool(args.get("full_page", False))
 
         # Resolution Mapping
         resolution = args.get("resolution")
@@ -154,7 +165,8 @@ async def screenshot(args: dict, message: discord.Message, status_manager, bot=N
 
         if status_manager: await status_manager.update_current("Capturing screenshot...")
 
-        image_bytes = await browser_manager.get_screenshot()
+        # PNG-first keeps diagrams crisp. Down-convert later only if needed for size.
+        image_bytes = await browser_manager.get_screenshot(full_page=full_page, prefer_png=True)
         if not image_bytes:
             return "❌ No screenshot data returned."
 
@@ -167,27 +179,48 @@ async def screenshot(args: dict, message: discord.Message, status_manager, bot=N
                 final_dir = r"L:\ORA_Temp"
             except: pass
 
-        filename = f"screenshot_{uuid.uuid4().hex[:8]}.jpg"
+        ext = _guess_image_ext(image_bytes)
+        filename = f"screenshot_{uuid.uuid4().hex[:8]}.{ext}"
         file_path = os.path.join(final_dir, filename)
 
         with open(file_path, "wb") as f:
             f.write(image_bytes)
 
-        # Compression Logic
+        # Compression / Fallback to temporary download page
         limit_bytes = 10 * 1024 * 1024
         if message.guild:
-            limit_bytes = message.guild.filesize_limit
+            limit_bytes = int(getattr(message.guild, "filesize_limit", limit_bytes) or limit_bytes)
+        safe_limit = max(1, int(limit_bytes * 0.95))
 
-        safe_limit = limit_bytes - (1 * 1024 * 1024)
-        file_size = len(image_bytes)
+        def _size(p: str) -> int:
+            try:
+                return int(os.path.getsize(p))
+            except Exception:
+                return 0
 
-        if file_size > safe_limit:
+        chosen_path = file_path
+        chosen_name = filename
+        chosen_size = _size(chosen_path)
+
+        # If too large, down-convert to JPEG (diagrams may lose sharpness, but will deliver reliably).
+        if chosen_size > safe_limit:
             if status_manager:
-                await status_manager.update_current(f"Compressing large image...")
-            # Simple sync compression to avoid heavy async subprocess overhead here or use just file
-            # Ideally we keep the subprocess logic, but for brevity/cleanliness we rely on basic file
-            # ... (Full logic omitted for brevity, assuming standard send works for now or user accepts limits)
-            pass
+                await status_manager.update_current(
+                    f"Compressing image ({chosen_size/1024/1024:.1f}MB > {safe_limit/1024/1024:.1f}MB)..."
+                )
+            try:
+                import subprocess
+
+                jpg_path = os.path.splitext(file_path)[0] + "_comp.jpg"
+                # q:v: 2(best) .. 31(worst). 4-6 is a good compromise.
+                cmd = ["ffmpeg", "-y", "-i", file_path, "-q:v", "5", jpg_path]
+                subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+                if os.path.exists(jpg_path) and _size(jpg_path) and _size(jpg_path) < chosen_size:
+                    chosen_path = jpg_path
+                    chosen_name = os.path.basename(jpg_path)
+                    chosen_size = _size(chosen_path)
+            except Exception:
+                pass
 
         # Context
         challenge_detected = False
@@ -211,7 +244,29 @@ async def screenshot(args: dict, message: discord.Message, status_manager, bot=N
             title = "Web Page"
             current_url = target_url or "Current Page"
 
-        f_obj = discord.File(file_path, filename=filename)
+        # If still too big, host a 30-min temp download and post the link instead of failing.
+        link_url = None
+        if chosen_size > safe_limit:
+            try:
+                base = await ensure_download_public_base_url(bot)
+                if base:
+                    manifest = create_temporary_download(
+                        chosen_path,
+                        download_name=chosen_name,
+                        source_url=current_url,
+                        metadata={"kind": "web_screenshot", "title": title, "url": current_url},
+                        ttl_seconds=1800,
+                    )
+                    token = manifest.get("token")
+                    if token:
+                        link_url = f"{base}/download/{token}"
+                        # chosen_path is moved; do not cleanup it below.
+                        chosen_path = ""
+            except Exception:
+                link_url = None
+
+        # Build message
+        f_obj = discord.File(chosen_path, filename=chosen_name) if chosen_path else None
 
         safe_title = (title or "Web Page").strip()
         if len(safe_title) > 250:
@@ -233,18 +288,29 @@ async def screenshot(args: dict, message: discord.Message, status_manager, bot=N
             desc_parts.append(f"**URL** <{safe_url}>")
         if challenge_detected:
             desc_parts.append(f"**Notice** {challenge_label}")
+        if link_url:
+            desc_parts.append(f"🔗 **30分限定DLページ** {link_url}")
 
         embed = discord.Embed(title="ORA Screenshot", description="\n".join(desc_parts)[:3900], color=0x00FF00)
-        embed.set_image(url=f"attachment://{filename}")
+        if f_obj:
+            embed.set_image(url=f"attachment://{chosen_name}")
         embed.set_footer(text=f"ORA Browser • {width or 'Default'}x{height or 'Default'}")
 
         try:
-            await message.reply(embed=embed, file=f_obj)
+            if f_obj:
+                await message.reply(embed=embed, file=f_obj)
+            else:
+                await message.reply(embed=embed)
         finally:
             # Cleanup: always try to delete local artifact after use.
             try:
-                if os.path.exists(file_path):
+                if file_path and os.path.exists(file_path):
                     os.remove(file_path)
+            except Exception:
+                pass
+            try:
+                if chosen_path and os.path.exists(chosen_path):
+                    os.remove(chosen_path)
             except Exception:
                 pass
 
@@ -255,6 +321,8 @@ async def screenshot(args: dict, message: discord.Message, status_manager, bot=N
         result_text = "Screenshot sent successfully to Discord."
         if challenge_detected:
             result_text += f" {challenge_label}."
+        if link_url:
+            result_text += " (Large file: posted temporary download link.)"
 
         return {
             "result": result_text,

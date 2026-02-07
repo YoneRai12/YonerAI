@@ -343,7 +343,20 @@ class ToolSelector:
         # The category router can over-expose remote browser tools (e.g., screenshot) when a URL is present.
         # Only include "browser automation/screenshot" tools when the user explicitly asks for it.
         p_low = (prompt or "").lower()
-        wants_screenshot = any(k in p_low for k in ["スクショ", "スクリーンショット", "screenshot", "画面", "キャプチャ"])
+        wants_screenshot = any(
+            k in p_low
+            for k in [
+                "スクショ",
+                "スクリーンショット",
+                "screenshot",
+                "画面",
+                "キャプチャ",
+                "撮って",
+                "撮影",
+                "撮ってきて",
+                "撮って来て",
+            ]
+        )
         wants_browser_control = any(k in p_low for k in ["webひらいて", "web操作", "ブラウザ", "remote", "操作して", "開いて操作"])
         is_code_review = ("github.com" in p_low or "gitlab.com" in p_low) and any(k in p_low for k in ["コード", "repo", "リポジトリ", "review", "監査", "読んで"])
 
@@ -404,7 +417,19 @@ class ToolSelector:
         """
         p = (prompt or "").lower()
         want_download = any(k in p for k in ["保存", "ダウンロード", "download", "save", "mp3", "mp4", "record", "録画"])
-        want_screenshot = any(k in p for k in ["スクショ", "スクリーンショット", "screenshot", "キャプチャ"])
+        want_screenshot = any(
+            k in p
+            for k in [
+                "スクショ",
+                "スクリーンショット",
+                "screenshot",
+                "キャプチャ",
+                "撮って",
+                "撮影",
+                "撮ってきて",
+                "撮って来て",
+            ]
+        )
         want_web = any(k in p for k in ["http://", "https://", "web", "ブラウザ", "開いて", "サイト"])
         want_code = any(k in p for k in ["コード", "repo", "リポジトリ", "github", "gitlab", "バグ", "エラー", "stack trace"])
         want_mcp = "mcp" in p or "model context protocol" in p

@@ -113,7 +113,7 @@ class ChatHandler:
             tasks += ["ログ/状況を確認", "原因を特定", "修正案を提示"]
         elif any(k in p_low for k in ["保存", "ダウンロード", "download", "save", "mp3", "mp4", "動画"]):
             tasks += ["保存/ダウンロードを実行", "結果を整理"]
-        elif any(k in p_low for k in ["スクショ", "スクリーンショット", "screenshot", "webひらいて", "web操作", "ブラウザ"]):
+        elif any(k in p_low for k in ["スクショ", "スクリーンショット", "screenshot", "キャプチャ", "撮って", "撮影", "4k", "webひらいて", "web操作", "ブラウザ"]):
             tasks += ["ページを開く", "スクショ/操作を実行"]
 
         # De-dup + clamp
@@ -122,7 +122,7 @@ class ChatHandler:
         tasks = tasks[:8]
 
         await status_manager.start_task_board(
-            "⚡ ORA Universal Brain • 実行計画 / ステータス",
+            "⚡ ORA Universal Brain • タスク / ステータス",
             tasks,
             footer="Sanitized & Powered by ORA Universal Brain",
         )
@@ -540,7 +540,7 @@ Interests: {interests}
                             if len(plan_tasks) >= 2:
                                 await status_manager.replace_tasks(
                                     plan_tasks[:8],
-                                    title="⚡ ORA Universal Brain • 実行計画 / ステータス",
+                                    title="⚡ ORA Universal Brain • タスク / ステータス",
                                     footer="Sanitized & Powered by ORA Universal Brain",
                                 )
                                 plan_applied_to_board = True

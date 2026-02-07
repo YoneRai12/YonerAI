@@ -172,8 +172,12 @@ class BrowserManager:
             logger.error(f"Navigation failed: {e}")
             raise
 
-    async def get_screenshot(self) -> bytes:
-        """Returns the current page screenshot as bytes."""
+    async def get_screenshot(self, *, full_page: bool = False, prefer_png: bool = True) -> bytes:
+        """Returns the current page screenshot as bytes.
+
+        PNG-first yields sharper text/diagrams (GitHub/sequence diagrams), and we down-convert later
+        only if Discord size limits require it.
+        """
         await self.ensure_active()
         last_error = None
         for attempt in range(2):
@@ -182,10 +186,14 @@ class BrowserManager:
                 if not p:
                     raise Exception("Browser page is not available.")
                 try:
-                    return await p.screenshot(type="jpeg", quality=80, timeout=10000)
+                    if prefer_png:
+                        return await p.screenshot(type="png", timeout=10000, full_page=full_page)
+                    return await p.screenshot(type="jpeg", quality=90, timeout=10000, full_page=full_page)
                 except Exception:
                     # Fallback for environments where jpeg screenshot options fail.
-                    return await p.screenshot(type="png", timeout=10000)
+                    if prefer_png:
+                        return await p.screenshot(type="jpeg", quality=90, timeout=10000, full_page=full_page)
+                    return await p.screenshot(type="png", timeout=10000, full_page=full_page)
             except Exception as e:
                 last_error = e
                 if attempt == 0:
