@@ -45,6 +45,9 @@ TOOL_SCHEMA = {
                 "description": "出力形式。既定mp4。",
             },
             "filename": {"type": "string", "description": "保存ファイル名（省略可）。"},
+            "voice_text": {"type": "string", "description": "VOICEVOXで生成するナレーション（省略可）。mp4/webmのみ。"},
+            "voicevox_speaker_id": {"type": "integer", "description": "VOICEVOX speaker id（省略時は設定値）。"},
+            "voice_speed_scale": {"type": "number", "description": "読み上げ速度倍率（既定1.0）。"},
         },
         "required": ["preset"],
     },
@@ -103,6 +106,17 @@ def _npm_path() -> Optional[str]:
         p = shutil.which(cand)
         if p:
             return p
+    return None
+
+
+def _find_ffmpeg() -> Optional[str]:
+    for cand in ("ffmpeg.exe", "ffmpeg"):
+        p = shutil.which(cand)
+        if p:
+            return p
+    # Some setups drop ffmpeg.exe into repo root.
+    if os.path.exists("ffmpeg.exe"):
+        return os.path.abspath("ffmpeg.exe")
     return None
 
 
@@ -193,6 +207,13 @@ async def execute(args: dict, message: discord.Message, bot: Any = None) -> Any:
     entry = (os.getenv("ORA_REMOTION_ENTRY") or os.path.join("src", "index.ts")).strip()
     timeout_sec = int(float(os.getenv("ORA_REMOTION_RENDER_TIMEOUT_SEC") or 900))
 
+    voice_text = (args.get("voice_text") or "").strip()
+    voice_speed_scale = float(args.get("voice_speed_scale") or 1.0)
+    if voice_speed_scale <= 0:
+        voice_speed_scale = 1.0
+    if voice_speed_scale > 2.5:
+        voice_speed_scale = 2.5
+
     if not os.path.isdir(project_dir):
         return f"❌ Remotion project not found: {project_dir}"
 
@@ -203,6 +224,9 @@ async def execute(args: dict, message: discord.Message, bot: Any = None) -> Any:
     ok, msg = await _ensure_node_deps(project_dir)
     if not ok:
         return f"❌ {msg}"
+
+    if voice_text and output == "gif":
+        return "❌ GIF は音声を含められません（mp4/webm を選んでください）。"
 
     composition = "OraTitleCard" if preset == "title_card" else "OraCaptionImage"
     props: dict[str, Any] = {
@@ -269,9 +293,74 @@ async def execute(args: dict, message: discord.Message, bot: Any = None) -> Any:
             snippet = (out or "").strip().splitlines()[-25:]
             return "❌ Remotion render failed.\n" + "\n".join(snippet[-25:])
 
-        size_bytes = int(os.path.getsize(out_path))
+        final_path = out_path
+
+        # Optional VOICEVOX narration: synthesize WAV and mux into video.
+        if voice_text and output in {"mp4", "webm"}:
+            ffmpeg = _find_ffmpeg()
+            if not ffmpeg:
+                return "❌ ffmpeg が見つかりません。音声合成（VOICEVOX）の結合には ffmpeg が必要です。"
+
+            cfg = getattr(bot, "config", None) if bot else None
+            voicevox_url = getattr(cfg, "voicevox_api_url", None) if cfg else None
+            default_sid = getattr(cfg, "voicevox_speaker_id", 1) if cfg else 1
+            if not voicevox_url:
+                return "❌ VOICEVOX_API_URL が未設定です。"
+
+            try:
+                from src.utils.tts_client import VoiceVoxClient
+            except Exception as e:
+                return f"❌ VoiceVoxClient の読み込みに失敗しました: {e}"
+
+            try:
+                sid = args.get("voicevox_speaker_id")
+                sid = int(sid) if sid is not None else int(default_sid)
+            except Exception:
+                sid = int(default_sid)
+
+            wav_path = os.path.join(tdir, f"voice_{uuid.uuid4().hex[:6]}.wav")
+            try:
+                vv = VoiceVoxClient(str(voicevox_url), int(default_sid))
+                audio_bytes = await vv.synthesize(voice_text, speaker_id=sid, speed_scale=float(voice_speed_scale))
+                with open(wav_path, "wb") as f:
+                    f.write(audio_bytes)
+            except Exception as e:
+                return f"❌ VOICEVOX 合成に失敗しました: {e}"
+
+            muxed_name = os.path.splitext(filename)[0] + "_vv." + output
+            muxed_path = os.path.join(tdir, muxed_name)
+
+            # apad makes audio >= video length; -shortest then ends at video end.
+            audio_codec = "aac" if output == "mp4" else "libopus"
+            mux_cmd = [
+                ffmpeg,
+                "-y",
+                "-i",
+                final_path,
+                "-i",
+                wav_path,
+                "-filter_complex",
+                "[1:a]apad",
+                "-shortest",
+                "-c:v",
+                "copy",
+                "-c:a",
+                audio_codec,
+                muxed_path,
+            ]
+            rc2, out2 = await _run_cmd(mux_cmd, cwd=tdir, timeout_sec=max(60, timeout_sec))
+            if rc2 != 0 or (not os.path.exists(muxed_path)):
+                snippet = (out2 or "").strip().splitlines()[-25:]
+                return "❌ 音声結合(ffmpeg)に失敗しました。\n" + "\n".join(snippet[-25:])
+
+            final_path = muxed_path
+
+        size_bytes = int(os.path.getsize(final_path))
         label = "Video"
-        limit_bytes = message.guild.filesize_limit if getattr(message, "guild", None) else 10 * 1024 * 1024
+        # User baseline: keep uploads within 10MB so it works everywhere.
+        ten_mb = 10 * 1024 * 1024
+        guild_limit = message.guild.filesize_limit if getattr(message, "guild", None) else ten_mb
+        limit_bytes = min(int(guild_limit or ten_mb), ten_mb)
         safe_upload_limit = max(1, int(limit_bytes * 0.95))
 
         if size_bytes <= safe_upload_limit:
@@ -285,7 +374,7 @@ async def execute(args: dict, message: discord.Message, bot: Any = None) -> Any:
                 filename=filename,
                 link_url=None,
             )
-            await message.reply(content="\n".join(lines), file=discord.File(out_path, filename=filename))
+            await message.reply(content="\n".join(lines), file=discord.File(final_path, filename=filename))
             return {
                 "silent": True,
                 "result": f"動画を生成してDiscordへ送信しました。{_fmt_duration_sec(duration_sec)} / {width}x{height} / {_fmt_size_mb(size_bytes)}",
@@ -296,13 +385,13 @@ async def execute(args: dict, message: discord.Message, bot: Any = None) -> Any:
                     "size_bytes": size_bytes,
                     "codec": codec,
                     "filename": filename,
+                    "voicevox": bool(voice_text),
                 },
             }
 
         # Too large -> temp download page (30 min) with auto cleanup.
-        moved_path = os.path.join(tdir, filename)
         manifest = create_temporary_download(
-            moved_path,
+            final_path,
             download_name=filename,
             source_url="",
             metadata={
@@ -311,6 +400,7 @@ async def execute(args: dict, message: discord.Message, bot: Any = None) -> Any:
                 "height": height,
                 "codec": codec,
                 "preset": preset,
+                "voicevox": bool(voice_text),
             },
             ttl_seconds=1800,
         )
@@ -344,4 +434,3 @@ async def execute(args: dict, message: discord.Message, bot: Any = None) -> Any:
                 "filename": manifest.get("download_name") or filename,
             },
         }
-
