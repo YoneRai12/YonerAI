@@ -177,6 +177,9 @@ class ToolSelector:
                 cat_prompt_list.append(f"- {cat_key}: {cat_data['desc']}")
 
         # Static System Prompt (Strictly Canonical)
+        #
+        # IMPORTANT: Do not rely on keyword heuristics in the bot for routing.
+        # The router should infer intent (screenshot/control/download) conceptually and emit it as JSON.
         system_prompt = (
             f"You are the ORA System Category Router. Your goal is to select the TOOL CATEGORIES required to fulfill the user's intent.\n"
             f"Current Platform: {platform.upper()}\n"
@@ -184,17 +187,19 @@ class ToolSelector:
             f"1. **SAFETY FIRST**: If user asks to download/save, use WEB_FETCH. If just looking, use WEB_READ.\n"
             f"2. ANALYZE the User's GOAL (Concept-Based). Input may be in ANY language.\n"
             f"3. SELECT ALL Tool Categories required.\n"
-            f"4. **OUTPUT FORMAT**: JSON Array of strings ONLY. No markdown. Example: [\"WEB_READ\", \"SYSTEM_UTIL\"]\n\n"
+            f"4. **OUTPUT FORMAT** (JSON ONLY, no markdown):\n"
+            f"   Preferred: {{\"categories\":[...],\"intents\":{{\"screenshot\":true|false,\"browser_control\":true|false,\"download\":true|false}}}}\n"
+            f"   Example: {{\"categories\":[\"WEB_READ\"],\"intents\":{{\"screenshot\":true,\"browser_control\":false,\"download\":false}}}}\n\n"
             f"Available Categories:\n" + "\n".join(cat_prompt_list) + "\n\n"
             f"[FEW-SHOT EXAMPLES]\n"
-            f"- 'Save this video' -> [\"WEB_FETCH\"]\n"
-            f"- 'Screenshot this' -> [\"WEB_READ\"]\n"
-            f"- 'Who is this user?' -> [\"DISCORD_SERVER\"]\n"
-             f"- 'Play music' -> [\"VOICE_AUDIO\"]\n"
-             f"- '動画を保存して' -> [\"WEB_FETCH\"]\n"
-             f"- 'このページをスクショして' -> [\"WEB_READ\"]\n"
-             f"- 'これをダウンロードして' -> [\"WEB_FETCH\"]\n"
-             f"- 'Use an MCP tool' -> [\"MCP\"]\n"
+            f"- 'Save this video' -> {{\"categories\":[\"WEB_FETCH\"],\"intents\":{{\"download\":true,\"screenshot\":false,\"browser_control\":false}}}}\n"
+            f"- 'Screenshot this' -> {{\"categories\":[\"WEB_READ\"],\"intents\":{{\"screenshot\":true,\"browser_control\":false,\"download\":false}}}}\n"
+            f"- 'Open the browser and click X' -> {{\"categories\":[\"WEB_READ\"],\"intents\":{{\"browser_control\":true,\"screenshot\":false,\"download\":false}}}}\n"
+            f"- 'Who is this user?' -> {{\"categories\":[\"DISCORD_SERVER\"],\"intents\":{{\"screenshot\":false,\"browser_control\":false,\"download\":false}}}}\n"
+             f"- 'Play music' -> {{\"categories\":[\"VOICE_AUDIO\"],\"intents\":{{\"screenshot\":false,\"browser_control\":false,\"download\":false}}}}\n"
+             f"- '動画を保存して' -> {{\"categories\":[\"WEB_FETCH\"],\"intents\":{{\"download\":true,\"screenshot\":false,\"browser_control\":false}}}}\n"
+             f"- 'このページをスクショして' -> {{\"categories\":[\"WEB_READ\"],\"intents\":{{\"screenshot\":true,\"browser_control\":false,\"download\":false}}}}\n"
+             f"- 'Use an MCP tool' -> {{\"categories\":[\"MCP\"],\"intents\":{{\"screenshot\":false,\"browser_control\":false,\"download\":false}}}}\n"
          )
 
         # S6: Prefix Hash for Cache Hit Verification
@@ -223,6 +228,7 @@ class ToolSelector:
             # S4: Retry Loop (Max 2 attempts) for JSON validity
             max_retries = 2
             selected_categories = []
+            router_intents: Dict[str, bool] = {"screenshot": False, "browser_control": False, "download": False}
 
             for attempt in range(max_retries + 1):
                 t0_llm = time.perf_counter()
@@ -250,17 +256,30 @@ class ToolSelector:
 
                 try:
                     parsed = json.loads(clean_text)
+                    # Backward compatible: accept either list OR object.
                     if isinstance(parsed, list):
+                        cats_raw = parsed
+                    elif isinstance(parsed, dict):
+                        cats_raw = parsed.get("categories") or parsed.get("selected_categories") or []
+                        intents_raw = parsed.get("intents") or {}
+                        if isinstance(intents_raw, dict):
+                            for k in ("screenshot", "browser_control", "download"):
+                                try:
+                                    router_intents[k] = bool(intents_raw.get(k, False))
+                                except Exception:
+                                    router_intents[k] = False
+                    else:
+                        cats_raw = []
+
+                    if isinstance(cats_raw, list):
                         # S4: Filter Unknown Categories (Strict Allowlist)
                         valid_keys = set(categories.keys())
-                        selected_categories = [k for k in parsed if k in valid_keys]
+                        selected_categories = [k for k in cats_raw if k in valid_keys]
+                        if len(selected_categories) < len(cats_raw):
+                            logger.warning(f"Filtered out unknown categories: {set(cats_raw) - set(selected_categories)}")
+                        break  # Success
 
-                        if len(selected_categories) < len(parsed):
-                            logger.warning(f"Filtered out unknown categories: {set(parsed) - set(selected_categories)}")
-
-                        break # Success
-                    else:
-                        logger.warning(f"Router returned non-list: {type(parsed)}")
+                    logger.warning(f"Router returned invalid JSON shape: {type(parsed)}")
                 except json.JSONDecodeError:
                     logger.warning(f"Router JSON Decode Error: {clean_text}")
 
@@ -339,25 +358,19 @@ class ToolSelector:
                         final_tools.append(tool)
                         seen_tools.add(tool["name"])
 
-        # Heuristic narrowing:
-        # The category router can over-expose remote browser tools (e.g., screenshot) when a URL is present.
-        # Only include "browser automation/screenshot" tools when the user explicitly asks for it.
+        # Narrowing:
+        # The router can over-expose remote browser tools when a URL is present.
+        # Primary signal is the router's inferred intents. Keyword checks are fallback-only.
         p_low = (prompt or "").lower()
-        wants_screenshot = any(
-            k in p_low
-            for k in [
-                "スクショ",
-                "スクリーンショット",
-                "screenshot",
-                "画面",
-                "キャプチャ",
-                "撮って",
-                "撮影",
-                "撮ってきて",
-                "撮って来て",
-            ]
-        )
-        wants_browser_control = any(k in p_low for k in ["webひらいて", "web操作", "ブラウザ", "remote", "操作して", "開いて操作"])
+
+        wants_screenshot = bool(router_intents.get("screenshot", False))
+        wants_browser_control = bool(router_intents.get("browser_control", False))
+        wants_download = bool(router_intents.get("download", False))
+
+        # Fallback only (when router intent is all false): minimal keyword heuristics
+        if not (wants_screenshot or wants_browser_control or wants_download):
+            wants_screenshot = any(k in p_low for k in ["スクショ", "スクリーンショット", "screenshot", "画面", "キャプチャ", "撮って", "撮影", "撮ってきて", "撮って来て"])
+            wants_browser_control = any(k in p_low for k in ["webひらいて", "web操作", "ブラウザ", "remote", "操作して", "開いて操作"])
         is_code_review = ("github.com" in p_low or "gitlab.com" in p_low) and any(k in p_low for k in ["コード", "repo", "リポジトリ", "review", "監査", "読んで"])
 
         remote_browser_tools = {
@@ -380,7 +393,14 @@ class ToolSelector:
         # Hard cap tool exposure to avoid "Tool Selection: 72 -> 29 tools" class issues.
         max_tools = int(os.getenv("ORA_ROUTER_MAX_TOOLS", "10") or "10")
         if len(final_tools) > max_tools:
-            final_tools = self._cap_tools(final_tools, prompt, max_tools=max_tools)
+            final_tools = self._cap_tools(
+                final_tools,
+                prompt,
+                max_tools=max_tools,
+                want_download=wants_download,
+                want_screenshot=wants_screenshot,
+                want_browser_control=wants_browser_control,
+            )
 
         # S6: Structured Logging (Timing Split)
         end_time_total = time.perf_counter()
@@ -398,6 +418,11 @@ class ToolSelector:
             "reasons": reasons,
             "selected_categories": list(selected_categories),
             "selected_tool_count": len(final_tools),
+            "intents": {
+                "screenshot": bool(wants_screenshot),
+                "browser_control": bool(wants_browser_control),
+                "download": bool(wants_download),
+            },
         }
 
         logger.info(f"🧩 Router Decision", extra={"router_event": log_payload})
@@ -411,25 +436,27 @@ class ToolSelector:
 
         return final_tools
 
-    def _cap_tools(self, tools: List[dict], prompt: str, max_tools: int = 10) -> List[dict]:
+    def _cap_tools(
+        self,
+        tools: List[dict],
+        prompt: str,
+        max_tools: int = 10,
+        *,
+        want_download: Optional[bool] = None,
+        want_screenshot: Optional[bool] = None,
+        want_browser_control: Optional[bool] = None,
+    ) -> List[dict]:
         """
         Keep toolsets small and stable. Prefer the tools that most directly match the user's wording.
         """
         p = (prompt or "").lower()
-        want_download = any(k in p for k in ["保存", "ダウンロード", "download", "save", "mp3", "mp4", "record", "録画"])
-        want_screenshot = any(
-            k in p
-            for k in [
-                "スクショ",
-                "スクリーンショット",
-                "screenshot",
-                "キャプチャ",
-                "撮って",
-                "撮影",
-                "撮ってきて",
-                "撮って来て",
-            ]
-        )
+        # Prefer router intents; keyword checks are fallback-only.
+        if want_download is None:
+            want_download = any(k in p for k in ["保存", "ダウンロード", "download", "save", "mp3", "mp4", "record", "録画"])
+        if want_screenshot is None:
+            want_screenshot = any(k in p for k in ["スクショ", "スクリーンショット", "screenshot", "キャプチャ", "撮って", "撮影", "撮ってきて", "撮って来て"])
+        if want_browser_control is None:
+            want_browser_control = any(k in p for k in ["webひらいて", "web操作", "ブラウザ", "remote", "操作して", "開いて操作"])
         want_web = any(k in p for k in ["http://", "https://", "web", "ブラウザ", "開いて", "サイト"])
         want_code = any(k in p for k in ["コード", "repo", "リポジトリ", "github", "gitlab", "バグ", "エラー", "stack trace"])
         want_mcp = "mcp" in p or "model context protocol" in p
@@ -443,6 +470,8 @@ class ToolSelector:
                 s += 50
             if want_screenshot and ("screenshot" in name):
                 s += 40
+            if want_browser_control and (name in {"web_remote_control", "web_action", "web_set_view"}):
+                s += 35
             if want_web and ("web" in tags or name.startswith("web_") or "web" in name):
                 s += 20
             if want_code and (name.startswith("code_") or "code" in tags):
