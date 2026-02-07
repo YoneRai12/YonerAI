@@ -81,6 +81,7 @@ class ORABot(commands.Bot):
         self.healer = Healer(self, llm_client)
         self.started_at = time.time()
         self._backup_task: Optional[asyncio.Task] = None
+        self._voice_restore_snapshot_task: Optional[asyncio.Task] = None
 
     async def setup_hook(self) -> None:
         # -1. Check Connection Health (Determine Mode)
@@ -182,6 +183,9 @@ class ORABot(commands.Bot):
         # 7. Start Periodic Backup
         self._backup_task = self.loop.create_task(self._periodic_backup_loop())
 
+        # 8. Start periodic voice snapshot (for restart restore). Disabled by default.
+        self._voice_restore_snapshot_task = self.loop.create_task(self._periodic_voice_snapshot_loop())
+
     async def _periodic_backup_loop(self) -> None:
         """Runs backup every 6 hours."""
         await self.wait_until_ready()
@@ -194,6 +198,37 @@ class ORABot(commands.Bot):
                 break
             except Exception as e:
                 logger.error(f"Periodic backup failed: {e}")
+
+    async def _periodic_voice_snapshot_loop(self) -> None:
+        """
+        Periodically snapshot current VC connections so an unexpected restart can restore them.
+
+        Enable with:
+        - ORA_VOICE_RESTORE_SNAPSHOT=1
+        - ORA_VOICE_RESTORE_SNAPSHOT_INTERVAL_SEC=20 (optional)
+        """
+        from src.utils.voice_restore import snapshot_voice_connections, write_snapshot
+
+        await self.wait_until_ready()
+        enabled = (os.getenv("ORA_VOICE_RESTORE_SNAPSHOT") or "").strip().lower() in {"1", "true", "yes", "on"}
+        if not enabled:
+            return
+
+        try:
+            interval = int((os.getenv("ORA_VOICE_RESTORE_SNAPSHOT_INTERVAL_SEC") or "20").strip())
+        except Exception:
+            interval = 20
+        interval = max(5, min(300, interval))
+
+        while not self.is_closed():
+            try:
+                payload = snapshot_voice_connections(self, state_dir=self.config.state_dir)
+                write_snapshot(payload, state_dir=self.config.state_dir)
+            except asyncio.CancelledError:
+                break
+            except Exception:
+                pass
+            await asyncio.sleep(interval)
 
     async def _sync_commands(self) -> None:
         if self.config.dev_guild_id:
@@ -217,6 +252,23 @@ class ORABot(commands.Bot):
     async def close(self) -> None:
         """Graceful shutdown."""
         logger.info("Closing bot...")
+
+        # 0. Snapshot VC connections before shutdown (best-effort).
+        try:
+            from src.utils.voice_restore import snapshot_voice_connections, write_snapshot
+
+            payload = snapshot_voice_connections(self, state_dir=self.config.state_dir)
+            write_snapshot(payload, state_dir=self.config.state_dir)
+        except Exception:
+            pass
+
+        # 0.5 Stop periodic voice snapshot
+        if self._voice_restore_snapshot_task:
+            self._voice_restore_snapshot_task.cancel()
+            try:
+                await self._voice_restore_snapshot_task
+            except asyncio.CancelledError:
+                pass
 
         # 1. Stop Periodic Backup
         if self._backup_task:
@@ -263,6 +315,19 @@ class ORABot(commands.Bot):
             logger.info("Auto-start tunnels: ENABLED (ORA_AUTO_START_TUNNELS=1)")
         else:
             logger.info("Auto-start tunnels: disabled")
+
+        # Restore previous VC connections if enabled and snapshot is still fresh.
+        try:
+            from src.utils.voice_restore import restore_voice_connections
+
+            result = await restore_voice_connections(self, state_dir=self.config.state_dir)
+            if result.get("ok"):
+                restored_n = len(result.get("restored") or [])
+                failed_n = len(result.get("failed") or [])
+                if restored_n or failed_n:
+                    logger.info("Voice restore: restored=%d failed=%d", restored_n, failed_n)
+        except Exception as e:
+            logger.debug(f"Voice restore skipped: {e}")
 
     async def _open_local_interfaces(self) -> None:
         """Opens local web interfaces for Chat, Dashboard, API, and ComfyUI."""
