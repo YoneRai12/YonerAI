@@ -139,6 +139,43 @@ class StatusManager:
         except Exception:
             pass
 
+    async def replace_tasks(
+        self,
+        tasks: List[str],
+        *,
+        title: str | None = None,
+        footer: str | None = None,
+        preserve_prefix_states: bool = True,
+    ) -> None:
+        """
+        Replace the task list in the existing task board.
+
+        Used to display "execution plan" as the first status card task list,
+        instead of sending a separate plan message.
+        """
+        async with self._lock:
+            if not self.message or not self.task_board:
+                return
+
+            old = self.task_board.get("tasks") or []
+            new = [{"label": t, "state": "pending", "detail": ""} for t in tasks]
+
+            if preserve_prefix_states:
+                for i in range(min(len(old), len(new))):
+                    try:
+                        new[i]["state"] = old[i].get("state", "pending")
+                        new[i]["detail"] = old[i].get("detail", "")
+                    except Exception:
+                        pass
+
+            if title is not None:
+                self.task_board["title"] = title
+            if footer is not None:
+                self.task_board["footer"] = footer
+            self.task_board["tasks"] = new
+
+            await self._update(force=True)
+
     async def set_task_state(self, index: int, state: str, detail: str = ""):
         """Set a task status. index is 1-based."""
         async with self._lock:

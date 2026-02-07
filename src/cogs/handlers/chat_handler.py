@@ -101,20 +101,20 @@ class ChatHandler:
 
         status_manager = StatusManager(message.channel, existing_message=existing_status_msg)
 
-        # Dynamic task board: do not hardcode 3 steps for every request.
-        # Keep it short for simple chats; expand only when the request implies multi-step work.
+        # Task board: show the "plan" here (card), not as an extra message.
+        # Keep first 3 tasks aligned with existing state updates (1=Core handshake, 2=tool loop, 3=finalization).
         p_low = (prompt or "").lower()
-        tasks = ["依頼を解析"]
+        tasks = ["依頼を解析", "情報を取得/ツール実行", "回答を返す"]
         if message.attachments:
-            tasks.append("添付を解析")
+            tasks.insert(1, "添付を解析")
+        if "http://" in p_low or "https://" in p_low:
+            tasks.insert(1, "ページ/投稿を取得")
         if any(k in p_low for k in ["ログ", "trace", "エラー", "stack", "例外"]):
             tasks += ["ログ/状況を確認", "原因を特定", "修正案を提示"]
         elif any(k in p_low for k in ["保存", "ダウンロード", "download", "save", "mp3", "mp4", "動画"]):
             tasks += ["保存/ダウンロードを実行", "結果を整理"]
         elif any(k in p_low for k in ["スクショ", "スクリーンショット", "screenshot", "webひらいて", "web操作", "ブラウザ"]):
             tasks += ["ページを開く", "スクショ/操作を実行"]
-        # Always end with a reply step.
-        tasks.append("回答を返す")
 
         # De-dup + clamp
         seen = set()
@@ -122,7 +122,7 @@ class ChatHandler:
         tasks = tasks[:8]
 
         await status_manager.start_task_board(
-            "⚡ ORA Universal Brain • 実行ステータス",
+            "⚡ ORA Universal Brain • 実行計画 / ステータス",
             tasks,
             footer="Sanitized & Powered by ORA Universal Brain",
         )
@@ -506,6 +506,7 @@ Interests: {interests}
             tool_feedback_summaries = []
             last_dispatch_tool = None
             last_dispatch_tool_call_id = None
+            plan_applied_to_board = False
             if hasattr(self, "_plan_sent"):
                 del self._plan_sent
 
@@ -516,24 +517,33 @@ Interests: {interests}
                 if ev_type == "delta":
                     full_content += ev_data.get("text", "")
 
-                    # [VISUALIZATION] Check if content is an Execution Plan (Relaxed Match)
-                    if not allow_plan_preview:
-                        continue
-                    has_plan_header = "Execution Plan" in full_content or "実行計画" in full_content
-                    if has_plan_header and "1." in full_content and not hasattr(self, "_plan_sent"):
-                        # Only send ONCE per run
-                        msg_lines = full_content.split("\n")
-                        plan_lines = [line.strip() for line in msg_lines if line.strip().startswith("1.") or line.strip().startswith("2.") or line.strip().startswith("3.") or line.strip().startswith("-")]
-
-                        if plan_lines:
-                              embed = discord.Embed(
-                                  title="🤖 Harness Agent Execution Plan",
-                                  description="\n".join(plan_lines),
-                                  color=0x00ffff # Cyan (Codex Style)
-                              )
-                              embed.set_footer(text="OpenAI Codex Harness Architecture")
-                              await message.reply(embed=embed)
-                              self._plan_sent = True
+                    # If Core emits an execution plan, reflect it into the task board (first card),
+                    # instead of sending a separate "plan" message.
+                    if not plan_applied_to_board:
+                        has_plan_header = ("Execution Plan" in full_content) or ("実行計画" in full_content)
+                        if has_plan_header and "1." in full_content:
+                            msg_lines = full_content.split("\n")
+                            plan_lines = [
+                                line.strip()
+                                for line in msg_lines
+                                if line.strip().startswith("1.")
+                                or line.strip().startswith("2.")
+                                or line.strip().startswith("3.")
+                                or line.strip().startswith("-")
+                            ]
+                            plan_tasks = []
+                            for line in plan_lines:
+                                item = line.lstrip("-").strip()
+                                item = item.split(".", 1)[1].strip() if item[:2] in {"1.", "2.", "3."} else item
+                                if item:
+                                    plan_tasks.append(item[:80])
+                            if len(plan_tasks) >= 2:
+                                await status_manager.replace_tasks(
+                                    plan_tasks[:8],
+                                    title="⚡ ORA Universal Brain • 実行計画 / ステータス",
+                                    footer="Sanitized & Powered by ORA Universal Brain",
+                                )
+                                plan_applied_to_board = True
 
                 elif ev_type == "thought":
                     # Stream thoughts to a separate log or specific UI element
