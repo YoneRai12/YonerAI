@@ -59,10 +59,10 @@ Relay will forward to the Node connector, which calls `ORA_NODE_API_BASE_URL + p
 
 Notes:
 - `body_b64` is base64-encoded bytes. Cap is `ORA_RELAY_MAX_HTTP_BODY_BYTES`.
+- Pairing codes are **one-time**: after a successful `/api/pair`, the same code is invalid.
 
 ## Security Notes
 
 - Relay stores only hashes of pairing codes and session tokens (memory only).
 - Relay is not meant to be directly exposed to the open internet without additional auth and TLS.
 - Use Cloudflare Named Tunnel + domain for stable URLs later.
-

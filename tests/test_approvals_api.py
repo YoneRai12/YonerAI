@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import asyncio
 import importlib
+import sqlite3
 import sys
 import time
 
@@ -41,32 +41,43 @@ def test_expected_code_is_not_exposed(monkeypatch, tmp_path) -> None:
     db_path = str(tmp_path / "ora_test.db")
     monkeypatch.setenv("ORA_BOT_DB", db_path)
 
-    # Seed a pending CRITICAL approval row with an expected_code.
-    async def _seed() -> None:
-        store = Store(db_path)
-        await store.init()
-        now = int(time.time())
-        await store.upsert_approval_request(
-            tool_call_id="call_test_1",
-            created_at=now,
-            expires_at=now + 60,
-            actor_id=123,
-            tool_name="web_navigate",
-            correlation_id="cid",
-            risk_score=95,
-            risk_level="CRITICAL",
-            requires_code=True,
-            expected_code="123456",
-            args_hash="x" * 64,
-            requested_role="guest",
-            args_json='{"url":"https://example.com"}',
-            summary="test",
-        )
-
-    asyncio.run(_seed())
-
     app = _fresh_web_app()
     with TestClient(app) as c:
+        # Seed a pending CRITICAL approval row with an expected_code (sync insert avoids aiosqlite loop/thread warnings).
+        now = int(time.time())
+        con = sqlite3.connect(db_path)
+        try:
+            con.execute(
+                (
+                    "INSERT OR REPLACE INTO approval_requests("
+                    "tool_call_id, created_at, expires_at, actor_id, tool_name, correlation_id, "
+                    "risk_score, risk_level, requires_code, expected_code, args_hash, requested_role, args_json, summary, status, decided_at, decided_by"
+                    ") VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                ),
+                (
+                    "call_test_1",
+                    now,
+                    now + 60,
+                    "123",
+                    "web_navigate",
+                    "cid",
+                    95,
+                    "CRITICAL",
+                    1,
+                    "123456",
+                    "x" * 64,
+                    "guest",
+                    '{"url":"https://example.com"}',
+                    "test",
+                    "pending",
+                    None,
+                    None,
+                ),
+            )
+            con.commit()
+        finally:
+            con.close()
+
         r = c.get("/api/approvals", headers={"x-ora-token": "testtoken"})
         assert r.status_code == 200
         data = r.json()["data"]

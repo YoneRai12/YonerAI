@@ -7,6 +7,7 @@ import json
 import os
 import secrets
 import time
+import asyncio
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
@@ -77,7 +78,7 @@ class RelayState:
     """
 
     def __init__(self) -> None:
-        self.nodes: dict[str, WebSocket] = {}
+        self.nodes: dict[str, NodeConn] = {}
         self.pair_offers: dict[str, PairOffer] = {}  # code_hash -> offer
         self.sessions: dict[str, Session] = {}  # token_hash -> session
 
@@ -91,6 +92,13 @@ class RelayState:
         for k in list(self.sessions.keys()):
             if self.sessions[k].expires_at <= now:
                 del self.sessions[k]
+
+
+@dataclass
+class NodeConn:
+    ws: WebSocket
+    send_lock: asyncio.Lock
+    pending: dict[str, asyncio.Future[dict]]
 
 
 def create_app() -> FastAPI:
@@ -125,6 +133,11 @@ def create_app() -> FastAPI:
         token_hash = _hash_code(token)
         expires_at = _now() + max(60, min(24 * 3600, int(session_ttl_sec)))
         st.sessions[token_hash] = Session(token_hash=token_hash, node_id=offer.node_id, expires_at=expires_at)
+        # One-time code: invalidate after use.
+        try:
+            del st.pair_offers[_hash_code(code)]
+        except Exception:
+            pass
         return PairResponse(ok=True, node_id=offer.node_id, token=token, expires_at=expires_at)
 
     async def _require_session(ws: WebSocket) -> Session:
@@ -150,7 +163,8 @@ def create_app() -> FastAPI:
             await ws.close(code=4400)
             return
         await ws.accept()
-        st.nodes[node_id] = ws
+        conn = NodeConn(ws=ws, send_lock=asyncio.Lock(), pending={})
+        st.nodes[node_id] = conn
 
         # Node must immediately send a "pair_offer" message to be pairable.
         try:
@@ -176,6 +190,13 @@ def create_app() -> FastAPI:
                     await ws.send_text(json.dumps({"type": "pair_offer_ack", "ok": True, "expires_at": expires_at}))
                     continue
 
+                if mtype == "http_response":
+                    req_id = str(msg.get("id") or "")
+                    fut = conn.pending.pop(req_id, None)
+                    if fut and (not fut.done()):
+                        fut.set_result(msg)
+                    continue
+
                 if mtype == "pong":
                     continue
 
@@ -185,7 +206,15 @@ def create_app() -> FastAPI:
         except WebSocketDisconnect:
             pass
         finally:
-            if st.nodes.get(node_id) is ws:
+            # Fail any pending requests for this node.
+            try:
+                for _id, fut in list(conn.pending.items()):
+                    if not fut.done():
+                        fut.set_result({"type": "http_response", "id": _id, "error": "node_disconnected"})
+                conn.pending.clear()
+            except Exception:
+                pass
+            if st.nodes.get(node_id) is conn:
                 del st.nodes[node_id]
             st.prune()
 
@@ -225,13 +254,16 @@ def create_app() -> FastAPI:
                     await ws.send_text(json.dumps({"type": "error", "id": req_id, "error": "unknown_message_type"}))
                     continue
 
-                node_ws = st.nodes.get(node_id)
-                if not node_ws:
+                node = st.nodes.get(node_id)
+                if not node:
                     await ws.send_text(json.dumps({"type": "http_response", "id": req_id, "error": "node_not_connected"}))
                     continue
 
                 # Forward to node. Do not log payload. Apply size limits.
                 payload = dict(msg)
+                if not req_id:
+                    req_id = secrets.token_hex(8)
+                    payload["id"] = req_id
                 # Cap the body if present.
                 body_b64 = payload.get("body_b64")
                 if isinstance(body_b64, str) and body_b64:
@@ -241,13 +273,26 @@ def create_app() -> FastAPI:
                         payload["body_b64"] = base64.b64encode(b).decode("ascii")
                     except Exception:
                         payload["body_b64"] = ""
-                await node_ws.send_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
 
-                # Wait for exactly one response with matching id.
-                # M2 MVP assumes a single active client per node; proper multiplexing comes later.
-                raw_resp = await node_ws.receive_text()
-                resp = _safe_json_loads(raw_resp)
-                # Ensure we don't leak node-side expected codes etc; relay just passes through.
+                loop = asyncio.get_running_loop()
+                fut: asyncio.Future[dict] = loop.create_future()
+                node.pending[req_id] = fut
+                try:
+                    async with node.send_lock:
+                        await node.ws.send_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
+                except Exception:
+                    node.pending.pop(req_id, None)
+                    await ws.send_text(json.dumps({"type": "http_response", "id": req_id, "error": "node_send_failed"}))
+                    continue
+
+                # Wait for response for this id (node supports mux; ws_client stays sequential for now).
+                try:
+                    resp = await asyncio.wait_for(fut, timeout=35.0)
+                except Exception:
+                    node.pending.pop(req_id, None)
+                    await ws.send_text(json.dumps({"type": "http_response", "id": req_id, "error": "timeout"}))
+                    continue
+
                 await ws.send_text(json.dumps(resp, ensure_ascii=False, separators=(",", ":")))
 
         except WebSocketDisconnect:
@@ -259,4 +304,3 @@ def create_app() -> FastAPI:
 
 
 app = create_app()
-
