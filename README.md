@@ -190,6 +190,7 @@ ORA currently runs as a hub/spoke agent pipeline:
 
 ### End-to-End Request Path (Sequence)
 ```mermaid
+%%{init: {"theme":"neutral"}}%%
 sequenceDiagram
     autonumber
     participant U as User

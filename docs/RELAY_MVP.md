@@ -14,6 +14,8 @@ This is an MVP:
 python -m src.relay.main
 ```
 
+`python -m src.relay.main` loads `.env` by default. If you want a different file, set `ORA_DOTENV_PATH`.
+
 ### Expose Without A Domain (Cloudflare Quick Tunnel)
 
 If you don't have a domain yet, Quick Tunnel is the practical dev-mode option.
@@ -42,6 +44,8 @@ $env:ORA_RELAY_URL="ws://127.0.0.1:9010"
 $env:ORA_NODE_API_BASE_URL="http://127.0.0.1:8000"  # your node Web API
 python -m src.services.relay_node
 ```
+
+`python -m src.services.relay_node` also loads `.env` by default (same `ORA_DOTENV_PATH` behavior).
 
 If Relay is exposed via Quick Tunnel and the Node connector runs on the *same machine*:
 

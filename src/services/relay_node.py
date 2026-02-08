@@ -10,6 +10,7 @@ from typing import Any, Dict, Optional
 
 import aiohttp
 from pathlib import Path
+from dotenv import load_dotenv
 
 
 def _now() -> int:
@@ -113,6 +114,11 @@ async def run_node_connector() -> None:
     - ORA_RELAY_PAIR_CODE: if empty, random code printed to stdout
     - ORA_NODE_API_BASE_URL: default http://127.0.0.1:8000 (node web API)
     """
+    # Respect repo-local .env when running the connector directly.
+    dotenv_path = (os.getenv("ORA_DOTENV_PATH") or ".env").strip()
+    if dotenv_path:
+        load_dotenv(dotenv_path, override=False)
+
     relay_url = _resolve_relay_base_url().strip().rstrip("/")
     node_id = (os.getenv("ORA_RELAY_NODE_ID") or os.getenv("ORA_INSTANCE_ID") or "node").strip()
     api_base = (os.getenv("ORA_NODE_API_BASE_URL") or "http://127.0.0.1:8000").strip()

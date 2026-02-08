@@ -190,6 +190,7 @@ ORA は hub/spoke 構成で動作します:
 
 ### End-to-End フロー（シーケンス）
 ```mermaid
+%%{init: {"theme":"neutral"}}%%
 sequenceDiagram
     autonumber
     participant U as ユーザー

@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 import uvicorn
+from dotenv import load_dotenv
 
 from src.relay.expose_cloudflare import start_quick_tunnel, wait_for_public_url, write_public_url_file
 
@@ -27,6 +28,11 @@ async def _wait_port_open(host: str, port: int, timeout_sec: float = 8.0) -> boo
 
 
 async def main_async() -> None:
+    # Respect repo-local .env when running Relay directly.
+    dotenv_path = (os.getenv("ORA_DOTENV_PATH") or ".env").strip()
+    if dotenv_path:
+        load_dotenv(dotenv_path, override=False)
+
     host = (os.getenv("ORA_RELAY_HOST") or "127.0.0.1").strip()
     port = int((os.getenv("ORA_RELAY_PORT") or "9010").strip() or "9010")
     ws_max_size = int((os.getenv("ORA_RELAY_MAX_MSG_BYTES") or "1048576").strip() or "1048576")
