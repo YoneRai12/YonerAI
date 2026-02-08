@@ -28,6 +28,8 @@ It supports tool/skill execution with risk scoring + approvals, and can be exten
 If you want the deep docs:
 - `docs/USER_GUIDE.md`
 - `docs/SYSTEM_ARCHITECTURE.md`
+- `docs/PLATFORM_PLAN.md` (product direction: Node + Clients + Relay + Cloud)
+- `docs/PLATFORM_REVIEW_AND_RISKS.md` (devil's advocate review / risks)
 - `ORA_SYSTEM_SPEC.md`
 - `AGENTS.md` (Codex/agent workspace instructions for this repo)
 
@@ -130,6 +132,20 @@ Skill folder shape:
 
 Example skill:
 - `src/skills/remotion_create_video/` (requires Node deps in `tools/remotion/`)
+
+### Remotion (Video Rendering)
+
+Skill: `remotion_create_video`
+
+Setup (one-time):
+```powershell
+cd tools/remotion
+npm ci
+```
+
+Notes:
+- Requires Node.js + `npx` on `PATH`.
+- Optional env vars: `ORA_REMOTION_PROJECT_DIR`, `ORA_REMOTION_ENTRY`, `ORA_REMOTION_RENDER_TIMEOUT_SEC`.
 
 ---
 

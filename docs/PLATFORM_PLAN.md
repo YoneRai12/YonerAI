@@ -2,6 +2,9 @@
 
 Last updated: 2026-02-08
 
+Related:
+- `docs/PLATFORM_REVIEW_AND_RISKS.md` (devil's advocate review / risks)
+
 ## 目的
 - ORAを「配布型のローカルAI秘書 (Node)」として成立させる。
 - 同じ体験を iOS / Mac / Web / PC から使えるようにする (Clients)。

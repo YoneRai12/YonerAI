@@ -28,6 +28,8 @@ ORA は Discord Bot / Web /（任意の）Core を組み合わせた、ローカ
 深掘りドキュメント:
 - `docs/USER_GUIDE.md`
 - `docs/SYSTEM_ARCHITECTURE.md`
+- `docs/PLATFORM_PLAN.md`（方向性: Node + Clients + Relay + Cloud）
+- `docs/PLATFORM_REVIEW_AND_RISKS.md`（Devil's Advocate レビュー/リスク）
 - `ORA_SYSTEM_SPEC.md`
 - `AGENTS.md`（Codex/エージェント用のワークスペース指示）
 
@@ -130,6 +132,20 @@ ORA には2系統のローカルツールがあります（どちらも ToolHand
 
 例:
 - `src/skills/remotion_create_video/`（`tools/remotion/` の Node 依存が必要）
+
+### Remotion（動画レンダリング）
+
+スキル: `remotion_create_video`
+
+初回セットアップ:
+```powershell
+cd tools/remotion
+npm ci
+```
+
+メモ:
+- Node.js と `npx` が必要です。
+- 任意の環境変数: `ORA_REMOTION_PROJECT_DIR`, `ORA_REMOTION_ENTRY`, `ORA_REMOTION_RENDER_TIMEOUT_SEC`
 
 ---
 
