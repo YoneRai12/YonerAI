@@ -46,8 +46,17 @@ async def sync_history(
         # If None, create one.
         conv_id = entry.conversation_id
         if not conv_id:
-            # Try to get latest
-             conv_id = await repo.resolve_conversation(user.id, None)
+            # Resolve a stable "history sync" conversation per (provider, provider_id)
+            # using the bindings table (so it doesn't create a new conversation every time).
+            conv_id = await repo.resolve_conversation(
+                user_id=user.id,
+                conversation_id=None,
+                context_binding={
+                    "provider": entry.provider,
+                    "kind": "history_sync",
+                    "external_id": str(entry.provider_id),
+                },
+            )
 
         # 3. Save Message (History Sync)
         if conv_id:
