@@ -58,6 +58,15 @@ def score_tool_risk(tool_name: str, args: Dict[str, Any] | None, *, tags: List[s
     score = 0
     reasons: list[str] = []
 
+    # 0) Tag-based hints (registry-supplied)
+    # Keep these conservative; policy/allowlists still decide what runs.
+    if "download" in tags_set:
+        score += 35
+        reasons.append("tag:download(+35)")
+    if "sandbox" in tags_set:
+        score += 10
+        reasons.append("tag:sandbox(+10)")
+
     # 1) Base score by tool type/name
     if name.startswith("mcp__") or "mcp" in tags_set:
         score += 35
@@ -136,4 +145,3 @@ def score_tool_risk(tool_name: str, args: Dict[str, Any] | None, *, tags: List[s
     score = max(0, min(200, score))
     lvl = _risk_level(score)
     return RiskAssessment(score=score, level=lvl, reasons=reasons)
-
