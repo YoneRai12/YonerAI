@@ -755,6 +755,13 @@ async def run_bot() -> None:
 
     setup_logging(config.log_level, log_dir=config.log_dir)
     logger.info("ORA Discord Botを起動します", extra={"app_id": config.app_id})
+    logger.info(
+        "Runtime profile: profile=%s instance_id=%s db=%s state_root=%s",
+        getattr(config, "profile", None),
+        getattr(config, "instance_id", None),
+        getattr(config, "db_path", None),
+        getattr(config, "state_root", None),
+    )
 
     # SILENCE DISCORD HTTP LOGS (429 Spam)
     logging.getLogger("discord.http").setLevel(logging.WARNING)

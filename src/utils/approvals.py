@@ -92,6 +92,19 @@ def normalize_args_json(args: Dict[str, Any]) -> str:
     except Exception:
         return str(payload)[:5000]
 
+def args_hash(args: Dict[str, Any]) -> str:
+    """
+    Hash raw args for anti-swap verification without storing plaintext args.
+    """
+    import hashlib
+
+    a = args if isinstance(args, dict) else {}
+    try:
+        raw = json.dumps(a, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    except Exception:
+        raw = str(a)
+    return hashlib.sha256(raw.encode("utf-8", errors="ignore")).hexdigest()
+
 
 def approval_summary(tool_name: str, args: Dict[str, Any], risk_level: str, risk_score: int) -> str:
     # Compact one-liner for lists.
@@ -165,10 +178,10 @@ async def request_approval(
 ) -> dict:
     """
     Out-of-band approval:
-    - Create/persist a pending approval row in DB (already done best-effort by ToolHandler).
+    - Create/persist a pending approval row in DB.
     - Notify owner via DM (separate channel).
     - Poll DB for approve/deny/expire until timeout.
-    Returns: {"status": "approved"|"denied"|"timeout", "code": str|None, "expected_code": str|None}
+    Returns: {"status": "approved"|"denied"|"expired"|"timeout"|"rate_limited", "code": str|None, "expected_code": str|None}
     """
     if not tool_call_id:
         return {"status": "denied", "code": None, "expected_code": None}
@@ -184,6 +197,31 @@ async def request_approval(
         expected = secrets.token_hex(8)[: _critical_code_len()]
 
     store = getattr(bot, "store", None)
+    # Basic anti-spam: rate-limit guest approval creation to avoid owner DM bombing.
+    if store and (not is_owner(bot, int(message.author.id))):
+        try:
+            raw_lim = (os.getenv("ORA_APPROVAL_RATE_LIMIT_PER_MIN") or "0").strip()
+            limit = int(raw_lim)
+        except Exception:
+            limit = 0
+        if limit > 0:
+            try:
+                raw_win = (os.getenv("ORA_APPROVAL_RATE_LIMIT_WINDOW_SEC") or "60").strip()
+                window_sec = max(10, min(600, int(raw_win)))
+            except Exception:
+                window_sec = 60
+            since = int(time.time()) - int(window_sec)
+            try:
+                cnt = await store.count_approval_requests(actor_id=int(message.author.id), since_ts=since)
+            except Exception:
+                cnt = 0
+            if cnt >= int(limit):
+                try:
+                    await message.reply("⛔ Too many approval requests. Please wait a bit and try again.")
+                except Exception:
+                    pass
+                return {"status": "rate_limited", "code": None, "expected_code": None}
+
     req = None
     if store:
         try:
@@ -206,6 +244,7 @@ async def request_approval(
                 risk_level=str(risk_level),
                 requires_code=bool(requires_code),
                 expected_code=expected or None,
+                args_hash=args_hash(args if isinstance(args, dict) else {}),
                 requested_role="owner" if is_owner(bot, message.author.id) else "guest",
                 args_json=args_json,
                 summary=summary,
@@ -248,14 +287,14 @@ async def request_approval(
                     await store.decide_approval_request(tool_call_id=tool_call_id, status="expired", decided_by="system")
                 except Exception:
                     pass
-            return {"status": "timeout", "code": None, "expected_code": expected or None}
+            return {"status": "expired", "code": None, "expected_code": expected or None}
 
         if store:
             st = await store.get_approval_status(tool_call_id=tool_call_id)
             if st in {"approved", "denied"}:
                 return {"status": st, "code": None, "expected_code": expected or None}
             if st in {"expired", "timeout"}:
-                return {"status": "timeout", "code": None, "expected_code": expected or None}
+                return {"status": st, "code": None, "expected_code": expected or None}
 
         await asyncio.sleep(2.0)
 

@@ -100,7 +100,7 @@ class ToolHandler:
             from src.utils.approvals import policy_for, request_approval
             import json
             import time
-            from src.utils.approvals import normalize_args_json, approval_summary
+            from src.utils.approvals import normalize_args_json, approval_summary, args_hash
             from src.utils.access_control import is_owner as _is_owner
 
             meta = get_tool_meta(tool_name)
@@ -137,6 +137,7 @@ class ToolHandler:
                     created = int(time.time())
                     expires = created + int(pol.timeout_sec)
                     args_norm = normalize_args_json(args if isinstance(args, dict) else {})
+                    a_hash = args_hash(args if isinstance(args, dict) else {})
                     summary = approval_summary(tool_name, args if isinstance(args, dict) else {}, ra.level, ra.score)
                     await self.bot.store.upsert_approval_request(
                         tool_call_id=tool_call_id,
@@ -149,6 +150,7 @@ class ToolHandler:
                         risk_level=str(ra.level),
                         requires_code=bool(pol.requires_code),
                         expected_code=None,  # filled after request_approval returns
+                        args_hash=a_hash,
                         requested_role="owner" if _is_owner(self.bot, int(message.author.id)) else "guest",
                         args_json=args_norm,
                         summary=summary,
@@ -183,32 +185,6 @@ class ToolHandler:
                     timeout_sec=pol.timeout_sec,
                 )
                 status = dec.get("status")
-                expected_code = dec.get("expected_code")
-
-                if tool_call_id and hasattr(self.bot, "store"):
-                    try:
-                        await self.bot.store.set_approval_status(tool_call_id=tool_call_id, status=str(status))
-                        # Update expected code if we generated one (CRITICAL)
-                        if expected_code:
-                            # simplistic: overwrite row
-                            created = int(time.time())
-                            await self.bot.store.upsert_approval_request(
-                                tool_call_id=tool_call_id,
-                                created_at=created,
-                                expires_at=created + int(pol.timeout_sec),
-                                actor_id=int(message.author.id),
-                                tool_name=tool_name,
-                                correlation_id=correlation_id,
-                                risk_score=int(ra.score),
-                                risk_level=str(ra.level),
-                                requires_code=bool(pol.requires_code),
-                                expected_code=str(expected_code),
-                                requested_role="owner" if _is_owner(self.bot, int(message.author.id)) else "guest",
-                                args_json=normalize_args_json(args if isinstance(args, dict) else {}),
-                                summary=approval_summary(tool_name, args if isinstance(args, dict) else {}, ra.level, ra.score),
-                            )
-                    except Exception:
-                        pass
 
                 trace_event(
                     "approval.decision",
@@ -242,6 +218,18 @@ class ToolHandler:
                         except Exception:
                             pass
                     return f"⛔ {status.upper()}: approval required."
+
+                # Anti-swap: verify args hash matches what we requested approval for.
+                if tool_call_id and hasattr(self.bot, "store"):
+                    try:
+                        row = await self.bot.store.get_approval_request(tool_call_id=tool_call_id)
+                        stored = (row or {}).get("args_hash")
+                        current = args_hash(args if isinstance(args, dict) else {})
+                        if stored and stored != current:
+                            await self.bot.store.set_approval_status(tool_call_id=tool_call_id, status="denied")
+                            return "⛔ Denied: approval args mismatch."
+                    except Exception:
+                        pass
 
                 # Approved: record audit (best-effort)
                 if hasattr(self.bot, "store"):

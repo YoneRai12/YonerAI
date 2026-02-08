@@ -1882,6 +1882,11 @@ async def api_audit_approvals(
 ):
     store = get_store()
     rows = await store.get_approval_requests_rows(limit=limit, since_ts=since_ts)
+    # Do not expose expected codes in audit output.
+    for r in rows:
+        if "expected_code" in r:
+            r["expected_code"] = None
+            r["expected_code_present"] = bool(r.get("requires_code"))
     return {"ok": True, "data": rows}
 
 
@@ -1896,6 +1901,11 @@ async def api_list_approvals(
     st = (status or "").strip().lower()
     st = st if st in {"pending", "approved", "denied", "expired", "timeout"} else None
     rows = await store.get_approval_requests_rows(limit=limit, status=st)
+    # Do not expose expected codes over the Web API (owner should get codes via DM).
+    for r in rows:
+        if "expected_code" in r:
+            r["expected_code"] = None
+            r["expected_code_present"] = bool(r.get("requires_code"))
     return {"ok": True, "data": rows}
 
 
@@ -1908,6 +1918,8 @@ async def api_get_approval(
     row = await store.get_approval_request(tool_call_id=str(tool_call_id))
     if not row:
         raise HTTPException(status_code=404, detail="approval not found")
+    row["expected_code"] = None
+    row["expected_code_present"] = bool(row.get("requires_code"))
     return {"ok": True, "data": row}
 
 

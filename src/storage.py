@@ -112,6 +112,7 @@ CREATE TABLE IF NOT EXISTS approval_requests (
   risk_level TEXT,
   requires_code INTEGER NOT NULL DEFAULT 0,
   expected_code TEXT,
+  args_hash TEXT,
   status TEXT NOT NULL DEFAULT 'pending',
   decided_at INTEGER
 );
@@ -156,6 +157,7 @@ class Store:
                 for name, decl in [
                     ("requested_role", "TEXT"),
                     ("args_json", "TEXT"),
+                    ("args_hash", "TEXT"),
                     ("summary", "TEXT"),
                     ("decided_by", "TEXT"),
                 ]:
@@ -591,7 +593,7 @@ class Store:
         clause = (" WHERE " + " AND ".join(where)) if where else ""
         sql = (
             "SELECT tool_call_id, created_at, expires_at, actor_id, tool_name, correlation_id, risk_score, risk_level, "
-            "requires_code, expected_code, status, decided_at, requested_role, args_json, summary, decided_by "
+            "requires_code, expected_code, status, decided_at, requested_role, args_json, args_hash, summary, decided_by "
             f"FROM approval_requests{clause} ORDER BY created_at DESC LIMIT ?"
         )
         params.append(limit)
@@ -616,11 +618,37 @@ class Store:
                     "decided_at": int(r[11]) if r[11] is not None else None,
                     "requested_role": r[12],
                     "args_json": r[13],
-                    "summary": r[14],
-                    "decided_by": r[15],
+                    "args_hash": r[14],
+                    "summary": r[15],
+                    "decided_by": r[16],
                 }
             )
         return out
+
+    async def count_approval_requests(
+        self,
+        *,
+        actor_id: int,
+        since_ts: Optional[int] = None,
+    ) -> int:
+        """
+        Count approval requests for basic rate limiting.
+        Note: actor_id is stored as text for historical reasons; compare as string.
+        """
+        where = ["actor_id=?"]
+        params: list[object] = [str(int(actor_id))]
+        if since_ts is not None:
+            where.append("created_at>=?")
+            params.append(int(since_ts))
+        clause = " AND ".join(where)
+        sql = f"SELECT COUNT(1) FROM approval_requests WHERE {clause}"
+        async with aiosqlite.connect(self._db_path) as db:
+            try:
+                async with db.execute(sql, tuple(params)) as cur:
+                    row = await cur.fetchone()
+                return int(row[0] or 0) if row else 0
+            except Exception:
+                return 0
 
     async def get_chat_events_rows(
         self,
@@ -676,6 +704,7 @@ class Store:
         risk_level: str,
         requires_code: bool,
         expected_code: str | None,
+        args_hash: str | None = None,
         requested_role: str | None = None,
         args_json: str | None = None,
         summary: str | None = None,
@@ -686,8 +715,8 @@ class Store:
                     (
                         "INSERT OR REPLACE INTO approval_requests("
                         "tool_call_id, created_at, expires_at, actor_id, tool_name, correlation_id, "
-                        "risk_score, risk_level, requires_code, expected_code, requested_role, args_json, summary, status, decided_at, decided_by"
-                        ") VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "
+                        "risk_score, risk_level, requires_code, expected_code, args_hash, requested_role, args_json, summary, status, decided_at, decided_by"
+                        ") VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "
                         "COALESCE((SELECT status FROM approval_requests WHERE tool_call_id=?), 'pending'), "
                         "COALESCE((SELECT decided_at FROM approval_requests WHERE tool_call_id=?), NULL), "
                         "COALESCE((SELECT decided_by FROM approval_requests WHERE tool_call_id=?), NULL))"
@@ -703,6 +732,7 @@ class Store:
                         str(risk_level or ""),
                         1 if requires_code else 0,
                         str(expected_code) if expected_code else None,
+                        str(args_hash) if args_hash else None,
                         str(requested_role) if requested_role else None,
                         str(args_json) if args_json else None,
                         str(summary) if summary else None,
@@ -734,7 +764,7 @@ class Store:
                     (
                         "SELECT tool_call_id, created_at, expires_at, actor_id, tool_name, correlation_id, "
                         "risk_score, risk_level, requires_code, expected_code, status, decided_at, "
-                        "requested_role, args_json, summary, decided_by "
+                        "requested_role, args_json, args_hash, summary, decided_by "
                         "FROM approval_requests WHERE tool_call_id=?"
                     ),
                     (str(tool_call_id),),
@@ -757,8 +787,9 @@ class Store:
                     "decided_at": int(row[11]) if row[11] is not None else None,
                     "requested_role": row[12],
                     "args_json": row[13],
-                    "summary": row[14],
-                    "decided_by": row[15],
+                    "args_hash": row[14],
+                    "summary": row[15],
+                    "decided_by": row[16],
                 }
             except Exception:
                 return None
