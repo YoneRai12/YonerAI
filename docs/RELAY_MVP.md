@@ -60,6 +60,7 @@ Relay will forward to the Node connector, which calls `ORA_NODE_API_BASE_URL + p
 Notes:
 - `body_b64` is base64-encoded bytes. Cap is `ORA_RELAY_MAX_HTTP_BODY_BYTES`.
 - Pairing codes are **one-time**: after a successful `/api/pair`, the same code is invalid.
+- Relay has basic DoS guards: `ORA_RELAY_MAX_PENDING`, message size caps, and per-request timeouts (`ORA_RELAY_CLIENT_TIMEOUT_SEC`).
 
 ## Security Notes
 

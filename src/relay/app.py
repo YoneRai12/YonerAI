@@ -109,6 +109,8 @@ def create_app() -> FastAPI:
     max_http_body_bytes = int((os.getenv("ORA_RELAY_MAX_HTTP_BODY_BYTES") or "262144").strip() or "262144")
     session_ttl_sec = int((os.getenv("ORA_RELAY_SESSION_TTL_SEC") or "3600").strip() or "3600")
     pair_ttl_sec = int((os.getenv("ORA_RELAY_PAIR_TTL_SEC") or "120").strip() or "120")
+    max_pending = int((os.getenv("ORA_RELAY_MAX_PENDING") or "64").strip() or "64")
+    client_timeout_sec = float((os.getenv("ORA_RELAY_CLIENT_TIMEOUT_SEC") or "35").strip() or "35")
 
     enforce_https_origin = _parse_bool_env("ORA_RELAY_ENFORCE_ORIGIN", False)
 
@@ -214,6 +216,13 @@ def create_app() -> FastAPI:
                 conn.pending.clear()
             except Exception:
                 pass
+            # Drop pair offers for this node (avoid stale pairing surface).
+            try:
+                for k, offer in list(st.pair_offers.items()):
+                    if offer.node_id == node_id:
+                        del st.pair_offers[k]
+            except Exception:
+                pass
             if st.nodes.get(node_id) is conn:
                 del st.nodes[node_id]
             st.prune()
@@ -264,6 +273,17 @@ def create_app() -> FastAPI:
                 if not req_id:
                     req_id = secrets.token_hex(8)
                     payload["id"] = req_id
+
+                # Prevent id collisions (also protects node.pending from overwrite).
+                if req_id in node.pending:
+                    await ws.send_text(json.dumps({"type": "http_response", "id": req_id, "error": "id_in_use"}))
+                    continue
+
+                # Basic DoS guard: cap in-flight requests per node.
+                if len(node.pending) >= max_pending:
+                    await ws.send_text(json.dumps({"type": "http_response", "id": req_id, "error": "too_many_pending"}))
+                    continue
+
                 # Cap the body if present.
                 body_b64 = payload.get("body_b64")
                 if isinstance(body_b64, str) and body_b64:
@@ -287,12 +307,14 @@ def create_app() -> FastAPI:
 
                 # Wait for response for this id (node supports mux; ws_client stays sequential for now).
                 try:
-                    resp = await asyncio.wait_for(fut, timeout=35.0)
+                    resp = await asyncio.wait_for(fut, timeout=float(client_timeout_sec))
                 except Exception:
                     node.pending.pop(req_id, None)
                     await ws.send_text(json.dumps({"type": "http_response", "id": req_id, "error": "timeout"}))
                     continue
 
+                # Ensure pending is cleaned up even if Node responded but we failed to send to client.
+                node.pending.pop(req_id, None)
                 await ws.send_text(json.dumps(resp, ensure_ascii=False, separators=(",", ":")))
 
         except WebSocketDisconnect:
