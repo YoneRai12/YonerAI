@@ -100,6 +100,8 @@ class ToolHandler:
             from src.utils.approvals import policy_for, request_approval
             import json
             import time
+            from src.utils.approvals import normalize_args_json, approval_summary
+            from src.utils.access_control import is_owner as _is_owner
 
             meta = get_tool_meta(tool_name)
             tags = meta.get("tags") if isinstance(meta, dict) else []
@@ -134,6 +136,8 @@ class ToolHandler:
                 try:
                     created = int(time.time())
                     expires = created + int(pol.timeout_sec)
+                    args_norm = normalize_args_json(args if isinstance(args, dict) else {})
+                    summary = approval_summary(tool_name, args if isinstance(args, dict) else {}, ra.level, ra.score)
                     await self.bot.store.upsert_approval_request(
                         tool_call_id=tool_call_id,
                         created_at=created,
@@ -145,6 +149,9 @@ class ToolHandler:
                         risk_level=str(ra.level),
                         requires_code=bool(pol.requires_code),
                         expected_code=None,  # filled after request_approval returns
+                        requested_role="owner" if _is_owner(self.bot, int(message.author.id)) else "guest",
+                        args_json=args_norm,
+                        summary=summary,
                     )
                 except Exception:
                     pass
@@ -196,6 +203,9 @@ class ToolHandler:
                                 risk_level=str(ra.level),
                                 requires_code=bool(pol.requires_code),
                                 expected_code=str(expected_code),
+                                requested_role="owner" if _is_owner(self.bot, int(message.author.id)) else "guest",
+                                args_json=normalize_args_json(args if isinstance(args, dict) else {}),
+                                summary=approval_summary(tool_name, args if isinstance(args, dict) else {}, ra.level, ra.score),
                             )
                     except Exception:
                         pass

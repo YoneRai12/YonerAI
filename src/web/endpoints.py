@@ -10,6 +10,7 @@ from typing import List
 
 from fastapi import APIRouter, HTTPException, Request, Response, WebSocket, WebSocketDisconnect, Depends, Header, Query
 from fastapi.responses import RedirectResponse
+from pydantic import BaseModel
 from google.auth.transport import requests as g_requests
 from google.oauth2 import id_token
 from google_auth_oauthlib.flow import Flow
@@ -1882,6 +1883,78 @@ async def api_audit_approvals(
     store = get_store()
     rows = await store.get_approval_requests_rows(limit=limit, since_ts=since_ts)
     return {"ok": True, "data": rows}
+
+
+@router.get("/approvals")
+async def api_list_approvals(
+    request: Request,
+    limit: int = 100,
+    status: str | None = "pending",
+    _: None = Depends(require_web_api),
+):
+    store = get_store()
+    st = (status or "").strip().lower()
+    st = st if st in {"pending", "approved", "denied", "expired", "timeout"} else None
+    rows = await store.get_approval_requests_rows(limit=limit, status=st)
+    return {"ok": True, "data": rows}
+
+
+@router.get("/approvals/{tool_call_id}")
+async def api_get_approval(
+    tool_call_id: str,
+    _: None = Depends(require_web_api),
+):
+    store = get_store()
+    row = await store.get_approval_request(tool_call_id=str(tool_call_id))
+    if not row:
+        raise HTTPException(status_code=404, detail="approval not found")
+    return {"ok": True, "data": row}
+
+
+class ApprovalDecision(BaseModel):
+    code: str | None = None
+
+
+@router.post("/approvals/{tool_call_id}/approve")
+async def api_approve_approval(
+    tool_call_id: str,
+    body: ApprovalDecision,
+    _: None = Depends(require_web_api),
+):
+    store = get_store()
+    row = await store.get_approval_request(tool_call_id=str(tool_call_id))
+    if not row:
+        raise HTTPException(status_code=404, detail="approval not found")
+    if row.get("status") != "pending":
+        return {"ok": True, "data": row}
+
+    if row.get("requires_code"):
+        expected = (row.get("expected_code") or "").strip()
+        presented = (body.code or "").strip()
+        if not expected:
+            raise HTTPException(status_code=500, detail="expected_code missing")
+        if presented != expected:
+            raise HTTPException(status_code=403, detail="code mismatch")
+
+    ok = await store.decide_approval_request(tool_call_id=str(tool_call_id), status="approved", decided_by="web")
+    out = await store.get_approval_request(tool_call_id=str(tool_call_id))
+    return {"ok": ok, "data": out}
+
+
+@router.post("/approvals/{tool_call_id}/deny")
+async def api_deny_approval(
+    tool_call_id: str,
+    _: None = Depends(require_web_api),
+):
+    store = get_store()
+    row = await store.get_approval_request(tool_call_id=str(tool_call_id))
+    if not row:
+        raise HTTPException(status_code=404, detail="approval not found")
+    if row.get("status") != "pending":
+        return {"ok": True, "data": row}
+    ok = await store.decide_approval_request(tool_call_id=str(tool_call_id), status="denied", decided_by="web")
+    out = await store.get_approval_request(tool_call_id=str(tool_call_id))
+    return {"ok": ok, "data": out}
 
 
 @router.get("/audit/chat_events")

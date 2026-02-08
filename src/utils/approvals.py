@@ -3,6 +3,8 @@ from __future__ import annotations
 import asyncio
 import os
 import secrets
+import json
+import time
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
@@ -26,6 +28,24 @@ def _timeout_sec() -> int:
         val = 120
     return max(30, min(600, val))
 
+def _timeout_for_level(risk_level: str) -> int:
+    level = (risk_level or "").strip().upper()
+    if level == "CRITICAL":
+        raw = (os.getenv("ORA_APPROVAL_TTL_CRITICAL_SEC") or "30").strip()
+        try:
+            val = int(raw)
+        except Exception:
+            val = 30
+        return max(10, min(300, val))
+    if level == "HIGH":
+        raw = (os.getenv("ORA_APPROVAL_TTL_HIGH_SEC") or str(_timeout_sec())).strip()
+        try:
+            val = int(raw)
+        except Exception:
+            val = _timeout_sec()
+        return max(30, min(600, val))
+    return _timeout_sec()
+
 
 def _critical_code_len() -> int:
     raw = (os.getenv("ORA_APPROVAL_CRITICAL_CODE_LEN") or "6").strip()
@@ -43,7 +63,7 @@ def policy_for(*, bot: Any, actor_id: int, risk_level: str, risk_score: int) -> 
     - HIGH: 1-click approval
     - CRITICAL: 2-step approval (button + code)
     """
-    timeout = _timeout_sec()
+    timeout = _timeout_for_level(risk_level)
     is_own = is_owner(bot, actor_id)
 
     # Non-owner users are already tool-allowlisted; still gate MEDIUM+ by default.
@@ -65,77 +85,68 @@ def _redact_args(args: Dict[str, Any]) -> Dict[str, Any]:
     return sanitize(args, max_str=200)  # type: ignore
 
 
-class _ApprovalCodeModal(discord.ui.Modal):
-    def __init__(self, *, expected_code: str, fut: asyncio.Future, title: str = "CRITICAL Approval Code"):
-        super().__init__(title=title)
-        self.expected_code = expected_code
-        self.fut = fut
-        self.code = discord.ui.TextInput(
-            label="Enter approval code",
-            placeholder="e.g. 123456",
-            required=True,
-            max_length=16,
-        )
-        self.add_item(self.code)
-
-    async def on_submit(self, interaction: discord.Interaction) -> None:
-        if self.fut.done():
-            await interaction.response.send_message("Already decided.", ephemeral=True)
-            return
-        entered = str(self.code.value or "").strip()
-        if entered != self.expected_code:
-            await interaction.response.send_message("❌ Code mismatch.", ephemeral=True)
-            return
-        self.fut.set_result(("approved", entered))
-        await interaction.response.send_message("✅ Approved.", ephemeral=True)
+def normalize_args_json(args: Dict[str, Any]) -> str:
+    payload = _redact_args(args if isinstance(args, dict) else {})
+    try:
+        return json.dumps(payload, ensure_ascii=False, sort_keys=True, indent=2)[:5000]
+    except Exception:
+        return str(payload)[:5000]
 
 
-class ApprovalView(discord.ui.View):
-    def __init__(
-        self,
-        *,
-        actor_id: int,
-        risk_level: str,
-        requires_code: bool,
-        expected_code: str,
-        fut: asyncio.Future,
-        timeout: int,
-    ):
-        super().__init__(timeout=timeout)
-        self.actor_id = actor_id
-        self.risk_level = risk_level
-        self.requires_code = requires_code
-        self.expected_code = expected_code
-        self.fut = fut
+def approval_summary(tool_name: str, args: Dict[str, Any], risk_level: str, risk_score: int) -> str:
+    # Compact one-liner for lists.
+    a = args if isinstance(args, dict) else {}
+    key_parts: list[str] = []
+    for k in ("url", "path", "query", "command", "cmd", "prompt", "text", "action"):
+        v = a.get(k)
+        if isinstance(v, str) and v.strip():
+            key_parts.append(f"{k}={v.strip()[:80]}")
+    extras = ("; ".join(key_parts)[:160]) if key_parts else ""
+    if extras:
+        return f"{tool_name} ({risk_level} score={risk_score}) {extras}"
+    return f"{tool_name} ({risk_level} score={risk_score})"
 
-    async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        if interaction.user and interaction.user.id == self.actor_id:
-            return True
-        await interaction.response.send_message("⛔ Only the request owner can approve.", ephemeral=True)
-        return False
 
-    async def on_timeout(self) -> None:
-        if not self.fut.done():
-            self.fut.set_result(("timeout", None))
+async def _dm_owner_approval(
+    *,
+    bot: Any,
+    owner_id: int,
+    tool_name: str,
+    tool_call_id: str,
+    correlation_id: str,
+    risk_score: int,
+    risk_level: str,
+    reasons: list[str],
+    args_json: str,
+    expected_code: str,
+    expires_at: int,
+) -> None:
+    reason_text = "\n".join(f"- {r}" for r in (reasons or [])[:12]) or "- (none)"
 
-    @discord.ui.button(label="Approve", style=discord.ButtonStyle.success)
-    async def approve(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
-        if self.fut.done():
-            await interaction.response.send_message("Already decided.", ephemeral=True)
-            return
-        if self.requires_code:
-            await interaction.response.send_modal(_ApprovalCodeModal(expected_code=self.expected_code, fut=self.fut))
-            return
-        self.fut.set_result(("approved", None))
-        await interaction.response.send_message("✅ Approved.", ephemeral=True)
+    embed = discord.Embed(
+        title=f"Approval Required ({risk_level})",
+        description="Tool execution is paused. Approve via owner-only command or Web API.",
+        color=0xE53E3E if risk_level == "CRITICAL" else 0xDD6B20,
+    )
+    embed.add_field(name="Tool", value=f"`{tool_name}`", inline=False)
+    embed.add_field(name="Approval ID", value=f"`{tool_call_id}`", inline=False)
+    if correlation_id:
+        embed.add_field(name="CID", value=f"`{correlation_id}`", inline=False)
+    embed.add_field(name="Risk", value=f"score={risk_score} level={risk_level}", inline=False)
+    embed.add_field(name="Reasons", value=reason_text[:1024], inline=False)
+    embed.add_field(name="Args (normalized/redacted)", value=f"```json\n{args_json[:900]}\n```", inline=False)
+    if expected_code:
+        embed.add_field(name="CRITICAL Code", value=f"`{expected_code}`", inline=False)
 
-    @discord.ui.button(label="Deny", style=discord.ButtonStyle.danger)
-    async def deny(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
-        if self.fut.done():
-            await interaction.response.send_message("Already decided.", ephemeral=True)
-            return
-        self.fut.set_result(("denied", None))
-        await interaction.response.send_message("❌ Denied.", ephemeral=True)
+    ttl_left = max(0, int(expires_at) - int(time.time()))
+    embed.set_footer(text=f"Expires in ~{ttl_left}s. Approve: /approve <id> [code], Deny: /deny <id>")
+
+    try:
+        user = bot.get_user(owner_id) or await bot.fetch_user(owner_id)
+        await user.send(embed=embed)
+    except Exception:
+        # If DM fails (blocked), do not brick execution; caller will timeout.
+        pass
 
 
 async def request_approval(
@@ -153,54 +164,99 @@ async def request_approval(
     timeout_sec: int,
 ) -> dict:
     """
-    Send approval UI to Discord and await decision.
+    Out-of-band approval:
+    - Create/persist a pending approval row in DB (already done best-effort by ToolHandler).
+    - Notify owner via DM (separate channel).
+    - Poll DB for approve/deny/expire until timeout.
     Returns: {"status": "approved"|"denied"|"timeout", "code": str|None, "expected_code": str|None}
     """
+    if not tool_call_id:
+        return {"status": "denied", "code": None, "expected_code": None}
+
+    cfg = getattr(bot, "config", None)
+    owner_id = getattr(cfg, "admin_user_id", None)
+    if not owner_id:
+        await message.reply("⛔ Approval required, but ADMIN_USER_ID is not configured.")
+        return {"status": "denied", "code": None, "expected_code": None}
+
     expected = ""
     if requires_code:
         expected = secrets.token_hex(8)[: _critical_code_len()]
 
-    fut: asyncio.Future = asyncio.get_event_loop().create_future()
-    view = ApprovalView(
-        actor_id=message.author.id,
-        risk_level=risk_level,
-        requires_code=requires_code,
+    store = getattr(bot, "store", None)
+    req = None
+    if store:
+        try:
+            # Update expected_code in the persisted request for out-of-band verification.
+            row = await store.get_approval_request(tool_call_id=tool_call_id)
+            if row:
+                req = row
+            now = int(time.time())
+            expires_at = int((req or {}).get("expires_at") or (now + int(timeout_sec)))
+            args_json = normalize_args_json(args if isinstance(args, dict) else {})
+            summary = approval_summary(tool_name, args if isinstance(args, dict) else {}, risk_level, risk_score)
+            await store.upsert_approval_request(
+                tool_call_id=tool_call_id,
+                created_at=int((req or {}).get("created_at") or now),
+                expires_at=expires_at,
+                actor_id=int(message.author.id),
+                tool_name=tool_name,
+                correlation_id=correlation_id or None,
+                risk_score=int(risk_score),
+                risk_level=str(risk_level),
+                requires_code=bool(requires_code),
+                expected_code=expected or None,
+                requested_role="owner" if is_owner(bot, message.author.id) else "guest",
+                args_json=args_json,
+                summary=summary,
+            )
+            req = await store.get_approval_request(tool_call_id=tool_call_id)
+        except Exception:
+            req = None
+
+    expires_at = int((req or {}).get("expires_at") or (int(time.time()) + int(timeout_sec)))
+    args_json = (req or {}).get("args_json") or normalize_args_json(args if isinstance(args, dict) else {})
+
+    # Notify owner via DM (separate channel).
+    await _dm_owner_approval(
+        bot=bot,
+        owner_id=int(owner_id),
+        tool_name=tool_name,
+        tool_call_id=tool_call_id,
+        correlation_id=correlation_id,
+        risk_score=int(risk_score),
+        risk_level=str(risk_level),
+        reasons=reasons or [],
+        args_json=str(args_json),
         expected_code=expected,
-        fut=fut,
-        timeout=timeout_sec,
+        expires_at=expires_at,
     )
 
-    redacted = _redact_args(args if isinstance(args, dict) else {})
-    reason_text = "\n".join(f"- {r}" for r in (reasons or [])[:12]) or "- (none)"
-
-    embed = discord.Embed(
-        title=f"Approval Required ({risk_level})",
-        description="Tool execution is paused until you approve.",
-        color=0xE53E3E if risk_level == "CRITICAL" else 0xDD6B20,
-    )
-    embed.add_field(name="Tool", value=f"`{tool_name}`", inline=False)
-    if tool_call_id:
-        embed.add_field(name="ToolCallID", value=f"`{tool_call_id}`", inline=False)
-    if correlation_id:
-        embed.add_field(name="CID", value=f"`{correlation_id}`", inline=False)
-    embed.add_field(name="Risk", value=f"score={risk_score} level={risk_level}", inline=False)
-    embed.add_field(name="Reasons", value=reason_text[:1024], inline=False)
-    embed.add_field(name="Args (redacted)", value=f"```json\n{str(redacted)[:900]}\n```", inline=False)
-    if requires_code:
-        embed.add_field(name="CRITICAL Code", value=f"`{expected}` (enter in modal)", inline=False)
-    embed.set_footer(text=f"Timeout: {timeout_sec}s (auto-deny)")
-
-    msg = await message.reply(embed=embed, view=view)
-    status, code = await fut
-
-    # Disable buttons after decision
+    # Inform the requester that approval is pending (no approve buttons in-band).
     try:
-        for child in view.children:
-            if hasattr(child, "disabled"):
-                child.disabled = True
-        await msg.edit(view=view)
+        await message.reply(f"⏸️ Approval requested from owner. approval_id=`{tool_call_id}` (expires soon).")
     except Exception:
         pass
 
-    return {"status": status, "code": code, "expected_code": expected or None}
+    # Poll decision from DB until timeout/expiry.
+    deadline = time.time() + max(5, int(timeout_sec))
+    while time.time() < deadline:
+        now = int(time.time())
+        if now >= expires_at:
+            if store:
+                try:
+                    await store.decide_approval_request(tool_call_id=tool_call_id, status="expired", decided_by="system")
+                except Exception:
+                    pass
+            return {"status": "timeout", "code": None, "expected_code": expected or None}
 
+        if store:
+            st = await store.get_approval_status(tool_call_id=tool_call_id)
+            if st in {"approved", "denied"}:
+                return {"status": st, "code": None, "expected_code": expected or None}
+            if st in {"expired", "timeout"}:
+                return {"status": "timeout", "code": None, "expected_code": expected or None}
+
+        await asyncio.sleep(2.0)
+
+    return {"status": "timeout", "code": None, "expected_code": expected or None}

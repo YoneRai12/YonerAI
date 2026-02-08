@@ -150,6 +150,7 @@ class ORABot(commands.Bot):
         extensions = [
             "src.cogs.voice_recv",
             "src.cogs.system",
+            "src.cogs.approvals_admin",
             "src.cogs.resource_manager",
             "src.cogs.mcp",
             "src.cogs.memory",

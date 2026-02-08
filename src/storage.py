@@ -147,6 +147,25 @@ class Store:
         async with aiosqlite.connect(self._db_path) as db:
             await db.executescript(SCHEMA)
 
+            # Migration: approvals UX (M1.5). Add missing columns for richer approval UX without breaking old DBs.
+            try:
+                async with db.execute("PRAGMA table_info(approval_requests)") as cur:
+                    cols = {str(r[1]) for r in await cur.fetchall()}
+                # Keep columns optional to remain backward compatible with existing deployments.
+                missing: list[tuple[str, str]] = []
+                for name, decl in [
+                    ("requested_role", "TEXT"),
+                    ("args_json", "TEXT"),
+                    ("summary", "TEXT"),
+                    ("decided_by", "TEXT"),
+                ]:
+                    if name not in cols:
+                        missing.append((name, decl))
+                for name, decl in missing:
+                    await db.execute(f"ALTER TABLE approval_requests ADD COLUMN {name} {decl}")
+            except Exception:
+                pass
+
             # Migration: Ensure points column exists
             try:
                 await db.execute("ALTER TABLE users ADD COLUMN points INTEGER DEFAULT 0")
@@ -553,17 +572,26 @@ class Store:
             )
         return out
 
-    async def get_approval_requests_rows(self, *, limit: int = 200, since_ts: Optional[int] = None) -> list[dict]:
+    async def get_approval_requests_rows(
+        self,
+        *,
+        limit: int = 200,
+        since_ts: Optional[int] = None,
+        status: Optional[str] = None,
+    ) -> list[dict]:
         limit = max(1, min(1000, int(limit)))
         where = []
         params: list[object] = []
         if since_ts is not None:
             where.append("created_at>=?")
             params.append(int(since_ts))
+        if status:
+            where.append("status=?")
+            params.append(str(status))
         clause = (" WHERE " + " AND ".join(where)) if where else ""
         sql = (
             "SELECT tool_call_id, created_at, expires_at, actor_id, tool_name, correlation_id, risk_score, risk_level, "
-            "requires_code, status, decided_at "
+            "requires_code, expected_code, status, decided_at, requested_role, args_json, summary, decided_by "
             f"FROM approval_requests{clause} ORDER BY created_at DESC LIMIT ?"
         )
         params.append(limit)
@@ -583,8 +611,13 @@ class Store:
                     "risk_score": r[6],
                     "risk_level": r[7],
                     "requires_code": bool(r[8]) if r[8] is not None else False,
-                    "status": r[9],
-                    "decided_at": int(r[10]) if r[10] is not None else None,
+                    "expected_code": r[9],
+                    "status": r[10],
+                    "decided_at": int(r[11]) if r[11] is not None else None,
+                    "requested_role": r[12],
+                    "args_json": r[13],
+                    "summary": r[14],
+                    "decided_by": r[15],
                 }
             )
         return out
@@ -643,6 +676,9 @@ class Store:
         risk_level: str,
         requires_code: bool,
         expected_code: str | None,
+        requested_role: str | None = None,
+        args_json: str | None = None,
+        summary: str | None = None,
     ) -> None:
         async with aiosqlite.connect(self._db_path) as db:
             try:
@@ -650,9 +686,11 @@ class Store:
                     (
                         "INSERT OR REPLACE INTO approval_requests("
                         "tool_call_id, created_at, expires_at, actor_id, tool_name, correlation_id, "
-                        "risk_score, risk_level, requires_code, expected_code, status, decided_at"
-                        ") VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT status FROM approval_requests WHERE tool_call_id=?), 'pending'), "
-                        "COALESCE((SELECT decided_at FROM approval_requests WHERE tool_call_id=?), NULL))"
+                        "risk_score, risk_level, requires_code, expected_code, requested_role, args_json, summary, status, decided_at, decided_by"
+                        ") VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "
+                        "COALESCE((SELECT status FROM approval_requests WHERE tool_call_id=?), 'pending'), "
+                        "COALESCE((SELECT decided_at FROM approval_requests WHERE tool_call_id=?), NULL), "
+                        "COALESCE((SELECT decided_by FROM approval_requests WHERE tool_call_id=?), NULL))"
                     ),
                     (
                         str(tool_call_id),
@@ -665,6 +703,10 @@ class Store:
                         str(risk_level or ""),
                         1 if requires_code else 0,
                         str(expected_code) if expected_code else None,
+                        str(requested_role) if requested_role else None,
+                        str(args_json) if args_json else None,
+                        str(summary) if summary else None,
+                        str(tool_call_id),
                         str(tool_call_id),
                         str(tool_call_id),
                     ),
@@ -684,6 +726,65 @@ class Store:
                 await db.commit()
             except Exception:
                 return
+
+    async def get_approval_request(self, *, tool_call_id: str) -> Optional[dict]:
+        async with aiosqlite.connect(self._db_path) as db:
+            try:
+                async with db.execute(
+                    (
+                        "SELECT tool_call_id, created_at, expires_at, actor_id, tool_name, correlation_id, "
+                        "risk_score, risk_level, requires_code, expected_code, status, decided_at, "
+                        "requested_role, args_json, summary, decided_by "
+                        "FROM approval_requests WHERE tool_call_id=?"
+                    ),
+                    (str(tool_call_id),),
+                ) as cur:
+                    row = await cur.fetchone()
+                if not row:
+                    return None
+                return {
+                    "tool_call_id": row[0],
+                    "created_at": int(row[1]),
+                    "expires_at": int(row[2]),
+                    "actor_id": row[3],
+                    "tool_name": row[4],
+                    "correlation_id": row[5],
+                    "risk_score": row[6],
+                    "risk_level": row[7],
+                    "requires_code": bool(row[8]) if row[8] is not None else False,
+                    "expected_code": row[9],
+                    "status": row[10],
+                    "decided_at": int(row[11]) if row[11] is not None else None,
+                    "requested_role": row[12],
+                    "args_json": row[13],
+                    "summary": row[14],
+                    "decided_by": row[15],
+                }
+            except Exception:
+                return None
+
+    async def decide_approval_request(
+        self,
+        *,
+        tool_call_id: str,
+        status: str,
+        decided_by: str,
+    ) -> bool:
+        now = int(time.time())
+        async with aiosqlite.connect(self._db_path) as db:
+            try:
+                cur = await db.execute(
+                    (
+                        "UPDATE approval_requests "
+                        "SET status=?, decided_at=?, decided_by=? "
+                        "WHERE tool_call_id=? AND status='pending'"
+                    ),
+                    (str(status), int(now), str(decided_by), str(tool_call_id)),
+                )
+                await db.commit()
+                return (cur.rowcount or 0) > 0
+            except Exception:
+                return False
 
     async def get_approval_status(self, *, tool_call_id: str) -> Optional[str]:
         async with aiosqlite.connect(self._db_path) as db:
