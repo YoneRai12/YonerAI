@@ -1,0 +1,73 @@
+%%{init: {"theme":"base","themeVariables":{
+  "mainBkg":"#ffffff",
+  "textColor":"#111827",
+  "lineColor":"#374151",
+  "primaryColor":"#f3f4f6",
+  "primaryTextColor":"#111827",
+  "primaryBorderColor":"#374151",
+  "actorBkg":"#f9fafb",
+  "actorBorder":"#374151",
+  "actorTextColor":"#111827",
+  "signalColor":"#111827",
+  "signalTextColor":"#111827",
+  "sequenceNumberBgColor":"#111827",
+  "sequenceNumberColor":"#ffffff",
+  "labelBoxBkgColor":"#ffffff",
+  "labelBoxBorderColor":"#374151",
+  "labelTextColor":"#111827",
+  "loopBkgColor":"#ffffff",
+  "loopBorderColor":"#374151",
+  "loopTextColor":"#111827",
+  "noteBkgColor":"#fff7ed",
+  "noteBorderColor":"#fb923c",
+  "noteTextColor":"#111827",
+  "activationBkgColor":"#e5e7eb",
+  "activationBorderColor":"#374151",
+  "fontSize":"16px"
+}}}%%
+
+sequenceDiagram
+    autonumber
+    participant U as ユーザー
+    participant P as Discord/Web
+    participant O as Owner（Admin）
+    participant CH as ORA Bot（ChatHandler）
+    participant EX as ORA Bot（ツール実行 + ポリシーゲート）
+    participant CORE as ORA Core API（Run Owner）
+    participant LT as ローカルツール（Skills/MCP）
+    participant ST as 状態/ストレージ（監査DB + 一時生成物）
+
+    U->>P: プロンプト + 添付
+    P->>CH: 正規化済みリクエスト（source/user/channel）
+    CH->>CH: RAG + ToolSelector（available_tools を絞る）
+    CH->>CORE: POST /v1/messages（run作成）
+    CORE-->>CH: run_id
+    CH->>CORE: GET /v1/runs/{run_id}/events（SSE）
+
+    loop Core主導ループ（Run Owner）
+        CORE-->>CH: dispatch tool_call(tool, args, tool_call_id)
+        CH->>EX: dispatch(tool, args, tool_call_id)
+        EX->>EX: risk scoring（tags + args）
+        opt 承認が必要（HIGH/CRITICAL）
+            EX->>ST: approval_request 作成（pending）
+            EX->>P: 「承認待ち」通知
+            EX-->>O: （別チャネル）DM + /approve + Web API
+        end
+        alt 承認OK
+            EX->>ST: audit log（decision + tool_call_id）
+            EX->>LT: ツール実行
+            LT-->>EX: 結果（+ artifacts）
+            EX->>ST: artifacts 保存（TTL cleanup）
+            EX->>CORE: POST /v1/runs/{run_id}/results（tool_call_id + tool result）
+        else deny/expired/timeout/rate_limited
+            EX->>ST: audit log（deny/expired/timeout/rate_limited）
+            EX->>CORE: POST /v1/runs/{run_id}/results（blocked/error）
+        end
+    end
+
+    CORE-->>CH: 最終回答イベント
+    CH-->>P: 整形済み返信 + files/links
+    P-->>U: 回答
+
+    Note over EX,CORE: Tool結果は at-least-once。Coreは tool_call_id で重複排除（idempotency）。
+

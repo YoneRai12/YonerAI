@@ -53,3 +53,47 @@ async def test_router_keeps_web_fetch_with_explicit_download(monkeypatch) -> Non
     names = {t["name"] for t in out}
     assert "web_download" in names
 
+
+@pytest.mark.asyncio
+async def test_router_auto_sandbox_for_github_review_like_prompt(monkeypatch) -> None:
+    monkeypatch.setenv("ORA_ROUTER_REQUIRE_EXPLICIT_DOWNLOAD", "1")
+    monkeypatch.setenv("ORA_ROUTER_AUTO_SANDBOX_GITHUB_REVIEW", "1")
+
+    bot = SimpleNamespace(config=SimpleNamespace(standard_model="gpt-5-mini", openai_api_key="dummy"))
+    sel = ToolSelector(bot)
+    sel.llm_client = _FakeLLM('{"categories":["WEB_READ"],"intents":{"download":false,"screenshot":false,"browser_control":false}}')
+
+    tools = [
+        {"name": "read_web_page", "tags": ["web", "read"]},
+        {"name": "sandbox_download_repo", "tags": ["sandbox", "download", "repo"]},
+        {"name": "sandbox_compare_repos", "tags": ["sandbox", "download", "compare", "repo"]},
+        {"name": "web_download", "tags": ["browser", "download"]},
+    ]
+    out = await sel.select_tools(
+        "ORA https://github.com/YoneRai12/ORA と METEOBOT https://github.com/meteosimaji/METEOBOT を比較して評価して",
+        available_tools=tools,
+    )
+    names = {t["name"] for t in out}
+    assert "web_download" not in names
+    assert "sandbox_compare_repos" in names
+
+
+@pytest.mark.asyncio
+async def test_router_auto_sandbox_extracts_github_urls_with_wrappers(monkeypatch) -> None:
+    monkeypatch.setenv("ORA_ROUTER_REQUIRE_EXPLICIT_DOWNLOAD", "1")
+    monkeypatch.setenv("ORA_ROUTER_AUTO_SANDBOX_GITHUB_REVIEW", "1")
+
+    bot = SimpleNamespace(config=SimpleNamespace(standard_model="gpt-5-mini", openai_api_key="dummy"))
+    sel = ToolSelector(bot)
+    sel.llm_client = _FakeLLM('{"categories":["WEB_READ"],"intents":{"download":false,"screenshot":false,"browser_control":false}}')
+
+    tools = [
+        {"name": "sandbox_download_repo", "tags": ["sandbox", "download", "repo"]},
+        {"name": "sandbox_compare_repos", "tags": ["sandbox", "download", "compare", "repo"]},
+    ]
+    out = await sel.select_tools(
+        "比較して: <https://github.com/YoneRai12/ORA> と (https://github.com/meteosimaji/METEOBOT).",
+        available_tools=tools,
+    )
+    names = {t["name"] for t in out}
+    assert "sandbox_compare_repos" in names

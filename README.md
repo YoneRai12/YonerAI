@@ -189,53 +189,9 @@ ORA currently runs as a hub/spoke agent pipeline:
 - The bot executes tools locally and submits results back to Core.
 
 ### End-to-End Request Path (Sequence)
-```mermaid
-%%{init: {"theme":"base","themeVariables":{"mainBkg":"#0d1117","textColor":"#e6edf3","lineColor":"#9ca3af","primaryColor":"#111827","primaryTextColor":"#e6edf3","primaryBorderColor":"#6b7280","actorBkg":"#111827","actorBorder":"#6b7280","actorTextColor":"#e6edf3","actorLineColor":"#6b7280","signalColor":"#e6edf3","signalTextColor":"#e6edf3","sequenceNumberBgColor":"#e6edf3","sequenceNumberColor":"#111827","labelBoxBkgColor":"#111827","labelBoxBorderColor":"#6b7280","labelTextColor":"#e6edf3","loopBkgColor":"#111827","loopBorderColor":"#6b7280","loopTextColor":"#e6edf3","noteBkgColor":"#111827","noteBorderColor":"#6b7280","noteTextColor":"#e6edf3","activationBkgColor":"#1f2937","activationBorderColor":"#6b7280","fontSize":"16px"}}}%%
-sequenceDiagram
-    autonumber
-    participant U as User
-    participant P as Discord/Web
-    participant O as Owner (Admin)
-    participant CH as ORA Bot (ChatHandler)
-    participant EX as ORA Bot (Tool Executor + Policy Gate)
-    participant CORE as ORA Core API (Run Owner)
-    participant LT as Local Tools (Skills/MCP)
-    participant ST as State/Storage (Audit DB + Temp Artifacts)
+![End-to-End Request Path (Sequence)](docs/diagrams/e2e_request_path_sequence_en.svg)
 
-    U->>P: Prompt + attachments
-    P->>CH: Normalized request (source, user, channel)
-    CH->>CH: RAG + ToolSelector (filter available_tools)
-    CH->>CORE: POST /v1/messages (create run)
-    CORE-->>CH: run_id
-    CH->>CORE: GET /v1/runs/{run_id}/events (SSE)
-
-    loop Core-driven agent loop (Run Owner)
-        CORE-->>CH: dispatch tool_call(tool, args, tool_call_id)
-        CH->>EX: dispatch(tool, args, tool_call_id)
-        EX->>EX: risk scoring (tags + args)
-        opt approval required (HIGH/CRITICAL)
-            EX->>ST: create approval_request (pending)
-            EX->>P: tell requester "approval pending"
-            EX-->>O: (out-of-band) DM + /approve + Web API
-        end
-        alt approved
-            EX->>ST: audit log (decision + tool_call_id)
-            EX->>LT: execute tool
-            LT-->>EX: result (+ artifacts)
-            EX->>ST: save artifacts (TTL cleanup)
-            EX->>CORE: POST /v1/runs/{run_id}/results (tool_call_id + tool result)
-        else denied/expired/timeout/rate_limited
-            EX->>ST: audit log (denied/expired/timeout/rate_limited)
-            EX->>CORE: POST /v1/runs/{run_id}/results (tool_call_id + blocked/error)
-        end
-    end
-
-    CORE-->>CH: final response event
-    CH-->>P: formatted reply + files/links
-    P-->>U: answer
-
-    Note over EX,CORE: Tool results are at-least-once. Core should dedupe by tool_call_id (idempotency).
-```
+Mermaid source: `docs/diagrams/e2e_request_path_sequence_en.mmd`
 
 ---
 

@@ -1,0 +1,73 @@
+%%{init: {"theme":"base","themeVariables":{
+  "mainBkg":"#ffffff",
+  "textColor":"#111827",
+  "lineColor":"#374151",
+  "primaryColor":"#f3f4f6",
+  "primaryTextColor":"#111827",
+  "primaryBorderColor":"#374151",
+  "actorBkg":"#f9fafb",
+  "actorBorder":"#374151",
+  "actorTextColor":"#111827",
+  "signalColor":"#111827",
+  "signalTextColor":"#111827",
+  "sequenceNumberBgColor":"#111827",
+  "sequenceNumberColor":"#ffffff",
+  "labelBoxBkgColor":"#ffffff",
+  "labelBoxBorderColor":"#374151",
+  "labelTextColor":"#111827",
+  "loopBkgColor":"#ffffff",
+  "loopBorderColor":"#374151",
+  "loopTextColor":"#111827",
+  "noteBkgColor":"#fff7ed",
+  "noteBorderColor":"#fb923c",
+  "noteTextColor":"#111827",
+  "activationBkgColor":"#e5e7eb",
+  "activationBorderColor":"#374151",
+  "fontSize":"16px"
+}}}%%
+
+sequenceDiagram
+    autonumber
+    participant U as User
+    participant P as Discord/Web
+    participant O as Owner (Admin)
+    participant CH as ORA Bot (ChatHandler)
+    participant EX as ORA Bot (Tool Executor + Policy Gate)
+    participant CORE as ORA Core API (Run Owner)
+    participant LT as Local Tools (Skills/MCP)
+    participant ST as State/Storage (Audit DB + Temp Artifacts)
+
+    U->>P: Prompt + attachments
+    P->>CH: Normalized request (source, user, channel)
+    CH->>CH: RAG + ToolSelector (filter available_tools)
+    CH->>CORE: POST /v1/messages (create run)
+    CORE-->>CH: run_id
+    CH->>CORE: GET /v1/runs/{run_id}/events (SSE)
+
+    loop Core-driven agent loop (Run Owner)
+        CORE-->>CH: dispatch tool_call(tool, args, tool_call_id)
+        CH->>EX: dispatch(tool, args, tool_call_id)
+        EX->>EX: risk scoring (tags + args)
+        opt approval required (HIGH/CRITICAL)
+            EX->>ST: create approval_request (pending)
+            EX->>P: tell requester \"approval pending\"
+            EX-->>O: (out-of-band) DM + /approve + Web API
+        end
+        alt approved
+            EX->>ST: audit log (decision + tool_call_id)
+            EX->>LT: execute tool
+            LT-->>EX: result (+ artifacts)
+            EX->>ST: save artifacts (TTL cleanup)
+            EX->>CORE: POST /v1/runs/{run_id}/results (tool_call_id + tool result)
+        else denied/expired/timeout/rate_limited
+            EX->>ST: audit log (denied/expired/timeout/rate_limited)
+            EX->>CORE: POST /v1/runs/{run_id}/results (tool_call_id + blocked/error)
+        end
+    end
+
+    CORE-->>CH: final response event
+    CH-->>P: formatted reply + files/links
+    P-->>U: answer
+
+    Note over EX,CORE: Tool results are at-least-once. Core should dedupe by tool_call_id (idempotency).
+

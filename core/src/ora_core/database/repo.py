@@ -121,7 +121,12 @@ class Repository:
         await self.db.flush()
         return binding
 
-    async def resolve_conversation(self, user_id: str, conversation_id: str | None, context_binding: dict | None) -> str:
+    async def resolve_conversation(
+        self,
+        user_id: str,
+        conversation_id: str | None = None,
+        context_binding: dict | None = None,
+    ) -> str:
         """
         Hub & Spoke resolution logic:
         1. If explicit conversation_id is provided, use it.

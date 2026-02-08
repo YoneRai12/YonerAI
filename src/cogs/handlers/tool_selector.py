@@ -443,6 +443,57 @@ class ToolSelector:
             "zip",
         ]
         wants_sandbox = any(k in p_low for k in explicit_sandbox_keywords)
+        auto_sandbox = os.getenv("ORA_ROUTER_AUTO_SANDBOX_GITHUB_REVIEW", "0").strip().lower() in {"1", "true", "yes", "on"}
+        if auto_sandbox and ("github.com" in p_low) and any(k in p_low for k in ["比較", "compare", "レビュー", "review", "評価", "監査", "検証"]):
+            # Still keep downloads explicit, but allow sandbox static inspection for GitHub review-like prompts.
+            wants_sandbox = True
+
+        # If sandbox intent is on, include only the most appropriate sandbox tool.
+        # - 2+ GitHub repo URLs: sandbox_compare_repos
+        # - 1 GitHub repo URL: sandbox_download_repo
+        if wants_sandbox:
+            try:
+                import re as _re
+
+                def _extract_github_repos(text: str) -> list[str]:
+                    # Discord often wraps URLs like <https://...>. Also guard against zero-width chars.
+                    cleaned = text or ""
+                    for zw in ("\u200b", "\u200c", "\u200d", "\ufeff"):
+                        cleaned = cleaned.replace(zw, "")
+
+                    repos: list[str] = []
+                    for m in _re.finditer(
+                        r"https?://github\.com/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)",
+                        cleaned,
+                        flags=_re.IGNORECASE,
+                    ):
+                        owner = (m.group(1) or "").strip()
+                        repo = (m.group(2) or "").strip()
+                        if repo.lower().endswith(".git"):
+                            repo = repo[:-4]
+                        if owner and repo:
+                            repos.append(f"https://github.com/{owner}/{repo}")
+                    return repos
+
+                repo_urls = _extract_github_repos(prompt or "")
+                want_compare = len(set(repo_urls)) >= 2
+
+                sbx_tools = categories.get("SANDBOX", {}).get("tools", []) if isinstance(categories.get("SANDBOX"), dict) else []
+                sbx_by_name = {str(t.get("name")): t for t in sbx_tools if isinstance(t, dict)}
+
+                chosen = None
+                if want_compare and "sandbox_compare_repos" in sbx_by_name:
+                    chosen = sbx_by_name["sandbox_compare_repos"]
+                elif "sandbox_download_repo" in sbx_by_name:
+                    chosen = sbx_by_name["sandbox_download_repo"]
+
+                if chosen and chosen.get("name") not in {t.get("name") for t in final_tools}:
+                    final_tools.append(chosen)
+                    if "SANDBOX" not in selected_categories:
+                        selected_categories.append("SANDBOX")
+            except Exception:
+                # If anything goes wrong, keep sandbox opt-in behavior but don't break routing.
+                pass
 
         remote_browser_tools = {
             "web_remote_control",

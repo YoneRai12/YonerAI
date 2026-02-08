@@ -189,48 +189,9 @@ ORA は hub/spoke 構成で動作します:
 - Bot 側がツール実行し、結果を Core に返却
 
 ### End-to-End フロー（シーケンス）
-```mermaid
-%%{init: {"theme":"base","themeVariables":{"mainBkg":"#0d1117","textColor":"#e6edf3","lineColor":"#9ca3af","primaryColor":"#111827","primaryTextColor":"#e6edf3","primaryBorderColor":"#6b7280","actorBkg":"#111827","actorBorder":"#6b7280","actorTextColor":"#e6edf3","actorLineColor":"#6b7280","signalColor":"#e6edf3","signalTextColor":"#e6edf3","sequenceNumberBgColor":"#e6edf3","sequenceNumberColor":"#111827","labelBoxBkgColor":"#111827","labelBoxBorderColor":"#6b7280","labelTextColor":"#e6edf3","loopBkgColor":"#111827","loopBorderColor":"#6b7280","loopTextColor":"#e6edf3","noteBkgColor":"#111827","noteBorderColor":"#6b7280","noteTextColor":"#e6edf3","activationBkgColor":"#1f2937","activationBorderColor":"#6b7280","fontSize":"16px"}}}%%
-sequenceDiagram
-    autonumber
-    participant U as ユーザー
-    participant P as Discord/Web
-    participant O as Owner（Admin）
-    participant CH as ORA Bot（ChatHandler）
-    participant EX as ORA Bot（ツール実行 + ポリシーゲート）
-    participant CORE as ORA Core API（Run Owner）
-    participant LT as ローカルツール（Skills/MCP）
-    participant ST as 状態/ストレージ（監査DB + 一時生成物）
+![End-to-End フロー（シーケンス）](docs/diagrams/e2e_request_path_sequence_jp.svg)
 
-    U->>P: プロンプト + 添付
-    P->>CH: 正規化済みリクエスト
-    CH->>CH: RAG + ToolSelector（available_tools を絞る）
-    CH->>CORE: POST /v1/messages（run作成）
-    CORE-->>CH: run_id
-    CH->>CORE: GET /v1/runs/{run_id}/events（SSE）
-
-    loop Core主導ループ
-        CORE-->>CH: dispatch tool_call(tool, args, tool_call_id)
-        CH->>EX: dispatch
-        EX->>EX: risk scoring
-        opt 承認が必要
-            EX->>ST: approval_request 作成（pending）
-            EX->>P: 承認待ちの通知
-            EX-->>O: （別チャネル）DM / /approve / Web API
-        end
-        alt 承認OK
-            EX->>LT: ツール実行
-            LT-->>EX: 結果
-            EX->>CORE: POST /v1/runs/{run_id}/results
-        else deny/expired/timeout/rate_limited
-            EX->>CORE: POST /v1/runs/{run_id}/results（blocked/error）
-        end
-    end
-
-    CORE-->>CH: 最終回答
-    CH-->>P: 返信
-    P-->>U: 回答
-```
+Mermaid source: `docs/diagrams/e2e_request_path_sequence_jp.mmd`
 
 ---
 
