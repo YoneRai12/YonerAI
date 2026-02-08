@@ -772,6 +772,15 @@ async def run_bot() -> None:
                     "Falling back to ORA_PUBLIC_TOOLS/DEFAULT_PUBLIC_TOOLS for guest exposure (compat mode). "
                     "Set ORA_SHARED_GUEST_ALLOWED_TOOLS to lock this down."
                 )
+        if str(getattr(config, "profile", "")).strip().lower() == "private":
+            mode = (os.getenv("ORA_PRIVATE_OWNER_APPROVALS") or "high").strip().lower()
+            skip = (os.getenv("ORA_PRIVATE_OWNER_APPROVAL_SKIP_TOOLS") or "").strip()
+            if mode != "high" or skip:
+                logger.warning(
+                    "Private owner approvals relaxed: ORA_PRIVATE_OWNER_APPROVALS=%s ORA_PRIVATE_OWNER_APPROVAL_SKIP_TOOLS=%s",
+                    mode,
+                    skip,
+                )
     except Exception:
         pass
 

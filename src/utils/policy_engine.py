@@ -18,6 +18,12 @@ def _parse_bool_env(name: str, default: bool = False) -> bool:
         return default
     return raw.strip().lower() in {"1", "true", "yes", "on"}
 
+def _parse_csv_env(name: str) -> set[str]:
+    raw = (os.getenv(name) or "").strip()
+    if not raw:
+        return set()
+    return {x.strip() for x in raw.split(",") if x.strip()}
+
 
 def decide_tool_policy(
     *,
@@ -77,6 +83,45 @@ def decide_tool_policy(
         )
 
     # private (default)
+    if is_owner:
+        # Quality-of-life knobs for owner in private profile.
+        # Keep defaults strict; allow explicit opt-outs for trusted solo use.
+        skip = _parse_csv_env("ORA_PRIVATE_OWNER_APPROVAL_SKIP_TOOLS")
+        if tool_name and tool_name in skip:
+            return PolicyDecision(
+                allowed=True,
+                requires_approval=False,
+                requires_code=False,
+                reason="private_owner_skip_approval",
+            )
+
+        # ORA_PRIVATE_OWNER_APPROVALS:
+        # - high (default): require approval for HIGH+ (score>=60) and code for CRITICAL (>=90)
+        # - critical_only: only CRITICAL requires approval/code
+        # - off: no approvals at all (not recommended)
+        mode = (os.getenv("ORA_PRIVATE_OWNER_APPROVALS") or "high").strip().lower()
+        if mode == "off":
+            return PolicyDecision(
+                allowed=True,
+                requires_approval=False,
+                requires_code=False,
+                reason="private_owner_approvals_off",
+            )
+        if mode == "critical_only":
+            if score >= 90:
+                return PolicyDecision(
+                    allowed=True,
+                    requires_approval=True,
+                    requires_code=True,
+                    reason="private_owner_critical_requires_code",
+                )
+            return PolicyDecision(
+                allowed=True,
+                requires_approval=False,
+                requires_code=False,
+                reason="private_owner_no_approval_below_critical",
+            )
+
     if score >= 90:
         return PolicyDecision(
             allowed=True,
@@ -100,4 +145,3 @@ def decide_tool_policy(
         requires_code=False,
         reason=f"private_{lvl.lower() or 'low'}_allowed",
     )
-
