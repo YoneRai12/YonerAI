@@ -650,6 +650,30 @@ class Store:
             except Exception:
                 return 0
 
+    async def count_tool_audit_rows(
+        self,
+        *,
+        actor_id: int,
+        since_ts: Optional[int] = None,
+    ) -> int:
+        """
+        Count tool_audit rows for rate limiting.
+        """
+        where = ["actor_id=?"]
+        params: list[object] = [str(int(actor_id))]
+        if since_ts is not None:
+            where.append("ts>=?")
+            params.append(int(since_ts))
+        clause = " AND ".join(where)
+        sql = f"SELECT COUNT(1) FROM tool_audit WHERE {clause}"
+        async with aiosqlite.connect(self._db_path) as db:
+            try:
+                async with db.execute(sql, tuple(params)) as cur:
+                    row = await cur.fetchone()
+                return int(row[0] or 0) if row else 0
+            except Exception:
+                return 0
+
     async def get_chat_events_rows(
         self,
         *,

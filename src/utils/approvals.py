@@ -46,6 +46,10 @@ def _timeout_for_level(risk_level: str) -> int:
         return max(30, min(600, val))
     return _timeout_sec()
 
+def timeout_for_level(risk_level: str) -> int:
+    """Public wrapper for consistent TTL computation from risk level."""
+    return _timeout_for_level(risk_level)
+
 
 def _critical_code_len() -> int:
     raw = (os.getenv("ORA_APPROVAL_CRITICAL_CODE_LEN") or "6").strip()

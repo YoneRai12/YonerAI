@@ -96,17 +96,19 @@ class ToolHandler:
         # ------------------------------------------------------------------
         try:
             from src.cogs.tools.registry import get_tool_meta
-            from src.utils.risk_scoring import score_tool_risk
-            from src.utils.approvals import policy_for, request_approval
+            from src.utils.risk_scoring import RiskAssessment, score_tool_risk
+            from src.utils.approvals import request_approval, timeout_for_level
             import json
             import time
             from src.utils.approvals import normalize_args_json, approval_summary, args_hash
             from src.utils.access_control import is_owner as _is_owner
+            from src.utils.policy_engine import decide_tool_policy
 
             meta = get_tool_meta(tool_name)
             tags = meta.get("tags") if isinstance(meta, dict) else []
             # Dynamic skills (src/skills/*) are not in the central registry, so pull tags from
             # their TOOL_SCHEMA when available to keep risk scoring accurate.
+            schema = None
             if not tags:
                 try:
                     schema = self.skill_loader.get_schema(tool_name) if self._skill_loader else None
@@ -117,7 +119,26 @@ class ToolHandler:
                 except Exception:
                     pass
             ra = score_tool_risk(tool_name, args if isinstance(args, dict) else {}, tags=tags if isinstance(tags, list) else [])
-            pol = policy_for(bot=self.bot, actor_id=message.author.id, risk_level=ra.level, risk_score=ra.score)
+            if (not meta) and (not tags) and (not schema) and int(ra.score) < 60:
+                ra = RiskAssessment(
+                    score=60,
+                    level="HIGH",
+                    reasons=list(ra.reasons or []) + ["risk_unset_default_high(+60)"],
+                )
+
+            cfg = getattr(self.bot, "config", None)
+            profile = getattr(cfg, "profile", None)
+            profile = str(profile or "").strip().lower() or "private"
+            role = "owner" if _is_owner(self.bot, int(message.author.id)) else "guest"
+
+            decision = decide_tool_policy(
+                profile=profile,
+                role=role,
+                tool_name=tool_name,
+                risk_score=int(ra.score),
+                risk_level=str(ra.level),
+            )
+            timeout_sec = int(timeout_for_level(str(ra.level)))
 
             # JSONL trace (sanitized) for observability
             from src.utils.agent_trace import trace_event
@@ -130,12 +151,71 @@ class ToolHandler:
                 risk_level=ra.level,
                 reasons=ra.reasons,
             )
+            trace_event(
+                "policy.decision",
+                correlation_id=correlation_id or "",
+                tool=tool_name,
+                tool_call_id=tool_call_id,
+                profile=profile,
+                role=role,
+                allowed=bool(decision.allowed),
+                requires_approval=bool(decision.requires_approval),
+                requires_code=bool(decision.requires_code),
+                reason=str(decision.reason),
+            )
+
+            # Optional: rate-limit guest tool execution to avoid spam/DoS via LOW tools.
+            if role != "owner" and hasattr(self.bot, "store"):
+                try:
+                    raw_lim = (os.getenv("ORA_GUEST_TOOL_RATE_LIMIT_PER_MIN") or "0").strip()
+                    lim = int(raw_lim)
+                except Exception:
+                    lim = 0
+                if lim > 0:
+                    try:
+                        raw_win = (os.getenv("ORA_GUEST_TOOL_RATE_LIMIT_WINDOW_SEC") or "60").strip()
+                        win = max(10, min(600, int(raw_win)))
+                    except Exception:
+                        win = 60
+                    since = int(time.time()) - int(win)
+                    try:
+                        cnt = await self.bot.store.count_tool_audit_rows(actor_id=int(message.author.id), since_ts=since)
+                    except Exception:
+                        cnt = 0
+                    if cnt >= lim:
+                        return "⛔ Rate limited: too many tool requests."
+
+            if not decision.allowed:
+                # Best-effort audit
+                if hasattr(self.bot, "store"):
+                    try:
+                        await self.bot.store.log_tool_audit(
+                            ts=int(time.time()),
+                            actor_id=int(message.author.id),
+                            guild_id=int(message.guild.id) if message.guild else None,
+                            channel_id=int(message.channel.id),
+                            tool_name=tool_name,
+                            tool_call_id=tool_call_id,
+                            correlation_id=correlation_id,
+                            risk_score=int(ra.score),
+                            risk_level=str(ra.level),
+                            approval_required=False,
+                            approval_status="blocked",
+                            args_json=json.dumps(args, ensure_ascii=False)[:5000],
+                            result_preview=f"blocked:policy:{decision.reason}",
+                        )
+                    except Exception:
+                        pass
+                return f"⛔ BLOCKED: policy ({decision.reason})."
+
+            requires_approval = bool(decision.requires_approval)
+            requires_code = bool(decision.requires_code)
 
             # Persist pending approval request for idempotency (best-effort)
-            if pol.requires_approval and tool_call_id and hasattr(self.bot, "store"):
+            if requires_approval and tool_call_id and hasattr(self.bot, "store"):
                 try:
                     created = int(time.time())
-                    expires = created + int(pol.timeout_sec)
+                    expires = created + int(timeout_sec)
                     args_norm = normalize_args_json(args if isinstance(args, dict) else {})
                     a_hash = args_hash(args if isinstance(args, dict) else {})
                     summary = approval_summary(tool_name, args if isinstance(args, dict) else {}, ra.level, ra.score)
@@ -148,10 +228,10 @@ class ToolHandler:
                         correlation_id=correlation_id,
                         risk_score=int(ra.score),
                         risk_level=str(ra.level),
-                        requires_code=bool(pol.requires_code),
+                        requires_code=bool(requires_code),
                         expected_code=None,  # filled after request_approval returns
                         args_hash=a_hash,
-                        requested_role="owner" if _is_owner(self.bot, int(message.author.id)) else "guest",
+                        requested_role=role,
                         args_json=args_norm,
                         summary=summary,
                     )
@@ -159,18 +239,18 @@ class ToolHandler:
                     pass
 
             # If already approved/denied, respect it (best-effort).
-            if pol.requires_approval and tool_call_id and hasattr(self.bot, "store"):
+            if requires_approval and tool_call_id and hasattr(self.bot, "store"):
                 try:
                     st = await self.bot.store.get_approval_status(tool_call_id=tool_call_id)
                     if st in {"approved", "denied"}:
                         if st == "denied":
                             return "⛔ Denied (previous decision)."
-                        # approved: proceed
-                        pol = pol  # no-op
+                        # approved: proceed (skip requesting approval again)
+                        requires_approval = False
                 except Exception:
                     pass
 
-            if pol.requires_approval:
+            if requires_approval:
                 dec = await request_approval(
                     bot=self.bot,
                     message=message,
@@ -181,8 +261,8 @@ class ToolHandler:
                     reasons=ra.reasons,
                     correlation_id=correlation_id or "",
                     tool_call_id=tool_call_id or "",
-                    requires_code=pol.requires_code,
-                    timeout_sec=pol.timeout_sec,
+                    requires_code=bool(requires_code),
+                    timeout_sec=int(timeout_sec),
                 )
                 status = dec.get("status")
 

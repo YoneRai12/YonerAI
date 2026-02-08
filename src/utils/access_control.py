@@ -74,6 +74,17 @@ def public_tools_allowlist() -> Set[str]:
     # If env is set, treat it as additive (not replacement) to avoid lockouts.
     return DEFAULT_PUBLIC_TOOLS | _parse_csv_env("ORA_PUBLIC_TOOLS")
 
+def shared_guest_tools_allowlist() -> Set[str]:
+    """
+    Allowlist for shared profile guests.
+    - If ORA_SHARED_GUEST_ALLOWED_TOOLS is set: use it as the allowlist (no defaults), to avoid accidental exposure.
+    - Else: fall back to DEFAULT_PUBLIC_TOOLS + ORA_PUBLIC_TOOLS for backward compatibility.
+    """
+    explicit = _parse_csv_env("ORA_SHARED_GUEST_ALLOWED_TOOLS")
+    if explicit:
+        return explicit
+    return public_tools_allowlist()
+
 
 def subadmin_tools_allowlist() -> Set[str]:
     # Default is empty. This keeps "creator only" behavior unless explicitly widened.
@@ -111,6 +122,17 @@ def is_tool_allowed(bot: object, user_id: Optional[int], tool_name: str) -> bool
     if is_owner(bot, user_id):
         return True
 
+    cfg = getattr(bot, "config", None)
+    profile = getattr(cfg, "profile", None)
+    profile = str(profile or "").strip().lower() or "private"
+
+    # shared profile: use dedicated guest allowlist.
+    if profile == "shared":
+        allowed = shared_guest_tools_allowlist()
+        if is_sub_admin(bot, user_id):
+            allowed |= subadmin_tools_allowlist()
+        return tool_name in allowed
+
     # Sub-admin: strict allowlist (public + optional sub-admin additions).
     if is_sub_admin(bot, user_id):
         return tool_name in (public_tools_allowlist() | subadmin_tools_allowlist())
@@ -127,7 +149,11 @@ def filter_tool_schemas_for_user(
     if is_owner(bot, user_id):
         return list(tools)
 
-    allowed = public_tools_allowlist()
+    cfg = getattr(bot, "config", None)
+    profile = getattr(cfg, "profile", None)
+    profile = str(profile or "").strip().lower() or "private"
+
+    allowed = shared_guest_tools_allowlist() if profile == "shared" else public_tools_allowlist()
     if is_sub_admin(bot, user_id):
         allowed |= subadmin_tools_allowlist()
     out: list[dict] = []
