@@ -182,6 +182,32 @@ class LLMClient:
                 request_api_key = openai_key
             else:
                 logger.warning(f"⚠️ Cloud model '{model_name}' requested but OPENAI_API_KEY is missing. Trying Local...")
+        else:
+            # Optional safety valve: if the repo is configured for a local-only model (e.g. mistral/qwen)
+            # but the user wants the system to keep working without running a local server, allow mapping
+            # "non-cloud" model names to an OpenAI cloud fallback.
+            #
+            # This is OFF by default to avoid unintentionally sending prompts to a cloud provider.
+            import os
+
+            fallback_enabled = (os.getenv("ORA_LLM_FALLBACK_TO_OPENAI") or "").strip().lower() in {"1", "true", "yes", "on"}
+            if fallback_enabled:
+                openai_key = os.getenv("OPENAI_API_KEY")
+                if openai_key:
+                    fallback_model = (
+                        (os.getenv("ORA_LLM_FALLBACK_MODEL") or "").strip()
+                        or (os.getenv("OPENAI_DEFAULT_MODEL") or "").strip()
+                        or "gpt-5-mini"
+                    )
+                    logger.warning(
+                        "⚠️ Local/non-cloud model '%s' requested; ORA_LLM_FALLBACK_TO_OPENAI=1 so routing to OpenAI as '%s'.",
+                        model_name,
+                        fallback_model,
+                    )
+                    model_name = fallback_model
+                    is_cloud_model = True
+                    request_base_url = "https://api.openai.com/v1"
+                    request_api_key = openai_key
 
         # Determine Endpoint and Payload Structure
         # FIX: Codex (gpt-5.1-codex) and all GPT-5/O-Series are Next-Gen Agentic Models using /responses

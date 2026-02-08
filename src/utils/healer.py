@@ -143,6 +143,9 @@ class Healer:
     def __init__(self, bot, llm: LLMClient):
         self.bot = bot
         self.llm = llm
+        # Healer should not accidentally depend on local-only models configured in LLM_MODEL.
+        # LLMClient will route cloud model names to OpenAI when OPENAI_API_KEY is set.
+        self._model = (os.getenv("ORA_HEALER_MODEL") or "gpt-4o").strip()
 
     async def _resolve_channel(self, channel_id: Optional[int]):
         """Resolve a text-capable channel from cache or API."""
@@ -353,7 +356,11 @@ class Healer:
             If NO, output "NO".
             """
 
-            resp, _, _ = await self.llm.chat([{"role": "user", "content": prompt}], temperature=0.0)
+            resp, _, _ = await self.llm.chat(
+                [{"role": "user", "content": prompt}],
+                temperature=0.0,
+                model=self._model,
+            )
             if "NO" in resp.upper():
                 return None
             return resp.strip()
@@ -536,7 +543,11 @@ class Healer:
             f"Code:\n{code[:3000]}"
         )
 
-        resp, _, _ = await self.llm.chat([{"role": "user", "content": prompt}], temperature=0.0)
+        resp, _, _ = await self.llm.chat(
+            [{"role": "user", "content": prompt}],
+            temperature=0.0,
+            model=self._model,
+        )
         return "SAFE" in resp.upper()
 
     async def propose_feature(self, feature: str, context: str, requester: discord.User, ctx=None):

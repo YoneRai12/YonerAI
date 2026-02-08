@@ -82,6 +82,52 @@ class ORABot(commands.Bot):
         self.started_at = time.time()
         self._backup_task: Optional[asyncio.Task] = None
         self._voice_restore_snapshot_task: Optional[asyncio.Task] = None
+        self.unified_client = None
+        self.google_client = None
+        self.vector_memory = None
+        self.search_client = None
+        self.voice_manager = None
+
+    async def _check_local_llm_health(self) -> None:
+        """
+        Best-effort sanity check: if LLM_MODEL looks local-only but the local LLM endpoint is down,
+        warn early with an actionable hint. This avoids "the system feels dead" from repeated timeouts.
+        """
+        base = str(getattr(self.config, "llm_base_url", "") or "").strip().rstrip("/")
+        model = str(getattr(self.config, "llm_model", "") or "").strip()
+        if not base or not model:
+            return
+
+        base_low = base.lower()
+        is_local_base = ("127.0.0.1" in base_low) or ("localhost" in base_low)
+        if not is_local_base:
+            return
+
+        # Heuristic: non-cloud model IDs often contain provider namespaces or known local families.
+        mlow = model.lower()
+        looks_local_only = ("/" in model) or any(x in mlow for x in ["mistral", "ministral", "qwen", "llama", "gemma"])
+        if not looks_local_only:
+            return
+
+        if str(os.getenv("ORA_LLM_FALLBACK_TO_OPENAI") or "").strip().lower() in {"1", "true", "yes", "on"}:
+            return
+
+        # OpenAI-compatible servers usually expose /models; since base includes /v1, append /models.
+        url = f"{base}/models"
+        try:
+            async with self.session.get(url, timeout=aiohttp.ClientTimeout(total=1.5)) as resp:
+                if resp.status == 200:
+                    return
+        except Exception:
+            pass
+
+        logger.warning(
+            "⚠️ Local LLM endpoint looks down (%s) while LLM_MODEL=%s. "
+            "Start your local server (e.g. vLLM/LM Studio) or set ORA_LLM_FALLBACK_TO_OPENAI=1 "
+            "(and optionally ORA_LLM_FALLBACK_MODEL) to keep working via OpenAI.",
+            base,
+            model,
+        )
 
     async def setup_hook(self) -> None:
         # -1. Check Connection Health (Determine Mode)
@@ -102,6 +148,7 @@ class ORABot(commands.Bot):
 
         # 0.5 Initialize Unified Brain (Router)
         self.unified_client = UnifiedClient(self.config, self.llm_client, self.google_client)
+        await self._check_local_llm_health()
 
         # [Clawdbot] RAG Vector Memory
         from src.services.vector_memory import VectorMemory

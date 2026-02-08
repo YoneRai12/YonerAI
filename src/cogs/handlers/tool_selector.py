@@ -232,7 +232,11 @@ class ToolSelector:
 
             for attempt in range(max_retries + 1):
                 t0_llm = time.perf_counter()
-                response_text, _, _ = await self.llm_client.chat(messages, temperature=0.0)
+                response_text, _, _ = await self.llm_client.chat(
+                    messages,
+                    temperature=0.0,
+                    model=self.model_name,
+                )
                 t1_llm = time.perf_counter()
 
                 # Accumulate roundtrip time (last successful or attempted call)
@@ -250,9 +254,9 @@ class ToolSelector:
                 clean_text = response_text.replace("```json", "").replace("```", "").strip()
                 # Handle list-like strings that might be wrapped in quotes or brackets
                 if not clean_text.startswith("[") and "[" in clean_text:
-                     start = clean_text.find("[")
-                     end = clean_text.rfind("]") + 1
-                     clean_text = clean_text[start:end]
+                    start = clean_text.find("[")
+                    end = clean_text.rfind("]") + 1
+                    clean_text = clean_text[start:end]
 
                 try:
                     parsed = json.loads(clean_text)
@@ -290,10 +294,8 @@ class ToolSelector:
                     continue
 
             # Use 'selected_categories' from loop
-            if not selected_categories and not response_text: # actually if loop finished without break and no valid cat
-                 # If we are here, we might have failed parsing fully
-                 if not selected_categories:
-                     raise ValueError("Failed to parse valid categories after retries")
+            if not selected_categories:
+                raise ValueError("Failed to parse valid categories after retries")
 
         except Exception as e:
             logger.warning(f"⚠️ Router Failed via LLM ({e}). Invoking Safety Fallback.", extra={"error": str(e)})

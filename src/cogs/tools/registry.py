@@ -291,6 +291,46 @@ TOOL_REGISTRY: Dict[str, Dict[str, Any]] = {
             }
         }
     },
+
+    # --- SANDBOX / REPO SKILLS ---
+    "sandbox_download_repo": {
+        "impl": "src.cogs.tools.sandbox_tools:download_repo",
+        "tags": ["sandbox", "download", "repo"],
+        "capability": "static_repo_inspection",
+        "version": "1.0.0",
+        "schema": {
+            "name": "sandbox_download_repo",
+            "description": "GitHubリポジトリをサンドボックス(一時領域)へZIPでダウンロードし、実行せずに静的検証(ファイル/言語/危険っぽい文字列の軽い検出)を行います。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "url": {"type": "string", "description": "GitHubリポジトリURL (例: https://github.com/owner/repo)"},
+                    "ref": {"type": "string", "description": "任意: ブランチ/タグ/コミット(簡易)。未指定ならデフォルトブランチを使用。"},
+                    "max_zip_bytes": {"type": "integer", "description": "任意: ZIPの最大バイト数(デフォルトは環境変数ORA_SANDBOX_MAX_ZIP_BYTESまたは50MB)。"},
+                    "keep": {"type": "boolean", "description": "任意: trueならサンドボックスを保持(デバッグ用)。"}
+                },
+                "required": ["url"]
+            }
+        }
+    },
+    "sandbox_compare_repos": {
+        "impl": "src.cogs.tools.sandbox_tools:compare_repos",
+        "tags": ["sandbox", "download", "compare", "repo"],
+        "capability": "static_repo_comparison",
+        "version": "1.0.0",
+        "schema": {
+            "name": "sandbox_compare_repos",
+            "description": "2つのGitHubリポジトリをサンドボックスにダウンロードして、静的な構造差(ファイル数/サイズ/言語の傾向)を比較します。実行はしません。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "url_a": {"type": "string", "description": "リポジトリAのURL"},
+                    "url_b": {"type": "string", "description": "リポジトリBのURL"},
+                    "urls": {"type": "array", "items": {"type": "string"}, "description": "任意: urls=[A,B] 形式でも指定可"}
+                }
+            }
+        }
+    },
     "list_scheduled_tasks": {
         "impl": "src.cogs.tools.scheduler_tools:list_scheduled_tasks",
         "tags": ["scheduler", "automation", "owner"],
