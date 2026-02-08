@@ -189,8 +189,10 @@ ORA currently runs as a hub/spoke agent pipeline:
 - The bot executes tools locally and submits results back to Core.
 
 ### End-to-End Request Path (Sequence)
+
+Note: GitHub's Mermaid renderer may ignore parts of `themeVariables`. We keep the diagram on the `neutral` theme to avoid white-on-white labels.
 ```mermaid
-%%{init: {"theme":"base","themeVariables":{"mainBkg":"#0d1117","textColor":"#e5e7eb","lineColor":"#9ca3af","primaryColor":"#111827","primaryTextColor":"#e5e7eb","primaryBorderColor":"#6b7280","actorBkg":"#111827","actorBorder":"#6b7280","actorTextColor":"#e5e7eb","actorLineColor":"#6b7280","signalColor":"#e5e7eb","signalTextColor":"#e5e7eb","sequenceNumberBgColor":"#e5e7eb","sequenceNumberColor":"#111827","labelBoxBkgColor":"#111827","labelBoxBorderColor":"#6b7280","labelTextColor":"#e5e7eb","loopBkgColor":"#111827","loopBorderColor":"#6b7280","loopTextColor":"#e5e7eb","noteBkgColor":"#111827","noteBorderColor":"#6b7280","noteTextColor":"#e5e7eb","activationBkgColor":"#1f2937","activationBorderColor":"#6b7280"}}}%%
+%%{init: {"theme":"neutral"}}%%
 sequenceDiagram
     autonumber
     participant U as User
@@ -213,8 +215,9 @@ sequenceDiagram
         CH->>EX: dispatch(tool, args, tool_call_id)
         EX->>EX: risk scoring (tags + args)
         opt approval required (HIGH/CRITICAL)
-            EX->>P: show approval UI (buttons/modals)
-            P-->>EX: approve/deny (request owner)
+            EX->>ST: create approval_request (pending)
+            EX->>P: tell requester "approval pending"
+            EX-->>U: (out-of-band) owner gets DM + /approve + Web API
         end
         alt approved
             EX->>ST: audit log (decision + tool_call_id)
@@ -222,9 +225,9 @@ sequenceDiagram
             LT-->>EX: result (+ artifacts)
             EX->>ST: save artifacts (TTL cleanup)
             EX->>CORE: POST /v1/runs/{run_id}/results (tool_call_id + tool result)
-        else denied/timeout
-            EX->>ST: audit log (denied/timeout)
-            EX->>CORE: POST /v1/runs/{run_id}/results (tool_call_id + denied/error)
+        else denied/expired/timeout/rate_limited
+            EX->>ST: audit log (denied/expired/timeout/rate_limited)
+            EX->>CORE: POST /v1/runs/{run_id}/results (tool_call_id + blocked/error)
         end
     end
 

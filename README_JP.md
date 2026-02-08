@@ -189,8 +189,10 @@ ORA は hub/spoke 構成で動作します:
 - Bot 側がツール実行し、結果を Core に返却
 
 ### End-to-End フロー（シーケンス）
+
+注意: GitHub の Mermaid レンダラは `themeVariables` の一部を無視することがあります。白背景に白文字で読めなくなるのを避けるため、ここでは `neutral` テーマに固定します。
 ```mermaid
-%%{init: {"theme":"base","themeVariables":{"mainBkg":"#0d1117","textColor":"#e5e7eb","lineColor":"#9ca3af","primaryColor":"#111827","primaryTextColor":"#e5e7eb","primaryBorderColor":"#6b7280","actorBkg":"#111827","actorBorder":"#6b7280","actorTextColor":"#e5e7eb","actorLineColor":"#6b7280","signalColor":"#e5e7eb","signalTextColor":"#e5e7eb","sequenceNumberBgColor":"#e5e7eb","sequenceNumberColor":"#111827","labelBoxBkgColor":"#111827","labelBoxBorderColor":"#6b7280","labelTextColor":"#e5e7eb","loopBkgColor":"#111827","loopBorderColor":"#6b7280","loopTextColor":"#e5e7eb","noteBkgColor":"#111827","noteBorderColor":"#6b7280","noteTextColor":"#e5e7eb","activationBkgColor":"#1f2937","activationBorderColor":"#6b7280"}}}%%
+%%{init: {"theme":"neutral"}}%%
 sequenceDiagram
     autonumber
     participant U as ユーザー
@@ -213,15 +215,16 @@ sequenceDiagram
         CH->>EX: dispatch
         EX->>EX: risk scoring
         opt 承認が必要
-            EX->>P: 承認UI
-            P-->>EX: approve/deny
+            EX->>ST: approval_request 作成（pending）
+            EX->>P: 承認待ちの通知
+            EX-->>U: （別チャネル）Owner の DM / /approve / Web API
         end
         alt 承認OK
             EX->>LT: ツール実行
             LT-->>EX: 結果
             EX->>CORE: POST /v1/runs/{run_id}/results
-        else deny/timeout
-            EX->>CORE: POST /v1/runs/{run_id}/results（deny/error）
+        else deny/expired/timeout/rate_limited
+            EX->>CORE: POST /v1/runs/{run_id}/results（blocked/error）
         end
     end
 
