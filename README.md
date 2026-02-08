@@ -190,7 +190,7 @@ ORA currently runs as a hub/spoke agent pipeline:
 
 ### End-to-End Request Path (Sequence)
 ```mermaid
-%%{init: {"theme":"neutral"}}%%
+%%{init: {"theme":"base","themeVariables":{"mainBkg":"#0d1117","textColor":"#e6edf3","lineColor":"#9ca3af","primaryColor":"#111827","primaryTextColor":"#e6edf3","primaryBorderColor":"#6b7280","actorBkg":"#111827","actorBorder":"#6b7280","actorTextColor":"#e6edf3","actorLineColor":"#6b7280","signalColor":"#e6edf3","signalTextColor":"#e6edf3","sequenceNumberBgColor":"#e6edf3","sequenceNumberColor":"#111827","labelBoxBkgColor":"#111827","labelBoxBorderColor":"#6b7280","labelTextColor":"#e6edf3","loopBkgColor":"#111827","loopBorderColor":"#6b7280","loopTextColor":"#e6edf3","noteBkgColor":"#111827","noteBorderColor":"#6b7280","noteTextColor":"#e6edf3","activationBkgColor":"#1f2937","activationBorderColor":"#6b7280","fontSize":"16px"}}}%%
 sequenceDiagram
     autonumber
     participant U as User
