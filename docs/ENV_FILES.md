@@ -15,6 +15,22 @@ This repo includes commit-safe templates you can copy and fill in.
 The minimum required env var is `DISCORD_BOT_TOKEN`.
 Most other items are optional and only enable features.
 
+## Profiles (private/shared) and Instance IDs
+
+ORA can isolate state for different "profiles" on the same machine (M1).
+
+- `ORA_PROFILE=private|shared` (default: `private`)
+  - Separates DB/logs/memory/temp/secrets under `ORA_DATA_ROOT/instances/<instance_id>/<profile>/`.
+- `ORA_INSTANCE_ID` (optional)
+  - Stable identifier per PC install. If missing, ORA generates and persists one under `ORA_DATA_ROOT/instance_id.txt`.
+- `ORA_LEGACY_DATA_LAYOUT=1` (optional)
+  - Escape hatch for older ORA_State/ORA_Logs layouts (disables the instances/profile directory layout).
+
+Optional secret files (per profile) under `<...>/secrets/` are supported:
+- `ora_web_api_token.txt` -> `ORA_WEB_API_TOKEN`
+- `browser_remote_token.txt` -> `BROWSER_REMOTE_TOKEN` / `ORA_BROWSER_REMOTE_TOKEN`
+- `admin_dashboard_token.txt` -> `ADMIN_DASHBOARD_TOKEN`
+
 ## 2) Dashboard UI (Next.js) - `ora-ui/`
 
 - Template: `ora-ui/.env.example`

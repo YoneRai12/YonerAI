@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import logging
 import os
+import sys
+import uuid
+from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
@@ -24,26 +27,154 @@ else:
     # Default portable path
     DATA_ROOT = os.path.join(os.getcwd(), "data")
 
-# Define Subdirectories based on Root
-# Legacy logic: If simple string like "L:\" is used, we assume root-level folders if matching legacy
-_is_legacy_style = _env_root and (":" in _env_root) and (len(_env_root) <= 4)
+def _parse_bool_env(name: str, default: bool = False) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
 
-if _is_legacy_style and os.name == "nt":
-    # If explicitly set to a drive root (e.g. L:\), use legacy ORA_* folder structure
-    DEFAULT_STATE_DIR = os.path.join(DATA_ROOT, "ORA_State")
-    DEFAULT_MEMORY_DIR = os.path.join(DATA_ROOT, "ORA_Memory")
-    DEFAULT_TEMP_DIR = os.path.join(DATA_ROOT, "ORA_Temp")
-    DEFAULT_LOG_DIR = os.path.join(DATA_ROOT, "ORA_Logs")
+
+def _sanitize_id(raw: str) -> str:
+    """Keep instance/profile identifiers filesystem-friendly."""
+    out = "".join(ch for ch in (raw or "").strip() if ch.isalnum() or ch in {"-", "_"})
+    return out[:80]
+
+
+def resolve_profile(default: str = "private") -> str:
+    """
+    Resolve ORA_PROFILE.
+    Note: validation (erroring on invalid values) is done in Config.load().
+    """
+    raw = (os.getenv("ORA_PROFILE") or default).strip().lower()
+    raw = _sanitize_id(raw) or default
+    if raw not in {"private", "shared"}:
+        return default
+    return raw
+
+
+def resolve_instance_id(data_root: str) -> str:
+    """
+    Resolve ORA_INSTANCE_ID.
+    - If ORA_INSTANCE_ID is set: use it (sanitized).
+    - Else: use a persisted UUID in <ORA_DATA_ROOT>/instance_id.txt (stable per PC).
+    - In pytest: do not persist to disk.
+    """
+    explicit = _sanitize_id(os.getenv("ORA_INSTANCE_ID") or "")
+    if explicit:
+        return explicit
+
+    # Avoid writing files during unit tests/collection.
+    if "pytest" in sys.modules:
+        return "test-instance"
+
+    root = Path(data_root)
+    id_path = root / "instance_id.txt"
+    try:
+        if id_path.exists():
+            val = _sanitize_id(id_path.read_text(encoding="utf-8", errors="ignore"))
+            if val:
+                return val
+    except Exception:
+        pass
+
+    new_id = uuid.uuid4().hex
+    try:
+        root.mkdir(parents=True, exist_ok=True)
+        id_path.write_text(new_id, encoding="utf-8")
+    except Exception:
+        # Fall back to ephemeral ID if the root isn't writable.
+        pass
+    return new_id
+
+
+def resolve_state_root(*, data_root: str, instance_id: str, profile: str) -> str:
+    return os.path.join(str(data_root), "instances", str(instance_id), str(profile))
+
+
+def resolve_bot_db_path(raw: Optional[str] = None) -> str:
+    """
+    Resolve ORA_BOT_DB consistently across bot + web backend + scripts.
+    - Absolute/path-like values are used as-is.
+    - Bare filenames are placed under DB_DIR for the current profile+instance.
+    """
+    val = (raw if raw is not None else os.getenv("ORA_BOT_DB")) or ""
+    val = val.strip()
+    if not val:
+        return DEFAULT_DB_PATH
+    if os.path.isabs(val) or ("/" in val) or ("\\" in val):
+        return val
+    return os.path.join(DB_DIR, val)
+
+
+# Optional escape hatch for older installs that rely on ORA_State/ORA_Logs layout.
+USE_LEGACY_DATA_LAYOUT = _parse_bool_env("ORA_LEGACY_DATA_LAYOUT", False)
+
+# Resolve profile + instance first (used by default path computation).
+ORA_PROFILE = resolve_profile()
+ORA_INSTANCE_ID = resolve_instance_id(DATA_ROOT)
+STATE_ROOT = resolve_state_root(data_root=DATA_ROOT, instance_id=ORA_INSTANCE_ID, profile=ORA_PROFILE)
+DB_DIR = os.path.join(STATE_ROOT, "db")
+SECRETS_DIR = os.path.join(STATE_ROOT, "secrets")
+
+# Define subdirectories based on root
+if USE_LEGACY_DATA_LAYOUT:
+    # Legacy logic: If simple string like "L:\" is used, we assume root-level folders if matching legacy.
+    _is_legacy_style = _env_root and (":" in _env_root) and (len(_env_root) <= 4)
+    if _is_legacy_style and os.name == "nt":
+        DEFAULT_STATE_DIR = os.path.join(DATA_ROOT, "ORA_State")
+        DEFAULT_MEMORY_DIR = os.path.join(DATA_ROOT, "ORA_Memory")
+        DEFAULT_TEMP_DIR = os.path.join(DATA_ROOT, "ORA_Temp")
+        DEFAULT_LOG_DIR = os.path.join(DATA_ROOT, "ORA_Logs")
+    else:
+        DEFAULT_STATE_DIR = os.path.join(DATA_ROOT, "state")
+        DEFAULT_MEMORY_DIR = os.path.join(DATA_ROOT, "memory")
+        DEFAULT_TEMP_DIR = os.path.join(DATA_ROOT, "temp")
+        DEFAULT_LOG_DIR = os.path.join(DATA_ROOT, "logs")
 else:
-    DEFAULT_STATE_DIR = os.path.join(DATA_ROOT, "state")
-    DEFAULT_MEMORY_DIR = os.path.join(DATA_ROOT, "memory")
-    DEFAULT_TEMP_DIR = os.path.join(DATA_ROOT, "temp")
-    DEFAULT_LOG_DIR = os.path.join(DATA_ROOT, "logs")
+    DEFAULT_STATE_DIR = os.path.join(STATE_ROOT, "state")
+    DEFAULT_MEMORY_DIR = os.path.join(STATE_ROOT, "memory")
+    DEFAULT_TEMP_DIR = os.path.join(STATE_ROOT, "tmp")
+    DEFAULT_LOG_DIR = os.path.join(STATE_ROOT, "logs")
 
 STATE_DIR = os.getenv("ORA_STATE_DIR", DEFAULT_STATE_DIR)
 MEMORY_DIR = os.getenv("ORA_MEMORY_DIR", DEFAULT_MEMORY_DIR)
 LOG_DIR = os.getenv("ORA_LOG_DIR", DEFAULT_LOG_DIR)
 TEMP_DIR = os.getenv("ORA_TEMP_DIR", DEFAULT_TEMP_DIR)
+
+# Profile/instance-scoped defaults for paths that are commonly used outside Config.load().
+DEFAULT_DB_PATH = os.path.join(DB_DIR, "ora_bot.db")
+
+
+def _apply_profile_secrets() -> None:
+    """
+    Optional: allow per-profile secrets without juggling multiple .env files.
+    If env var is missing and a file exists under SECRETS_DIR, load it into env.
+    """
+    mapping = {
+        "ORA_WEB_API_TOKEN": "ora_web_api_token.txt",
+        "BROWSER_REMOTE_TOKEN": "browser_remote_token.txt",
+        # Browser router also checks ORA_BROWSER_REMOTE_TOKEN.
+        "ORA_BROWSER_REMOTE_TOKEN": "browser_remote_token.txt",
+        "ADMIN_DASHBOARD_TOKEN": "admin_dashboard_token.txt",
+    }
+    base = Path(SECRETS_DIR)
+    try:
+        if not base.exists():
+            return
+    except Exception:
+        return
+    for env_key, fname in mapping.items():
+        if (os.getenv(env_key) or "").strip():
+            continue
+        try:
+            val = (base / fname).read_text(encoding="utf-8", errors="ignore").strip()
+        except Exception:
+            continue
+        if val:
+            os.environ[env_key] = val
+
+
+_apply_profile_secrets()
 
 # Buffer & Sync Constants
 SAFETY_BUFFER_RATIO = 0.95
@@ -91,6 +222,12 @@ class ConfigError(RuntimeError):
 class Config:
     """Validated configuration for the bot."""
 
+    profile: str
+    instance_id: str
+    data_root: str
+    state_root: str
+    db_dir: str
+    secrets_dir: str
     token: str
     app_id: int
     ora_api_base_url: Optional[str]
@@ -258,7 +395,23 @@ class Config:
             if log_level not in logging.getLevelNamesMapping():
                 raise ConfigError("LOG_LEVEL に不明な値が指定されています。")
 
-        db_path = os.getenv("ORA_BOT_DB", "ora_bot.db")
+        # Profile selection (M1: private/shared)
+        profile_raw = (os.getenv("ORA_PROFILE") or "private").strip().lower()
+        if profile_raw not in {"private", "shared"}:
+            raise ConfigError("ORA_PROFILE は private または shared を指定してください。")
+
+        instance_id = resolve_instance_id(DATA_ROOT)
+        state_root = resolve_state_root(data_root=DATA_ROOT, instance_id=instance_id, profile=profile_raw)
+        db_dir = os.path.join(state_root, "db")
+        secrets_dir = os.path.join(state_root, "secrets")
+
+        # Ensure DB dir exists (best-effort)
+        try:
+            os.makedirs(db_dir, exist_ok=True)
+        except Exception:
+            pass
+
+        db_path = resolve_bot_db_path(os.getenv("ORA_BOT_DB"))
 
         llm_base_url = os.getenv("LLM_BASE_URL", "http://localhost:8008/v1").rstrip("/")
         llm_api_key = os.getenv("LLM_API_KEY", "EMPTY")
@@ -413,6 +566,12 @@ class Config:
         swarm_merge_model = os.getenv("ORA_SWARM_MERGE_MODEL", "gpt-5-mini").strip() or "gpt-5-mini"
 
         return cls(
+            profile=profile_raw,
+            instance_id=instance_id,
+            data_root=DATA_ROOT,
+            state_root=state_root,
+            db_dir=db_dir,
+            secrets_dir=secrets_dir,
             token=token,
             app_id=app_id,
             ora_api_base_url=ora_base_url,

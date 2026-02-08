@@ -3,7 +3,9 @@ import json
 import os
 import sqlite3
 
-DB_PATH = os.getenv("ORA_BOT_DB", "ora_bot.db")
+from src.config import resolve_bot_db_path
+
+DB_PATH = resolve_bot_db_path(os.getenv("ORA_BOT_DB"))
 CACHE_FILE = "graph_cache.json"
 
 

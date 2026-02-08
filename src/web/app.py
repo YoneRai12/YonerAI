@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 
+from src.config import resolve_bot_db_path
 from src.storage import Store
 from src.web import endpoints
 from src.utils.temp_downloads import cleanup_expired_downloads
@@ -68,7 +69,7 @@ async def read_index():
 @app.on_event("startup")
 async def on_startup() -> None:
     global store
-    store = Store(os.getenv("ORA_BOT_DB", "ora_bot.db"))
+    store = Store(resolve_bot_db_path())
     await store.init()
 
     # Ensure expired temporary downloads are eventually deleted even if nobody hits /download/* routes.
