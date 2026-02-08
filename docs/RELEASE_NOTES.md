@@ -2,12 +2,13 @@
 
 This page is a curated summary of what changed across releases (beyond GitHub’s auto-generated notes).
 
-## v5.0.0 -> v5.1.14 (2026-02-06)
+## v5.0.0 -> v2026.2.9 (2026-02-09)
 
 ### Big Picture (What You Actually Got)
 - **Hub/Spoke agent runtime stabilized**: thin client (Discord/Web) delegates the reasoning loop to ORA Core; tools execute locally and results are fed back to Core.
 - **Security posture tightened**: fewer “surprise side effects” at startup; approvals/audit added so powerful tooling doesn’t silently become dangerous as features grow.
 - **Multi-platform direction clarified**: Discord bot is no longer “the product”; it’s one client for a broader ORA API + web dashboards + future mobile/desktop clients.
+ - **Distribution-ready baseline**: profile isolation (`private/shared`) + Relay MVP enables a “user PC as the node” architecture without port-forwarding.
 
 ### Security & Safety (High Impact)
 - **Risk-based approvals gate + audit trail**:
@@ -18,6 +19,29 @@ This page is a curated summary of what changed across releases (beyond GitHub’
   - Bot no longer auto-opens local browser UIs unless explicitly enabled.
   - Bot no longer auto-starts Cloudflare tunnels unless explicitly enabled.
   - Quick tunnels (trycloudflare) blocked by default unless explicitly enabled.
+
+### Distribution / Relay (New)
+- **Profile isolation (M1)**:
+  - Introduces `ORA_PROFILE=private|shared` with profile-scoped `state_root` (DB/logs/memory/secrets/tmp).
+  - Adds `instance_id` persistence so each installed node is stably identifiable.
+- **Shared/guest policy as code (M3)**:
+  - Shared guests are allowlist-based and CRITICAL is blocked by default.
+  - Unknown tools default to HIGH risk to avoid accidental exposure.
+- **Relay MVP + hardening (M2/M2.5)**:
+  - WebSocket routing + pairing + HTTP proxy to the local node API.
+  - Mux (`id -> Future`), caps, timeouts, and disconnect cleanup to survive real-world networks.
+- **Cloudflare Quick Tunnel**:
+  - Domain-less external testing can be enabled via `.env` expose mode.
+
+### Static Verification (Sandbox)
+- **Sandbox repo inspection tools**:
+  - `sandbox_download_repo` downloads GitHub ZIPs into the temp sandbox and runs static inspection only (no execution).
+  - `sandbox_compare_repos` compares two repos at a high level (files/size/languages/suspicious hits).
+
+### Approvals QoL (Configurable)
+- Owner/guest approval friction can be tuned via `.env` while keeping safe defaults.
+  - Owner global knobs: `ORA_OWNER_APPROVALS`, `ORA_OWNER_APPROVAL_SKIP_TOOLS`.
+  - Shared guest threshold knob: `ORA_SHARED_GUEST_APPROVAL_MIN_SCORE`.
 
 ### Tooling & Extensibility
 - **MCP client support (stdio)**:
@@ -63,6 +87,7 @@ If you previously relied on “startup auto-open” and “startup auto-tunnel�
 - `ORA_TUNNELS_ALLOW_QUICK=1` (only if you explicitly want quick tunnels without a named token)
 
 ## Per-Version Highlights (Quick Index)
+- **v2026.2.9**: date-based releases + node/relay/approvals baseline + sandbox static repo inspection + approvals QoL knobs.
 - **v5.1.14**: audit redaction + retention; MCP guardrails; browser error_id + error log endpoint.
 - **v5.1.13**: empty final response fallback + less plan spam.
 - **v5.1.12**: CI mypy fix (`Store.create_scheduled_task()` return).

@@ -5,6 +5,7 @@ from pathlib import Path
 
 
 SEMVER_RE = re.compile(r"^\d+\.\d+\.\d+$")
+DATEVER_RE = re.compile(r"^\d{4}\.(?:0?[1-9]|1[0-2])\.(?:0?[1-9]|[12]\d|3[01])$")
 
 
 def normalize_tag(tag: str) -> str:
@@ -28,8 +29,8 @@ def main() -> int:
         return 1
 
     version = version_file.read_text(encoding="utf-8").strip()
-    if not SEMVER_RE.match(version):
-        print(f"[FAIL] VERSION '{version}' is not SemVer (expected X.Y.Z).")
+    if not (SEMVER_RE.match(version) or DATEVER_RE.match(version)):
+        print(f"[FAIL] VERSION '{version}' is not a supported version string (expected X.Y.Z or YYYY.M.D).")
         return 1
 
     if args.tag:
@@ -39,7 +40,8 @@ def main() -> int:
             return 1
         print(f"[OK] VERSION matches tag: {version}")
     else:
-        print(f"[OK] VERSION is valid SemVer: {version}")
+        kind = "SemVer" if SEMVER_RE.match(version) else "DateVer"
+        print(f"[OK] VERSION is valid {kind}: {version}")
 
     return 0
 

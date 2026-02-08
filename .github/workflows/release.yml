@@ -22,6 +22,15 @@ jobs:
         run: |
           python scripts/verify_version.py --tag "${GITHUB_REF_NAME}"
 
+      - name: Read VERSION
+        run: |
+          ORA_VERSION=$(cat VERSION | tr -d '[:space:]')
+          echo "ORA_VERSION=$ORA_VERSION" >> $GITHUB_ENV
+
+      - name: Verify Release Notes Exist
+        run: |
+          test -f "docs/releases/${ORA_VERSION}.md"
+
       - name: Generate Release Archive
         run: |
           VERSION=$(cat VERSION | tr -d '[:space:]')
@@ -33,6 +42,8 @@ jobs:
           files: ORA-*.zip
           # Publish automatically (no manual "Draft -> Publish" step in the GitHub UI).
           draft: false
-          generate_release_notes: true
+          name: ORA ${{ env.ORA_VERSION }}
+          body_path: docs/releases/${{ env.ORA_VERSION }}.md
+          generate_release_notes: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

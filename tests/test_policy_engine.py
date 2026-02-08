@@ -7,6 +7,8 @@ from src.utils.policy_engine import decide_tool_policy
 def test_private_owner_default_requires_high_approval(monkeypatch) -> None:
     monkeypatch.delenv("ORA_PRIVATE_OWNER_APPROVALS", raising=False)
     monkeypatch.delenv("ORA_PRIVATE_OWNER_APPROVAL_SKIP_TOOLS", raising=False)
+    monkeypatch.delenv("ORA_OWNER_APPROVALS", raising=False)
+    monkeypatch.delenv("ORA_OWNER_APPROVAL_SKIP_TOOLS", raising=False)
     d = decide_tool_policy(
         profile="private",
         role="owner",
@@ -19,6 +21,8 @@ def test_private_owner_default_requires_high_approval(monkeypatch) -> None:
 
 
 def test_private_owner_skip_tool_disables_approval(monkeypatch) -> None:
+    monkeypatch.delenv("ORA_OWNER_APPROVALS", raising=False)
+    monkeypatch.delenv("ORA_OWNER_APPROVAL_SKIP_TOOLS", raising=False)
     monkeypatch.setenv("ORA_PRIVATE_OWNER_APPROVAL_SKIP_TOOLS", "web_download,read_web_page")
     d = decide_tool_policy(
         profile="private",
@@ -32,6 +36,8 @@ def test_private_owner_skip_tool_disables_approval(monkeypatch) -> None:
 
 
 def test_private_owner_critical_only(monkeypatch) -> None:
+    monkeypatch.delenv("ORA_OWNER_APPROVALS", raising=False)
+    monkeypatch.delenv("ORA_OWNER_APPROVAL_SKIP_TOOLS", raising=False)
     monkeypatch.setenv("ORA_PRIVATE_OWNER_APPROVALS", "critical_only")
     d1 = decide_tool_policy(
         profile="private",
@@ -51,4 +57,3 @@ def test_private_owner_critical_only(monkeypatch) -> None:
     )
     assert d2.requires_approval is True
     assert d2.requires_code is True
-

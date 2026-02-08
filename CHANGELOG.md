@@ -2,6 +2,14 @@
 
 See also: `docs/RELEASE_NOTES.md` (curated summary, v5.0.0 -> current).
 
+## v2026.2.9 (2026-02-09) - Date-Based Release + Distributed Baseline (Node/Relay/Approvals)
+- Switched to date-based versioning (`YYYY.M.D`) via `VERSION` (release tag: `v2026.2.9`).
+- M1/M1.5/M3: profile isolation (`private/shared`), out-of-band approvals, and shared/guest policy as code.
+- M2/M2.5: Relay MVP (WS + pairing + http proxy) + hardening (mux, caps, timeout, cleanup).
+- Cloudflare Quick Tunnel expose mode switchable via `.env`.
+- Added sandbox repo static inspection tools (download GitHub ZIP, no code execution).
+- Added `.env` knobs to reduce approval friction for owner / shared guests while keeping safe defaults.
+
 ## v5.1.14 (2026-02-06) - Audit Secrecy + MCP Guardrails + Browser Observability
 - Added centralized redaction helpers for secrets (`src/utils/redaction.py`) and applied them to audit/storage and MCP command logging.
 - Audit DB is now bounded by retention/size limits (env-driven), with periodic pruning to prevent unbounded growth.
