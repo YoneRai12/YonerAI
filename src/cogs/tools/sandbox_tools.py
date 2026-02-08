@@ -16,6 +16,7 @@ import discord
 
 
 _GITHUB_HOSTS = {"github.com", "www.github.com"}
+_GITHUB_API = "api.github.com"
 
 
 @dataclass(frozen=True)
@@ -66,6 +67,96 @@ async def _github_default_branch(session: aiohttp.ClientSession, rr: RepoRef) ->
             return str(b) if b else None
     except Exception:
         return None
+
+
+async def _github_repo_metadata(session: aiohttp.ClientSession, rr: RepoRef) -> Dict[str, Any]:
+    api_url = f"https://api.github.com/repos/{rr.owner}/{rr.repo}"
+    headers = {"User-Agent": "ORA-Sandbox"}
+    try:
+        async with session.get(api_url, headers=headers, timeout=aiohttp.ClientTimeout(total=15)) as resp:
+            if resp.status != 200:
+                return {"ok": False, "status": resp.status}
+            data = await resp.json()
+            # Keep a minimal subset to reduce PII/log risk.
+            return {
+                "ok": True,
+                "status": resp.status,
+                "full_name": data.get("full_name"),
+                "description": data.get("description"),
+                "default_branch": data.get("default_branch"),
+                "stargazers_count": data.get("stargazers_count"),
+                "forks_count": data.get("forks_count"),
+                "open_issues_count": data.get("open_issues_count"),
+                "archived": data.get("archived"),
+                "license": (data.get("license") or {}).get("spdx_id") if isinstance(data.get("license"), dict) else None,
+                "pushed_at": data.get("pushed_at"),
+                "updated_at": data.get("updated_at"),
+                "language": data.get("language"),
+                "size_kb": data.get("size"),
+            }
+    except Exception as e:
+        return {"ok": False, "error": f"{type(e).__name__}:{e}"}
+
+
+async def _github_root_listing(session: aiohttp.ClientSession, rr: RepoRef, *, ref: str, max_entries: int) -> Dict[str, Any]:
+    # Contents API: non-recursive listing of repo root.
+    api_url = f"https://api.github.com/repos/{rr.owner}/{rr.repo}/contents/"
+    headers = {"User-Agent": "ORA-Sandbox"}
+    params = {"ref": ref} if ref else None
+    try:
+        async with session.get(api_url, headers=headers, params=params, timeout=aiohttp.ClientTimeout(total=15)) as resp:
+            if resp.status != 200:
+                return {"ok": False, "status": resp.status, "items": []}
+            data = await resp.json()
+            items = []
+            if isinstance(data, list):
+                for it in data[: max(0, int(max_entries or 0))]:
+                    if not isinstance(it, dict):
+                        continue
+                    items.append(
+                        {
+                            "type": it.get("type"),
+                            "name": it.get("name"),
+                            "path": it.get("path"),
+                            "size": it.get("size"),
+                        }
+                    )
+            return {"ok": True, "status": resp.status, "items": items}
+    except Exception as e:
+        return {"ok": False, "error": f"{type(e).__name__}:{e}", "items": []}
+
+
+async def _github_readme(session: aiohttp.ClientSession, rr: RepoRef, *, ref: str, max_bytes: int) -> Dict[str, Any]:
+    api_url = f"https://api.github.com/repos/{rr.owner}/{rr.repo}/readme"
+    headers = {"User-Agent": "ORA-Sandbox"}
+    params = {"ref": ref} if ref else None
+    try:
+        async with session.get(api_url, headers=headers, params=params, timeout=aiohttp.ClientTimeout(total=15)) as resp:
+            if resp.status != 200:
+                return {"ok": False, "status": resp.status, "text": ""}
+            data = await resp.json()
+            if not isinstance(data, dict):
+                return {"ok": False, "status": resp.status, "text": ""}
+            enc = (data.get("encoding") or "").lower()
+            content = data.get("content")
+            if enc != "base64" or not isinstance(content, str):
+                return {"ok": False, "status": resp.status, "text": ""}
+            import base64
+
+            raw = base64.b64decode(content.encode("ascii"), validate=False)
+            raw = raw[: max(0, int(max_bytes or 0))]
+            try:
+                text = raw.decode("utf-8", errors="ignore")
+            except Exception:
+                text = ""
+            return {"ok": True, "status": resp.status, "text": text}
+    except Exception as e:
+        return {"ok": False, "error": f"{type(e).__name__}:{e}", "text": ""}
+
+
+def _fallback_enabled() -> bool:
+    # Keep this on by default; it only does GitHub API reads and never executes code.
+    return _is_truthy(os.getenv("ORA_SANDBOX_FALLBACK_ON_DOWNLOAD_FAIL", "1"))
 
 
 async def _download_to_file(
@@ -383,6 +474,74 @@ async def download_repo(args: dict, message: discord.Message, status_manager, bo
             "sandbox_uri": f"sandbox://{sandbox_id}/",
         }
     except Exception as e:
+        # Optional fallback: if ZIP download fails, fall back to GitHub API read-only inspection.
+        # This keeps things useful while still avoiding code execution.
+        if _fallback_enabled():
+            try:
+                if status_manager:
+                    await status_manager.next_step("Sandbox: download failed, falling back to GitHub API (read-only)...")
+
+                branch = rr.ref or await _github_default_branch(session, rr) or "main"
+                max_root = int(os.getenv("ORA_SANDBOX_FALLBACK_ROOT_MAX_ENTRIES") or "200")
+                max_readme = int(os.getenv("ORA_SANDBOX_FALLBACK_README_MAX_BYTES") or "200000")
+
+                meta = await _github_repo_metadata(session, rr)
+                root = await _github_root_listing(session, rr, ref=branch, max_entries=max_root)
+                readme = await _github_readme(session, rr, ref=branch, max_bytes=max_readme)
+
+                fallback = {
+                    "mode": "github_api_read_only",
+                    "download_error": f"{type(e).__name__}: {e}",
+                    "ref_used": branch,
+                    "repo_meta": meta,
+                    "root_listing": root,
+                    "readme": {"ok": readme.get("ok"), "status": readme.get("status"), "chars": len(readme.get('text') or '')},
+                }
+                try:
+                    (sbx_dir / "fallback.json").write_text(json.dumps(fallback, ensure_ascii=True, indent=2), encoding="utf-8")
+                    if isinstance(readme.get("text"), str) and readme["text"]:
+                        (sbx_dir / "README_fallback.txt").write_text(readme["text"][:max_readme], encoding="utf-8", errors="ignore")
+                except Exception:
+                    pass
+
+                lines = []
+                lines.append("**Sandbox Fallback (GitHub API, read-only)**")
+                lines.append(f"- repo: `{rr.owner}/{rr.repo}`" + (f" (ref: `{rr.ref}`)" if rr.ref else ""))
+                lines.append(f"- reason: download failed -> fallback")
+                lines.append(f"- error: `{type(e).__name__}`")
+                if isinstance(meta, dict) and meta.get("ok"):
+                    lines.append(f"- stars: {meta.get('stargazers_count')} | forks: {meta.get('forks_count')} | lang: {meta.get('language')}")
+                    if meta.get("default_branch"):
+                        lines.append(f"- default_branch: `{meta.get('default_branch')}` | using: `{branch}`")
+                if isinstance(root, dict) and root.get("ok"):
+                    items = root.get("items") or []
+                    if items:
+                        shown = ", ".join([str(it.get("name")) for it in items[:30] if isinstance(it, dict) and it.get("name")])
+                        if shown:
+                            lines.append(f"- root: {shown}" + (" ..." if len(items) > 30 else ""))
+                if isinstance(readme, dict) and readme.get("ok") and readme.get("text"):
+                    snippet = (readme["text"] or "").strip().splitlines()
+                    snippet = snippet[:40]
+                    if snippet:
+                        lines.append("")
+                        lines.append("```text")
+                        lines.extend(snippet)
+                        lines.append("```")
+
+                lines.append("")
+                lines.append("- note: fallback is read-only via GitHub API; no repo ZIP was downloaded; no code executed.")
+                lines.append(f"- sandbox_id: `{sandbox_id}`")
+                return {
+                    "result": "\n".join(lines),
+                    "sandbox_id": sandbox_id,
+                    "repo": {"owner": rr.owner, "name": rr.repo, "ref": rr.ref},
+                    "fallback_used": True,
+                    "fallback": fallback,
+                    "sandbox_uri": f"sandbox://{sandbox_id}/",
+                }
+            except Exception:
+                # If fallback also fails, return original error (safe).
+                pass
         return {"result": f"❌ sandbox_download_failed: {type(e).__name__}: {e}"}
     finally:
         if created_own_session:
@@ -413,7 +572,22 @@ async def compare_repos(args: dict, message: discord.Message, status_manager, bo
 
     if not isinstance(a, dict) or not isinstance(b, dict):
         return {"result": "❌ compare failed: download step returned non-dict."}
+    # If at least one side fell back to read-only inspection, still produce a best-effort compare.
     if "summary" not in a or "summary" not in b:
+        if a.get("fallback_used") or b.get("fallback_used"):
+            lines = []
+            lines.append("**Sandbox Repo Compare (best-effort)**")
+            lines.append(f"- A: {a.get('repo')} | fallback={bool(a.get('fallback_used'))}")
+            lines.append(f"- B: {b.get('repo')} | fallback={bool(b.get('fallback_used'))}")
+            lines.append("")
+            lines.append("- note: one side failed full ZIP download; used GitHub API read-only fallback.")
+            lines.append("")
+            lines.append("A:")
+            lines.append(str(a.get("result") or "").strip()[:2000])
+            lines.append("")
+            lines.append("B:")
+            lines.append(str(b.get("result") or "").strip()[:2000])
+            return {"result": "\n".join(lines), "a": a, "b": b, "partial": True}
         return {"result": f"❌ compare failed:\nA: {a.get('result')}\nB: {b.get('result')}"}
 
     sa = a["summary"]
