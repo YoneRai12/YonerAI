@@ -80,6 +80,10 @@ class ToolSelector:
                 "desc": "FILE DOWNLOADING & RECORDING. Select ONLY if user explicitly asks to 'Save', 'Download', 'Record' or 'Keep' media.",
                 "tools": []
             },
+            "SANDBOX": {
+                "desc": "STATIC sandbox inspection (download repo ZIP into temp + scan). Select ONLY if user explicitly asks to download/verify/scan repos.",
+                "tools": []
+            },
             "MEDIA_ANALYZE": {
                 "desc": "VIEWING/ANALYZING Images or Video. No generation.",
                 "tools": []
@@ -128,6 +132,11 @@ class ToolSelector:
         for tool in sorted_tools:
             name = tool["name"].lower()
             tags = set(tool.get("tags", []))
+
+            # Sandbox tools (static inspection only)
+            if ("sandbox" in tags) or name.startswith("sandbox_"):
+                categories["SANDBOX"]["tools"].append(tool)
+                continue
 
             # MCP remote tools
             if ("mcp" in tags) or name.startswith("mcp__"):
@@ -371,9 +380,69 @@ class ToolSelector:
 
         # Fallback only (when router intent is all false): minimal keyword heuristics
         if not (wants_screenshot or wants_browser_control or wants_download):
-            wants_screenshot = any(k in p_low for k in ["スクショ", "スクリーンショット", "screenshot", "画面", "キャプチャ", "撮って", "撮影", "撮ってきて", "撮って来て"])
-            wants_browser_control = any(k in p_low for k in ["webひらいて", "web操作", "ブラウザ", "remote", "操作して", "開いて操作"])
-        is_code_review = ("github.com" in p_low or "gitlab.com" in p_low) and any(k in p_low for k in ["コード", "repo", "リポジトリ", "review", "監査", "読んで"])
+            wants_screenshot = any(
+                k in p_low
+                for k in [
+                    "スクショ",
+                    "スクリーンショット",
+                    "screenshot",
+                    "画面",
+                    "キャプチャ",
+                    "撮って",
+                    "撮影",
+                    "撮ってきて",
+                    "撮って来て",
+                ]
+            )
+            wants_browser_control = any(
+                k in p_low for k in ["webひらいて", "web操作", "ブラウザ", "remote", "操作して", "開いて操作"]
+            )
+
+        is_code_review = ("github.com" in p_low or "gitlab.com" in p_low) and any(
+            k in p_low for k in ["コード", "repo", "リポジトリ", "review", "監査", "読んで"]
+        )
+
+        # Guardrail: prevent accidental downloads/saves when user is only asking for evaluation/review.
+        # This addresses "context bleed" where the router selects WEB_FETCH even without explicit intent.
+        strict_download = os.getenv("ORA_ROUTER_REQUIRE_EXPLICIT_DOWNLOAD", "1").strip().lower() in {"1", "true", "yes", "on"}
+        explicit_download_keywords = [
+            "download",
+            "save",
+            "fetch",
+            "record",
+            "keep offline",
+            "offline",
+            "archive",
+            "zip",
+            "clone",
+            "ダウンロード",
+            "保存",
+            "落として",
+            "取得",
+            "録画",
+            "持ってきて",
+            "検証のために",
+            "検証して",
+        ]
+        explicit_download = any(k in p_low for k in explicit_download_keywords)
+        if strict_download:
+            wants_download = bool(wants_download and explicit_download) or bool(explicit_download)
+
+        # Sandbox should also be explicit; "評価して" with URLs should not auto-download repos.
+        explicit_sandbox_keywords = [
+            "sandbox",
+            "サンドボックス",
+            "静的検証",
+            "静的解析",
+            "スキャン",
+            "検証",
+            "監査",
+            "download",
+            "ダウンロード",
+            "clone",
+            "zip",
+        ]
+        wants_sandbox = any(k in p_low for k in explicit_sandbox_keywords)
 
         remote_browser_tools = {
             "web_remote_control",
@@ -383,6 +452,7 @@ class ToolSelector:
             "web_record_screen",
             "web_screenshot",
         }
+
         if is_code_review and not wants_screenshot and not wants_browser_control:
             final_tools = [t for t in final_tools if t.get("name") not in remote_browser_tools]
         elif not wants_screenshot and not wants_browser_control:
@@ -403,6 +473,26 @@ class ToolSelector:
                 want_screenshot=wants_screenshot,
                 want_browser_control=wants_browser_control,
             )
+
+        # Post-filter: if download isn't explicit, strip download-like tools (WEB_FETCH bucket).
+        if not wants_download:
+            try:
+                fetch_set = {t.get("name") for t in categories.get("WEB_FETCH", {}).get("tools", [])}
+                final_tools = [t for t in final_tools if t.get("name") not in fetch_set]
+                if "WEB_FETCH" in selected_categories:
+                    selected_categories = [c for c in selected_categories if c != "WEB_FETCH"]
+            except Exception:
+                pass
+
+        # Post-filter: sandbox tools require explicit user intent.
+        if not wants_sandbox:
+            try:
+                sbx_set = {t.get("name") for t in categories.get("SANDBOX", {}).get("tools", [])}
+                final_tools = [t for t in final_tools if t.get("name") not in sbx_set]
+                if "SANDBOX" in selected_categories:
+                    selected_categories = [c for c in selected_categories if c != "SANDBOX"]
+            except Exception:
+                pass
 
         # S6: Structured Logging (Timing Split)
         end_time_total = time.perf_counter()
