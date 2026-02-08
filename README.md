@@ -197,6 +197,7 @@ sequenceDiagram
     autonumber
     participant U as User
     participant P as Discord/Web
+    participant O as Owner (Admin)
     participant CH as ORA Bot (ChatHandler)
     participant EX as ORA Bot (Tool Executor + Policy Gate)
     participant CORE as ORA Core API (Run Owner)
@@ -217,7 +218,7 @@ sequenceDiagram
         opt approval required (HIGH/CRITICAL)
             EX->>ST: create approval_request (pending)
             EX->>P: tell requester "approval pending"
-            EX-->>U: (out-of-band) owner gets DM + /approve + Web API
+            EX-->>O: (out-of-band) DM + /approve + Web API
         end
         alt approved
             EX->>ST: audit log (decision + tool_call_id)

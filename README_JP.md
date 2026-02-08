@@ -197,6 +197,7 @@ sequenceDiagram
     autonumber
     participant U as ユーザー
     participant P as Discord/Web
+    participant O as Owner（Admin）
     participant CH as ORA Bot（ChatHandler）
     participant EX as ORA Bot（ツール実行 + ポリシーゲート）
     participant CORE as ORA Core API（Run Owner）
@@ -217,7 +218,7 @@ sequenceDiagram
         opt 承認が必要
             EX->>ST: approval_request 作成（pending）
             EX->>P: 承認待ちの通知
-            EX-->>U: （別チャネル）Owner の DM / /approve / Web API
+            EX-->>O: （別チャネル）DM / /approve / Web API
         end
         alt 承認OK
             EX->>LT: ツール実行
