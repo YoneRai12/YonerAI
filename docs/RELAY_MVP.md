@@ -14,6 +14,19 @@ This is an MVP:
 python -m src.relay.main
 ```
 
+### Expose Without A Domain (Cloudflare Quick Tunnel)
+
+If you don't have a domain yet, Quick Tunnel is the practical dev-mode option.
+It gives you a temporary `https://*.trycloudflare.com` URL (TLS included, URL changes on restart).
+
+```powershell
+$env:ORA_RELAY_EXPOSE_MODE="cloudflared_quick"
+$env:ORA_RELAY_PUBLIC_URL_FILE=".relay_public_url.txt"
+python -m src.relay.main
+```
+
+Relay prints `public_url=...` and also writes it to `ORA_RELAY_PUBLIC_URL_FILE`.
+
 Health:
 
 ```powershell
@@ -27,6 +40,14 @@ This connector keeps an outbound WebSocket connection to the Relay and accepts p
 ```powershell
 $env:ORA_RELAY_URL="ws://127.0.0.1:9010"
 $env:ORA_NODE_API_BASE_URL="http://127.0.0.1:8000"  # your node Web API
+python -m src.services.relay_node
+```
+
+If Relay is exposed via Quick Tunnel and the Node connector runs on the *same machine*:
+
+```powershell
+$env:ORA_RELAY_URL="auto"
+$env:ORA_RELAY_URL_FILE=".relay_public_url.txt"
 python -m src.services.relay_node
 ```
 

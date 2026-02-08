@@ -189,10 +189,7 @@ ORA currently runs as a hub/spoke agent pipeline:
 - The bot executes tools locally and submits results back to Core.
 
 ### End-to-End Request Path (Sequence)
-
-Note: GitHub's Mermaid renderer may ignore parts of `themeVariables`. We keep the diagram on the `neutral` theme to avoid white-on-white labels.
 ```mermaid
-%%{init: {"theme":"neutral"}}%%
 sequenceDiagram
     autonumber
     participant U as User

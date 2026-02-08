@@ -189,10 +189,7 @@ ORA は hub/spoke 構成で動作します:
 - Bot 側がツール実行し、結果を Core に返却
 
 ### End-to-End フロー（シーケンス）
-
-注意: GitHub の Mermaid レンダラは `themeVariables` の一部を無視することがあります。白背景に白文字で読めなくなるのを避けるため、ここでは `neutral` テーマに固定します。
 ```mermaid
-%%{init: {"theme":"neutral"}}%%
 sequenceDiagram
     autonumber
     participant U as ユーザー

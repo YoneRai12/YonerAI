@@ -81,6 +81,7 @@ class RelayState:
         self.nodes: dict[str, NodeConn] = {}
         self.pair_offers: dict[str, PairOffer] = {}  # code_hash -> offer
         self.sessions: dict[str, Session] = {}  # token_hash -> session
+        self.pair_attempts: dict[str, list[int]] = {}  # ip -> attempt timestamps (sec)
 
     def prune(self) -> None:
         now = _now()
@@ -92,6 +93,12 @@ class RelayState:
         for k in list(self.sessions.keys()):
             if self.sessions[k].expires_at <= now:
                 del self.sessions[k]
+        # Pair attempts (rate limit)
+        cutoff = now - 120
+        for ip in list(self.pair_attempts.keys()):
+            self.pair_attempts[ip] = [t for t in self.pair_attempts[ip] if t >= cutoff]
+            if not self.pair_attempts[ip]:
+                del self.pair_attempts[ip]
 
 
 @dataclass
@@ -111,6 +118,7 @@ def create_app() -> FastAPI:
     pair_ttl_sec = int((os.getenv("ORA_RELAY_PAIR_TTL_SEC") or "120").strip() or "120")
     max_pending = int((os.getenv("ORA_RELAY_MAX_PENDING") or "64").strip() or "64")
     client_timeout_sec = float((os.getenv("ORA_RELAY_CLIENT_TIMEOUT_SEC") or "35").strip() or "35")
+    pair_rate_per_min = int((os.getenv("ORA_RELAY_PAIR_RATE_LIMIT_PER_MIN") or "30").strip() or "30")
 
     enforce_https_origin = _parse_bool_env("ORA_RELAY_ENFORCE_ORIGIN", False)
 
@@ -120,8 +128,19 @@ def create_app() -> FastAPI:
         return {"ok": True, "nodes": len(st.nodes), "pairs": len(st.pair_offers), "sessions": len(st.sessions)}
 
     @app.post("/api/pair", response_model=PairResponse)
-    async def api_pair(req: PairRequest) -> PairResponse:
+    async def api_pair(req: PairRequest, request: Request) -> PairResponse:
         st.prune()
+        # Basic brute-force/abuse guard for public exposure.
+        if pair_rate_per_min > 0:
+            ip = (request.client.host if request.client else "") or "unknown"
+            now = _now()
+            bucket = st.pair_attempts.get(ip) or []
+            bucket = [t for t in bucket if t >= (now - 60)]
+            if len(bucket) >= pair_rate_per_min:
+                raise HTTPException(status_code=429, detail="too many attempts")
+            bucket.append(now)
+            st.pair_attempts[ip] = bucket
+
         code = (req.code or "").strip()
         if not code:
             raise HTTPException(status_code=400, detail="code required")

@@ -9,6 +9,7 @@ import time
 from typing import Any, Dict, Optional
 
 import aiohttp
+from pathlib import Path
 
 
 def _now() -> int:
@@ -31,6 +32,41 @@ def _env_int(name: str, default: int) -> int:
         return int(raw)
     except Exception:
         return default
+
+
+def _read_text_file(path: str) -> str:
+    if not path:
+        return ""
+    try:
+        return Path(path).read_text(encoding="utf-8", errors="ignore").strip()
+    except Exception:
+        return ""
+
+
+def _coerce_ws_base_url(url: str) -> str:
+    u = (url or "").strip().rstrip("/")
+    if u.startswith("https://"):
+        return "wss://" + u[len("https://") :]
+    if u.startswith("http://"):
+        return "ws://" + u[len("http://") :]
+    return u
+
+
+def _resolve_relay_base_url() -> str:
+    raw = (os.getenv("ORA_RELAY_URL") or "ws://127.0.0.1:9010").strip()
+    if raw.lower() != "auto":
+        return _coerce_ws_base_url(raw)
+
+    url_file = (os.getenv("ORA_RELAY_URL_FILE") or ".relay_public_url.txt").strip()
+    wait_sec = _env_int("ORA_RELAY_URL_WAIT_SEC", 30)
+    deadline = time.time() + max(0, int(wait_sec))
+    while time.time() <= deadline:
+        candidate = _read_text_file(url_file)
+        candidate = _coerce_ws_base_url(candidate)
+        if candidate:
+            return candidate
+        time.sleep(0.5)
+    return _coerce_ws_base_url(_read_text_file(url_file)) or "ws://127.0.0.1:9010"
 
 
 async def _http_proxy_call(
@@ -72,11 +108,12 @@ async def run_node_connector() -> None:
 
     Env:
     - ORA_RELAY_URL: e.g. ws://127.0.0.1:9010
+      - If ORA_RELAY_URL=auto: read ORA_RELAY_URL_FILE (https->wss, http->ws)
     - ORA_RELAY_NODE_ID: default uses ORA_INSTANCE_ID or "node"
     - ORA_RELAY_PAIR_CODE: if empty, random code printed to stdout
     - ORA_NODE_API_BASE_URL: default http://127.0.0.1:8000 (node web API)
     """
-    relay_url = (os.getenv("ORA_RELAY_URL") or "ws://127.0.0.1:9010").strip().rstrip("/")
+    relay_url = _resolve_relay_base_url().strip().rstrip("/")
     node_id = (os.getenv("ORA_RELAY_NODE_ID") or os.getenv("ORA_INSTANCE_ID") or "node").strip()
     api_base = (os.getenv("ORA_NODE_API_BASE_URL") or "http://127.0.0.1:8000").strip()
     max_body = max(4096, min(2 * 1024 * 1024, _env_int("ORA_RELAY_MAX_HTTP_BODY_BYTES", 262144)))
@@ -84,7 +121,7 @@ async def run_node_connector() -> None:
     code = (os.getenv("ORA_RELAY_PAIR_CODE") or "").strip()
     if not code:
         # Short code is easier to type; the relay stores only a hash.
-        code = secrets.token_hex(3)
+        code = secrets.token_hex(4)
 
     ws_url = f"{relay_url}/ws/node?node_id={node_id}"
     print(f"[relay-node] node_id={node_id} relay={relay_url}")
@@ -138,4 +175,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
