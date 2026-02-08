@@ -762,6 +762,18 @@ async def run_bot() -> None:
         getattr(config, "db_path", None),
         getattr(config, "state_root", None),
     )
+    # Shared profile safety: prefer explicit guest allowlist.
+    try:
+        if str(getattr(config, "profile", "")).strip().lower() == "shared":
+            explicit = (os.getenv("ORA_SHARED_GUEST_ALLOWED_TOOLS") or "").strip()
+            if not explicit:
+                logger.warning(
+                    "ORA_PROFILE=shared but ORA_SHARED_GUEST_ALLOWED_TOOLS is not set. "
+                    "Falling back to ORA_PUBLIC_TOOLS/DEFAULT_PUBLIC_TOOLS for guest exposure (compat mode). "
+                    "Set ORA_SHARED_GUEST_ALLOWED_TOOLS to lock this down."
+                )
+    except Exception:
+        pass
 
     # SILENCE DISCORD HTTP LOGS (429 Spam)
     logging.getLogger("discord.http").setLevel(logging.WARNING)
