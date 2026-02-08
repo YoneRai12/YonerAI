@@ -61,6 +61,7 @@ Notes:
 - `body_b64` is base64-encoded bytes. Cap is `ORA_RELAY_MAX_HTTP_BODY_BYTES`.
 - Pairing codes are **one-time**: after a successful `/api/pair`, the same code is invalid.
 - Relay has basic DoS guards: `ORA_RELAY_MAX_PENDING`, message size caps, and per-request timeouts (`ORA_RELAY_CLIENT_TIMEOUT_SEC`).
+- For internet exposure, also enforce WebSocket frame/message size limits at the edge (Caddy/nginx/Cloudflare), not just in-app.
 
 ## Security Notes
 

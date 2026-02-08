@@ -295,27 +295,42 @@ def create_app() -> FastAPI:
                         payload["body_b64"] = ""
 
                 loop = asyncio.get_running_loop()
-                fut: asyncio.Future[dict] = loop.create_future()
-                node.pending[req_id] = fut
+                fut: asyncio.Future[dict] | None = None
                 try:
+                    fut = loop.create_future()
+                    node.pending[req_id] = fut
+
                     async with node.send_lock:
                         await node.ws.send_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
-                except Exception:
-                    node.pending.pop(req_id, None)
-                    await ws.send_text(json.dumps({"type": "http_response", "id": req_id, "error": "node_send_failed"}))
-                    continue
 
-                # Wait for response for this id (node supports mux; ws_client stays sequential for now).
-                try:
+                    # Wait for response for this id (node supports mux; ws_client stays sequential for now).
                     resp = await asyncio.wait_for(fut, timeout=float(client_timeout_sec))
+                    await ws.send_text(json.dumps(resp, ensure_ascii=False, separators=(",", ":")))
+                except asyncio.TimeoutError:
+                    try:
+                        await ws.send_text(json.dumps({"type": "http_response", "id": req_id, "error": "timeout"}))
+                    except Exception:
+                        pass
+                except WebSocketDisconnect:
+                    # Client went away while we were waiting; just drop.
+                    break
                 except Exception:
-                    node.pending.pop(req_id, None)
-                    await ws.send_text(json.dumps({"type": "http_response", "id": req_id, "error": "timeout"}))
-                    continue
-
-                # Ensure pending is cleaned up even if Node responded but we failed to send to client.
-                node.pending.pop(req_id, None)
-                await ws.send_text(json.dumps(resp, ensure_ascii=False, separators=(",", ":")))
+                    try:
+                        await ws.send_text(json.dumps({"type": "http_response", "id": req_id, "error": "relay_error"}))
+                    except Exception:
+                        pass
+                finally:
+                    # Always restore state: never leak pending entries.
+                    try:
+                        if fut is not None:
+                            # Pop only if it's still the same future (defensive).
+                            cur = node.pending.get(req_id)
+                            if cur is fut:
+                                node.pending.pop(req_id, None)
+                            if not fut.done():
+                                fut.cancel()
+                    except Exception:
+                        pass
 
         except WebSocketDisconnect:
             pass
