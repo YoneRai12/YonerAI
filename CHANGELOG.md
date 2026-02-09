@@ -1,4 +1,4 @@
-# ORA System Changelog
+# YonerAI System Changelog
 
 See also: `docs/RELEASE_NOTES.md` (curated summary, v5.0.0 -> current).
 

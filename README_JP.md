@@ -1,9 +1,9 @@
 <div align="center">
 
-# ORA (v5.1.14-Singularity) 🌌
-### **The Artificial Lifeform AI System（Discord Bot + Web + Core）**
+# YonerAI 🌌
+### **The Artificial Lifeform AI System（Node + Clients + Relay + Core）**
 
-![ORA Banner](https://raw.githubusercontent.com/YoneRai12/ORA/main/docs/banner.png)
+![YonerAI Banner](docs/images/ora_hero.png)
 
 [![Release](https://img.shields.io/github/v/release/YoneRai12/ORA?style=for-the-badge&logo=github&color=blue)](https://github.com/YoneRai12/ORA/releases)
 [![Build and Test](https://github.com/YoneRai12/ORA/actions/workflows/test.yml/badge.svg?style=for-the-badge)](https://github.com/YoneRai12/ORA/actions/workflows/test.yml)
@@ -20,10 +20,12 @@
 
 ---
 
-## ORA とは？
+## YonerAI とは？
 
-ORA は Discord Bot / Web /（任意の）Core を組み合わせた、ローカルファーストのAIプラットフォームです。
+YonerAI（旧称: ORA）は Discord Bot / Web /（任意の）Core を組み合わせた、ローカルファーストのAIプラットフォームです。
 ツール/スキル実行には危険度スコアリングと承認ゲートがあり、MCP（Model Context Protocol）で外部ツールサーバーも統合できます。
+
+注: 内部のパスや環境変数は互換のため `ORA_*` 接頭辞を維持しています。プロダクト/リリースの名称は `PRODUCT_NAME` で管理します。
 
 深掘りドキュメント:
 - `docs/USER_GUIDE.md`

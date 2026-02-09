@@ -1,9 +1,9 @@
 <div align="center">
 
-# ORA (v5.1.14-Singularity) 🌌
-### **The Artificial Lifeform AI System (Discord Bot + Web + Core)**
+# YonerAI 🌌
+### **The Artificial Lifeform AI System (Node + Clients + Relay + Core)**
 
-![ORA Banner](https://raw.githubusercontent.com/YoneRai12/ORA/main/docs/banner.png)
+![YonerAI Banner](docs/images/ora_hero.png)
 
 [![Release](https://img.shields.io/github/v/release/YoneRai12/ORA?style=for-the-badge&logo=github&color=blue)](https://github.com/YoneRai12/ORA/releases)
 [![Build and Test](https://github.com/YoneRai12/ORA/actions/workflows/test.yml/badge.svg?style=for-the-badge)](https://github.com/YoneRai12/ORA/actions/workflows/test.yml)
@@ -20,10 +20,12 @@
 
 ---
 
-## What Is ORA?
+## What Is YonerAI?
 
-ORA is a local-first AI platform built around a Discord bot, a web admin server, and an optional Core process.
+YonerAI (formerly "ORA") is a local-first AI platform built around a Discord bot, web UIs, and an optional Core process.
 It supports tool/skill execution with risk scoring + approvals, and can be extended via MCP (Model Context Protocol) tool servers.
+
+Note: many internal paths/env vars still use the `ORA_*` prefix for compatibility. Product/release branding is controlled by `PRODUCT_NAME`.
 
 If you want the deep docs:
 - `docs/USER_GUIDE.md`

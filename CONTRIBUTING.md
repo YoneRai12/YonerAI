@@ -1,4 +1,4 @@
-# ORA Project Contributing Guidelines
+# YonerAI Project Contributing Guidelines
 
 ## 1. Task Management
 *   **TASKS.md**: Contains only active and pending tasks.

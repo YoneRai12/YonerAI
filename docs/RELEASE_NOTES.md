@@ -1,4 +1,4 @@
-# ORA Release Notes
+# YonerAI Release Notes
 
 This page is a curated summary of what changed across releases (beyond GitHub’s auto-generated notes).
 

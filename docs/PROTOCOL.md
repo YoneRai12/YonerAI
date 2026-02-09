@@ -1,4 +1,4 @@
-# ORA Relay Protocol (M2, v1)
+# YonerAI Relay Protocol (M2, v1)
 
 Date: 2026-02-09  
 Applies to: `src/relay/app.py`, `src/services/relay_node.py`
@@ -178,4 +178,3 @@ Relay enforces:
 - Node authentication for `/ws/node` (prevent fake nodes).
 - E2EE: Relay forwards ciphertext only (no plaintext visibility).
 - Session rotation + device management.
-

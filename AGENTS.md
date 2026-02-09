@@ -27,5 +27,5 @@ A skill is a set of local instructions to follow that is stored in a `SKILL.md` 
 </INSTRUCTIONS>
 
 ## Repo Notes
-- ORA runtime skills live in `src/skills/<skill_name>/` (each has `SKILL.md` + `tool.py`).
+- YonerAI runtime skills live in `src/skills/<skill_name>/` (each has `SKILL.md` + `tool.py`). (internal code still uses many ORA names)
 - MCP tool servers are configured via `.env` (`ORA_MCP_ENABLED`, `ORA_MCP_SERVERS_JSON`). See `README.md`.
