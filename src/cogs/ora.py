@@ -1753,6 +1753,42 @@ class ORACog(commands.Cog):
                                 except Exception:
                                     pass
                                 return
+
+                            # 3) YouTube search by query (no URL provided)
+                            # Example: "@YonerAI YOASOBI 流して" -> search YouTube and play the top result.
+                            if media_cog and (not yt_url):
+                                q = clean_content.strip()
+                                try:
+                                    bot_name = ""
+                                    if getattr(self.bot, "user", None):
+                                        bot_name = (
+                                            getattr(self.bot.user, "display_name", None)
+                                            or getattr(self.bot.user, "name", None)
+                                            or ""
+                                        )
+                                    if bot_name:
+                                        # Remove leading "@BotName" (with or without space)
+                                        q = re.sub(rf"^@?{re.escape(str(bot_name))}\\s*", "", q, flags=re.IGNORECASE)
+                                except Exception:
+                                    pass
+
+                                # Remove common "play" keywords so the remainder becomes a clean search query.
+                                for kw in ["play", "music", "song", "流して", "再生", "かけて", "聴かせ", "流せ", "かけろ"]:
+                                    try:
+                                        q = q.replace(kw, " ")
+                                        q = q.replace(kw.upper(), " ")
+                                    except Exception:
+                                        pass
+                                q = re.sub(r"\\s+", " ", q).strip(" \t:：-")
+
+                                if q:
+                                    ctx = await self.bot.get_context(message)
+                                    await media_cog.play_from_ai(ctx, q)
+                                    try:
+                                        await message.add_reaction("🎵")
+                                    except Exception:
+                                        pass
+                                    return
             except Exception:
                 pass
 
