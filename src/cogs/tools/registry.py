@@ -195,6 +195,24 @@ TOOL_REGISTRY: Dict[str, Dict[str, Any]] = {
     },
 
     # --- SEARCH / CODEBASE SKILLS ---
+    "web_search_api": {
+        "impl": "src.cogs.tools.public_search_tools:web_search_api",
+        "tags": ["search", "web", "api", "safe"],
+        "capability": "web_search",
+        "version": "1.0.0",
+        "schema": {
+            "name": "web_search_api",
+            "description": "[Search] Safe web search (SerpApi/DDG). No browser automation, no downloads.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Search query"},
+                    "limit": {"type": "integer", "description": "Max results (1-10). Default 5"},
+                },
+                "required": ["query"],
+            },
+        },
+    },
     "code_grep": {
         "impl": "src.cogs.tools.search_tools:code_grep",
         "tags": ["search", "code", "grep"],

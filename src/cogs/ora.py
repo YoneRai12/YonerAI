@@ -3059,7 +3059,7 @@ class ORACog(commands.Cog):
                  if isinstance(schema, dict) and schema.get("name"):
                      all_tools.append(schema)
 
-        # [MCP] Dynamic MCP tool injection (registered in tool registry)
+        # [Registry] Dynamic tool injection (registered in tool registry)
         try:
             from src.cogs.tools.registry import get_tool_schemas as _get_registry_schemas
             for s in _get_registry_schemas():
@@ -3067,7 +3067,8 @@ class ORACog(commands.Cog):
                     n = s.get("name")
                 except Exception:
                     continue
-                if isinstance(n, str) and n.startswith("mcp__"):
+                # Include all registry tools; allowlists still restrict execution/visibility.
+                if isinstance(n, str) and n:
                     all_tools.append(s)
         except Exception:
             pass
@@ -3088,7 +3089,23 @@ class ORACog(commands.Cog):
         
         # Tools invalid for Web (e.g. specific Discord voice channel ops? 
         # Actually most are portable via API, but some like 'join_voice' rely on Discord connection)
-        discord_only = {"join_voice_channel", "leave_voice_channel", "manage_user_voice", "create_channel"}
+        discord_only = {
+            # Discord-only operations (require Discord connection / guild context)
+            "join_voice_channel",
+            "leave_voice_channel",
+            "join_voice",
+            "leave_voice",
+            "tts_speak",
+            "speak",
+            "manage_user_voice",
+            "create_channel",
+            "music_play",
+            "music_stop",
+            "music_control",
+            "music_queue",
+            "music_seek",
+            "music_tune",
+        }
 
         filtered = []
         for tool in all_tools:

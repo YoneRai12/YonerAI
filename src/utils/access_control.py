@@ -30,6 +30,23 @@ DEFAULT_PUBLIC_TOOLS: Set[str] = {
     "read_web_page",
     "read_chat_history",
     "get_role_list",
+    # --- Everyday Discord features (safe) ---
+    # Voice/TTS
+    "join_voice_channel",
+    "leave_voice_channel",
+    "join_voice",
+    "leave_voice",
+    "tts_speak",
+    "speak",
+    # Music
+    "music_play",
+    "music_control",
+    "music_queue",
+    "music_stop",
+    "music_seek",
+    "music_tune",
+    # Web search (API-based, not browser automation)
+    "web_search_api",
 }
 
 # Known high-risk / admin-only tools. This list is *advisory* because non-owner access
