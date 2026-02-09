@@ -16,15 +16,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Compile Mermaid
-        uses: mermaid-js/mermaid-cli-action@v1.4.0
-        with:
-          path: docs/diagrams
-          output: docs/diagrams
-          extension: svg
+      - name: Compile Mermaid (PNG + SVG)
+        shell: bash
+        run: |
+          set -euo pipefail
+          for f in docs/diagrams/*.mmd; do
+            base="${f%.mmd}"
+            # PNGs are used in README because GitHub may sanitize inline SVG styles.
+            npx -y @mermaid-js/mermaid-cli@latest -i "$f" -o "${base}.png" -b transparent --quiet
+            npx -y @mermaid-js/mermaid-cli@latest -i "$f" -o "${base}.svg" -b transparent --quiet
+          done
 
       - name: Commit changes
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "docs: update mermaid diagrams [skip ci]"
-          file_pattern: "docs/diagrams/*.svg"
+          file_pattern: "docs/diagrams/*.png docs/diagrams/*.svg"

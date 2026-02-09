@@ -5,8 +5,8 @@
 
 ![YonerAI Banner](docs/images/yonerai_banner.svg)
 
-[![Release](https://img.shields.io/github/v/release/YoneRai12/ORA?style=for-the-badge&logo=github&color=blue)](https://github.com/YoneRai12/ORA/releases)
-[![Build and Test](https://github.com/YoneRai12/ORA/actions/workflows/test.yml/badge.svg?style=for-the-badge)](https://github.com/YoneRai12/ORA/actions/workflows/test.yml)
+[![Release](https://img.shields.io/github/v/release/YoneRai12/YonerAI?style=for-the-badge&logo=github&color=blue)](https://github.com/YoneRai12/YonerAI/releases)
+[![Build and Test](https://github.com/YoneRai12/YonerAI/actions/workflows/test.yml/badge.svg?style=for-the-badge)](https://github.com/YoneRai12/YonerAI/actions/workflows/test.yml)
 [![Discord](https://img.shields.io/badge/Discord-Join-7289DA?style=for-the-badge&logo=discord)](https://discord.gg/YoneRai12)
 [![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
 
@@ -191,9 +191,12 @@ ORA は hub/spoke 構成で動作します:
 - Bot 側がツール実行し、結果を Core に返却
 
 ### End-to-End フロー（シーケンス）
-![End-to-End フロー（シーケンス）](docs/diagrams/e2e_request_path_sequence_jp.svg)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/e2e_request_path_sequence_jp_dark.png">
+  <img alt="End-to-End フロー（シーケンス）" src="docs/diagrams/e2e_request_path_sequence_jp.png">
+</picture>
 
-Mermaid source: `docs/diagrams/e2e_request_path_sequence_jp.mmd`
+Mermaid source: `docs/diagrams/e2e_request_path_sequence_jp.mmd` (light), `docs/diagrams/e2e_request_path_sequence_jp_dark.mmd` (dark)
 
 ---
 

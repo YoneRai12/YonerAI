@@ -259,7 +259,7 @@ Run in this order.
 
 ### 6.2 Sandbox compare behavior
 
-1. Ask: `ORA https://github.com/YoneRai12/ORA と METEOBOT https://github.com/meteosimaji/METEOBOT を比較して評価して`
+1. Ask: `YonerAI https://github.com/YoneRai12/YonerAI と METEOBOT https://github.com/meteosimaji/METEOBOT を比較して評価して`
 1. Expect:
 1. No `web_download`.
 1. Uses `sandbox_compare_repos` (auto-sandbox when enabled).
@@ -328,4 +328,3 @@ If you want “my requests don’t constantly require approvals” while keeping
 1. `Healer` tries to call a local LLM endpoint (seen `[RESTRICTED]:8008` failures). Consider adding an env to disable healer network calls or fallback directly to OpenAI only.
 1. Relay still sees plaintext in transit unless E2EE is implemented (planned M3+).
 1. Multi-client identity/ownership model needs careful definition before “public” shared use.
-

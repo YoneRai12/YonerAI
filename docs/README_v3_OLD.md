@@ -3,7 +3,7 @@
 
 <div align="center">
 
-![ORA Banner](https://raw.githubusercontent.com/YoneRai12/ORA/main/docs/banner.png)
+![YonerAI Banner](https://raw.githubusercontent.com/YoneRai12/YonerAI/main/docs/banner.png)
 
 [![Discord](https://img.shields.io/badge/Discord-Join-7289DA?style=for-the-badge&logo=discord)](https://discord.gg/YoneRai12)
 [![Python](https://img.shields.io/badge/Python-3.11-3776AB?style=for-the-badge&logo=python)](https://www.python.org/)

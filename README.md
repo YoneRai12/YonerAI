@@ -5,8 +5,8 @@
 
 ![YonerAI Banner](docs/images/yonerai_banner.svg)
 
-[![Release](https://img.shields.io/github/v/release/YoneRai12/ORA?style=for-the-badge&logo=github&color=blue)](https://github.com/YoneRai12/ORA/releases)
-[![Build and Test](https://github.com/YoneRai12/ORA/actions/workflows/test.yml/badge.svg?style=for-the-badge)](https://github.com/YoneRai12/ORA/actions/workflows/test.yml)
+[![Release](https://img.shields.io/github/v/release/YoneRai12/YonerAI?style=for-the-badge&logo=github&color=blue)](https://github.com/YoneRai12/YonerAI/releases)
+[![Build and Test](https://github.com/YoneRai12/YonerAI/actions/workflows/test.yml/badge.svg?style=for-the-badge)](https://github.com/YoneRai12/YonerAI/actions/workflows/test.yml)
 [![Discord](https://img.shields.io/badge/Discord-Join-7289DA?style=for-the-badge&logo=discord)](https://discord.gg/YoneRai12)
 [![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
 
@@ -191,9 +191,12 @@ ORA currently runs as a hub/spoke agent pipeline:
 - The bot executes tools locally and submits results back to Core.
 
 ### End-to-End Request Path (Sequence)
-![End-to-End Request Path (Sequence)](docs/diagrams/e2e_request_path_sequence_en.svg)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/e2e_request_path_sequence_en_dark.png">
+  <img alt="End-to-End Request Path (Sequence)" src="docs/diagrams/e2e_request_path_sequence_en.png">
+</picture>
 
-Mermaid source: `docs/diagrams/e2e_request_path_sequence_en.mmd`
+Mermaid source: `docs/diagrams/e2e_request_path_sequence_en.mmd` (light), `docs/diagrams/e2e_request_path_sequence_en_dark.mmd` (dark)
 
 ---
 
