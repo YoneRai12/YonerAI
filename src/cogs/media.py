@@ -30,7 +30,13 @@ from ..utils.search_client import SearchClient
 from ..utils.voice_manager import VoiceManager
 
 # Import helper utilities for YouTube playback and flag translation
-from ..utils.youtube import download_youtube_audio, get_youtube_audio_stream_url, search_youtube
+from ..utils.youtube import (
+    download_youtube_audio,
+    get_youtube_audio_stream_url,
+    search_youtube,
+    is_youtube_playlist_url,
+    get_youtube_playlist_entries,
+)
 
 import re
 from typing import Any, Dict, List
@@ -673,6 +679,76 @@ class MediaCog(commands.Cog):
             picker_on = True
 
         is_url = q.startswith("http://") or q.startswith("https://")
+
+        # Playlist URL: show Discord-native picker (pagination) instead of auto-playing the first item.
+        # This matches common music bots UX and avoids surprises.
+        try:
+            playlist_picker_on = (os.getenv("ORA_MUSIC_PLAYLIST_NATIVE_PICKER") or "1").strip().lower() in {
+                "1",
+                "true",
+                "yes",
+                "on",
+            }
+        except Exception:
+            playlist_picker_on = True
+
+        if picker_on and playlist_picker_on and is_url and is_youtube_playlist_url(q):
+            try:
+                raw_lim = (os.getenv("ORA_MUSIC_PLAYLIST_PICKER_RESULTS") or "60").strip()
+                lim = int(raw_lim)
+            except Exception:
+                lim = 60
+            lim = max(10, min(200, lim))
+
+            try:
+                raw_page = (os.getenv("ORA_MUSIC_PLAYLIST_PAGE_SIZE") or "20").strip()
+                page_size = int(raw_page)
+            except Exception:
+                page_size = 20
+            page_size = max(10, min(25, page_size))
+
+            title, entries = await get_youtube_playlist_entries(q, limit=lim)
+            if entries:
+                from ..views.music_playlist_picker import PlaylistPickView
+
+                ptitle = title or "YouTube Playlist"
+                embed = discord.Embed(
+                    title="Choose a track from playlist",
+                    description=f"Playlist: **{ptitle}**\nEntries loaded: {len(entries)} (showing {page_size}/page)",
+                    color=discord.Color.from_rgb(29, 185, 84),
+                )
+                # short preview
+                lines: list[str] = []
+                for i, r in enumerate(entries[: min(10, len(entries))], start=1):
+                    t = str(r.get("title") or "(no title)")
+                    if len(t) > 60:
+                        t = t[:57] + "..."
+                    dur = r.get("duration")
+                    dur_str = ""
+                    try:
+                        if isinstance(dur, int) and dur > 0:
+                            m, s = divmod(dur, 60)
+                            h, m = divmod(m, 60)
+                            dur_str = f" ({h}:{m:02d}:{s:02d})" if h else f" ({m}:{s:02d})"
+                    except Exception:
+                        pass
+                    lines.append(f"{i}. {t}{dur_str}")
+                if lines:
+                    embed.add_field(name="Preview", value="\n".join(lines)[:1000], inline=False)
+
+                view = PlaylistPickView(
+                    cog=self,
+                    requester_id=int(ctx.author.id),
+                    playlist_title=ptitle,
+                    playlist_url=q,
+                    entries=entries,
+                    page_size=page_size,
+                    timeout=120.0,
+                )
+                msg = await ctx.send(embed=embed, view=view)
+                view.message = msg
+                return
+
         if picker_on and (not is_url) and (not q.startswith("ytsearch")):
             try:
                 raw_n = (os.getenv("ORA_MUSIC_PICKER_RESULTS") or "10").strip()

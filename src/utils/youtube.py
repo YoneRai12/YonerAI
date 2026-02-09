@@ -7,6 +7,7 @@ import glob
 from typing import Optional, Tuple, Dict, Any
 
 import yt_dlp
+from urllib.parse import urlparse, parse_qs
 
 logger = logging.getLogger(__name__)
 
@@ -252,6 +253,133 @@ def _search_youtube_sync(query: str, limit: int = 10, proxy: Optional[str] = Non
 async def search_youtube(query: str, limit: int = 10, proxy: Optional[str] = None) -> list[Dict[str, Any]]:
     """Async wrapper for _search_youtube_sync."""
     return await asyncio.to_thread(_search_youtube_sync, query, limit, proxy)
+
+
+# -----------------------------------------------------------
+# YouTube Playlist (lightweight entries) for Discord-native picker
+# -----------------------------------------------------------
+def is_youtube_playlist_url(url: str) -> bool:
+    """
+    Heuristic detection for a YouTube playlist URL.
+
+    We treat any YouTube URL containing a `list=` query parameter as playlist-capable,
+    including watch URLs like:
+      - https://www.youtube.com/playlist?list=...
+      - https://www.youtube.com/watch?v=...&list=...
+
+    This enables a playlist picker UI instead of silently playing only the first item.
+    """
+    u = (url or "").strip()
+    if not (u.startswith("http://") or u.startswith("https://")):
+        return False
+
+    try:
+        p = urlparse(u)
+        host = (p.hostname or "").lower()
+        if "youtube.com" not in host and "youtu.be" not in host and "youtube-nocookie.com" not in host:
+            return False
+        qs = parse_qs(p.query or "")
+        lst = qs.get("list")
+        if not lst:
+            return False
+        # Basic sanity: list IDs are usually long-ish.
+        return bool(str(lst[0]).strip()) and len(str(lst[0]).strip()) >= 8
+    except Exception:
+        return False
+
+
+def _watch_url_from_id(video_id: str) -> str:
+    vid = (video_id or "").strip()
+    return f"https://www.youtube.com/watch?v={vid}" if vid else ""
+
+
+def _get_youtube_playlist_entries_sync(
+    playlist_url: str, limit: int = 60, proxy: Optional[str] = None
+) -> Tuple[Optional[str], list[Dict[str, Any]]]:
+    """
+    Extract lightweight playlist entries (no download, no stream resolution).
+
+    Returns: (playlist_title, entries)
+    where entries are dicts:
+      { "id": str, "title": str, "duration": Optional[int], "webpage_url": str }
+
+    Notes:
+    - We use extract_flat=True for speed.
+    - We cap `limit` to avoid huge payloads in Discord UI.
+    """
+    u = (playlist_url or "").strip()
+    if not u:
+        return None, []
+
+    try:
+        lim = int(limit)
+    except Exception:
+        lim = 60
+    lim = max(1, min(200, lim))
+
+    ydl_opts: Dict[str, Any] = {
+        "quiet": True,
+        "noplaylist": False,
+        "extract_flat": True,
+        "skip_download": True,
+        "ignoreerrors": True,
+        "nocheckcertificate": True,
+        "logtostderr": False,
+        "no_warnings": True,
+    }
+    if proxy:
+        ydl_opts["proxy"] = proxy
+
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(u, download=False)
+    except Exception as e:
+        logger.warning("YouTube playlist extract failed: %s", e)
+        return None, []
+
+    if not isinstance(info, dict):
+        return None, []
+
+    title = info.get("title")
+    entries = info.get("entries") or []
+    out: list[Dict[str, Any]] = []
+
+    # entries can be a generator in some yt-dlp versions; iterate defensively.
+    try:
+        iterable = list(entries)
+    except Exception:
+        iterable = entries  # best effort
+
+    for e in iterable:
+        if not isinstance(e, dict):
+            continue
+        vid = e.get("id") or e.get("url")
+        if not vid:
+            continue
+        vid = str(vid)
+        wurl = e.get("webpage_url") or _watch_url_from_id(vid)
+        if not wurl:
+            continue
+        out.append(
+            {
+                "id": vid,
+                "title": str(e.get("title") or "(no title)"),
+                "duration": e.get("duration"),
+                # Ensure we never carry `list=` into the picked track URL (avoid recursion).
+                "webpage_url": _watch_url_from_id(vid),
+            }
+        )
+        if len(out) >= lim:
+            break
+
+    return str(title) if title else None, out
+
+
+async def get_youtube_playlist_entries(
+    playlist_url: str, limit: int = 60, proxy: Optional[str] = None
+) -> Tuple[Optional[str], list[Dict[str, Any]]]:
+    """Async wrapper for _get_youtube_playlist_entries_sync."""
+    return await asyncio.to_thread(_get_youtube_playlist_entries_sync, playlist_url, limit, proxy)
 
 
 # -----------------------------------------------------------
