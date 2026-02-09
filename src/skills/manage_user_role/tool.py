@@ -3,15 +3,17 @@ import re
 import discord
 
 
-async def execute(args: dict, message: discord.Message) -> str:
+async def execute(args: dict, message: discord.Message, bot=None) -> str:
     """
     Adds or removes roles from a user.
     """
     if not message.guild:
         return "Error: Server context required."
+
+    client = bot or getattr(message, "client", None)
         
     # Permission Check
-    ora_cog = message.client.get_cog("ORACog")
+    ora_cog = client.get_cog("ORACog") if client else None
     if ora_cog:
         if not await ora_cog._check_permission(message.author.id, "sub_admin"):
              return "PERMISSION_DENIED"

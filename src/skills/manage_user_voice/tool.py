@@ -3,12 +3,13 @@ import re
 import discord
 
 
-async def execute(args: dict, message: discord.Message) -> str:
+async def execute(args: dict, message: discord.Message, bot=None) -> str:
     """
     Manages user voice state.
     """
+    client = bot or getattr(message, "client", None)
     # Permission Check
-    ora_cog = message.client.get_cog("ORACog")
+    ora_cog = client.get_cog("ORACog") if client else None
     if ora_cog:
         if not await ora_cog._check_permission(message.author.id, "sub_admin"):
              return "PERMISSION_DENIED"
