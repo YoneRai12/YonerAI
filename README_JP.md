@@ -191,10 +191,8 @@ ORA は hub/spoke 構成で動作します:
 - Bot 側がツール実行し、結果を Core に返却
 
 ### End-to-End フロー（シーケンス）
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/e2e_request_path_sequence_jp_dark.png">
-  <img alt="End-to-End フロー（シーケンス）" src="docs/diagrams/e2e_request_path_sequence_jp.png">
-</picture>
+![End-to-End フロー（シーケンス）](docs/diagrams/e2e_request_path_sequence_jp.png#gh-light-mode-only)
+![End-to-End フロー（シーケンス）](docs/diagrams/e2e_request_path_sequence_jp_dark.png#gh-dark-mode-only)
 
 Mermaid source: `docs/diagrams/e2e_request_path_sequence_jp.mmd` (light), `docs/diagrams/e2e_request_path_sequence_jp_dark.mmd` (dark)
 

@@ -191,10 +191,8 @@ ORA currently runs as a hub/spoke agent pipeline:
 - The bot executes tools locally and submits results back to Core.
 
 ### End-to-End Request Path (Sequence)
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/e2e_request_path_sequence_en_dark.png">
-  <img alt="End-to-End Request Path (Sequence)" src="docs/diagrams/e2e_request_path_sequence_en.png">
-</picture>
+![End-to-End Request Path (Sequence)](docs/diagrams/e2e_request_path_sequence_en.png#gh-light-mode-only)
+![End-to-End Request Path (Sequence)](docs/diagrams/e2e_request_path_sequence_en_dark.png#gh-dark-mode-only)
 
 Mermaid source: `docs/diagrams/e2e_request_path_sequence_en.mmd` (light), `docs/diagrams/e2e_request_path_sequence_en_dark.mmd` (dark)
 
