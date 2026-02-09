@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="420" viewBox="0 0 1600 420" role="img" aria-label="YonerAI banner">
+  <defs>
+    <radialGradient id="bg" cx="28%" cy="35%" r="85%">
+      <stop offset="0%" stop-color="#0b1d2a"/>
+      <stop offset="55%" stop-color="#06131d"/>
+      <stop offset="100%" stop-color="#040a11"/>
+    </radialGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#22d3ee"/>
+      <stop offset="60%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#a78bfa"/>
+    </linearGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0b2231" stop-opacity="0.70"/>
+      <stop offset="100%" stop-color="#0b2231" stop-opacity="0.20"/>
+    </linearGradient>
+    <pattern id="dots" width="22" height="22" patternUnits="userSpaceOnUse">
+      <circle cx="2.5" cy="2.5" r="1.1" fill="#0ea5b7" opacity="0.22"/>
+    </pattern>
+    <filter id="softGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="5" result="b"/>
+      <feColorMatrix in="b" type="matrix" values="
+        1 0 0 0 0
+        0 1 0 0 0
+        0 0 1 0 0
+        0 0 0 0.55 0" result="g"/>
+      <feMerge>
+        <feMergeNode in="g"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#000000" flood-opacity="0.45"/>
+    </filter>
+  </defs>
+
+  <rect width="1600" height="420" fill="url(#bg)"/>
+  <rect width="1600" height="420" fill="url(#dots)" opacity="0.9"/>
+
+  <!-- subtle horizon line -->
+  <path d="M0 270 C 250 250, 420 290, 660 272 S 1150 255, 1600 285" fill="none" stroke="#0ea5b7" stroke-opacity="0.20" stroke-width="2"/>
+  <path d="M0 292 C 260 270, 420 315, 690 290 S 1220 270, 1600 310" fill="none" stroke="#38bdf8" stroke-opacity="0.10" stroke-width="2"/>
+
+  <!-- Left glass panel -->
+  <g filter="url(#shadow)">
+    <rect x="84" y="78" width="900" height="264" rx="26" fill="url(#glass)" stroke="#1f3b48" stroke-opacity="0.65"/>
+    <rect x="84" y="78" width="900" height="264" rx="26" fill="none" stroke="url(#accent)" stroke-opacity="0.35"/>
+  </g>
+
+  <!-- Network motif on the right -->
+  <g transform="translate(1060,64)" filter="url(#softGlow)">
+    <rect x="0" y="0" width="480" height="292" rx="26" fill="#071827" fill-opacity="0.55" stroke="#1f3b48" stroke-opacity="0.55"/>
+
+    <!-- hub/spoke ring -->
+    <circle cx="356" cy="150" r="86" fill="none" stroke="url(#accent)" stroke-width="3" opacity="0.85"/>
+    <circle cx="356" cy="150" r="56" fill="none" stroke="#22d3ee" stroke-width="2" opacity="0.35"/>
+
+    <!-- nodes -->
+    <g fill="#e6faff" stroke="#22d3ee" stroke-opacity="0.85" stroke-width="2">
+      <circle cx="356" cy="150" r="7"/>
+      <circle cx="408" cy="106" r="6"/>
+      <circle cx="430" cy="156" r="6"/>
+      <circle cx="398" cy="206" r="6"/>
+      <circle cx="334" cy="216" r="6"/>
+      <circle cx="302" cy="178" r="6"/>
+      <circle cx="310" cy="120" r="6"/>
+    </g>
+
+    <!-- links -->
+    <g stroke="url(#accent)" stroke-opacity="0.60" stroke-width="2" fill="none">
+      <path d="M356 150 L408 106"/>
+      <path d="M356 150 L430 156"/>
+      <path d="M356 150 L398 206"/>
+      <path d="M356 150 L334 216"/>
+      <path d="M356 150 L302 178"/>
+      <path d="M356 150 L310 120"/>
+    </g>
+
+    <!-- tiny labels -->
+    <g font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace" font-size="14" fill="#c7f9ff" opacity="0.85">
+      <text x="28" y="52">Node</text>
+      <text x="28" y="82">Clients</text>
+      <text x="28" y="112">Relay</text>
+      <text x="28" y="142">Approvals</text>
+      <text x="28" y="172">Policy</text>
+    </g>
+
+    <g stroke="#22d3ee" stroke-opacity="0.28" stroke-width="2" fill="none">
+      <path d="M92 54 H220"/>
+      <path d="M92 84 H250"/>
+      <path d="M92 114 H240"/>
+      <path d="M92 144 H270"/>
+      <path d="M92 174 H230"/>
+    </g>
+  </g>
+
+  <!-- Wordmark -->
+  <g transform="translate(134,150)">
+    <text x="0" y="0"
+      font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, 'Apple Color Emoji', 'Segoe UI Emoji'"
+      font-size="78"
+      font-weight="800"
+      letter-spacing="0.5"
+      fill="#e6faff">YonerAI</text>
+
+    <rect x="0" y="28" width="420" height="6" rx="3" fill="url(#accent)" opacity="0.9"/>
+
+    <text x="0" y="66"
+      font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace"
+      font-size="18"
+      fill="#bdefff"
+      opacity="0.92">Local Node • Relay • Multi-platform Clients • Approvals</text>
+
+    <text x="0" y="98"
+      font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial"
+      font-size="16"
+      fill="#b3d7e6"
+      opacity="0.80">Distributed personal assistant platform, safe-by-default.</text>
+  </g>
+
+  <!-- Corner badge -->
+  <g transform="translate(84,356)" opacity="0.92">
+    <rect x="0" y="0" width="520" height="42" rx="18" fill="#061622" stroke="#1f3b48" stroke-opacity="0.6"/>
+    <text x="18" y="27"
+      font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace"
+      font-size="15"
+      fill="#bdefff">Formerly ORA • Internal env prefix remains ORA_* for compatibility</text>
+  </g>
+</svg>
+

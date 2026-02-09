@@ -1,9 +1,9 @@
 <div align="center">
 
-# YonerAI 🌌
+# YonerAI
 ### **The Artificial Lifeform AI System (Node + Clients + Relay + Core)**
 
-![YonerAI Banner](docs/images/ora_hero.png)
+![YonerAI Banner](docs/images/yonerai_banner.svg)
 
 [![Release](https://img.shields.io/github/v/release/YoneRai12/ORA?style=for-the-badge&logo=github&color=blue)](https://github.com/YoneRai12/ORA/releases)
 [![Build and Test](https://github.com/YoneRai12/ORA/actions/workflows/test.yml/badge.svg?style=for-the-badge)](https://github.com/YoneRai12/ORA/actions/workflows/test.yml)
