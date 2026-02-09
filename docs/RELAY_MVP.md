@@ -7,6 +7,9 @@ This is an MVP:
 - Pairing is **Owner-only** (one-time code).
 - Routing is **minimal**: a client can proxy HTTP requests to the Node's local Web API.
 
+Protocol reference (single source of truth):
+- `docs/PROTOCOL.md`
+
 ## Start Relay
 
 ```powershell
@@ -60,7 +63,8 @@ It prints a `pairing_code=...` to the console. This code is short TTL; re-run to
 ## Pair (Owner-only)
 
 ```powershell
-curl -X POST http://127.0.0.1:9010/api/pair -H "Content-Type: application/json" -d "{\"code\":\"<PAIRING_CODE>\"}"
+# PowerShell tip: use curl.exe (not the curl alias) if you want real curl behavior.
+curl.exe -X POST http://127.0.0.1:9010/api/pair -H "Content-Type: application/json" -d "{\"code\":\"<PAIRING_CODE>\"}"
 ```
 
 Response includes `{token, node_id}`.
@@ -87,6 +91,7 @@ Notes:
 - Pairing codes are **one-time**: after a successful `/api/pair`, the same code is invalid.
 - Relay has basic DoS guards: `ORA_RELAY_MAX_PENDING`, message size caps, and per-request timeouts (`ORA_RELAY_CLIENT_TIMEOUT_SEC`).
 - For internet exposure, also enforce WebSocket frame/message size limits at the edge (Caddy/nginx/Cloudflare), not just in-app.
+- For a step-by-step external test runbook (Quick Tunnel + mobile network): `docs/RELAY_EXTERNAL_TEST.md`
 
 ## Security Notes
 

@@ -59,8 +59,9 @@ Date: 2026-02-08
 3. Relay が Client の要求を Node に転送
 4. Node コネクタがローカル Web API（例: `127.0.0.1:8000`）を叩いて結果を返す
 
-現状の最小ドキュメント:
+  現状の最小ドキュメント:
 - `docs/RELAY_MVP.md`
+- `docs/PROTOCOL.md`（Relay/Nodeコネクタ/Client の通信仕様の正）
 
 ### M2.5: Relay Hardening（外で崩れない方向）
 
