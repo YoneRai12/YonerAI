@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from typing import Optional
 
 import discord
@@ -721,6 +722,64 @@ class MediaCog(commands.Cog):
                     # Dashboard already exists and updated, no text needed.
                     pass
         else:
+            await ctx.send("❌ 再生エラー: VoiceClientへの接続に失敗しました。")
+
+    async def play_attachment_from_ai(self, ctx: commands.Context, attachment: discord.Attachment) -> None:
+        """Play an attached audio file (mp3/wav/ogg/m4a) in the user's current VC.
+
+        This is a mention-friendly path that does not require parsing a YouTube URL.
+        """
+        if not ctx.author.voice:
+            await ctx.send("❌ ボイスチャンネルに参加してからリクエストしてください。")
+            return
+
+        # Basic guard: keep this small and predictable.
+        max_mb = 25
+        try:
+            max_mb = int((os.getenv("ORA_MUSIC_MAX_ATTACHMENT_MB") or "25").strip() or "25")
+        except Exception:
+            max_mb = 25
+        max_bytes = max(1, max_mb) * 1024 * 1024
+        if getattr(attachment, "size", 0) and attachment.size > max_bytes:
+            await ctx.send(f"❌ 添付ファイルが大きすぎます (max={max_mb}MB)")
+            return
+
+        filename = (getattr(attachment, "filename", "") or "audio").strip()
+        lower = filename.lower()
+        ok_ext = lower.endswith((".mp3", ".wav", ".ogg", ".m4a"))
+        content_type = (getattr(attachment, "content_type", "") or "").lower()
+        ok_ct = content_type.startswith("audio/")
+        if not (ok_ext or ok_ct):
+            await ctx.send("❌ 音声ファイル(mp3/wav/ogg/m4a)を添付してください。")
+            return
+
+        # Save to TEMP_DIR so VoiceManager can clean it up after playback.
+        from ..config import TEMP_DIR
+        import time
+        from pathlib import Path
+
+        Path(TEMP_DIR).mkdir(parents=True, exist_ok=True)
+        suffix = Path(filename).suffix if Path(filename).suffix else ".mp3"
+        safe_base = re.sub(r"[^a-zA-Z0-9._-]+", "_", Path(filename).stem)[:60] or "audio"
+        out_path = str(Path(TEMP_DIR) / f"discord_upload_{safe_base}_{int(time.time())}{suffix}")
+        try:
+            await attachment.save(out_path)
+        except Exception:
+            # Fallback to in-memory read if save isn't supported for some reason.
+            data = await attachment.read()
+            with open(out_path, "wb") as f:
+                f.write(data)
+
+        title = filename
+        played = await self._voice_manager.play_music(ctx.author, out_path, title, is_stream=False, duration=0.0)
+        if played:
+            await ctx.send(f"🎵 添付音声を再生します: **{title}**")
+        else:
+            try:
+                if os.path.exists(out_path):
+                    os.remove(out_path)
+            except Exception:
+                pass
             await ctx.send("❌ 再生エラー: VoiceClientへの接続に失敗しました。")
 
     async def control_from_ai(self, ctx: commands.Context, action: str) -> None:

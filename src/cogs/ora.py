@@ -1683,6 +1683,53 @@ class ORACog(commands.Cog):
                     await message.add_reaction("👋")
             # Removed return
 
+            # Music (mentions only): play YouTube URL or attached audio when explicitly requested.
+            # Defaults are conservative: only admin triggers unless ORA_MUSIC_MENTION_ALLOW_NON_ADMIN=1.
+            try:
+                music_enabled = str(os.getenv("ORA_MUSIC_MENTION_TRIGGERS") or "1").strip().lower() in {"1", "true", "yes", "on"}
+                allow_non_admin = str(os.getenv("ORA_MUSIC_MENTION_ALLOW_NON_ADMIN") or "0").strip().lower() in {"1", "true", "yes", "on"}
+                if music_enabled and (allow_non_admin or message.author.id == self.bot.config.admin_user_id):
+                    want_music = any(k in clean_content.lower() for k in ["play", "music", "song", "流して", "再生", "かけて", "聴かせ"])
+                    if want_music:
+                        # 1) Attachment audio (mp3/wav/ogg/m4a)
+                        att = None
+                        for a in (getattr(message, "attachments", []) or []):
+                            fn = (getattr(a, "filename", "") or "").lower()
+                            ct = (getattr(a, "content_type", "") or "").lower()
+                            if fn.endswith((".mp3", ".wav", ".ogg", ".m4a")) or ct.startswith("audio/"):
+                                att = a
+                                break
+
+                        media_cog = self.bot.get_cog("MediaCog")
+                        if media_cog and att and hasattr(media_cog, "play_attachment_from_ai"):
+                            ctx = await self.bot.get_context(message)
+                            await media_cog.play_attachment_from_ai(ctx, att)
+                            try:
+                                await message.add_reaction("🎵")
+                            except Exception:
+                                pass
+                            return
+
+                        # 2) YouTube URL in message content
+                        yt_url = None
+                        for tok in clean_content.split():
+                            t = tok.strip().strip("<>").strip()
+                            if ("youtube.com" in t) or ("youtu.be" in t):
+                                if t.startswith("http://") or t.startswith("https://"):
+                                    yt_url = t
+                                    break
+
+                        if media_cog and yt_url:
+                            ctx = await self.bot.get_context(message)
+                            await media_cog.play_from_ai(ctx, yt_url)
+                            try:
+                                await message.add_reaction("🎵")
+                            except Exception:
+                                pass
+                            return
+            except Exception:
+                pass
+
             # [OVERRIDE] Role List Triggers (Bypass LLM)
             if any(k in message.content.lower() for k in ["role list", "role rank"]):
                 await self.tool_handler._handle_get_role_list(message)

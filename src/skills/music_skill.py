@@ -30,9 +30,25 @@ class MusicSkill:
         if not media_cog: return "Media system unavailable."
         ctx = await self.bot.get_context(message)
         query = args.get("query")
-        if not query: return "Error: Missing query."
-        await media_cog.play_from_ai(ctx, query)
-        return f"Music request sent: {query} [SILENT_COMPLETION]"
+        if query:
+            await media_cog.play_from_ai(ctx, str(query))
+            return f"Music request sent: {query} [SILENT_COMPLETION]"
+
+        # Attachment fallback: if user attached an audio file, play it.
+        att = None
+        for a in (getattr(message, "attachments", []) or []):
+            fn = (getattr(a, "filename", "") or "").lower()
+            ct = (getattr(a, "content_type", "") or "").lower()
+            if fn.endswith((".mp3", ".wav", ".ogg", ".m4a")) or ct.startswith("audio/"):
+                att = a
+                break
+        if att:
+            if hasattr(media_cog, "play_attachment_from_ai"):
+                await media_cog.play_attachment_from_ai(ctx, att)
+                return "Music attachment request sent. [SILENT_COMPLETION]"
+            return "Media system missing attachment playback helper."
+
+        return "Error: Missing query (and no audio attachment found)."
 
     async def _control(self, args: dict, message: discord.Message) -> str:
         media_cog = self.bot.get_cog("MediaCog")
