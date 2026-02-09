@@ -8,6 +8,16 @@ The three extension points are:
 2. MCP servers (external tools via stdio/JSON)
 3. Cogs / Web UI (Discord commands + dashboards)
 
+## Diagrams (README System Flows)
+
+README diagrams are committed as PNGs for reliable GitHub rendering.
+
+Regenerate them locally:
+
+```powershell
+pwsh scripts/render_diagrams.ps1 -Scale 5
+```
+
 ## 1) Add A New Skill (Local Tool)
 
 Skills live under `src/skills/<skill_name>/`.
