@@ -35,7 +35,11 @@ async def router_health(args: dict, message: discord.Message, status_manager, bo
         embed.add_field(name="Fallback Rate", value=f"{m['fallback_rate_percent']}%", inline=True)
         embed.add_field(name="Retry Rate", value=f"{m['retry_rate_percent']}%", inline=True)
         embed.add_field(name="Latency (P95/Avg)", value=f"{m['latency_p95_ms']}ms / {m['latency_avg_ms']}ms", inline=True)
-        embed.add_field(name="Cache Stability", value=f"Hash Cardinality: {m['prefix_cardinality']}\nBundle Versions: {m['unique_bundles']}", inline=False)
+        embed.add_field(
+            name="Cache Stability",
+            value=f"Unstable Bundles: {m.get('unstable_bundles_count', 0)}\nBundle Versions: {m['unique_bundles']}",
+            inline=False,
+        )
         
         if metrics["alerts"]:
             embed.add_field(name="⚠️ Alerts", value="\n".join(metrics["alerts"]), inline=False)

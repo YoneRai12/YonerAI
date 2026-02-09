@@ -116,22 +116,51 @@ class ToolSelector:
         }
 
         # --- CLASSIFICATION LOGIC (Mapping Tools to Categories) ---
-        # Use sorted_tools here to be deterministic
+        # Use sorted_tools here to be deterministic.
+        #
+        # NOTE:
+        # Tool names like "read_web_page" and "read_messages" contain "read" and were
+        # previously misclassified as CODEBASE due to substring heuristics. That caused
+        # the router to return 0 tools for URL prompts when only the public allowlist
+        # was visible (common for guests). We keep an explicit mapping for these
+        # "safe read" tools to stabilize behavior.
         safe_system_tools: set[str] = {
             # Prefer keeping SYSTEM_UTIL small and actually safe.
             "say",
             "weather",
             "read_chat_history",
-            "read_web_page",
+            "read_messages",
             "get_logs",
             "system_info",
             "router_health",
             "check_privilege",
         }
 
+        explicit_category_by_tool_name: dict[str, str] = {
+            # Web reading tool (skill) does not follow the "web_*" prefix convention.
+            "read_web_page": "WEB_READ",
+            # Discord history readers should not be treated as codebase tools.
+            "read_messages": "SYSTEM_UTIL",
+            "read_chat_history": "SYSTEM_UTIL",
+        }
+
+        codebase_tool_names: set[str] = {
+            # SafeShell-backed local inspection tools.
+            "read_file",
+            "list_files",
+            "search_code",
+            "get_system_tree",
+        }
+
         for tool in sorted_tools:
             name = tool["name"].lower()
             tags = set(tool.get("tags", []))
+
+            # Explicit mapping beats heuristics (stability over cleverness).
+            forced = explicit_category_by_tool_name.get(name)
+            if forced and forced in categories:
+                categories[forced]["tools"].append(tool)
+                continue
 
             # Sandbox tools (static inspection only)
             if ("sandbox" in tags) or name.startswith("sandbox_"):
@@ -141,6 +170,11 @@ class ToolSelector:
             # MCP remote tools
             if ("mcp" in tags) or name.startswith("mcp__"):
                 categories["MCP"]["tools"].append(tool)
+                continue
+
+            # System/Default (early): keep "safe read" tools out of CODEBASE bucket.
+            if (name in safe_system_tools) or ("system" in tags) or ("monitor" in tags) or ("health" in tags):
+                categories["SYSTEM_UTIL"]["tools"].append(tool)
                 continue
 
             # Web Split
@@ -161,18 +195,15 @@ class ToolSelector:
                  categories["VOICE_AUDIO"]["tools"].append(tool)
 
             # Codebase / local search
-            elif ("code" in tags) or name.startswith("code_") or any(x in name for x in ["grep", "find", "read", "tree"]):
+            elif ("code" in tags) or name.startswith("code_") or (name in codebase_tool_names) or any(x in name for x in ["grep", "find", "tree"]):
                  categories["CODEBASE"]["tools"].append(tool)
 
             # Discord
             elif any(x in name for x in ["ban", "kick", "role", "user", "server", "channel", "wipe"]):
                  categories["DISCORD_SERVER"]["tools"].append(tool)
 
-            # System/Default
-            elif (name in safe_system_tools) or ("system" in tags) or ("monitor" in tags) or ("health" in tags):
-                 categories["SYSTEM_UTIL"]["tools"].append(tool)
             else:
-                 categories["OTHER"]["tools"].append(tool)
+                categories["OTHER"]["tools"].append(tool)
 
         # 2. Build Prompt (S6: Prefix Stabilization)
         # Construct STATIC parts first for KV Cache optimization

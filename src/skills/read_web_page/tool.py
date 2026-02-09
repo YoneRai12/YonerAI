@@ -83,7 +83,8 @@ def _jina_reader_url(url: str) -> str | None:
 
 
 async def execute(args: dict, message=None) -> str:
-    url = (args.get("url") or "").strip()
+    # Back-compat: some callers send {"input": "..."}.
+    url = (args.get("url") or args.get("input") or args.get("link") or "").strip()
     if not url:
         return "Error: No URL provided."
 

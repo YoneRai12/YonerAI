@@ -1,0 +1,58 @@
+from __future__ import annotations
+
+from types import SimpleNamespace
+
+import pytest
+
+from src.cogs.handlers.tool_selector import ToolSelector
+
+
+class _FakeLLM:
+    def __init__(self, response: str):
+        self._resp = response
+
+    async def chat(self, *_args, **_kwargs):
+        return self._resp, None, {}
+
+
+@pytest.mark.asyncio
+async def test_router_web_read_includes_read_web_page_tool() -> None:
+    """
+    Regression test:
+    - "read_web_page" does not follow the "web_*" prefix convention.
+    - It must still be classified as WEB_READ so URL prompts don't end up with 0 tools
+      when only public allowlist tools are visible.
+    """
+    bot = SimpleNamespace(config=SimpleNamespace(standard_model="gpt-5-mini", openai_api_key="dummy"))
+    sel = ToolSelector(bot)
+    sel.llm_client = _FakeLLM('{"categories":["WEB_READ"],"intents":{"download":false,"screenshot":false,"browser_control":false}}')
+
+    tools = [
+        {"name": "read_web_page", "tags": ["web", "read"]},
+        {"name": "weather", "tags": ["system"]},
+    ]
+
+    out = await sel.select_tools("このURLを読んで https://example.com", available_tools=tools)
+    names = {t["name"] for t in out}
+    assert "read_web_page" in names
+
+
+@pytest.mark.asyncio
+async def test_router_system_util_includes_read_messages_tool() -> None:
+    """
+    Regression test:
+    - "read_messages" contains "read" and was previously misclassified as CODEBASE.
+    - It must be treated as SYSTEM_UTIL so "Fix this" / "check history" flows have tools.
+    """
+    bot = SimpleNamespace(config=SimpleNamespace(standard_model="gpt-5-mini", openai_api_key="dummy"))
+    sel = ToolSelector(bot)
+    sel.llm_client = _FakeLLM('{"categories":["SYSTEM_UTIL"],"intents":{"download":false,"screenshot":false,"browser_control":false}}')
+
+    tools = [
+        {"name": "read_messages", "tags": ["read", "history"]},
+        {"name": "weather", "tags": ["system"]},
+    ]
+    out = await sel.select_tools("Fix this", available_tools=tools)
+    names = {t["name"] for t in out}
+    assert "read_messages" in names
+
