@@ -1,0 +1,30 @@
+name: Generate Mermaid Diagrams
+
+on:
+  push:
+    paths:
+      - 'docs/diagrams/*.mmd'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  generate-diagrams:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compile Mermaid
+        uses: mermaid-js/mermaid-cli-action@v1.4.0
+        with:
+          path: docs/diagrams
+          output: docs/diagrams
+          extension: svg
+
+      - name: Commit changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "docs: update mermaid diagrams [skip ci]"
+          file_pattern: "docs/diagrams/*.svg"

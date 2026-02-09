@@ -15,7 +15,7 @@ async def _wait_port_open(host: str, port: int, timeout_sec: float = 8.0) -> boo
     deadline = asyncio.get_running_loop().time() + max(0.5, float(timeout_sec))
     while asyncio.get_running_loop().time() < deadline:
         try:
-            r, w = await asyncio.open_connection(host, port)
+            _r, w = await asyncio.open_connection(host, port)
             w.close()
             try:
                 await w.wait_closed()
@@ -89,3 +89,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
