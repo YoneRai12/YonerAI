@@ -1684,11 +1684,26 @@ class ORACog(commands.Cog):
             # Removed return
 
             # Music (mentions only): play YouTube URL or attached audio when explicitly requested.
-            # Defaults are conservative: only admin triggers unless ORA_MUSIC_MENTION_ALLOW_NON_ADMIN=1.
+            # Defaults are conservative:
+            # - attachments: owner-only unless ORA_MUSIC_MENTION_LEVEL=vc_admin|user (or legacy ORA_MUSIC_MENTION_ALLOW_NON_ADMIN=1)
+            # - YouTube URLs: vc_admin+ by default (can be relaxed via ORA_MUSIC_MENTION_YOUTUBE_LEVEL)
             try:
                 music_enabled = str(os.getenv("ORA_MUSIC_MENTION_TRIGGERS") or "1").strip().lower() in {"1", "true", "yes", "on"}
-                allow_non_admin = str(os.getenv("ORA_MUSIC_MENTION_ALLOW_NON_ADMIN") or "0").strip().lower() in {"1", "true", "yes", "on"}
-                if music_enabled and (allow_non_admin or message.author.id == self.bot.config.admin_user_id):
+
+                legacy_allow_all = str(os.getenv("ORA_MUSIC_MENTION_ALLOW_NON_ADMIN") or "0").strip().lower() in {"1", "true", "yes", "on"}
+                level_att = (os.getenv("ORA_MUSIC_MENTION_LEVEL") or "").strip().lower() or ("user" if legacy_allow_all else "owner")
+                level_yt = (os.getenv("ORA_MUSIC_MENTION_YOUTUBE_LEVEL") or "").strip().lower() or ("user" if legacy_allow_all else "vc_admin")
+
+                async def _allow(level: str) -> bool:
+                    lv = (level or "owner").strip().lower()
+                    if lv == "user":
+                        return True
+                    if lv == "vc_admin":
+                        return await self._check_permission(message.author.id, "vc_admin")
+                    # default: owner
+                    return message.author.id == self.bot.config.admin_user_id
+
+                if music_enabled and (await _allow(level_att)):
                     want_music = any(k in clean_content.lower() for k in ["play", "music", "song", "流して", "再生", "かけて", "聴かせ"])
                     if want_music:
                         # 1) Attachment audio (mp3/wav/ogg/m4a)
@@ -1710,23 +1725,34 @@ class ORACog(commands.Cog):
                                 pass
                             return
 
-                        # 2) YouTube URL in message content
-                        yt_url = None
-                        for tok in clean_content.split():
-                            t = tok.strip().strip("<>").strip()
-                            if ("youtube.com" in t) or ("youtu.be" in t):
-                                if t.startswith("http://") or t.startswith("https://"):
-                                    yt_url = t
-                                    break
+                        # YouTube playback permission can be stricter than attachments.
+                        if not (await _allow(level_yt)):
+                            logger.info(
+                                "Mention music denied (youtube): user_id=%s guild_id=%s required=%s",
+                                message.author.id,
+                                getattr(message.guild, "id", None),
+                                level_yt,
+                            )
+                            # Let ChatHandler handle it (might still respond in text).
+                            pass
+                        else:
+                            # 2) YouTube URL in message content
+                            yt_url = None
+                            for tok in clean_content.split():
+                                t = tok.strip().strip("<>").strip()
+                                if ("youtube.com" in t) or ("youtu.be" in t):
+                                    if t.startswith("http://") or t.startswith("https://"):
+                                        yt_url = t
+                                        break
 
-                        if media_cog and yt_url:
-                            ctx = await self.bot.get_context(message)
-                            await media_cog.play_from_ai(ctx, yt_url)
-                            try:
-                                await message.add_reaction("🎵")
-                            except Exception:
-                                pass
-                            return
+                            if media_cog and yt_url:
+                                ctx = await self.bot.get_context(message)
+                                await media_cog.play_from_ai(ctx, yt_url)
+                                try:
+                                    await message.add_reaction("🎵")
+                                except Exception:
+                                    pass
+                                return
             except Exception:
                 pass
 
