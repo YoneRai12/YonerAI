@@ -43,6 +43,8 @@ from typing import Any, Dict, List
 from .tools import web_tools
 from ..utils.ui import StatusManager
 from src.utils.browser import browser_manager
+from ..utils.spotify import is_spotify_playlist_like, is_spotify_url, get_spotify_tracks
+import random
 
 logger = logging.getLogger(__name__)
 
@@ -680,6 +682,12 @@ class MediaCog(commands.Cog):
 
         is_url = q.startswith("http://") or q.startswith("https://")
 
+        # Spotify URLs are not directly streamable; we map them to YouTube by metadata search.
+        # For multi-track sources (playlist/album), we support queue-all via a background resolver.
+        if is_url and is_spotify_url(q):
+            await self.enqueue_playlist_url_from_ai(ctx, q, force_queue_all=True)
+            return
+
         # Playlist URL: show Discord-native picker (pagination) instead of auto-playing the first item.
         # This matches common music bots UX and avoids surprises.
         try:
@@ -849,6 +857,162 @@ class MediaCog(commands.Cog):
                     pass
         else:
             await ctx.send("❌ 再生エラー: VoiceClientへの接続に失敗しました。")
+
+    async def enqueue_playlist_url_from_ai(self, ctx: commands.Context, url: str, force_queue_all: bool = True) -> None:
+        """
+        Queue all tracks from a playlist-like URL (YouTube playlist, Spotify playlist/album).
+
+        This is designed for mention-based UX: "@YonerAI <playlist_url> 流して" -> queue all.
+        """
+        if not ctx.author.voice:
+            await ctx.send("❌ ボイスチャンネルに参加してからリクエストしてください。")
+            return
+
+        u = (url or "").strip()
+        if not u:
+            await ctx.send("❌ URLが空です。")
+            return
+
+        # Limits and behavior knobs
+        try:
+            raw_lim = (os.getenv("ORA_MUSIC_QUEUE_ALL_LIMIT") or "60").strip()
+            lim = int(raw_lim)
+        except Exception:
+            lim = 60
+        lim = max(10, min(200, lim))
+
+        shuffle = (os.getenv("ORA_MUSIC_QUEUE_ALL_SHUFFLE") or "0").strip().lower() in {"1", "true", "yes", "on"}
+        per_track_timeout = float((os.getenv("ORA_MUSIC_QUEUE_ALL_RESOLVE_TIMEOUT_SEC") or "20").strip() or "20")
+        per_track_timeout = max(5.0, min(60.0, per_track_timeout))
+
+        # Avoid double background queueing per guild.
+        if not hasattr(self, "_playlist_queue_tasks"):
+            self._playlist_queue_tasks = {}  # type: ignore[attr-defined]
+        task_map: dict[int, asyncio.Task] = getattr(self, "_playlist_queue_tasks")
+        gid = getattr(getattr(ctx, "guild", None), "id", 0) or 0
+        if gid and gid in task_map and not task_map[gid].done():
+            await ctx.send("⏳ いま別のプレイリストを追加中です。終わるまで少し待ってください。")
+            return
+
+        # Extract entries (lightweight) then resolve to stream URLs in background.
+        if is_youtube_playlist_url(u):
+            ptitle, entries = await get_youtube_playlist_entries(u, limit=lim)
+            if not entries:
+                await ctx.send("❌ YouTubeプレイリストから曲を取得できませんでした。")
+                return
+            if shuffle:
+                random.shuffle(entries)
+
+            # Map to resolvable URLs (watch URLs)
+            items: list[dict[str, Any]] = []
+            for e in entries[:lim]:
+                w = str(e.get("webpage_url") or "").strip()
+                t = str(e.get("title") or "").strip() or w
+                d = e.get("duration")
+                items.append({"kind": "youtube", "query": w, "title_hint": t, "duration_hint": d})
+
+            header = f"📃 YouTubeプレイリストをキューに追加します: **{ptitle or 'Playlist'}**\n曲数: {len(items)}"
+            status = await ctx.send(header + "\n解決中: 0")
+
+            async def _runner() -> None:
+                queued = 0
+                failed = 0
+                for i, it in enumerate(items, start=1):
+                    q = str(it.get("query") or "").strip()
+                    if not q:
+                        failed += 1
+                        continue
+                    try:
+                        stream_url, title, dur = await asyncio.wait_for(get_youtube_audio_stream_url(q), timeout=per_track_timeout)
+                    except Exception:
+                        stream_url, title, dur = (None, None, None)
+
+                    if stream_url and title:
+                        ok = await self._voice_manager.play_music(
+                            ctx.author, stream_url, title, is_stream=True, duration=float(dur or 0.0)
+                        )
+                        if ok:
+                            queued += 1
+                        else:
+                            failed += 1
+                    else:
+                        failed += 1
+
+                    if i == 1 or i % 5 == 0 or i == len(items):
+                        try:
+                            await status.edit(content=header + f"\n解決中: {i}/{len(items)} | queued={queued} failed={failed}")
+                        except Exception:
+                            pass
+
+                try:
+                    await status.edit(content=header + f"\n✅ 完了: queued={queued} failed={failed}")
+                except Exception:
+                    pass
+
+            task = asyncio.create_task(_runner())
+            if gid:
+                task_map[gid] = task
+            return
+
+        if is_spotify_url(u):
+            if not is_spotify_playlist_like(u):
+                # Track URL: queue 1 item via YouTube search
+                title, tracks = await get_spotify_tracks(u, limit=1)
+            else:
+                title, tracks = await get_spotify_tracks(u, limit=lim)
+
+            if not tracks:
+                await ctx.send("❌ Spotifyから曲を取得できませんでした。`ORA_SPOTIFY_CLIENT_ID/SECRET` を設定すると安定します。")
+                return
+            if shuffle and len(tracks) > 1:
+                random.shuffle(tracks)
+
+            header = f"📃 SpotifyをYouTubeに変換してキューに追加します: **{title or 'Spotify'}**\n曲数: {len(tracks)}"
+            status = await ctx.send(header + "\n解決中: 0")
+
+            async def _runner() -> None:
+                queued = 0
+                failed = 0
+                for i, tr in enumerate(tracks, start=1):
+                    q = str(tr.get("query") or "").strip()
+                    if not q:
+                        failed += 1
+                        continue
+                    try:
+                        stream_url, yt_title, dur = await asyncio.wait_for(get_youtube_audio_stream_url(q), timeout=per_track_timeout)
+                    except Exception:
+                        stream_url, yt_title, dur = (None, None, None)
+
+                    # Prefer YouTube resolved title so the dashboard matches the actual playing media.
+                    title_for_play = str(yt_title or tr.get("title") or q).strip()
+                    if stream_url and title_for_play:
+                        ok = await self._voice_manager.play_music(
+                            ctx.author, stream_url, title_for_play, is_stream=True, duration=float(dur or 0.0)
+                        )
+                        if ok:
+                            queued += 1
+                        else:
+                            failed += 1
+                    else:
+                        failed += 1
+
+                    if i == 1 or i % 5 == 0 or i == len(tracks):
+                        try:
+                            await status.edit(content=header + f"\n解決中: {i}/{len(tracks)} | queued={queued} failed={failed}")
+                        except Exception:
+                            pass
+
+                try:
+                    await status.edit(content=header + f"\n✅ 完了: queued={queued} failed={failed}")
+                except Exception:
+                    pass
+
+            task = asyncio.create_task(_runner())
+            if gid:
+                task_map[gid] = task
+            return
+
+        await ctx.send("❌ 対応していないURLです（YouTube/Spotifyのみ）。")
 
     async def play_attachment_from_ai(self, ctx: commands.Context, attachment: discord.Attachment) -> None:
         """Play an attached audio file (mp3/wav/ogg/m4a) in the user's current VC.

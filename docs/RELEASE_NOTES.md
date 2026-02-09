@@ -74,6 +74,9 @@ This page is a curated summary of what changed across releases (beyond GitHub’
 - **Music UX (Discord)**:
   - Mention-based playback supports YouTube URLs, audio attachments, and plain search queries.
   - Optional Discord-native scroll picker (Select menu) for choosing a track from search results.
+  - **Playlist queue-all (mentions)**: `@Bot <playlist_url> 流して` queues the whole playlist in the background:
+    - YouTube playlists: queues all tracks.
+    - Spotify playlists/albums: extracts track metadata and searches YouTube for playback (Spotify audio is not streamed directly).
 
 ### Observability & Reproducibility
 - **Portable logging paths**:

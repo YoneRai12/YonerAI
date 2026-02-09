@@ -1736,18 +1736,46 @@ class ORACog(commands.Cog):
                             # Let ChatHandler handle it (might still respond in text).
                             pass
                         else:
-                            # 2) YouTube URL in message content
+                            # 2) YouTube/Spotify URL in message content
                             yt_url = None
+                            sp_url = None
                             for tok in clean_content.split():
                                 t = tok.strip().strip("<>").strip()
                                 if ("youtube.com" in t) or ("youtu.be" in t):
                                     if t.startswith("http://") or t.startswith("https://"):
                                         yt_url = t
                                         break
+                                if ("open.spotify.com" in t) or ("spotify.com" in t) or t.startswith("spotify:"):
+                                    if t.startswith("spotify:") or t.startswith("http://") or t.startswith("https://"):
+                                        sp_url = t
+                                        # don't break; prefer YouTube if both exist
+
+                            # Spotify links are treated similar to YouTube (external resolution / higher risk than attachments).
+                            if media_cog and sp_url and (not yt_url):
+                                ctx = await self.bot.get_context(message)
+                                try:
+                                    if hasattr(media_cog, "enqueue_playlist_url_from_ai"):
+                                        await media_cog.enqueue_playlist_url_from_ai(ctx, sp_url, force_queue_all=True)
+                                    else:
+                                        await media_cog.play_from_ai(ctx, sp_url)
+                                except Exception:
+                                    await media_cog.play_from_ai(ctx, sp_url)
+                                try:
+                                    await message.add_reaction("🎵")
+                                except Exception:
+                                    pass
+                                return
 
                             if media_cog and yt_url:
                                 ctx = await self.bot.get_context(message)
-                                await media_cog.play_from_ai(ctx, yt_url)
+                                # If it's a playlist URL, queue all (mention UX). Otherwise, play normally.
+                                try:
+                                    if hasattr(media_cog, "enqueue_playlist_url_from_ai"):
+                                        await media_cog.enqueue_playlist_url_from_ai(ctx, yt_url, force_queue_all=True)
+                                    else:
+                                        await media_cog.play_from_ai(ctx, yt_url)
+                                except Exception:
+                                    await media_cog.play_from_ai(ctx, yt_url)
                                 try:
                                     await message.add_reaction("🎵")
                                 except Exception:
