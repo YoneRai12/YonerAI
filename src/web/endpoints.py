@@ -7,6 +7,7 @@ import os
 import uuid
 from datetime import datetime
 from typing import List
+from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request, Response, WebSocket, WebSocketDisconnect, Depends, Header, Query
 from fastapi.responses import RedirectResponse
@@ -49,8 +50,7 @@ _ALLOWED_ENV_KEYS: set[str] = {
 }
 
 
-def _settings_paths() -> tuple["Path", "Path", "Path"]:
-    from pathlib import Path
+def _settings_paths() -> tuple[Path, Path, Path]:
     from src.config import SECRETS_DIR, STATE_DIR
 
     secrets_dir = Path(SECRETS_DIR)
