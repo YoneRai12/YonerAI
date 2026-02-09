@@ -27,6 +27,11 @@ jobs:
           ORA_VERSION=$(cat VERSION | tr -d '[:space:]')
           echo "ORA_VERSION=$ORA_VERSION" >> $GITHUB_ENV
 
+      - name: Read PRODUCT_NAME
+        run: |
+          PRODUCT_NAME=$(cat PRODUCT_NAME | tr -d '[:space:]')
+          echo "PRODUCT_NAME=$PRODUCT_NAME" >> $GITHUB_ENV
+
       - name: Verify Release Notes Exist
         run: |
           test -f "docs/releases/${ORA_VERSION}.md"
@@ -39,10 +44,10 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
-          files: ORA-*.zip
+          files: ${{ env.PRODUCT_NAME }}-*.zip
           # Publish automatically (no manual "Draft -> Publish" step in the GitHub UI).
           draft: false
-          name: ORA ${{ env.ORA_VERSION }}
+          name: ${{ env.PRODUCT_NAME }} ${{ env.ORA_VERSION }}
           body_path: docs/releases/${{ env.ORA_VERSION }}.md
           generate_release_notes: false
         env:

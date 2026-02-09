@@ -2,9 +2,21 @@ import subprocess
 import sys
 from pathlib import Path
 
+
+def _read_product_name(repo_root: Path) -> str:
+    # Single source of truth for branding of release artifacts.
+    # Keep default "ORA" for older checkouts that don't have PRODUCT_NAME.
+    p = repo_root / "PRODUCT_NAME"
+    try:
+        name = p.read_text(encoding="utf-8", errors="ignore").strip()
+    except Exception:
+        name = ""
+    return name or "ORA"
+
 def create_release_zip(version):
     repo_root = Path(__file__).parent.parent
-    zip_name = f"ORA-{version}.zip"
+    product = _read_product_name(repo_root)
+    zip_name = f"{product}-{version}.zip"
     output_path = repo_root / zip_name
     
     print(f"Creating release archive for version {version}...")
@@ -17,10 +29,10 @@ def create_release_zip(version):
             check=True,
             cwd=str(repo_root)
         )
-        print(f"✅ Created: {output_path}")
+        print(f"Created: {output_path}")
         return output_path
     except subprocess.CalledProcessError as e:
-        print(f"❌ Failed to create archive: {e}")
+        print(f"Failed to create archive: {e}")
         return None
 
 if __name__ == "__main__":

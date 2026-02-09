@@ -220,3 +220,20 @@ When you succeed once, append a short note to `docs/RELAY_EXTERNAL_TEST.md` (bel
 
 This makes regressions easy to spot later.
 
+---
+
+## 9. Automated Test (Recommended)
+
+If you want a one-command verification (starts its own temporary ports, uses Quick Tunnel, does 1 round-trip, then cleans up):
+
+```powershell
+python scripts/verify_relay_external_roundtrip.py
+```
+
+It prints a redacted success line like:
+
+`OK external round-trip via Quick Tunnel: public=<redacted>.trycloudflare.com relay_port=19010 node_port=18000`
+
+### Evidence Log
+
+- 2026-02-09: OK external round-trip via Quick Tunnel (redacted), `relay_port=19010`, `node_port=18000`
