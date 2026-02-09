@@ -190,13 +190,29 @@ ORA currently runs as a hub/spoke agent pipeline:
 - `ORA Core API` owns the reasoning loop and emits tool calls.
 - The bot executes tools locally and submits results back to Core.
 
+If you want to add features (tools/skills/MCP) without breaking the core loop, see: `docs/EXTENSIONS.md`.
+
 ### End-to-End Request Path (Sequence)
-![End-to-End Request Path (Sequence)](docs/diagrams/e2e_request_path_sequence_en.png#gh-light-mode-only)
-![End-to-End Request Path (Sequence)](docs/diagrams/e2e_request_path_sequence_en_dark.png#gh-dark-mode-only)
+<img alt="End-to-End Request Path (Sequence)" src="docs/diagrams/e2e_request_path_sequence_en.png#gh-light-mode-only" width="1100">
+<img alt="End-to-End Request Path (Sequence)" src="docs/diagrams/e2e_request_path_sequence_en_dark.png#gh-dark-mode-only" width="1100">
 
 Mermaid source: `docs/diagrams/e2e_request_path_sequence_en.mmd` (light), `docs/diagrams/e2e_request_path_sequence_en_dark.mmd` (dark)
 
 ---
+
+### Relay Pairing + Proxy Path (Sequence)
+<img alt="Relay Pairing + Proxy Path (Sequence)" src="docs/diagrams/relay_pairing_and_proxy_en.png#gh-light-mode-only" width="1100">
+<img alt="Relay Pairing + Proxy Path (Sequence)" src="docs/diagrams/relay_pairing_and_proxy_en_dark.png#gh-dark-mode-only" width="1100">
+
+Mermaid source: `docs/diagrams/relay_pairing_and_proxy_en.mmd` (light), `docs/diagrams/relay_pairing_and_proxy_en_dark.mmd` (dark)
+
+---
+
+### Tool Policy + Approvals Gate (Flow)
+<img alt="Tool Policy + Approvals Gate (Flow)" src="docs/diagrams/tool_policy_and_approvals_flow_en.png#gh-light-mode-only" width="1100">
+<img alt="Tool Policy + Approvals Gate (Flow)" src="docs/diagrams/tool_policy_and_approvals_flow_en_dark.png#gh-dark-mode-only" width="1100">
+
+Mermaid source: `docs/diagrams/tool_policy_and_approvals_flow_en.mmd` (light), `docs/diagrams/tool_policy_and_approvals_flow_en_dark.mmd` (dark)
 
 ## Dev Checks (Same As CI)
 

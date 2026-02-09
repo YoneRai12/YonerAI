@@ -1,0 +1,60 @@
+%%{init: {"theme":"base","themeVariables":{
+  "mainBkg":"transparent",
+  "textColor":"#0f172a",
+  "lineColor":"#334155",
+  "primaryColor":"#ffffff",
+  "primaryTextColor":"#0f172a",
+  "primaryBorderColor":"#334155",
+  "actorBkg":"#ffffff",
+  "actorBorder":"#334155",
+  "actorTextColor":"#0f172a",
+  "signalColor":"#0f172a",
+  "signalTextColor":"#0f172a",
+  "sequenceNumberBgColor":"#0f172a",
+  "sequenceNumberColor":"#ffffff",
+  "labelBoxBkgColor":"#ffffff",
+  "labelBoxBorderColor":"#334155",
+  "labelTextColor":"#0f172a",
+  "loopBkgColor":"#ffffff",
+  "loopBorderColor":"#334155",
+  "loopTextColor":"#0f172a",
+  "noteBkgColor":"#f8fafc",
+  "noteBorderColor":"#334155",
+  "noteTextColor":"#0f172a",
+  "activationBkgColor":"#e2e8f0",
+  "activationBorderColor":"#334155",
+  "fontSize":"16px"
+}}}%%
+
+sequenceDiagram
+    autonumber
+    participant C as クライアント（Web/iOS/Android/Win/Mac）
+    participant R as Relay（WSルータ）
+    participant N as Nodeコネクタ（ユーザーPC常駐）
+    participant A as ローカルNode API（127.0.0.1）
+
+    Note over N,R: PC側は外向き接続のみ（ポート開放しない）
+    N->>R: WS接続（/ws/node）
+    R-->>N: node_session確立
+
+    Note over N: Ownerへワンタイムのペアリングコードを表示
+    N-->>N: pairing_code生成（TTL + 1回限り）
+    N-->>R: pair_offer通知（code_hash, node_id）
+
+    C->>R: POST /api/pair（pairing_code）
+    R-->>C: session_token（owner）
+
+    C->>R: WS接続（/ws/client?token=...）
+    R-->>C: client_session確立
+
+    loop 多重化（id -> future）
+        C->>R: http_proxy {id, method, path, headers?, body?}
+        R->>N: 転送 {id, method, path, headers?, body?}
+        N->>A: HTTP（ループバック）
+        A-->>N: HTTPレスポンス
+        N-->>R: 返信 {id, status, headers?, body?}
+        R-->>C: 返信 {id, status, headers?, body?}
+    end
+
+    Note over R: Harden: pending上限 / timeout / サイズ制限 / 切断時cleanup
+

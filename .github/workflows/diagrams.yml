@@ -20,10 +20,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # Render at high resolution so text stays readable in README.
+          # Default diagram width is ~780px; scale 5 yields ~4K output.
+          SCALE="${ORA_MERMAID_SCALE:-5}"
           for f in docs/diagrams/*.mmd; do
             base="${f%.mmd}"
             # PNGs are used in README because GitHub may sanitize inline SVG styles.
-            npx -y @mermaid-js/mermaid-cli@latest -i "$f" -o "${base}.png" -b transparent --quiet
+            npx -y @mermaid-js/mermaid-cli@latest -i "$f" -o "${base}.png" -b transparent -s "$SCALE" --quiet
             npx -y @mermaid-js/mermaid-cli@latest -i "$f" -o "${base}.svg" -b transparent --quiet
           done
 

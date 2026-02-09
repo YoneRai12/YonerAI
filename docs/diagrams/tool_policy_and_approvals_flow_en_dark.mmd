@@ -1,0 +1,32 @@
+%%{init: {"theme":"base","themeVariables":{
+  "mainBkg":"transparent",
+  "textColor":"#e6edf3",
+  "lineColor":"#9ca3af",
+  "primaryColor":"#111827",
+  "primaryTextColor":"#e6edf3",
+  "primaryBorderColor":"#6b7280",
+  "noteBkgColor":"#0b1220",
+  "noteTextColor":"#e6edf3",
+  "noteBorderColor":"#6b7280",
+  "fontSize":"16px"
+}}}%%
+
+flowchart TD
+  A[Tool call dispatched tool_name args tool_call_id] --> B{Access control allowlist by role profile}
+  B -->|Denied| X[BLOCKED]
+  B -->|Allowed| C[Risk scoring tool tags args]
+  C --> D{Policy engine decision}
+  D -->|Blocked| X
+  D -->|Allowed + no approval| E[Execute tool]
+  D -->|Approval required| F[Create approval_request pending TTL]
+  F --> G[Notify requester approval pending]
+  F --> H[Notify owner out_of_band DM Web API]
+  H --> I{Approved within TTL}
+  I -->|No| J[Denied Expired Timeout]
+  I -->|Yes| K{CRITICAL}
+  K -->|Yes| L[Require code]
+  L -->|Code valid| E
+  K -->|No| E
+  E --> M[Audit log + artifacts]
+  J --> M
+  M --> N[Submit tool result to Core dedupe by tool_call_id]

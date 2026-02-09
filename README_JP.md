@@ -190,13 +190,29 @@ ORA は hub/spoke 構成で動作します:
 - `ORA Core API` が推論ループを主導し tool_call を発行
 - Bot 側がツール実行し、結果を Core に返却
 
+機能追加（tools/skills/MCP）を安全に増やすガイド: `docs/EXTENSIONS.md`
+
 ### End-to-End フロー（シーケンス）
-![End-to-End フロー（シーケンス）](docs/diagrams/e2e_request_path_sequence_jp.png#gh-light-mode-only)
-![End-to-End フロー（シーケンス）](docs/diagrams/e2e_request_path_sequence_jp_dark.png#gh-dark-mode-only)
+<img alt="End-to-End フロー（シーケンス）" src="docs/diagrams/e2e_request_path_sequence_jp.png#gh-light-mode-only" width="1100">
+<img alt="End-to-End フロー（シーケンス）" src="docs/diagrams/e2e_request_path_sequence_jp_dark.png#gh-dark-mode-only" width="1100">
 
 Mermaid source: `docs/diagrams/e2e_request_path_sequence_jp.mmd` (light), `docs/diagrams/e2e_request_path_sequence_jp_dark.mmd` (dark)
 
 ---
+
+### Relay ペアリング + Proxy 経路（シーケンス）
+<img alt="Relay ペアリング + Proxy 経路（シーケンス）" src="docs/diagrams/relay_pairing_and_proxy_jp.png#gh-light-mode-only" width="1100">
+<img alt="Relay ペアリング + Proxy 経路（シーケンス）" src="docs/diagrams/relay_pairing_and_proxy_jp_dark.png#gh-dark-mode-only" width="1100">
+
+Mermaid source: `docs/diagrams/relay_pairing_and_proxy_jp.mmd` (light), `docs/diagrams/relay_pairing_and_proxy_jp_dark.mmd` (dark)
+
+---
+
+### ツールポリシー + 承認ゲート（フロー）
+<img alt="ツールポリシー + 承認ゲート（フロー）" src="docs/diagrams/tool_policy_and_approvals_flow_jp.png#gh-light-mode-only" width="1100">
+<img alt="ツールポリシー + 承認ゲート（フロー）" src="docs/diagrams/tool_policy_and_approvals_flow_jp_dark.png#gh-dark-mode-only" width="1100">
+
+Mermaid source: `docs/diagrams/tool_policy_and_approvals_flow_jp.mmd` (light), `docs/diagrams/tool_policy_and_approvals_flow_jp_dark.mmd` (dark)
 
 ## 開発用チェック（CI相当）
 

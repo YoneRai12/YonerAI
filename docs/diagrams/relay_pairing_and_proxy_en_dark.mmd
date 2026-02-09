@@ -1,0 +1,60 @@
+%%{init: {"theme":"base","themeVariables":{
+  "mainBkg":"transparent",
+  "textColor":"#e6edf3",
+  "lineColor":"#9ca3af",
+  "primaryColor":"#111827",
+  "primaryTextColor":"#e6edf3",
+  "primaryBorderColor":"#6b7280",
+  "actorBkg":"#111827",
+  "actorBorder":"#6b7280",
+  "actorTextColor":"#e6edf3",
+  "signalColor":"#e6edf3",
+  "signalTextColor":"#e6edf3",
+  "sequenceNumberBgColor":"#e6edf3",
+  "sequenceNumberColor":"#111827",
+  "labelBoxBkgColor":"#111827",
+  "labelBoxBorderColor":"#6b7280",
+  "labelTextColor":"#e6edf3",
+  "loopBkgColor":"#111827",
+  "loopBorderColor":"#6b7280",
+  "loopTextColor":"#e6edf3",
+  "noteBkgColor":"#0b1220",
+  "noteBorderColor":"#6b7280",
+  "noteTextColor":"#e6edf3",
+  "activationBkgColor":"#1f2937",
+  "activationBorderColor":"#6b7280",
+  "fontSize":"16px"
+}}}%%
+
+sequenceDiagram
+    autonumber
+    participant C as Client (Web/iOS/Android/Win/Mac)
+    participant R as Relay (WS router)
+    participant N as Node Connector (on user PC)
+    participant A as Local Node API (127.0.0.1)
+
+    Note over N,R: Node makes an outbound WS connection (no port-forwarding on the PC).
+    N->>R: WS connect (/ws/node)
+    R-->>N: node_session established
+
+    Note over N: Show one-time pairing code to the owner
+    N-->>N: generate pairing_code (TTL + one-time)
+    N-->>R: announce pair_offer(code_hash, node_id)
+
+    C->>R: POST /api/pair (pairing_code)
+    R-->>C: session_token (owner)
+
+    C->>R: WS connect (/ws/client?token=...)
+    R-->>C: client_session established
+
+    loop Multiplexed requests (id -> future)
+        C->>R: http_proxy {id, method, path, headers?, body?}
+        R->>N: forward {id, method, path, headers?, body?}
+        N->>A: HTTP request (loopback)
+        A-->>N: HTTP response
+        N-->>R: reply {id, status, headers?, body?}
+        R-->>C: reply {id, status, headers?, body?}
+    end
+
+    Note over R: Hardening: max pending, per-id timeout, size limits, cleanup on disconnect.
+

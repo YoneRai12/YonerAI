@@ -1,0 +1,32 @@
+%%{init: {"theme":"base","themeVariables":{
+  "mainBkg":"transparent",
+  "textColor":"#0f172a",
+  "lineColor":"#334155",
+  "primaryColor":"#ffffff",
+  "primaryTextColor":"#0f172a",
+  "primaryBorderColor":"#334155",
+  "noteBkgColor":"#f8fafc",
+  "noteTextColor":"#0f172a",
+  "noteBorderColor":"#334155",
+  "fontSize":"16px"
+}}}%%
+
+flowchart TD
+  A[ツール呼び出しdispatch tool_name args tool_call_id] --> B{アクセス制御 role profile allowlist}
+  B -->|拒否| X[BLOCK]
+  B -->|許可| C[リスク採点 tags args]
+  C --> D{ポリシー判定}
+  D -->|BLOCK| X
+  D -->|承認なしでOK| E[ツール実行]
+  D -->|承認が必要| F[approval_request作成 pending TTL]
+  F --> G[依頼者へ通知：承認待ち]
+  F --> H[Ownerへ別チャネル通知 DM Web API]
+  H --> I{TTL内に承認}
+  I -->|いいえ| J[deny expired timeout]
+  I -->|はい| K{CRITICAL}
+  K -->|はい| L[code必須]
+  L -->|code OK| E
+  K -->|いいえ| E
+  E --> M[監査ログ + artifacts]
+  J --> M
+  M --> N[Coreへ結果送信 tool_call_idで重複排除]
