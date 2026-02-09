@@ -171,6 +171,90 @@ async def download_youtube_audio(query: str, proxy: Optional[str] = None) -> Tup
 
 
 # -----------------------------------------------------------
+# YouTube Search (multiple candidates) for Discord-native picker
+# -----------------------------------------------------------
+def _search_youtube_sync(query: str, limit: int = 10, proxy: Optional[str] = None) -> list[Dict[str, Any]]:
+    """
+    Search YouTube and return a list of lightweight entries:
+      { "title": str, "webpage_url": str, "id": str, "duration": Optional[int] }
+
+    Uses extract_flat=True for speed; resolve stream URL later for the chosen entry.
+    """
+    q = (query or "").strip()
+    if not q:
+        return []
+
+    try:
+        lim = int(limit)
+    except Exception:
+        lim = 10
+    lim = max(1, min(25, lim))
+
+    if not q.startswith("http") and not q.startswith("ytsearch"):
+        q = f"ytsearch{lim}:{q}"
+
+    ydl_opts: Dict[str, Any] = {
+        "quiet": True,
+        "default_search": "ytsearch",
+        "noplaylist": True,
+        "extract_flat": True,  # lightweight (titles/ids)
+        "skip_download": True,
+        "nocheckcertificate": True,
+        "ignoreerrors": True,
+        "logtostderr": False,
+        "no_warnings": True,
+    }
+    if proxy:
+        ydl_opts["proxy"] = proxy
+
+    out: list[Dict[str, Any]] = []
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(q, download=False)
+    except Exception as e:
+        logger.warning("YouTube search failed: %s", e)
+        return []
+
+    if not info:
+        return []
+
+    entries = info.get("entries") if isinstance(info, dict) else None
+    if not entries:
+        # Sometimes extract_info returns a single item dict.
+        if isinstance(info, dict) and info.get("id"):
+            vid = str(info.get("id"))
+            out.append(
+                {
+                    "id": vid,
+                    "title": str(info.get("title") or "(no title)"),
+                    "duration": info.get("duration"),
+                    "webpage_url": str(info.get("webpage_url") or f"https://www.youtube.com/watch?v={vid}"),
+                }
+            )
+        return out
+
+    for e in entries[:lim]:
+        if not isinstance(e, dict):
+            continue
+        vid = e.get("id") or e.get("url")
+        if not vid:
+            continue
+        vid = str(vid)
+        title = str(e.get("title") or "(no title)")
+        webpage_url = e.get("webpage_url") or (f"https://www.youtube.com/watch?v={vid}" if len(vid) >= 6 else "")
+        if not webpage_url:
+            continue
+        out.append({"id": vid, "title": title, "duration": e.get("duration"), "webpage_url": str(webpage_url)})
+
+    return out
+
+
+async def search_youtube(query: str, limit: int = 10, proxy: Optional[str] = None) -> list[Dict[str, Any]]:
+    """Async wrapper for _search_youtube_sync."""
+    return await asyncio.to_thread(_search_youtube_sync, query, limit, proxy)
+
+
+# -----------------------------------------------------------
 # Smart Video Downloader (Split / Compress)
 # -----------------------------------------------------------
 def _download_video_smart_sync(

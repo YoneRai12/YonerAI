@@ -30,7 +30,7 @@ from ..utils.search_client import SearchClient
 from ..utils.voice_manager import VoiceManager
 
 # Import helper utilities for YouTube playback and flag translation
-from ..utils.youtube import download_youtube_audio, get_youtube_audio_stream_url
+from ..utils.youtube import download_youtube_audio, get_youtube_audio_stream_url, search_youtube
 
 import re
 from typing import Any, Dict, List
@@ -663,10 +663,60 @@ class MediaCog(commands.Cog):
             await ctx.send("❌ ボイスチャンネルに参加してからリクエストしてください。")
             return
 
-        # 1. Resolve URL
-        stream_url, title, duration_sec = await get_youtube_audio_stream_url(query)
+        q = (query or "").strip()
+
+        # Optional: Discord-native picker (scrollable select menu) for non-URL queries.
+        # This mimics common music bots UX (Jockie Music style).
+        try:
+            picker_on = (os.getenv("ORA_MUSIC_NATIVE_PICKER") or "1").strip().lower() in {"1", "true", "yes", "on"}
+        except Exception:
+            picker_on = True
+
+        is_url = q.startswith("http://") or q.startswith("https://")
+        if picker_on and (not is_url) and (not q.startswith("ytsearch")):
+            try:
+                raw_n = (os.getenv("ORA_MUSIC_PICKER_RESULTS") or "10").strip()
+                n = int(raw_n)
+            except Exception:
+                n = 10
+            n = max(3, min(25, n))
+
+            results = await search_youtube(q, limit=n)
+            if results:
+                from ..views.music_picker import MusicPickView
+
+                embed = discord.Embed(
+                    title="Choose a track",
+                    description=f"Query: `{q}`\nSelect one result below (scrollable).",
+                    color=discord.Color.from_rgb(29, 185, 84),
+                )
+                # Show a short preview list in the embed too.
+                lines: list[str] = []
+                for i, r in enumerate(results[: min(n, 10)], start=1):
+                    t = str(r.get("title") or "(no title)")
+                    if len(t) > 60:
+                        t = t[:57] + "..."
+                    dur = r.get("duration")
+                    dur_str = ""
+                    try:
+                        if isinstance(dur, int) and dur > 0:
+                            m, s = divmod(dur, 60)
+                            h, m = divmod(m, 60)
+                            dur_str = f" ({h}:{m:02d}:{s:02d})" if h else f" ({m}:{s:02d})"
+                    except Exception:
+                        pass
+                    lines.append(f"{i}. {t}{dur_str}")
+                embed.add_field(name="Top results", value="\n".join(lines)[:1000], inline=False)
+
+                view = MusicPickView(cog=self, requester_id=int(ctx.author.id), results=results, query=q, timeout=60.0)
+                msg = await ctx.send(embed=embed, view=view)
+                view.message = msg
+                return
+
+        # 1. Resolve URL (auto: top result if query is not a URL)
+        stream_url, title, duration_sec = await get_youtube_audio_stream_url(q)
         if not title:
-            await ctx.send(f"❌ '{query}' の再生に失敗しました。")
+            await ctx.send(f"❌ '{q}' の再生に失敗しました。")
             return
 
         # 2. Play (Await once!)
