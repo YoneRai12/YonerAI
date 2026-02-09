@@ -1,0 +1,498 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>YonerAI Setup</title>
+    <style>
+      :root {
+        --bg: #0b0d12;
+        --panel: #111526;
+        --panel2: #0f1220;
+        --text: #e7ecf5;
+        --muted: #a5b0c4;
+        --line: #1f2533;
+        --accent: #49d3ff;
+        --ok: #3ddc97;
+        --bad: #ff4d5a;
+        --warn: #f7b731;
+        --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      }
+      body {
+        margin: 0;
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        background: radial-gradient(1200px 600px at 20% 10%, rgba(73, 211, 255, 0.18), transparent 50%),
+          radial-gradient(900px 500px at 90% 30%, rgba(61, 220, 151, 0.14), transparent 55%),
+          var(--bg);
+        color: var(--text);
+      }
+      header {
+        padding: 20px 18px 10px;
+        border-bottom: 1px solid var(--line);
+        background: rgba(11, 13, 18, 0.65);
+        backdrop-filter: blur(10px);
+        position: sticky;
+        top: 0;
+        z-index: 10;
+      }
+      h1 {
+        margin: 0;
+        font-size: 18px;
+        letter-spacing: 0.2px;
+      }
+      header p {
+        margin: 8px 0 0;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.4;
+      }
+      main {
+        max-width: 980px;
+        margin: 0 auto;
+        padding: 18px;
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 14px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 14px;
+      }
+      @media (min-width: 980px) {
+        .grid {
+          grid-template-columns: 1.1fr 0.9fr;
+        }
+      }
+      .card {
+        border: 1px solid var(--line);
+        background: linear-gradient(180deg, rgba(17, 21, 38, 0.92), rgba(15, 18, 32, 0.92));
+        border-radius: 14px;
+        padding: 14px;
+        box-shadow: 0 10px 35px rgba(0, 0, 0, 0.35);
+      }
+      .card h2 {
+        margin: 0 0 10px;
+        font-size: 14px;
+        color: var(--text);
+      }
+      label {
+        display: block;
+        font-size: 12px;
+        color: var(--muted);
+        margin: 10px 0 6px;
+      }
+      input, textarea, select {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 10px 10px;
+        border-radius: 10px;
+        border: 1px solid var(--line);
+        background: rgba(11, 13, 18, 0.7);
+        color: var(--text);
+        outline: none;
+        font-family: var(--mono);
+        font-size: 12px;
+      }
+      textarea { min-height: 84px; resize: vertical; }
+      .row {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 10px;
+      }
+      @media (min-width: 720px) {
+        .row {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
+      .actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-top: 12px;
+      }
+      button {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 10px 12px;
+        background: rgba(73, 211, 255, 0.12);
+        color: var(--text);
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 12px;
+      }
+      button.secondary {
+        background: rgba(255, 255, 255, 0.06);
+      }
+      button.danger {
+        background: rgba(255, 77, 90, 0.12);
+      }
+      code {
+        font-family: var(--mono);
+        font-size: 12px;
+        color: var(--accent);
+      }
+      .kvs {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        display: grid;
+        gap: 8px;
+      }
+      .kv {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        border: 1px solid var(--line);
+        background: rgba(11, 13, 18, 0.45);
+        border-radius: 12px;
+        padding: 10px 10px;
+      }
+      .kv b { font-size: 12px; }
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 8px;
+        border-radius: 999px;
+        font-size: 11px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.06);
+        color: var(--muted);
+      }
+      .pill.ok { color: var(--ok); }
+      .pill.bad { color: var(--bad); }
+      .pill.warn { color: var(--warn); }
+      .msg {
+        margin-top: 10px;
+        font-size: 12px;
+        color: var(--muted);
+        white-space: pre-wrap;
+      }
+      .small {
+        font-size: 12px;
+        color: var(--muted);
+        line-height: 1.45;
+      }
+      a { color: var(--accent); text-decoration: none; }
+      a:hover { text-decoration: underline; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>YonerAI Setup</h1>
+      <p>
+        Configure tokens and URLs via browser.
+        This page writes to profile-scoped files under <code>secrets/</code> and <code>state/</code>
+        so you do not need to commit <code>.env</code>.
+      </p>
+    </header>
+
+    <main>
+      <div class="grid">
+        <section class="card">
+          <h2>Auth</h2>
+          <div class="small">
+            If <code>ORA_WEB_API_TOKEN</code> is configured, API calls require a token.
+            You can paste it here; it will be stored in this browser (localStorage).
+          </div>
+          <label>ORA_WEB_API_TOKEN (Bearer)</label>
+          <input id="token" placeholder="paste token (optional on localhost if token not set)" />
+          <div class="actions">
+            <button id="saveToken" class="secondary">Save Token</button>
+            <button id="refresh">Refresh Status</button>
+          </div>
+          <div id="authMsg" class="msg"></div>
+        </section>
+
+        <section class="card">
+          <h2>Status</h2>
+          <ul class="kvs" id="status"></ul>
+          <div class="msg" id="statusMsg"></div>
+        </section>
+      </div>
+
+      <section class="card">
+        <h2>Secrets (Stored Under secrets/)</h2>
+        <div class="row">
+          <div>
+            <label>DISCORD_BOT_TOKEN</label>
+            <textarea id="DISCORD_BOT_TOKEN" placeholder="Discord bot token"></textarea>
+          </div>
+          <div>
+            <label>OPENAI_API_KEY</label>
+            <textarea id="OPENAI_API_KEY" placeholder="OpenAI API key"></textarea>
+          </div>
+          <div>
+            <label>ANTHROPIC_API_KEY</label>
+            <textarea id="ANTHROPIC_API_KEY" placeholder="Anthropic API key"></textarea>
+          </div>
+          <div>
+            <label>GROK_API_KEY</label>
+            <textarea id="GROK_API_KEY" placeholder="Grok API key"></textarea>
+          </div>
+          <div>
+            <label>ADMIN_DASHBOARD_TOKEN (optional)</label>
+            <textarea id="ADMIN_DASHBOARD_TOKEN" placeholder="Optional admin dashboard token"></textarea>
+          </div>
+          <div>
+            <label>ORA_WEB_API_TOKEN (optional)</label>
+            <textarea id="ORA_WEB_API_TOKEN" placeholder="API token (enables remote access guard)"></textarea>
+          </div>
+        </div>
+        <div class="actions">
+          <button id="saveSecrets">Save Secrets</button>
+          <button id="clearSecrets" class="danger">Clear All (Danger)</button>
+        </div>
+        <div class="msg" id="secretsMsg"></div>
+      </section>
+
+      <section class="card">
+        <h2>Non-Secret Config (Stored Under state/settings_override.json)</h2>
+        <div class="small">
+          These values are applied on startup if the corresponding env var is not set.
+          Restart may be required for some components.
+        </div>
+        <div class="row">
+          <div>
+            <label>ORA_API_BASE_URL</label>
+            <input id="ORA_API_BASE_URL" placeholder="http://127.0.0.1:8001" />
+          </div>
+          <div>
+            <label>ORA_CORE_API_URL</label>
+            <input id="ORA_CORE_API_URL" placeholder="http://127.0.0.1:8001" />
+          </div>
+          <div>
+            <label>ORA_PUBLIC_BASE_URL</label>
+            <input id="ORA_PUBLIC_BASE_URL" placeholder="https://... (optional)" />
+          </div>
+          <div>
+            <label>ORA_RELAY_URL</label>
+            <input id="ORA_RELAY_URL" placeholder="ws://127.0.0.1:9010 (or auto)" />
+          </div>
+          <div>
+            <label>ORA_RELAY_EXPOSE_MODE</label>
+            <select id="ORA_RELAY_EXPOSE_MODE">
+              <option value="">(unset)</option>
+              <option value="none">none</option>
+              <option value="cloudflared_quick">cloudflared_quick</option>
+              <option value="cloudflared_named">cloudflared_named</option>
+            </select>
+          </div>
+          <div>
+            <label>ORA_RELAY_PUBLIC_URL_FILE</label>
+            <input id="ORA_RELAY_PUBLIC_URL_FILE" placeholder="./.relay_public_url.txt" />
+          </div>
+          <div>
+            <label>ORA_CLOUDFLARED_BIN</label>
+            <input id="ORA_CLOUDFLARED_BIN" placeholder="cloudflared" />
+          </div>
+          <div>
+            <label>ORA_PROFILE</label>
+            <select id="ORA_PROFILE">
+              <option value="">(unset)</option>
+              <option value="private">private</option>
+              <option value="shared">shared</option>
+            </select>
+          </div>
+        </div>
+        <div class="actions">
+          <button id="saveEnv">Save Config</button>
+          <button id="clearEnv" class="danger">Clear Overrides (Danger)</button>
+        </div>
+        <div class="msg" id="envMsg"></div>
+      </section>
+
+      <section class="card">
+        <h2>CLI Alternative</h2>
+        <div class="small">
+          Prefer CLI? You can still edit <code>.env</code> directly.
+          For secrets, you can also write to the profile-scoped <code>secrets/</code> directory.
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const $ = (id) => document.getElementById(id);
+
+      function bearerHeaders() {
+        const t = (localStorage.getItem("ora_web_api_token") || "").trim();
+        if (!t) return {};
+        return { "Authorization": "Bearer " + t };
+      }
+
+      async function apiGet(path) {
+        const r = await fetch(path, { headers: { ...bearerHeaders() } });
+        const txt = await r.text();
+        let data = null;
+        try { data = JSON.parse(txt); } catch (e) { /* ignore */ }
+        if (!r.ok) {
+          const msg = (data && (data.detail || data.message)) ? (data.detail || data.message) : txt;
+          throw new Error(r.status + " " + msg);
+        }
+        return data;
+      }
+
+      async function apiPost(path, body) {
+        const r = await fetch(path, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...bearerHeaders() },
+          body: JSON.stringify(body || {})
+        });
+        const txt = await r.text();
+        let data = null;
+        try { data = JSON.parse(txt); } catch (e) { /* ignore */ }
+        if (!r.ok) {
+          const msg = (data && (data.detail || data.message)) ? (data.detail || data.message) : txt;
+          throw new Error(r.status + " " + msg);
+        }
+        return data;
+      }
+
+      function pill(ok) {
+        const el = document.createElement("span");
+        el.className = "pill " + (ok ? "ok" : "bad");
+        el.textContent = ok ? "present" : "missing";
+        return el;
+      }
+
+      function renderStatus(st) {
+        const list = $("status");
+        list.innerHTML = "";
+
+        const add = (k, v) => {
+          const li = document.createElement("li");
+          li.className = "kv";
+          const left = document.createElement("div");
+          const right = document.createElement("div");
+          left.innerHTML = "<b>" + k + "</b>";
+          right.appendChild(v);
+          li.appendChild(left);
+          li.appendChild(right);
+          list.appendChild(li);
+        };
+
+        add("profile", document.createTextNode(st.profile || ""));
+        add("instance_id", document.createTextNode(st.instance_id || ""));
+
+        const secrets = st.secrets_present || {};
+        Object.keys(secrets).sort().forEach((k) => add(k, pill(!!secrets[k])));
+
+        const env = st.env || {};
+        Object.keys(env).sort().forEach((k) => {
+          const v = env[k];
+          const node = document.createElement("span");
+          node.className = "pill";
+          node.style.fontFamily = "var(--mono)";
+          node.textContent = v ? v : "(unset)";
+          add(k, node);
+          if ($(k)) {
+            const el = $(k);
+            if (el.tagName === "SELECT") {
+              el.value = v || "";
+            } else {
+              el.value = v || "";
+            }
+          }
+        });
+
+        $("statusMsg").textContent = (st.notes || []).join("\\n");
+      }
+
+      async function refresh() {
+        $("statusMsg").textContent = "Loading...";
+        const st = await apiGet("/api/settings/status");
+        renderStatus(st);
+      }
+
+      function init() {
+        const saved = (localStorage.getItem("ora_web_api_token") || "").trim();
+        $("token").value = saved;
+
+        $("saveToken").onclick = () => {
+          const t = $("token").value.trim();
+          if (t) localStorage.setItem("ora_web_api_token", t);
+          else localStorage.removeItem("ora_web_api_token");
+          $("authMsg").textContent = "Saved.";
+        };
+
+        $("refresh").onclick = async () => {
+          try { await refresh(); $("authMsg").textContent = ""; }
+          catch (e) { $("statusMsg").textContent = "Error: " + e.message; }
+        };
+
+        $("saveSecrets").onclick = async () => {
+          const keys = ["DISCORD_BOT_TOKEN","OPENAI_API_KEY","ANTHROPIC_API_KEY","GROK_API_KEY","ADMIN_DASHBOARD_TOKEN","ORA_WEB_API_TOKEN"];
+          const secrets = {};
+          keys.forEach((k) => {
+            const v = ($(k).value || "").trim();
+            if (!v) return;
+            secrets[k] = v;
+          });
+          try {
+            const res = await apiPost("/api/settings/secrets", { secrets });
+            $("secretsMsg").textContent = "Updated: " + (res.updated || []).join(", ");
+            await refresh();
+          } catch (e) {
+            $("secretsMsg").textContent = "Error: " + e.message;
+          }
+        };
+
+        $("clearSecrets").onclick = async () => {
+          if (!confirm("Clear ALL secrets listed on this page?")) return;
+          const keys = ["DISCORD_BOT_TOKEN","OPENAI_API_KEY","ANTHROPIC_API_KEY","GROK_API_KEY","ADMIN_DASHBOARD_TOKEN","ORA_WEB_API_TOKEN"];
+          const secrets = {};
+          keys.forEach((k) => secrets[k] = null);
+          try {
+            const res = await apiPost("/api/settings/secrets", { secrets });
+            $("secretsMsg").textContent = "Cleared: " + (res.updated || []).join(", ");
+            keys.forEach((k) => $(k).value = "");
+            await refresh();
+          } catch (e) {
+            $("secretsMsg").textContent = "Error: " + e.message;
+          }
+        };
+
+        $("saveEnv").onclick = async () => {
+          const keys = ["ORA_API_BASE_URL","ORA_CORE_API_URL","ORA_PUBLIC_BASE_URL","ORA_RELAY_URL","ORA_RELAY_EXPOSE_MODE","ORA_CLOUDFLARED_BIN","ORA_RELAY_PUBLIC_URL_FILE","ORA_PROFILE"];
+          const env = {};
+          keys.forEach((k) => {
+            const el = $(k);
+            const v = (el.value || "").trim();
+            if (!v) return;
+            env[k] = v;
+          });
+          try {
+            const res = await apiPost("/api/settings/env", { env });
+            $("envMsg").textContent = "Updated: " + (res.updated || []).join(", ");
+            await refresh();
+          } catch (e) {
+            $("envMsg").textContent = "Error: " + e.message;
+          }
+        };
+
+        $("clearEnv").onclick = async () => {
+          if (!confirm("Clear ALL overrides listed on this page?")) return;
+          const keys = ["ORA_API_BASE_URL","ORA_CORE_API_URL","ORA_PUBLIC_BASE_URL","ORA_RELAY_URL","ORA_RELAY_EXPOSE_MODE","ORA_CLOUDFLARED_BIN","ORA_RELAY_PUBLIC_URL_FILE","ORA_PROFILE"];
+          const env = {};
+          keys.forEach((k) => env[k] = null);
+          try {
+            const res = await apiPost("/api/settings/env", { env });
+            $("envMsg").textContent = "Cleared: " + (res.updated || []).join(", ");
+            keys.forEach((k) => { const el=$(k); if (el.tagName === "SELECT") el.value=""; else el.value=""; });
+            await refresh();
+          } catch (e) {
+            $("envMsg").textContent = "Error: " + e.message;
+          }
+        };
+
+        refresh().catch((e) => {
+          $("statusMsg").textContent = "Error: " + e.message + "\\n\\nIf ORA_WEB_API_TOKEN is set, paste it above and refresh.";
+        });
+      }
+
+      init();
+    </script>
+  </body>
+</html>
+

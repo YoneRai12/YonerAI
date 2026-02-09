@@ -16,6 +16,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Configure Git (safe.directory)
+        shell: bash
+        run: |
+          # Some environments treat the checked-out repo as "dubious ownership" and git exits 128.
+          # Make it explicit so downstream steps (auto-commit) can run.
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
       - name: Compile Mermaid (PNG + SVG)
         shell: bash
         run: |
@@ -23,12 +30,24 @@ jobs:
           # Render at high resolution so text stays readable in README.
           # Default diagram width is ~780px; scale 5 yields ~4K output.
           SCALE="${ORA_MERMAID_SCALE:-5}"
-          for f in docs/diagrams/*.mmd; do
-            base="${f%.mmd}"
-            # PNGs are used in README because GitHub may sanitize inline SVG styles.
-            npx -y @mermaid-js/mermaid-cli@latest -i "$f" -o "${base}.png" -b transparent -s "$SCALE" --quiet
-            npx -y @mermaid-js/mermaid-cli@latest -i "$f" -o "${base}.svg" -b transparent --quiet
-          done
+
+          # Use the official mermaid-cli container to avoid npm/npx variability on GitHub runners.
+          IMAGE="ghcr.io/mermaid-js/mermaid-cli/mermaid-cli:10.9.1"
+          docker pull "$IMAGE" >/dev/null
+          docker run --rm \
+            -u "$(id -u):$(id -g)" \
+            -v "$GITHUB_WORKSPACE:/data" \
+            -w /data \
+            "$IMAGE" \
+            /bin/sh -lc '
+              set -euo pipefail
+              for f in docs/diagrams/*.mmd; do
+                base="${f%.mmd}"
+                # PNGs are used in README because GitHub may sanitize inline SVG styles.
+                mmdc -i "$f" -o "${base}.png" -b transparent -s "'"$SCALE"'" --quiet
+                mmdc -i "$f" -o "${base}.svg" -b transparent --quiet
+              done
+            '
 
       - name: Commit changes
         uses: stefanzweifel/git-auto-commit-action@v5

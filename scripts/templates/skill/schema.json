@@ -1,0 +1,16 @@
+{
+  "name": "{{SKILL_NAME}}",
+  "description": "Describe what this skill does.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "input": {
+        "type": "string",
+        "description": "Input text"
+      }
+    },
+    "required": []
+  },
+  "tags": ["dynamic", "skill"]
+}
+

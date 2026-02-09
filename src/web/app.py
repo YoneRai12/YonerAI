@@ -4,6 +4,8 @@ import asyncio
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi import Request, Query, Header
+from fastapi.responses import HTMLResponse
 
 from src.config import resolve_bot_db_path
 from src.storage import Store
@@ -64,6 +66,32 @@ async def read_index():
     if os.path.exists(index_path):
         return FileResponse(index_path)
     return {"detail": "ORA Web API is running, but index.html is missing."}
+
+
+@app.get("/setup", response_class=HTMLResponse)
+async def setup_ui(
+    request: Request,
+    x_ora_token: str | None = Header(None),
+    authorization: str | None = Header(None),
+    token: str | None = Query(None),
+):
+    """
+    Local setup page.
+
+    Guarded by the same policy as /api/*:
+    - If ORA_WEB_API_TOKEN is set, require it.
+    - Otherwise allow loopback.
+    """
+    await endpoints.require_web_api(
+        request=request,
+        x_ora_token=x_ora_token,
+        authorization=authorization,
+        token=token,
+    )
+    setup_path = os.path.join(static_dir, "setup.html")
+    if os.path.exists(setup_path):
+        return FileResponse(setup_path)
+    return HTMLResponse("<h1>setup.html missing</h1>", status_code=404)
 
 
 @app.on_event("startup")

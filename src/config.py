@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import json
 import os
 import sys
 import uuid
@@ -156,6 +157,12 @@ def _apply_profile_secrets() -> None:
         # Browser router also checks ORA_BROWSER_REMOTE_TOKEN.
         "ORA_BROWSER_REMOTE_TOKEN": "browser_remote_token.txt",
         "ADMIN_DASHBOARD_TOKEN": "admin_dashboard_token.txt",
+        # Common provider/API keys (optional).
+        "OPENAI_API_KEY": "openai_api_key.txt",
+        "ANTHROPIC_API_KEY": "anthropic_api_key.txt",
+        "GROK_API_KEY": "grok_api_key.txt",
+        # Bot secrets (avoid committing .env).
+        "DISCORD_BOT_TOKEN": "discord_bot_token.txt",
     }
     base = Path(SECRETS_DIR)
     try:
@@ -175,6 +182,42 @@ def _apply_profile_secrets() -> None:
 
 
 _apply_profile_secrets()
+
+
+def _apply_settings_overrides() -> None:
+    """
+    Optional: allow non-secret config to be set via the local web UI without editing .env.
+
+    - Stored under STATE_DIR so it remains profile/instance-scoped.
+    - Env still wins: we only fill missing keys.
+    """
+    from pathlib import Path
+
+    path = Path(STATE_DIR) / "settings_override.json"
+    try:
+        if not path.exists():
+            return
+        raw = json.loads(path.read_text(encoding="utf-8", errors="ignore"))
+        if not isinstance(raw, dict):
+            return
+        env_map = raw.get("env")
+        if not isinstance(env_map, dict):
+            return
+        for k, v in env_map.items():
+            if not isinstance(k, str) or not k.strip():
+                continue
+            if v is None:
+                continue
+            if not isinstance(v, str):
+                v = str(v)
+            if (os.getenv(k) or "").strip():
+                continue
+            os.environ[k] = v
+    except Exception:
+        return
+
+
+_apply_settings_overrides()
 
 # Buffer & Sync Constants
 SAFETY_BUFFER_RATIO = 0.95

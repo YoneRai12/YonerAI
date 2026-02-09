@@ -103,6 +103,17 @@ python -m ora_core.main
 必須:
 - `DISCORD_BOT_TOKEN`
 
+### WebセットアップUI（任意）
+
+`.env` を直接編集したくない場合、ブラウザから secrets とURLを設定できます:
+
+1. Adminサーバ起動:
+   - `uvicorn src.web.app:app --reload --host 127.0.0.1 --port 8000`
+2. ブラウザで開く:
+   - `http://127.0.0.1:8000/setup`
+
+このUIは profile別の `secrets/` と `state/settings_override.json` に保存します（`.env` をコミットしないため）。
+
 推奨:
 - `DISCORD_APP_ID`（Application ID）
 - `ORA_DEV_GUILD_ID`（開発ギルド同期は即時、グローバル同期は最大で約1時間かかる場合あり）

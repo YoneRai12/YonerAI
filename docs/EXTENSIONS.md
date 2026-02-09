@@ -12,6 +12,12 @@ The three extension points are:
 
 Skills live under `src/skills/<skill_name>/`.
 
+Quick scaffold (recommended):
+
+```bash
+python scripts/new_skill.py my_skill
+```
+
 Minimum files:
 
 - `src/skills/<skill_name>/SKILL.md` (human description)
@@ -71,4 +77,3 @@ Rule of thumb:
 - It has tags for risk scoring if it can touch files/network/system.
 - It cannot be executed without approvals when risk is HIGH/CRITICAL (unless owner opted out via `.env`).
 - It logs audit metadata (tool_call_id, actor_id, decision).
-

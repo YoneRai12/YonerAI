@@ -103,6 +103,17 @@ Start from `.env.example`.
 Required:
 - `DISCORD_BOT_TOKEN`
 
+### Web Setup UI (Optional)
+
+If you don't want to edit `.env` directly, you can configure secrets + URLs via the local Setup page:
+
+1. Start the Admin server:
+   - `uvicorn src.web.app:app --reload --host 127.0.0.1 --port 8000`
+2. Open:
+   - `http://127.0.0.1:8000/setup`
+
+This writes to profile-scoped `secrets/` + `state/settings_override.json` (so you avoid committing `.env`).
+
 Recommended:
 - `DISCORD_APP_ID` (Application ID)
 - `ORA_DEV_GUILD_ID` (dev guild sync is immediate; global sync can take up to ~1 hour)

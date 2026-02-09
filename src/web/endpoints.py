@@ -21,6 +21,120 @@ from src.config import COST_LIMITS
 router = APIRouter()
 
 
+# -----------------------------------------------------------------------------
+# Settings (Local Setup UI)
+# -----------------------------------------------------------------------------
+
+# Only allow a small set of keys to be edited from the web UI.
+# Secrets are stored under profile-scoped SECRETS_DIR and are never returned.
+_ALLOWED_SECRET_KEYS: dict[str, str] = {
+    "ORA_WEB_API_TOKEN": "ora_web_api_token.txt",
+    "ADMIN_DASHBOARD_TOKEN": "admin_dashboard_token.txt",
+    "DISCORD_BOT_TOKEN": "discord_bot_token.txt",
+    "OPENAI_API_KEY": "openai_api_key.txt",
+    "ANTHROPIC_API_KEY": "anthropic_api_key.txt",
+    "GROK_API_KEY": "grok_api_key.txt",
+}
+
+# Non-secret config (stored under STATE_DIR/settings_override.json).
+_ALLOWED_ENV_KEYS: set[str] = {
+    "ORA_API_BASE_URL",
+    "ORA_CORE_API_URL",
+    "ORA_PUBLIC_BASE_URL",
+    "ORA_PROFILE",
+    "ORA_RELAY_URL",
+    "ORA_RELAY_EXPOSE_MODE",
+    "ORA_CLOUDFLARED_BIN",
+    "ORA_RELAY_PUBLIC_URL_FILE",
+}
+
+
+def _settings_paths() -> tuple["Path", "Path", "Path"]:
+    from pathlib import Path
+    from src.config import SECRETS_DIR, STATE_DIR
+
+    secrets_dir = Path(SECRETS_DIR)
+    state_dir = Path(STATE_DIR)
+    settings_file = state_dir / "settings_override.json"
+    return secrets_dir, state_dir, settings_file
+
+
+def _read_settings_override() -> dict:
+    _, _, settings_file = _settings_paths()
+    try:
+        if not settings_file.exists():
+            return {}
+        raw = json.loads(settings_file.read_text(encoding="utf-8", errors="ignore"))
+        return raw if isinstance(raw, dict) else {}
+    except Exception:
+        return {}
+
+
+def _write_settings_override(env_map: dict[str, str]) -> None:
+    _, state_dir, settings_file = _settings_paths()
+    state_dir.mkdir(parents=True, exist_ok=True)
+    payload = {"env": env_map}
+    settings_file.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def _secret_present(key: str) -> bool:
+    from pathlib import Path
+    secrets_dir, _, _ = _settings_paths()
+    fname = _ALLOWED_SECRET_KEYS.get(key)
+    if not fname:
+        return False
+    try:
+        p = Path(secrets_dir) / fname
+        if p.exists() and p.is_file():
+            if p.stat().st_size > 0:
+                return True
+    except Exception:
+        pass
+    return bool((os.getenv(key) or "").strip())
+
+
+def _get_settings_status() -> dict:
+    from src.config import ORA_PROFILE, ORA_INSTANCE_ID, STATE_DIR, SECRETS_DIR
+
+    env_override = _read_settings_override().get("env", {})
+    if not isinstance(env_override, dict):
+        env_override = {}
+
+    env_out: dict[str, str | None] = {}
+    for k in sorted(_ALLOWED_ENV_KEYS):
+        v = (os.getenv(k) or "").strip()
+        if v:
+            env_out[k] = v
+        else:
+            # Show overrides (non-secret) to help debugging even when env is empty.
+            ov = env_override.get(k)
+            env_out[k] = str(ov) if isinstance(ov, str) and ov.strip() else None
+
+    secrets_out = {k: _secret_present(k) for k in sorted(_ALLOWED_SECRET_KEYS.keys())}
+    return {
+        "profile": str(ORA_PROFILE),
+        "instance_id": str(ORA_INSTANCE_ID),
+        "state_dir": str(STATE_DIR),
+        "secrets_dir": str(SECRETS_DIR),
+        "env": env_out,
+        "secrets_present": secrets_out,
+        "notes": [
+            "Secrets are never returned by the API (only presence).",
+            "Changing some settings may require restarting the bot/web server.",
+        ],
+    }
+
+
+class SettingsSecretsUpdate(BaseModel):
+    # Map of secret key -> value (or null to clear).
+    secrets: dict[str, str | None] = {}
+
+
+class SettingsEnvUpdate(BaseModel):
+    # Map of env key -> value (or null/empty to clear override).
+    env: dict[str, str | None] = {}
+
+
 def _is_loopback(request: Request) -> bool:
     host = (request.client.host if request.client else "") or ""
     return host in {"127.0.0.1", "::1", "localhost"}
@@ -87,6 +201,83 @@ async def require_web_api(
 
     if not _is_loopback(request):
         raise HTTPException(status_code=503, detail="ORA_WEB_API_TOKEN is not configured")
+
+
+@router.get("/settings/status")
+async def get_settings_status(_: None = Depends(require_web_api)):
+    return _get_settings_status()
+
+
+@router.post("/settings/secrets")
+async def update_settings_secrets(req: SettingsSecretsUpdate, _: None = Depends(require_web_api)):
+    from pathlib import Path
+
+    secrets_dir, _, _ = _settings_paths()
+    secrets_dir.mkdir(parents=True, exist_ok=True)
+
+    updated: list[str] = []
+    for k, v in (req.secrets or {}).items():
+        if k not in _ALLOWED_SECRET_KEYS:
+            raise HTTPException(status_code=400, detail=f"Unsupported secret key: {k}")
+        fname = _ALLOWED_SECRET_KEYS[k]
+        p = Path(secrets_dir) / fname
+
+        if v is None or (isinstance(v, str) and not v.strip()):
+            # Clear
+            try:
+                if p.exists():
+                    p.unlink()
+            except Exception:
+                pass
+            if k in os.environ:
+                os.environ.pop(k, None)
+            updated.append(k)
+            continue
+
+        if not isinstance(v, str):
+            v = str(v)
+        v = v.strip()
+        if len(v) > 4096:
+            raise HTTPException(status_code=400, detail=f"Secret too long: {k}")
+
+        p.write_text(v + "\n", encoding="utf-8")
+        try:
+            os.chmod(str(p), 0o600)
+        except Exception:
+            pass
+        os.environ[k] = v
+        updated.append(k)
+
+    out = _get_settings_status()
+    out["updated"] = updated
+    return out
+
+
+@router.post("/settings/env")
+async def update_settings_env(req: SettingsEnvUpdate, _: None = Depends(require_web_api)):
+    overrides = _read_settings_override().get("env", {})
+    if not isinstance(overrides, dict):
+        overrides = {}
+
+    updated: list[str] = []
+    for k, v in (req.env or {}).items():
+        if k not in _ALLOWED_ENV_KEYS:
+            raise HTTPException(status_code=400, detail=f"Unsupported env key: {k}")
+        if v is None or (isinstance(v, str) and not v.strip()):
+            overrides.pop(k, None)
+            updated.append(k)
+            continue
+        if not isinstance(v, str):
+            v = str(v)
+        overrides[k] = v.strip()
+        # Best-effort immediate apply for this process.
+        os.environ[k] = overrides[k]
+        updated.append(k)
+
+    _write_settings_override({str(k): str(v) for k, v in overrides.items() if isinstance(k, str) and isinstance(v, str)})
+    out = _get_settings_status()
+    out["updated"] = updated
+    return out
 
 @router.get("/dashboard/summary")
 async def get_dashboard_summary(_: None = Depends(require_web_api)):
