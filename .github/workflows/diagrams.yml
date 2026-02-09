@@ -1,10 +1,6 @@
 name: Generate Mermaid Diagrams
 
 on:
-  push:
-    paths:
-      - 'docs/diagrams/*.mmd'
-      - '.github/workflows/diagrams.yml'
   workflow_dispatch:
 
 permissions:
