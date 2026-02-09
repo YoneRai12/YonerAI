@@ -14,6 +14,7 @@ See also: `docs/RELEASE_NOTES.md` (curated summary, v5.0.0 -> current).
 - Music UX improvements (Discord):
   - Mention-based playback now supports: YouTube URL, audio attachments, and plain search queries.
   - Optional Discord-native scroll picker (Select menu) for choosing a track from search results (`ORA_MUSIC_NATIVE_PICKER=1`).
+  - Mention + playlist URL now supports queue-all in the background (YouTube playlists + Spotify playlists/albums mapped to YouTube search).
 - Tool schemas now include all central registry tools in context (not only `mcp__*`), while runtime allowlists still enforce safety.
 
 ## v5.1.14 (2026-02-06) - Audit Secrecy + MCP Guardrails + Browser Observability
