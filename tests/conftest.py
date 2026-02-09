@@ -19,3 +19,4 @@ try:
 except Exception:
     pass
 os.environ.setdefault("ORA_BOT_DB", str(_TEST_DB))
+os.environ.setdefault("ORA_DISABLE_WEB_BG_TASKS", "1")
