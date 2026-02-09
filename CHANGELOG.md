@@ -9,6 +9,12 @@ See also: `docs/RELEASE_NOTES.md` (curated summary, v5.0.0 -> current).
 - Cloudflare Quick Tunnel expose mode switchable via `.env`.
 - Added sandbox repo static inspection tools (download GitHub ZIP, no code execution).
 - Added `.env` knobs to reduce approval friction for owner / shared guests while keeping safe defaults.
+- Expanded the default non-owner allowlist with "everyday" Discord features (VC join/leave, TTS, music controls) + safe web search.
+- Added `web_search_api` (SerpApi/DDG) as a **safe** web search tool (no browser automation, no downloads).
+- Music UX improvements (Discord):
+  - Mention-based playback now supports: YouTube URL, audio attachments, and plain search queries.
+  - Optional Discord-native scroll picker (Select menu) for choosing a track from search results (`ORA_MUSIC_NATIVE_PICKER=1`).
+- Tool schemas now include all central registry tools in context (not only `mcp__*`), while runtime allowlists still enforce safety.
 
 ## v5.1.14 (2026-02-06) - Audit Secrecy + MCP Guardrails + Browser Observability
 - Added centralized redaction helpers for secrets (`src/utils/redaction.py`) and applied them to audit/storage and MCP command logging.

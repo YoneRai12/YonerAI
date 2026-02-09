@@ -68,6 +68,12 @@ This page is a curated summary of what changed across releases (beyond GitHub’
 - **Downloads & screenshots cleanup**:
   - Temp artifacts (screenshots/download files) are deleted after use in tool implementations.
   - Large downloads can be delivered via temporary link pages when Discord limits are exceeded (TTL based).
+- **Everyday Discord features for non-owners (safe-by-default)**:
+  - The default non-owner allowlist now includes VC join/leave, TTS, and music controls.
+  - Added `web_search_api` for safe web search (SerpApi/DDG, no browser automation).
+- **Music UX (Discord)**:
+  - Mention-based playback supports YouTube URLs, audio attachments, and plain search queries.
+  - Optional Discord-native scroll picker (Select menu) for choosing a track from search results.
 
 ### Observability & Reproducibility
 - **Portable logging paths**:
@@ -87,7 +93,7 @@ If you previously relied on “startup auto-open” and “startup auto-tunnel�
 - `ORA_TUNNELS_ALLOW_QUICK=1` (only if you explicitly want quick tunnels without a named token)
 
 ## Per-Version Highlights (Quick Index)
-- **v2026.2.9**: date-based releases + node/relay/approvals baseline + sandbox static repo inspection + approvals QoL knobs.
+- **v2026.2.9**: date-based releases + node/relay/approvals baseline + sandbox static repo inspection + approvals QoL knobs + guest-friendly Discord voice/music/search.
 - **v5.1.14**: audit redaction + retention; MCP guardrails; browser error_id + error log endpoint.
 - **v5.1.13**: empty final response fallback + less plan spam.
 - **v5.1.12**: CI mypy fix (`Store.create_scheduled_task()` return).
