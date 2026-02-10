@@ -39,6 +39,16 @@ const I18N = {
     secret_clear: "Clear secret (danger)",
     src_prefix: "src=",
     api_token_hint: "If ORA_WEB_API_TOKEN is set, paste it in the sidebar token field.",
+    error_prefix: "Error",
+    status_title: "Status",
+    k_secrets_present: "secrets_present",
+    k_env_configured: "env_configured",
+    k_state_dir: "state_dir",
+    k_secrets_dir: "secrets_dir",
+    default_prefix: "default=",
+    locked: "locked",
+    present: "present",
+    missing: "missing",
   },
   ja: {
     title: "YonerAI セットアップ",
@@ -72,6 +82,16 @@ const I18N = {
     secret_clear: "秘密を消す（危険）",
     src_prefix: "由来=",
     api_token_hint: "ORA_WEB_API_TOKEN を設定している場合、左のトークン欄に貼り付けてください。",
+    error_prefix: "エラー",
+    status_title: "状態",
+    k_secrets_present: "秘密(設定済み)",
+    k_env_configured: "環境(設定済み)",
+    k_state_dir: "state_dir",
+    k_secrets_dir: "secrets_dir",
+    default_prefix: "既定=",
+    locked: "ロック",
+    present: "設定済み",
+    missing: "未設定",
   },
 };
 
@@ -87,7 +107,11 @@ const CAT_LABELS = {
     MCP: "MCP",
     Music: "音楽",
     "Relay/Tunnel": "Relay/Tunnel",
+    URLs: "URL",
     Sandbox: "サンドボックス",
+    Remotion: "Remotion",
+    Scheduler: "スケジューラ",
+    Swarm: "Swarm",
     Browser: "ブラウザ",
     Storage: "ストレージ",
     "Logging/Debug": "ログ/デバッグ",
@@ -410,12 +434,12 @@ function _renderOverview() {
   const card = document.createElement("div");
   card.className = "card";
   card.innerHTML = `
-    <div style="font-weight:900; letter-spacing:0.2px;">Status</div>
+    <div style="font-weight:900; letter-spacing:0.2px;">${t("status_title")}</div>
     <div class="msg" style="margin-top:8px;">
-      secrets_present: ${Object.values(st.secrets_present || {}).filter(Boolean).length}/${Object.keys(st.secrets_present || {}).length}\n
-      env_configured: ${Object.values(st.env || {}).filter((v)=>!!v).length}/${Object.keys(st.env || {}).length}\n
-      state_dir: ${String(st.state_dir || "")}\n
-      secrets_dir: ${String(st.secrets_dir || "")}
+      ${t("k_secrets_present")}: ${Object.values(st.secrets_present || {}).filter(Boolean).length}/${Object.keys(st.secrets_present || {}).length}\n
+      ${t("k_env_configured")}: ${Object.values(st.env || {}).filter((v)=>!!v).length}/${Object.keys(st.env || {}).length}\n
+      ${t("k_state_dir")}: ${String(st.state_dir || "")}\n
+      ${t("k_secrets_dir")}: ${String(st.secrets_dir || "")}
     </div>
     <div class="msg">${(st.notes || []).join("\\n")}</div>
   `;
@@ -456,16 +480,16 @@ function _renderCategory(cat) {
     const meta = document.createElement("div");
     meta.className = "settingMeta";
     meta.appendChild(_makeBadge(String(spec.kind || "env"), spec.kind === "secret" ? "warn" : ""));
-    if (spec.default) meta.appendChild(_makeBadge("default=" + String(spec.default), ""));
-    if (spec.locked) meta.appendChild(_makeBadge("locked", "bad"));
+    if (spec.default) meta.appendChild(_makeBadge(t("default_prefix") + String(spec.default), ""));
+    if (spec.locked) meta.appendChild(_makeBadge(t("locked"), "bad"));
 
     const kind = String(spec.kind || "env");
     if (kind === "secret") {
       const present = !!secretsPresent[key];
-      meta.appendChild(_makeBadge(present ? "present" : "missing", present ? "good" : "bad"));
+      meta.appendChild(_makeBadge(present ? t("present") : t("missing"), present ? "good" : "bad"));
     } else {
       const src = envSources[key] ? String(envSources[key]) : (env[key] ? "env" : "unset");
-      meta.appendChild(_makeBadge("src=" + src, src === "override" ? "warn" : ""));
+      meta.appendChild(_makeBadge(t("src_prefix") + src, src === "override" ? "warn" : ""));
     }
     left.appendChild(meta);
 
@@ -608,7 +632,7 @@ async function _saveActivePanel() {
     $("panelMsg").textContent = t("saved_prefix") + ": " + did.join(", ") + ". " + t("restart_hint");
     await _refreshAll();
   } catch (e) {
-    $("panelMsg").textContent = "Error: " + e.message;
+    $("panelMsg").textContent = t("error_prefix") + ": " + e.message;
   }
 }
 
@@ -677,7 +701,7 @@ function init() {
     try {
       await _refreshAll();
     } catch (e) {
-      $("panelMsg").textContent = "Error: " + e.message;
+      $("panelMsg").textContent = t("error_prefix") + ": " + e.message;
     }
   };
   $("savePanel").onclick = _saveActivePanel;
@@ -695,7 +719,7 @@ function init() {
   _applyStaticStrings();
 
   _refreshAll().catch((e) => {
-    $("panelMsg").textContent = "Error: " + e.message + "\\n\\n" + t("api_token_hint");
+    $("panelMsg").textContent = t("error_prefix") + ": " + e.message + "\\n\\n" + t("api_token_hint");
   });
 }
 
