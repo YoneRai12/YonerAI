@@ -154,36 +154,32 @@ def _apply_profile_secrets() -> None:
     Rationale: UI/installer-managed secrets should survive restarts even when .env already
     contains a value. Presence of a secrets file is an explicit local choice, so it wins.
     """
-    mapping = {
-        "ORA_WEB_API_TOKEN": "ora_web_api_token.txt",
-        "BROWSER_REMOTE_TOKEN": "browser_remote_token.txt",
-        # Browser router also checks ORA_BROWSER_REMOTE_TOKEN.
-        "ORA_BROWSER_REMOTE_TOKEN": "browser_remote_token.txt",
-        "ADMIN_DASHBOARD_TOKEN": "admin_dashboard_token.txt",
-        # Common provider/API keys (optional).
-        "OPENAI_API_KEY": "openai_api_key.txt",
-        "ANTHROPIC_API_KEY": "anthropic_api_key.txt",
-        "GROK_API_KEY": "grok_api_key.txt",
-        # Optional integrations (treated as secrets).
-        "ORA_SPOTIFY_CLIENT_ID": "ora_spotify_client_id.txt",
-        "ORA_SPOTIFY_CLIENT_SECRET": "ora_spotify_client_secret.txt",
-        "SEARCH_API_KEY": "search_api_key.txt",
-        # Bot secrets (avoid committing .env).
-        "DISCORD_BOT_TOKEN": "discord_bot_token.txt",
-    }
     base = Path(SECRETS_DIR)
     try:
         if not base.exists():
             return
     except Exception:
         return
-    for env_key, fname in mapping.items():
+    for p in base.glob("*.txt"):
         try:
-            val = (base / fname).read_text(encoding="utf-8", errors="ignore").strip()
+            env_key = (p.stem or "").strip().upper()
+            if not env_key:
+                continue
+            if not all(ch.isalnum() or ch == "_" for ch in env_key):
+                continue
+            val = p.read_text(encoding="utf-8", errors="ignore").strip()
         except Exception:
             continue
         if val:
             os.environ[env_key] = val
+
+    # Compatibility: some components look for either key name.
+    brt = (os.getenv("BROWSER_REMOTE_TOKEN") or "").strip()
+    obrt = (os.getenv("ORA_BROWSER_REMOTE_TOKEN") or "").strip()
+    if brt and not obrt:
+        os.environ["ORA_BROWSER_REMOTE_TOKEN"] = brt
+    if obrt and not brt:
+        os.environ["BROWSER_REMOTE_TOKEN"] = obrt
 
 
 _apply_profile_secrets()
@@ -231,6 +227,33 @@ def _apply_settings_overrides() -> None:
 
 
 _apply_settings_overrides()
+
+# ---------------------------------------------------------------------------
+# Env aliases (compat)
+# ---------------------------------------------------------------------------
+
+def _apply_env_aliases() -> None:
+    """
+    Keep legacy/alias keys in sync.
+
+    Some parts of the codebase historically used different env var names.
+    The Setup UI may also expose alias keys for compatibility.
+    """
+    pairs = [
+        ("PUBLIC_BASE_URL", "ORA_PUBLIC_BASE_URL"),
+        ("LOG_CHANNEL_ID", "ORA_LOG_CHANNEL_ID"),
+        ("BROWSER_REMOTE_TOKEN", "ORA_BROWSER_REMOTE_TOKEN"),
+    ]
+    for a, b in pairs:
+        av = (os.getenv(a) or "").strip()
+        bv = (os.getenv(b) or "").strip()
+        if av and not bv:
+            os.environ[b] = av
+        if bv and not av:
+            os.environ[a] = bv
+
+
+_apply_env_aliases()
 
 # Buffer & Sync Constants
 SAFETY_BUFFER_RATIO = 0.95

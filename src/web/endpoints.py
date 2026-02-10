@@ -26,73 +26,15 @@ router = APIRouter()
 # Settings (Local Setup UI)
 # -----------------------------------------------------------------------------
 
-# Only allow a small set of keys to be edited from the web UI.
-# Secrets are stored under profile-scoped SECRETS_DIR and are never returned.
-_ALLOWED_SECRET_KEYS: dict[str, str] = {
-    "ORA_WEB_API_TOKEN": "ora_web_api_token.txt",
-    "ADMIN_DASHBOARD_TOKEN": "admin_dashboard_token.txt",
-    "DISCORD_BOT_TOKEN": "discord_bot_token.txt",
-    "OPENAI_API_KEY": "openai_api_key.txt",
-    "ANTHROPIC_API_KEY": "anthropic_api_key.txt",
-    "GROK_API_KEY": "grok_api_key.txt",
-    "ORA_SPOTIFY_CLIENT_ID": "ora_spotify_client_id.txt",
-    "ORA_SPOTIFY_CLIENT_SECRET": "ora_spotify_client_secret.txt",
-    "SEARCH_API_KEY": "search_api_key.txt",
-}
+# Editable key list is derived from `.env.example` so the UI stays in sync with the repo.
+# Secrets are stored under profile-scoped SECRETS_DIR and are never returned (presence only).
+from src.web.settings_schema import load_settings_schema, secret_filename_for_key
 
-# Non-secret config (stored under STATE_DIR/settings_override.json).
-_ALLOWED_ENV_KEYS: set[str] = {
-    # Identity / ownership
-    "ADMIN_USER_ID",
-    "DISCORD_APP_ID",
-    "ORA_DEV_GUILD_ID",
-
-    "ORA_API_BASE_URL",
-    "ORA_CORE_API_URL",
-    "ORA_PUBLIC_BASE_URL",
-
-    # Approvals / policy knobs
-    "ORA_OWNER_APPROVALS",
-    "ORA_OWNER_APPROVAL_SKIP_TOOLS",
-    "ORA_PRIVATE_OWNER_APPROVALS",
-    "ORA_PRIVATE_OWNER_APPROVAL_SKIP_TOOLS",
-    "ORA_SHARED_OWNER_APPROVALS",
-    "ORA_SHARED_OWNER_APPROVAL_SKIP_TOOLS",
-    "ORA_SHARED_GUEST_APPROVAL_MIN_SCORE",
-    "ORA_SHARED_ALLOW_CRITICAL",
-
-    # shared guest allowlist
-    "ORA_SHARED_GUEST_ALLOWED_TOOLS",
-
-    # MCP
-    "ORA_MCP_ENABLED",
-    "ORA_MCP_SERVERS_JSON",
-    "ORA_MCP_ALLOW_DANGEROUS",
-    "ORA_MCP_DENY_TOOL_PATTERNS",
-
-    # Mention music UX
-    "ORA_MUSIC_MENTION_TRIGGERS",
-    "ORA_MUSIC_MENTION_LEVEL",
-    "ORA_MUSIC_MENTION_YOUTUBE_LEVEL",
-    "ORA_MUSIC_NATIVE_PICKER",
-    "ORA_MUSIC_PLAYLIST_ACTION_UI",
-    "ORA_MUSIC_PICKER_RESULTS",
-    "ORA_MUSIC_PLAYLIST_PICKER_RESULTS",
-    "ORA_MUSIC_PLAYLIST_PAGE_SIZE",
-    "ORA_MUSIC_QUEUE_ALL_LIMIT",
-    "ORA_MUSIC_QUEUE_ALL_SHUFFLE",
-    "ORA_MUSIC_QUEUE_ALL_RESOLVE_TIMEOUT_SEC",
-    "ORA_MUSIC_MAX_ATTACHMENT_MB",
-
-    # Relay / tunnel
-    "ORA_RELAY_URL",
-    "ORA_RELAY_EXPOSE_MODE",
-    "ORA_CLOUDFLARED_BIN",
-    "ORA_RELAY_PUBLIC_URL_FILE",
-    "ORA_RELAY_MAX_MSG_BYTES",
-    "ORA_RELAY_MAX_PENDING",
-    "ORA_RELAY_CLIENT_TIMEOUT_SEC",
-}
+_SETTINGS_SCHEMA = load_settings_schema(repo_root=os.getcwd())
+_ALLOWED_SECRET_KEYS: set[str] = {s.key for s in _SETTINGS_SCHEMA if s.kind == "secret"}
+_ALLOWED_ENV_KEYS: set[str] = {s.key for s in _SETTINGS_SCHEMA if s.kind == "env"}  # includes locked keys (for status)
+_LOCKED_ENV_KEYS: set[str] = {s.key for s in _SETTINGS_SCHEMA if (s.kind == "env" and getattr(s, "locked", False))}
+_EDITABLE_ENV_KEYS: set[str] = _ALLOWED_ENV_KEYS - _LOCKED_ENV_KEYS
 
 
 def _settings_paths() -> tuple[Path, Path, Path]:
@@ -120,7 +62,7 @@ def _write_settings_override(*, env_map: dict[str, str], mode: str) -> None:
     state_dir.mkdir(parents=True, exist_ok=True)
     m = (mode or "").strip().lower()
     if m not in {"fill", "override"}:
-        m = "override"
+        m = "fill"
     payload = {"env": env_map, "mode": m}
     settings_file.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
@@ -128,11 +70,10 @@ def _write_settings_override(*, env_map: dict[str, str], mode: str) -> None:
 def _secret_present(key: str) -> bool:
     from pathlib import Path
     secrets_dir, _, _ = _settings_paths()
-    fname = _ALLOWED_SECRET_KEYS.get(key)
-    if not fname:
+    if key not in _ALLOWED_SECRET_KEYS:
         return False
     try:
-        p = Path(secrets_dir) / fname
+        p = Path(secrets_dir) / secret_filename_for_key(key)
         if p.exists() and p.is_file():
             if p.stat().st_size > 0:
                 return True
@@ -180,7 +121,7 @@ def _get_settings_status() -> dict:
         if isinstance(k, str) and isinstance(v, str) and k in _ALLOWED_ENV_KEYS and v.strip():
             env_overrides_out[k] = v.strip()
 
-    secrets_out = {k: _secret_present(k) for k in sorted(_ALLOWED_SECRET_KEYS.keys())}
+    secrets_out = {k: _secret_present(k) for k in sorted(_ALLOWED_SECRET_KEYS)}
     return {
         "profile": str(ORA_PROFILE),
         "instance_id": str(ORA_INSTANCE_ID),
@@ -284,6 +225,16 @@ async def require_web_api(
 async def get_settings_status(_: None = Depends(require_web_api)):
     return _get_settings_status()
 
+@router.get("/settings/schema")
+async def get_settings_schema(_: None = Depends(require_web_api)):
+    return {
+        "settings": [s.to_json() for s in _SETTINGS_SCHEMA],
+        "notes": [
+            "Schema is generated from .env.example (plus a few alias keys).",
+            "Secrets are never returned by the API (presence only).",
+        ],
+    }
+
 
 @router.post("/settings/secrets")
 async def update_settings_secrets(req: SettingsSecretsUpdate, _: None = Depends(require_web_api)):
@@ -296,8 +247,7 @@ async def update_settings_secrets(req: SettingsSecretsUpdate, _: None = Depends(
     for k, v in (req.secrets or {}).items():
         if k not in _ALLOWED_SECRET_KEYS:
             raise HTTPException(status_code=400, detail=f"Unsupported secret key: {k}")
-        fname = _ALLOWED_SECRET_KEYS[k]
-        p = Path(secrets_dir) / fname
+        p = Path(secrets_dir) / secret_filename_for_key(k)
 
         if v is None or (isinstance(v, str) and not v.strip()):
             # Clear
@@ -339,14 +289,16 @@ async def update_settings_env(req: SettingsEnvUpdate, _: None = Depends(require_
 
     mode = req.mode if isinstance(req.mode, str) and req.mode.strip() else (raw.get("mode") if isinstance(raw, dict) else None)
     if not isinstance(mode, str):
-        mode = "override"
+        mode = "fill"
     mode = mode.strip().lower()
     if mode not in {"fill", "override"}:
-        mode = "override"
+        mode = "fill"
 
     updated: list[str] = []
     for k, v in (req.env or {}).items():
-        if k not in _ALLOWED_ENV_KEYS:
+        if k in _LOCKED_ENV_KEYS:
+            raise HTTPException(status_code=400, detail=f"Locked env key: {k} (edit .env and restart)")
+        if k not in _EDITABLE_ENV_KEYS:
             raise HTTPException(status_code=400, detail=f"Unsupported env key: {k}")
         if v is None or (isinstance(v, str) and not v.strip()):
             overrides.pop(k, None)

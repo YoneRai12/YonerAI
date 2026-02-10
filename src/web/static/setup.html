@@ -96,6 +96,10 @@
         font-family: var(--mono);
         font-size: 12px;
       }
+      input[type="checkbox"] {
+        width: auto;
+        padding: 0;
+      }
       textarea { min-height: 84px; resize: vertical; }
       .row {
         display: grid;
@@ -178,6 +182,103 @@
       }
       a { color: var(--accent); text-decoration: none; }
       a:hover { text-decoration: underline; }
+
+      /* Advanced settings renderer */
+      details.settings {
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: rgba(11, 13, 18, 0.28);
+        padding: 10px 10px;
+      }
+      details.settings summary {
+        cursor: pointer;
+        font-weight: 700;
+        font-size: 13px;
+        color: var(--text);
+        list-style: none;
+      }
+      details.settings summary::-webkit-details-marker { display: none; }
+      .settingsList {
+        margin-top: 10px;
+        display: grid;
+        gap: 10px;
+      }
+      .settingRow {
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: rgba(11, 13, 18, 0.40);
+        padding: 12px;
+        display: grid;
+        gap: 10px;
+        grid-template-columns: 1fr;
+      }
+      @media (min-width: 920px) {
+        .settingRow {
+          grid-template-columns: 1.1fr 0.9fr;
+          align-items: start;
+        }
+      }
+      .settingKey {
+        font-family: var(--mono);
+        font-size: 12px;
+        color: var(--accent);
+      }
+      .settingDesc {
+        margin-top: 6px;
+        font-size: 12px;
+        color: var(--muted);
+        white-space: pre-wrap;
+        line-height: 1.4;
+      }
+      .settingMeta {
+        margin-top: 8px;
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.06);
+        color: var(--muted);
+        border-radius: 999px;
+        padding: 4px 8px;
+        font-size: 11px;
+      }
+      .badge.good { color: var(--ok); }
+      .badge.bad { color: var(--bad); }
+      .badge.warn { color: var(--warn); }
+      .settingChanged {
+        border-color: rgba(125, 211, 252, 0.55);
+        box-shadow: 0 0 0 2px rgba(125, 211, 252, 0.12) inset;
+      }
+
+      /* Segmented control (Apple-ish) */
+      .seg {
+        display: inline-flex;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        overflow: hidden;
+        background: rgba(255, 255, 255, 0.06);
+      }
+      .seg button {
+        appearance: none;
+        border: 0;
+        background: transparent !important;
+        color: var(--muted);
+        padding: 8px 10px;
+        font-size: 11px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      .seg button + button { border-left: 1px solid var(--line); }
+      .seg button.active {
+        background: rgba(125, 211, 252, 0.16) !important;
+        color: var(--text);
+      }
     </style>
   </head>
   <body>
@@ -234,10 +335,6 @@
             <textarea id="GROK_API_KEY" placeholder="Grok API key"></textarea>
           </div>
           <div>
-            <label>ORA_SPOTIFY_CLIENT_ID</label>
-            <textarea id="ORA_SPOTIFY_CLIENT_ID" placeholder="Spotify Client ID (optional)"></textarea>
-          </div>
-          <div>
             <label>ORA_SPOTIFY_CLIENT_SECRET</label>
             <textarea id="ORA_SPOTIFY_CLIENT_SECRET" placeholder="Spotify Client Secret (optional)"></textarea>
           </div>
@@ -281,6 +378,14 @@
             <input id="ADMIN_USER_ID" placeholder="Discord owner/admin user id" />
           </div>
           <div>
+            <label>SUB_ADMIN_IDS</label>
+            <input id="SUB_ADMIN_IDS" placeholder="comma separated discord user ids" />
+          </div>
+          <div>
+            <label>VC_ADMIN_IDS</label>
+            <input id="VC_ADMIN_IDS" placeholder="comma separated discord user ids" />
+          </div>
+          <div>
             <label>DISCORD_APP_ID</label>
             <input id="DISCORD_APP_ID" placeholder="Discord application id (optional)" />
           </div>
@@ -289,8 +394,8 @@
             <input id="ORA_DEV_GUILD_ID" placeholder="Dev guild id (optional)" />
           </div>
           <div>
-            <label>ORA_PUBLIC_BASE_URL</label>
-            <input id="ORA_PUBLIC_BASE_URL" placeholder="https://... (optional)" />
+            <label>PUBLIC_BASE_URL</label>
+            <input id="PUBLIC_BASE_URL" placeholder="http://127.0.0.1:3333" />
           </div>
           <div>
             <label>ORA_API_BASE_URL</label>
@@ -299,6 +404,21 @@
           <div>
             <label>ORA_CORE_API_URL</label>
             <input id="ORA_CORE_API_URL" placeholder="http://127.0.0.1:8001" />
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <label>ORA_PUBLIC_TOOLS</label>
+            <textarea id="ORA_PUBLIC_TOOLS" placeholder="comma separated tool names"></textarea>
+          </div>
+          <div>
+            <label>ORA_SUBADMIN_TOOLS</label>
+            <textarea id="ORA_SUBADMIN_TOOLS" placeholder="comma separated tool names"></textarea>
+          </div>
+          <div>
+            <label>ORA_OWNER_ONLY_TOOLS</label>
+            <textarea id="ORA_OWNER_ONLY_TOOLS" placeholder="comma separated tool names"></textarea>
           </div>
         </div>
 
@@ -450,6 +570,23 @@
       </section>
 
       <section class="card">
+        <h2>All Settings (Advanced)</h2>
+        <div class="small">
+          Render and edit all keys from <code>.env.example</code> (plus a few alias keys).
+          Use <code>Override Mode</code> above to choose <code>override</code> vs <code>fill</code>.
+        </div>
+        <label>Filter (key/category)</label>
+        <input id="ALL_FILTER" placeholder="e.g. ORA_MUSIC_, RELAY, APPROVAL, DISCORD" />
+        <div class="actions">
+          <button id="ALL_RENDER" class="secondary">Render</button>
+          <button id="ALL_SAVE">Save Changes</button>
+          <button id="ALL_RESET" class="secondary">Reset UI</button>
+        </div>
+        <div class="msg" id="allMsg"></div>
+        <div id="allSettings"></div>
+      </section>
+
+      <section class="card">
         <h2>CLI Alternative</h2>
         <div class="small">
           Prefer CLI? You can still edit <code>.env</code> directly.
@@ -524,28 +661,29 @@
           add("override_mode", document.createTextNode(String(st.override_mode)));
           if ($("SETTINGS_OVERRIDE_MODE")) $("SETTINGS_OVERRIDE_MODE").value = String(st.override_mode).toLowerCase() === "fill" ? "fill" : "override";
         }
+        if (st.state_dir) add("state_dir", document.createTextNode(String(st.state_dir)));
+        if (st.secrets_dir) add("secrets_dir", document.createTextNode(String(st.secrets_dir)));
 
         const secrets = st.secrets_present || {};
-        Object.keys(secrets).sort().forEach((k) => add(k, pill(!!secrets[k])));
+        const secretKeys = Object.keys(secrets);
+        const presentSecrets = secretKeys.filter((k) => !!secrets[k]).sort();
+        add("secrets_present", document.createTextNode(presentSecrets.length + "/" + secretKeys.length));
+        presentSecrets.slice(0, 12).forEach((k) => add(k, pill(true)));
+        if (presentSecrets.length > 12) add("secrets_more", document.createTextNode("…"));
 
         const env = st.env || {};
         const envSources = st.env_sources || {};
-        Object.keys(env).sort().forEach((k) => {
+        const envKeys = Object.keys(env);
+        const configured = envKeys.filter((k) => !!env[k]).sort();
+        add("env_configured", document.createTextNode(configured.length + "/" + envKeys.length));
+
+        // Still fill any known inputs on this page (but don't spam the status panel with all keys).
+        Object.keys(env).forEach((k) => {
           const v = env[k];
-          const node = document.createElement("span");
-          node.className = "pill";
-          node.style.fontFamily = "var(--mono)";
-          const src = envSources[k] ? String(envSources[k]) : "";
-          node.textContent = (v ? v : "(unset)") + (src ? " [" + src + "]" : "");
-          add(k, node);
-          if ($(k)) {
-            const el = $(k);
-            if (el.tagName === "SELECT") {
-              el.value = v || "";
-            } else {
-              el.value = v || "";
-            }
-          }
+          if (!$(k)) return;
+          const el = $(k);
+          if (el.tagName === "SELECT") el.value = v || "";
+          else el.value = v || "";
         });
 
         $("statusMsg").textContent = (st.notes || []).join("\\n");
@@ -555,6 +693,361 @@
         $("statusMsg").textContent = "Loading...";
         const st = await apiGet("/api/settings/status");
         renderStatus(st);
+        return st;
+      }
+
+      // ---------------------------------------------------------------------
+      // All Settings (Advanced): render schema + allow editing all keys
+      // ---------------------------------------------------------------------
+
+      let _allSchema = null;
+      const _allRows = new Map(); // key -> { kind, spec, rowEl, inputEl, clearEl, orig }
+
+      function _normBoolValue(v) {
+        const s = String(v || "").trim().toLowerCase();
+        if (!s) return "";
+        if (["1", "true", "yes", "on"].includes(s)) return "1";
+        if (["0", "false", "no", "off"].includes(s)) return "0";
+        return s;
+      }
+
+      function _setRowChanged(rowEl, changed) {
+        if (!rowEl) return;
+        rowEl.classList.toggle("settingChanged", !!changed);
+      }
+
+      function _rowHay(spec) {
+        const parts = [spec.key, spec.category || "", spec.kind || "", spec.description || ""];
+        return parts.join(" ").toLowerCase();
+      }
+
+      function _makeBadge(text, cls) {
+        const el = document.createElement("span");
+        el.className = "badge" + (cls ? " " + cls : "");
+        el.textContent = text;
+        return el;
+      }
+
+      function _makeEnvInput(spec, currentValue) {
+        const t = String(spec.input || "text");
+        if (t === "bool") {
+          const wrap = document.createElement("div");
+          wrap.className = "seg";
+
+          const hid = document.createElement("input");
+          hid.type = "hidden";
+          wrap.appendChild(hid);
+
+          const mk = (val, label) => {
+            const b = document.createElement("button");
+            b.type = "button";
+            b.dataset.val = val;
+            b.textContent = label;
+            b.onclick = () => setVal(val);
+            wrap.appendChild(b);
+            return b;
+          };
+          const b0 = mk("", "inherit");
+          const b1 = mk("1", "on");
+          const b2 = mk("0", "off");
+          const btns = [b0, b1, b2];
+
+          const setVal = (val) => {
+            hid.value = String(val || "");
+            btns.forEach((bb) => bb.classList.toggle("active", bb.dataset.val === hid.value));
+            hid.dispatchEvent(new Event("change", { bubbles: true }));
+            hid.dispatchEvent(new Event("input", { bubbles: true }));
+          };
+
+          setVal(_normBoolValue(currentValue));
+          return { wrap, input: hid };
+        }
+        if (t === "textarea" || t === "json") {
+          const ta = document.createElement("textarea");
+          ta.value = String(currentValue || "");
+          return ta;
+        }
+        if (t === "number") {
+          const inp = document.createElement("input");
+          inp.type = "number";
+          inp.value = String(currentValue || "");
+          return inp;
+        }
+        const inp = document.createElement("input");
+        inp.value = String(currentValue || "");
+        return inp;
+      }
+
+      function _makeSecretInput(spec) {
+        const wrap = document.createElement("div");
+        wrap.style.display = "grid";
+        wrap.style.gap = "8px";
+
+        const ta = document.createElement("textarea");
+        ta.placeholder = "Paste new value (leave empty = no change)";
+        wrap.appendChild(ta);
+
+        const clearWrap = document.createElement("label");
+        clearWrap.style.display = "inline-flex";
+        clearWrap.style.alignItems = "center";
+        clearWrap.style.gap = "8px";
+
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        clearWrap.appendChild(cb);
+
+        const txt = document.createElement("span");
+        txt.className = "small";
+        txt.textContent = "Clear secret file (danger)";
+        clearWrap.appendChild(txt);
+
+        wrap.appendChild(clearWrap);
+        return { wrap, ta, cb };
+      }
+
+      function _renderAll(schema, status) {
+        const container = $("allSettings");
+        container.innerHTML = "";
+        _allRows.clear();
+
+        const settings = (schema && schema.settings) ? schema.settings : [];
+        const env = (status && status.env) ? status.env : {};
+        const envSources = (status && status.env_sources) ? status.env_sources : {};
+        const secretsPresent = (status && status.secrets_present) ? status.secrets_present : {};
+
+        // Group by category
+        const byCat = new Map();
+        settings.forEach((spec) => {
+          const cat = String(spec.category || "Other");
+          if (!byCat.has(cat)) byCat.set(cat, []);
+          byCat.get(cat).push(spec);
+        });
+
+        const cats = Array.from(byCat.keys()).sort();
+        cats.forEach((cat) => {
+          const specs = byCat.get(cat) || [];
+          const det = document.createElement("details");
+          det.className = "settings";
+          det.open = ["Discord", "Roles", "Permissions", "Approvals", "Music", "Relay/Tunnel", "MCP"].includes(cat);
+
+          const sum = document.createElement("summary");
+          sum.textContent = cat + " (" + specs.length + ")";
+          det.appendChild(sum);
+
+          const list = document.createElement("div");
+          list.className = "settingsList";
+
+          specs.forEach((spec) => {
+            const key = String(spec.key || "").trim();
+            if (!key) return;
+
+            const row = document.createElement("div");
+            row.className = "settingRow";
+            row.dataset.key = key;
+            row.dataset.hay = _rowHay(spec);
+
+            const left = document.createElement("div");
+            const k = document.createElement("div");
+            k.className = "settingKey";
+            k.textContent = key;
+            left.appendChild(k);
+
+            const desc = document.createElement("div");
+            desc.className = "settingDesc";
+            desc.textContent = String(spec.description || "");
+            left.appendChild(desc);
+
+            const meta = document.createElement("div");
+            meta.className = "settingMeta";
+            meta.appendChild(_makeBadge(String(spec.kind || "env"), spec.kind === "secret" ? "warn" : ""));
+            if (spec.default) meta.appendChild(_makeBadge("default=" + String(spec.default), ""));
+            if (spec.locked) meta.appendChild(_makeBadge("locked", "bad"));
+
+            const kind = String(spec.kind || "env");
+            if (kind === "secret") {
+              const present = !!secretsPresent[key];
+              meta.appendChild(_makeBadge(present ? "present" : "missing", present ? "good" : "bad"));
+            } else {
+              const src = envSources[key] ? String(envSources[key]) : ((env[key] ? "env" : "unset"));
+              meta.appendChild(_makeBadge("src=" + src, src === "override" ? "warn" : ""));
+            }
+            left.appendChild(meta);
+
+            const right = document.createElement("div");
+
+            if (kind === "secret") {
+              const { wrap, ta, cb } = _makeSecretInput(spec);
+              right.appendChild(wrap);
+
+              const onChange = () => {
+                const changed = cb.checked || ((ta.value || "").trim().length > 0);
+                _setRowChanged(row, changed);
+              };
+              ta.addEventListener("input", onChange);
+              cb.addEventListener("change", onChange);
+
+              _allRows.set(key, { kind, spec, rowEl: row, inputEl: ta, clearEl: cb, orig: "" });
+            } else {
+              const current = env[key] || "";
+              if (spec.locked) {
+                const inp = document.createElement("input");
+                inp.value = String(current || "");
+                inp.disabled = true;
+                right.appendChild(inp);
+                _allRows.set(key, { kind, spec, rowEl: row, inputEl: inp, clearEl: null, orig: String(current || "") });
+              } else {
+                const inputInfo = _makeEnvInput(spec, current);
+                let inp = inputInfo;
+                if (inputInfo && inputInfo.wrap && inputInfo.input) {
+                  right.appendChild(inputInfo.wrap);
+                  inp = inputInfo.input;
+                } else {
+                  right.appendChild(inputInfo);
+                  inp = inputInfo;
+                }
+
+                if (
+                  inp &&
+                  spec.default &&
+                  !String(current || "").trim() &&
+                  inp.placeholder !== undefined &&
+                  !(inp.tagName === "INPUT" && String(inp.type || "").toLowerCase() === "hidden")
+                ) {
+                  inp.placeholder = String(spec.default);
+                }
+
+                const orig = String(current || "");
+                const origNorm = (String(spec.input || "") === "bool") ? _normBoolValue(orig) : orig;
+
+                const onChange = () => {
+                  const now = (inp.value || "");
+                  const nowNorm = (String(spec.input || "") === "bool") ? _normBoolValue(now) : String(now);
+                  _setRowChanged(row, nowNorm !== origNorm);
+                };
+                inp.addEventListener("input", onChange);
+                inp.addEventListener("change", onChange);
+
+                _allRows.set(key, { kind, spec, rowEl: row, inputEl: inp, clearEl: null, orig: orig });
+              }
+            }
+
+            row.appendChild(left);
+            row.appendChild(right);
+            list.appendChild(row);
+          });
+
+          det.appendChild(list);
+          container.appendChild(det);
+        });
+
+        _applyAllFilter();
+      }
+
+      function _applyAllFilter() {
+        const q = ($("ALL_FILTER") ? $("ALL_FILTER").value : "").trim().toLowerCase();
+        const rows = Array.from(document.querySelectorAll(".settingRow"));
+        rows.forEach((row) => {
+          const hay = String(row.dataset.hay || "");
+          row.style.display = (!q || hay.includes(q)) ? "" : "none";
+        });
+      }
+
+      async function _renderAllFromApi() {
+        $("allMsg").textContent = "Loading schema...";
+        const schema = await apiGet("/api/settings/schema");
+        const status = await refresh();
+        _allSchema = schema;
+        _renderAll(schema, status);
+        $("allMsg").textContent = "Rendered. Use filter + Save Changes.";
+      }
+
+      async function _saveAllChanges() {
+        const envChanges = {};
+        const secretChanges = {};
+        for (const [key, row] of _allRows.entries()) {
+          if (row.kind === "secret") {
+            const ta = row.inputEl;
+            const cb = row.clearEl;
+            const v = (ta && ta.value) ? ta.value.trim() : "";
+            if (cb && cb.checked) {
+              secretChanges[key] = null;
+            } else if (v) {
+              secretChanges[key] = v;
+            }
+            continue;
+          }
+          const spec = row.spec || {};
+          if (spec.locked) continue;
+          const inp = row.inputEl;
+          const orig = String(row.orig || "");
+          const t = String(spec.input || "");
+          const nowRaw = (inp && inp.value) ? String(inp.value) : "";
+          const now = (t === "bool") ? _normBoolValue(nowRaw) : nowRaw.trim();
+          const origNorm = (t === "bool") ? _normBoolValue(orig) : orig.trim();
+          if (now === origNorm) continue;
+          envChanges[key] = now ? now : null;
+        }
+
+        const mode = ($("SETTINGS_OVERRIDE_MODE") && $("SETTINGS_OVERRIDE_MODE").value) ? $("SETTINGS_OVERRIDE_MODE").value.trim() : "override";
+
+        const did = [];
+        try {
+          if (Object.keys(secretChanges).length) {
+            await apiPost("/api/settings/secrets", { secrets: secretChanges });
+            did.push("secrets");
+
+            // If ORA_WEB_API_TOKEN was changed, keep this browser in sync so the next refresh doesn't 403.
+            if (secretChanges["ORA_WEB_API_TOKEN"] !== undefined) {
+              const v = secretChanges["ORA_WEB_API_TOKEN"];
+              if (typeof v === "string" && v.trim()) {
+                localStorage.setItem("ora_web_api_token", v.trim());
+                if ($("token")) $("token").value = v.trim();
+              } else if (v === null) {
+                localStorage.removeItem("ora_web_api_token");
+                if ($("token")) $("token").value = "";
+              }
+            }
+          }
+          if (Object.keys(envChanges).length) {
+            await apiPost("/api/settings/env", { env: envChanges, mode });
+            did.push("env");
+          }
+          if (!did.length) {
+            $("allMsg").textContent = "No changes.";
+            return;
+          }
+          $("allMsg").textContent = "Saved: " + did.join(", ") + ". Restart may be required.";
+          // Clear secret textareas/checkboxes for safety
+          for (const [key, row] of _allRows.entries()) {
+            if (row.kind === "secret") {
+              if (row.inputEl) row.inputEl.value = "";
+              if (row.clearEl) row.clearEl.checked = false;
+              _setRowChanged(row.rowEl, false);
+            }
+          }
+          await _renderAllFromApi();
+        } catch (e) {
+          $("allMsg").textContent = "Error: " + e.message;
+        }
+      }
+
+      function _resetAllUi() {
+        for (const [key, row] of _allRows.entries()) {
+          if (row.kind === "secret") {
+            if (row.inputEl) row.inputEl.value = "";
+            if (row.clearEl) row.clearEl.checked = false;
+            _setRowChanged(row.rowEl, false);
+            continue;
+          }
+          const spec = row.spec || {};
+          const t = String(spec.input || "");
+          const orig = String(row.orig || "");
+          if (row.inputEl) {
+            row.inputEl.value = (t === "bool") ? _normBoolValue(orig) : orig;
+          }
+          _setRowChanged(row.rowEl, false);
+        }
+        $("allMsg").textContent = "Reset.";
       }
 
       function init() {
@@ -577,7 +1070,7 @@
           const keys = [
             "DISCORD_BOT_TOKEN",
             "OPENAI_API_KEY","ANTHROPIC_API_KEY","GROK_API_KEY",
-            "ORA_SPOTIFY_CLIENT_ID","ORA_SPOTIFY_CLIENT_SECRET",
+            "ORA_SPOTIFY_CLIENT_SECRET",
             "SEARCH_API_KEY",
             "ADMIN_DASHBOARD_TOKEN","ORA_WEB_API_TOKEN"
           ];
@@ -590,6 +1083,13 @@
           try {
             const res = await apiPost("/api/settings/secrets", { secrets });
             $("secretsMsg").textContent = "Updated: " + (res.updated || []).join(", ");
+
+            // If user set ORA_WEB_API_TOKEN, also store it for this browser.
+            if (secrets["ORA_WEB_API_TOKEN"]) {
+              const v = String(secrets["ORA_WEB_API_TOKEN"]).trim();
+              localStorage.setItem("ora_web_api_token", v);
+              if ($("token")) $("token").value = v;
+            }
             await refresh();
           } catch (e) {
             $("secretsMsg").textContent = "Error: " + e.message;
@@ -601,7 +1101,7 @@
           const keys = [
             "DISCORD_BOT_TOKEN",
             "OPENAI_API_KEY","ANTHROPIC_API_KEY","GROK_API_KEY",
-            "ORA_SPOTIFY_CLIENT_ID","ORA_SPOTIFY_CLIENT_SECRET",
+            "ORA_SPOTIFY_CLIENT_SECRET",
             "SEARCH_API_KEY",
             "ADMIN_DASHBOARD_TOKEN","ORA_WEB_API_TOKEN"
           ];
@@ -611,6 +1111,11 @@
             const res = await apiPost("/api/settings/secrets", { secrets });
             $("secretsMsg").textContent = "Cleared: " + (res.updated || []).join(", ");
             keys.forEach((k) => $(k).value = "");
+
+            // Clearing ORA_WEB_API_TOKEN means this browser should also forget it.
+            localStorage.removeItem("ora_web_api_token");
+            if ($("token")) $("token").value = "";
+
             await refresh();
           } catch (e) {
             $("secretsMsg").textContent = "Error: " + e.message;
@@ -619,8 +1124,9 @@
 
         $("saveEnv").onclick = async () => {
           const keys = [
-            "ADMIN_USER_ID","DISCORD_APP_ID","ORA_DEV_GUILD_ID",
-            "ORA_API_BASE_URL","ORA_CORE_API_URL","ORA_PUBLIC_BASE_URL",
+            "ADMIN_USER_ID","SUB_ADMIN_IDS","VC_ADMIN_IDS","DISCORD_APP_ID","ORA_DEV_GUILD_ID",
+            "ORA_API_BASE_URL","ORA_CORE_API_URL","PUBLIC_BASE_URL",
+            "ORA_PUBLIC_TOOLS","ORA_SUBADMIN_TOOLS","ORA_OWNER_ONLY_TOOLS",
             "ORA_SHARED_GUEST_ALLOWED_TOOLS","ORA_SHARED_GUEST_APPROVAL_MIN_SCORE","ORA_SHARED_ALLOW_CRITICAL",
             "ORA_PRIVATE_OWNER_APPROVALS","ORA_SHARED_OWNER_APPROVALS","ORA_OWNER_APPROVAL_SKIP_TOOLS",
             "ORA_MCP_ENABLED","ORA_MCP_ALLOW_DANGEROUS","ORA_MCP_SERVERS_JSON","ORA_MCP_DENY_TOOL_PATTERNS",
@@ -647,8 +1153,9 @@
         $("clearEnv").onclick = async () => {
           if (!confirm("Clear ALL overrides listed on this page?")) return;
           const keys = [
-            "ADMIN_USER_ID","DISCORD_APP_ID","ORA_DEV_GUILD_ID",
-            "ORA_API_BASE_URL","ORA_CORE_API_URL","ORA_PUBLIC_BASE_URL",
+            "ADMIN_USER_ID","SUB_ADMIN_IDS","VC_ADMIN_IDS","DISCORD_APP_ID","ORA_DEV_GUILD_ID",
+            "ORA_API_BASE_URL","ORA_CORE_API_URL","PUBLIC_BASE_URL",
+            "ORA_PUBLIC_TOOLS","ORA_SUBADMIN_TOOLS","ORA_OWNER_ONLY_TOOLS",
             "ORA_SHARED_GUEST_ALLOWED_TOOLS","ORA_SHARED_GUEST_APPROVAL_MIN_SCORE","ORA_SHARED_ALLOW_CRITICAL",
             "ORA_PRIVATE_OWNER_APPROVALS","ORA_SHARED_OWNER_APPROVALS","ORA_OWNER_APPROVAL_SKIP_TOOLS",
             "ORA_MCP_ENABLED","ORA_MCP_ALLOW_DANGEROUS","ORA_MCP_SERVERS_JSON","ORA_MCP_DENY_TOOL_PATTERNS",
@@ -667,6 +1174,17 @@
             $("envMsg").textContent = "Error: " + e.message;
           }
         };
+
+        // Advanced settings
+        if ($("ALL_RENDER")) {
+          $("ALL_RENDER").onclick = async () => {
+            try { await _renderAllFromApi(); }
+            catch (e) { $("allMsg").textContent = "Error: " + e.message; }
+          };
+        }
+        if ($("ALL_SAVE")) $("ALL_SAVE").onclick = _saveAllChanges;
+        if ($("ALL_RESET")) $("ALL_RESET").onclick = _resetAllUi;
+        if ($("ALL_FILTER")) $("ALL_FILTER").oninput = _applyAllFilter;
 
         refresh().catch((e) => {
           $("statusMsg").textContent = "Error: " + e.message + "\\n\\nIf ORA_WEB_API_TOKEN is set, paste it above and refresh.";
