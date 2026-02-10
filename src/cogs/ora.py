@@ -1691,8 +1691,15 @@ class ORACog(commands.Cog):
                 music_enabled = str(os.getenv("ORA_MUSIC_MENTION_TRIGGERS") or "1").strip().lower() in {"1", "true", "yes", "on"}
 
                 legacy_allow_all = str(os.getenv("ORA_MUSIC_MENTION_ALLOW_NON_ADMIN") or "0").strip().lower() in {"1", "true", "yes", "on"}
-                level_att = (os.getenv("ORA_MUSIC_MENTION_LEVEL") or "").strip().lower() or ("user" if legacy_allow_all else "owner")
-                level_yt = (os.getenv("ORA_MUSIC_MENTION_YOUTUBE_LEVEL") or "").strip().lower() or ("user" if legacy_allow_all else "vc_admin")
+                # Default policy:
+                # - private: owner-only (safe)
+                # - shared: allow everyone by default (friend-friendly), but still keep YouTube-level separate if configured.
+                prof = (getattr(self.bot.config, "profile", None) or "private").strip().lower()
+                default_att = "user" if prof == "shared" else "owner"
+                default_yt = "user" if prof == "shared" else "vc_admin"
+
+                level_att = (os.getenv("ORA_MUSIC_MENTION_LEVEL") or "").strip().lower() or ("user" if legacy_allow_all else default_att)
+                level_yt = (os.getenv("ORA_MUSIC_MENTION_YOUTUBE_LEVEL") or "").strip().lower() or ("user" if legacy_allow_all else default_yt)
 
                 async def _allow(level: str) -> bool:
                     lv = (level or "owner").strip().lower()
@@ -1704,18 +1711,43 @@ class ORACog(commands.Cog):
                     return message.author.id == self.bot.config.admin_user_id
 
                 if music_enabled and (await _allow(level_att)):
-                    want_music = any(k in clean_content.lower() for k in ["play", "music", "song", "流して", "再生", "かけて", "聴かせ"])
-                    if want_music:
-                        # 1) Attachment audio (mp3/wav/ogg/m4a)
-                        att = None
-                        for a in (getattr(message, "attachments", []) or []):
-                            fn = (getattr(a, "filename", "") or "").lower()
-                            ct = (getattr(a, "content_type", "") or "").lower()
-                            if fn.endswith((".mp3", ".wav", ".ogg", ".m4a")) or ct.startswith("audio/"):
-                                att = a
-                                break
+                    kw_trigger = any(
+                        k in clean_content.lower() for k in ["play", "music", "song", "流して", "再生", "かけて", "聴かせ"]
+                    )
 
+                    # Attachment audio (mp3/wav/ogg/m4a)
+                    att = None
+                    for a in (getattr(message, "attachments", []) or []):
+                        fn = (getattr(a, "filename", "") or "").lower()
+                        ct = (getattr(a, "content_type", "") or "").lower()
+                        if fn.endswith((".mp3", ".wav", ".ogg", ".m4a")) or ct.startswith("audio/"):
+                            att = a
+                            break
+
+                    # YouTube/Spotify URL in message content
+                    yt_url = None
+                    sp_url = None
+                    for tok in clean_content.split():
+                        t = tok.strip().strip("<>").strip()
+                        if ("youtube.com" in t) or ("youtu.be" in t):
+                            if t.startswith("http://") or t.startswith("https://"):
+                                yt_url = t
+                                break
+                        if (
+                            ("open.spotify.com" in t)
+                            or ("spotify.com" in t)
+                            or ("spotify.link" in t)
+                            or ("spoti.fi" in t)
+                            or t.startswith("spotify:")
+                        ):
+                            if t.startswith("spotify:") or t.startswith("http://") or t.startswith("https://"):
+                                sp_url = t
+
+                    want_music = kw_trigger or bool(att) or bool(yt_url or sp_url)
+                    if want_music:
                         media_cog = self.bot.get_cog("MediaCog")
+
+                        # 1) Attachment audio
                         if media_cog and att and hasattr(media_cog, "play_attachment_from_ai"):
                             ctx = await self.bot.get_context(message)
                             await media_cog.play_attachment_from_ai(ctx, att)
@@ -1725,10 +1757,10 @@ class ORACog(commands.Cog):
                                 pass
                             return
 
-                        # YouTube playback permission can be stricter than attachments.
-                        if not (await _allow(level_yt)):
+                        # URL playback permission can be stricter than attachments.
+                        if (yt_url or sp_url) and not (await _allow(level_yt)):
                             logger.info(
-                                "Mention music denied (youtube): user_id=%s guild_id=%s required=%s",
+                                "Mention music denied (url): user_id=%s guild_id=%s required=%s",
                                 message.author.id,
                                 getattr(message.guild, "id", None),
                                 level_yt,
@@ -1736,21 +1768,7 @@ class ORACog(commands.Cog):
                             # Let ChatHandler handle it (might still respond in text).
                             pass
                         else:
-                            # 2) YouTube/Spotify URL in message content
-                            yt_url = None
-                            sp_url = None
-                            for tok in clean_content.split():
-                                t = tok.strip().strip("<>").strip()
-                                if ("youtube.com" in t) or ("youtu.be" in t):
-                                    if t.startswith("http://") or t.startswith("https://"):
-                                        yt_url = t
-                                        break
-                                if ("open.spotify.com" in t) or ("spotify.com" in t) or t.startswith("spotify:"):
-                                    if t.startswith("spotify:") or t.startswith("http://") or t.startswith("https://"):
-                                        sp_url = t
-                                        # don't break; prefer YouTube if both exist
-
-                            # Spotify links are treated similar to YouTube (external resolution / higher risk than attachments).
+                            # 2) Spotify URL
                             if media_cog and sp_url and (not yt_url):
                                 ctx = await self.bot.get_context(message)
                                 try:
@@ -1768,9 +1786,9 @@ class ORACog(commands.Cog):
                                     pass
                                 return
 
+                            # 3) YouTube URL
                             if media_cog and yt_url:
                                 ctx = await self.bot.get_context(message)
-                                # If it's a playlist URL, queue all (mention UX). Otherwise, play normally.
                                 try:
                                     if hasattr(media_cog, "playlist_actions_ui_from_ai"):
                                         await media_cog.playlist_actions_ui_from_ai(ctx, yt_url)
@@ -1786,9 +1804,9 @@ class ORACog(commands.Cog):
                                     pass
                                 return
 
-                            # 3) YouTube search by query (no URL provided)
+                            # 4) YouTube search by query (no URL provided)
                             # Example: "@YonerAI YOASOBI 流して" -> search YouTube and play the top result.
-                            if media_cog and (not yt_url):
+                            if media_cog and (not yt_url) and (not sp_url) and kw_trigger:
                                 q = clean_content.strip()
                                 try:
                                     bot_name = ""
@@ -1799,12 +1817,10 @@ class ORACog(commands.Cog):
                                             or ""
                                         )
                                     if bot_name:
-                                        # Remove leading "@BotName" (with or without space)
                                         q = re.sub(rf"^@?{re.escape(str(bot_name))}\\s*", "", q, flags=re.IGNORECASE)
                                 except Exception:
                                     pass
 
-                                # Remove common "play" keywords so the remainder becomes a clean search query.
                                 for kw in ["play", "music", "song", "流して", "再生", "かけて", "聴かせ", "流せ", "かけろ"]:
                                     try:
                                         q = q.replace(kw, " ")

@@ -800,32 +800,6 @@ class MediaCog(commands.Cog):
         else:
             await ctx.send("❌ 再生エラー: VoiceClientへの接続に失敗しました。")
 
-    @commands.command(name="play", aliases=["p"])
-    async def play_prefix(self, ctx: commands.Context, *, query: str = "") -> None:
-        """Prefix command for compatibility with common music bots.
-
-        Example:
-          !play <url-or-query>
-          m!play <url-or-query>   (if ORA_DISCORD_COMMAND_PREFIXES includes 'm!')
-        """
-        q = (query or "").strip()
-        if not q:
-            # If an audio file is attached, play it.
-            att = None
-            for a in (getattr(getattr(ctx, "message", None), "attachments", []) or []):
-                fn = (getattr(a, "filename", "") or "").lower()
-                ct = (getattr(a, "content_type", "") or "").lower()
-                if fn.endswith((".mp3", ".wav", ".ogg", ".m4a")) or ct.startswith("audio/"):
-                    att = a
-                    break
-            if att and hasattr(self, "play_attachment_from_ai"):
-                await self.play_attachment_from_ai(ctx, att)
-                return
-            await ctx.send("使い方: `!play <YouTube/Spotify URL or 検索ワード>`")
-            return
-
-        await self.play_from_ai(ctx, q)
-
     async def playlist_actions_ui_from_ai(self, ctx: commands.Context, url: str) -> None:
         """Send a Discord-native UI for playlist-like URLs (Queue All / Shuffle / Pick One)."""
         u = (url or "").strip()

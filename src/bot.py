@@ -67,18 +67,10 @@ class ORABot(commands.Bot):
         session: aiohttp.ClientSession,
         connection_manager: ConnectionManager,
     ) -> None:
-        # Prefix commands are optional; most UX is via slash commands or @mention triggers.
-        # Support multiple prefixes for compatibility with common music-bot conventions (e.g., "m!play").
-        raw_prefixes = (os.getenv("ORA_DISCORD_COMMAND_PREFIXES") or "!").strip()
-        prefixes: list[str] = []
-        for p in [x.strip() for x in raw_prefixes.replace(";", ",").split(",")]:
-            if p:
-                prefixes.append(p)
-        if not prefixes:
-            prefixes = ["!"]
-
         super().__init__(
-            command_prefix=commands.when_mentioned_or(*prefixes),
+            # Use mention-only prefix to avoid clashing with other bots' `!`/`m!` prefixes.
+            # Most of ORA's UX is via slash commands + @mention triggers.
+            command_prefix=commands.when_mentioned,
             intents=intents,
             application_id=config.app_id,
         )
