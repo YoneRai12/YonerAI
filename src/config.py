@@ -149,7 +149,10 @@ DEFAULT_DB_PATH = os.path.join(DB_DIR, "ora_bot.db")
 def _apply_profile_secrets() -> None:
     """
     Optional: allow per-profile secrets without juggling multiple .env files.
-    If env var is missing and a file exists under SECRETS_DIR, load it into env.
+    If a file exists under SECRETS_DIR, load it into env.
+
+    Rationale: UI/installer-managed secrets should survive restarts even when .env already
+    contains a value. Presence of a secrets file is an explicit local choice, so it wins.
     """
     mapping = {
         "ORA_WEB_API_TOKEN": "ora_web_api_token.txt",
@@ -161,6 +164,10 @@ def _apply_profile_secrets() -> None:
         "OPENAI_API_KEY": "openai_api_key.txt",
         "ANTHROPIC_API_KEY": "anthropic_api_key.txt",
         "GROK_API_KEY": "grok_api_key.txt",
+        # Optional integrations (treated as secrets).
+        "ORA_SPOTIFY_CLIENT_ID": "ora_spotify_client_id.txt",
+        "ORA_SPOTIFY_CLIENT_SECRET": "ora_spotify_client_secret.txt",
+        "SEARCH_API_KEY": "search_api_key.txt",
         # Bot secrets (avoid committing .env).
         "DISCORD_BOT_TOKEN": "discord_bot_token.txt",
     }
@@ -171,8 +178,6 @@ def _apply_profile_secrets() -> None:
     except Exception:
         return
     for env_key, fname in mapping.items():
-        if (os.getenv(env_key) or "").strip():
-            continue
         try:
             val = (base / fname).read_text(encoding="utf-8", errors="ignore").strip()
         except Exception:
@@ -189,7 +194,9 @@ def _apply_settings_overrides() -> None:
     Optional: allow non-secret config to be set via the local web UI without editing .env.
 
     - Stored under STATE_DIR so it remains profile/instance-scoped.
-    - Env still wins: we only fill missing keys.
+    - Default behavior: overrides win for keys present in settings_override.json.
+      (The UI exists to avoid editing .env.)
+    - Backward compatible: older settings files without a "mode" key behave like "fill".
     """
     from pathlib import Path
 
@@ -200,6 +207,12 @@ def _apply_settings_overrides() -> None:
         raw = json.loads(path.read_text(encoding="utf-8", errors="ignore"))
         if not isinstance(raw, dict):
             return
+        mode = (raw.get("mode") or "fill")
+        if not isinstance(mode, str):
+            mode = "fill"
+        mode = mode.strip().lower()
+        if mode not in {"fill", "override"}:
+            mode = "fill"
         env_map = raw.get("env")
         if not isinstance(env_map, dict):
             return
@@ -210,7 +223,7 @@ def _apply_settings_overrides() -> None:
                 continue
             if not isinstance(v, str):
                 v = str(v)
-            if (os.getenv(k) or "").strip():
+            if mode == "fill" and (os.getenv(k) or "").strip():
                 continue
             os.environ[k] = v
     except Exception:

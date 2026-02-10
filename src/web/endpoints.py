@@ -35,18 +35,63 @@ _ALLOWED_SECRET_KEYS: dict[str, str] = {
     "OPENAI_API_KEY": "openai_api_key.txt",
     "ANTHROPIC_API_KEY": "anthropic_api_key.txt",
     "GROK_API_KEY": "grok_api_key.txt",
+    "ORA_SPOTIFY_CLIENT_ID": "ora_spotify_client_id.txt",
+    "ORA_SPOTIFY_CLIENT_SECRET": "ora_spotify_client_secret.txt",
+    "SEARCH_API_KEY": "search_api_key.txt",
 }
 
 # Non-secret config (stored under STATE_DIR/settings_override.json).
 _ALLOWED_ENV_KEYS: set[str] = {
+    # Identity / ownership
+    "ADMIN_USER_ID",
+    "DISCORD_APP_ID",
+    "ORA_DEV_GUILD_ID",
+
     "ORA_API_BASE_URL",
     "ORA_CORE_API_URL",
     "ORA_PUBLIC_BASE_URL",
-    "ORA_PROFILE",
+
+    # Approvals / policy knobs
+    "ORA_OWNER_APPROVALS",
+    "ORA_OWNER_APPROVAL_SKIP_TOOLS",
+    "ORA_PRIVATE_OWNER_APPROVALS",
+    "ORA_PRIVATE_OWNER_APPROVAL_SKIP_TOOLS",
+    "ORA_SHARED_OWNER_APPROVALS",
+    "ORA_SHARED_OWNER_APPROVAL_SKIP_TOOLS",
+    "ORA_SHARED_GUEST_APPROVAL_MIN_SCORE",
+    "ORA_SHARED_ALLOW_CRITICAL",
+
+    # shared guest allowlist
+    "ORA_SHARED_GUEST_ALLOWED_TOOLS",
+
+    # MCP
+    "ORA_MCP_ENABLED",
+    "ORA_MCP_SERVERS_JSON",
+    "ORA_MCP_ALLOW_DANGEROUS",
+    "ORA_MCP_DENY_TOOL_PATTERNS",
+
+    # Mention music UX
+    "ORA_MUSIC_MENTION_TRIGGERS",
+    "ORA_MUSIC_MENTION_LEVEL",
+    "ORA_MUSIC_MENTION_YOUTUBE_LEVEL",
+    "ORA_MUSIC_NATIVE_PICKER",
+    "ORA_MUSIC_PLAYLIST_ACTION_UI",
+    "ORA_MUSIC_PICKER_RESULTS",
+    "ORA_MUSIC_PLAYLIST_PICKER_RESULTS",
+    "ORA_MUSIC_PLAYLIST_PAGE_SIZE",
+    "ORA_MUSIC_QUEUE_ALL_LIMIT",
+    "ORA_MUSIC_QUEUE_ALL_SHUFFLE",
+    "ORA_MUSIC_QUEUE_ALL_RESOLVE_TIMEOUT_SEC",
+    "ORA_MUSIC_MAX_ATTACHMENT_MB",
+
+    # Relay / tunnel
     "ORA_RELAY_URL",
     "ORA_RELAY_EXPOSE_MODE",
     "ORA_CLOUDFLARED_BIN",
     "ORA_RELAY_PUBLIC_URL_FILE",
+    "ORA_RELAY_MAX_MSG_BYTES",
+    "ORA_RELAY_MAX_PENDING",
+    "ORA_RELAY_CLIENT_TIMEOUT_SEC",
 }
 
 
@@ -70,10 +115,13 @@ def _read_settings_override() -> dict:
         return {}
 
 
-def _write_settings_override(env_map: dict[str, str]) -> None:
+def _write_settings_override(*, env_map: dict[str, str], mode: str) -> None:
     _, state_dir, settings_file = _settings_paths()
     state_dir.mkdir(parents=True, exist_ok=True)
-    payload = {"env": env_map}
+    m = (mode or "").strip().lower()
+    if m not in {"fill", "override"}:
+        m = "override"
+    payload = {"env": env_map, "mode": m}
     settings_file.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
@@ -96,19 +144,41 @@ def _secret_present(key: str) -> bool:
 def _get_settings_status() -> dict:
     from src.config import ORA_PROFILE, ORA_INSTANCE_ID, STATE_DIR, SECRETS_DIR
 
-    env_override = _read_settings_override().get("env", {})
+    raw_override = _read_settings_override()
+    override_mode = (raw_override.get("mode") or "fill")
+    if not isinstance(override_mode, str):
+        override_mode = "fill"
+    override_mode = override_mode.strip().lower()
+    if override_mode not in {"fill", "override"}:
+        override_mode = "fill"
+
+    env_override = raw_override.get("env", {})
     if not isinstance(env_override, dict):
         env_override = {}
 
     env_out: dict[str, str | None] = {}
+    env_sources: dict[str, str] = {}
     for k in sorted(_ALLOWED_ENV_KEYS):
         v = (os.getenv(k) or "").strip()
         if v:
             env_out[k] = v
+            # Heuristic source label: if override is set AND we're in override mode AND it matches, call it override.
+            ov = env_override.get(k)
+            if override_mode == "override" and isinstance(ov, str) and ov.strip() and ov.strip() == v:
+                env_sources[k] = "override"
+            else:
+                env_sources[k] = "env"
         else:
             # Show overrides (non-secret) to help debugging even when env is empty.
             ov = env_override.get(k)
             env_out[k] = str(ov) if isinstance(ov, str) and ov.strip() else None
+            env_sources[k] = "override" if env_out[k] is not None else "unset"
+
+    # Also return raw overrides to help debugging UI behavior.
+    env_overrides_out: dict[str, str] = {}
+    for k, v in env_override.items():
+        if isinstance(k, str) and isinstance(v, str) and k in _ALLOWED_ENV_KEYS and v.strip():
+            env_overrides_out[k] = v.strip()
 
     secrets_out = {k: _secret_present(k) for k in sorted(_ALLOWED_SECRET_KEYS.keys())}
     return {
@@ -116,7 +186,10 @@ def _get_settings_status() -> dict:
         "instance_id": str(ORA_INSTANCE_ID),
         "state_dir": str(STATE_DIR),
         "secrets_dir": str(SECRETS_DIR),
+        "override_mode": override_mode,
         "env": env_out,
+        "env_sources": env_sources,
+        "env_overrides": env_overrides_out,
         "secrets_present": secrets_out,
         "notes": [
             "Secrets are never returned by the API (only presence).",
@@ -133,6 +206,10 @@ class SettingsSecretsUpdate(BaseModel):
 class SettingsEnvUpdate(BaseModel):
     # Map of env key -> value (or null/empty to clear override).
     env: dict[str, str | None] = {}
+    # How to apply overrides relative to .env:
+    # - fill: only set values when env is missing (legacy behavior)
+    # - override: overrides always win for keys present in env_map
+    mode: str | None = None
 
 
 def _is_loopback(request: Request) -> bool:
@@ -255,9 +332,17 @@ async def update_settings_secrets(req: SettingsSecretsUpdate, _: None = Depends(
 
 @router.post("/settings/env")
 async def update_settings_env(req: SettingsEnvUpdate, _: None = Depends(require_web_api)):
-    overrides = _read_settings_override().get("env", {})
+    raw = _read_settings_override()
+    overrides = raw.get("env", {})
     if not isinstance(overrides, dict):
         overrides = {}
+
+    mode = req.mode if isinstance(req.mode, str) and req.mode.strip() else (raw.get("mode") if isinstance(raw, dict) else None)
+    if not isinstance(mode, str):
+        mode = "override"
+    mode = mode.strip().lower()
+    if mode not in {"fill", "override"}:
+        mode = "override"
 
     updated: list[str] = []
     for k, v in (req.env or {}).items():
@@ -274,7 +359,10 @@ async def update_settings_env(req: SettingsEnvUpdate, _: None = Depends(require_
         os.environ[k] = overrides[k]
         updated.append(k)
 
-    _write_settings_override({str(k): str(v) for k, v in overrides.items() if isinstance(k, str) and isinstance(v, str)})
+    _write_settings_override(
+        env_map={str(k): str(v) for k, v in overrides.items() if isinstance(k, str) and isinstance(v, str)},
+        mode=mode,
+    )
     out = _get_settings_status()
     out["updated"] = updated
     return out
