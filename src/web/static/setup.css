@@ -14,6 +14,17 @@ body{
     radial-gradient(1200px 700px at 40% 120%, rgba(125,211,252,.12), transparent 55%),
     linear-gradient(180deg,var(--bg0),var(--bg1));
 }
+body:before{
+  content:"";
+  position:fixed;
+  inset:0;
+  pointer-events:none;
+  background:
+    radial-gradient(1200px 700px at 50% 10%, rgba(255,255,255,.06), transparent 60%),
+    repeating-linear-gradient(90deg, rgba(255,255,255,.018) 0px, rgba(255,255,255,.018) 1px, transparent 1px, transparent 5px);
+  opacity:.45;
+  mix-blend-mode:overlay;
+}
 a{color:var(--accent);text-decoration:none}
 a:hover{text-decoration:underline}
 
@@ -23,8 +34,10 @@ a:hover{text-decoration:underline}
   backdrop-filter:blur(14px);
   background:rgba(7,10,16,.7);
   border-bottom:1px solid var(--line);
-  max-width:1300px;margin:0 auto;
+  width:100%;
   padding:14px;
+  padding-left:max(14px, calc((100vw - 1300px)/2 + 14px));
+  padding-right:max(14px, calc((100vw - 1300px)/2 + 14px));
   display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;
 }
 .brand{display:grid;gap:2px}
@@ -39,6 +52,8 @@ button{
   color:var(--text);
   cursor:pointer;font-weight:700;font-size:12px;
 }
+button:hover{border-color:rgba(125,211,252,.35)}
+button:active{transform:translateY(1px)}
 button.secondary{background:rgba(255,255,255,.06)}
 button.danger{background:rgba(255,77,90,.10)}
 button:disabled{opacity:.55;cursor:not-allowed}
@@ -71,6 +86,15 @@ button:disabled{opacity:.55;cursor:not-allowed}
   border:1px solid var(--line);border-radius:14px;padding:10px;
   background:rgba(11,13,18,.35);color:var(--text);font-weight:750;
 }
+.navLabel{display:flex;gap:10px;align-items:center}
+.navIcon{
+  width:10px;height:10px;border-radius:4px;
+  background:linear-gradient(180deg, rgba(125,211,252,.85), rgba(96,165,250,.55));
+  box-shadow:0 8px 20px rgba(0,0,0,.35);
+  opacity:.85;
+}
+.navItem.active .navIcon{opacity:1}
+.navItem:hover{border-color:rgba(125,211,252,.25)}
 .navItem .sub{margin-top:2px;font-size:11px;color:var(--muted);font-weight:600}
 .navItem.active{
   border-color:rgba(125,211,252,.55);
@@ -105,6 +129,11 @@ button:disabled{opacity:.55;cursor:not-allowed}
 .spacer{height:12px}
 .panelBody{display:grid;gap:12px}
 
+@media (prefers-reduced-motion: no-preference){
+  .panelBody{animation:fadeUp .18s ease both}
+  @keyframes fadeUp{from{opacity:.6;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+}
+
 label{display:block;font-size:12px;color:var(--muted);margin:10px 0 6px}
 input,textarea,select{
   width:100%;
@@ -113,6 +142,7 @@ input,textarea,select{
   background:rgba(7,10,16,.62);color:var(--text);
   outline:none;font-family:var(--mono);font-size:12px
 }
+input:focus,textarea:focus,select:focus{border-color:rgba(125,211,252,.45);box-shadow:0 0 0 3px rgba(125,211,252,.10)}
 textarea{min-height:88px;resize:vertical}
 input[disabled],textarea[disabled]{opacity:.65}
 .msg{margin-top:10px;font-size:12px;color:var(--muted);white-space:pre-wrap;line-height:1.45}
@@ -177,4 +207,3 @@ input[disabled],textarea[disabled]{opacity:.65}
 /* Responsive */
 @media(max-width:980px){.app{grid-template-columns:1fr}.sidebar{display:none}}
 @media(min-width:981px){.menuBtn{display:none}}
-

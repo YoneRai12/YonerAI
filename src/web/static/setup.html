@@ -10,8 +10,8 @@
     <header class="topbar">
       <button class="iconBtn menuBtn" id="menuBtn" title="Menu">☰</button>
       <div class="brand">
-        <h1>YonerAI Setup</h1>
-        <p>Tokens, roles, permissions, approvals, MCP, relay. Everything from UI.</p>
+        <h1 id="brandTitle">YonerAI Setup</h1>
+        <p id="brandDesc">Tokens, roles, permissions, approvals, MCP, relay. Everything from UI.</p>
       </div>
       <div class="topActions">
         <button id="refresh" class="secondary">Refresh</button>
@@ -21,10 +21,17 @@
     <div class="drawerMask" id="drawerMask"></div>
     <div class="drawer" id="drawer">
       <aside class="sidebar sidebarDrawer">
-        <div class="navTitle">Setup</div>
+        <div class="navTitle" id="setupTitleMobile">Setup</div>
         <div class="nav" id="navMobile"></div>
         <div class="sideSection">
-          <div class="navTitle">API Token</div>
+          <div class="navTitle" id="langTitleMobile">Language</div>
+          <select id="langMobile">
+            <option value="en">English</option>
+            <option value="ja">日本語</option>
+          </select>
+        </div>
+        <div class="sideSection">
+          <div class="navTitle" id="apiTokenTitleMobile">API Token</div>
           <div class="sideGrid">
             <input id="tokenMobile" placeholder="Bearer token (stored in this browser)" />
             <div class="sideButtons">
@@ -39,10 +46,17 @@
 
     <div class="app">
       <aside class="sidebar">
-        <div class="navTitle">Setup</div>
+        <div class="navTitle" id="setupTitle">Setup</div>
         <div class="nav" id="nav"></div>
         <div class="sideSection">
-          <div class="navTitle">API Token</div>
+          <div class="navTitle" id="langTitle">Language</div>
+          <select id="lang">
+            <option value="en">English</option>
+            <option value="ja">日本語</option>
+          </select>
+        </div>
+        <div class="sideSection">
+          <div class="navTitle" id="apiTokenTitle">API Token</div>
           <div class="sideGrid">
             <input id="token" placeholder="Bearer token (stored in this browser)" />
             <div class="sideButtons">
@@ -68,7 +82,7 @@
               <span class="pill" id="pillMode">mode=?</span>
             </div>
             <div class="topRight">
-              <label class="inlineLabel">Override Mode</label>
+              <label class="inlineLabel" id="overrideModeLabel">Override Mode</label>
               <select id="SETTINGS_OVERRIDE_MODE">
                 <option value="override">override (UI wins)</option>
                 <option value="fill">fill (only when env is missing)</option>
@@ -77,7 +91,7 @@
             </div>
           </div>
 
-          <label>Filter (key/description)</label>
+          <label id="filterLabel">Filter (key/description)</label>
           <input id="filter" placeholder="e.g. TOKEN, ADMIN, ORA_MCP_, RELAY, APPROVAL" />
           <div class="msg" id="panelMsg"></div>
         </div>
@@ -90,4 +104,3 @@
     <script src="/static/setup.js"></script>
   </body>
 </html>
-

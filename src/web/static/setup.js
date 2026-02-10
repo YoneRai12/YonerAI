@@ -1,6 +1,134 @@
-/* YonerAI Setup UI (sidebar + categories + toggles) */
+/* YonerAI Setup UI (sidebar + categories + toggles + i18n) */
 
 const $ = (id) => document.getElementById(id);
+
+// ---------------------------------------------------------------------------
+// i18n (UI language)
+// ---------------------------------------------------------------------------
+
+const I18N = {
+  en: {
+    title: "YonerAI Setup",
+    brand_desc: "Tokens, roles, permissions, approvals, MCP, relay. Everything from UI.",
+    refresh: "Refresh",
+    language: "Language",
+    setup: "Setup",
+    api_token: "API Token",
+    override_mode: "Override Mode",
+    override_mode_override: "override (UI wins)",
+    override_mode_fill: "fill (only when env is missing)",
+    save: "Save",
+    filter_label: "Filter (key/description)",
+    filter_ph: "e.g. TOKEN, ADMIN, ORA_MCP_, RELAY, APPROVAL",
+    token_ph: "Bearer token (stored in this browser)",
+    save_token: "Save",
+    clear_token: "Clear",
+    saved: "Saved.",
+    cleared: "Cleared.",
+    loading: "Loading...",
+    no_changes: "No changes.",
+    saved_prefix: "Saved",
+    restart_hint: "Restart may be required.",
+    overview_title: "Overview",
+    overview_sub: "Status and quick notes.",
+    category_sub: "Edit settings in this category. Use filter to narrow down.",
+    nav_overview_sub: "Status, guard token, quick notes",
+    nav_default_sub: "Configure",
+    bool_unset: "Unset",
+    secret_ph: "Paste new value (leave empty = no change)",
+    secret_clear: "Clear secret (danger)",
+    src_prefix: "src=",
+    api_token_hint: "If ORA_WEB_API_TOKEN is set, paste it in the sidebar token field.",
+  },
+  ja: {
+    title: "YonerAI セットアップ",
+    brand_desc: "トークン/権限/承認/MCP/Relay をUIで設定。秘密は表示しません。",
+    refresh: "更新",
+    language: "言語",
+    setup: "設定",
+    api_token: "APIトークン",
+    override_mode: "上書きモード",
+    override_mode_override: "override（UI優先）",
+    override_mode_fill: "fill（.envが無い時だけ）",
+    save: "保存",
+    filter_label: "絞り込み（キー/説明）",
+    filter_ph: "例: TOKEN, ADMIN, ORA_MCP_, RELAY, APPROVAL",
+    token_ph: "Bearerトークン（このブラウザに保存）",
+    save_token: "保存",
+    clear_token: "消去",
+    saved: "保存しました。",
+    cleared: "消去しました。",
+    loading: "読み込み中...",
+    no_changes: "変更なし。",
+    saved_prefix: "保存",
+    restart_hint: "反映に再起動が必要な場合があります。",
+    overview_title: "概要",
+    overview_sub: "状態とメモ。",
+    category_sub: "このカテゴリの設定を編集します。フィルタで絞り込めます。",
+    nav_overview_sub: "状態/トークン/メモ",
+    nav_default_sub: "設定",
+    bool_unset: "未設定に戻す",
+    secret_ph: "新しい値を貼り付け（空=変更なし）",
+    secret_clear: "秘密を消す（危険）",
+    src_prefix: "由来=",
+    api_token_hint: "ORA_WEB_API_TOKEN を設定している場合、左のトークン欄に貼り付けてください。",
+  },
+};
+
+const CAT_LABELS = {
+  ja: {
+    Overview: "概要",
+    Roles: "ロール/管理者",
+    Permissions: "権限/公開範囲",
+    Approvals: "承認（Approvals）",
+    Discord: "Discord",
+    Providers: "プロバイダ/トークン",
+    "Web/Auth": "Web/認証",
+    MCP: "MCP",
+    Music: "音楽",
+    "Relay/Tunnel": "Relay/Tunnel",
+    Sandbox: "サンドボックス",
+    Browser: "ブラウザ",
+    Storage: "ストレージ",
+    "Logging/Debug": "ログ/デバッグ",
+    Models: "モデル",
+    Voice: "音声",
+    Search: "検索",
+    Other: "その他",
+  },
+  en: {},
+};
+
+function _defaultLang() {
+  const nav = (navigator.language || "").toLowerCase();
+  if (nav.startsWith("ja")) return "ja";
+  return "en";
+}
+
+let _lang = (localStorage.getItem("yonerai_setup_lang") || "").trim().toLowerCase();
+if (!_lang) _lang = _defaultLang();
+if (!I18N[_lang]) _lang = "en";
+
+function t(key) {
+  return (I18N[_lang] && I18N[_lang][key]) || I18N.en[key] || key;
+}
+
+function catLabel(cat) {
+  const m = CAT_LABELS[_lang] || {};
+  return m[cat] || cat;
+}
+
+function setLang(lang) {
+  const l = String(lang || "").trim().toLowerCase();
+  if (!I18N[l]) return;
+  _lang = l;
+  localStorage.setItem("yonerai_setup_lang", _lang);
+  document.documentElement.lang = _lang;
+  _applyStaticStrings();
+  _renderNav("nav");
+  _renderNav("navMobile");
+  _renderPanel();
+}
 
 function bearerHeaders() {
   const t = (localStorage.getItem("ora_web_api_token") || "").trim();
@@ -73,7 +201,7 @@ function _makeSecretEditor(spec) {
   wrap.className = "switchRow";
 
   const ta = document.createElement("textarea");
-  ta.placeholder = "Paste new value (leave empty = no change)";
+  ta.placeholder = t("secret_ph");
   wrap.appendChild(ta);
 
   const clearWrap = document.createElement("div");
@@ -82,7 +210,7 @@ function _makeSecretEditor(spec) {
   cb.type = "checkbox";
   const lbl = document.createElement("span");
   lbl.className = "badge warn";
-  lbl.textContent = "Clear secret (danger)";
+  lbl.textContent = t("secret_clear");
   clearWrap.appendChild(cb);
   clearWrap.appendChild(lbl);
   wrap.appendChild(clearWrap);
@@ -109,9 +237,9 @@ function _makeBoolEditor(currentValue, srcLabel) {
   const unset = document.createElement("button");
   unset.type = "button";
   unset.className = "unsetBtn";
-  unset.textContent = "Unset";
+  unset.textContent = t("bool_unset");
 
-  const hint = _makeBadge(srcLabel ? "src=" + srcLabel : "src=?", srcLabel === "override" ? "warn" : "");
+  const hint = _makeBadge(srcLabel ? (t("src_prefix") + srcLabel) : (t("src_prefix") + "?"), srcLabel === "override" ? "warn" : "");
 
   const cur = _normBoolValue(currentValue);
   input.checked = cur === "1";
@@ -165,6 +293,20 @@ let _status = null;
 let _byCat = new Map();
 let _activePanel = "Overview";
 const _rows = new Map(); // key -> row state
+let _dirtyCount = 0;
+
+function _updateSaveButton() {
+  const btn = $("savePanel");
+  if (!btn) return;
+  const label = t("save");
+  btn.textContent = _dirtyCount > 0 ? `${label} (${_dirtyCount})` : label;
+  btn.disabled = _dirtyCount === 0;
+}
+
+function _recountDirty() {
+  _dirtyCount = Array.from(_rows.values()).filter((r) => r && r.rowEl && r.rowEl.classList.contains("settingChanged")).length;
+  _updateSaveButton();
+}
 
 function _buildCategoryMap(schema) {
   const settings = schema && schema.settings ? schema.settings : [];
@@ -221,10 +363,10 @@ function _renderNav(targetId) {
     btn.type = "button";
     btn.className = "navItem" + (cat === _activePanel ? " active" : "");
     const left = document.createElement("div");
-    left.innerHTML = "<div>" + cat + "</div>";
+    left.innerHTML = '<div class="navLabel"><span class="navIcon"></span><span>' + catLabel(cat) + "</span></div>";
     const sub = document.createElement("div");
     sub.className = "sub";
-    sub.textContent = cat === "Overview" ? "Status, guard token, quick notes" : "Configure " + cat;
+    sub.textContent = cat === "Overview" ? t("nav_overview_sub") : (t("nav_default_sub") + " " + catLabel(cat));
     left.appendChild(sub);
     const count = document.createElement("span");
     count.className = "count";
@@ -335,6 +477,7 @@ function _renderCategory(cat) {
       const onChange = () => {
         const changed = (ed.cb && ed.cb.checked) || ((ed.ta.value || "").trim().length > 0);
         _setRowChanged(row, changed);
+        _recountDirty();
       };
       ed.ta.addEventListener("input", onChange);
       ed.cb.addEventListener("change", onChange);
@@ -363,6 +506,7 @@ function _renderCategory(cat) {
           else now = (inp.value || "").trim();
           const nowNorm = t === "bool" ? _normBoolValue(now) : String(now);
           _setRowChanged(row, nowNorm !== origNorm);
+          _recountDirty();
         };
         inp.addEventListener("input", onChange);
         inp.addEventListener("change", onChange);
@@ -376,23 +520,24 @@ function _renderCategory(cat) {
   });
 
   _applyFilter();
+  _recountDirty();
 }
 
 function _renderPanel() {
   $("panelMsg").textContent = "";
   if (_activePanel === "Overview") {
-    $("panelTitle").textContent = "Overview";
-    $("panelSubtitle").textContent = "Status and quick notes.";
+    $("panelTitle").textContent = t("overview_title");
+    $("panelSubtitle").textContent = t("overview_sub");
     _renderOverview();
     return;
   }
-  $("panelTitle").textContent = _activePanel;
-  $("panelSubtitle").textContent = "Edit settings in this category. Use filter to narrow down.";
+  $("panelTitle").textContent = catLabel(_activePanel);
+  $("panelSubtitle").textContent = t("category_sub");
   _renderCategory(_activePanel);
 }
 
 async function _refreshAll() {
-  $("panelMsg").textContent = "Loading...";
+  $("panelMsg").textContent = t("loading");
   _schema = await apiGet("/api/settings/schema");
   _status = await apiGet("/api/settings/status");
   _byCat = _buildCategoryMap(_schema);
@@ -401,6 +546,7 @@ async function _refreshAll() {
   _renderNav("navMobile");
   _renderPanel();
   $("panelMsg").textContent = "";
+  _recountDirty();
 }
 
 async function _saveActivePanel() {
@@ -456,10 +602,10 @@ async function _saveActivePanel() {
       did.push("env");
     }
     if (!did.length) {
-      $("panelMsg").textContent = "No changes.";
+      $("panelMsg").textContent = t("no_changes");
       return;
     }
-    $("panelMsg").textContent = "Saved: " + did.join(", ") + ". Restart may be required.";
+    $("panelMsg").textContent = t("saved_prefix") + ": " + did.join(", ") + ". " + t("restart_hint");
     await _refreshAll();
   } catch (e) {
     $("panelMsg").textContent = "Error: " + e.message;
@@ -476,21 +622,50 @@ function _closeDrawer() {
   $("drawer").classList.remove("on");
 }
 
+function _applyStaticStrings() {
+  document.title = t("title");
+  if ($("brandTitle")) $("brandTitle").textContent = t("title");
+  if ($("brandDesc")) $("brandDesc").textContent = t("brand_desc");
+  if ($("refresh")) $("refresh").textContent = t("refresh");
+  if ($("overrideModeLabel")) $("overrideModeLabel").textContent = t("override_mode");
+  if ($("filterLabel")) $("filterLabel").textContent = t("filter_label");
+  if ($("filter")) $("filter").placeholder = t("filter_ph");
+  if ($("token")) $("token").placeholder = t("token_ph");
+  if ($("tokenMobile")) $("tokenMobile").placeholder = t("token_ph");
+  if ($("saveToken")) $("saveToken").textContent = t("save_token");
+  if ($("clearToken")) $("clearToken").textContent = t("clear_token");
+  if ($("saveTokenMobile")) $("saveTokenMobile").textContent = t("save_token");
+  if ($("clearTokenMobile")) $("clearTokenMobile").textContent = t("clear_token");
+  if ($("langTitle")) $("langTitle").textContent = t("language");
+  if ($("langTitleMobile")) $("langTitleMobile").textContent = t("language");
+  if ($("setupTitle")) $("setupTitle").textContent = t("setup");
+  if ($("setupTitleMobile")) $("setupTitleMobile").textContent = t("setup");
+  if ($("apiTokenTitle")) $("apiTokenTitle").textContent = t("api_token");
+  if ($("apiTokenTitleMobile")) $("apiTokenTitleMobile").textContent = t("api_token");
+
+  const modeSel = $("SETTINGS_OVERRIDE_MODE");
+  if (modeSel && modeSel.options && modeSel.options.length >= 2) {
+    modeSel.options[0].textContent = t("override_mode_override");
+    modeSel.options[1].textContent = t("override_mode_fill");
+  }
+  _updateSaveButton();
+}
+
 function init() {
   const saved = (localStorage.getItem("ora_web_api_token") || "").trim();
   if ($("token")) $("token").value = saved;
   if ($("tokenMobile")) $("tokenMobile").value = saved;
 
   const saveToken = (inputId, msgId) => {
-    const t = ($(inputId).value || "").trim();
-    if (t) localStorage.setItem("ora_web_api_token", t);
+    const tok = ($(inputId).value || "").trim();
+    if (tok) localStorage.setItem("ora_web_api_token", tok);
     else localStorage.removeItem("ora_web_api_token");
-    $(msgId).textContent = "Saved.";
+    $(msgId).textContent = t("saved");
   };
   const clearToken = (inputId, msgId) => {
     localStorage.removeItem("ora_web_api_token");
     $(inputId).value = "";
-    $(msgId).textContent = "Cleared.";
+    $(msgId).textContent = t("cleared");
   };
 
   $("saveToken").onclick = () => saveToken("token", "authMsg");
@@ -511,10 +686,17 @@ function init() {
   if ($("menuBtn")) $("menuBtn").onclick = _openDrawer;
   $("drawerMask").onclick = _closeDrawer;
 
+  // Language selectors
+  if ($("lang")) $("lang").value = _lang;
+  if ($("langMobile")) $("langMobile").value = _lang;
+  if ($("lang")) $("lang").onchange = () => { setLang($("lang").value); if ($("langMobile")) $("langMobile").value = _lang; };
+  if ($("langMobile")) $("langMobile").onchange = () => { setLang($("langMobile").value); if ($("lang")) $("lang").value = _lang; };
+
+  _applyStaticStrings();
+
   _refreshAll().catch((e) => {
-    $("panelMsg").textContent = "Error: " + e.message + "\\n\\nIf ORA_WEB_API_TOKEN is set, paste it in the sidebar token field.";
+    $("panelMsg").textContent = "Error: " + e.message + "\\n\\n" + t("api_token_hint");
   });
 }
 
 init();
-
