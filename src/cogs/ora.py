@@ -1754,7 +1754,9 @@ class ORACog(commands.Cog):
                             if media_cog and sp_url and (not yt_url):
                                 ctx = await self.bot.get_context(message)
                                 try:
-                                    if hasattr(media_cog, "enqueue_playlist_url_from_ai"):
+                                    if hasattr(media_cog, "playlist_actions_ui_from_ai"):
+                                        await media_cog.playlist_actions_ui_from_ai(ctx, sp_url)
+                                    elif hasattr(media_cog, "enqueue_playlist_url_from_ai"):
                                         await media_cog.enqueue_playlist_url_from_ai(ctx, sp_url, force_queue_all=True)
                                     else:
                                         await media_cog.play_from_ai(ctx, sp_url)
@@ -1770,7 +1772,9 @@ class ORACog(commands.Cog):
                                 ctx = await self.bot.get_context(message)
                                 # If it's a playlist URL, queue all (mention UX). Otherwise, play normally.
                                 try:
-                                    if hasattr(media_cog, "enqueue_playlist_url_from_ai"):
+                                    if hasattr(media_cog, "playlist_actions_ui_from_ai"):
+                                        await media_cog.playlist_actions_ui_from_ai(ctx, yt_url)
+                                    elif hasattr(media_cog, "enqueue_playlist_url_from_ai"):
                                         await media_cog.enqueue_playlist_url_from_ai(ctx, yt_url, force_queue_all=True)
                                     else:
                                         await media_cog.play_from_ai(ctx, yt_url)

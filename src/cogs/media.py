@@ -685,76 +685,18 @@ class MediaCog(commands.Cog):
         # Spotify URLs are not directly streamable; we map them to YouTube by metadata search.
         # For multi-track sources (playlist/album), we support queue-all via a background resolver.
         if is_url and is_spotify_url(q):
+            # For Spotify we prefer queue-all because it's a metadata->YouTube mapping.
             await self.enqueue_playlist_url_from_ai(ctx, q, force_queue_all=True)
             return
 
-        # Playlist URL: show Discord-native picker (pagination) instead of auto-playing the first item.
-        # This matches common music bots UX and avoids surprises.
-        try:
-            playlist_picker_on = (os.getenv("ORA_MUSIC_PLAYLIST_NATIVE_PICKER") or "1").strip().lower() in {
-                "1",
-                "true",
-                "yes",
-                "on",
-            }
-        except Exception:
-            playlist_picker_on = True
-
-        if picker_on and playlist_picker_on and is_url and is_youtube_playlist_url(q):
+        # Playlist-like URLs: show an actions UI (Queue All / Shuffle / Pick One).
+        if picker_on and is_url and (is_youtube_playlist_url(q) or is_spotify_playlist_like(q)):
             try:
-                raw_lim = (os.getenv("ORA_MUSIC_PLAYLIST_PICKER_RESULTS") or "60").strip()
-                lim = int(raw_lim)
+                ui_on = (os.getenv("ORA_MUSIC_PLAYLIST_ACTION_UI") or "1").strip().lower() in {"1", "true", "yes", "on"}
             except Exception:
-                lim = 60
-            lim = max(10, min(200, lim))
-
-            try:
-                raw_page = (os.getenv("ORA_MUSIC_PLAYLIST_PAGE_SIZE") or "20").strip()
-                page_size = int(raw_page)
-            except Exception:
-                page_size = 20
-            page_size = max(10, min(25, page_size))
-
-            title, entries = await get_youtube_playlist_entries(q, limit=lim)
-            if entries:
-                from ..views.music_playlist_picker import PlaylistPickView
-
-                ptitle = title or "YouTube Playlist"
-                embed = discord.Embed(
-                    title="Choose a track from playlist",
-                    description=f"Playlist: **{ptitle}**\nEntries loaded: {len(entries)} (showing {page_size}/page)",
-                    color=discord.Color.from_rgb(29, 185, 84),
-                )
-                # short preview
-                lines: list[str] = []
-                for i, r in enumerate(entries[: min(10, len(entries))], start=1):
-                    t = str(r.get("title") or "(no title)")
-                    if len(t) > 60:
-                        t = t[:57] + "..."
-                    dur = r.get("duration")
-                    dur_str = ""
-                    try:
-                        if isinstance(dur, int) and dur > 0:
-                            m, s = divmod(dur, 60)
-                            h, m = divmod(m, 60)
-                            dur_str = f" ({h}:{m:02d}:{s:02d})" if h else f" ({m}:{s:02d})"
-                    except Exception:
-                        pass
-                    lines.append(f"{i}. {t}{dur_str}")
-                if lines:
-                    embed.add_field(name="Preview", value="\n".join(lines)[:1000], inline=False)
-
-                view = PlaylistPickView(
-                    cog=self,
-                    requester_id=int(ctx.author.id),
-                    playlist_title=ptitle,
-                    playlist_url=q,
-                    entries=entries,
-                    page_size=page_size,
-                    timeout=120.0,
-                )
-                msg = await ctx.send(embed=embed, view=view)
-                view.message = msg
+                ui_on = True
+            if ui_on:
+                await self.playlist_actions_ui_from_ai(ctx, q)
                 return
 
         if picker_on and (not is_url) and (not q.startswith("ytsearch")):
@@ -858,7 +800,157 @@ class MediaCog(commands.Cog):
         else:
             await ctx.send("❌ 再生エラー: VoiceClientへの接続に失敗しました。")
 
-    async def enqueue_playlist_url_from_ai(self, ctx: commands.Context, url: str, force_queue_all: bool = True) -> None:
+    @commands.command(name="play", aliases=["p"])
+    async def play_prefix(self, ctx: commands.Context, *, query: str = "") -> None:
+        """Prefix command for compatibility with common music bots.
+
+        Example:
+          !play <url-or-query>
+          m!play <url-or-query>   (if ORA_DISCORD_COMMAND_PREFIXES includes 'm!')
+        """
+        q = (query or "").strip()
+        if not q:
+            # If an audio file is attached, play it.
+            att = None
+            for a in (getattr(getattr(ctx, "message", None), "attachments", []) or []):
+                fn = (getattr(a, "filename", "") or "").lower()
+                ct = (getattr(a, "content_type", "") or "").lower()
+                if fn.endswith((".mp3", ".wav", ".ogg", ".m4a")) or ct.startswith("audio/"):
+                    att = a
+                    break
+            if att and hasattr(self, "play_attachment_from_ai"):
+                await self.play_attachment_from_ai(ctx, att)
+                return
+            await ctx.send("使い方: `!play <YouTube/Spotify URL or 検索ワード>`")
+            return
+
+        await self.play_from_ai(ctx, q)
+
+    async def playlist_actions_ui_from_ai(self, ctx: commands.Context, url: str) -> None:
+        """Send a Discord-native UI for playlist-like URLs (Queue All / Shuffle / Pick One)."""
+        u = (url or "").strip()
+        if not u:
+            return
+
+        # Extract a preview for the embed.
+        title: str = ""
+        count: int = 0
+        preview_lines: list[str] = []
+        can_pick_one = False
+
+        if is_youtube_playlist_url(u):
+            can_pick_one = True
+            try:
+                raw_lim = (os.getenv("ORA_MUSIC_PLAYLIST_PICKER_RESULTS") or "60").strip()
+                lim = int(raw_lim)
+            except Exception:
+                lim = 60
+            lim = max(10, min(200, lim))
+            ptitle, entries = await get_youtube_playlist_entries(u, limit=lim)
+            title = str(ptitle or "YouTube Playlist")
+            count = len(entries or [])
+            for i, r in enumerate((entries or [])[:10], start=1):
+                t = str(r.get("title") or "(no title)")
+                if len(t) > 60:
+                    t = t[:57] + "..."
+                preview_lines.append(f"{i}. {t}")
+
+        elif is_spotify_url(u) and is_spotify_playlist_like(u):
+            can_pick_one = False  # keep it simple for now (queue-all is the main UX)
+            try:
+                raw_lim = (os.getenv("ORA_MUSIC_QUEUE_ALL_LIMIT") or "60").strip()
+                lim = int(raw_lim)
+            except Exception:
+                lim = 60
+            lim = max(10, min(200, lim))
+            stitle, tracks = await get_spotify_tracks(u, limit=lim)
+            title = str(stitle or "Spotify Playlist")
+            count = len(tracks or [])
+            for i, tr in enumerate((tracks or [])[:10], start=1):
+                t = str(tr.get("title") or tr.get("query") or "(no title)")
+                if len(t) > 60:
+                    t = t[:57] + "..."
+                preview_lines.append(f"{i}. {t}")
+        else:
+            # Not playlist-like; just play normally.
+            await self.play_from_ai(ctx, u)
+            return
+
+        embed = discord.Embed(
+            title="Playlist detected",
+            description=f"**{title}**\nTracks loaded: {count}\n\nURL:\n{u}",
+            color=discord.Color.from_rgb(29, 185, 84),
+        )
+        if preview_lines:
+            embed.add_field(name="Preview", value="\n".join(preview_lines)[:1000], inline=False)
+        if is_spotify_url(u):
+            embed.add_field(
+                name="Note",
+                value="Spotifyは直接再生できないため、曲名メタデータからYouTube検索に変換して再生します。",
+                inline=False,
+            )
+
+        from ..views.playlist_actions import PlaylistActionsView
+
+        view = PlaylistActionsView(cog=self, requester_id=int(ctx.author.id), url=u, can_pick_one=can_pick_one, timeout=90.0)
+        msg = await ctx.send(embed=embed, view=view)
+        view.message = msg
+
+    async def playlist_pick_one_ui_from_ai(self, ctx: commands.Context, url: str) -> None:
+        """Provider-specific "pick one" UI for playlist-like URLs (currently YouTube only)."""
+        u = (url or "").strip()
+        if not u:
+            return
+        if not is_youtube_playlist_url(u):
+            await ctx.send("このURLはPick Oneに未対応です（YouTubeプレイリストのみ）。")
+            return
+
+        try:
+            raw_lim = (os.getenv("ORA_MUSIC_PLAYLIST_PICKER_RESULTS") or "60").strip()
+            lim = int(raw_lim)
+        except Exception:
+            lim = 60
+        lim = max(10, min(200, lim))
+
+        try:
+            raw_page = (os.getenv("ORA_MUSIC_PLAYLIST_PAGE_SIZE") or "20").strip()
+            page_size = int(raw_page)
+        except Exception:
+            page_size = 20
+        page_size = max(10, min(25, page_size))
+
+        title, entries = await get_youtube_playlist_entries(u, limit=lim)
+        if not entries:
+            await ctx.send("❌ プレイリストから曲を取得できませんでした。")
+            return
+
+        from ..views.music_playlist_picker import PlaylistPickView
+
+        ptitle = str(title or "YouTube Playlist")
+        embed = discord.Embed(
+            title="Choose a track from playlist",
+            description=f"Playlist: **{ptitle}**\nEntries loaded: {len(entries)} (showing {page_size}/page)",
+            color=discord.Color.from_rgb(29, 185, 84),
+        )
+        view = PlaylistPickView(
+            cog=self,
+            requester_id=int(ctx.author.id),
+            playlist_title=ptitle,
+            playlist_url=u,
+            entries=entries,
+            page_size=page_size,
+            timeout=120.0,
+        )
+        msg = await ctx.send(embed=embed, view=view)
+        view.message = msg
+
+    async def enqueue_playlist_url_from_ai(
+        self,
+        ctx: commands.Context,
+        url: str,
+        force_queue_all: bool = True,
+        shuffle_override: bool | None = None,
+    ) -> None:
         """
         Queue all tracks from a playlist-like URL (YouTube playlist, Spotify playlist/album).
 
@@ -881,7 +973,10 @@ class MediaCog(commands.Cog):
             lim = 60
         lim = max(10, min(200, lim))
 
-        shuffle = (os.getenv("ORA_MUSIC_QUEUE_ALL_SHUFFLE") or "0").strip().lower() in {"1", "true", "yes", "on"}
+        if shuffle_override is None:
+            shuffle = (os.getenv("ORA_MUSIC_QUEUE_ALL_SHUFFLE") or "0").strip().lower() in {"1", "true", "yes", "on"}
+        else:
+            shuffle = bool(shuffle_override)
         per_track_timeout = float((os.getenv("ORA_MUSIC_QUEUE_ALL_RESOLVE_TIMEOUT_SEC") or "20").strip() or "20")
         per_track_timeout = max(5.0, min(60.0, per_track_timeout))
 
