@@ -4,7 +4,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>YonerAI Setup</title>
-    <link rel="stylesheet" href="/static/setup.css" />
+    <!-- Cache-bust static assets (users often keep stale CSS/JS open) -->
+    <link rel="stylesheet" href="/static/setup.css?v=20260210_1" />
   </head>
   <body>
     <header class="topbar">
@@ -23,13 +24,23 @@
       <aside class="sidebar sidebarDrawer">
         <div class="navTitle" id="setupTitleMobile">Setup</div>
         <div class="nav" id="navMobile"></div>
+
         <div class="sideSection">
           <div class="navTitle" id="langTitleMobile">Language</div>
           <select id="langMobile">
             <option value="en">English</option>
             <option value="ja">日本語</option>
           </select>
+
+          <div class="prefRow">
+            <div class="prefLabel" id="showDescTitleMobile">Descriptions</div>
+            <label class="switch" aria-label="Show descriptions">
+              <input id="showDescMobile" type="checkbox" />
+              <span class="slider"></span>
+            </label>
+          </div>
         </div>
+
         <div class="sideSection">
           <div class="navTitle" id="apiTokenTitleMobile">API Token</div>
           <div class="sideGrid">
@@ -48,13 +59,23 @@
       <aside class="sidebar">
         <div class="navTitle" id="setupTitle">Setup</div>
         <div class="nav" id="nav"></div>
+
         <div class="sideSection">
           <div class="navTitle" id="langTitle">Language</div>
           <select id="lang">
             <option value="en">English</option>
             <option value="ja">日本語</option>
           </select>
+
+          <div class="prefRow">
+            <div class="prefLabel" id="showDescTitle">Descriptions</div>
+            <label class="switch" aria-label="Show descriptions">
+              <input id="showDesc" type="checkbox" />
+              <span class="slider"></span>
+            </label>
+          </div>
         </div>
+
         <div class="sideSection">
           <div class="navTitle" id="apiTokenTitle">API Token</div>
           <div class="sideGrid">
@@ -70,17 +91,18 @@
 
       <main class="content">
         <div class="contentHeader">
-          <h2 id="panelTitle">Loading...</h2>
-          <p id="panelSubtitle">Fetching schema and status...</p>
-        </div>
+          <div class="headLeft">
+            <h2 id="panelTitle">Loading...</h2>
+            <p id="panelSubtitle">Fetching schema and status...</p>
+          </div>
 
-        <div class="card topCard">
-          <div class="topRow">
+          <div class="headRight">
             <div class="topPills">
               <span class="pill" id="pillProfile">profile=?</span>
               <span class="pill" id="pillInstance">instance=?</span>
               <span class="pill" id="pillMode">mode=?</span>
             </div>
+
             <div class="topRight">
               <label class="inlineLabel" id="overrideModeLabel">Override Mode</label>
               <select id="SETTINGS_OVERRIDE_MODE">
@@ -90,10 +112,16 @@
               <button id="savePanel">Save</button>
             </div>
           </div>
+        </div>
 
-          <label id="filterLabel">Filter (key/description)</label>
-          <input id="filter" placeholder="e.g. TOKEN, ADMIN, ORA_MCP_, RELAY, APPROVAL" />
-          <div class="msg" id="panelMsg"></div>
+        <div class="card topCard">
+          <div class="filterRow">
+            <div class="filterCol">
+              <label id="filterLabel">Filter (key/description)</label>
+              <input id="filter" placeholder="e.g. TOKEN, ADMIN, ORA_MCP_, RELAY, APPROVAL" />
+            </div>
+            <div class="msg" id="panelMsg"></div>
+          </div>
         </div>
 
         <div class="spacer"></div>
@@ -101,6 +129,7 @@
       </main>
     </div>
 
-    <script src="/static/setup.js"></script>
+    <script src="/static/setup.js?v=20260210_1"></script>
   </body>
 </html>
+

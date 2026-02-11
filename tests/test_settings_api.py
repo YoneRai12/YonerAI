@@ -26,3 +26,11 @@ def test_settings_status_never_returns_secret_values(monkeypatch):
         txt = r.text
         assert "sk-test-should-not-leak" not in txt
 
+
+def test_settings_status_rejects_forwarded_public_ip_without_token(monkeypatch):
+    monkeypatch.delenv("ORA_WEB_API_TOKEN", raising=False)
+    monkeypatch.delenv("ORA_REQUIRE_WEB_API_TOKEN", raising=False)
+    with TestClient(app) as client:
+        r = client.get("/api/settings/status", headers={"x-forwarded-for": "8.8.8.8"})
+        # No token configured + non-loopback forwarded IP => should not allow.
+        assert r.status_code == 503

@@ -60,6 +60,7 @@ from ..utils.ui import EmbedFactory, StatusManager
 from ..utils.unified_client import UnifiedClient
 from ..utils.user_prefs import UserPrefs
 from .handlers.chat_handler import ChatHandler
+from .handlers.mention_music_handler import handle_mention_music
 from .handlers.vision_handler import VisionHandler
 from .tools.tool_handler import ToolHandler
 
@@ -105,12 +106,12 @@ def _generate_tree(dir_path: Path, max_depth: int = 2, current_depth: int = 0) -
 
             indent = "    " * current_depth
             if item.is_dir():
-                tree_str += f"{indent}唐 {item.name}/\n"
+                tree_str += f"{indent}📁 {item.name}/\n"
                 tree_str += _generate_tree(item, max_depth, current_depth + 1)
             else:
-                tree_str += f"{indent}塘 {item.name}\n"
+                tree_str += f"{indent}📄 {item.name}\n"
     except PermissionError:
-        tree_str += f"{'    ' * current_depth}白 [Permission Denied]\n"
+        tree_str += f"{'    ' * current_depth}⛔ [Permission Denied]\n"
     except Exception:
         pass
 
@@ -133,7 +134,7 @@ class ORACog(commands.Cog):
         ora_api_base_url: Optional[str],
         privacy_default: str,
     ) -> None:
-        logger.info("ORACog.__init__ 蜻ｼ縺ｳ蜃ｺ縺・- ORACog繧偵Ο繝ｼ繝我ｸｭ")
+        logger.info("ORACog.__init__ start - loading ORACog")
         self.bot = bot
         self._store = store
         self._llm = llm
@@ -253,7 +254,7 @@ class ORACog(commands.Cog):
     async def dashboard(self, interaction: discord.Interaction):
         """Get the link to this server's web dashboard."""
         if not interaction.guild:
-            await interaction.response.send_message("笶・Server only command.", ephemeral=True)
+            await interaction.response.send_message("❌ Server only command.", ephemeral=True)
             return
 
         # Default to local if not set or if force_check
@@ -330,7 +331,7 @@ class ORACog(commands.Cog):
         token = await self.store.get_or_create_dashboard_token(interaction.guild.id, interaction.user.id)
 
         url = f"{base}/api/dashboard/view?token={token}"
-        msg_content = f"投 **Server Dashboard**\nView analytics for **{interaction.guild.name}** here:\n[Open Dashboard]({url})\n*(This link is secure and unique to this server. You can pin this message.)*{warning}"
+        msg_content = f"🔗 **Server Dashboard**\nView analytics for **{interaction.guild.name}** here:\n[Open Dashboard]({url})\n*(This link is secure and unique to this server. You can pin this message.)*{warning}"
 
         if is_deferred:
             await interaction.followup.send(msg_content, ephemeral=True)
@@ -339,7 +340,7 @@ class ORACog(commands.Cog):
 
     async def cog_load(self):
         """Called when the Cog is loaded. Performs Startup Sync."""
-        logger.info("噫 ORACog: Starting Up... Initiating Safety Checks.")
+        logger.info("🚀 ORACog: Starting up... initiating safety checks.")
 
         # Start Loops
         self.desktop_loop.start()
@@ -357,7 +358,7 @@ class ORACog(commands.Cog):
 
         try:
             if self.unified_client and hasattr(self.unified_client, "api_key") and self.unified_client.api_key:
-                logger.info("白 [Startup] Verifying OpenAI Usage with Official API...")
+                logger.info("🔍 [Startup] Verifying OpenAI usage with official API...")
 
                 # Use a temp session to be sure (UnifiedClient session might be lazy)
                 async with aiohttp.ClientSession() as session:
@@ -366,16 +367,16 @@ class ORACog(commands.Cog):
                     )
 
                 if "error" in result:
-                    logger.error(f"笶・[Startup] Sync Failed: {result['error']}")
+                    logger.error(f"❌ [Startup] Sync failed: {result['error']}")
                 elif result.get("updated"):
                     logger.warning(
-                        f"笞・・[Startup] LIMITER UPDATED: Drift detected. Added {result.get('drift_added')} tokens to local state."
+                        f"⚠️ [Startup] LIMITER UPDATED: Drift detected. Added {result.get('drift_added')} tokens to local state."
                     )
                 else:
-                    logger.info(f"笨・[Startup] Usage Verified: {result.get('total_tokens', 0):,} tokens. Sync OK.")
+                    logger.info(f"✅ [Startup] Usage verified: {result.get('total_tokens', 0):,} tokens. Sync OK.")
 
         except Exception as e:
-            logger.error(f"笶・[Startup] Critical Sync Error: {e}")
+            logger.error(f"❌ [Startup] Critical sync error: {e}")
 
     def cog_unload(self):
         try:
@@ -511,7 +512,7 @@ class ORACog(commands.Cog):
         if self._gaming_restore_task:
             self._gaming_restore_task.cancel()
             self._gaming_restore_task = None
-            logger.info("圻 Cancelled pending Normal Mode restoration.")
+            logger.info("⏹️ Cancelled pending Normal Mode restoration.")
 
         self.bot.loop.create_task(self.resource_manager.set_gaming_mode(True))
 
@@ -524,13 +525,13 @@ class ORACog(commands.Cog):
 
     async def _restore_normal_mode_delayed(self):
         """Wait 5 minutes then restore Normal Mode."""
-        logger.info("竢ｳ Game closed. Waiting 5 minutes before restoring Normal Mode...")
+        logger.info("⏳ Game closed. Waiting 5 minutes before restoring Normal Mode...")
         try:
             await asyncio.sleep(300)  # 5 minutes
-            logger.info("竢ｰ 5 minutes passed. Restoring Normal Mode.")
+            logger.info("✅ 5 minutes passed. Restoring Normal Mode.")
             await self.resource_manager.set_gaming_mode(False)
         except asyncio.CancelledError:
-            logger.info("尅 Restore task cancelled (Game restarted?).")
+            logger.info("↩️ Restore task cancelled (game restarted?).")
         finally:
             self._gaming_restore_task = None
 
@@ -581,7 +582,7 @@ class ORACog(commands.Cog):
     async def hourly_sync_loop(self):
         """Periodically sync OpenAI usage with official API."""
         try:
-            logger.info("竢ｳ Starting Hourly OpenAI Usage Sync...")
+            logger.info("⏳ Starting hourly OpenAI usage sync...")
             # Use temp session for robustness
             async with aiohttp.ClientSession() as session:
                 result = await self.cost_manager.sync_openai_usage(
@@ -589,11 +590,11 @@ class ORACog(commands.Cog):
                 )
 
             if result.get("synced"):
-                logger.info(f"笨・Hourly OpenAI Sync Completed. Total Official: {result.get('total_tokens')}")
+                logger.info(f"✅ Hourly OpenAI sync completed. Total official: {result.get('total_tokens')}")
             else:
-                logger.warning(f"笞・・Hourly OpenAI Sync Check Failed: {result}")
+                logger.warning(f"⚠️ Hourly OpenAI sync check failed: {result}")
         except Exception as e:
-            logger.error(f"笶・Hourly Sync Loop Error: {e}")
+            logger.error(f"❌ Hourly sync loop error: {e}")
 
     @tasks.loop(minutes=5.0)
     async def desktop_loop(self):
@@ -644,26 +645,26 @@ class ORACog(commands.Cog):
                 return
 
             # Construct report (Japanese)
-            report = "箕・・**繝・せ繧ｯ繝医ャ繝礼屮隕悶Ξ繝昴・繝・*\n"
+            report = "📸 **デスクトップ観測レポート**\n"
             if hasattr(self, "bot") and mention_admin:
-                report = f"<@{admin_id}> 笞・・**邱頑･繧ｳ繧ｹ繝医い繝ｩ繝ｼ繝・* 笞・十n" + report
+                report = f"<@{admin_id}> ⚠️ **高コストアラート** ⚠️\n" + report
 
             if labels:
-                report += f"捷・・**讀懷・:** {', '.join(labels)}\n"
+                report += f"🏷️ **検出ラベル:** {', '.join(labels)}\n"
             if faces > 0:
-                report += f"側 **鬘疲､懷・:** {faces}莠ｺ\n"
+                report += f"👤 **検出人数:** {faces}人\n"
             if text:
-                report += f"統 **繝・く繧ｹ繝・** {text}...\n"
+                report += f"📝 **抽出テキスト:** {text}...\n"
 
             # Append Cost Status Header
-            report += "\n投 **Cost Dashboard**\n"
+            report += "\n💰 **Cost Dashboard**\n"
 
             # Status Icon
-            status_icon = "泙"
+            status_icon = "✅"
             if ratio > SAFETY_BUFFER_RATIO:
-                status_icon = "閥 (Safety Stop)"
+                status_icon = "🛑 (Safety Stop)"
             elif ratio > 0.8:
-                status_icon = "泯 (Warning)"
+                status_icon = "⚠️ (Warning)"
 
             report += f"{status_icon} **OpenAI Stable**: {ratio * 100:.1f}% Used\n"
             report += f"   - Rem: {remaining:,} Tokens (Safe)\n"
@@ -673,7 +674,7 @@ class ORACog(commands.Cog):
             # Just show ratio/remaining is enough for Dashboard.
 
             if ratio > 0.9:
-                report += "   笞・・**CRITICAL: Apporaching Safety Stop!**\n"
+                report += "   ⚠️ **CRITICAL: Approaching Safety Stop!**\n"
 
             # Send DM
             user = await self.bot.fetch_user(admin_id)
@@ -883,7 +884,7 @@ class ORACog(commands.Cog):
             )
             
             if "error" in response:
-                await interaction.followup.send(f"笶・Core API Error: {response['error']}", ephemeral=True)
+                await interaction.followup.send(f"❌ Core API Error: {response['error']}", ephemeral=True)
                 return
 
             content = await core_client.get_final_response(response["run_id"])
@@ -1533,7 +1534,7 @@ class ORACog(commands.Cog):
             content_lower = message.content.lower().strip()
 
             # 1. Full Scan Triggers
-            full_triggers = ["繝輔Ν繧ｹ繧ｭ繝｣繝ｳ", "蜈ｨ讖溯・繝√ぉ繝・け", "full scan", "full_scan", "system full"]
+            full_triggers = ["フルスキャン", "全体チェック", "full scan", "full_scan", "system full"]
             if any(t in content_lower for t in full_triggers):
                 sys_cog = self.bot.get_cog("SystemCog")
                 if sys_cog and hasattr(sys_cog, "run_full_scan"):
@@ -1543,7 +1544,7 @@ class ORACog(commands.Cog):
                     return
 
             # 2. Simple Scan Triggers
-            simple_triggers = ["繧ｹ繧ｭ繝｣繝ｳ", "險ｺ譁ｭ", "scan", "check system", "health"]
+            simple_triggers = ["スキャン", "診断", "scan", "check system", "health"]
             if any(t in content_lower for t in simple_triggers):
                 sys_cog = self.bot.get_cog("SystemCog")
                 if sys_cog and hasattr(sys_cog, "run_simple_scan"):
@@ -1603,7 +1604,7 @@ class ORACog(commands.Cog):
             )
 
         # logger.info(
-        #     f"ORACog繝｡繝・そ繝ｼ繧ｸ蜿嶺ｿ｡: 繝ｦ繝ｼ繧ｶ繝ｼ={message.author.id}, 蜀・ｮｹ={message.content[:50]}, 豺ｻ莉・{len(message.attachments)}"
+        #     f"ORACog message debug: user_id={message.author.id}, content={message.content[:50]}, attachments={len(message.attachments)}"
         # )
 
 
@@ -1644,7 +1645,7 @@ class ORACog(commands.Cog):
             # Use raw content to be safe against nickname resolution issues for simple keywords
             # But stripped content is better to avoid matching the mention itself (though unlikely)
 
-            # Join: "縺阪※" / "譚･縺ｦ"
+            # Join trigger examples: "きて", "来て", "join", "connect"
             # [DISABLED] Handled by AI Tool (join_voice_channel)
             # Join Trigger
             # Clean content robustly (Handle Nickname Mentions too)
@@ -1666,7 +1667,7 @@ class ORACog(commands.Cog):
                              await message.channel.send("Please join a voice channel first.", delete_after=5)
             # Removed return to allow LLM to also reply
 
-            # Leave: "豸医∴縺ｦ" / "縺ｰ縺・・縺・ / "繝舌う繝舌う" / "蟶ｰ縺｣縺ｦ"
+            # Leave trigger examples: "bye", "leave", "disconnect"
             # [DISABLED] Handled by AI Tool (leave_voice_channel)
             # Leave Trigger
             if len(clean_content) < 30 and any(k in clean_content.lower() for k in ["leave", "disconnect", "bye"]):
@@ -1683,162 +1684,9 @@ class ORACog(commands.Cog):
                     await message.add_reaction("👋")
             # Removed return
 
-            # Music (mentions only): play YouTube URL or attached audio when explicitly requested.
-            # Defaults are conservative:
-            # - attachments: owner-only unless ORA_MUSIC_MENTION_LEVEL=vc_admin|user (or legacy ORA_MUSIC_MENTION_ALLOW_NON_ADMIN=1)
-            # - YouTube URLs: vc_admin+ by default (can be relaxed via ORA_MUSIC_MENTION_YOUTUBE_LEVEL)
-            try:
-                music_enabled = str(os.getenv("ORA_MUSIC_MENTION_TRIGGERS") or "1").strip().lower() in {"1", "true", "yes", "on"}
-
-                legacy_allow_all = str(os.getenv("ORA_MUSIC_MENTION_ALLOW_NON_ADMIN") or "0").strip().lower() in {"1", "true", "yes", "on"}
-                # Default policy:
-                # - private: owner-only (safe)
-                # - shared: allow everyone by default (friend-friendly), but still keep YouTube-level separate if configured.
-                prof = (getattr(self.bot.config, "profile", None) or "private").strip().lower()
-                default_att = "user" if prof == "shared" else "owner"
-                default_yt = "user" if prof == "shared" else "vc_admin"
-
-                level_att = (os.getenv("ORA_MUSIC_MENTION_LEVEL") or "").strip().lower() or ("user" if legacy_allow_all else default_att)
-                level_yt = (os.getenv("ORA_MUSIC_MENTION_YOUTUBE_LEVEL") or "").strip().lower() or ("user" if legacy_allow_all else default_yt)
-
-                async def _allow(level: str) -> bool:
-                    lv = (level or "owner").strip().lower()
-                    if lv == "user":
-                        return True
-                    if lv == "vc_admin":
-                        return await self._check_permission(message.author.id, "vc_admin")
-                    # default: owner
-                    return message.author.id == self.bot.config.admin_user_id
-
-                if music_enabled and (await _allow(level_att)):
-                    kw_trigger = any(
-                        k in clean_content.lower() for k in ["play", "music", "song", "流して", "再生", "かけて", "聴かせ"]
-                    )
-
-                    # Attachment audio (mp3/wav/ogg/m4a)
-                    att = None
-                    for a in (getattr(message, "attachments", []) or []):
-                        fn = (getattr(a, "filename", "") or "").lower()
-                        ct = (getattr(a, "content_type", "") or "").lower()
-                        if fn.endswith((".mp3", ".wav", ".ogg", ".m4a")) or ct.startswith("audio/"):
-                            att = a
-                            break
-
-                    # YouTube/Spotify URL in message content
-                    yt_url = None
-                    sp_url = None
-                    for tok in clean_content.split():
-                        t = tok.strip().strip("<>").strip()
-                        if ("youtube.com" in t) or ("youtu.be" in t):
-                            if t.startswith("http://") or t.startswith("https://"):
-                                yt_url = t
-                                break
-                        if (
-                            ("open.spotify.com" in t)
-                            or ("spotify.com" in t)
-                            or ("spotify.link" in t)
-                            or ("spoti.fi" in t)
-                            or t.startswith("spotify:")
-                        ):
-                            if t.startswith("spotify:") or t.startswith("http://") or t.startswith("https://"):
-                                sp_url = t
-
-                    want_music = kw_trigger or bool(att) or bool(yt_url or sp_url)
-                    if want_music:
-                        media_cog = self.bot.get_cog("MediaCog")
-
-                        # 1) Attachment audio
-                        if media_cog and att and hasattr(media_cog, "play_attachment_from_ai"):
-                            ctx = await self.bot.get_context(message)
-                            await media_cog.play_attachment_from_ai(ctx, att)
-                            try:
-                                await message.add_reaction("🎵")
-                            except Exception:
-                                pass
-                            return
-
-                        # URL playback permission can be stricter than attachments.
-                        if (yt_url or sp_url) and not (await _allow(level_yt)):
-                            logger.info(
-                                "Mention music denied (url): user_id=%s guild_id=%s required=%s",
-                                message.author.id,
-                                getattr(message.guild, "id", None),
-                                level_yt,
-                            )
-                            # Let ChatHandler handle it (might still respond in text).
-                            pass
-                        else:
-                            # 2) Spotify URL
-                            if media_cog and sp_url and (not yt_url):
-                                ctx = await self.bot.get_context(message)
-                                try:
-                                    if hasattr(media_cog, "playlist_actions_ui_from_ai"):
-                                        await media_cog.playlist_actions_ui_from_ai(ctx, sp_url)
-                                    elif hasattr(media_cog, "enqueue_playlist_url_from_ai"):
-                                        await media_cog.enqueue_playlist_url_from_ai(ctx, sp_url, force_queue_all=True)
-                                    else:
-                                        await media_cog.play_from_ai(ctx, sp_url)
-                                except Exception:
-                                    await media_cog.play_from_ai(ctx, sp_url)
-                                try:
-                                    await message.add_reaction("🎵")
-                                except Exception:
-                                    pass
-                                return
-
-                            # 3) YouTube URL
-                            if media_cog and yt_url:
-                                ctx = await self.bot.get_context(message)
-                                try:
-                                    if hasattr(media_cog, "playlist_actions_ui_from_ai"):
-                                        await media_cog.playlist_actions_ui_from_ai(ctx, yt_url)
-                                    elif hasattr(media_cog, "enqueue_playlist_url_from_ai"):
-                                        await media_cog.enqueue_playlist_url_from_ai(ctx, yt_url, force_queue_all=True)
-                                    else:
-                                        await media_cog.play_from_ai(ctx, yt_url)
-                                except Exception:
-                                    await media_cog.play_from_ai(ctx, yt_url)
-                                try:
-                                    await message.add_reaction("🎵")
-                                except Exception:
-                                    pass
-                                return
-
-                            # 4) YouTube search by query (no URL provided)
-                            # Example: "@YonerAI YOASOBI 流して" -> search YouTube and play the top result.
-                            if media_cog and (not yt_url) and (not sp_url) and kw_trigger:
-                                q = clean_content.strip()
-                                try:
-                                    bot_name = ""
-                                    if getattr(self.bot, "user", None):
-                                        bot_name = (
-                                            getattr(self.bot.user, "display_name", None)
-                                            or getattr(self.bot.user, "name", None)
-                                            or ""
-                                        )
-                                    if bot_name:
-                                        q = re.sub(rf"^@?{re.escape(str(bot_name))}\\s*", "", q, flags=re.IGNORECASE)
-                                except Exception:
-                                    pass
-
-                                for kw in ["play", "music", "song", "流して", "再生", "かけて", "聴かせ", "流せ", "かけろ"]:
-                                    try:
-                                        q = q.replace(kw, " ")
-                                        q = q.replace(kw.upper(), " ")
-                                    except Exception:
-                                        pass
-                                q = re.sub(r"\\s+", " ", q).strip(" \t:：-")
-
-                                if q:
-                                    ctx = await self.bot.get_context(message)
-                                    await media_cog.play_from_ai(ctx, q)
-                                    try:
-                                        await message.add_reaction("🎵")
-                                    except Exception:
-                                        pass
-                                    return
-            except Exception:
-                pass
+            # Music mention handling moved to a dedicated handler to keep ORACog slimmer.
+            if await handle_mention_music(self, message, clean_content):
+                return
 
             # [OVERRIDE] Role List Triggers (Bypass LLM)
             if any(k in message.content.lower() for k in ["role list", "role rank"]):
@@ -1884,13 +1732,12 @@ class ORACog(commands.Cog):
             if ref_msg and ref_msg.author.id == self.bot.user.id:
                 is_reply_to_me = True
 
-        # Trigger if mentioned OR replying to me OR Text Trigger (@ORA/@ROA)
-        # 繝ｦ繝ｼ繧ｶ繝ｼ縺後Γ繝ｳ繧ｷ繝ｧ繝ｳ讖溯・繧剃ｽｿ繧上★縺ｫ縲掘ORA縲阪→謇区遠縺｡縺吶ｋ蝣ｴ蜷医・蟇ｾ蠢・
-        text_triggers = ["@ORA", "@ROA", "・ORA", "・ROA", "@ora", "@roa"]
+        # Trigger if mentioned OR replying to me OR Text Trigger (@ORA/@ROA).
+        text_triggers = ["@ORA", "@ROA", "＠ORA", "＠ROA", "@ora", "@roa"]
         is_text_trigger = any(t in message.content for t in text_triggers)
 
         if not (is_mention or is_reply_to_me or is_text_trigger):
-            # logger.debug(f"ORACog.on_message: 繝｡繝ｳ繧ｷ繝ｧ繝ｳ縺ｾ縺溘・霑比ｿ｡縺ｧ縺ｯ縺ｪ縺・◆繧∫┌隕悶＠縺ｾ縺・)
+            # logger.debug("ORACog.on_message: skipped because not mentioned/reply/trigger")
             return
 
         # Remove mention strings from content to get the clean prompt
@@ -2274,7 +2121,7 @@ class ORACog(commands.Cog):
                 "name": "get_voice_channel_info",
                 "description": "[Discord/VC] Get info about a voice channel.",
                 "parameters": {"type": "object", "properties": {"channel_name": {"type": "string"}}, "required": []},
-                "tags": ["vc", "voice", "channel", "who", "member", "繝懊う繧ｹ", "騾夊ｩｱ", "隱ｰ縺・ｋ"],
+                "tags": ["vc", "voice", "channel", "who", "member", "ボイス", "参加者", "人数"],
             },
             {
                 "name": "join_voice_channel",

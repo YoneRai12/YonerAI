@@ -1,6 +1,24 @@
-/* YonerAI Setup UI (sidebar + categories + toggles + i18n) */
+/* YonerAI Setup UI (sidebar + categories + section cards + toggles + i18n) */
 
 const $ = (id) => document.getElementById(id);
+
+// ---------------------------------------------------------------------------
+// Viewport classes (wide / 4K scaling)
+// ---------------------------------------------------------------------------
+
+function _debounce(fn, ms) {
+  let t = null;
+  return (...args) => {
+    if (t) clearTimeout(t);
+    t = setTimeout(() => fn(...args), ms);
+  };
+}
+
+function _applyViewportClasses() {
+  const w = window.innerWidth || 0;
+  document.documentElement.classList.toggle("isWide", w >= 1400);
+  document.documentElement.classList.toggle("is4k", w >= 2400);
+}
 
 // ---------------------------------------------------------------------------
 // i18n (UI language)
@@ -14,6 +32,7 @@ const I18N = {
     language: "Language",
     setup: "Setup",
     api_token: "API Token",
+    show_desc: "Descriptions",
     override_mode: "Override Mode",
     override_mode_override: "override (UI wins)",
     override_mode_fill: "fill (only when env is missing)",
@@ -30,9 +49,14 @@ const I18N = {
     saved_prefix: "Saved",
     restart_hint: "Restart may be required.",
     overview_title: "Overview",
-    overview_sub: "Status and quick notes.",
+    overview_sub: "Quick actions and status.",
+    quick_actions: "Quick actions",
+    qa_roles: "Roles",
+    qa_permissions: "Permissions",
+    qa_approvals: "Approvals",
+    qa_relay: "Relay/Tunnel",
     category_sub: "Edit settings in this category. Use filter to narrow down.",
-    nav_overview_sub: "Status, guard token, quick notes",
+    nav_overview_sub: "Quick actions, status",
     nav_default_sub: "Configure",
     bool_unset: "Unset",
     secret_ph: "Paste new value (leave empty = no change)",
@@ -41,6 +65,7 @@ const I18N = {
     api_token_hint: "If ORA_WEB_API_TOKEN is set, paste it in the sidebar token field.",
     error_prefix: "Error",
     status_title: "Status",
+    notes_title: "Notes",
     k_secrets_present: "secrets_present",
     k_env_configured: "env_configured",
     k_state_dir: "state_dir",
@@ -49,19 +74,34 @@ const I18N = {
     locked: "locked",
     present: "present",
     missing: "missing",
+    group_general: "General",
+    group_secrets: "Secrets",
+    group_tokens: "Tokens",
+    group_ids: "IDs",
+    group_policy: "Policy",
+    group_limits: "Limits",
+    group_tools: "Tools",
+    group_openai: "OpenAI",
+    group_anthropic: "Anthropic",
+    group_google: "Google",
+    group_grok: "Grok/xAI",
+    group_mistral: "Mistral",
+    group_cloudflare: "Cloudflare",
+    group_relay: "Relay",
   },
   ja: {
     title: "YonerAI セットアップ",
-    brand_desc: "トークン/権限/承認/MCP/Relay をUIで設定。秘密は表示しません。",
+    brand_desc: "トークン、ロール、権限、承認、MCP、Relay を UI からまとめて設定します。",
     refresh: "更新",
     language: "言語",
     setup: "設定",
     api_token: "APIトークン",
+    show_desc: "説明表示",
     override_mode: "上書きモード",
-    override_mode_override: "override（UI優先）",
-    override_mode_fill: "fill（.envが無い時だけ）",
+    override_mode_override: "override（UIが優先）",
+    override_mode_fill: "fill（env未設定のみ補完）",
     save: "保存",
-    filter_label: "絞り込み（キー/説明）",
+    filter_label: "フィルタ（キー/説明）",
     filter_ph: "例: TOKEN, ADMIN, ORA_MCP_, RELAY, APPROVAL",
     token_ph: "Bearerトークン（このブラウザに保存）",
     save_token: "保存",
@@ -71,27 +111,47 @@ const I18N = {
     loading: "読み込み中...",
     no_changes: "変更なし。",
     saved_prefix: "保存",
-    restart_hint: "反映に再起動が必要な場合があります。",
+    restart_hint: "反映には再起動が必要な場合があります。",
     overview_title: "概要",
-    overview_sub: "状態とメモ。",
-    category_sub: "このカテゴリの設定を編集します。フィルタで絞り込めます。",
-    nav_overview_sub: "状態/トークン/メモ",
+    overview_sub: "クイック操作と状態。",
+    quick_actions: "クイック操作",
+    qa_roles: "ロール",
+    qa_permissions: "権限",
+    qa_approvals: "承認",
+    qa_relay: "Relay/Tunnel",
+    category_sub: "このカテゴリの設定を編集します。フィルタで絞り込みできます。",
+    nav_overview_sub: "クイック操作・状態",
     nav_default_sub: "設定",
-    bool_unset: "未設定に戻す",
+    bool_unset: "未設定にする",
     secret_ph: "新しい値を貼り付け（空=変更なし）",
-    secret_clear: "秘密を消す（危険）",
-    src_prefix: "由来=",
+    secret_clear: "Secretを消去（危険）",
+    src_prefix: "src=",
     api_token_hint: "ORA_WEB_API_TOKEN を設定している場合、左のトークン欄に貼り付けてください。",
     error_prefix: "エラー",
     status_title: "状態",
-    k_secrets_present: "秘密(設定済み)",
-    k_env_configured: "環境(設定済み)",
-    k_state_dir: "state_dir",
-    k_secrets_dir: "secrets_dir",
-    default_prefix: "既定=",
+    notes_title: "メモ",
+    k_secrets_present: "Secrets（設定済み）",
+    k_env_configured: "env（設定済み）",
+    k_state_dir: "状態ディレクトリ",
+    k_secrets_dir: "Secretsディレクトリ",
+    default_prefix: "default=",
     locked: "ロック",
     present: "設定済み",
     missing: "未設定",
+    group_general: "一般",
+    group_secrets: "シークレット",
+    group_tokens: "トークン",
+    group_ids: "ID",
+    group_policy: "ポリシー",
+    group_limits: "制限",
+    group_tools: "ツール",
+    group_openai: "OpenAI",
+    group_anthropic: "Anthropic",
+    group_google: "Google",
+    group_grok: "Grok/xAI",
+    group_mistral: "Mistral",
+    group_cloudflare: "Cloudflare",
+    group_relay: "Relay",
   },
 };
 
@@ -99,7 +159,7 @@ const CAT_LABELS = {
   ja: {
     Overview: "概要",
     Roles: "ロール/管理者",
-    Permissions: "権限/公開範囲",
+    Permissions: "権限",
     Approvals: "承認（Approvals）",
     Discord: "Discord",
     Providers: "プロバイダ/トークン",
@@ -142,22 +202,61 @@ function catLabel(cat) {
   return m[cat] || cat;
 }
 
+function _getBoolLS(key, def) {
+  const raw = (localStorage.getItem(key) || "").trim().toLowerCase();
+  if (!raw) return def;
+  if (["1", "true", "yes", "on"].includes(raw)) return true;
+  if (["0", "false", "no", "off"].includes(raw)) return false;
+  return def;
+}
+
+// If Japanese: default descriptions OFF to avoid JP/EN mixing (env.example is English-heavy).
+let _showDesc = _getBoolLS("yonerai_setup_show_desc", _lang !== "ja");
+
+function _applyDescClass() {
+  document.documentElement.classList.toggle("hideDesc", !_showDesc);
+}
+
 function setLang(lang) {
   const l = String(lang || "").trim().toLowerCase();
   if (!I18N[l]) return;
   _lang = l;
   localStorage.setItem("yonerai_setup_lang", _lang);
+
+  // If the user hasn't explicitly chosen desc visibility yet, apply sensible default per language.
+  if (!localStorage.getItem("yonerai_setup_show_desc")) {
+    _showDesc = _lang !== "ja";
+  }
+
   document.documentElement.lang = _lang;
+  _applyDescClass();
   _applyStaticStrings();
+  _syncPrefsUI();
   _renderNav("nav");
   _renderNav("navMobile");
   _renderPanel();
 }
 
+function setShowDesc(v) {
+  _showDesc = !!v;
+  localStorage.setItem("yonerai_setup_show_desc", _showDesc ? "1" : "0");
+  _applyDescClass();
+  _syncPrefsUI();
+}
+
+function _syncPrefsUI() {
+  if ($("showDesc")) $("showDesc").checked = !!_showDesc;
+  if ($("showDescMobile")) $("showDescMobile").checked = !!_showDesc;
+}
+
+// ---------------------------------------------------------------------------
+// API helpers
+// ---------------------------------------------------------------------------
+
 function bearerHeaders() {
-  const t = (localStorage.getItem("ora_web_api_token") || "").trim();
-  if (!t) return {};
-  return { Authorization: "Bearer " + t };
+  const tok = (localStorage.getItem("ora_web_api_token") || "").trim();
+  if (!tok) return {};
+  return { Authorization: "Bearer " + tok };
 }
 
 async function apiGet(path) {
@@ -196,6 +295,10 @@ async function apiPost(path, body) {
   return data;
 }
 
+// ---------------------------------------------------------------------------
+// Render helpers
+// ---------------------------------------------------------------------------
+
 function _normBoolValue(v) {
   const s = String(v || "").trim().toLowerCase();
   if (!s) return "";
@@ -220,7 +323,7 @@ function _setRowChanged(rowEl, changed) {
   rowEl.classList.toggle("settingChanged", !!changed);
 }
 
-function _makeSecretEditor(spec) {
+function _makeSecretEditor() {
   const wrap = document.createElement("div");
   wrap.className = "switchRow";
 
@@ -263,7 +366,7 @@ function _makeBoolEditor(currentValue, srcLabel) {
   unset.className = "unsetBtn";
   unset.textContent = t("bool_unset");
 
-  const hint = _makeBadge(srcLabel ? (t("src_prefix") + srcLabel) : (t("src_prefix") + "?"), srcLabel === "override" ? "warn" : "");
+  const hint = _makeBadge(t("src_prefix") + (srcLabel || "?"), srcLabel === "override" ? "warn" : "");
 
   const cur = _normBoolValue(currentValue);
   input.checked = cur === "1";
@@ -290,27 +393,32 @@ function _makeBoolEditor(currentValue, srcLabel) {
 }
 
 function _makeEnvEditor(spec, currentValue, srcLabel) {
-  const t = String(spec.input || "text");
-  if (t === "bool") return _makeBoolEditor(currentValue, srcLabel);
+  const inputType = String(spec.input || "text");
+  if (inputType === "bool") return _makeBoolEditor(currentValue, srcLabel);
 
-  if (t === "textarea" || t === "json") {
+  if (inputType === "textarea" || inputType === "json") {
     const ta = document.createElement("textarea");
     ta.value = String(currentValue || "");
     if (spec.default && !String(currentValue || "").trim()) ta.placeholder = String(spec.default);
     return { wrap: ta, input: ta };
   }
-  if (t === "number") {
+  if (inputType === "number") {
     const inp = document.createElement("input");
     inp.type = "number";
     inp.value = String(currentValue || "");
     if (spec.default && !String(currentValue || "").trim()) inp.placeholder = String(spec.default);
     return { wrap: inp, input: inp };
   }
+
   const inp = document.createElement("input");
   inp.value = String(currentValue || "");
   if (spec.default && !String(currentValue || "").trim()) inp.placeholder = String(spec.default);
   return { wrap: inp, input: inp };
 }
+
+// ---------------------------------------------------------------------------
+// State
+// ---------------------------------------------------------------------------
 
 let _schema = null;
 let _status = null;
@@ -392,9 +500,11 @@ function _renderNav(targetId) {
     sub.className = "sub";
     sub.textContent = cat === "Overview" ? t("nav_overview_sub") : (t("nav_default_sub") + " " + catLabel(cat));
     left.appendChild(sub);
+
     const count = document.createElement("span");
     count.className = "count";
     count.textContent = String(cat === "Overview" ? "" : ((_byCat.get(cat) || []).length));
+
     btn.appendChild(left);
     btn.appendChild(count);
     btn.onclick = () => {
@@ -419,10 +529,20 @@ function _applyFilter() {
 
 function _syncTopPills() {
   const st = _status || {};
-  $("pillProfile").textContent = "profile=" + String(st.profile || "?");
-  $("pillInstance").textContent = "instance=" + String(st.instance_id || "?");
-  $("pillMode").textContent = "mode=" + String(st.override_mode || "?");
-  if ($("SETTINGS_OVERRIDE_MODE")) $("SETTINGS_OVERRIDE_MODE").value = String(st.override_mode || "override").toLowerCase() === "fill" ? "fill" : "override";
+  if ($("pillProfile")) $("pillProfile").textContent = "profile=" + String(st.profile || "?");
+  if ($("pillInstance")) $("pillInstance").textContent = "instance=" + String(st.instance_id || "?");
+  if ($("pillMode")) $("pillMode").textContent = "mode=" + String(st.override_mode || "?");
+  if ($("SETTINGS_OVERRIDE_MODE")) {
+    $("SETTINGS_OVERRIDE_MODE").value = String(st.override_mode || "override").toLowerCase() === "fill" ? "fill" : "override";
+  }
+}
+
+function _gotoPanel(name) {
+  _activePanel = name;
+  _renderNav("nav");
+  _renderNav("navMobile");
+  _renderPanel();
+  _closeDrawer();
 }
 
 function _renderOverview() {
@@ -431,19 +551,127 @@ function _renderOverview() {
   _rows.clear();
 
   const st = _status || {};
-  const card = document.createElement("div");
-  card.className = "card";
-  card.innerHTML = `
-    <div style="font-weight:900; letter-spacing:0.2px;">${t("status_title")}</div>
+
+  const grid = document.createElement("div");
+  grid.className = "sectionGrid";
+  body.appendChild(grid);
+
+  const quick = document.createElement("div");
+  quick.className = "sectionCard";
+  quick.innerHTML = `
+    <div class="sectionHead">
+      <h3 class="sectionTitle">${t("quick_actions")}</h3>
+      <p class="sectionHint"></p>
+    </div>
+  `;
+
+  const quickBtns = document.createElement("div");
+  quickBtns.style.display = "grid";
+  quickBtns.style.gridTemplateColumns = "repeat(2, minmax(0, 1fr))";
+  quickBtns.style.gap = "10px";
+
+  const mk = (label, target) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "secondary";
+    b.style.textAlign = "left";
+    b.style.padding = "12px";
+    b.style.borderRadius = "16px";
+    b.textContent = label;
+    b.onclick = () => _gotoPanel(target);
+    return b;
+  };
+
+  quickBtns.appendChild(mk(t("qa_roles"), "Roles"));
+  quickBtns.appendChild(mk(t("qa_permissions"), "Permissions"));
+  quickBtns.appendChild(mk(t("qa_approvals"), "Approvals"));
+  quickBtns.appendChild(mk(t("qa_relay"), "Relay/Tunnel"));
+  quick.appendChild(quickBtns);
+  grid.appendChild(quick);
+
+  const status = document.createElement("div");
+  status.className = "sectionCard";
+  status.innerHTML = `
+    <div class="sectionHead">
+      <h3 class="sectionTitle">${t("status_title")}</h3>
+      <p class="sectionHint"></p>
+    </div>
     <div class="msg" style="margin-top:8px;">
       ${t("k_secrets_present")}: ${Object.values(st.secrets_present || {}).filter(Boolean).length}/${Object.keys(st.secrets_present || {}).length}\n
       ${t("k_env_configured")}: ${Object.values(st.env || {}).filter((v)=>!!v).length}/${Object.keys(st.env || {}).length}\n
       ${t("k_state_dir")}: ${String(st.state_dir || "")}\n
       ${t("k_secrets_dir")}: ${String(st.secrets_dir || "")}
     </div>
-    <div class="msg">${(st.notes || []).join("\\n")}</div>
   `;
-  body.appendChild(card);
+  grid.appendChild(status);
+
+  if ((st.notes || []).length) {
+    const notes = document.createElement("div");
+    notes.className = "sectionCard";
+    notes.innerHTML = `
+      <div class="sectionHead">
+        <h3 class="sectionTitle">${t("notes_title")}</h3>
+        <p class="sectionHint"></p>
+      </div>
+      <div class="msg">${(st.notes || []).join("\\n")}</div>
+    `;
+    grid.appendChild(notes);
+  }
+}
+
+function _groupIdFor(cat, key, kind) {
+  const K = String(key || "").toUpperCase();
+  if (kind === "secret") return "secrets";
+
+  if (cat === "Providers") {
+    if (K.includes("OPENAI")) return "openai";
+    if (K.includes("ANTHROPIC") || K.includes("CLAUDE")) return "anthropic";
+    if (K.includes("GOOGLE") || K.includes("GEMINI")) return "google";
+    if (K.includes("GROK") || K.includes("XAI")) return "grok";
+    if (K.includes("MISTRAL")) return "mistral";
+    return "general";
+  }
+  if (cat === "Discord") {
+    if (K.includes("TOKEN")) return "tokens";
+    if (K.includes("APP") || K.includes("CLIENT") || K.includes("GUILD") || K.includes("CHANNEL") || K.endsWith("_ID")) return "ids";
+    return "general";
+  }
+  if (cat === "Roles") {
+    if (K.includes("ADMIN") || K.includes("OWNER")) return "ids";
+    if (K.includes("ROLE")) return "policy";
+    return "general";
+  }
+  if (cat === "Permissions") {
+    if (K.includes("ALLOW") || K.includes("DENY") || K.includes("WHITELIST") || K.includes("BLACKLIST")) return "tools";
+    if (K.includes("GUEST") || K.includes("SHARED")) return "policy";
+    if (K.includes("RATE") || K.includes("LIMIT")) return "limits";
+    return "general";
+  }
+  if (cat === "Approvals") {
+    if (K.includes("TTL") || K.includes("TIMEOUT")) return "limits";
+    if (K.includes("CODE")) return "policy";
+    if (K.includes("RATE") || K.includes("LIMIT")) return "limits";
+    return "policy";
+  }
+  if (cat === "Relay/Tunnel") {
+    if (K.includes("CLOUDFLARE") || K.includes("TUNNEL") || K.includes("CF_")) return "cloudflare";
+    if (K.includes("RELAY")) return "relay";
+    return "general";
+  }
+  return "general";
+}
+
+function _groupLabel(groupId) {
+  return t("group_" + groupId);
+}
+
+function _groupOrderFor(cat) {
+  if (cat === "Providers") return ["openai", "anthropic", "google", "grok", "mistral", "secrets", "general"];
+  if (cat === "Discord") return ["tokens", "ids", "general", "secrets"];
+  if (cat === "Permissions") return ["policy", "tools", "limits", "general", "secrets"];
+  if (cat === "Approvals") return ["policy", "limits", "general", "secrets"];
+  if (cat === "Relay/Tunnel") return ["relay", "cloudflare", "general", "secrets"];
+  return ["general", "secrets"];
 }
 
 function _renderCategory(cat) {
@@ -457,90 +685,138 @@ function _renderCategory(cat) {
   const envSources = st.env_sources || {};
   const secretsPresent = st.secrets_present || {};
 
+  const groups = new Map(); // groupId -> specs[]
   specs.forEach((spec) => {
     const key = String(spec.key || "").trim();
     if (!key) return;
-
-    const row = document.createElement("div");
-    row.className = "settingRow";
-    row.dataset.key = key;
-    row.dataset.hay = _rowHay(spec);
-
-    const left = document.createElement("div");
-    const k = document.createElement("div");
-    k.className = "settingKey";
-    k.textContent = key;
-    left.appendChild(k);
-
-    const desc = document.createElement("div");
-    desc.className = "settingDesc";
-    desc.textContent = String(spec.description || "");
-    left.appendChild(desc);
-
-    const meta = document.createElement("div");
-    meta.className = "settingMeta";
-    meta.appendChild(_makeBadge(String(spec.kind || "env"), spec.kind === "secret" ? "warn" : ""));
-    if (spec.default) meta.appendChild(_makeBadge(t("default_prefix") + String(spec.default), ""));
-    if (spec.locked) meta.appendChild(_makeBadge(t("locked"), "bad"));
-
     const kind = String(spec.kind || "env");
-    if (kind === "secret") {
-      const present = !!secretsPresent[key];
-      meta.appendChild(_makeBadge(present ? t("present") : t("missing"), present ? "good" : "bad"));
-    } else {
-      const src = envSources[key] ? String(envSources[key]) : (env[key] ? "env" : "unset");
-      meta.appendChild(_makeBadge(t("src_prefix") + src, src === "override" ? "warn" : ""));
-    }
-    left.appendChild(meta);
+    const gid = _groupIdFor(cat, key, kind);
+    if (!groups.has(gid)) groups.set(gid, []);
+    groups.get(gid).push(spec);
+  });
 
-    const right = document.createElement("div");
+  const grid = document.createElement("div");
+  grid.className = "sectionGrid";
+  body.appendChild(grid);
 
-    if (kind === "secret") {
-      const ed = _makeSecretEditor(spec);
-      right.appendChild(ed.wrap);
-      const onChange = () => {
-        const changed = (ed.cb && ed.cb.checked) || ((ed.ta.value || "").trim().length > 0);
-        _setRowChanged(row, changed);
-        _recountDirty();
-      };
-      ed.ta.addEventListener("input", onChange);
-      ed.cb.addEventListener("change", onChange);
-      _rows.set(key, { kind, spec, rowEl: row, inputEl: ed.ta, clearEl: ed.cb, orig: "" });
-    } else {
+  const order = _groupOrderFor(cat);
+  const orderedGroupIds = Array.from(new Set(order.concat(Array.from(groups.keys()).sort())));
+  orderedGroupIds.forEach((gid) => {
+    const arr = groups.get(gid) || [];
+    if (!arr.length) return;
+
+    const card = document.createElement("div");
+    card.className = "sectionCard";
+
+    const head = document.createElement("div");
+    head.className = "sectionHead";
+
+    const h = document.createElement("h3");
+    h.className = "sectionTitle";
+    h.textContent = _groupLabel(gid);
+
+    const hint = document.createElement("p");
+    hint.className = "sectionHint";
+    hint.textContent = "";
+
+    head.appendChild(h);
+    head.appendChild(hint);
+    card.appendChild(head);
+
+    const fieldGrid = document.createElement("div");
+    fieldGrid.className = "fieldGrid";
+    card.appendChild(fieldGrid);
+
+    arr.forEach((spec) => {
+      const key = String(spec.key || "").trim();
+      if (!key) return;
+
+      const row = document.createElement("div");
+      row.className = "settingRow";
+      row.dataset.key = key;
+      row.dataset.hay = _rowHay(spec);
+
+      const kind = String(spec.kind || "env");
       const current = env[key] || "";
       const src = envSources[key] ? String(envSources[key]) : (env[key] ? "env" : "unset");
 
-      if (spec.locked) {
-        const inp = document.createElement("input");
-        inp.value = String(current || "");
-        inp.disabled = true;
-        right.appendChild(inp);
-        _rows.set(key, { kind, spec, rowEl: row, inputEl: inp, clearEl: null, orig: String(current || "") });
-      } else {
-        const ed = _makeEnvEditor(spec, current, src);
-        right.appendChild(ed.wrap);
+      const k = document.createElement("div");
+      k.className = "fieldKey";
+      k.textContent = key;
+      row.appendChild(k);
 
-        const inp = ed.input;
-        const orig = String(current || "");
-        const t = String(spec.input || "");
-        const origNorm = t === "bool" ? _normBoolValue(orig) : orig;
+      const descText = String(spec.description || "");
+      if (descText) {
+        const d = document.createElement("div");
+        d.className = "fieldDesc";
+        d.textContent = descText;
+        row.appendChild(d);
+      }
+
+      const meta = document.createElement("div");
+      meta.className = "settingMeta";
+      meta.appendChild(_makeBadge(String(spec.kind || "env"), kind === "secret" ? "warn" : ""));
+      if (spec.default) meta.appendChild(_makeBadge(t("default_prefix") + String(spec.default), ""));
+      if (spec.locked) meta.appendChild(_makeBadge(t("locked"), "bad"));
+
+      if (kind === "secret") {
+        const present = !!secretsPresent[key];
+        meta.appendChild(_makeBadge(present ? t("present") : t("missing"), present ? "good" : "bad"));
+      } else {
+        meta.appendChild(_makeBadge(t("src_prefix") + src, src === "override" ? "warn" : ""));
+      }
+      row.appendChild(meta);
+
+      if (kind === "secret") {
+        const ed = _makeSecretEditor(spec);
+        row.appendChild(ed.wrap);
+
         const onChange = () => {
-          let now;
-          if (t === "bool") now = inp.dataset && inp.dataset.unset === "1" ? "" : (inp.checked ? "1" : "0");
-          else now = (inp.value || "").trim();
-          const nowNorm = t === "bool" ? _normBoolValue(now) : String(now);
-          _setRowChanged(row, nowNorm !== origNorm);
+          const changed = (ed.cb && ed.cb.checked) || ((ed.ta.value || "").trim().length > 0);
+          _setRowChanged(row, changed);
           _recountDirty();
         };
-        inp.addEventListener("input", onChange);
-        inp.addEventListener("change", onChange);
-        _rows.set(key, { kind, spec, rowEl: row, inputEl: inp, clearEl: null, orig });
-      }
-    }
+        ed.ta.addEventListener("input", onChange);
+        ed.cb.addEventListener("change", onChange);
+        _rows.set(key, { kind, spec, rowEl: row, inputEl: ed.ta, clearEl: ed.cb, orig: "" });
 
-    row.appendChild(left);
-    row.appendChild(right);
-    body.appendChild(row);
+        row.classList.add("wide");
+      } else {
+        if (spec.locked) {
+          const inp = document.createElement("input");
+          inp.value = String(current || "");
+          inp.disabled = true;
+          row.appendChild(inp);
+          _rows.set(key, { kind, spec, rowEl: row, inputEl: inp, clearEl: null, orig: String(current || "") });
+        } else {
+          const ed = _makeEnvEditor(spec, current, src);
+          row.appendChild(ed.wrap);
+
+          const inp = ed.input;
+          const orig = String(current || "");
+          const inputType = String(spec.input || "");
+          const origNorm = inputType === "bool" ? _normBoolValue(orig) : orig;
+
+          const onChange = () => {
+            let now;
+            if (inputType === "bool") now = inp.dataset && inp.dataset.unset === "1" ? "" : (inp.checked ? "1" : "0");
+            else now = (inp.value || "").trim();
+            const nowNorm = inputType === "bool" ? _normBoolValue(now) : String(now);
+            _setRowChanged(row, nowNorm !== origNorm);
+            _recountDirty();
+          };
+          inp.addEventListener("input", onChange);
+          inp.addEventListener("change", onChange);
+          _rows.set(key, { kind, spec, rowEl: row, inputEl: inp, clearEl: null, orig });
+
+          if (["textarea", "json"].includes(String(spec.input || ""))) row.classList.add("wide");
+        }
+      }
+
+      fieldGrid.appendChild(row);
+    });
+
+    grid.appendChild(card);
   });
 
   _applyFilter();
@@ -548,7 +824,7 @@ function _renderCategory(cat) {
 }
 
 function _renderPanel() {
-  $("panelMsg").textContent = "";
+  if ($("panelMsg")) $("panelMsg").textContent = "";
   if (_activePanel === "Overview") {
     $("panelTitle").textContent = t("overview_title");
     $("panelSubtitle").textContent = t("overview_sub");
@@ -561,7 +837,7 @@ function _renderPanel() {
 }
 
 async function _refreshAll() {
-  $("panelMsg").textContent = t("loading");
+  if ($("panelMsg")) $("panelMsg").textContent = t("loading");
   _schema = await apiGet("/api/settings/schema");
   _status = await apiGet("/api/settings/status");
   _byCat = _buildCategoryMap(_schema);
@@ -569,7 +845,7 @@ async function _refreshAll() {
   _renderNav("nav");
   _renderNav("navMobile");
   _renderPanel();
-  $("panelMsg").textContent = "";
+  if ($("panelMsg")) $("panelMsg").textContent = "";
   _recountDirty();
 }
 
@@ -586,10 +862,12 @@ async function _saveActivePanel() {
       continue;
     }
     if (spec.locked) continue;
+
     const inp = row.inputEl;
     const orig = String(row.orig || "");
-    const t = String(spec.input || "");
-    if (t === "bool") {
+    const inputType = String(spec.input || "");
+
+    if (inputType === "bool") {
       const now = inp.dataset && inp.dataset.unset === "1" ? "" : (inp.checked ? "1" : "0");
       const nowNorm = _normBoolValue(now);
       const origNorm = _normBoolValue(orig);
@@ -597,6 +875,7 @@ async function _saveActivePanel() {
       envChanges[key] = nowNorm ? nowNorm : null;
       continue;
     }
+
     const now = inp && inp.value ? String(inp.value).trim() : "";
     if (now === orig.trim()) continue;
     envChanges[key] = now ? now : null;
@@ -604,10 +883,13 @@ async function _saveActivePanel() {
 
   const mode = $("SETTINGS_OVERRIDE_MODE") && $("SETTINGS_OVERRIDE_MODE").value ? $("SETTINGS_OVERRIDE_MODE").value.trim() : "override";
   const did = [];
+
   try {
     if (Object.keys(secretChanges).length) {
       await apiPost("/api/settings/secrets", { secrets: secretChanges });
       did.push("secrets");
+
+      // Keep sidebar token in sync when ORA_WEB_API_TOKEN is changed via secrets API.
       if (secretChanges["ORA_WEB_API_TOKEN"] !== undefined) {
         const v = secretChanges["ORA_WEB_API_TOKEN"];
         if (typeof v === "string" && v.trim()) {
@@ -621,18 +903,21 @@ async function _saveActivePanel() {
         }
       }
     }
+
     if (Object.keys(envChanges).length) {
       await apiPost("/api/settings/env", { env: envChanges, mode });
       did.push("env");
     }
+
     if (!did.length) {
-      $("panelMsg").textContent = t("no_changes");
+      if ($("panelMsg")) $("panelMsg").textContent = t("no_changes");
       return;
     }
-    $("panelMsg").textContent = t("saved_prefix") + ": " + did.join(", ") + ". " + t("restart_hint");
+
+    if ($("panelMsg")) $("panelMsg").textContent = t("saved_prefix") + ": " + did.join(", ") + ". " + t("restart_hint");
     await _refreshAll();
   } catch (e) {
-    $("panelMsg").textContent = t("error_prefix") + ": " + e.message;
+    if ($("panelMsg")) $("panelMsg").textContent = t("error_prefix") + ": " + e.message;
   }
 }
 
@@ -666,6 +951,8 @@ function _applyStaticStrings() {
   if ($("setupTitleMobile")) $("setupTitleMobile").textContent = t("setup");
   if ($("apiTokenTitle")) $("apiTokenTitle").textContent = t("api_token");
   if ($("apiTokenTitleMobile")) $("apiTokenTitleMobile").textContent = t("api_token");
+  if ($("showDescTitle")) $("showDescTitle").textContent = t("show_desc");
+  if ($("showDescTitleMobile")) $("showDescTitleMobile").textContent = t("show_desc");
 
   const modeSel = $("SETTINGS_OVERRIDE_MODE");
   if (modeSel && modeSel.options && modeSel.options.length >= 2) {
@@ -676,9 +963,15 @@ function _applyStaticStrings() {
 }
 
 function init() {
+  _applyViewportClasses();
+  window.addEventListener("resize", _debounce(_applyViewportClasses, 120));
+
   const saved = (localStorage.getItem("ora_web_api_token") || "").trim();
   if ($("token")) $("token").value = saved;
   if ($("tokenMobile")) $("tokenMobile").value = saved;
+
+  document.documentElement.lang = _lang;
+  _applyDescClass();
 
   const saveToken = (inputId, msgId) => {
     const tok = ($(inputId).value || "").trim();
@@ -686,6 +979,7 @@ function init() {
     else localStorage.removeItem("ora_web_api_token");
     $(msgId).textContent = t("saved");
   };
+
   const clearToken = (inputId, msgId) => {
     localStorage.removeItem("ora_web_api_token");
     $(inputId).value = "";
@@ -701,9 +995,10 @@ function init() {
     try {
       await _refreshAll();
     } catch (e) {
-      $("panelMsg").textContent = t("error_prefix") + ": " + e.message;
+      if ($("panelMsg")) $("panelMsg").textContent = t("error_prefix") + ": " + e.message;
     }
   };
+
   $("savePanel").onclick = _saveActivePanel;
   $("filter").oninput = _applyFilter;
 
@@ -716,10 +1011,15 @@ function init() {
   if ($("lang")) $("lang").onchange = () => { setLang($("lang").value); if ($("langMobile")) $("langMobile").value = _lang; };
   if ($("langMobile")) $("langMobile").onchange = () => { setLang($("langMobile").value); if ($("lang")) $("lang").value = _lang; };
 
+  // Description toggle
+  _syncPrefsUI();
+  if ($("showDesc")) $("showDesc").onchange = () => { setShowDesc($("showDesc").checked); if ($("showDescMobile")) $("showDescMobile").checked = _showDesc; };
+  if ($("showDescMobile")) $("showDescMobile").onchange = () => { setShowDesc($("showDescMobile").checked); if ($("showDesc")) $("showDesc").checked = _showDesc; };
+
   _applyStaticStrings();
 
   _refreshAll().catch((e) => {
-    $("panelMsg").textContent = t("error_prefix") + ": " + e.message + "\\n\\n" + t("api_token_hint");
+    if ($("panelMsg")) $("panelMsg").textContent = t("error_prefix") + ": " + e.message + "\n\n" + t("api_token_hint");
   });
 }
 

@@ -6,12 +6,13 @@ import json
 import os
 import uuid
 from datetime import datetime
-from typing import List
+from ipaddress import ip_address
+from typing import Any, List
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request, Response, WebSocket, WebSocketDisconnect, Depends, Header, Query
 from fastapi.responses import RedirectResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from google.auth.transport import requests as g_requests
 from google.oauth2 import id_token
 from google_auth_oauthlib.flow import Flow
@@ -154,8 +155,48 @@ class SettingsEnvUpdate(BaseModel):
 
 
 def _is_loopback(request: Request) -> bool:
+    def _is_loopback_host(raw: str) -> bool:
+        host = (raw or "").strip()
+        if not host:
+            return False
+        if host.lower() == "localhost":
+            return True
+        # "ip:port" (IPv4) and "[ipv6]:port" normalization
+        if host.startswith("[") and "]" in host:
+            host = host[1:host.index("]")]
+        elif ":" in host and host.count(":") == 1:
+            maybe_h, maybe_p = host.rsplit(":", 1)
+            if maybe_p.isdigit():
+                host = maybe_h
+        try:
+            return ip_address(host).is_loopback
+        except Exception:
+            return False
+
+    def _forwarded_ip(req: Request) -> str:
+        # Prefer explicit single-IP headers first.
+        for k in ("cf-connecting-ip", "x-real-ip"):
+            v = (req.headers.get(k) or "").strip()
+            if v:
+                return v
+        # x-forwarded-for may be a comma-separated chain; the first is original client.
+        xff = (req.headers.get("x-forwarded-for") or "").strip()
+        if xff:
+            return xff.split(",")[0].strip()
+        return ""
+
+    # If a proxy forwards real client IP, trust that for loopback judgment.
+    fwd = _forwarded_ip(request)
+    if fwd:
+        return _is_loopback_host(fwd)
+
     host = (request.client.host if request.client else "") or ""
-    return host in {"127.0.0.1", "::1", "localhost"}
+    return _is_loopback_host(host)
+
+
+def is_loopback_request(request: Request) -> bool:
+    """Public helper used by app.py for setup page guard."""
+    return _is_loopback(request)
 
 
 async def require_admin(
@@ -382,6 +423,55 @@ _RUN_QUEUES = {}
 # Simple in-memory store for feedback queues (UUID -> asyncio.Queue)
 _RUN_TOOL_OUTPUTS = {}
 
+
+def _max_active_runs() -> int:
+    try:
+        return max(1, int((os.getenv("ORA_MAX_ACTIVE_RUNS") or "128").strip()))
+    except Exception:
+        return 128
+
+
+def _run_state_ttl_sec() -> int:
+    try:
+        return max(60, int((os.getenv("ORA_RUN_STATE_TTL_SEC") or "900").strip()))
+    except Exception:
+        return 900
+
+
+def _cleanup_run_state(run_id: str) -> None:
+    _RUN_QUEUES.pop(run_id, None)
+    _RUN_TOOL_OUTPUTS.pop(run_id, None)
+
+
+async def _expire_run_state_later(run_id: str, delay_sec: int) -> None:
+    await asyncio.sleep(max(1, int(delay_sec)))
+    _cleanup_run_state(run_id)
+
+
+def _start_agent_run(
+    *,
+    content: str,
+    available_tools: list[dict[str, Any]] | None = None,
+    provider_id: str = "external",
+    attachments: list[dict[str, Any]] | None = None,
+) -> str:
+    """Create in-memory run queues and launch the background agent loop."""
+    if len(_RUN_QUEUES) >= _max_active_runs():
+        raise HTTPException(status_code=429, detail=f"Too many active runs ({_max_active_runs()})")
+    run_id = str(uuid.uuid4())
+    _RUN_QUEUES[run_id] = asyncio.Queue()
+    _RUN_TOOL_OUTPUTS[run_id] = asyncio.Queue()
+    asyncio.create_task(
+        run_agent_loop(
+            run_id,
+            content,
+            available_tools or [],
+            provider_id or "external",
+            attachments or [],
+        )
+    )
+    return run_id
+
 async def run_agent_loop(run_id: str, content: str, available_tools: list, provider_id: str, attachments: list = None):
     """
     Background agent loop that handles LLM calls, tool dispatching, and feedback.
@@ -559,6 +649,9 @@ OpenAI の Codex Harness アーキテクチャに基づき、全ての操作を�
     finally:
         # Mark end of stream
         await queue.put(None)
+        # Keep run state briefly so clients can reconnect and fetch late events,
+        # then clean up to avoid unbounded memory growth when callers never consume.
+        asyncio.create_task(_expire_run_state_later(run_id, _run_state_ttl_sec()))
 
 @router.post("/messages")
 async def create_message(request: Request, _: None = Depends(require_web_api)):
@@ -573,14 +666,12 @@ async def create_message(request: Request, _: None = Depends(require_web_api)):
         identity = data.get("user_identity", {})
         provider_id = identity.get("id", "anonymous")
 
-        run_id = str(uuid.uuid4())
-
-        # Initialize Queues
-        _RUN_QUEUES[run_id] = asyncio.Queue()
-        _RUN_TOOL_OUTPUTS[run_id] = asyncio.Queue()
-
-        # Start Background Task
-        asyncio.create_task(run_agent_loop(run_id, content, available_tools, provider_id, attachments))
+        run_id = _start_agent_run(
+            content=content,
+            available_tools=available_tools,
+            provider_id=str(provider_id),
+            attachments=attachments,
+        )
 
         return {"run_id": run_id}
 
@@ -611,10 +702,7 @@ async def get_run_events(run_id: str, request: Request, _: None = Depends(requir
                 yield json.dumps(event)
         finally:
             # Clean up after stream ends or disconnects
-            if run_id in _RUN_QUEUES:
-                del _RUN_QUEUES[run_id]
-            if run_id in _RUN_TOOL_OUTPUTS:
-                del _RUN_TOOL_OUTPUTS[run_id]
+            _cleanup_run_state(run_id)
 
     return EventSourceResponse(event_generator())
 
@@ -634,8 +722,57 @@ async def submit_tool_result(run_id: str, result: dict, _: None = Depends(requir
     return {"status": "ok"}
 # ----------------------------------------------------
 
+
+class ExternalRunRequest(BaseModel):
+    """
+    External API request model (stable path for integrations).
+    """
+
+    prompt: str
+    user_id: str | None = None
+    available_tools: list[dict[str, Any]] = Field(default_factory=list)
+    attachments: list[dict[str, Any]] = Field(default_factory=list)
+
+
+@router.post("/v1/agent/run")
+async def create_external_run(req: ExternalRunRequest, _: None = Depends(require_web_api)):
+    """
+    Start an agent run via a stable external API path.
+
+    Auth:
+    - Header: Authorization: Bearer <ORA_WEB_API_TOKEN>
+      (or x-ora-token / ?token=... as supported by require_web_api)
+    """
+    prompt = (req.prompt or "").strip()
+    if not prompt:
+        raise HTTPException(status_code=400, detail="prompt is required")
+
+    run_id = _start_agent_run(
+        content=prompt,
+        available_tools=req.available_tools,
+        provider_id=(req.user_id or "external"),
+        attachments=req.attachments,
+    )
+
+    return {
+        "run_id": run_id,
+        "status": "started",
+        "events_url": f"/api/v1/agent/runs/{run_id}/events",
+        "results_url": f"/api/v1/agent/runs/{run_id}/results",
+    }
+
+
+@router.get("/v1/agent/runs/{run_id}/events")
+async def get_external_run_events(run_id: str, request: Request, _: None = Depends(require_web_api)):
+    return await get_run_events(run_id=run_id, request=request)
+
+
+@router.post("/v1/agent/runs/{run_id}/results")
+async def submit_external_tool_result(run_id: str, result: dict, _: None = Depends(require_web_api)):
+    return await submit_tool_result(run_id=run_id, result=result)
+
 @router.get("/config/limits")
-async def get_config_limits():
+async def get_config_limits(_: None = Depends(require_web_api)):
     """Return the current COST_LIMITS configuration."""
     return COST_LIMITS
 

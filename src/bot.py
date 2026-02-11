@@ -11,7 +11,8 @@ import subprocess
 import sys
 import time
 import warnings
-from typing import Optional
+from pathlib import Path
+from typing import IO, Dict, Optional
 
 # [SUPPRESSION]
 # Discord.py often emits "ResourceWarning: unclosed file" for FFmpeg pipes on Windows.
@@ -89,6 +90,80 @@ class ORABot(commands.Bot):
         self.vector_memory = None
         self.search_client = None
         self.voice_manager = None
+        self._tunnel_processes: Dict[str, subprocess.Popen] = {}
+        self._tunnel_log_handles: Dict[str, IO[str]] = {}
+
+    def _tunnel_pidfile_path(self, name: str) -> str:
+        tdir = os.path.join(self.config.state_dir, "tunnels")
+        os.makedirs(tdir, exist_ok=True)
+        return os.path.join(tdir, f"{name}.pid")
+
+    def _write_tunnel_pidfile(self, name: str, pid: int) -> None:
+        try:
+            with open(self._tunnel_pidfile_path(name), "w", encoding="utf-8") as f:
+                f.write(str(pid))
+        except Exception:
+            pass
+
+    def _remove_tunnel_pidfile(self, name: str) -> None:
+        try:
+            os.remove(self._tunnel_pidfile_path(name))
+        except Exception:
+            pass
+
+    def _kill_stale_tunnel_from_pidfile(self, name: str) -> None:
+        pid_path = self._tunnel_pidfile_path(name)
+        if not os.path.exists(pid_path):
+            return
+        try:
+            raw = (Path(pid_path).read_text(encoding="utf-8") or "").strip()
+            if not raw:
+                return
+            pid = int(raw)
+        except Exception:
+            self._remove_tunnel_pidfile(name)
+            return
+
+        try:
+            if os.name == "nt":
+                subprocess.run(
+                    ["taskkill", "/PID", str(pid), "/F"],
+                    check=False,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+            else:
+                os.kill(pid, signal.SIGTERM)
+        except Exception:
+            pass
+        finally:
+            self._remove_tunnel_pidfile(name)
+
+    async def _stop_all_tunnels(self) -> None:
+        if self._tunnel_processes:
+            logger.info("Stopping tracked tunnel processes: %s", ", ".join(self._tunnel_processes.keys()))
+
+        for name, proc in list(self._tunnel_processes.items()):
+            try:
+                if proc.poll() is None:
+                    proc.terminate()
+                    try:
+                        await asyncio.to_thread(proc.wait, 5)
+                    except Exception:
+                        proc.kill()
+            except Exception:
+                pass
+            finally:
+                self._remove_tunnel_pidfile(name)
+
+        self._tunnel_processes.clear()
+
+        for _, handle in list(self._tunnel_log_handles.items()):
+            try:
+                handle.close()
+            except Exception:
+                pass
+        self._tunnel_log_handles.clear()
 
     async def _check_local_llm_health(self) -> None:
         """
@@ -335,6 +410,9 @@ class ORABot(commands.Bot):
                 await self._backup_task
             except asyncio.CancelledError:
                 pass
+
+        # 1.5 Stop cloudflared tunnel children spawned by this bot.
+        await self._stop_all_tunnels()
 
         # 2. Final Backup (Shielded)
         logger.info("Performing final backup...")
@@ -662,6 +740,9 @@ class ORABot(commands.Bot):
         os.makedirs(log_dir, exist_ok=True)
 
         for name, (port, log_name) in tunnels.items():
+            # If previous runs left a stale child process, reclaim it now.
+            self._kill_stale_tunnel_from_pidfile(name)
+
             log_path = os.path.join(log_dir, log_name)
 
             # Simple check: If log exists and is recent/active, assume running?
@@ -702,14 +783,28 @@ class ORABot(commands.Bot):
 
                 # Windows specific: explicit creation flags to show window for debugging if user asked for CMD count
                 # Use CREATE_NEW_CONSOLE to ensure separate windows but keep process linked to bot
-                with open(log_path, "w", encoding="utf-8") as log_f:
-                    subprocess.Popen(
-                        cmd,
-                        stdout=log_f,
-                        stderr=subprocess.STDOUT,
-                        shell=False,
-                        creationflags=subprocess.CREATE_NEW_CONSOLE if os.name == 'nt' else 0
-                    )
+                new_console = str(os.getenv("ORA_TUNNELS_NEW_CONSOLE") or "0").strip().lower() in {
+                    "1",
+                    "true",
+                    "yes",
+                    "on",
+                }
+                creation_flags = 0
+                if os.name == "nt":
+                    creation_flags = subprocess.CREATE_NEW_CONSOLE if new_console else subprocess.CREATE_NO_WINDOW
+
+                log_f = open(log_path, "w", encoding="utf-8", errors="ignore")
+                proc = subprocess.Popen(
+                    cmd,
+                    stdout=log_f,
+                    stderr=subprocess.STDOUT,
+                    shell=False,
+                    creationflags=creation_flags,
+                )
+                self._tunnel_processes[name] = proc
+                self._tunnel_log_handles[name] = log_f
+                self._write_tunnel_pidfile(name, proc.pid)
+                logger.info("Tunnel %s started (pid=%s)", name, proc.pid)
 
                 # Wait 5 seconds between each tunnel (User Request) to avoid races/limits
                 logger.info("⏳ Waiting 5s before starting next tunnel...")

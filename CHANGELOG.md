@@ -2,6 +2,36 @@
 
 See also: `docs/RELEASE_NOTES.md` (curated summary, v5.0.0 -> current).
 
+## v2026.2.11 (2026-02-11) - Setup UI Overhaul + External API Stabilization + Tunnel Hardening
+- Setup UI redesigned into a left-nav + section-card layout with:
+  - JP/EN language toggle
+  - Quick actions (Roles / Permissions / Approvals / Relay)
+  - 4K-aware responsive scaling and improved readability.
+- Added stable external agent API routes:
+  - `POST /api/v1/agent/run`
+  - `GET /api/v1/agent/runs/{run_id}/events`
+  - `POST /api/v1/agent/runs/{run_id}/results`
+- Hardened Web/API run-state management:
+  - active run cap (`ORA_MAX_ACTIVE_RUNS`)
+  - TTL cleanup (`ORA_RUN_STATE_TTL_SEC`)
+  - loopback detection improved for proxy headers.
+- Cloudflare/tunnel lifecycle hardened:
+  - child process tracking
+  - stale PID cleanup
+  - graceful stop on shutdown
+  - optional Windows new-console mode (`ORA_TUNNELS_NEW_CONSOLE`).
+- Temporary download link path improved:
+  - explicit public base URL support (`DOWNLOAD_PUBLIC_BASE_URL`)
+  - better quick-tunnel URL reuse/fallback behavior.
+- Mention music flow split into dedicated handler:
+  - extracted to `mention_music_handler.py`
+  - playlist behavior env toggle (`ORA_MUSIC_MENTION_PLAYLIST_MODE`).
+- Added deployment/operations docs:
+  - `docs/VPS_DEPLOYMENT.md`
+  - `docs/DOMAIN_ROUTES.md`
+  - `deploy/docker-compose.vps.yml`
+  - `Dockerfile.vps`.
+
 ## v2026.2.9 (2026-02-09) - Date-Based Release + Distributed Baseline (Node/Relay/Approvals)
 - Switched to date-based versioning (`YYYY.M.D`) via `VERSION` (release tag: `v2026.2.9`).
 - M1/M1.5/M3: profile isolation (`private/shared`), out-of-band approvals, and shared/guest policy as code.

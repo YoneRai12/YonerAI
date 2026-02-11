@@ -19,9 +19,12 @@ def test_root_serves_html_loader():
         assert "<!DOCTYPE html" in resp.text
 
 
-def test_config_limits_endpoint():
+def test_config_limits_endpoint_requires_token(monkeypatch):
+    monkeypatch.setenv("ORA_WEB_API_TOKEN", "t")
     with TestClient(app) as client:
         resp = client.get("/api/config/limits")
+        assert resp.status_code == 403
+        resp = client.get("/api/config/limits", headers={"Authorization": "Bearer t"})
         assert resp.status_code == 200
         data = resp.json()
         assert isinstance(data, dict)
@@ -49,4 +52,3 @@ def teardown_module():
             os.remove("test_ora_web.db")
     except Exception:
         pass
-

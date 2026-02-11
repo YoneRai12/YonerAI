@@ -1,0 +1,49 @@
+# VPS-optimized image for YonerAI.
+#
+# - Uses requirements-vps.txt to avoid heavy local-inference deps (torch/transformers).
+# - Installs Playwright + Chromium for browser sandbox features (screenshots/recording).
+#
+# You can build this image on Oracle/AWS/etc and run via deploy/docker-compose.vps.yml.
+
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    DEBIAN_FRONTEND=noninteractive
+
+WORKDIR /app
+
+# System deps:
+# - git/curl: for fetching tools and health checks
+# - ffmpeg: audio/video utilities (music/remotion helpers)
+# - libc deps: needed by Playwright/Chromium
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      git curl ffmpeg ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Cloudflared (optional but recommended):
+# - Enables domain-less exposure via Quick Tunnel in dev
+# - Also used by temp download links when you want public URLs without port-forwarding
+RUN set -eux; \
+    arch="$(dpkg --print-architecture)"; \
+    case "$arch" in \
+      amd64) cf_arch="amd64" ;; \
+      arm64) cf_arch="arm64" ;; \
+      *) echo "Unsupported arch for cloudflared: $arch" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL -o /usr/local/bin/cloudflared "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-${cf_arch}"; \
+    chmod +x /usr/local/bin/cloudflared; \
+    cloudflared --version
+
+COPY requirements-vps.txt ./requirements-vps.txt
+RUN pip install --no-cache-dir -r requirements-vps.txt
+
+# Install Playwright browsers (Chromium) + runtime deps.
+# This is the biggest layer; keep it in the VPS image only.
+RUN python -m playwright install --with-deps chromium
+
+COPY . .
+
+# Default command is the Discord bot; compose overrides per service.
+CMD ["python", "main.py"]

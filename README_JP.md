@@ -30,6 +30,8 @@ YonerAI（旧称: ORA）は Discord Bot / Web /（任意の）Core を組み合�
 深掘りドキュメント:
 - `docs/USER_GUIDE.md`
 - `docs/SYSTEM_ARCHITECTURE.md`
+- `docs/VPS_DEPLOYMENT.md`（VPS常時稼働の構成ガイド）
+- `docs/DOMAIN_ROUTES.md`（`yonerai.com` のサブドメイン設計とAPIパス設計）
 - `docs/PLATFORM_PLAN.md`（方向性: Node + Clients + Relay + Cloud）
 - `docs/PLATFORM_REVIEW_AND_RISKS.md`（Devil's Advocate レビュー/リスク）
 - `ORA_SYSTEM_SPEC.md`
@@ -118,6 +120,26 @@ python -m ora_core.main
 - `DISCORD_APP_ID`（Application ID）
 - `ORA_DEV_GUILD_ID`（開発ギルド同期は即時、グローバル同期は最大で約1時間かかる場合あり）
 - `ADMIN_USER_ID`（オーナー/作成者ID）
+
+### 外部連携APIパス（トークン必須）
+
+外部サービス連携で使う安定パス:
+
+- `POST /api/v1/agent/run`
+- `GET /api/v1/agent/runs/{run_id}/events`
+- `POST /api/v1/agent/runs/{run_id}/results`
+
+認証:
+- `ORA_WEB_API_TOKEN` を設定
+- `Authorization: Bearer <token>`（または `x-ora-token`）を送信
+
+例:
+```bash
+curl -X POST "https://admin.yourdomain.com/api/v1/agent/run" \
+  -H "Authorization: Bearer $ORA_WEB_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"prompt":"最新ステータスを要約して","user_id":"api-client-1"}'
+```
 
 よく触る項目:
 - `OPENAI_API_KEY`（クラウドモデル）

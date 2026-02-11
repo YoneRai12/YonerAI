@@ -84,8 +84,7 @@ async def setup_ui(
     """
     # Usability: allow loopback access to the setup page even when ORA_WEB_API_TOKEN is set.
     # The API endpoints still enforce require_web_api.
-    host = (request.client.host if request.client else "") or ""
-    if host not in {"127.0.0.1", "::1", "localhost"}:
+    if not endpoints.is_loopback_request(request):
         await endpoints.require_web_api(
             request=request,
             x_ora_token=x_ora_token,

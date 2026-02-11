@@ -2,6 +2,48 @@
 
 This page is a curated summary of what changed across releases (beyond GitHub’s auto-generated notes).
 
+## v2026.2.9 -> v2026.2.11 (2026-02-11)
+
+### Big Picture
+- **Setup UX is now production-oriented**: the setup page moved from a long flat form to a **left-nav + section card** workspace with quick actions and better information hierarchy.
+- **Date-based release line continues**: release metadata now tracks the new `v2026.2.11` drop.
+- **External API integration got a stable surface**: run lifecycle endpoints are now available under `/api/v1/agent/*` for integrations.
+
+### What Changed (High Impact)
+- **Setup UI/UX overhaul**:
+  - JP/EN language toggle.
+  - Sidebar categories + card-based form groups.
+  - 4K-aware responsive sizing and improved spacing/contrast.
+  - Quick actions for Roles / Permissions / Approvals / Relay.
+- **Web/API hardening**:
+  - Added run-state guardrails:
+    - `ORA_MAX_ACTIVE_RUNS` (active queue cap)
+    - `ORA_RUN_STATE_TTL_SEC` (state cleanup)
+  - `/config/limits` now requires web API auth.
+  - Loopback detection respects forwarded headers for reverse-proxy setups.
+- **External Agent API (stable paths)**:
+  - `POST /api/v1/agent/run`
+  - `GET /api/v1/agent/runs/{run_id}/events`
+  - `POST /api/v1/agent/runs/{run_id}/results`
+- **Tunnel lifecycle reliability**:
+  - Tracks spawned `cloudflared` children.
+  - Cleans stale PID files.
+  - Stops tunnel processes on shutdown.
+  - Adds `ORA_TUNNELS_NEW_CONSOLE` for Windows behavior.
+- **Download link/public URL handling**:
+  - Supports explicit `DOWNLOAD_PUBLIC_BASE_URL`.
+  - Better fallback/reuse logic for quick tunnel URLs.
+- **Mention music path cleanup**:
+  - Mention-music logic extracted into dedicated handler.
+  - Playlist behavior can be switched via `ORA_MUSIC_MENTION_PLAYLIST_MODE`.
+
+### Ops / Deployment Additions
+- Added VPS-first artifacts:
+  - `Dockerfile.vps`
+  - `deploy/docker-compose.vps.yml`
+  - `docs/VPS_DEPLOYMENT.md`
+  - `docs/DOMAIN_ROUTES.md`
+
 ## v5.0.0 -> v2026.2.9 (2026-02-09)
 
 ### Big Picture (What You Actually Got)
@@ -96,6 +138,7 @@ If you previously relied on “startup auto-open” and “startup auto-tunnel�
 - `ORA_TUNNELS_ALLOW_QUICK=1` (only if you explicitly want quick tunnels without a named token)
 
 ## Per-Version Highlights (Quick Index)
+- **v2026.2.11**: setup UI overhaul (sidebar/cards/i18n/4K), stable external API paths, run-state caps+TTL, tunnel lifecycle hardening, deployment docs.
 - **v2026.2.9**: date-based releases + node/relay/approvals baseline + sandbox static repo inspection + approvals QoL knobs + guest-friendly Discord voice/music/search.
 - **v5.1.14**: audit redaction + retention; MCP guardrails; browser error_id + error log endpoint.
 - **v5.1.13**: empty final response fallback + less plan spam.

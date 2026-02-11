@@ -5,6 +5,7 @@ import shutil
 import time
 import uuid
 import asyncio
+import sys
 import logging
 import socket
 import subprocess
@@ -216,14 +217,12 @@ def _start_web_api_server_if_needed(bot=None) -> None:
     os.makedirs(log_dir, exist_ok=True)
     log_path = os.path.join(log_dir, "api_server_download.log")
 
-    uvicorn_exe = r"L:\ORADiscordBOT_Env\Scripts\uvicorn.exe"
-    if not os.path.exists(uvicorn_exe):
-        uvicorn_exe = "uvicorn"
-
     try:
         with open(log_path, "a", encoding="utf-8", errors="ignore") as out:
+            # Cross-platform and venv-friendly: use the current interpreter to run uvicorn.
+            # This avoids machine-specific paths (e.g. L:\...) and works on VPS/Linux.
             subprocess.Popen(
-                [uvicorn_exe, "src.web.app:app", "--host", "0.0.0.0", "--port", "8000"],
+                [sys.executable, "-m", "uvicorn", "src.web.app:app", "--host", "0.0.0.0", "--port", "8000"],
                 cwd=os.getcwd(),
                 stdout=out,
                 stderr=subprocess.STDOUT,
@@ -236,8 +235,9 @@ def _start_web_api_server_if_needed(bot=None) -> None:
 
 
 def _launch_quick_tunnel(log_path: str) -> None:
-    cf_bin = "cloudflared"
-    if os.path.exists("cloudflared.exe"):
+    # Prefer explicit config, then repo-local exe, then PATH.
+    cf_bin = (os.getenv("ORA_CLOUDFLARED_BIN") or "").strip() or "cloudflared"
+    if os.path.exists("cloudflared.exe") and cf_bin == "cloudflared":
         cf_bin = os.path.abspath("cloudflared.exe")
 
     os.makedirs(os.path.dirname(log_path), exist_ok=True)

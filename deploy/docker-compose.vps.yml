@@ -1,0 +1,71 @@
+version: "3.8"
+
+services:
+  # Control plane: Discord bot + Web API + Relay + (optional) Core.
+  # Keep this on a small, stable VPS.
+
+  yonerai-web:
+    build:
+      context: ..
+      dockerfile: Dockerfile.vps
+    container_name: yonerai-web
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../data:/app/data
+      - ../logs:/app/logs
+      - ../temp:/app/temp
+    command: python -m uvicorn src.web.app:app --host 0.0.0.0 --port 8000
+
+  yonerai-relay:
+    build:
+      context: ..
+      dockerfile: Dockerfile.vps
+    container_name: yonerai-relay
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    ports:
+      - "9010:9010"
+    volumes:
+      - ../logs:/app/logs
+    command: python -m src.relay.main
+
+  yonerai-core:
+    build:
+      context: ..
+      dockerfile: Dockerfile.vps
+    container_name: yonerai-core
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    environment:
+      - PYTHONPATH=/app/core/src
+    ports:
+      - "8001:8001"
+    volumes:
+      - ../data:/app/data
+      - ../logs:/app/logs
+    command: python -m ora_core.main
+
+  yonerai-bot:
+    build:
+      context: ..
+      dockerfile: Dockerfile.vps
+    container_name: yonerai-bot
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    volumes:
+      - ../data:/app/data
+      - ../logs:/app/logs
+      - ../temp:/app/temp
+    depends_on:
+      - yonerai-web
+      - yonerai-relay
+      - yonerai-core
+    command: python main.py
+

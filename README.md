@@ -30,6 +30,8 @@ Note: many internal paths/env vars still use the `ORA_*` prefix for compatibilit
 If you want the deep docs:
 - `docs/USER_GUIDE.md`
 - `docs/SYSTEM_ARCHITECTURE.md`
+- `docs/VPS_DEPLOYMENT.md` (run the always-on control plane on a VPS; hybrid mode)
+- `docs/DOMAIN_ROUTES.md` (recommended `yonerai.com` subdomains and API path design)
 - `docs/PLATFORM_PLAN.md` (product direction: Node + Clients + Relay + Cloud)
 - `docs/PLATFORM_REVIEW_AND_RISKS.md` (devil's advocate review / risks)
 - `ORA_SYSTEM_SPEC.md`
@@ -118,6 +120,26 @@ Recommended:
 - `DISCORD_APP_ID` (Application ID)
 - `ORA_DEV_GUILD_ID` (dev guild sync is immediate; global sync can take up to ~1 hour)
 - `ADMIN_USER_ID` (owner/creator identity)
+
+### External API Path (Token Protected)
+
+Use these stable paths for external automation/integration:
+
+- `POST /api/v1/agent/run`
+- `GET /api/v1/agent/runs/{run_id}/events`
+- `POST /api/v1/agent/runs/{run_id}/results`
+
+Authentication:
+- Set `ORA_WEB_API_TOKEN`
+- Send `Authorization: Bearer <token>` (or `x-ora-token`)
+
+Example:
+```bash
+curl -X POST "https://admin.yourdomain.com/api/v1/agent/run" \
+  -H "Authorization: Bearer $ORA_WEB_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"prompt":"Summarize latest status","user_id":"api-client-1"}'
+```
 
 Feature toggles you likely care about:
 - `OPENAI_API_KEY` (cloud models)
