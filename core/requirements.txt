@@ -8,3 +8,9 @@ sse-starlette
 python-multipart
 python-dotenv
 duckduckgo-search
+
+# Shared runtime deps (imported by core brain + core<->bot bridge modules)
+aiohttp>=3.8,<4.0
+aiofiles
+pytz
+openai

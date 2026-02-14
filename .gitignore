@@ -48,7 +48,7 @@ venv/
 # ORA State & Brain
 .gemini/
 .agent/
-brain/
+/brain/
 
 # Local notes
 ORA_AI_HANDOVER_MAC.md
