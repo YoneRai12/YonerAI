@@ -52,6 +52,27 @@ brain/
 
 # Local notes
 ORA_AI_HANDOVER_MAC.md
+AGENT_MEMORY.md
+
+# Private / non-distribution content (keep out of public releases)
+# Website/marketing drafts and platform console pages live here during development.
+src/web/static/*
+!src/web/static/index.html
+!src/web/static/operator.html
+!src/web/static/remote.html
+!src/web/static/setup.html
+!src/web/static/setup.css
+!src/web/static/setup.js
+
+# Local packaging/export helpers (generated during repo-splitting)
+scripts/export_*_v6.ps1
+scripts/install_web_context_menu.ps1
+scripts/restore_web_snapshot.ps1
+scripts/start_web_only.bat
+
+# Local assets (site drafts)
+assets/logo_*.svg
+assets/yonerai_logo.svg
 
 # Backup & Legacy
 Discord-mainORA2/
@@ -60,6 +81,7 @@ ORAA/
 ORAA_extracted/
 temp_oraa_analysis/
 backups/
+local_web_snapshots/
 _sandbox/
 timestamped_backups/
 temp/

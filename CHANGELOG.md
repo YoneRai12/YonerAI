@@ -2,6 +2,11 @@
 
 See also: `docs/RELEASE_NOTES.md` (curated summary, v5.0.0 -> current).
 
+## v2026.2.15 (2026-02-15) - Discord Web Search/Music Fix + Core SSE Buffer
+- Fixed ToolHandler dispatch for `web_search` and added an explicit admin guard for `web_action`.
+- Fixed music tool wrappers to correctly resolve `MusicSkill` via `ORACog.tool_handler` (prevents "Music system not accessible").
+- Core SSE event stream now buffers early events for late subscribers to prevent clients hanging when runs complete quickly.
+
 ## v2026.2.11 (2026-02-11) - Setup UI Overhaul + External API Stabilization + Tunnel Hardening
 - Setup UI redesigned into a left-nav + section-card layout with:
   - JP/EN language toggle

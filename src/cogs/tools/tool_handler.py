@@ -422,6 +422,16 @@ class ToolHandler:
              # This is safe, allow public
             return await self._handle_web_jump_to_profile(args, message, status_manager)
 
+        elif tool_name == "web_search":
+            # NOTE: Permissions are handled by allowlists in src/utils/access_control.py.
+            # Keep this tool usable if the operator explicitly adds it to ORA_PUBLIC_TOOLS.
+            return await self._handle_web_search(args, message, status_manager)
+
+        elif tool_name == "web_action":
+            if not await self._check_permission(message.author.id):
+                return "⛔ Access Denied: Admin Only."
+            return await self._handle_web_action(args, message, status_manager)
+
         elif tool_name == "web_set_view":
              if not await self._check_permission(message.author.id): return "⛔ Access Denied: Admin Only."
              return await self._handle_web_set_view(args, message, status_manager)
@@ -1760,7 +1770,7 @@ class ToolHandler:
             width, height, scale = 375, 812, 1.0
 
         if any([width, height, dark_mode is not None, scale]):
-             await browser_manager.set_view(width, height, dark_mode, scale)
+             await browser_manager.set_view(width=width, height=height, dark_mode=dark_mode, scale=scale)
 
         # Delegate final screenshot capture to shared logic or do it here?
         # Let's do it here to return the result directly
