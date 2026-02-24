@@ -56,10 +56,10 @@ def test_jina_fallback_default_off(monkeypatch) -> None:
 
 def test_untrusted_boundary_wrapper_masks_query_in_source() -> None:
     out = read_page_tool._format_untrusted_result(
-        source_url="https://example.com/path?token=secret",
+        source_url="https://example.com/path?q=sample_query",
         text="payload",
         via_reader=False,
     )
     assert "Policy: untrusted_web_content" in out
     assert "<untrusted_web_content>" in out
-    assert "token=secret" not in out
+    assert "?q=" not in out

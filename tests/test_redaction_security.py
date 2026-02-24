@@ -4,10 +4,10 @@ from src.utils.redaction import redact_text
 
 
 def test_redact_text_strips_query_from_urls() -> None:
-    raw = "fetch https://example.com/api?token=abc123&user=alice now"
+    raw = "fetch https://example.com/api?q=abc123&user=alice now"
     out = redact_text(raw)
     assert "abc123" not in out
-    assert "?token=" not in out
+    assert "?q=" not in out
     assert "?[REDACTED_QUERY]" in out
 
 
