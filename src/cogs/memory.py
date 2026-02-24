@@ -150,6 +150,14 @@ class MemoryCog(commands.Cog):
         md_path = os.path.join(MEMORY_DIR, "markdown_logs")
         self.md_memory = MarkdownMemory(root_dir=md_path)
 
+        # Core memory sync safety state (diagnostics-safe metadata only).
+        self._core_sync_auth_fail_streak = 0
+        self._core_sync_auth_fail_threshold = 3
+        self._core_sync_backoff_sec = 300
+        self._core_sync_backoff_until_ts = 0
+        self._core_sync_last_warn_ts = 0
+        self._core_sync_reason_code: str | None = None
+
     async def cog_load(self):
         """Start background tasks only when successfully loaded."""
         self.memory_worker.start()
@@ -1348,6 +1356,16 @@ class MemoryCog(commands.Cog):
             # [Sync] ORA Core API Injection
             if hasattr(self.bot, "connection_manager") and self.bot.connection_manager.mode == "API":
                 try:
+                    now_ts = int(time.time())
+                    if self._is_core_sync_paused(now_ts):
+                        if (now_ts - int(self._core_sync_last_warn_ts or 0)) >= 30:
+                            self._core_sync_last_warn_ts = now_ts
+                            logger.warning(
+                                "Memory Sync paused (auth backoff). retry_after_sec=%s",
+                                max(0, int(self._core_sync_backoff_until_ts - now_ts)),
+                            )
+                        return
+
                     payload = [{
                         "user_id": str(user_id), # Internal User ID (Discord ID maps to ID)
                         "role": "user" if "Assistant" not in entry.get("content", "") else "assistant", # Heuristic based on content label from add_ai_message
@@ -1362,14 +1380,68 @@ class MemoryCog(commands.Cog):
                     api_url = f"{self.bot.config.ora_api_base_url}/v1/memory/history"
 
                     async with self.bot.session.post(api_url, json=payload) as resp:
-                        if resp.status != 200:
+                        if 200 <= int(resp.status) < 300:
+                            self._mark_core_sync_success()
+                        elif int(resp.status) in {401, 403}:
+                            self._mark_core_sync_auth_failure(status_code=int(resp.status))
+                            logger.warning(
+                                "Memory Sync auth rejected (status=%s, streak=%s, paused=%s)",
+                                int(resp.status),
+                                int(self._core_sync_auth_fail_streak),
+                                bool(self._is_core_sync_paused()),
+                            )
+                        else:
+                            self._core_sync_reason_code = "core_memory_sync_http_error"
                             logger.warning(f"Memory Sync Failed ({resp.status}): {await resp.text()}")
                             # Ideally, connection_manager should know about failure, but we just log for now
                 except Exception as ex:
+                    self._core_sync_reason_code = "core_memory_sync_transport_error"
                     logger.debug(f"Memory Sync Error: {ex}")
 
         except Exception as e:
             logger.error(f"Failed to persist message for {user_id}: {e}")
+
+    def _is_core_sync_paused(self, now_ts: int | None = None) -> bool:
+        now = int(now_ts if now_ts is not None else time.time())
+        return bool(int(self._core_sync_backoff_until_ts or 0) > now)
+
+    def _mark_core_sync_success(self) -> None:
+        self._core_sync_auth_fail_streak = 0
+        self._core_sync_backoff_until_ts = 0
+        self._core_sync_reason_code = None
+
+    def _mark_core_sync_auth_failure(self, status_code: int) -> None:
+        now_ts = int(time.time())
+        self._core_sync_auth_fail_streak = int(self._core_sync_auth_fail_streak) + 1
+        self._core_sync_reason_code = "core_memory_sync_auth_rejected"
+        self._core_sync_last_warn_ts = now_ts
+        if int(self._core_sync_auth_fail_streak) >= int(self._core_sync_auth_fail_threshold):
+            self._core_sync_backoff_until_ts = now_ts + int(self._core_sync_backoff_sec)
+            self._core_sync_reason_code = "core_memory_sync_auth_backoff"
+            logger.warning(
+                "Memory Sync entering auth backoff (status=%s, streak=%s, backoff_until_ts=%s)",
+                int(status_code),
+                int(self._core_sync_auth_fail_streak),
+                int(self._core_sync_backoff_until_ts),
+            )
+
+    def get_core_memory_sync_status(self) -> Dict[str, Any]:
+        now_ts = int(time.time())
+        paused = self._is_core_sync_paused(now_ts)
+        backoff_until = int(self._core_sync_backoff_until_ts or 0)
+        status: Dict[str, Any] = {
+            "available": True,
+            "ok": (not paused),
+            "paused": paused,
+            "auth_fail_streak": int(self._core_sync_auth_fail_streak or 0),
+            "auth_fail_threshold": int(self._core_sync_auth_fail_threshold or 0),
+            "backoff_until_ts": (backoff_until if backoff_until > 0 else None),
+            "backoff_remaining_sec": max(0, backoff_until - now_ts) if backoff_until > 0 else 0,
+            "last_warn_ts": int(self._core_sync_last_warn_ts or 0) or None,
+        }
+        if self._core_sync_reason_code:
+            status["reason_code"] = str(self._core_sync_reason_code)
+        return status
 
     @tasks.loop(minutes=1)
     async def memory_worker(self):

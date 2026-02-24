@@ -4,6 +4,7 @@ import asyncio
 import hmac
 import json
 import os
+import time
 import uuid
 from datetime import datetime
 from ipaddress import ip_address
@@ -224,6 +225,80 @@ async def require_admin(
 
     if not _is_loopback(request):
         raise HTTPException(status_code=403, detail="Admin API only available on loopback without token")
+
+
+def _collect_memory_sync_status() -> dict[str, Any]:
+    """
+    Best-effort memory sync diagnostics with non-secret metadata only.
+    """
+    now_ts = int(time.time())
+    out: dict[str, Any] = {
+        "available": False,
+        "ok": None,
+        "paused": None,
+        "auth_fail_streak": None,
+        "backoff_until_ts": None,
+        "backoff_remaining_sec": None,
+    }
+    try:
+        from src.bot import get_bot
+
+        bot = get_bot()
+        if bot is None:
+            out["reason_code"] = "memory_sync_bot_unavailable"
+            return out
+
+        memory_cog = bot.get_cog("MemoryCog") if hasattr(bot, "get_cog") else None
+        if memory_cog is None:
+            out["reason_code"] = "memory_sync_cog_unavailable"
+            return out
+
+        getter = getattr(memory_cog, "get_core_memory_sync_status", None)
+        if not callable(getter):
+            out["reason_code"] = "memory_sync_status_unimplemented"
+            return out
+
+        status = getter()
+        if not isinstance(status, dict):
+            out["reason_code"] = "memory_sync_status_invalid"
+            return out
+
+        paused = bool(status.get("paused"))
+        streak = int(status.get("auth_fail_streak") or 0)
+        threshold = int(status.get("auth_fail_threshold") or 0)
+        raw_backoff_until = status.get("backoff_until_ts")
+        try:
+            backoff_until_ts = int(raw_backoff_until) if raw_backoff_until is not None else None
+        except Exception:
+            backoff_until_ts = None
+
+        out.update(
+            {
+                "available": True,
+                "ok": bool(status.get("ok", not paused)),
+                "paused": paused,
+                "auth_fail_streak": streak,
+                "auth_fail_threshold": threshold,
+                "backoff_until_ts": backoff_until_ts,
+                "backoff_remaining_sec": max(0, int(backoff_until_ts - now_ts)) if backoff_until_ts else 0,
+                "last_warn_ts": int(status.get("last_warn_ts") or 0) or None,
+            }
+        )
+        reason_code = str(status.get("reason_code") or "").strip()
+        if reason_code:
+            out["reason_code"] = reason_code
+        return out
+    except Exception:
+        out["reason_code"] = "memory_sync_status_unavailable"
+        return out
+
+
+@router.get("/platform/ops/web-runtime-diagnostics")
+async def get_web_runtime_diagnostics(_: None = Depends(require_admin)):
+    return {
+        "ok": True,
+        "memory_sync": _collect_memory_sync_status(),
+    }
 
 
 async def require_web_api(
