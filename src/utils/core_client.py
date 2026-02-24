@@ -5,8 +5,40 @@ from urllib.parse import urlsplit
 
 import aiohttp
 
-from src.utils.origin_tags import build_origin_headers, node_id_from_env
-from src.utils.service_auth import build_service_auth_headers
+try:
+    from src.utils.origin_tags import build_origin_headers, node_id_from_env
+except Exception:
+    def node_id_from_env() -> str:
+        node = (
+            os.getenv("ORA_NODE_ID")
+            or os.getenv("HOSTNAME")
+            or os.getenv("COMPUTERNAME")
+            or "local-node"
+        )
+        return str(node).strip() or "local-node"
+
+    def build_origin_headers(
+        *,
+        origin: str,
+        node_id: str,
+        request_id: str,
+        trace_id: str,
+        signing_secret: str | None = None,
+    ) -> dict[str, str]:
+        del signing_secret
+        return {
+            "X-Origin": str(origin),
+            "X-Node-ID": str(node_id),
+            "X-Request-ID": str(request_id),
+            "X-Trace-ID": str(trace_id),
+        }
+
+try:
+    from src.utils.service_auth import build_service_auth_headers
+except Exception:
+    def build_service_auth_headers(*, method: str, path: str) -> dict[str, str]:
+        del method, path
+        return {}
 
 logger = logging.getLogger(__name__)
 
@@ -355,3 +387,5 @@ class CoreAPIClient:
 
 
 core_client = CoreAPIClient()
+
+
