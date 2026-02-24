@@ -20,7 +20,7 @@ class VoiceVoxClient:
         """Synthesise ``text`` into WAV audio bytes."""
 
         if not text.strip():
-            raise ValueError("読み上げ対象のテキストが空です。")
+            raise ValueError("Text to synthesize is empty.")
 
         sid = speaker_id if speaker_id is not None else self._speaker_id
         params = {"speaker": sid}
@@ -32,8 +32,7 @@ class VoiceVoxClient:
             query_params = {"text": text, "speaker": sid}
             async with session.post(query_url, params=query_params) as resp:
                 if resp.status != 200:
-                    body = await resp.text()
-                    raise RuntimeError(f"VOICEVOX audio_query 失敗: {resp.status} {body}")
+                    raise RuntimeError(f"VOICEVOX audio_query failed: status={resp.status}")
                 query = await resp.json()
 
             # Apply Speed Scale
@@ -42,14 +41,13 @@ class VoiceVoxClient:
             query["speedScale"] = original_speed * speed_scale
 
             # Debug log for query
-            logger.debug(f"VOICEVOX query response: {query}")
+            logger.debug("VOICEVOX query response keys: %s", sorted(query.keys()))
             logger.info(f"VOICEVOX audio_query successful (Speed: {query['speedScale']})")
 
             synthesis_url = f"{self._base_url}/synthesis"
             async with session.post(synthesis_url, params=params, json=query) as resp2:
                 if resp2.status != 200:
-                    body = await resp2.text()
-                    raise RuntimeError(f"VOICEVOX synthesis 失敗: {resp2.status} {body}")
+                    raise RuntimeError(f"VOICEVOX synthesis failed: status={resp2.status}")
                 audio = await resp2.read()
 
         logger.debug("VOICEVOX synthesis completed (bytes=%d)", len(audio))
@@ -65,3 +63,5 @@ class VoiceVoxClient:
                     logger.error(f"Failed to fetch speakers: {resp.status}")
                     return []
                 return await resp.json()
+
+

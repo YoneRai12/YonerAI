@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import urllib.parse
 from typing import Any
 
 # Keep this module dependency-free and safe to import anywhere (including CI/tests).
@@ -33,12 +34,26 @@ _PATTERNS: list[tuple[str, re.Pattern[str]]] = [
 ]
 
 
+def _strip_query_from_urls(text: str) -> str:
+    def repl(match: re.Match[str]) -> str:
+        raw = match.group(0)
+        try:
+            split = urllib.parse.urlsplit(raw)
+            if not split.query:
+                return raw
+            return urllib.parse.urlunsplit((split.scheme, split.netloc, split.path, "[REDACTED_QUERY]", split.fragment))
+        except Exception:
+            return raw
+
+    return re.sub(r"https?://[^\s\"'<>]+", repl, text)
+
+
 def redact_text(text: str) -> str:
     """Redact secrets from arbitrary text (best-effort)."""
     if not isinstance(text, str) or not text:
         return "" if text is None else str(text)
 
-    out = text
+    out = _strip_query_from_urls(text)
     for label, pat in _PATTERNS:
         out = pat.sub("[REDACTED]", out)
 
@@ -79,4 +94,3 @@ def redact_json_string(raw: str, *, max_chars: int = 5000) -> str:
     if len(out) > max_chars:
         out = out[: max(0, max_chars - 3)] + "..."
     return out
-
