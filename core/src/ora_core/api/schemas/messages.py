@@ -49,6 +49,47 @@ class ClientContext(BaseModel):
     channel_memory: Optional[dict] = None  # Summary, topics, atmosphere
     timestamp: Optional[str] = None  # ISO format
 
+class RequestMeta(BaseModel):
+    request_id: Optional[str] = None
+    trace_id: Optional[str] = None
+    origin: Optional[str] = None
+    node_id: Optional[str] = None
+    tampered: bool = False
+
+
+class RouteBudgetHint(BaseModel):
+    max_turns: Optional[int] = None
+    max_tool_calls: Optional[int] = None
+    time_budget_seconds: Optional[int] = None
+
+
+class RouteHint(BaseModel):
+    # Entry points can provide hints only; Core decides effective_route.
+    mode: Optional[str] = None
+    function_category: Optional[str] = None
+    difficulty_score: Optional[float] = None
+    security_risk_score: Optional[float] = None
+    security_risk_level: Optional[str] = None
+    reason_codes: list[str] = Field(default_factory=list)
+    budget: Optional[RouteBudgetHint] = None
+
+
+class EffectiveRouteBudget(BaseModel):
+    max_turns: int = 5
+    max_tool_calls: int = 5
+    time_budget_seconds: int = 120
+
+
+class EffectiveRoute(BaseModel):
+    mode: Literal["INSTANT", "TASK", "AGENT_LOOP"] = "TASK"
+    function_category: str = "chat"
+    difficulty_score: float = 0.5
+    security_risk_score: float = 0.0
+    security_risk_level: str = "LOW"
+    budget: EffectiveRouteBudget = Field(default_factory=EffectiveRouteBudget)
+    reason_codes: list[str] = Field(default_factory=list)
+    source_hint_present: bool = False
+
 class MessageRequest(BaseModel):
     conversation_id: Optional[str] = None
     user_identity: UserIdentity
@@ -63,6 +104,8 @@ class MessageRequest(BaseModel):
     client_history: list[HistoryMessage] = []  # Pre-built history from client
     client_context: Optional[ClientContext] = None  # Admin status, server info, etc.
     llm_preference: Optional[str] = None # Override engine priority or specify model name
+    request_meta: Optional[RequestMeta] = None
+    route_hint: Optional[RouteHint] = None
 
 class MessageResponse(BaseModel):
     conversation_id: str

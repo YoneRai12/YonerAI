@@ -1,10 +1,11 @@
 import logging
 import asyncio
+import time
 from typing import Any
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ora_core.api.schemas.messages import MessageRequest
+from ora_core.api.schemas.messages import EffectiveRoute, MessageRequest
 from ora_core.database.repo import Repository, RunStatus
 from ora_core.brain.context import ContextBuilder
 from ora_core.brain.memory import memory_store
@@ -28,8 +29,159 @@ class MainProcess:
         self.repo = Repository(db_session)
         self.cost_manager = CostManager()
 
+    _ROUTE_DEFAULTS: dict[str, dict[str, int]] = {
+        "INSTANT": {"max_turns": 2, "max_tool_calls": 0, "time_budget_seconds": 25},
+        "TASK": {"max_turns": 5, "max_tool_calls": 5, "time_budget_seconds": 120},
+        "AGENT_LOOP": {"max_turns": 8, "max_tool_calls": 10, "time_budget_seconds": 300},
+    }
+
+    @staticmethod
+    def _clamp_int(value: Any, default: int, *, lo: int, hi: int) -> int:
+        try:
+            v = int(value)
+        except Exception:
+            v = int(default)
+        return max(lo, min(hi, v))
+
+    @staticmethod
+    def _clamp_float(value: Any, default: float, *, lo: float = 0.0, hi: float = 1.0) -> float:
+        try:
+            v = float(value)
+        except Exception:
+            v = float(default)
+        return max(lo, min(hi, v))
+
+    @staticmethod
+    def _dedup_reason_codes(raw: Any) -> list[str]:
+        out: list[str] = []
+        if not isinstance(raw, list):
+            return out
+        for x in raw:
+            rc = str(x or "").strip()
+            if rc and rc not in out:
+                out.append(rc)
+        return out
+
+    @staticmethod
+    def _risk_level_from_score(score: float) -> str:
+        s = max(0.0, min(1.0, float(score)))
+        if s >= 0.9:
+            return "CRITICAL"
+        if s >= 0.6:
+            return "HIGH"
+        if s >= 0.3:
+            return "MEDIUM"
+        return "LOW"
+
+    @staticmethod
+    def _mode_from_difficulty(score: float) -> str:
+        d = max(0.0, min(1.0, float(score)))
+        if d <= 0.3:
+            return "INSTANT"
+        if d <= 0.6:
+            return "TASK"
+        return "AGENT_LOOP"
+
+    @staticmethod
+    def _append_reason_code(effective_route: dict[str, Any], reason_code: str) -> None:
+        rc = str(reason_code or "").strip()
+        if not rc:
+            return
+        reason_codes = effective_route.get("reason_codes")
+        if not isinstance(reason_codes, list):
+            reason_codes = []
+            effective_route["reason_codes"] = reason_codes
+        if rc not in reason_codes:
+            reason_codes.append(rc)
+
+    async def _persist_effective_route(self, effective_route: dict[str, Any]) -> None:
+        try:
+            from src.utils.link_attribution import record_run_effective_route
+
+            await record_run_effective_route(run_id=self.run_id, effective_route=effective_route)
+        except Exception:
+            pass
+
+    def _resolve_effective_route(self, selected_tool_schemas: list[dict[str, Any]]) -> dict[str, Any]:
+        hint: dict[str, Any] = {}
+        raw_hint = getattr(self.request, "route_hint", None)
+        if raw_hint is not None:
+            if hasattr(raw_hint, "model_dump"):
+                try:
+                    dumped = raw_hint.model_dump()
+                    if isinstance(dumped, dict):
+                        hint = dumped
+                except Exception:
+                    hint = {}
+            elif isinstance(raw_hint, dict):
+                hint = raw_hint
+
+        difficulty_score = self._clamp_float(hint.get("difficulty_score"), 0.5)
+        security_risk_score = self._clamp_float(hint.get("security_risk_score"), 0.0)
+        function_category = str(hint.get("function_category") or "chat").strip().lower() or "chat"
+
+        mode_hint = str(hint.get("mode") or "").strip().upper()
+        mode = mode_hint if mode_hint in self._ROUTE_DEFAULTS else self._mode_from_difficulty(difficulty_score)
+        defaults = dict(self._ROUTE_DEFAULTS.get(mode, self._ROUTE_DEFAULTS["TASK"]))
+
+        budget_hint = hint.get("budget")
+        budget_dict = budget_hint if isinstance(budget_hint, dict) else {}
+        budget = {
+            "max_turns": self._clamp_int(budget_dict.get("max_turns"), defaults["max_turns"], lo=1, hi=20),
+            "max_tool_calls": self._clamp_int(budget_dict.get("max_tool_calls"), defaults["max_tool_calls"], lo=0, hi=20),
+            "time_budget_seconds": self._clamp_int(
+                budget_dict.get("time_budget_seconds"),
+                defaults["time_budget_seconds"],
+                lo=10,
+                hi=1800,
+            ),
+        }
+
+        reason_codes = self._dedup_reason_codes(hint.get("reason_codes"))
+        security_risk_level = str(hint.get("security_risk_level") or "").strip().upper()
+        if not security_risk_level:
+            security_risk_level = self._risk_level_from_score(security_risk_score)
+
+        high_risk = security_risk_score >= 0.6 or security_risk_level in {"HIGH", "CRITICAL"}
+        if mode in {"INSTANT", "AGENT_LOOP"} and high_risk:
+            mode = "TASK"
+            defaults = dict(self._ROUTE_DEFAULTS["TASK"])
+            budget = {
+                "max_turns": self._clamp_int(budget_dict.get("max_turns"), defaults["max_turns"], lo=1, hi=20),
+                "max_tool_calls": self._clamp_int(budget_dict.get("max_tool_calls"), defaults["max_tool_calls"], lo=0, hi=20),
+                "time_budget_seconds": self._clamp_int(
+                    budget_dict.get("time_budget_seconds"),
+                    defaults["time_budget_seconds"],
+                    lo=10,
+                    hi=1800,
+                ),
+            }
+            if "router_mode_forced_safe" not in reason_codes:
+                reason_codes.append("router_mode_forced_safe")
+
+        if mode == "INSTANT":
+            budget["max_tool_calls"] = 0
+            if selected_tool_schemas and "router_mode_instant" not in reason_codes:
+                reason_codes.append("router_mode_instant")
+        elif not selected_tool_schemas:
+            # Keep Core budget consistent with the actual executable tool set.
+            budget["max_tool_calls"] = 0
+
+        effective = EffectiveRoute(
+            mode=mode,  # type: ignore[arg-type]
+            function_category=function_category,
+            difficulty_score=round(difficulty_score, 2),
+            security_risk_score=round(security_risk_score, 2),
+            security_risk_level=security_risk_level,
+            budget=budget,
+            reason_codes=reason_codes,
+            source_hint_present=bool(hint),
+        )
+        return effective.model_dump()
+
     async def run(self):
         """Execute the cognitive cycle."""
+        effective_route: dict[str, Any] = {}
         try:
             # 1. Status -> In Progress
             await self.repo.update_run_status(self.run_id, RunStatus.in_progress)
@@ -66,22 +218,60 @@ class MainProcess:
 
             client_type = getattr(self.request, "source", "web")
             should_stream = getattr(self.request, "stream", True)
+            del should_stream  # Reserved for future stream/no-stream divergence.
             selected_tool_schemas = self._resolve_selected_tools_for_core(client_type)
             if client_type == "discord" and selected_tool_schemas:
                 self._register_missing_discord_proxy_tools(selected_tool_schemas)
-            
+
+            effective_route = self._resolve_effective_route(selected_tool_schemas)
+            if effective_route.get("mode") == "INSTANT":
+                selected_tool_schemas = []
+            await self._persist_effective_route(effective_route)
+            await event_manager.emit(
+                self.run_id,
+                "meta",
+                {
+                    "effective_route": effective_route,
+                },
+            )
+
             from ora_core.engine.omni_engine import omni_engine
             from ora_core.mcp.runner import ToolRunner
             import json
-            
+            import traceback
+              
             runner = ToolRunner(self.repo)
+
+            def _tool_content(tool_data: Any) -> str:
+                # OpenAI tool message content must be a string.
+                if isinstance(tool_data, str):
+                    return tool_data
+                if tool_data is None:
+                    return ""
+                try:
+                    return json.dumps(tool_data, ensure_ascii=False)
+                except Exception:
+                    return str(tool_data)
 
             # 3. LLM Execution Loop (Intelligent Tool Use)
             llm_pref = getattr(self.request, "llm_preference", None)
-            max_turns = 5
+            route_budget = effective_route.get("budget") if isinstance(effective_route, dict) else {}
+            if not isinstance(route_budget, dict):
+                route_budget = {}
+            max_turns = self._clamp_int(route_budget.get("max_turns"), 5, lo=1, hi=20)
+            max_tool_calls = self._clamp_int(route_budget.get("max_tool_calls"), 0, lo=0, hi=20)
+            time_budget_seconds = self._clamp_int(route_budget.get("time_budget_seconds"), 120, lo=10, hi=1800)
+            started_at = time.monotonic()
+            tool_calls_used = 0
+            budget_stop_reason: str | None = None
             final_response_text = ""
-            
+            last_content: str = ""
+              
             for turn in range(max_turns):
+                if (time.monotonic() - started_at) >= float(time_budget_seconds):
+                    budget_stop_reason = "router_budget_time_exceeded"
+                    self._append_reason_code(effective_route, budget_stop_reason)
+                    break
                 logger.info(f"Run {self.run_id} Turn {turn+1}: Generating response (Pref: {llm_pref})...")
                 
                 # In Phase 6, we use non-streaming call to LLM to handle tool_calls robustly,
@@ -130,6 +320,7 @@ class MainProcess:
 
                 message = response.choices[0].message
                 content = message.content or ""
+                last_content = content
                 tool_calls = message.tool_calls
                 
                 if not tool_calls:
@@ -144,20 +335,70 @@ class MainProcess:
                     context_messages.append(message)
                     
                     for tc in tool_calls:
+                        if (time.monotonic() - started_at) >= float(time_budget_seconds):
+                            budget_stop_reason = "router_budget_time_exceeded"
+                            self._append_reason_code(effective_route, budget_stop_reason)
+                            break
+                        if tool_calls_used >= max_tool_calls:
+                            budget_stop_reason = "router_budget_tool_exceeded"
+                            self._append_reason_code(effective_route, budget_stop_reason)
+                            break
                         tc_id = tc.id
                         t_name = tc.function.name
-                        t_args = json.loads(tc.function.arguments)
+                        try:
+                            t_args = json.loads(tc.function.arguments or "{}")
+                        except json.JSONDecodeError as e:
+                            logger.warning(
+                                f"Tool {t_name} (ID: {tc_id}): Invalid JSON arguments: {e}. args={tc.function.arguments!r}"
+                            )
+                            context_messages.append(
+                                {
+                                    "role": "tool",
+                                    "tool_call_id": tc_id,
+                                    "name": t_name,
+                                    "content": _tool_content({"ok": False, "error": f"Invalid arguments JSON: {str(e)}"}),
+                                }
+                            )
+                            continue
+                        except Exception as e:
+                            logger.warning(
+                                f"Tool {t_name} (ID: {tc_id}): Failed to parse arguments. err={e} args={tc.function.arguments!r}"
+                            )
+                            context_messages.append(
+                                {
+                                    "role": "tool",
+                                    "tool_call_id": tc_id,
+                                    "name": t_name,
+                                    "content": _tool_content({"ok": False, "error": f"Failed to parse arguments: {str(e)}"}),
+                                }
+                            )
+                            continue
                         
                         logger.info(f"Executing Tool: {t_name} (ID: {tc_id})")
-                        
-                        result = await runner.run_tool(tc_id, self.run_id, user.id, t_name, t_args, client_type)
+
+                        req_meta = self.request.request_meta.model_dump() if self.request.request_meta else None
+                        result = await runner.run_tool(
+                            tc_id,
+                            self.run_id,
+                            user.id,
+                            t_name,
+                            t_args,
+                            client_type,
+                            request_meta=req_meta,
+                            effective_route=effective_route,
+                        )
 
                         # Hub->Spoke bridge:
                         # If this tool was proxied to Discord client action, wait for submitted
                         # tool output from /v1/runs/{run_id}/results before continuing.
-                        tool_data = result.get("result") or result.get("error")
+                        tool_data: Any = None
+                        if isinstance(result, dict):
+                            tool_data = result.get("result") if result.get("result") is not None else result.get("error")
+                        else:
+                            tool_data = result
                         dispatched_externally = (
                             client_type == "discord"
+                            and isinstance(result, dict)
                             and isinstance(result.get("result"), dict)
                             and "client_action" in result.get("result", {})
                         )
@@ -187,33 +428,63 @@ class MainProcess:
                                     "ok": False,
                                     "error": {
                                         "code": "CLIENT_RESULT_CANCELLED",
-                                        "message": f"Client result wait cancelled: {t_name}",
-                                    },
-                                }
+                                     "message": f"Client result wait cancelled: {t_name}",
+                                 },
+                             }
                         
                         context_messages.append({
                             "role": "tool",
                             "tool_call_id": tc_id,
                             "name": t_name,
-                            "content": json.dumps(tool_data)
+                            "content": _tool_content(tool_data)
                         })
-            
+                        tool_calls_used += 1
+                    if budget_stop_reason:
+                        break
+            else:
+                # The tool loop never produced a final assistant message. Avoid saving / streaming an empty response.
+                self._append_reason_code(effective_route, "router_budget_turn_exceeded")
+                final_response_text = last_content.strip() or (
+                    f"[System] Tool execution exceeded {max_turns} turns. "
+                    "Last tool calls were processed but a final response could not be generated."
+                )
+
+            if budget_stop_reason and not final_response_text.strip():
+                final_response_text = last_content.strip() or (
+                    f"[System] Route budget reached ({budget_stop_reason}). "
+                    "Request stopped by Core safety limits."
+                )
+
             # 4. Save Assistant Message (Repo)
             await self.repo.create_assistant_message(self.conversation_id, final_response_text)
             
             # 5. Update Memory (L3/L4)
-            await self._update_memory_on_completion(user.id, self.request.content, final_response_text)
+            try:
+                await self._update_memory_on_completion(user.id, self.request.content, final_response_text)
+            except Exception as e:
+                logger.error(f"Memory update failed (non-fatal): {e}\n{traceback.format_exc()}")
 
             # 6. Final Event & Status
+            await self._persist_effective_route(effective_route)
             await event_manager.emit(self.run_id, "final", {
-                "text": final_response_text, "message_id": "pending-db-save"
+                "text": final_response_text,
+                "message_id": "pending-db-save",
+                "effective_route": effective_route,
             })
             await self.repo.update_run_status(self.run_id, RunStatus.completed)
 
         except Exception as e:
             logger.error(f"MainProcess Error: {e}", exc_info=True)
             await self.repo.update_run_status(self.run_id, RunStatus.failed)
-            await event_manager.emit(self.run_id, "error", {"message": str(e)})
+            await self._persist_effective_route(effective_route)
+            await event_manager.emit(
+                self.run_id,
+                "error",
+                {
+                    "message": str(e),
+                    "effective_route": effective_route if isinstance(effective_route, dict) else {},
+                },
+            )
 
     def _resolve_selected_tools_for_core(self, client_type: str) -> list[dict[str, Any]]:
         """
