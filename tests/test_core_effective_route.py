@@ -286,6 +286,7 @@ def test_effective_route_instant_still_calls_memory_context(monkeypatch) -> None
 
 def test_effective_route_debug_is_admin_only(monkeypatch) -> None:
     async def _run() -> None:
+        monkeypatch.setenv("ORA_ROUTE_DEBUG", "1")
         base_req = {
             "user_identity": {"provider": "web", "id": "u-debug"},
             "content": "debug check",
@@ -294,13 +295,20 @@ def test_effective_route_debug_is_admin_only(monkeypatch) -> None:
             "route_hint": {"route_score": 0.55, "difficulty_score": 0.55, "security_risk_score": 0.1},
         }
 
-        req_admin = MessageRequest(**{**base_req, "client_context": {"is_admin": True}})
+        req_admin = MessageRequest(
+            **{
+                **base_req,
+                "client_context": {"is_admin": False},
+                "request_meta": {"admin_verified": True},
+            }
+        )
         events_admin = await _run_main_process(monkeypatch, req_admin, run_id=f"run-adm-{uuid.uuid4().hex[:8]}")
         route_admin = (_event_data(events_admin, "final").get("effective_route") or {})
         assert isinstance(route_admin.get("route_debug"), dict)
         assert route_admin.get("route_debug", {}).get("memory_used") is True
 
-        req_user = MessageRequest(**base_req)
+        # Spoofed client flag must not unlock route_debug.
+        req_user = MessageRequest(**{**base_req, "client_context": {"is_admin": True}})
         events_user = await _run_main_process(monkeypatch, req_user, run_id=f"run-usr-{uuid.uuid4().hex[:8]}")
         route_user = (_event_data(events_user, "final").get("effective_route") or {})
         assert "route_debug" not in route_user

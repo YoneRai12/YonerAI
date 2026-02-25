@@ -158,6 +158,9 @@ class ChatHandler:
                 # ORA "admin" means creator/owner (ADMIN_USER_ID), not guild permissions.
                 "is_admin": is_owner(self.bot, message.author.id),
             }
+            verified_admin = bool(client_context.get("is_admin"))
+            # Keep client_context aligned with server-verified decision only.
+            client_context["is_admin"] = verified_admin
 
             # 3. Call Core API
             # [MEMORY INJECTION] Fetch User Profile
@@ -548,9 +551,9 @@ Interests: {interests}
             }
             route_meta["route_meta"] = route_meta_internal
 
-            route_debug_enabled = bool(client_context.get("is_admin")) or str(
+            route_debug_enabled = str(
                 os.getenv("ORA_ROUTE_DEBUG", "") or ""
-            ).strip().lower() in {"1", "true", "yes", "on"}
+            ).strip().lower() in {"1", "true", "yes", "on"} and verified_admin
             if route_debug_enabled:
                 route_meta["route_debug"] = {
                     "mode": route_mode,
@@ -649,7 +652,8 @@ Interests: {interests}
                 source="discord",
                 llm_preference=preferred_model,
                 route_hint=route_meta,
-                correlation_id=correlation_id
+                correlation_id=correlation_id,
+                origin_context={"admin_verified": verified_admin},
             )
 
             if "error" in response:

@@ -55,6 +55,7 @@ class RequestMeta(BaseModel):
     origin: Optional[str] = None
     node_id: Optional[str] = None
     tampered: bool = False
+    admin_verified: bool = False
 
 
 class RouteBudgetHint(BaseModel):

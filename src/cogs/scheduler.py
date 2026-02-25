@@ -135,6 +135,7 @@ class SchedulerCog(commands.Cog):
                     source="scheduler",
                     llm_preference=model_pref,
                     correlation_id=correlation_id,
+                    origin_context={"admin_verified": True},
                 )
                 if "error" in resp:
                     raise RuntimeError(str(resp.get("error")))
@@ -173,4 +174,3 @@ class SchedulerCog(commands.Cog):
 
 async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(SchedulerCog(bot))
-

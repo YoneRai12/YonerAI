@@ -94,11 +94,15 @@ class MainProcess:
 
     def _route_debug_enabled(self) -> bool:
         raw = str(os.getenv("ORA_ROUTE_DEBUG", "") or "").strip().lower()
-        if raw in {"1", "true", "yes", "on"}:
-            return True
+        env_enabled = raw in {"1", "true", "yes", "on"}
+        if not env_enabled:
+            return False
+        return self._is_admin_verified()
+
+    def _is_admin_verified(self) -> bool:
         try:
-            ctx = getattr(self.request, "client_context", None)
-            return bool(getattr(ctx, "is_admin", False))
+            req_meta = getattr(self.request, "request_meta", None)
+            return bool(getattr(req_meta, "admin_verified", False))
         except Exception:
             return False
 
@@ -261,6 +265,13 @@ class MainProcess:
                 self.request.user_identity.id,
                 self.request.user_identity.display_name
             )
+            # Ignore client-provided admin flags; trust server-verified metadata only.
+            verified_admin = self._is_admin_verified()
+            if self.request.client_context is not None:
+                try:
+                    self.request.client_context.is_admin = verified_admin
+                except Exception:
+                    pass
             
             context_messages = await ContextBuilder.build_context(self.request, user.id, self.conversation_id, self.repo)
             
