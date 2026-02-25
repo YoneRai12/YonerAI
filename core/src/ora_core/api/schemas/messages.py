@@ -67,7 +67,10 @@ class RouteHint(BaseModel):
     # Entry points can provide hints only; Core decides effective_route.
     mode: Optional[str] = None
     function_category: Optional[str] = None
+    route_score: Optional[float] = None
     difficulty_score: Optional[float] = None
+    complexity_score: Optional[float] = None
+    action_score: Optional[float] = None
     security_risk_score: Optional[float] = None
     security_risk_level: Optional[str] = None
     reason_codes: list[str] = Field(default_factory=list)
@@ -83,7 +86,10 @@ class EffectiveRouteBudget(BaseModel):
 class EffectiveRoute(BaseModel):
     mode: Literal["INSTANT", "TASK", "AGENT_LOOP"] = "TASK"
     function_category: str = "chat"
+    route_score: float = 0.5
     difficulty_score: float = 0.5
+    complexity_score: float = 0.5
+    action_score: float = 0.5
     security_risk_score: float = 0.0
     security_risk_level: str = "LOW"
     budget: EffectiveRouteBudget = Field(default_factory=EffectiveRouteBudget)

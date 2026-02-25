@@ -5,6 +5,7 @@ import asyncio
 from typing import List, Dict, Any, Optional
 
 from src.utils.llm_client import LLMClient
+from src.utils.risk_scoring import score_tool_risk
 # S5 Optimization: Use Registry instead of heavy ToolHandler import
 from src.cogs.tools.registry import get_tool_schemas
 
@@ -45,7 +46,15 @@ class ToolSelector:
             model=self.model_name
         )
 
-    async def select_tools(self, prompt: str, available_tools: Optional[List[dict]] = None, platform: str = "discord", rag_context: str = "", correlation_id: Optional[str] = None) -> List[dict]:
+    async def select_tools(
+        self,
+        prompt: str,
+        available_tools: Optional[List[dict]] = None,
+        platform: str = "discord",
+        rag_context: str = "",
+        correlation_id: Optional[str] = None,
+        has_vision_attachment: bool = False,
+    ) -> List[dict]:
         """
         Analyzes prompt and selects relevant tool CATEGORIES (Granular).
         """
@@ -582,16 +591,68 @@ class ToolSelector:
         log_payload["router_local_ms"] = round(total_ms - log_payload["router_roundtrip_ms"], 2)
         log_payload["selected_categories"] = selected_categories
 
-        # Complexity estimation (for Agentic task planning gate)
+        # route_score v1 (single axis): composed from Complexity / Risk / Action.
         complexity, reasons = self._assess_complexity(prompt, selected_categories, final_tools)
+        complexity_score = self._complexity_to_score(complexity)
+        action_score = self._action_score(
+            wants_screenshot=wants_screenshot,
+            wants_browser_control=wants_browser_control,
+            wants_download=wants_download,
+            selected_tool_count=len(final_tools),
+            has_vision_attachment=has_vision_attachment,
+        )
+        security_risk_score = self._risk_score_from_tools(final_tools)
+        security_risk_level = self._risk_level_from_score(security_risk_score)
+        function_category = self._derive_function_category(selected_categories)
+        reason_codes: List[str] = []
+
+        route_score = self._compose_route_score(
+            complexity_score=complexity_score,
+            security_risk_score=security_risk_score,
+            action_score=action_score,
+        )
+        if has_vision_attachment and route_score < 0.35:
+            route_score = 0.35
+            reason_codes.append("router_vision_floor_applied")
+
+        mode = self._mode_from_route_score(route_score)
+        if security_risk_score >= 0.6 and mode in {"INSTANT", "AGENT_LOOP"}:
+            mode = "TASK"
+            reason_codes.append("router_mode_forced_safe")
+        requires_tools = len(final_tools) > 0
+        if mode == "INSTANT" and requires_tools:
+            mode = "TASK"
+            if "router_mode_forced_tools" not in reason_codes:
+                reason_codes.append("router_mode_forced_tools")
+
         log_payload["complexity"] = complexity
         if reasons:
             log_payload["complexity_reasons"] = reasons
+        log_payload["route_score"] = round(route_score, 2)
+        log_payload["mode"] = mode
+        log_payload["function_category"] = function_category
+        log_payload["security_risk_score"] = round(security_risk_score, 2)
+        log_payload["security_risk_level"] = security_risk_level
+        log_payload["has_vision_attachment"] = bool(has_vision_attachment)
+        if reason_codes:
+            log_payload["route_reason_codes"] = list(reason_codes)
+
         self.last_route_meta = {
+            "mode": mode,
+            "function_category": function_category,
+            "route_score": round(route_score, 2),
+            # Keep compatibility with current Core route hint contract.
+            "difficulty_score": round(route_score, 2),
+            "security_risk_score": round(security_risk_score, 2),
+            "security_risk_level": security_risk_level,
             "complexity": complexity,
+            "complexity_score": round(complexity_score, 2),
+            "action_score": round(action_score, 2),
             "reasons": reasons,
+            "reason_codes": list(reason_codes),
             "selected_categories": list(selected_categories),
             "selected_tool_count": len(final_tools),
+            "budget": self._mode_budget(mode),
             "intents": {
                 "screenshot": bool(wants_screenshot),
                 "browser_control": bool(wants_browser_control),
@@ -662,6 +723,110 @@ class ToolSelector:
 
         ranked = sorted(tools, key=lambda t: (-score(t), (t.get("name") or "")))
         return ranked[: max(1, max_tools)]
+
+    @staticmethod
+    def _complexity_to_score(complexity: str) -> float:
+        c = str(complexity or "").strip().lower()
+        if c == "high":
+            return 0.8
+        if c == "medium":
+            return 0.5
+        return 0.2
+
+    @staticmethod
+    def _action_score(
+        *,
+        wants_screenshot: bool,
+        wants_browser_control: bool,
+        wants_download: bool,
+        selected_tool_count: int,
+        has_vision_attachment: bool,
+    ) -> float:
+        score = 0.15
+        if wants_browser_control:
+            score += 0.30
+        if wants_download:
+            score += 0.25
+        if wants_screenshot:
+            score += 0.10
+        if has_vision_attachment:
+            score += 0.10
+        if int(selected_tool_count) >= 5:
+            score += 0.10
+        return max(0.0, min(1.0, score))
+
+    @staticmethod
+    def _risk_level_from_score(score: float) -> str:
+        s = max(0.0, min(1.0, float(score)))
+        if s >= 0.9:
+            return "CRITICAL"
+        if s >= 0.6:
+            return "HIGH"
+        if s >= 0.3:
+            return "MEDIUM"
+        return "LOW"
+
+    @staticmethod
+    def _mode_from_route_score(score: float) -> str:
+        s = max(0.0, min(1.0, float(score)))
+        if s <= 0.3:
+            return "INSTANT"
+        if s <= 0.6:
+            return "TASK"
+        return "AGENT_LOOP"
+
+    @staticmethod
+    def _mode_budget(mode: str) -> Dict[str, int]:
+        m = str(mode or "TASK").upper()
+        defaults = {
+            "INSTANT": {"max_turns": 2, "max_tool_calls": 0, "time_budget_seconds": 25},
+            "TASK": {"max_turns": 5, "max_tool_calls": 5, "time_budget_seconds": 120},
+            "AGENT_LOOP": {"max_turns": 8, "max_tool_calls": 10, "time_budget_seconds": 300},
+        }
+        return dict(defaults.get(m, defaults["TASK"]))
+
+    @staticmethod
+    def _derive_function_category(selected_categories: List[str]) -> str:
+        cats = [str(c or "").strip().upper() for c in selected_categories]
+        if "MEDIA_ANALYZE" in cats:
+            return "vision"
+        if "CODEBASE" in cats:
+            return "coding"
+        if "DISCORD_SERVER" in cats:
+            return "admin"
+        if "WEB_FETCH" in cats or "WEB_READ" in cats:
+            return "retrieval"
+        if "VOICE_AUDIO" in cats:
+            return "voice"
+        if "MCP" in cats:
+            return "ops"
+        return "chat"
+
+    @staticmethod
+    def _compose_route_score(*, complexity_score: float, security_risk_score: float, action_score: float) -> float:
+        score = (
+            (max(0.0, min(1.0, float(complexity_score))) * 0.45)
+            + (max(0.0, min(1.0, float(security_risk_score))) * 0.35)
+            + (max(0.0, min(1.0, float(action_score))) * 0.20)
+        )
+        return max(0.0, min(1.0, score))
+
+    @staticmethod
+    def _risk_score_from_tools(tools: List[dict]) -> float:
+        if not tools:
+            return 0.05
+        max_score = 0.0
+        for tool in tools:
+            try:
+                name = str(tool.get("name") or "")
+                tags = list(tool.get("tags") or [])
+                assessed = score_tool_risk(name, {}, tags=tags)
+                normalized = max(0.0, min(1.0, float(getattr(assessed, "score", 0)) / 100.0))
+                if normalized > max_score:
+                    max_score = normalized
+            except Exception:
+                continue
+        return max(0.0, min(1.0, max_score))
 
     def _assess_complexity(self, prompt: str, selected_categories: List[str], selected_tools: List[dict]) -> tuple[str, List[str]]:
         """
