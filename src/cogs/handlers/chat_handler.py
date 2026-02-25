@@ -66,7 +66,7 @@ class ChatHandler:
         safe_title = (title or "").strip()
         if len(safe_title) > 256:
             safe_title = safe_title[:253] + "..."
-        embed = discord.Embed(title=safe_title or "ORA", description=description[:3900], color=color)
+        embed = discord.Embed(title=safe_title or "YonerAI", description=description[:3900], color=color)
         embed.timestamp = discord.utils.utcnow()
         try:
             await channel.send(embed=embed)
@@ -122,9 +122,9 @@ class ChatHandler:
         tasks = tasks[:8]
 
         await status_manager.start_task_board(
-            "⚡ ORA Universal Brain • タスク / ステータス",
+            "⚡ YonerAI Universal Brain • タスク / ステータス",
             tasks,
-            footer="Sanitized & Powered by ORA Universal Brain",
+            footer="Sanitized & Powered by YonerAI Universal Brain",
         )
         await status_manager.set_task_state(1, "running", "Coreへ接続中")
 
@@ -278,9 +278,17 @@ Interests: {interests}
 
             system_context = f"""
  {soul_injection}
- [ソース: DISCORD]
- [サーバー: {message.guild.name if message.guild else 'Direct Message'}]
- [チャンネル: {message.channel.name if hasattr(message.channel, 'name') else 'DM'}]
+[ソース: DISCORD]
+[サーバー: {message.guild.name if message.guild else 'Direct Message'}]
+[チャンネル: {message.channel.name if hasattr(message.channel, 'name') else 'DM'}]
+
+[ブランド/自己紹介ルール]
+- 製品名は常に「YonerAI」を使用し、「ORA」を主名称として名乗らないこと（必要なら “formerly ORA” のみ補足可）。
+- ユーザーが自己紹介を求めた場合、以下を必ず含める:
+  1) 公式Web: https://yonerai.com
+  2) GoogleログインでWebへサインイン可能
+  3) Discord連携済みユーザーはWebへ会話コンテキストを引き継ぎ可能
+- 自己紹介では、オーナー専用/ローカル専用の危険操作（例: PCシャットダウン、強いシステム制御）を一般機能として列挙しないこと。
 
 [エージェント指令: Codex Harness アーキテクチャ]
 あなたは OpenAI Codex Harness に基づく自律型エージェントです。『Everything is controlled by code』の原則に従い、全ての操作を『スキル（Skill）』として制御してください。
@@ -413,7 +421,8 @@ Interests: {interests}
                 available_tools=discord_tools,
                 platform="discord",
                 rag_context=rag_context,
-                correlation_id=correlation_id
+                correlation_id=correlation_id,
+                has_vision_attachment=bool(attachments),
             )
             trace_event(
                 "chat.tools_selected",
@@ -426,6 +435,97 @@ Interests: {interests}
             # Complexity is used for optional pre-orchestration (Swarm), but we avoid forcing a visible
             # "execution plan" in the user's reply unless explicitly requested.
             route_meta = getattr(self.tool_selector, "last_route_meta", {}) or {}
+            route_mode = str(route_meta.get("mode") or "TASK").upper()
+            route_category = str(route_meta.get("function_category") or "chat").lower()
+            try:
+                route_difficulty = float(route_meta.get("difficulty_score") or 0.5)
+            except Exception:
+                route_difficulty = 0.5
+            try:
+                route_risk = float(route_meta.get("security_risk_score") or 0.0)
+            except Exception:
+                route_risk = 0.0
+
+            raw_budget = route_meta.get("budget")
+            route_budget = raw_budget if isinstance(raw_budget, dict) else {}
+            reason_codes = [
+                str(x).strip()
+                for x in (route_meta.get("reason_codes") or [])
+                if str(x).strip()
+            ]
+
+            def _budget_int(key: str, default: int, *, lo: int, hi: int) -> int:
+                try:
+                    val = int(route_budget.get(key, default))
+                except Exception:
+                    val = default
+                return max(lo, min(hi, val))
+
+            max_tool_calls = _budget_int(
+                "max_tool_calls",
+                0 if route_mode == "INSTANT" else 5,
+                lo=0,
+                hi=20,
+            )
+            route_budget = {
+                "max_turns": _budget_int("max_turns", 5, lo=1, hi=20),
+                "max_tool_calls": max_tool_calls,
+                "time_budget_seconds": _budget_int("time_budget_seconds", 120, lo=10, hi=1800),
+            }
+
+            # Safe fallback: never run AGENT_LOOP on high-risk requests.
+            if route_mode == "AGENT_LOOP" and route_risk >= 0.6:
+                route_mode = "TASK"
+                if "router_mode_forced_safe" not in reason_codes:
+                    reason_codes.append("router_mode_forced_safe")
+
+            # Subagent can be disabled operationally; keep route additive and fall back to TASK.
+            if route_mode == "AGENT_LOOP" and not self.swarm.enabled:
+                route_mode = "TASK"
+                if "router_subagent_disabled" not in reason_codes:
+                    reason_codes.append("router_subagent_disabled")
+
+            selected_tools_before_mode = list(selected_tools)
+
+            # Mode is a hint/meta first: apply lightweight guardrails without replacing legacy behavior.
+            if route_mode == "INSTANT":
+                selected_tools = []
+            elif len(selected_tools) > route_budget["max_tool_calls"]:
+                selected_tools = selected_tools[: route_budget["max_tool_calls"]]
+                if "router_budget_exceeded" not in reason_codes:
+                    reason_codes.append("router_budget_exceeded")
+
+            if len(selected_tools) != len(selected_tools_before_mode):
+                logger.info(
+                    "Route mode tool cap: %s -> %s tools (mode=%s)",
+                    len(selected_tools_before_mode),
+                    len(selected_tools),
+                    route_mode,
+                )
+
+            route_meta = {
+                **route_meta,
+                "mode": route_mode,
+                "function_category": route_category,
+                "difficulty_score": round(max(0.0, min(1.0, route_difficulty)), 2),
+                "security_risk_score": round(max(0.0, min(1.0, route_risk)), 2),
+                "budget": route_budget,
+                "reason_codes": reason_codes,
+            }
+            trace_event(
+                "chat.route_mode",
+                correlation_id=correlation_id,
+                mode=route_mode,
+                function_category=route_category,
+                difficulty_score=route_meta["difficulty_score"],
+                security_risk_score=route_meta["security_risk_score"],
+                budget=route_budget,
+                reason_codes=reason_codes,
+                selected_tools=len(selected_tools),
+            )
+            await status_manager.add_timeline(
+                f"Route: {route_mode} / {route_category} / d={route_meta['difficulty_score']:.2f} / r={route_meta['security_risk_score']:.2f}"
+            )
 
             # [SWARM] Optional high-complexity pre-orchestration
             if self.swarm.should_run(route_meta, prompt):
@@ -440,6 +540,8 @@ Interests: {interests}
                         context_binding=context_binding,
                         client_context=client_context,
                         correlation_id=correlation_id,
+                        budget=route_budget,
+                        reason_codes=reason_codes,
                     )
                     if swarm_output.get("ok") and swarm_output.get("summary"):
                         await status_manager.add_timeline("Swarm: 結果統合完了")
@@ -452,14 +554,20 @@ Interests: {interests}
                         )
                     else:
                         await status_manager.add_timeline("Swarm: Guardrailsで停止")
+                    extra_rc = swarm_output.get("reason_codes")
+                    if isinstance(extra_rc, list):
+                        for rc in extra_rc:
+                            rc_s = str(rc).strip()
+                            if rc_s and rc_s not in reason_codes:
+                                reason_codes.append(rc_s)
                 except Exception as e:
                     logger.warning(f"Swarm pre-analysis failed: {e}")
                     await status_manager.add_timeline("Swarm: 失敗 -> 通常処理へ")
                     trace_event("swarm.exception", correlation_id=correlation_id, error=str(e))
 
             # If tools were filtered, log it
-                if len(selected_tools) != len(discord_tools):
-                    logger.info(f"Tool Selection: {len(discord_tools)} -> {len(selected_tools)} tools")
+            if len(selected_tools) != len(discord_tools):
+                logger.info(f"Tool Selection: {len(discord_tools)} -> {len(selected_tools)} tools")
 
             # Only show "Execution Plan" cards when explicitly asked (avoid unsolicited plan spam).
             allow_plan_preview = False
@@ -485,6 +593,7 @@ Interests: {interests}
                 available_tools=selected_tools,  # Use RAG selected tools
                 source="discord",
                 llm_preference=preferred_model,
+                route_hint=route_meta,
                 correlation_id=correlation_id
             )
 
@@ -501,7 +610,7 @@ Interests: {interests}
 
             # 4. Process SSE Events (Streaming/Incremental Updates)
             full_content = ""
-            model_name = "ORA Universal Brain"
+            model_name = "YonerAI Universal Brain"
             download_summaries = []
             tool_feedback_summaries = []
             last_dispatch_tool = None
@@ -540,8 +649,8 @@ Interests: {interests}
                             if len(plan_tasks) >= 2:
                                 await status_manager.replace_tasks(
                                     plan_tasks[:8],
-                                    title="⚡ ORA Universal Brain • タスク / ステータス",
-                                    footer="Sanitized & Powered by ORA Universal Brain",
+                                    title="⚡ YonerAI Universal Brain • タスク / ステータス",
+                                    footer="Sanitized & Powered by YonerAI Universal Brain",
                                 )
                                 plan_applied_to_board = True
 

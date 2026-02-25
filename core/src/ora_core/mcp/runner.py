@@ -34,7 +34,9 @@ class ToolRunner:
         user_id: str,
         tool_name: str,
         args: dict,
-        client_type: str
+        client_type: str,
+        request_meta: dict[str, Any] | None = None,
+        effective_route: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
 
         # 0. Emit Start Event
@@ -69,14 +71,15 @@ class ToolRunner:
         # Helper for polling logic
         async def poll_for_result():
             logger.info(f"Tool {tool_call_id} is running elsewhere, waiting for results...")
+            from ora_core.database.session import AsyncSessionLocal
             for _ in range(30): # Up to 30 seconds
                 await asyncio.sleep(1.0)
-                await self.repo.db.rollback()
                 from ora_core.database.models import ToolCall
                 from sqlalchemy import select
                 stmt = select(ToolCall).where(ToolCall.id == tool_call_id, ToolCall.user_id == user_id)
-                r = await self.repo.db.execute(stmt)
-                updated_record = r.scalar_one_or_none()
+                async with AsyncSessionLocal() as poll_db:
+                    r = await poll_db.execute(stmt)
+                    updated_record = r.scalar_one_or_none()
                 if updated_record and updated_record.status in ["completed", "failed"]:
                     return {
                         "status": updated_record.status,
@@ -116,21 +119,34 @@ class ToolRunner:
         # 4. Execution
         start_time = time.time()
         try:
+            tool_context: dict[str, Any] = {
+                "user_id": user_id,
+                "run_id": run_id,
+                "tool_call_id": tool_call_id,
+            }
+            if isinstance(request_meta, dict):
+                for k in ("request_id", "trace_id", "origin", "node_id", "tampered"):
+                    if k in request_meta:
+                        tool_context[k] = request_meta.get(k)
+
             # Resource Management (GPU)
             if definition.gpu_required:
                 logger.info(f"Tool {tool_name} requires GPU (Lease: {lease_token}). Waiting for semaphore...")
                 async with gpu_semaphore:
                     result = await asyncio.wait_for(
-                        tool_registry.execute_handler(tool_name, args, {"user_id": user_id}),
+                        tool_registry.execute_handler(tool_name, args, tool_context),
                         timeout=definition.timeout_sec
                     )
             else:
                 result = await asyncio.wait_for(
-                    tool_registry.execute_handler(tool_name, args, {"user_id": user_id}),
+                    tool_registry.execute_handler(tool_name, args, tool_context),
                     timeout=definition.timeout_sec
                 )
 
             latency_ms = int((time.time() - start_time) * 1000)
+            if not isinstance(result, dict):
+                # Normalize handler outputs; some tools return plain strings.
+                result = {"ok": True, "content": [{"type": "text", "text": str(result)}]}
             artifact_ref = result.get("artifact_ref") # Optional artifact from tool
 
             # Update Success
@@ -146,13 +162,21 @@ class ToolRunner:
                 # Truncate summary for event
                 summary = str(result["content"])[:100] + "..." if len(str(result["content"])) > 100 else str(result["content"])
 
+            # For Web UI: allow emitting small structured payloads (e.g., temp download links)
+            structured: dict[str, Any] | None = None
+            if isinstance(result, dict):
+                sc = result.get("structuredContent")
+                if isinstance(sc, dict) and sc:
+                    structured = sc
+
             # Check for Client Action (Hub & Spoke Protocol)
             if isinstance(result, dict) and "client_action" in result:
                 await event_manager.emit(run_id, "dispatch", {
                     "tool": tool_name,
                     "args": result["client_action"],
                     "action": result["client_action"],
-                    "tool_call_id": tool_call_id
+                    "tool_call_id": tool_call_id,
+                    "effective_route": effective_route if isinstance(effective_route, dict) else {},
                 })
 
             await event_manager.emit(run_id, "tool_result", {
@@ -160,7 +184,8 @@ class ToolRunner:
                 "tool_call_id": tool_call_id,
                 "output_summary": summary,
                 "latency_ms": latency_ms,
-                "artifact_ref": artifact_ref
+                "artifact_ref": artifact_ref,
+                "structuredContent": structured or {},
             })
 
             return {"status": "completed", "result": result, "artifact_ref": artifact_ref}
