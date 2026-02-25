@@ -500,8 +500,8 @@ Interests: {interests}
 
             selected_tools_before_mode = list(selected_tools)
 
-            # Mode is a hint/meta first: apply lightweight guardrails without replacing legacy behavior.
-            if route_mode == "INSTANT":
+            # Keep INSTANT mode non-invasive: only cap when tools are present.
+            if route_mode == "INSTANT" and not selected_tools:
                 selected_tools = []
             elif len(selected_tools) > route_budget["max_tool_calls"]:
                 selected_tools = selected_tools[: route_budget["max_tool_calls"]]

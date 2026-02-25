@@ -93,3 +93,23 @@ async def test_router_high_risk_forces_task_mode() -> None:
     assert float(route.get("security_risk_score", 0.0)) >= 0.6
     assert "router_mode_forced_safe" in list(route.get("reason_codes") or [])
 
+
+@pytest.mark.asyncio
+async def test_router_instant_with_tools_forces_task_mode() -> None:
+    bot = SimpleNamespace(config=SimpleNamespace(standard_model="gpt-5-mini", openai_api_key="dummy"))
+    sel = ToolSelector(bot)
+    sel.llm_client = _FakeLLM('{"categories":["WEB_READ"],"intents":{"download":false,"screenshot":false,"browser_control":false}}')
+
+    # Force a low base score; tool presence should still prevent INSTANT mode.
+    sel._compose_route_score = lambda **_kwargs: 0.2  # type: ignore[method-assign]
+
+    tools = [
+        {"name": "read_web_page", "tags": ["web", "read"]},
+    ]
+    out = await sel.select_tools("https://example.com を読んで", available_tools=tools)
+    assert out
+
+    route = sel.last_route_meta
+    assert str(route.get("mode") or "") == "TASK"
+    assert "router_mode_forced_tools" in list(route.get("reason_codes") or [])
+

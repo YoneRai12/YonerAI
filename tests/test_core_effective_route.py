@@ -239,3 +239,55 @@ def test_effective_route_mode_thresholds_follow_route_score(monkeypatch) -> None
             assert abs(float(route.get("route_score", -1.0)) - score) < 0.01
 
     asyncio.run(_run())
+
+
+def test_effective_route_vision_floor_recomputes_mode_after_hint(monkeypatch) -> None:
+    async def _run() -> None:
+        run_id = f"run-vision-{uuid.uuid4().hex[:8]}"
+        req = MessageRequest(
+            user_identity={"provider": "web", "id": "u-vision"},
+            content="画像を見て",
+            idempotency_key=f"vision-{uuid.uuid4().hex[:6]}",
+            source="web",
+            route_hint={
+                "mode": "INSTANT",
+                "route_score": 0.1,
+                "difficulty_score": 0.1,
+                "security_risk_score": 0.1,
+                "function_category": "vision",
+            },
+        )
+        events = await _run_main_process(monkeypatch, req, run_id=run_id)
+        final = _event_data(events, "final")
+        route = final.get("effective_route") or {}
+        assert route.get("mode") == "TASK"
+        assert "router_vision_floor_applied" in list(route.get("reason_codes") or [])
+
+    asyncio.run(_run())
+
+
+def test_effective_route_with_tools_never_stays_instant(monkeypatch) -> None:
+    async def _run() -> None:
+        run_id = f"run-tools-{uuid.uuid4().hex[:8]}"
+        req = MessageRequest(
+            user_identity={"provider": "discord", "id": "u-tools"},
+            content="この内容で処理して",
+            idempotency_key=f"tools-{uuid.uuid4().hex[:6]}",
+            source="discord",
+            available_tools=[
+                {"name": "dummy_tool", "description": "tool", "parameters": {"type": "object", "properties": {}}}
+            ],
+            route_hint={
+                "mode": "INSTANT",
+                "route_score": 0.2,
+                "difficulty_score": 0.2,
+                "security_risk_score": 0.1,
+            },
+        )
+        events = await _run_main_process(monkeypatch, req, run_id=run_id)
+        final = _event_data(events, "final")
+        route = final.get("effective_route") or {}
+        assert route.get("mode") == "TASK"
+        assert "router_mode_forced_tools" in list(route.get("reason_codes") or [])
+
+    asyncio.run(_run())

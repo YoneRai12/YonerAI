@@ -619,6 +619,11 @@ class ToolSelector:
         if security_risk_score >= 0.6 and mode in {"INSTANT", "AGENT_LOOP"}:
             mode = "TASK"
             reason_codes.append("router_mode_forced_safe")
+        requires_tools = len(final_tools) > 0
+        if mode == "INSTANT" and requires_tools:
+            mode = "TASK"
+            if "router_mode_forced_tools" not in reason_codes:
+                reason_codes.append("router_mode_forced_tools")
 
         log_payload["complexity"] = complexity
         if reasons:
