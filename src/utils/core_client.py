@@ -136,6 +136,7 @@ class CoreAPIClient:
         origin = str(ctx.get("origin") or "").strip() or "yonerai"
         node_id = str(ctx.get("node_id") or "").strip() or node_id_from_env()
         tampered = bool(ctx.get("tampered"))
+        admin_verified = bool(ctx.get("admin_verified"))
 
         signing_secret = (os.getenv("ORA_ORIGIN_SIGNING_SECRET") or "").strip() or None
         headers.update(
@@ -154,6 +155,7 @@ class CoreAPIClient:
             "request_id": request_id,
             "trace_id": trace_id,
             "tampered": tampered,
+            "admin_verified": admin_verified,
         }
 
     async def send_message(
@@ -243,6 +245,7 @@ class CoreAPIClient:
                 "origin": origin_ctx.get("origin"),
                 "node_id": origin_ctx.get("node_id"),
                 "tampered": bool(origin_ctx.get("tampered")),
+                "admin_verified": bool(origin_ctx.get("admin_verified")),
             },
         }
 

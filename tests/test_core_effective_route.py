@@ -108,7 +108,13 @@ class _FakeOmniEngine:
         return response
 
 
-async def _run_main_process(monkeypatch, req: MessageRequest, *, run_id: str) -> list[dict[str, Any]]:
+async def _run_main_process(
+    monkeypatch,
+    req: MessageRequest,
+    *,
+    run_id: str,
+    build_context_fn=None,
+) -> list[dict[str, Any]]:
     import ora_core.brain.process as process_mod
 
     events: list[dict[str, Any]] = []
@@ -116,14 +122,18 @@ async def _run_main_process(monkeypatch, req: MessageRequest, *, run_id: str) ->
     async def _fake_emit(_run_id: str, event_type: str, data: dict):
         events.append({"event": event_type, "data": data})
 
-    async def _fake_build_context(*_args, **_kwargs):
+    async def _default_build_context(*_args, **_kwargs):
         return []
 
     fake_omni_module = types.ModuleType("ora_core.engine.omni_engine")
     fake_omni_module.omni_engine = _FakeOmniEngine()
 
     monkeypatch.setattr(process_mod.event_manager, "emit", _fake_emit)
-    monkeypatch.setattr(process_mod.ContextBuilder, "build_context", _fake_build_context)
+    monkeypatch.setattr(
+        process_mod.ContextBuilder,
+        "build_context",
+        build_context_fn or _default_build_context,
+    )
     monkeypatch.setitem(sys.modules, "ora_core.engine.omni_engine", fake_omni_module)
 
     proc = MainProcess(run_id=run_id, conversation_id="conv-test", request=req, db_session=object())
@@ -176,6 +186,7 @@ def test_effective_route_emitted_and_persisted_with_route_hint(monkeypatch) -> N
 
         assert meta_route.get("source_hint_present") is True
         assert meta_route.get("mode") == "TASK"
+        assert meta_route.get("route_band") == "agent"
         assert isinstance(meta_route.get("route_score"), float)
         assert "router_mode_forced_safe" in list(meta_route.get("reason_codes") or [])
         assert int(meta_route.get("budget", {}).get("max_turns", 0)) <= 20
@@ -208,6 +219,7 @@ def test_effective_route_emitted_without_route_hint_for_discord_and_web(monkeypa
             assert isinstance(meta.get("effective_route"), dict)
             assert route.get("source_hint_present") is False
             assert str(route.get("mode") or "") in {"INSTANT", "TASK", "AGENT_LOOP"}
+            assert str(route.get("route_band") or "") in {"instant", "task", "agent"}
             modes[source] = str(route.get("mode") or "")
 
         # Core computes mode for both clients from the same fallback policy.
@@ -219,11 +231,11 @@ def test_effective_route_emitted_without_route_hint_for_discord_and_web(monkeypa
 def test_effective_route_mode_thresholds_follow_route_score(monkeypatch) -> None:
     async def _run() -> None:
         cases = [
-            (0.20, "INSTANT"),
-            (0.50, "TASK"),
-            (0.90, "AGENT_LOOP"),
+            (0.20, "INSTANT", "instant"),
+            (0.50, "TASK", "task"),
+            (0.90, "AGENT_LOOP", "agent"),
         ]
-        for score, expected_mode in cases:
+        for score, expected_mode, expected_band in cases:
             run_id = f"run-thr-{uuid.uuid4().hex[:8]}"
             req = MessageRequest(
                 user_identity={"provider": "discord", "id": "u-42"},
@@ -236,7 +248,70 @@ def test_effective_route_mode_thresholds_follow_route_score(monkeypatch) -> None
             final = _event_data(events, "final")
             route = final.get("effective_route") or {}
             assert route.get("mode") == expected_mode
+            assert route.get("route_band") == expected_band
             assert abs(float(route.get("route_score", -1.0)) - score) < 0.01
+
+    asyncio.run(_run())
+
+
+def test_effective_route_instant_still_calls_memory_context(monkeypatch) -> None:
+    async def _run() -> None:
+        run_id = f"run-mem-{uuid.uuid4().hex[:8]}"
+        calls = {"count": 0}
+
+        async def _spy_build_context(*_args, **_kwargs):
+            calls["count"] += 1
+            return []
+
+        req = MessageRequest(
+            user_identity={"provider": "web", "id": "u-mem"},
+            content="quick answer",
+            idempotency_key=f"mem-{uuid.uuid4().hex[:6]}",
+            source="web",
+            route_hint={"route_score": 0.2, "difficulty_score": 0.2, "security_risk_score": 0.0},
+        )
+        events = await _run_main_process(
+            monkeypatch,
+            req,
+            run_id=run_id,
+            build_context_fn=_spy_build_context,
+        )
+        final = _event_data(events, "final")
+        route = final.get("effective_route") or {}
+        assert route.get("mode") == "INSTANT"
+        assert calls["count"] == 1
+
+    asyncio.run(_run())
+
+
+def test_effective_route_debug_is_admin_only(monkeypatch) -> None:
+    async def _run() -> None:
+        monkeypatch.setenv("ORA_ROUTE_DEBUG", "1")
+        base_req = {
+            "user_identity": {"provider": "web", "id": "u-debug"},
+            "content": "debug check",
+            "idempotency_key": f"dbg-{uuid.uuid4().hex[:6]}",
+            "source": "web",
+            "route_hint": {"route_score": 0.55, "difficulty_score": 0.55, "security_risk_score": 0.1},
+        }
+
+        req_admin = MessageRequest(
+            **{
+                **base_req,
+                "client_context": {"is_admin": False},
+                "request_meta": {"admin_verified": True},
+            }
+        )
+        events_admin = await _run_main_process(monkeypatch, req_admin, run_id=f"run-adm-{uuid.uuid4().hex[:8]}")
+        route_admin = (_event_data(events_admin, "final").get("effective_route") or {})
+        assert isinstance(route_admin.get("route_debug"), dict)
+        assert route_admin.get("route_debug", {}).get("memory_used") is True
+
+        # Spoofed client flag must not unlock route_debug.
+        req_user = MessageRequest(**{**base_req, "client_context": {"is_admin": True}})
+        events_user = await _run_main_process(monkeypatch, req_user, run_id=f"run-usr-{uuid.uuid4().hex[:8]}")
+        route_user = (_event_data(events_user, "final").get("effective_route") or {})
+        assert "route_debug" not in route_user
 
     asyncio.run(_run())
 

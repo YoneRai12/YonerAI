@@ -624,12 +624,21 @@ class ToolSelector:
             mode = "TASK"
             if "router_mode_forced_tools" not in reason_codes:
                 reason_codes.append("router_mode_forced_tools")
+        route_band = self._band_from_route_score(route_score)
+        route_meta_internal = {
+            "risk_score": round(security_risk_score, 2),
+            "difficulty_score": round(route_score, 2),
+            "intent_kind": function_category,
+            "selected_tools": len(final_tools),
+            "memory_used": True,
+        }
 
         log_payload["complexity"] = complexity
         if reasons:
             log_payload["complexity_reasons"] = reasons
         log_payload["route_score"] = round(route_score, 2)
         log_payload["mode"] = mode
+        log_payload["route_band"] = route_band
         log_payload["function_category"] = function_category
         log_payload["security_risk_score"] = round(security_risk_score, 2)
         log_payload["security_risk_level"] = security_risk_level
@@ -639,6 +648,7 @@ class ToolSelector:
 
         self.last_route_meta = {
             "mode": mode,
+            "route_band": route_band,
             "function_category": function_category,
             "route_score": round(route_score, 2),
             # Keep compatibility with current Core route hint contract.
@@ -652,6 +662,7 @@ class ToolSelector:
             "reason_codes": list(reason_codes),
             "selected_categories": list(selected_categories),
             "selected_tool_count": len(final_tools),
+            "route_meta": route_meta_internal,
             "budget": self._mode_budget(mode),
             "intents": {
                 "screenshot": bool(wants_screenshot),
@@ -774,6 +785,15 @@ class ToolSelector:
         if s <= 0.6:
             return "TASK"
         return "AGENT_LOOP"
+
+    @staticmethod
+    def _band_from_route_score(score: float) -> str:
+        s = max(0.0, min(1.0, float(score)))
+        if s <= 0.3:
+            return "instant"
+        if s <= 0.6:
+            return "task"
+        return "agent"
 
     @staticmethod
     def _mode_budget(mode: str) -> Dict[str, int]:

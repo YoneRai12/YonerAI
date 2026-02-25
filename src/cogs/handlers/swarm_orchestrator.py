@@ -169,6 +169,7 @@ Return STRICT JSON:
                     source="discord",
                     llm_preference=getattr(self.bot.config, "swarm_merge_model", "gpt-5-mini"),
                     correlation_id=correlation_id,
+                    origin_context={"admin_verified": bool((client_context or {}).get("is_admin"))},
                 )
                 if "error" in response:
                     raise RuntimeError(response.get("error", "unknown send error"))

@@ -1,6 +1,7 @@
 import logging
 import asyncio
 import time
+import os
 from typing import Any
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -81,6 +82,29 @@ class MainProcess:
         if d <= 0.6:
             return "TASK"
         return "AGENT_LOOP"
+
+    @staticmethod
+    def _band_from_route_score(score: float) -> str:
+        s = max(0.0, min(1.0, float(score)))
+        if s <= 0.3:
+            return "instant"
+        if s <= 0.6:
+            return "task"
+        return "agent"
+
+    def _route_debug_enabled(self) -> bool:
+        raw = str(os.getenv("ORA_ROUTE_DEBUG", "") or "").strip().lower()
+        env_enabled = raw in {"1", "true", "yes", "on"}
+        if not env_enabled:
+            return False
+        return self._is_admin_verified()
+
+    def _is_admin_verified(self) -> bool:
+        try:
+            req_meta = getattr(self.request, "request_meta", None)
+            return bool(getattr(req_meta, "admin_verified", False))
+        except Exception:
+            return False
 
     @staticmethod
     def _append_reason_code(effective_route: dict[str, Any], reason_code: str) -> None:
@@ -189,6 +213,7 @@ class MainProcess:
 
         effective = EffectiveRoute(
             mode=mode,  # type: ignore[arg-type]
+            route_band=self._band_from_route_score(route_score),  # type: ignore[arg-type]
             function_category=function_category,
             route_score=round(route_score, 2),
             difficulty_score=round(difficulty_score, 2),
@@ -200,7 +225,32 @@ class MainProcess:
             reason_codes=reason_codes,
             source_hint_present=bool(hint),
         )
-        return effective.model_dump()
+        route = effective.model_dump()
+        route_meta = {
+            "risk_score": round(security_risk_score, 2),
+            "difficulty_score": round(difficulty_score, 2),
+            "intent_kind": function_category,
+            "selected_tools": len(selected_tool_schemas),
+            "memory_used": True,  # ContextBuilder is executed unconditionally before route execution.
+        }
+        logger.info(
+            "Core route decision",
+            extra={
+                "route_event": {
+                    "run_id": self.run_id,
+                    "mode": route.get("mode"),
+                    "route_band": route.get("route_band"),
+                    "route_score": route.get("route_score"),
+                    "reason_codes": route.get("reason_codes", []),
+                    "meta": route_meta,
+                }
+            },
+        )
+        if self._route_debug_enabled():
+            route["route_debug"] = route_meta
+        else:
+            route.pop("route_debug", None)
+        return route
 
     async def run(self):
         """Execute the cognitive cycle."""
@@ -215,6 +265,13 @@ class MainProcess:
                 self.request.user_identity.id,
                 self.request.user_identity.display_name
             )
+            # Ignore client-provided admin flags; trust server-verified metadata only.
+            verified_admin = self._is_admin_verified()
+            if self.request.client_context is not None:
+                try:
+                    self.request.client_context.is_admin = verified_admin
+                except Exception:
+                    pass
             
             context_messages = await ContextBuilder.build_context(self.request, user.id, self.conversation_id, self.repo)
             

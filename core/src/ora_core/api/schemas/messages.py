@@ -55,6 +55,7 @@ class RequestMeta(BaseModel):
     origin: Optional[str] = None
     node_id: Optional[str] = None
     tampered: bool = False
+    admin_verified: bool = False
 
 
 class RouteBudgetHint(BaseModel):
@@ -85,6 +86,7 @@ class EffectiveRouteBudget(BaseModel):
 
 class EffectiveRoute(BaseModel):
     mode: Literal["INSTANT", "TASK", "AGENT_LOOP"] = "TASK"
+    route_band: Literal["instant", "task", "agent"] = "task"
     function_category: str = "chat"
     route_score: float = 0.5
     difficulty_score: float = 0.5
@@ -95,6 +97,7 @@ class EffectiveRoute(BaseModel):
     budget: EffectiveRouteBudget = Field(default_factory=EffectiveRouteBudget)
     reason_codes: list[str] = Field(default_factory=list)
     source_hint_present: bool = False
+    route_debug: Optional[dict[str, Any]] = None
 
 class MessageRequest(BaseModel):
     conversation_id: Optional[str] = None

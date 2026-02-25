@@ -2,6 +2,7 @@ import asyncio
 import datetime
 import json
 import logging
+import os
 from typing import Optional
 
 import discord
@@ -157,6 +158,9 @@ class ChatHandler:
                 # ORA "admin" means creator/owner (ADMIN_USER_ID), not guild permissions.
                 "is_admin": is_owner(self.bot, message.author.id),
             }
+            verified_admin = bool(client_context.get("is_admin"))
+            # Keep client_context aligned with server-verified decision only.
+            client_context["is_admin"] = verified_admin
 
             # 3. Call Core API
             # [MEMORY INJECTION] Fetch User Profile
@@ -458,6 +462,14 @@ Interests: {interests}
                     route_mode = "TASK"
                 else:
                     route_mode = "AGENT_LOOP"
+            route_band = str(route_meta.get("route_band") or "").lower()
+            if route_band not in {"instant", "task", "agent"}:
+                if route_score <= 0.3:
+                    route_band = "instant"
+                elif route_score <= 0.6:
+                    route_band = "task"
+                else:
+                    route_band = "agent"
 
             raw_budget = route_meta.get("budget")
             route_budget = raw_budget if isinstance(raw_budget, dict) else {}
@@ -519,6 +531,7 @@ Interests: {interests}
             route_meta = {
                 **route_meta,
                 "mode": route_mode,
+                "route_band": route_band,
                 "function_category": route_category,
                 "difficulty_score": round(max(0.0, min(1.0, route_difficulty)), 2),
                 "route_score": round(route_score, 2),
@@ -526,10 +539,36 @@ Interests: {interests}
                 "budget": route_budget,
                 "reason_codes": reason_codes,
             }
+            memory_used = bool(memory_context or channel_memory_context or guild_memory_context)
+            route_meta_internal = route_meta.get("route_meta") if isinstance(route_meta.get("route_meta"), dict) else {}
+            route_meta_internal = {
+                **route_meta_internal,
+                "risk_score": route_meta["security_risk_score"],
+                "difficulty_score": route_meta["route_score"],
+                "intent_kind": route_category,
+                "selected_tools": len(selected_tools),
+                "memory_used": memory_used,
+            }
+            route_meta["route_meta"] = route_meta_internal
+
+            route_debug_enabled = str(
+                os.getenv("ORA_ROUTE_DEBUG", "") or ""
+            ).strip().lower() in {"1", "true", "yes", "on"} and verified_admin
+            if route_debug_enabled:
+                route_meta["route_debug"] = {
+                    "mode": route_mode,
+                    "route_band": route_band,
+                    "route_score": route_meta["route_score"],
+                    "security_risk_score": route_meta["security_risk_score"],
+                    "selected_tools": len(selected_tools),
+                    "reason_codes": reason_codes,
+                    "route_meta": route_meta_internal,
+                }
             trace_event(
                 "chat.route_mode",
                 correlation_id=correlation_id,
                 mode=route_mode,
+                route_band=route_band,
                 function_category=route_category,
                 difficulty_score=route_meta["difficulty_score"],
                 route_score=route_meta["route_score"],
@@ -541,6 +580,10 @@ Interests: {interests}
             await status_manager.add_timeline(
                 f"Route: {route_mode} / {route_category} / s={route_meta['route_score']:.2f} / r={route_meta['security_risk_score']:.2f}"
             )
+            if route_debug_enabled:
+                await status_manager.add_timeline(
+                    f"RouteDebug: band={route_band} tools={len(selected_tools)} mem={memory_used}"
+                )
 
             # [SWARM] Optional high-complexity pre-orchestration
             if self.swarm.should_run(route_meta, prompt):
@@ -609,7 +652,8 @@ Interests: {interests}
                 source="discord",
                 llm_preference=preferred_model,
                 route_hint=route_meta,
-                correlation_id=correlation_id
+                correlation_id=correlation_id,
+                origin_context={"admin_verified": verified_admin},
             )
 
             if "error" in response:
