@@ -19,7 +19,7 @@ python main.py
 
 必要に応じて Web/API 入口:
 ```powershell
-uvicorn src.web.app:app --host 127.0.0.1 --port 8000
+uvicorn src.web.app:app --host 0.0.0.0 --port 8000
 ```
 
 ## 3) テスト
@@ -53,3 +53,4 @@ uvicorn src.web.app:app --host 127.0.0.1 --port 8000
 - `docs/AI_STATE.md`
 - `docs/ARCH_V5.md`
 - `docs/DECISION_CHAT_SDK.md`
+
