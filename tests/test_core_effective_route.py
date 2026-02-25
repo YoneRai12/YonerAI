@@ -176,9 +176,11 @@ def test_effective_route_emitted_and_persisted_with_route_hint(monkeypatch) -> N
 
         assert meta_route.get("source_hint_present") is True
         assert meta_route.get("mode") == "TASK"
+        assert isinstance(meta_route.get("route_score"), float)
         assert "router_mode_forced_safe" in list(meta_route.get("reason_codes") or [])
         assert int(meta_route.get("budget", {}).get("max_turns", 0)) <= 20
         assert final_route.get("mode") == meta_route.get("mode")
+        assert final_route.get("route_score") == meta_route.get("route_score")
 
         stored = await get_run_effective_route(run_id)
         assert isinstance(stored, dict)
@@ -210,5 +212,30 @@ def test_effective_route_emitted_without_route_hint_for_discord_and_web(monkeypa
 
         # Core computes mode for both clients from the same fallback policy.
         assert modes["discord"] == modes["web"] == "TASK"
+
+    asyncio.run(_run())
+
+
+def test_effective_route_mode_thresholds_follow_route_score(monkeypatch) -> None:
+    async def _run() -> None:
+        cases = [
+            (0.20, "INSTANT"),
+            (0.50, "TASK"),
+            (0.90, "AGENT_LOOP"),
+        ]
+        for score, expected_mode in cases:
+            run_id = f"run-thr-{uuid.uuid4().hex[:8]}"
+            req = MessageRequest(
+                user_identity={"provider": "discord", "id": "u-42"},
+                content="threshold check",
+                idempotency_key=f"thr-{score}-{uuid.uuid4().hex[:6]}",
+                source="discord",
+                route_hint={"route_score": score, "difficulty_score": score, "security_risk_score": 0.1},
+            )
+            events = await _run_main_process(monkeypatch, req, run_id=run_id)
+            final = _event_data(events, "final")
+            route = final.get("effective_route") or {}
+            assert route.get("mode") == expected_mode
+            assert abs(float(route.get("route_score", -1.0)) - score) < 0.01
 
     asyncio.run(_run())

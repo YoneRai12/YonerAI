@@ -117,11 +117,18 @@ class MainProcess:
                 hint = raw_hint
 
         difficulty_score = self._clamp_float(hint.get("difficulty_score"), 0.5)
+        complexity_score = self._clamp_float(hint.get("complexity_score"), difficulty_score)
+        action_score = self._clamp_float(hint.get("action_score"), difficulty_score)
         security_risk_score = self._clamp_float(hint.get("security_risk_score"), 0.0)
         function_category = str(hint.get("function_category") or "chat").strip().lower() or "chat"
+        route_score_hint = hint.get("route_score")
+        if route_score_hint is None:
+            route_score = (complexity_score * 0.45) + (security_risk_score * 0.35) + (action_score * 0.20)
+        else:
+            route_score = self._clamp_float(route_score_hint, difficulty_score)
 
         mode_hint = str(hint.get("mode") or "").strip().upper()
-        mode = mode_hint if mode_hint in self._ROUTE_DEFAULTS else self._mode_from_difficulty(difficulty_score)
+        mode = mode_hint if mode_hint in self._ROUTE_DEFAULTS else self._mode_from_difficulty(route_score)
         defaults = dict(self._ROUTE_DEFAULTS.get(mode, self._ROUTE_DEFAULTS["TASK"]))
 
         budget_hint = hint.get("budget")
@@ -138,6 +145,10 @@ class MainProcess:
         }
 
         reason_codes = self._dedup_reason_codes(hint.get("reason_codes"))
+        if function_category == "vision" and route_score < 0.35:
+            route_score = 0.35
+            if "router_vision_floor_applied" not in reason_codes:
+                reason_codes.append("router_vision_floor_applied")
         security_risk_level = str(hint.get("security_risk_level") or "").strip().upper()
         if not security_risk_level:
             security_risk_level = self._risk_level_from_score(security_risk_score)
@@ -170,7 +181,10 @@ class MainProcess:
         effective = EffectiveRoute(
             mode=mode,  # type: ignore[arg-type]
             function_category=function_category,
+            route_score=round(route_score, 2),
             difficulty_score=round(difficulty_score, 2),
+            complexity_score=round(complexity_score, 2),
+            action_score=round(action_score, 2),
             security_risk_score=round(security_risk_score, 2),
             security_risk_level=security_risk_level,
             budget=budget,

@@ -435,16 +435,29 @@ Interests: {interests}
             # Complexity is used for optional pre-orchestration (Swarm), but we avoid forcing a visible
             # "execution plan" in the user's reply unless explicitly requested.
             route_meta = getattr(self.tool_selector, "last_route_meta", {}) or {}
-            route_mode = str(route_meta.get("mode") or "TASK").upper()
+            route_mode = str(route_meta.get("mode") or "").upper()
             route_category = str(route_meta.get("function_category") or "chat").lower()
             try:
                 route_difficulty = float(route_meta.get("difficulty_score") or 0.5)
             except Exception:
                 route_difficulty = 0.5
             try:
+                route_score = float(route_meta.get("route_score") if route_meta.get("route_score") is not None else route_difficulty)
+            except Exception:
+                route_score = route_difficulty
+            try:
                 route_risk = float(route_meta.get("security_risk_score") or 0.0)
             except Exception:
                 route_risk = 0.0
+            route_score = max(0.0, min(1.0, route_score))
+
+            if route_mode not in {"INSTANT", "TASK", "AGENT_LOOP"}:
+                if route_score <= 0.3:
+                    route_mode = "INSTANT"
+                elif route_score <= 0.6:
+                    route_mode = "TASK"
+                else:
+                    route_mode = "AGENT_LOOP"
 
             raw_budget = route_meta.get("budget")
             route_budget = raw_budget if isinstance(raw_budget, dict) else {}
@@ -508,6 +521,7 @@ Interests: {interests}
                 "mode": route_mode,
                 "function_category": route_category,
                 "difficulty_score": round(max(0.0, min(1.0, route_difficulty)), 2),
+                "route_score": round(route_score, 2),
                 "security_risk_score": round(max(0.0, min(1.0, route_risk)), 2),
                 "budget": route_budget,
                 "reason_codes": reason_codes,
@@ -518,13 +532,14 @@ Interests: {interests}
                 mode=route_mode,
                 function_category=route_category,
                 difficulty_score=route_meta["difficulty_score"],
+                route_score=route_meta["route_score"],
                 security_risk_score=route_meta["security_risk_score"],
                 budget=route_budget,
                 reason_codes=reason_codes,
                 selected_tools=len(selected_tools),
             )
             await status_manager.add_timeline(
-                f"Route: {route_mode} / {route_category} / d={route_meta['difficulty_score']:.2f} / r={route_meta['security_risk_score']:.2f}"
+                f"Route: {route_mode} / {route_category} / s={route_meta['route_score']:.2f} / r={route_meta['security_risk_score']:.2f}"
             )
 
             # [SWARM] Optional high-complexity pre-orchestration
