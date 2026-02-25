@@ -1,4 +1,4 @@
-﻿# DECISION_CHAT_SDK
+# DECISION_CHAT_SDK
 
 対象範囲: 公開技術判断（docs-only）
 最終更新対象: docs-only

@@ -1,4 +1,4 @@
-﻿# DEV_QUICKSTART
+# DEV_QUICKSTART
 
 対象範囲: 公開リポジトリ `YonerAI`
 最終更新対象: docs-only
@@ -12,7 +12,17 @@ pip install -U pip
 pip install -r requirements.txt
 ```
 
-## 2) ローカル起動（代表）
+## 2) 環境変数の準備（必須）
+```powershell
+Copy-Item .env.example .env
+```
+
+`.env` には最低限プレースホルダを設定してから起動する（実値は貼らない）:
+- `DISCORD_BOT_TOKEN=<your-discord-bot-token>`
+- `OPENAI_API_KEY=<your-openai-key>`
+- `ORA_CORE_SERVICE_TOKEN=<shared-internal-token>`
+
+## 3) ローカル起動（代表）
 ```powershell
 python main.py
 ```
@@ -22,27 +32,27 @@ python main.py
 uvicorn src.web.app:app --host 0.0.0.0 --port 8000
 ```
 
-## 3) テスト
+## 4) テスト
 ```powershell
 .\.venv\Scripts\python -m pytest -q
 ```
 
-## 4) Git 運用ポリシー（公開/私用分離）
+## 5) Git 運用ポリシー（公開/私用分離）
 - `origin` への直接 push は行わない。
 - 公開向けは `public` remote、私用バックアップ/運用向けは `private` remote を使う。
 - main へ直接 commit しない。機能ブランチ + PR で統合する。
 
-## 5) 公開禁止物（必須）
+## 6) 公開禁止物（必須）
 - `.env` / `.env.*`（`.env.example`のみ可）
 - 鍵ファイル、資格情報JSON、トークンを含むログ/ダンプ
 - 端末ローカル絶対パスを含む一時ファイル
 
-## 6) route_score v1 方針（運用前提）
+## 7) route_score v1 方針（運用前提）
 - 単一軸 `route_score` (0..1) で実行深度を切り替える。
 - 初期は保守的閾値を採用し、運用ログで較正する。
 - 高リスク判定時は安全側へ強制フォールバックする。
 
-## 7) 最小の開発サイクル
+## 8) 最小の開発サイクル
 1. ブランチ作成
 2. 最小差分で実装
 3. pytest

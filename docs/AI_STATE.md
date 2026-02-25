@@ -1,4 +1,4 @@
-﻿# AI_STATE
+# AI_STATE
 
 対象範囲: 公開リポジトリ `YonerAI`（配布ノードモデル #5）
 最終更新対象: docs-only
