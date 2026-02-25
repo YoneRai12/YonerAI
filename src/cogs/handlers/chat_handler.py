@@ -577,13 +577,15 @@ Interests: {interests}
                 reason_codes=reason_codes,
                 selected_tools=len(selected_tools),
             )
-            await status_manager.add_timeline(
-                f"Route: {route_mode} / {route_category} / s={route_meta['route_score']:.2f} / r={route_meta['security_risk_score']:.2f}"
-            )
             if route_debug_enabled:
+                await status_manager.add_timeline(
+                    f"Route: {route_mode} / {route_category} / s={route_meta['route_score']:.2f} / r={route_meta['security_risk_score']:.2f}"
+                )
                 await status_manager.add_timeline(
                     f"RouteDebug: band={route_band} tools={len(selected_tools)} mem={memory_used}"
                 )
+            else:
+                await status_manager.add_timeline("Route: execution path selected")
 
             # [SWARM] Optional high-complexity pre-orchestration
             if self.swarm.should_run(route_meta, prompt):
