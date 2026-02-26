@@ -35,6 +35,11 @@ class MainProcess:
         "TASK": {"max_turns": 5, "max_tool_calls": 5, "time_budget_seconds": 120},
         "AGENT_LOOP": {"max_turns": 8, "max_tool_calls": 10, "time_budget_seconds": 300},
     }
+    _BAND_BUDGET_DEFAULTS: dict[str, dict[str, int]] = {
+        "fast": {"max_turns": 2, "max_tool_calls": 0, "time_budget_seconds": 25},
+        "task": {"max_turns": 5, "max_tool_calls": 5, "time_budget_seconds": 120},
+        "agent": {"max_turns": 8, "max_tool_calls": 10, "time_budget_seconds": 300},
+    }
 
     @staticmethod
     def _clamp_int(value: Any, default: int, *, lo: int, hi: int) -> int:
@@ -77,20 +82,43 @@ class MainProcess:
     @staticmethod
     def _mode_from_difficulty(score: float) -> str:
         d = max(0.0, min(1.0, float(score)))
-        if d <= 0.3:
+        if d < 0.3:
             return "INSTANT"
-        if d <= 0.6:
+        if d < 0.6:
             return "TASK"
         return "AGENT_LOOP"
 
     @staticmethod
     def _band_from_route_score(score: float) -> str:
         s = max(0.0, min(1.0, float(score)))
-        if s <= 0.3:
-            return "instant"
-        if s <= 0.6:
+        if s < 0.3:
+            return "fast"
+        if s < 0.6:
             return "task"
         return "agent"
+
+    @staticmethod
+    def _env_model(name: str, default: str) -> str:
+        val = str(os.getenv(name) or "").strip()
+        return val or default
+
+    def _resolve_model_plan(self, route_band: str) -> dict[str, str]:
+        default_main = self._env_model("OPENAI_DEFAULT_MODEL", "gpt-5-mini")
+        plan = {
+            "fast_main_model": self._env_model("ORA_FAST_MAIN_MODEL", default_main),
+            "task_main_model": self._env_model("ORA_TASK_MAIN_MODEL", default_main),
+            "agent_main_model": self._env_model("ORA_AGENT_MAIN_MODEL", default_main),
+            "agent_code_model": self._env_model("ORA_AGENT_CODE_MODEL", "gpt-5.1-codex-mini"),
+            "agent_security_model": self._env_model("ORA_AGENT_SECURITY_MODEL", default_main),
+            "agent_search_model": self._env_model("ORA_AGENT_SEARCH_MODEL", default_main),
+        }
+        main_key = "task_main_model"
+        if route_band == "fast":
+            main_key = "fast_main_model"
+        elif route_band == "agent":
+            main_key = "agent_main_model"
+        plan["main_model"] = plan.get(main_key, default_main)
+        return plan
 
     def _route_debug_enabled(self) -> bool:
         raw = str(os.getenv("ORA_ROUTE_DEBUG", "") or "").strip().lower()
@@ -178,14 +206,15 @@ class MainProcess:
             floor_applied = True
             if "router_vision_floor_applied" not in reason_codes:
                 reason_codes.append("router_vision_floor_applied")
+        route_band = self._band_from_route_score(route_score)
 
         mode_hint = str(hint.get("mode") or "").strip().upper()
         if mode_hint in self._ROUTE_DEFAULTS and not floor_applied:
             mode = mode_hint
         else:
             mode = self._mode_from_difficulty(route_score)
-        defaults = dict(self._ROUTE_DEFAULTS.get(mode, self._ROUTE_DEFAULTS["TASK"]))
-        budget = _build_budget(defaults)
+        band_defaults = dict(self._BAND_BUDGET_DEFAULTS.get(route_band, self._BAND_BUDGET_DEFAULTS["task"]))
+        budget = _build_budget(band_defaults)
         security_risk_level = str(hint.get("security_risk_level") or "").strip().upper()
         if not security_risk_level:
             security_risk_level = self._risk_level_from_score(security_risk_score)
@@ -193,15 +222,13 @@ class MainProcess:
         high_risk = security_risk_score >= 0.6 or security_risk_level in {"HIGH", "CRITICAL"}
         if mode in {"INSTANT", "AGENT_LOOP"} and high_risk:
             mode = "TASK"
-            defaults = dict(self._ROUTE_DEFAULTS["TASK"])
-            budget = _build_budget(defaults)
+            budget = _build_budget(dict(self._BAND_BUDGET_DEFAULTS["task"]))
             if "router_mode_forced_safe" not in reason_codes:
                 reason_codes.append("router_mode_forced_safe")
 
         if selected_tool_schemas and mode == "INSTANT":
             mode = "TASK"
-            defaults = dict(self._ROUTE_DEFAULTS["TASK"])
-            budget = _build_budget(defaults)
+            budget = _build_budget(dict(self._BAND_BUDGET_DEFAULTS["task"]))
             if "router_mode_forced_tools" not in reason_codes:
                 reason_codes.append("router_mode_forced_tools")
 
@@ -211,9 +238,10 @@ class MainProcess:
             # Keep Core budget consistent with the actual executable tool set.
             budget["max_tool_calls"] = 0
 
+        model_plan = self._resolve_model_plan(route_band)
         effective = EffectiveRoute(
             mode=mode,  # type: ignore[arg-type]
-            route_band=self._band_from_route_score(route_score),  # type: ignore[arg-type]
+            route_band=route_band,  # type: ignore[arg-type]
             function_category=function_category,
             route_score=round(route_score, 2),
             difficulty_score=round(difficulty_score, 2),
@@ -222,6 +250,7 @@ class MainProcess:
             security_risk_score=round(security_risk_score, 2),
             security_risk_level=security_risk_level,
             budget=budget,
+            model_plan=model_plan,
             reason_codes=reason_codes,
             source_hint_present=bool(hint),
         )

@@ -348,6 +348,14 @@ class Config:
     vision_provider: str
     llm_priority: str  # Added Phase 21: cloud or local
 
+    # Core route-band model plan skeleton (v1)
+    fast_main_model: str = "gpt-5-mini"
+    task_main_model: str = "gpt-5-mini"
+    agent_main_model: str = "gpt-5-mini"
+    agent_code_model: str = "gpt-5.1-codex-mini"
+    agent_security_model: str = "gpt-5-mini"
+    agent_search_model: str = "gpt-5-mini"
+
     # Notification IDs (Phase 42)
     ora_web_notify_id: Optional[int] = None
     ora_api_notify_id: Optional[int] = None
@@ -495,6 +503,13 @@ class Config:
         llm_base_url = os.getenv("LLM_BASE_URL", "http://localhost:8008/v1").rstrip("/")
         llm_api_key = os.getenv("LLM_API_KEY", "EMPTY")
         llm_model = os.getenv("LLM_MODEL", "gpt-5-mini")
+        default_main_model = os.getenv("OPENAI_DEFAULT_MODEL", "gpt-5-mini").strip() or "gpt-5-mini"
+        fast_main_model = os.getenv("ORA_FAST_MAIN_MODEL", default_main_model).strip() or default_main_model
+        task_main_model = os.getenv("ORA_TASK_MAIN_MODEL", default_main_model).strip() or default_main_model
+        agent_main_model = os.getenv("ORA_AGENT_MAIN_MODEL", default_main_model).strip() or default_main_model
+        agent_code_model = os.getenv("ORA_AGENT_CODE_MODEL", "gpt-5.1-codex-mini").strip() or "gpt-5.1-codex-mini"
+        agent_security_model = os.getenv("ORA_AGENT_SECURITY_MODEL", default_main_model).strip() or default_main_model
+        agent_search_model = os.getenv("ORA_AGENT_SEARCH_MODEL", default_main_model).strip() or default_main_model
 
         privacy_default = os.getenv("PRIVACY_DEFAULT", "private").lower()
         if privacy_default not in {"private", "public"}:
@@ -690,6 +705,12 @@ class Config:
             feature_proposal_channel_id=feature_proposal_channel_id,
             vision_provider=vision_provider,
             llm_priority=llm_priority,
+            fast_main_model=fast_main_model,
+            task_main_model=task_main_model,
+            agent_main_model=agent_main_model,
+            agent_code_model=agent_code_model,
+            agent_security_model=agent_security_model,
+            agent_search_model=agent_search_model,
             ora_web_notify_id=ora_web_notify_id,
             ora_api_notify_id=ora_api_notify_id,
             config_ui_notify_id=config_ui_notify_id,

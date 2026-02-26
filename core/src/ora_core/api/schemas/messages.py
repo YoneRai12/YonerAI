@@ -84,9 +84,19 @@ class EffectiveRouteBudget(BaseModel):
     time_budget_seconds: int = 120
 
 
+class EffectiveModelPlan(BaseModel):
+    fast_main_model: str = "gpt-5-mini"
+    task_main_model: str = "gpt-5-mini"
+    agent_main_model: str = "gpt-5-mini"
+    agent_code_model: str = "gpt-5.1-codex-mini"
+    agent_security_model: str = "gpt-5-mini"
+    agent_search_model: str = "gpt-5-mini"
+    main_model: str = "gpt-5-mini"
+
+
 class EffectiveRoute(BaseModel):
     mode: Literal["INSTANT", "TASK", "AGENT_LOOP"] = "TASK"
-    route_band: Literal["instant", "task", "agent"] = "task"
+    route_band: Literal["fast", "task", "agent"] = "task"
     function_category: str = "chat"
     route_score: float = 0.5
     difficulty_score: float = 0.5
@@ -95,6 +105,7 @@ class EffectiveRoute(BaseModel):
     security_risk_score: float = 0.0
     security_risk_level: str = "LOW"
     budget: EffectiveRouteBudget = Field(default_factory=EffectiveRouteBudget)
+    model_plan: EffectiveModelPlan = Field(default_factory=EffectiveModelPlan)
     reason_codes: list[str] = Field(default_factory=list)
     source_hint_present: bool = False
     route_debug: Optional[dict[str, Any]] = None

@@ -91,6 +91,22 @@ from src.utils.link_attribution import get_run_effective_route
 
 
 class _FakeRepo:
+    async def get_or_create_tool_call(self, *_args, **_kwargs):
+        rec = SimpleNamespace(
+            status="pending",
+            result_json=None,
+            error=None,
+            artifact_ref=None,
+            expires_at=None,
+        )
+        return rec, True
+
+    async def claim_tool_call(self, *_args, **_kwargs):
+        return True
+
+    async def update_tool_call(self, *_args, **_kwargs):
+        return None
+
     async def update_run_status(self, *_args, **_kwargs):
         return None
 
@@ -114,6 +130,8 @@ async def _run_main_process(
     *,
     run_id: str,
     build_context_fn=None,
+    omni_engine_obj=None,
+    wait_for_tool_result_fn=None,
 ) -> list[dict[str, Any]]:
     import ora_core.brain.process as process_mod
 
@@ -126,9 +144,11 @@ async def _run_main_process(
         return []
 
     fake_omni_module = types.ModuleType("ora_core.engine.omni_engine")
-    fake_omni_module.omni_engine = _FakeOmniEngine()
+    fake_omni_module.omni_engine = omni_engine_obj or _FakeOmniEngine()
 
     monkeypatch.setattr(process_mod.event_manager, "emit", _fake_emit)
+    if wait_for_tool_result_fn is not None:
+        monkeypatch.setattr(process_mod.event_manager, "wait_for_tool_result", wait_for_tool_result_fn)
     monkeypatch.setattr(
         process_mod.ContextBuilder,
         "build_context",
@@ -188,6 +208,8 @@ def test_effective_route_emitted_and_persisted_with_route_hint(monkeypatch) -> N
         assert meta_route.get("mode") == "TASK"
         assert meta_route.get("route_band") == "agent"
         assert isinstance(meta_route.get("route_score"), float)
+        assert isinstance(meta_route.get("model_plan"), dict)
+        assert str(meta_route.get("model_plan", {}).get("main_model") or "").strip()
         assert "router_mode_forced_safe" in list(meta_route.get("reason_codes") or [])
         assert int(meta_route.get("budget", {}).get("max_turns", 0)) <= 20
         assert final_route.get("mode") == meta_route.get("mode")
@@ -219,7 +241,7 @@ def test_effective_route_emitted_without_route_hint_for_discord_and_web(monkeypa
             assert isinstance(meta.get("effective_route"), dict)
             assert route.get("source_hint_present") is False
             assert str(route.get("mode") or "") in {"INSTANT", "TASK", "AGENT_LOOP"}
-            assert str(route.get("route_band") or "") in {"instant", "task", "agent"}
+            assert str(route.get("route_band") or "") in {"fast", "task", "agent"}
             modes[source] = str(route.get("mode") or "")
 
         # Core computes mode for both clients from the same fallback policy.
@@ -231,7 +253,7 @@ def test_effective_route_emitted_without_route_hint_for_discord_and_web(monkeypa
 def test_effective_route_mode_thresholds_follow_route_score(monkeypatch) -> None:
     async def _run() -> None:
         cases = [
-            (0.20, "INSTANT", "instant"),
+            (0.20, "INSTANT", "fast"),
             (0.50, "TASK", "task"),
             (0.90, "AGENT_LOOP", "agent"),
         ]
@@ -250,6 +272,30 @@ def test_effective_route_mode_thresholds_follow_route_score(monkeypatch) -> None
             assert route.get("mode") == expected_mode
             assert route.get("route_band") == expected_band
             assert abs(float(route.get("route_score", -1.0)) - score) < 0.01
+
+    asyncio.run(_run())
+
+
+def test_effective_route_band_thresholds_follow_route_score_boundaries(monkeypatch) -> None:
+    async def _run() -> None:
+        cases = [
+            (0.29, "fast"),
+            (0.30, "task"),
+            (0.59, "task"),
+            (0.60, "agent"),
+        ]
+        for score, expected_band in cases:
+            run_id = f"run-band-{uuid.uuid4().hex[:8]}"
+            req = MessageRequest(
+                user_identity={"provider": "web", "id": "u-band"},
+                content="band threshold check",
+                idempotency_key=f"band-{uuid.uuid4().hex[:6]}",
+                source="web",
+                route_hint={"route_score": score, "difficulty_score": score, "security_risk_score": 0.1},
+            )
+            events = await _run_main_process(monkeypatch, req, run_id=run_id)
+            route = (_event_data(events, "final").get("effective_route") or {})
+            assert route.get("route_band") == expected_band
 
     asyncio.run(_run())
 
@@ -364,5 +410,80 @@ def test_effective_route_with_tools_never_stays_instant(monkeypatch) -> None:
         route = final.get("effective_route") or {}
         assert route.get("mode") == "TASK"
         assert "router_mode_forced_tools" in list(route.get("reason_codes") or [])
+
+    asyncio.run(_run())
+
+
+def test_effective_route_error_event_includes_model_plan_and_route_band(monkeypatch) -> None:
+    class _FailingOmniEngine:
+        async def generate(self, *_args, **_kwargs):
+            raise RuntimeError("forced failure for test")
+
+    async def _run() -> None:
+        req = MessageRequest(
+            user_identity={"provider": "web", "id": "u-err"},
+            content="trigger error",
+            idempotency_key=f"err-{uuid.uuid4().hex[:6]}",
+            source="web",
+            route_hint={"route_score": 0.25, "difficulty_score": 0.25, "security_risk_score": 0.1},
+        )
+        events = await _run_main_process(
+            monkeypatch,
+            req,
+            run_id=f"run-err-{uuid.uuid4().hex[:8]}",
+            omni_engine_obj=_FailingOmniEngine(),
+        )
+        err_data = _event_data(events, "error")
+        route = err_data.get("effective_route") or {}
+        assert route.get("route_band") == "fast"
+        assert isinstance(route.get("model_plan"), dict)
+        assert str(route.get("model_plan", {}).get("main_model") or "").strip()
+
+    asyncio.run(_run())
+
+
+def test_effective_route_dispatch_event_includes_model_plan_and_route_band(monkeypatch) -> None:
+    class _DispatchOmniEngine:
+        def __init__(self) -> None:
+            self.turn = 0
+
+        async def generate(self, *_args, **_kwargs):
+            self.turn += 1
+            if self.turn == 1:
+                tool_call = SimpleNamespace(
+                    id="tc-dispatch-1",
+                    function=SimpleNamespace(name="dummy_tool", arguments="{}"),
+                )
+                msg = SimpleNamespace(content="", tool_calls=[tool_call])
+                return SimpleNamespace(choices=[SimpleNamespace(message=msg)], usage=None, model="test-model")
+            msg = SimpleNamespace(content="done", tool_calls=[])
+            return SimpleNamespace(choices=[SimpleNamespace(message=msg)], usage=None, model="test-model")
+
+    async def _wait_for_tool_result(*_args, **_kwargs):
+        return {"result": {"ok": True, "content": [{"type": "text", "text": "ok"}]}}
+
+    async def _run() -> None:
+        req = MessageRequest(
+            user_identity={"provider": "discord", "id": "u-dsp"},
+            content="dispatch check",
+            idempotency_key=f"dsp-{uuid.uuid4().hex[:6]}",
+            source="discord",
+            available_tools=[
+                {"name": "dummy_tool", "description": "tool", "parameters": {"type": "object", "properties": {}}}
+            ],
+            route_hint={"route_score": 0.25, "difficulty_score": 0.25, "security_risk_score": 0.1},
+        )
+        events = await _run_main_process(
+            monkeypatch,
+            req,
+            run_id=f"run-dsp-{uuid.uuid4().hex[:8]}",
+            omni_engine_obj=_DispatchOmniEngine(),
+            wait_for_tool_result_fn=_wait_for_tool_result,
+        )
+        dispatch_data = _event_data(events, "dispatch")
+        route = dispatch_data.get("effective_route") or {}
+        assert route.get("route_band") == "fast"
+        assert isinstance(route.get("model_plan"), dict)
+        assert str(route.get("model_plan", {}).get("main_model") or "").strip()
 
     asyncio.run(_run())

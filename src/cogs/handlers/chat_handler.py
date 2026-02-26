@@ -456,17 +456,19 @@ Interests: {interests}
             route_score = max(0.0, min(1.0, route_score))
 
             if route_mode not in {"INSTANT", "TASK", "AGENT_LOOP"}:
-                if route_score <= 0.3:
+                if route_score < 0.3:
                     route_mode = "INSTANT"
-                elif route_score <= 0.6:
+                elif route_score < 0.6:
                     route_mode = "TASK"
                 else:
                     route_mode = "AGENT_LOOP"
             route_band = str(route_meta.get("route_band") or "").lower()
-            if route_band not in {"instant", "task", "agent"}:
-                if route_score <= 0.3:
-                    route_band = "instant"
-                elif route_score <= 0.6:
+            if route_band == "instant":
+                route_band = "fast"
+            if route_band not in {"fast", "task", "agent"}:
+                if route_score < 0.3:
+                    route_band = "fast"
+                elif route_score < 0.6:
                     route_band = "task"
                 else:
                     route_band = "agent"
