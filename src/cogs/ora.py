@@ -870,6 +870,31 @@ class ORACog(commands.Cog):
             f"✅ System command privacy set to **{mode.value}**", ephemeral=True
         )
 
+    @ora_group.command(name="dev_ui", description="Toggle safe developer metadata visibility for your account")
+    @app_commands.describe(mode="on / off / None to just check")
+    @app_commands.choices(
+        mode=[
+            app_commands.Choice(name="on", value="on"),
+            app_commands.Choice(name="off", value="off"),
+        ]
+    )
+    async def ora_dev_ui(self, interaction: discord.Interaction, mode: Optional[app_commands.Choice[str]] = None) -> None:
+        await self._store.ensure_user(interaction.user.id, self._privacy_default)
+        if mode is None:
+            enabled = await self._store.get_dev_ui_enabled(interaction.user.id)
+            await interaction.response.send_message(
+                f"Current Developer UI: **{'ON' if enabled else 'OFF'}**",
+                ephemeral=True,
+            )
+            return
+
+        enabled = mode.value == "on"
+        await self._store.set_dev_ui_enabled(interaction.user.id, enabled)
+        await interaction.response.send_message(
+            f"✅ Developer UI set to **{'ON' if enabled else 'OFF'}**",
+            ephemeral=True,
+        )
+
     async def chat(self, interaction: discord.Interaction, prompt: str) -> None:
         await self._store.ensure_user(interaction.user.id, self._privacy_default)
         ephemeral = await self._ephemeral_for(interaction.user)

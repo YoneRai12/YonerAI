@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS users (
   google_sub TEXT,
   privacy TEXT NOT NULL DEFAULT 'private',
   speak_search_progress INTEGER NOT NULL DEFAULT 0,
+  dev_ui_enabled INTEGER NOT NULL DEFAULT 0,
   created_at INTEGER NOT NULL,
   points INTEGER DEFAULT 0,
   display_name TEXT
@@ -177,6 +178,12 @@ class Store:
             # Migration: Ensure display_name column exists
             try:
                 await db.execute("ALTER TABLE users ADD COLUMN display_name TEXT")
+            except Exception:
+                pass
+
+            # Migration: per-user developer UI visibility toggle.
+            try:
+                await db.execute("ALTER TABLE users ADD COLUMN dev_ui_enabled INTEGER DEFAULT 0")
             except Exception:
                 pass
 
@@ -1069,6 +1076,36 @@ class Store:
         async with aiosqlite.connect(self._db_path) as db:
             await db.execute(
                 "UPDATE users SET speak_search_progress=? WHERE id=?",
+                (val, str(discord_user_id)),
+            )
+            await db.commit()
+
+    async def get_dev_ui_enabled(self, discord_user_id: int) -> bool:
+        """Return whether safe developer UI metadata is enabled for this user."""
+        async with aiosqlite.connect(self._db_path) as db:
+            try:
+                async with db.execute(
+                    "SELECT dev_ui_enabled FROM users WHERE id=?",
+                    (str(discord_user_id),),
+                ) as cursor:
+                    row = await cursor.fetchone()
+                if row is None or row[0] is None:
+                    return False
+                return bool(int(row[0]))
+            except Exception:
+                return False
+
+    async def set_dev_ui_enabled(self, discord_user_id: int, enabled: bool) -> None:
+        """Update the per-user safe developer UI visibility toggle."""
+        val = 1 if enabled else 0
+        async with aiosqlite.connect(self._db_path) as db:
+            # Lazy migration fallback for older DBs.
+            try:
+                await db.execute("ALTER TABLE users ADD COLUMN dev_ui_enabled INTEGER DEFAULT 0")
+            except Exception:
+                pass
+            await db.execute(
+                "UPDATE users SET dev_ui_enabled=? WHERE id=?",
                 (val, str(discord_user_id)),
             )
             await db.commit()
