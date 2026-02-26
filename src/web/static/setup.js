@@ -66,6 +66,14 @@ const I18N = {
     error_prefix: "Error",
     status_title: "Status",
     notes_title: "Notes",
+    dev_ui_title: "Developer UI",
+    dev_ui_sub: "Per-user safe debug visibility toggle (Discord account ID).",
+    dev_ui_user_id: "Discord User ID",
+    dev_ui_enabled: "Enable safe developer metadata",
+    dev_ui_load: "Load",
+    dev_ui_save: "Save",
+    dev_ui_loaded: "Loaded",
+    dev_ui_saved: "Saved",
     k_secrets_present: "secrets_present",
     k_env_configured: "env_configured",
     k_state_dir: "state_dir",
@@ -130,6 +138,14 @@ const I18N = {
     error_prefix: "エラー",
     status_title: "状態",
     notes_title: "メモ",
+    dev_ui_title: "Developer UI",
+    dev_ui_sub: "ユーザー単位の安全なデバッグ表示（Discord User ID）",
+    dev_ui_user_id: "Discord User ID",
+    dev_ui_enabled: "安全な開発メタ情報を表示",
+    dev_ui_load: "読込",
+    dev_ui_save: "保存",
+    dev_ui_loaded: "読込完了",
+    dev_ui_saved: "保存完了",
     k_secrets_present: "Secrets（設定済み）",
     k_env_configured: "env（設定済み）",
     k_state_dir: "状態ディレクトリ",
@@ -604,6 +620,94 @@ function _renderOverview() {
     </div>
   `;
   grid.appendChild(status);
+
+  const devUi = document.createElement("div");
+  devUi.className = "sectionCard";
+  devUi.innerHTML = `
+    <div class="sectionHead">
+      <h3 class="sectionTitle">${t("dev_ui_title")}</h3>
+      <p class="sectionHint">${t("dev_ui_sub")}</p>
+    </div>
+  `;
+  const devUiWrap = document.createElement("div");
+  devUiWrap.style.display = "grid";
+  devUiWrap.style.gridTemplateColumns = "1fr";
+  devUiWrap.style.gap = "8px";
+
+  const uidLabel = document.createElement("label");
+  uidLabel.textContent = t("dev_ui_user_id");
+  const uidInput = document.createElement("input");
+  uidInput.placeholder = "123456789012345678";
+  uidInput.id = "devUiUserId";
+
+  const enabledRow = document.createElement("label");
+  enabledRow.style.display = "inline-flex";
+  enabledRow.style.gap = "8px";
+  enabledRow.style.alignItems = "center";
+  const enabledInput = document.createElement("input");
+  enabledInput.type = "checkbox";
+  enabledInput.id = "devUiEnabled";
+  const enabledText = document.createElement("span");
+  enabledText.textContent = t("dev_ui_enabled");
+  enabledRow.appendChild(enabledInput);
+  enabledRow.appendChild(enabledText);
+
+  const buttonRow = document.createElement("div");
+  buttonRow.className = "row";
+  const loadBtn = document.createElement("button");
+  loadBtn.type = "button";
+  loadBtn.className = "secondary";
+  loadBtn.textContent = t("dev_ui_load");
+  const saveBtn = document.createElement("button");
+  saveBtn.type = "button";
+  saveBtn.textContent = t("dev_ui_save");
+  buttonRow.appendChild(loadBtn);
+  buttonRow.appendChild(saveBtn);
+
+  const devUiMsg = document.createElement("div");
+  devUiMsg.className = "msg";
+  devUiMsg.id = "devUiMsg";
+
+  loadBtn.onclick = async () => {
+    const uid = (uidInput.value || "").trim();
+    if (!uid) {
+      devUiMsg.textContent = t("error_prefix") + ": " + t("dev_ui_user_id");
+      return;
+    }
+    try {
+      const out = await apiGet("/api/platform/dev-ui/status?user_id=" + encodeURIComponent(uid));
+      enabledInput.checked = !!out.dev_ui_enabled;
+      devUiMsg.textContent = t("dev_ui_loaded") + `: ${out.dev_ui_enabled ? "ON" : "OFF"}`;
+    } catch (e) {
+      devUiMsg.textContent = t("error_prefix") + ": " + e.message;
+    }
+  };
+
+  saveBtn.onclick = async () => {
+    const uid = (uidInput.value || "").trim();
+    if (!uid) {
+      devUiMsg.textContent = t("error_prefix") + ": " + t("dev_ui_user_id");
+      return;
+    }
+    try {
+      const out = await apiPost("/api/platform/dev-ui/status", {
+        user_id: uid,
+        enabled: !!enabledInput.checked,
+      });
+      enabledInput.checked = !!out.dev_ui_enabled;
+      devUiMsg.textContent = t("dev_ui_saved") + `: ${out.dev_ui_enabled ? "ON" : "OFF"}`;
+    } catch (e) {
+      devUiMsg.textContent = t("error_prefix") + ": " + e.message;
+    }
+  };
+
+  devUiWrap.appendChild(uidLabel);
+  devUiWrap.appendChild(uidInput);
+  devUiWrap.appendChild(enabledRow);
+  devUiWrap.appendChild(buttonRow);
+  devUiWrap.appendChild(devUiMsg);
+  devUi.appendChild(devUiWrap);
+  grid.appendChild(devUi);
 
   if ((st.notes || []).length) {
     const notes = document.createElement("div");

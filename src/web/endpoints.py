@@ -859,6 +859,37 @@ def get_store():
     return _get_store()
 
 
+class DevUiStatusUpdate(BaseModel):
+    user_id: str
+    enabled: bool
+
+
+def _parse_discord_user_id(raw: str) -> int:
+    user_id = str(raw or "").strip()
+    if not user_id or not user_id.isdigit():
+        raise HTTPException(status_code=400, detail="user_id must be a numeric string")
+    return int(user_id)
+
+
+@router.get("/platform/dev-ui/status")
+async def get_dev_ui_status(user_id: str, _: None = Depends(require_web_api)):
+    store = get_store()
+    uid = _parse_discord_user_id(user_id)
+    await store.ensure_user(uid, "private")
+    enabled = await store.get_dev_ui_enabled(uid)
+    return {"ok": True, "user_id": str(uid), "dev_ui_enabled": bool(enabled)}
+
+
+@router.post("/platform/dev-ui/status")
+async def set_dev_ui_status(req: DevUiStatusUpdate, _: None = Depends(require_web_api)):
+    store = get_store()
+    uid = _parse_discord_user_id(req.user_id)
+    await store.ensure_user(uid, "private")
+    await store.set_dev_ui_enabled(uid, bool(req.enabled))
+    enabled = await store.get_dev_ui_enabled(uid)
+    return {"ok": True, "user_id": str(uid), "dev_ui_enabled": bool(enabled)}
+
+
 class ConnectionManager:
     def __init__(self):
         self.active_connections: List[WebSocket] = []
