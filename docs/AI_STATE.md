@@ -41,3 +41,4 @@
 - [ ] configure HSTS and TLS mode policy at the edge
 - [ ] enforce Cloudflare Access for `ops` subdomain
 - [ ] design per-user node subdomain automation plan
+- [ ] sync public domain template and private tunnel ingress runbook for Phase 1 hostnames

@@ -1,57 +1,53 @@
-# Domain and Cloudflare Plan (Public)
+# Domain Cloudflare Plan (Public Template)
 
 ## Scope
-- Single source of truth for public subdomain planning.
-- Public-safe only: no secrets, no internal runbooks, no real tunnel IDs, no private host details.
+- Phase 1 subdomain design and ownership boundaries for Cloudflare.
+- Public-safe template only. No real secrets, tokens, tunnel IDs, private IPs, or internal headers.
 
-## Phase Plan
+## Placeholders
+- `<ROOT_DOMAIN>`: root domain (example: `example.com`).
+- `<TUNNEL_CNAME>`: Cloudflare tunnel target (`<tunnel-id>.cfargotunnel.com`).
+- `<PAGES_CNAME_TARGET>`: Vercel Pages/App target (`<project>.vercel.app` or `<project>.pages.dev`).
 
-| Phase | Subdomain | Purpose | Public exposure |
-|---|---|---|---|
-| Phase 1 | `chat.<domain>` | User chat UI entry | Public |
-| Phase 1 | `platform.<domain>` | Product landing / app shell | Public |
-| Phase 1 | `developers.<domain>` | Developer docs and onboarding | Public |
-| Phase 1 | `auth.<domain>` | Auth UX entry and callback-facing surface | Public |
-| Phase 1 | `api.<domain>` | Public API gateway | Public |
-| Phase 1 | `hooks.<domain>` | Webhook receiver | Public (tight validation) |
-| Phase 1 | `ops.<domain>` | Operations dashboards | Private via Cloudflare Access |
-| Phase 2 | `node.<id>.<domain>` | Per-user node routing pattern | Controlled rollout |
-| Phase 2 | `relay.<region>.<domain>` | Regional relay ingress | Public (rate-limited) |
+## Phase 1 Hostnames
 
-## DNS Record Templates
+| Hostname | Role | Placement | DNS Target Template | Notes |
+|---|---|---|---|---|
+| `chat.<ROOT_DOMAIN>` | User chat entry | Vercel Pages | `<PAGES_CNAME_TARGET>` | Canonical |
+| `platform.<ROOT_DOMAIN>` | Product shell | Vercel Pages | `<PAGES_CNAME_TARGET>` | Canonical |
+| `developers.<ROOT_DOMAIN>` | Developer docs/onboarding | Vercel Pages | `<PAGES_CNAME_TARGET>` | Canonical |
+| `api.<ROOT_DOMAIN>` | Public API ingress | Cloudflare Tunnel | `<TUNNEL_CNAME>` | Canonical |
+| `auth.<ROOT_DOMAIN>` | Auth/OAuth callback surface | Cloudflare Tunnel | `<TUNNEL_CNAME>` | Canonical |
+| `hooks.<ROOT_DOMAIN>` | Webhook ingress | Cloudflare Tunnel | `<TUNNEL_CNAME>` | Canonical |
+| `ops.<ROOT_DOMAIN>` | Ops/admin surface | Cloudflare Tunnel | `<TUNNEL_CNAME>` | Must be Cloudflare Access protected |
+| `developer.<ROOT_DOMAIN>` | Alias for docs | Redirect Rule only | Any proxied edge-resolvable target | Redirect to canonical |
+| `oauth.<ROOT_DOMAIN>` | Alias for auth | Redirect Rule only | Any proxied edge-resolvable target | Redirect to canonical |
 
-### Template A: Vercel / Pages-style frontend
-- Type: `CNAME`
-- Name: `<subdomain>`
-- Target: `<project>.vercel.app` or `<project>.pages.dev`
-- Proxy: Enabled (orange cloud)
+## Placement Boundary
 
-### Template B: VPS-backed API ingress
-- Type: `A` or `AAAA`
-- Name: `<subdomain>`
-- Target: `<VPS_IP>`
-- Proxy: Enabled
+### On Cloudflare Tunnel
+- `api.<ROOT_DOMAIN>`
+- `auth.<ROOT_DOMAIN>`
+- `hooks.<ROOT_DOMAIN>`
+- `ops.<ROOT_DOMAIN>`
 
-### Template C: Cloudflare Tunnel-backed origin
-- Type: `CNAME`
-- Name: `<subdomain>`
-- Target: `<TUNNEL_ID>.cfargotunnel.com`
-- Proxy: Enabled
+### On Vercel Pages
+- `chat.<ROOT_DOMAIN>`
+- `platform.<ROOT_DOMAIN>`
+- `developers.<ROOT_DOMAIN>`
 
-## Redirect Rules
+## Redirect Rules Policy
 
-Canonical route policy:
-- `developer.<domain>` -> `https://developers.<domain>` (HTTP 301/308)
-- `oauth.<domain>` -> `https://auth.<domain>` (HTTP 301/308)
+Aliases are handled at Cloudflare edge with Redirect Rules, not app-level alias logic.
 
-Rule requirements:
+- `developer.<ROOT_DOMAIN>` -> `https://developers.<ROOT_DOMAIN>` (`301` or `308`)
+- `oauth.<ROOT_DOMAIN>` -> `https://auth.<ROOT_DOMAIN>` (`301` or `308`)
+
+Requirements:
 - Preserve path and query string.
-- Do not create application-level aliases when edge redirect can solve it.
-- Keep canonical hostnames stable for cookies, OAuth origins, and telemetry grouping.
+- Keep canonical hostnames stable for cookies, OAuth origins, and analytics grouping.
 
-## Security Notes
-- `ops.<domain>` must be protected by Cloudflare Access (identity-aware gate).
-- `api.<domain>` and `auth.<domain>` must be proxied and rate-limited.
-- Never publish runbooks with private diagnostics steps in public repo.
-- Never publish tunnel IDs, internal hostnames, private IPs, or token-bearing examples.
-- Keep strict separation between public docs and private operational details.
+## Public Safety Boundary
+- Private runbooks/scripts remain in private repo only.
+- Public repo keeps policy and templates only.
+- Do not include internal environment variable names, private thresholds, diagnostic keys, exact tunnel IDs, signature formats, or token examples.
