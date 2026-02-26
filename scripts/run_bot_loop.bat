@@ -1,15 +1,20 @@
-@echo off
+﻿@echo off
 cd /d "%~dp0\.."
 chcp 65001 >nul
+
+set "PY_EXE=.venv\Scripts\python.exe"
+if exist "%PY_EXE%" goto loop
+set "PY_EXE=python"
+
 :loop
-title ORA Bot (自動再起動モード)
-echo 🚀 ORA Bot メインプロセスを起動中...
+title ORA Bot (auto-restart loop)
+echo Starting ORA Bot process...
 set PYTHONPATH=.
-L:\ORADiscordBOT_Env\Scripts\python.exe main.py
+call "%PY_EXE%" main.py
 if %errorlevel% equ 99 (
-    echo ❌ トークンが見つからないか設定エラーのため、プログラムを終了します。
+    echo Exit code 99 detected. Stop loop.
     exit /b 99
 )
-echo ⚠️ Botプロセスが終了しました（クラッシュ？）。5秒後に再起動します...
+echo Bot process exited. Restarting in 5 seconds...
 timeout /t 5
 goto loop
