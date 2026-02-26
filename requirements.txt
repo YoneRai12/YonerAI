@@ -47,7 +47,7 @@ beautifulsoup4
 psutil
 pycaw; sys_platform == 'win32'
 comtypes; sys_platform == 'win32'
-pycountry>=22.3,<24.0
+pycountry>=22.3,<27.0
 websocket-client
 pytz
 
