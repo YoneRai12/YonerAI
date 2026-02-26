@@ -74,6 +74,58 @@ class ChatHandler:
         except Exception as e:
             logger.debug(f"Agent activity notify skipped: {e}")
 
+    async def _is_dev_ui_enabled_for_user(self, discord_user_id: int) -> bool:
+        store = getattr(self.bot, "store", None)
+        if not store:
+            return False
+        try:
+            return bool(await store.get_dev_ui_enabled(int(discord_user_id)))
+        except Exception:
+            return False
+
+    @staticmethod
+    def _public_run_detail(*, run_id: str | None, is_dm: bool, dev_ui_enabled: bool) -> str:
+        if dev_ui_enabled and is_dm and run_id:
+            return f"run_id={str(run_id)[:8]}"
+        return "connected"
+
+    @staticmethod
+    def _safe_dev_ui_meta(*, run_id: str | None, route_meta: dict) -> str:
+        if not run_id:
+            return ""
+        mode = str(route_meta.get("mode") or "TASK")
+        route_band = str(route_meta.get("route_band") or "task")
+        route_score = float(route_meta.get("route_score") or 0.0)
+        category = str(route_meta.get("function_category") or "chat")
+        return (
+            "Developer UI Metadata\n"
+            f"- run_id: {run_id}\n"
+            f"- mode: {mode}\n"
+            f"- route_band: {route_band}\n"
+            f"- route_score: {route_score:.2f}\n"
+            f"- category: {category}"
+        )
+
+    async def _deliver_dev_ui_meta(self, *, message: discord.Message, run_id: str | None, route_meta: dict) -> None:
+        payload = self._safe_dev_ui_meta(run_id=run_id, route_meta=route_meta)
+        if not payload:
+            return
+        if message.guild:
+            try:
+                await message.author.send(payload)
+                return
+            except Exception:
+                # Guild-safe fallback without exposing metadata publicly.
+                try:
+                    await message.reply("||developer metadata could not be delivered via DM||", mention_author=False)
+                except Exception:
+                    pass
+                return
+        try:
+            await message.channel.send(payload)
+        except Exception:
+            pass
+
     async def handle_prompt(
         self,
         message: discord.Message,
@@ -161,6 +213,7 @@ class ChatHandler:
             verified_admin = bool(client_context.get("is_admin"))
             # Keep client_context aligned with server-verified decision only.
             client_context["is_admin"] = verified_admin
+            dev_ui_enabled = await self._is_dev_ui_enabled_for_user(message.author.id)
 
             # 3. Call Core API
             # [MEMORY INJECTION] Fetch User Profile
@@ -456,17 +509,19 @@ Interests: {interests}
             route_score = max(0.0, min(1.0, route_score))
 
             if route_mode not in {"INSTANT", "TASK", "AGENT_LOOP"}:
-                if route_score <= 0.3:
+                if route_score < 0.3:
                     route_mode = "INSTANT"
-                elif route_score <= 0.6:
+                elif route_score < 0.6:
                     route_mode = "TASK"
                 else:
                     route_mode = "AGENT_LOOP"
             route_band = str(route_meta.get("route_band") or "").lower()
-            if route_band not in {"instant", "task", "agent"}:
-                if route_score <= 0.3:
-                    route_band = "instant"
-                elif route_score <= 0.6:
+            if route_band == "instant":
+                route_band = "fast"
+            if route_band not in {"fast", "task", "agent"}:
+                if route_score < 0.3:
+                    route_band = "fast"
+                elif route_score < 0.6:
                     route_band = "task"
                 else:
                     route_band = "agent"
@@ -663,9 +718,15 @@ Interests: {interests}
                 return
 
             run_id = response.get("run_id")
-            await status_manager.set_task_state(1, "done", f"run_id={run_id[:8] if run_id else 'N/A'}")
+            await status_manager.set_task_state(
+                1,
+                "done",
+                self._public_run_detail(run_id=run_id, is_dm=(message.guild is None), dev_ui_enabled=dev_ui_enabled),
+            )
             await status_manager.set_task_state(2, "running", "待機中")
             trace_event("chat.run_created", correlation_id=correlation_id, run_id=run_id)
+            if dev_ui_enabled:
+                await self._deliver_dev_ui_meta(message=message, run_id=run_id, route_meta=route_meta)
 
             # 4. Process SSE Events (Streaming/Incremental Updates)
             full_content = ""
@@ -875,11 +936,10 @@ Interests: {interests}
             if not (full_content or "").strip():
                 # Hard guarantee: never send an empty reply to Discord.
                 cid_short = (correlation_id or "")[:8] if correlation_id else "N/A"
-                run_short = (run_id or "")[:8] if run_id else "N/A"
                 detail = f"CID={correlation_id} run_id={run_id} last_tool={last_dispatch_tool} tool_call_id={last_dispatch_tool_call_id}"
                 full_content = (
                     "⚠️ ツール処理は実行されましたが、最終テキスト応答が空でした。\n"
-                    f"CID: `{cid_short}` / Run: `{run_short}`\n"
+                    f"CID: `{cid_short}`\n"
                     "必要ならログ確認できます（例: `get_logs` で行数を増やしてCIDで検索）。"
                 )
                 trace_event(
