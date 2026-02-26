@@ -34,3 +34,10 @@
 - `docs/ARCH_V5.md`
 - `docs/DEV_QUICKSTART.md`
 - `docs/DECISION_CHAT_SDK.md`
+
+## Backlog: Domain and Cloudflare
+- [ ] create DNS records in Cloudflare (canonical subdomains only)
+- [ ] configure redirect rules (`developer -> developers`, `oauth -> auth`)
+- [ ] configure HSTS and TLS mode policy at the edge
+- [ ] enforce Cloudflare Access for `ops` subdomain
+- [ ] design per-user node subdomain automation plan
