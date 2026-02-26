@@ -228,8 +228,8 @@ class ORABot(commands.Bot):
         await self._check_local_llm_health()
 
         # [Clawdbot] RAG Vector Memory
-        from src.services.vector_memory import VectorMemory
         try:
+            from src.services.vector_memory import VectorMemory
             self.vector_memory = VectorMemory()
             logger.info("✅ UnifiedClient (Universal Brain) & VectorMemory 初期化完了")
         except Exception as e:
