@@ -1,105 +1,85 @@
 @echo off
-setlocal enabledelayedexpansion
+setlocal EnableExtensions
+chcp 65001 >nul 2>&1
+
 set "SCRIPT_DIR=%~dp0"
-cd /d "%SCRIPT_DIR%.."
-set "ROOT_DIR=%CD%"
-chcp 65001 >nul
-title ORA Ecosystem Unified Launcher (FINAL-ULTRA-STABLE)
+for %%I in ("%SCRIPT_DIR%..") do set "REPO_ROOT=%%~fI"
+cd /d "%REPO_ROOT%"
+title YonerAI Full Launcher
 
-echo ========================================================
-echo ORA System 集中管理起動 - 高互換版
-echo ROOT: %ROOT_DIR%
-echo ========================================================
+if not exist logs mkdir logs
 
-:: --- [CLEANUP] ---
-echo [STEP 0] 以前のプロセスを終了しています...
-taskkill /F /IM python.exe >nul 2>&1
-taskkill /F /IM uvicorn.exe >nul 2>&1
-taskkill /F /IM node.exe >nul 2>&1
-taskkill /F /IM cloudflared.exe >nul 2>&1
-if exist "logs\cf_*.log" del /Q "logs\cf_*.log"
-echo [ OK ] クリーンアップ完了
-timeout /t 2 >nul
+set "PYEXE="
+call :pick_python "%REPO_ROOT%\.venv\Scripts\python.exe"
+if not defined PYEXE if defined VIRTUAL_ENV call :pick_python "%VIRTUAL_ENV%\Scripts\python.exe"
+if not defined PYEXE call :pick_python "%ORA_PYEXE%"
+if not defined PYEXE call :pick_python "python"
+if not defined PYEXE set "PYEXE=python"
 
-:: --- [DB INIT] ---
-echo [STEP 1] データベースの準備中...
-set "PYTHONPATH=%ROOT_DIR%\core\src"
-python "%ROOT_DIR%\scripts\fix_user_id_column.py"
-python "%ROOT_DIR%\scripts\init_core_db.py"
-echo [ OK ] データベース準備完了
+where npm.cmd >nul 2>&1
+if errorlevel 1 (
+  echo [ERROR] npm.cmd was not found. Install Node.js/npm first.
+  pause
+  exit /b 1
+)
 
-:: 1. ORA Core API (Brain) - Port 8001
-echo [STEP 2] ORA Core API (8001) を起動中...
-start "ORA-CoreAPI" cmd /k "cd /d ""%ROOT_DIR%"" && set PYTHONPATH=%ROOT_DIR%\core\src && python -m ora_core.main"
-timeout /t 2 >nul
+echo ==========================================
+echo YonerAI full start
+echo ROOT: %REPO_ROOT%
+echo Python: %PYEXE%
+echo ==========================================
+echo.
 
-:: 2. ORA Core Web Client (New Main) - Port 3000
-echo [STEP 3] ORA Web 操作画面 (3000) を起動中...
-start "ORA-Web-Main" cmd /k "cd /d ""%ROOT_DIR%\clients\web"" && npm run dev"
-timeout /t 2 >nul
+echo [1/5] DB init scripts...
+set "PYTHONPATH=%REPO_ROOT%\core\src"
+"%PYEXE%" "%REPO_ROOT%\scripts\fix_user_id_column.py" >> "logs\start_ora_system.log" 2>&1
+"%PYEXE%" "%REPO_ROOT%\scripts\init_core_db.py" >> "logs\start_ora_system.log" 2>&1
 
-:: 3. ORA Dashboard (Legacy) - Port 3333
-echo [STEP 4] ORA ダッシュボード (3333) を起動中...
-start "ORA-Dashboard-Legacy" cmd /k "cd /d ""%ROOT_DIR%\ora-ui"" && npm run dev"
-timeout /t 2 >nul
+echo [2/5] Core API (8001)...
+call :start_if_free 8001 "YonerAI-CoreAPI" "cd /d ""%REPO_ROOT%"" && set PYTHONPATH=%REPO_ROOT%\core\src && ""%PYEXE%"" -m ora_core.main >> ""logs\core_api.log"" 2>&1"
 
-:: 4. Legacy Web API - Port 8000
-echo [STEP 5] レガシー API (8000) を起動中...
-start "ORA-WebAPI-Legacy" cmd /k "cd /d ""%ROOT_DIR%"" && set PYTHONPATH=%ROOT_DIR% && L:\ORADiscordBOT_Env\Scripts\uvicorn.exe src.web.app:app --reload --host 0.0.0.0 --port 8000 --no-access-log"
-timeout /t 2 >nul
+echo [3/5] Legacy API (8000)...
+call :start_if_free 8000 "YonerAI-WebAPI" "cd /d ""%REPO_ROOT%"" && set PYTHONPATH=%REPO_ROOT% && ""%PYEXE%"" -m uvicorn src.web.app:app --reload --host 127.0.0.1 --port 8000 --no-access-log >> ""logs\web_api.log"" 2>&1"
 
-:: --- [LOGS INIT] ---
-if not exist "logs" mkdir "logs"
+echo [4/5] Next Web (3000)...
+call :start_if_free 3000 "YonerAI-WebUI" "cd /d ""%REPO_ROOT%\clients\web"" && npm.cmd run dev -- -H 127.0.0.1 -p 3000 >> ""..\..\logs\web_dev.log"" 2>&1"
 
-:: 5. External Access (Cloudflare Tunnel)
-echo [STEP 6] 外部アクセストンネルを起動中...
-set "CF_EXE="
-if exist "%ROOT_DIR%\tools\cloudflare\cloudflared.exe" set "CF_EXE=%ROOT_DIR%\tools\cloudflare\cloudflared.exe"
-if not defined CF_EXE if exist "L:\tools\cloudflare\cloudflared.exe" set "CF_EXE=L:\tools\cloudflare\cloudflared.exe"
-
-set "CF_HELPER=%ROOT_DIR%\scripts\start_tunnel_helper.bat"
-
-if defined CF_EXE (
-    echo [ OK ] トンネルを開始: !CF_EXE!
-    :: start "ORA-CF-Web" cmd /c ""%CF_HELPER%" "!CF_EXE!" http://localhost:3000 "logs\cf_web.log""
-    :: start "ORA-CF-Dash" cmd /c ""%CF_HELPER%" "!CF_EXE!" http://localhost:3333 "logs\cf_dash.log""
-    start "ORA-CF-API" cmd /c ""%CF_HELPER%" "!CF_EXE!" http://localhost:8001 "logs\cf_api.log""
-    start "ORA-CF-Comfy" cmd /c ""%CF_HELPER%" "!CF_EXE!" http://localhost:8188 "logs\cf_comfy.log""
+if exist "%REPO_ROOT%\main.py" (
+  echo [5/5] Discord Bot...
+  start "YonerAI-Discord" cmd /c "cd /d ""%REPO_ROOT%"" && ""%PYEXE%"" main.py >> ""logs\discord_main.log"" 2>&1"
 ) else (
-    echo [ERROR] cloudflared.exe が見つかりませんでした。
-)
-timeout /t 2 >nul
-
-:: 6. ComfyUI (FLUX)
-echo [STEP 7] ComfyUI (8188) を起動中...
-if exist "L:\ComfyUI\main.py" (
-    start "ORA-ComfyUI" cmd /k "cd /d L:\ComfyUI && L:\ORADiscordBOT_Env\Scripts\python.exe main.py --listen 127.0.0.1 --port 8188 --normalvram"
+  echo [5/5] Discord Bot skipped (main.py not found).
 )
 
-:: 7. Voice & Layer Engines
-echo [STEP 8] 音声・制御エンジンを起動中...
-start "ORA-Engine-Voice" cmd /k "cd /d ""%ROOT_DIR%"" && L:\ORADiscordBOT_Env\Scripts\python.exe src\services\voice_server.py"
-start "ORA-Engine-Layer" cmd /k "cd /d ""%ROOT_DIR%"" && L:\ORADiscordBOT_Env\Scripts\python.exe src\services\layer_server.py"
-timeout /t 1 >nul
+echo.
+echo [OK] Started portable services. Check logs\*.log
+echo      Web UI: http://127.0.0.1:3000
+echo      API:    http://127.0.0.1:8000
+echo      Core:   http://127.0.0.1:8001
+echo.
+exit /b 0
 
-:: 8. Visual Engine
-echo [STEP 9] 視覚エンジンを起動中...
-start "ORA-Engine-Visual" cmd /k "cd /d ""%ROOT_DIR%"" && L:\ORADiscordBOT_Env\Scripts\python.exe src\services\visual_server.py"
-timeout /t 1 >nul
+:pick_python
+set "CAND=%~1"
+if "%CAND%"=="" goto :eof
+if /I "%CAND%"=="python" (
+  python -c "import encodings" >nul 2>&1
+  if not errorlevel 1 set "PYEXE=python"
+  goto :eof
+)
+if not exist "%CAND%" goto :eof
+"%CAND%" -c "import encodings" >nul 2>&1
+if not errorlevel 1 set "PYEXE=%CAND%"
+goto :eof
 
-:: 9. Discord Bot
-echo [STEP 10] Discord Bot を起動中...
-start "ORA-Core-Bot" cmd /c ""%ROOT_DIR%\scripts\run_bot_loop.bat""
-start "ORA-Worker-Bot" cmd /c ""%ROOT_DIR%\scripts\run_worker_loop.bat""
-timeout /t 2 >nul
-
-:: 10. Final Browser Open
-echo [STEP 11] ローカル画面を表示しています...
-timeout /t 8 >nul
-:: start http://localhost:3000
-
-echo ========================================================
-echo [ OK ] 全システム起動完了！
-echo 約 30-60 秒ほどで Discord に日本語で URL が届きます。
-echo ========================================================
-pause
+:start_if_free
+set "PORT=%~1"
+set "TITLE=%~2"
+set "CMD=%~3"
+powershell -NoProfile -Command "$c=New-Object Net.Sockets.TcpClient; try { $c.Connect('127.0.0.1',%PORT%); exit 0 } catch { exit 1 } finally { $c.Dispose() }"
+if %ERRORLEVEL% equ 0 (
+  echo [INFO] Port %PORT% is already in use. Skip %TITLE%.
+) else (
+  start "%TITLE%" cmd /c "%CMD%"
+)
+goto :eof
