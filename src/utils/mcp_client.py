@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_PROTOCOL_VERSION = os.environ.get("ORA_MCP_PROTOCOL_VERSION", "2025-11-25")
 DEFAULT_STDIO_FRAMING = os.environ.get("ORA_MCP_STDIO_FRAMING", "jsonl").strip().lower()
+WIN32SYSLOADER_IMPORT_SENTINEL = "_win32sysloader"
 
 
 def _redact_cmd(cmd: list[str]) -> str:
@@ -153,8 +154,13 @@ class MCPStdioClient:
         self._pending: dict[int, asyncio.Future] = {}
         self._id = 1
         self._lock = asyncio.Lock()
+        self._disabled = False
+        self._disabled_reason: Optional[str] = None
+        self._disable_lock = threading.Lock()
 
     async def start(self) -> None:
+        if self._disabled:
+            raise RuntimeError(f"MCP disabled server={self.name} reason_code={self._disabled_reason}")
         if self._proc and self._proc.poll() is None:
             return
 
@@ -193,6 +199,21 @@ class MCPStdioClient:
         except Exception:
             # Don't hard-fail for compatibility with older/non-standard servers.
             logger.debug("MCP initialize handshake failed server=%s", self.name, exc_info=True)
+        if self._disabled:
+            await self.close()
+            raise RuntimeError(f"MCP disabled server={self.name} reason_code={self._disabled_reason}")
+
+    def _disable_with_reason(self, reason_code: str) -> None:
+        with self._disable_lock:
+            if self._disabled:
+                return
+            self._disabled = True
+            self._disabled_reason = reason_code
+        logger.warning(
+            "MCP[%s] disabled reason_code=%s action=no_restart",
+            self.name,
+            reason_code,
+        )
 
     async def close(self) -> None:
         if self._proc and self._proc.poll() is None:
@@ -243,6 +264,14 @@ class MCPStdioClient:
                 return
             txt = line.decode("utf-8", errors="ignore").rstrip()
             if txt:
+                if WIN32SYSLOADER_IMPORT_SENTINEL in txt.lower():
+                    self._disable_with_reason("mcp_import_error_win32sysloader")
+                    try:
+                        if self._proc and self._proc.poll() is None:
+                            self._proc.terminate()
+                    except Exception:
+                        pass
+                    return
                 logger.warning("MCP[%s] stderr: %s", self.name, redact_text(txt))
 
     async def request(self, method: str, params: Optional[dict] = None, timeout: int = 60) -> dict:
@@ -310,6 +339,8 @@ class MCPStdioClient:
                 break
             except Exception as e:
                 last_err = e
+                if self._disabled:
+                    break
                 continue
         if res is None and last_err is not None:
             rc = None
@@ -347,6 +378,8 @@ class MCPStdioClient:
                 break
             except Exception as e:
                 last_err = e
+                if self._disabled:
+                    break
                 continue
         if res is None and last_err is not None:
             rc = None
