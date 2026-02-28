@@ -12,6 +12,7 @@ from src.cogs.handlers.rag_handler import RAGHandler
 from src.cogs.handlers.swarm_orchestrator import SwarmOrchestrator
 from src.utils.agent_trace import trace_event
 from src.utils.core_client import core_client, extract_text_from_core_data
+from src.utils.route_policy import band_from_route_score, is_agent_band_allowed
 
 logger = logging.getLogger(__name__)
 
@@ -464,12 +465,7 @@ Interests: {interests}
                     route_mode = "AGENT_LOOP"
             route_band = str(route_meta.get("route_band") or "").lower()
             if route_band not in {"instant", "task", "agent"}:
-                if route_score <= 0.3:
-                    route_band = "instant"
-                elif route_score <= 0.6:
-                    route_band = "task"
-                else:
-                    route_band = "agent"
+                route_band = band_from_route_score(route_score)
 
             raw_budget = route_meta.get("budget")
             route_budget = raw_budget if isinstance(raw_budget, dict) else {}
@@ -488,7 +484,7 @@ Interests: {interests}
 
             max_tool_calls = _budget_int(
                 "max_tool_calls",
-                0 if route_mode == "INSTANT" else 5,
+                1 if route_mode == "INSTANT" else 5,
                 lo=0,
                 hi=20,
             )
@@ -497,6 +493,22 @@ Interests: {interests}
                 "max_tool_calls": max_tool_calls,
                 "time_budget_seconds": _budget_int("time_budget_seconds", 120, lo=10, hi=1800),
             }
+
+            # band2 placeholder: agent-path orchestration requires dev_ui or verified admin.
+            dev_ui_enabled = bool(client_context.get("dev_ui", False))
+            agent_band_allowed = is_agent_band_allowed(
+                verified_admin=verified_admin,
+                dev_ui_enabled=dev_ui_enabled,
+            )
+            if route_band == "agent" and not agent_band_allowed:
+                route_mode = "TASK"
+                route_budget = {
+                    "max_turns": min(route_budget["max_turns"], 5),
+                    "max_tool_calls": min(route_budget["max_tool_calls"], 5),
+                    "time_budget_seconds": min(route_budget["time_budget_seconds"], 120),
+                }
+                if "router_agent_band_gated" not in reason_codes:
+                    reason_codes.append("router_agent_band_gated")
 
             # Safe fallback: never run AGENT_LOOP on high-risk requests.
             if route_mode == "AGENT_LOOP" and route_risk >= 0.6:
@@ -538,6 +550,7 @@ Interests: {interests}
                 "security_risk_score": round(max(0.0, min(1.0, route_risk)), 2),
                 "budget": route_budget,
                 "reason_codes": reason_codes,
+                "agent_band_allowed": agent_band_allowed,
             }
             memory_used = bool(memory_context or channel_memory_context or guild_memory_context)
             route_meta_internal = route_meta.get("route_meta") if isinstance(route_meta.get("route_meta"), dict) else {}
@@ -586,7 +599,7 @@ Interests: {interests}
                 )
 
             # [SWARM] Optional high-complexity pre-orchestration
-            if self.swarm.should_run(route_meta, prompt):
+            if route_band == "agent" and agent_band_allowed and self.swarm.should_run(route_meta, prompt):
                 await status_manager.add_timeline("Swarm: タスク分解中")
                 trace_event("swarm.triggered", correlation_id=correlation_id, route_meta=route_meta)
                 try:

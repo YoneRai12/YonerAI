@@ -6,6 +6,7 @@ from typing import List, Dict, Any, Optional
 
 from src.utils.llm_client import LLMClient
 from src.utils.risk_scoring import score_tool_risk
+from src.utils.route_policy import band_from_route_score
 # S5 Optimization: Use Registry instead of heavy ToolHandler import
 from src.cogs.tools.registry import get_tool_schemas
 
@@ -788,12 +789,7 @@ class ToolSelector:
 
     @staticmethod
     def _band_from_route_score(score: float) -> str:
-        s = max(0.0, min(1.0, float(score)))
-        if s <= 0.3:
-            return "instant"
-        if s <= 0.6:
-            return "task"
-        return "agent"
+        return band_from_route_score(float(score))
 
     @staticmethod
     def _mode_budget(mode: str) -> Dict[str, int]:
