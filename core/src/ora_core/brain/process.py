@@ -207,6 +207,19 @@ class MainProcess:
 
         if mode == "INSTANT":
             budget["max_tool_calls"] = 0
+            # Keep band0 ("instant") fail-safe and cheap even when hints request larger budgets.
+            clamped_turns = min(int(budget.get("max_turns", 2)), int(self._ROUTE_DEFAULTS["INSTANT"]["max_turns"]))
+            clamped_time = min(
+                int(budget.get("time_budget_seconds", 25)),
+                int(self._ROUTE_DEFAULTS["INSTANT"]["time_budget_seconds"]),
+            )
+            if clamped_turns != int(budget.get("max_turns", clamped_turns)) or clamped_time != int(
+                budget.get("time_budget_seconds", clamped_time)
+            ):
+                if "router_budget_band0_clamped" not in reason_codes:
+                    reason_codes.append("router_budget_band0_clamped")
+            budget["max_turns"] = clamped_turns
+            budget["time_budget_seconds"] = clamped_time
         elif not selected_tool_schemas:
             # Keep Core budget consistent with the actual executable tool set.
             budget["max_tool_calls"] = 0
@@ -233,6 +246,13 @@ class MainProcess:
             "selected_tools": len(selected_tool_schemas),
             "memory_used": True,  # ContextBuilder is executed unconditionally before route execution.
         }
+        route_debug_meta = {
+            **route_meta,
+            "route_band": route.get("route_band"),
+            # Placeholders for future model-family routing visibility.
+            "model_family_primary": str(getattr(self.request, "llm_preference", "") or "auto"),
+            "model_family_fallback": "auto-fallback",
+        }
         logger.info(
             "Core route decision",
             extra={
@@ -247,7 +267,7 @@ class MainProcess:
             },
         )
         if self._route_debug_enabled():
-            route["route_debug"] = route_meta
+            route["route_debug"] = route_debug_meta
         else:
             route.pop("route_debug", None)
         return route

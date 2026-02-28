@@ -232,7 +232,11 @@ def test_effective_route_mode_thresholds_follow_route_score(monkeypatch) -> None
     async def _run() -> None:
         cases = [
             (0.20, "INSTANT", "instant"),
+            (0.30, "INSTANT", "instant"),
+            (0.31, "TASK", "task"),
             (0.50, "TASK", "task"),
+            (0.60, "TASK", "task"),
+            (0.61, "AGENT_LOOP", "agent"),
             (0.90, "AGENT_LOOP", "agent"),
         ]
         for score, expected_mode, expected_band in cases:
@@ -279,6 +283,10 @@ def test_effective_route_instant_still_calls_memory_context(monkeypatch) -> None
         final = _event_data(events, "final")
         route = final.get("effective_route") or {}
         assert route.get("mode") == "INSTANT"
+        budget = route.get("budget") or {}
+        assert int(budget.get("max_tool_calls", -1)) == 0
+        assert int(budget.get("max_turns", 99)) <= 2
+        assert int(budget.get("time_budget_seconds", 9999)) <= 25
         assert calls["count"] == 1
 
     asyncio.run(_run())
@@ -306,6 +314,9 @@ def test_effective_route_debug_is_admin_only(monkeypatch) -> None:
         route_admin = (_event_data(events_admin, "final").get("effective_route") or {})
         assert isinstance(route_admin.get("route_debug"), dict)
         assert route_admin.get("route_debug", {}).get("memory_used") is True
+        assert route_admin.get("route_debug", {}).get("route_band") in {"instant", "task", "agent"}
+        assert isinstance(route_admin.get("route_debug", {}).get("model_family_primary"), str)
+        assert isinstance(route_admin.get("route_debug", {}).get("model_family_fallback"), str)
 
         # Spoofed client flag must not unlock route_debug.
         req_user = MessageRequest(**{**base_req, "client_context": {"is_admin": True}})
