@@ -31,7 +31,7 @@ class MainProcess:
         self.cost_manager = CostManager()
 
     _ROUTE_DEFAULTS: dict[str, dict[str, int]] = {
-        "INSTANT": {"max_turns": 2, "max_tool_calls": 0, "time_budget_seconds": 25},
+        "INSTANT": {"max_turns": 2, "max_tool_calls": 1, "time_budget_seconds": 25},
         "TASK": {"max_turns": 5, "max_tool_calls": 5, "time_budget_seconds": 120},
         "AGENT_LOOP": {"max_turns": 8, "max_tool_calls": 10, "time_budget_seconds": 300},
     }
@@ -206,7 +206,14 @@ class MainProcess:
                 reason_codes.append("router_mode_forced_tools")
 
         if mode == "INSTANT":
-            budget["max_tool_calls"] = 0
+            # band0 keeps tools lightweight instead of forcing a hard zero.
+            budget["max_tool_calls"] = max(
+                1,
+                min(
+                    int(budget.get("max_tool_calls", self._ROUTE_DEFAULTS["INSTANT"]["max_tool_calls"])),
+                    int(self._ROUTE_DEFAULTS["INSTANT"]["max_tool_calls"]),
+                ),
+            )
             # Keep band0 ("instant") fail-safe and cheap even when hints request larger budgets.
             clamped_turns = min(int(budget.get("max_turns", 2)), int(self._ROUTE_DEFAULTS["INSTANT"]["max_turns"]))
             clamped_time = min(

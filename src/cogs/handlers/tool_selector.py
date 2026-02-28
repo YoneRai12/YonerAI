@@ -799,7 +799,7 @@ class ToolSelector:
     def _mode_budget(mode: str) -> Dict[str, int]:
         m = str(mode or "TASK").upper()
         defaults = {
-            "INSTANT": {"max_turns": 2, "max_tool_calls": 0, "time_budget_seconds": 25},
+            "INSTANT": {"max_turns": 2, "max_tool_calls": 1, "time_budget_seconds": 25},
             "TASK": {"max_turns": 5, "max_tool_calls": 5, "time_budget_seconds": 120},
             "AGENT_LOOP": {"max_turns": 8, "max_tool_calls": 10, "time_budget_seconds": 300},
         }

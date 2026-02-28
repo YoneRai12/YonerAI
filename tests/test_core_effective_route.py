@@ -284,7 +284,7 @@ def test_effective_route_instant_still_calls_memory_context(monkeypatch) -> None
         route = final.get("effective_route") or {}
         assert route.get("mode") == "INSTANT"
         budget = route.get("budget") or {}
-        assert int(budget.get("max_tool_calls", -1)) == 0
+        assert int(budget.get("max_tool_calls", -1)) >= 1
         assert int(budget.get("max_turns", 99)) <= 2
         assert int(budget.get("time_budget_seconds", 9999)) <= 25
         assert calls["count"] == 1
