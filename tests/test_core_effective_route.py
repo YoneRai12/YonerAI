@@ -377,3 +377,37 @@ def test_effective_route_with_tools_never_stays_instant(monkeypatch) -> None:
         assert "router_mode_forced_tools" in list(route.get("reason_codes") or [])
 
     asyncio.run(_run())
+
+
+def test_budget_stop_user_message_hides_internal_codes_by_default() -> None:
+    req = MessageRequest(
+        user_identity={"provider": "web", "id": "u-msg"},
+        content="x",
+        idempotency_key="budget-hide01",
+        source="web",
+    )
+    proc = MainProcess(run_id="run-msg-01", conversation_id="conv-msg-01", request=req, db_session=object())
+    msg = proc._budget_stop_user_message(
+        effective_route={"route_band": "task"},
+        reason_code="router_budget_tool_exceeded",
+    )
+    assert "router_budget_tool_exceeded" not in msg
+    assert "route_band=" not in msg
+
+
+def test_budget_stop_user_message_shows_codes_when_admin_debug(monkeypatch) -> None:
+    monkeypatch.setenv("ORA_ROUTE_DEBUG", "1")
+    req = MessageRequest(
+        user_identity={"provider": "web", "id": "u-msg-adm"},
+        content="x",
+        idempotency_key="budget-show01",
+        source="web",
+        request_meta={"admin_verified": True},
+    )
+    proc = MainProcess(run_id="run-msg-02", conversation_id="conv-msg-02", request=req, db_session=object())
+    msg = proc._budget_stop_user_message(
+        effective_route={"route_band": "task"},
+        reason_code="router_budget_tool_exceeded",
+    )
+    assert "router_budget_tool_exceeded" in msg
+    assert "route_band=task" in msg

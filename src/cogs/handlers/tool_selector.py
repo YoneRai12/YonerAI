@@ -605,12 +605,21 @@ class ToolSelector:
         security_risk_level = self._risk_level_from_score(security_risk_score)
         function_category = self._derive_function_category(selected_categories)
         reason_codes: List[str] = []
+        explicit_search_intent = self._is_explicit_search_intent(
+            prompt=prompt,
+            selected_categories=selected_categories,
+            selected_tools=final_tools,
+        )
 
         route_score = self._compose_route_score(
             complexity_score=complexity_score,
             security_risk_score=security_risk_score,
             action_score=action_score,
         )
+        # Search-like prompts should not remain in band0(INSTANT); keep at least band1(task).
+        if explicit_search_intent and route_score < 0.31:
+            route_score = 0.31
+            reason_codes.append("router_search_intent_floor_applied")
         if has_vision_attachment and route_score < 0.35:
             route_score = 0.35
             reason_codes.append("router_vision_floor_applied")
@@ -625,6 +634,13 @@ class ToolSelector:
             if "router_mode_forced_tools" not in reason_codes:
                 reason_codes.append("router_mode_forced_tools")
         route_band = self._band_from_route_score(route_score)
+        route_budget = self._mode_budget(mode)
+        if explicit_search_intent and route_band == "task":
+            current_max_tools = int(route_budget.get("max_tool_calls", 0) or 0)
+            if current_max_tools < 2:
+                route_budget["max_tool_calls"] = 2
+                if "router_search_budget_min_applied" not in reason_codes:
+                    reason_codes.append("router_search_budget_min_applied")
         route_meta_internal = {
             "risk_score": round(security_risk_score, 2),
             "difficulty_score": round(route_score, 2),
@@ -643,6 +659,7 @@ class ToolSelector:
         log_payload["security_risk_score"] = round(security_risk_score, 2)
         log_payload["security_risk_level"] = security_risk_level
         log_payload["has_vision_attachment"] = bool(has_vision_attachment)
+        log_payload["explicit_search_intent"] = bool(explicit_search_intent)
         if reason_codes:
             log_payload["route_reason_codes"] = list(reason_codes)
 
@@ -663,7 +680,7 @@ class ToolSelector:
             "selected_categories": list(selected_categories),
             "selected_tool_count": len(final_tools),
             "route_meta": route_meta_internal,
-            "budget": self._mode_budget(mode),
+            "budget": route_budget,
             "intents": {
                 "screenshot": bool(wants_screenshot),
                 "browser_control": bool(wants_browser_control),
@@ -830,6 +847,44 @@ class ToolSelector:
             + (max(0.0, min(1.0, float(action_score))) * 0.20)
         )
         return max(0.0, min(1.0, score))
+
+    @staticmethod
+    def _is_explicit_search_intent(
+        *,
+        prompt: str,
+        selected_categories: List[str],
+        selected_tools: List[dict],
+    ) -> bool:
+        p = (prompt or "").strip().lower()
+        if not p:
+            return False
+
+        search_keywords = [
+            "search",
+            "look up",
+            "lookup",
+            "find information",
+            "google",
+            "wikipedia",
+            "wiki",
+            "who is",
+            "what is",
+            "検索",
+            "調べて",
+            "調査",
+            "探して",
+            "とは",
+            "について",
+            "何者",
+            "誰",
+        ]
+        has_search_word = any(k in p for k in search_keywords)
+        has_web_read = any(str(c or "").upper() == "WEB_READ" for c in selected_categories)
+
+        tool_names = {str(t.get("name") or "").lower() for t in selected_tools if isinstance(t, dict)}
+        has_lookup_tool = bool(tool_names & {"web_search_api", "read_web_page", "web_search"})
+
+        return bool(has_search_word and (has_web_read or has_lookup_tool))
 
     @staticmethod
     def _risk_score_from_tools(tools: List[dict]) -> float:
