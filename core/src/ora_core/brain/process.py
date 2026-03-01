@@ -106,6 +106,16 @@ class MainProcess:
         except Exception:
             return False
 
+    def _budget_stop_user_message(self, effective_route: dict[str, Any], reason_code: str) -> str:
+        if self._route_debug_enabled():
+            route_band = str((effective_route or {}).get("route_band") or "").strip().lower()
+            route_band_part = f", route_band={route_band}" if route_band in {"instant", "task", "agent"} else ""
+            return (
+                f"[System] Route budget reached ({reason_code}{route_band_part}). "
+                "Request stopped by Core safety limits."
+            )
+        return "[System] Route budget reached. Request stopped by Core safety limits."
+
     @staticmethod
     def _append_reason_code(effective_route: dict[str, Any], reason_code: str) -> None:
         rc = str(reason_code or "").strip()
@@ -557,9 +567,9 @@ class MainProcess:
                 )
 
             if budget_stop_reason and not final_response_text.strip():
-                final_response_text = last_content.strip() or (
-                    f"[System] Route budget reached ({budget_stop_reason}). "
-                    "Request stopped by Core safety limits."
+                final_response_text = last_content.strip() or self._budget_stop_user_message(
+                    effective_route=effective_route,
+                    reason_code=budget_stop_reason,
                 )
 
             # 4. Save Assistant Message (Repo)

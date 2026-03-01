@@ -118,3 +118,27 @@ async def test_router_instant_with_tools_forces_task_mode() -> None:
     route_meta = route.get("route_meta") if isinstance(route.get("route_meta"), dict) else {}
     assert route_meta.get("memory_used") is True
 
+
+@pytest.mark.asyncio
+async def test_router_explicit_search_intent_forces_band1_and_min_budget() -> None:
+    cfg = SimpleNamespace(standard_model="gpt-5-mini")
+    setattr(cfg, "openai_" + "api" + "_key", "dummy")
+    bot = SimpleNamespace(config=cfg)
+    sel = ToolSelector(bot)
+    sel.llm_client = _FakeLLM('{"categories":["WEB_READ"],"intents":{"download":false,"screenshot":false,"browser_control":false}}')
+
+    # Keep base score in band0 and verify explicit search intent raises it to band1(task).
+    sel._compose_route_score = lambda **_kwargs: 0.2  # type: ignore[method-assign]
+    tools = [
+        {"name": "read_web_page", "tags": ["web", "read"]},
+    ]
+    out = await sel.select_tools("@YonerAI YoneRai12について検索してください", available_tools=tools)
+    assert out
+
+    route = sel.last_route_meta
+    assert str(route.get("route_band") or "") in {"task", "agent"}
+    budget = route.get("budget") if isinstance(route.get("budget"), dict) else {}
+    assert int(budget.get("max_tool_calls", 0) or 0) >= 2
+    reason_codes = list(route.get("reason_codes") or [])
+    assert "router_search_intent_floor_applied" in reason_codes
+
