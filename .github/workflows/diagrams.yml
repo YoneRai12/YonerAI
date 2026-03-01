@@ -47,7 +47,7 @@ jobs:
             '
 
       - name: Commit changes
-        uses: stefanzweifel/git-auto-commit-action@v5
+        uses: stefanzweifel/git-auto-commit-action@v7
         with:
           commit_message: "docs: update mermaid diagrams [skip ci]"
           file_pattern: "docs/diagrams/*.png docs/diagrams/*.svg"
