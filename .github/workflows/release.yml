@@ -42,7 +42,7 @@ jobs:
           python scripts/create_release.py "$VERSION"
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: ${{ env.PRODUCT_NAME }}-*.zip
           # Publish automatically (no manual "Draft -> Publish" step in the GitHub UI).
