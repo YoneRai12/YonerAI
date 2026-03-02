@@ -11,6 +11,7 @@ from src.config import resolve_bot_db_path
 from src.storage import Store
 from src.web import endpoints
 from src.utils.temp_downloads import cleanup_expired_downloads
+from src.web.files_store import cleanup_expired_files
 
 store: Store | None = None
 
@@ -51,6 +52,10 @@ app.include_router(browser.router, prefix="/api/browser")
 # Temporary Download Router
 from src.web.routers import downloads
 app.include_router(downloads.router)
+
+# Files Router (MVP: local disk + sqlite metadata)
+from src.web.routers import files
+app.include_router(files.router)
 
 # Mount Static Files
 from fastapi.staticfiles import StaticFiles
@@ -112,6 +117,10 @@ async def on_startup() -> None:
             while True:
                 try:
                     cleanup_expired_downloads()
+                except Exception:
+                    pass
+                try:
+                    await cleanup_expired_files()
                 except Exception:
                     pass
                 try:
