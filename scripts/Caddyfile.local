@@ -1,0 +1,35 @@
+{
+    auto_https off
+    admin off
+}
+
+127.0.0.1:8787 {
+    encode gzip
+
+    # legacy Web API (8000)
+    handle_path /legacy/* {
+        reverse_proxy 127.0.0.1:8000
+    }
+
+    # Core API (8001)
+    # Keep streaming responsive for SSE/event streams.
+    handle_path /core/* {
+        reverse_proxy 127.0.0.1:8001 {
+            flush_interval -1
+        }
+    }
+
+    # Gateway (3001)
+    # Keep streaming responsive for SSE/event streams.
+    handle_path /hooks/* {
+        reverse_proxy 127.0.0.1:3001 {
+            flush_interval -1
+        }
+    }
+
+    # Default route: Next.js Web UI (3000)
+    handle {
+        reverse_proxy 127.0.0.1:3000
+    }
+}
+
