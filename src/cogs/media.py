@@ -16,7 +16,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 import discord
 from discord import app_commands
@@ -27,7 +27,9 @@ from ..utils import image_tools
 from ..utils.flag_utils import country_to_flag, flag_to_iso, get_country_name, iso_to_flag
 from ..utils.llm_client import LLMClient
 from ..utils.search_client import SearchClient
-from ..utils.voice_manager import VoiceManager
+
+if TYPE_CHECKING:
+    from ..utils.voice_manager import VoiceManager
 
 # Import helper utilities for YouTube playback and flag translation
 from ..utils.youtube import (
@@ -47,6 +49,11 @@ from ..utils.spotify import is_spotify_playlist_like, is_spotify_url, get_spotif
 import random
 
 logger = logging.getLogger(__name__)
+
+
+def _voice_feature_enabled() -> bool:
+    raw = os.getenv("ORA_VOICE_ENABLED", "0").strip().lower()
+    return raw in {"1", "true", "yes", "on"}
 
 
 class MediaCog(commands.Cog):
@@ -1352,6 +1359,17 @@ class MediaCog(commands.Cog):
         this channel will be read aloud in the voice channel until `/leavevc`
         is used.
         """
+        if not _voice_feature_enabled():
+            msg = "音声機能は現在無効です。"
+            try:
+                if interaction.response.is_done():
+                    await interaction.followup.send(msg, ephemeral=True)
+                else:
+                    await interaction.response.send_message(msg, ephemeral=True)
+            except Exception:
+                logger.warning("Voice disabled notice could not be sent for /vc request.")
+            return
+
         await self._store.ensure_user(
             interaction.user.id,
             privacy_default="private",
