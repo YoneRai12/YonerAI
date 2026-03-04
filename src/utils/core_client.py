@@ -62,7 +62,7 @@ def extract_text_from_core_data(data: Any) -> Optional[str]:
     if not isinstance(data, dict):
         return None
 
-    for k in ("text", "final", "answer", "content", "message"):
+    for k in ("output_text", "text", "final", "answer", "content", "message"):
         v = data.get(k)
         if isinstance(v, str) and v.strip():
             return v

@@ -1,0 +1,46 @@
+version: 1
+
+# Canonical safety target when strict mode rejects/loses all candidates.
+stable_fallback:
+  provider: openai
+  model_id: gpt-5-mini
+
+# Alias map is intentionally explicit so env/ops can use short or legacy names.
+aliases:
+  GPT-5.3-INSTANT: gpt-5.3-instant
+  gpt5.3-instant: gpt-5.3-instant
+  gpt5.3instant: gpt-5.3-instant
+  gemini-3.1-flash-lite: gemini-3.1-flash-lite-preview
+  gemini-flash-lite: gemini-3.1-flash-lite-preview
+  gemini-3.1-pro-latest: gemini-3.1-pro
+  claude-opus-latest: claude-opus-4-1
+
+tiers:
+  instant:
+    fallback_order:
+      - provider: openai
+        model_id: gpt-5.3-instant
+      - provider: google
+        model_id: gemini-3.1-flash-lite-preview
+      - provider: openai
+        model_id: gpt-5-mini
+
+  balanced:
+    fallback_order:
+      - provider: openai
+        model_id: gpt-5-mini
+      - provider: google
+        model_id: gemini-3.1-flash
+      - provider: openai
+        model_id: gpt-4.1-mini
+
+  pro:
+    fallback_order:
+      - provider: openai
+        model_id: gpt-5
+      - provider: google
+        model_id: gemini-3.1-pro
+      - provider: anthropic
+        model_id: claude-opus-4-1
+      - provider: openai
+        model_id: gpt-5-mini

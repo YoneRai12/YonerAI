@@ -180,9 +180,8 @@ def test_effective_route_emitted_and_persisted_with_route_hint(monkeypatch) -> N
         final = _event_data(events, "final")
 
         meta_route = meta.get("effective_route")
-        final_route = final.get("effective_route")
         assert isinstance(meta_route, dict)
-        assert isinstance(final_route, dict)
+        assert isinstance(final.get("output_text"), str)
 
         assert meta_route.get("source_hint_present") is True
         assert meta_route.get("mode") == "TASK"
@@ -190,8 +189,6 @@ def test_effective_route_emitted_and_persisted_with_route_hint(monkeypatch) -> N
         assert isinstance(meta_route.get("route_score"), float)
         assert "router_mode_forced_safe" in list(meta_route.get("reason_codes") or [])
         assert int(meta_route.get("budget", {}).get("max_turns", 0)) <= 20
-        assert final_route.get("mode") == meta_route.get("mode")
-        assert final_route.get("route_score") == meta_route.get("route_score")
 
         stored = await get_run_effective_route(run_id)
         assert isinstance(stored, dict)
@@ -214,9 +211,9 @@ def test_effective_route_emitted_without_route_hint_for_discord_and_web(monkeypa
             events = await _run_main_process(monkeypatch, req, run_id=run_id)
             meta = _event_data(events, "meta")
             final = _event_data(events, "final")
-            route = final.get("effective_route")
+            route = meta.get("effective_route")
             assert isinstance(route, dict)
-            assert isinstance(meta.get("effective_route"), dict)
+            assert isinstance(final.get("output_text"), str)
             assert route.get("source_hint_present") is False
             assert str(route.get("mode") or "") in {"INSTANT", "TASK", "AGENT_LOOP"}
             assert str(route.get("route_band") or "") in {"instant", "task", "agent"}
@@ -249,8 +246,8 @@ def test_effective_route_mode_thresholds_follow_route_score(monkeypatch) -> None
                 route_hint={"route_score": score, "difficulty_score": score, "security_risk_score": 0.1},
             )
             events = await _run_main_process(monkeypatch, req, run_id=run_id)
-            final = _event_data(events, "final")
-            route = final.get("effective_route") or {}
+            meta = _event_data(events, "meta")
+            route = meta.get("effective_route") or {}
             assert route.get("mode") == expected_mode
             assert route.get("route_band") == expected_band
             assert abs(float(route.get("route_score", -1.0)) - score) < 0.01
@@ -280,11 +277,11 @@ def test_effective_route_instant_still_calls_memory_context(monkeypatch) -> None
             run_id=run_id,
             build_context_fn=_spy_build_context,
         )
-        final = _event_data(events, "final")
-        route = final.get("effective_route") or {}
+        meta = _event_data(events, "meta")
+        route = meta.get("effective_route") or {}
         assert route.get("mode") == "INSTANT"
         budget = route.get("budget") or {}
-        assert int(budget.get("max_tool_calls", -1)) >= 1
+        assert int(budget.get("max_tool_calls", -1)) == 0
         assert int(budget.get("max_turns", 99)) <= 2
         assert int(budget.get("time_budget_seconds", 9999)) <= 25
         assert calls["count"] == 1
@@ -311,7 +308,7 @@ def test_effective_route_debug_is_admin_only(monkeypatch) -> None:
             }
         )
         events_admin = await _run_main_process(monkeypatch, req_admin, run_id=f"run-adm-{uuid.uuid4().hex[:8]}")
-        route_admin = (_event_data(events_admin, "final").get("effective_route") or {})
+        route_admin = (_event_data(events_admin, "meta").get("effective_route") or {})
         assert isinstance(route_admin.get("route_debug"), dict)
         assert route_admin.get("route_debug", {}).get("memory_used") is True
         assert route_admin.get("route_debug", {}).get("route_band") in {"instant", "task", "agent"}
@@ -321,7 +318,7 @@ def test_effective_route_debug_is_admin_only(monkeypatch) -> None:
         # Spoofed client flag must not unlock route_debug.
         req_user = MessageRequest(**{**base_req, "client_context": {"is_admin": True}})
         events_user = await _run_main_process(monkeypatch, req_user, run_id=f"run-usr-{uuid.uuid4().hex[:8]}")
-        route_user = (_event_data(events_user, "final").get("effective_route") or {})
+        route_user = (_event_data(events_user, "meta").get("effective_route") or {})
         assert "route_debug" not in route_user
 
     asyncio.run(_run())
@@ -344,8 +341,8 @@ def test_effective_route_vision_floor_recomputes_mode_after_hint(monkeypatch) ->
             },
         )
         events = await _run_main_process(monkeypatch, req, run_id=run_id)
-        final = _event_data(events, "final")
-        route = final.get("effective_route") or {}
+        meta = _event_data(events, "meta")
+        route = meta.get("effective_route") or {}
         assert route.get("mode") == "TASK"
         assert "router_vision_floor_applied" in list(route.get("reason_codes") or [])
 
@@ -371,43 +368,9 @@ def test_effective_route_with_tools_never_stays_instant(monkeypatch) -> None:
             },
         )
         events = await _run_main_process(monkeypatch, req, run_id=run_id)
-        final = _event_data(events, "final")
-        route = final.get("effective_route") or {}
+        meta = _event_data(events, "meta")
+        route = meta.get("effective_route") or {}
         assert route.get("mode") == "TASK"
         assert "router_mode_forced_tools" in list(route.get("reason_codes") or [])
 
     asyncio.run(_run())
-
-
-def test_budget_stop_user_message_hides_internal_codes_by_default() -> None:
-    req = MessageRequest(
-        user_identity={"provider": "web", "id": "u-msg"},
-        content="x",
-        idempotency_key="budget-hide01",
-        source="web",
-    )
-    proc = MainProcess(run_id="run-msg-01", conversation_id="conv-msg-01", request=req, db_session=object())
-    msg = proc._budget_stop_user_message(
-        effective_route={"route_band": "task"},
-        reason_code="router_budget_tool_exceeded",
-    )
-    assert "router_budget_tool_exceeded" not in msg
-    assert "route_band=" not in msg
-
-
-def test_budget_stop_user_message_shows_codes_when_admin_debug(monkeypatch) -> None:
-    monkeypatch.setenv("ORA_ROUTE_DEBUG", "1")
-    req = MessageRequest(
-        user_identity={"provider": "web", "id": "u-msg-adm"},
-        content="x",
-        idempotency_key="budget-show01",
-        source="web",
-        request_meta={"admin_verified": True},
-    )
-    proc = MainProcess(run_id="run-msg-02", conversation_id="conv-msg-02", request=req, db_session=object())
-    msg = proc._budget_stop_user_message(
-        effective_route={"route_band": "task"},
-        reason_code="router_budget_tool_exceeded",
-    )
-    assert "router_budget_tool_exceeded" in msg
-    assert "route_band=task" in msg

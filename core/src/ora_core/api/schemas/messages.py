@@ -87,6 +87,7 @@ class EffectiveRouteBudget(BaseModel):
 class EffectiveRoute(BaseModel):
     mode: Literal["INSTANT", "TASK", "AGENT_LOOP"] = "TASK"
     route_band: Literal["instant", "task", "agent"] = "task"
+    model_tier: Literal["instant", "balanced", "pro"] = "balanced"
     function_category: str = "chat"
     route_score: float = 0.5
     difficulty_score: float = 0.5
