@@ -1,7 +1,9 @@
-import logging
+﻿import logging
 import asyncio
 import time
 import os
+import json
+import traceback
 from typing import Any
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,9 +12,16 @@ from ora_core.api.schemas.messages import EffectiveRoute, MessageRequest
 from ora_core.database.repo import Repository, RunStatus
 from ora_core.brain.context import ContextBuilder
 from ora_core.brain.memory import memory_store
+from ora_core.models.model_registry import get_model_registry
 # from ora_core.engine.omni_engine import remote_engine # To be implemented/connected
 from ora_core.engine.simple_worker import event_manager # For event streaming
 from src.utils.cost_manager import CostManager, Usage
+
+try:
+    from src.utils.agent_trace import trace_event
+except Exception:  # pragma: no cover - fallback for constrained test/runtime envs
+    def trace_event(*_args: Any, **_kwargs: Any) -> None:
+        return None
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +40,7 @@ class MainProcess:
         self.cost_manager = CostManager()
 
     _ROUTE_DEFAULTS: dict[str, dict[str, int]] = {
-        "INSTANT": {"max_turns": 2, "max_tool_calls": 1, "time_budget_seconds": 25},
+        "INSTANT": {"max_turns": 2, "max_tool_calls": 0, "time_budget_seconds": 25},
         "TASK": {"max_turns": 5, "max_tool_calls": 5, "time_budget_seconds": 120},
         "AGENT_LOOP": {"max_turns": 8, "max_tool_calls": 10, "time_budget_seconds": 300},
     }
@@ -92,6 +101,64 @@ class MainProcess:
             return "task"
         return "agent"
 
+    @staticmethod
+    def _tier_from_route_band(route_band: str) -> str:
+        return {
+            "instant": "instant",
+            "task": "balanced",
+            "agent": "pro",
+        }.get(str(route_band or "").strip().lower(), "balanced")
+
+    @staticmethod
+    def _truthy_env(name: str, default: bool = False) -> bool:
+        raw = os.getenv(name)
+        if raw is None:
+            return default
+        return str(raw).strip().lower() in {"1", "true", "yes", "on"}
+
+    @staticmethod
+    def _safe_user_message_for_error(error_code: str) -> str:
+        code = str(error_code or "").strip() or "core_error"
+        return f"Gateway failed: {code}"
+
+    @staticmethod
+    def _is_model_not_found_error(exc: Exception) -> bool:
+        msg = str(exc or "").lower()
+        markers = (
+            "model_not_found",
+            "model not found",
+            "unknown model",
+            "no such model",
+            "not a valid model",
+            "invalid model",
+        )
+        return any(m in msg for m in markers)
+
+    @staticmethod
+    def _is_provider_unavailable_error(exc: Exception) -> bool:
+        msg = str(exc or "").lower()
+        markers = (
+            "timeout",
+            "timed out",
+            "rate limit",
+            "429",
+            "503",
+            "temporarily unavailable",
+            "connection",
+        )
+        return any(m in msg for m in markers)
+
+    async def _emit_progress_event(self, *, stage: str, pass_index: int, toc: list[str] | None = None) -> None:
+        await event_manager.emit(
+            self.run_id,
+            "progress",
+            {
+                "stage": str(stage),
+                "pass": int(pass_index),
+                "toc": list(toc or []),
+            },
+        )
+
     def _route_debug_enabled(self) -> bool:
         raw = str(os.getenv("ORA_ROUTE_DEBUG", "") or "").strip().lower()
         env_enabled = raw in {"1", "true", "yes", "on"}
@@ -105,16 +172,6 @@ class MainProcess:
             return bool(getattr(req_meta, "admin_verified", False))
         except Exception:
             return False
-
-    def _budget_stop_user_message(self, effective_route: dict[str, Any], reason_code: str) -> str:
-        if self._route_debug_enabled():
-            route_band = str((effective_route or {}).get("route_band") or "").strip().lower()
-            route_band_part = f", route_band={route_band}" if route_band in {"instant", "task", "agent"} else ""
-            return (
-                f"[System] Route budget reached ({reason_code}{route_band_part}). "
-                "Request stopped by Core safety limits."
-            )
-        return "[System] Route budget reached. Request stopped by Core safety limits."
 
     @staticmethod
     def _append_reason_code(effective_route: dict[str, Any], reason_code: str) -> None:
@@ -135,6 +192,127 @@ class MainProcess:
             await record_run_effective_route(run_id=self.run_id, effective_route=effective_route)
         except Exception:
             pass
+
+    async def _generate_with_registry(
+        self,
+        *,
+        omni_engine: Any,
+        messages: list[dict[str, Any]],
+        client_type: str,
+        tool_schemas: list[dict[str, Any]] | None,
+        route_band: str,
+        pass_index: int,
+        llm_pref: str | None,
+    ) -> Any:
+        strict = self._truthy_env("MODEL_REGISTRY_STRICT", True)
+        registry = get_model_registry(strict=strict)
+        tier = registry.tier_for_route_band(route_band)
+        candidates = registry.resolve_candidates(route_band=route_band, tier=tier)
+
+        last_exc: Exception | None = None
+        selected_payload: dict[str, Any] | None = None
+
+        for idx, candidate in enumerate(candidates):
+            provider = candidate.provider
+            model_id = candidate.model_id
+            selected_payload = {
+                "run_id": self.run_id,
+                "route_band": route_band,
+                "tier": tier,
+                "pass": pass_index,
+                "provider": provider,
+                "model_id": model_id,
+                "candidate_index": idx,
+            }
+            logger.info("router.model.selected", extra={"route_event": selected_payload})
+
+            try:
+                response = await omni_engine.generate(
+                    messages,
+                    client_type,
+                    stream=False,
+                    preference=model_id,
+                    tool_schemas=tool_schemas or None,
+                )
+                logger.info(
+                    "router.model.fallback",
+                    extra={
+                        "route_event": {
+                            **selected_payload,
+                            "used": bool(idx > 0),
+                            "reason": "none" if idx == 0 else "provider_unavailable",
+                        }
+                    },
+                )
+                return response
+            except Exception as exc:
+                last_exc = exc
+                reason = "provider_error"
+                if self._is_model_not_found_error(exc):
+                    reason = "model_not_found"
+                    registry.disable_runtime(provider, model_id)
+                elif self._is_provider_unavailable_error(exc):
+                    reason = "provider_unavailable"
+
+                logger.warning(
+                    "router.model.fallback",
+                    extra={
+                        "route_event": {
+                            **selected_payload,
+                            "used": True,
+                            "reason": reason,
+                            "error": str(exc)[:240],
+                        }
+                    },
+                )
+                continue
+
+        # Strict mode: always fall back to stable_fallback as last safe option.
+        stable = registry.stable_fallback
+        stable_payload = {
+            "run_id": self.run_id,
+            "route_band": route_band,
+            "tier": tier,
+            "pass": pass_index,
+            "provider": stable.provider,
+            "model_id": stable.model_id,
+            "candidate_index": "stable_fallback",
+        }
+        logger.info("router.model.selected", extra={"route_event": stable_payload})
+        try:
+            response = await omni_engine.generate(
+                messages,
+                client_type,
+                stream=False,
+                preference=stable.model_id,
+                tool_schemas=tool_schemas or None,
+            )
+            logger.info(
+                "router.model.fallback",
+                extra={
+                    "route_event": {
+                        **stable_payload,
+                        "used": True,
+                        "reason": "stable_fallback",
+                    }
+                },
+            )
+            return response
+        except Exception as exc:
+            logger.warning(
+                "router.model.fallback",
+                extra={
+                    "route_event": {
+                        **stable_payload,
+                        "used": True,
+                        "reason": "stable_fallback_failed",
+                        "error": str(exc)[:240],
+                    }
+                },
+            )
+            if last_exc:
+                raise last_exc
+            raise exc
 
     def _resolve_effective_route(self, selected_tool_schemas: list[dict[str, Any]]) -> dict[str, Any]:
         hint: dict[str, Any] = {}
@@ -216,14 +394,7 @@ class MainProcess:
                 reason_codes.append("router_mode_forced_tools")
 
         if mode == "INSTANT":
-            # band0 keeps tools lightweight instead of forcing a hard zero.
-            budget["max_tool_calls"] = max(
-                1,
-                min(
-                    int(budget.get("max_tool_calls", self._ROUTE_DEFAULTS["INSTANT"]["max_tool_calls"])),
-                    int(self._ROUTE_DEFAULTS["INSTANT"]["max_tool_calls"]),
-                ),
-            )
+            budget["max_tool_calls"] = 0
             # Keep band0 ("instant") fail-safe and cheap even when hints request larger budgets.
             clamped_turns = min(int(budget.get("max_turns", 2)), int(self._ROUTE_DEFAULTS["INSTANT"]["max_turns"]))
             clamped_time = min(
@@ -241,9 +412,13 @@ class MainProcess:
             # Keep Core budget consistent with the actual executable tool set.
             budget["max_tool_calls"] = 0
 
+        route_band = self._band_from_route_score(route_score)
+        model_tier = self._tier_from_route_band(route_band)
+
         effective = EffectiveRoute(
             mode=mode,  # type: ignore[arg-type]
-            route_band=self._band_from_route_score(route_score),  # type: ignore[arg-type]
+            route_band=route_band,  # type: ignore[arg-type]
+            model_tier=model_tier,  # type: ignore[arg-type]
             function_category=function_category,
             route_score=round(route_score, 2),
             difficulty_score=round(difficulty_score, 2),
@@ -266,6 +441,7 @@ class MainProcess:
         route_debug_meta = {
             **route_meta,
             "route_band": route.get("route_band"),
+            "model_tier": route.get("model_tier"),
             # Placeholders for future model-family routing visibility.
             "model_family_primary": str(getattr(self.request, "llm_preference", "") or "auto"),
             "model_family_fallback": "auto-fallback",
@@ -292,30 +468,27 @@ class MainProcess:
     async def run(self):
         """Execute the cognitive cycle."""
         effective_route: dict[str, Any] = {}
+        budget_stop_reason: str | None = None
+        run_started_at = time.monotonic()
+
         try:
-            # 1. Status -> In Progress
             await self.repo.update_run_status(self.run_id, RunStatus.in_progress)
-            
-            # 2. Build Context (Brain)
+
             user = await self.repo.get_or_create_user(
                 self.request.user_identity.provider,
                 self.request.user_identity.id,
-                self.request.user_identity.display_name
+                self.request.user_identity.display_name,
             )
-            # Ignore client-provided admin flags; trust server-verified metadata only.
             verified_admin = self._is_admin_verified()
             if self.request.client_context is not None:
                 try:
                     self.request.client_context.is_admin = verified_admin
                 except Exception:
                     pass
-            
+
             context_messages = await ContextBuilder.build_context(self.request, user.id, self.conversation_id, self.repo)
-            
-            # [Moltbook] Soul Injection
+
             try:
-                # Soul path is relative to repo root: memory/soul.md
-                # Avoid machine-specific absolute paths so Core works across environments.
                 from pathlib import Path
 
                 repo_root = Path(__file__).resolve().parents[4]
@@ -323,44 +496,46 @@ class MainProcess:
                 if soul_path.exists():
                     with open(soul_path, "r", encoding="utf-8") as f:
                         soul_content = f.read().strip()
-                        if soul_content:
-                            # Prepend to context (System Prompt)
-                            context_messages.insert(0, {
-                                "role": "system", 
-                                "content": f"[SYSTEM IDENTITY]\n{soul_content}"
-                            })
-                            logger.info("👻 Core: Soul Injected.")
+                    if soul_content:
+                        context_messages.insert(0, {"role": "system", "content": f"[SYSTEM IDENTITY]\n{soul_content}"})
             except Exception as e:
                 logger.warning(f"Core Soul Injection Failed: {e}")
 
             client_type = getattr(self.request, "source", "web")
-            should_stream = getattr(self.request, "stream", True)
-            del should_stream  # Reserved for future stream/no-stream divergence.
             selected_tool_schemas = self._resolve_selected_tools_for_core(client_type)
             if client_type == "discord" and selected_tool_schemas:
                 self._register_missing_discord_proxy_tools(selected_tool_schemas)
 
             effective_route = self._resolve_effective_route(selected_tool_schemas)
+            route_band = str(effective_route.get("route_band") or "task")
+            model_tier = str(effective_route.get("model_tier") or self._tier_from_route_band(route_band))
             if effective_route.get("mode") == "INSTANT":
                 selected_tool_schemas = []
             await self._persist_effective_route(effective_route)
-            await event_manager.emit(
-                self.run_id,
-                "meta",
-                {
-                    "effective_route": effective_route,
-                },
-            )
+            await event_manager.emit(self.run_id, "meta", {"effective_route": effective_route})
+
+            if self._truthy_env("MODEL_REGISTRY_VERIFY_ON_STARTUP", False):
+                get_model_registry(strict=self._truthy_env("MODEL_REGISTRY_STRICT", True))
 
             from ora_core.engine.omni_engine import omni_engine
             from ora_core.mcp.runner import ToolRunner
-            import json
-            import traceback
-              
+
             runner = ToolRunner(self.repo)
+            llm_pref = getattr(self.request, "llm_preference", None)
+            route_budget = effective_route.get("budget") if isinstance(effective_route, dict) else {}
+            if not isinstance(route_budget, dict):
+                route_budget = {}
+            max_turns = self._clamp_int(route_budget.get("max_turns"), 5, lo=1, hi=20)
+            max_tool_calls = self._clamp_int(route_budget.get("max_tool_calls"), 0, lo=0, hi=20)
+            time_budget_seconds = self._clamp_int(route_budget.get("time_budget_seconds"), 120, lo=10, hi=1800)
+            pass_timeout_seconds = self._clamp_int(
+                os.getenv("ORA_BAND2_PASS_TIMEOUT_SEC"),
+                min(time_budget_seconds, 90),
+                lo=10,
+                hi=600,
+            )
 
             def _tool_content(tool_data: Any) -> str:
-                # OpenAI tool message content must be a string.
                 if isinstance(tool_data, str):
                     return tool_data
                 if tool_data is None:
@@ -370,87 +545,70 @@ class MainProcess:
                 except Exception:
                     return str(tool_data)
 
-            # 3. LLM Execution Loop (Intelligent Tool Use)
-            llm_pref = getattr(self.request, "llm_preference", None)
-            route_budget = effective_route.get("budget") if isinstance(effective_route, dict) else {}
-            if not isinstance(route_budget, dict):
-                route_budget = {}
-            max_turns = self._clamp_int(route_budget.get("max_turns"), 5, lo=1, hi=20)
-            max_tool_calls = self._clamp_int(route_budget.get("max_tool_calls"), 0, lo=0, hi=20)
-            time_budget_seconds = self._clamp_int(route_budget.get("time_budget_seconds"), 120, lo=10, hi=1800)
-            started_at = time.monotonic()
-            tool_calls_used = 0
-            budget_stop_reason: str | None = None
-            final_response_text = ""
-            last_content: str = ""
-              
-            for turn in range(max_turns):
-                if (time.monotonic() - started_at) >= float(time_budget_seconds):
-                    budget_stop_reason = "router_budget_time_exceeded"
-                    self._append_reason_code(effective_route, budget_stop_reason)
-                    break
-                logger.info(f"Run {self.run_id} Turn {turn+1}: Generating response (Pref: {llm_pref})...")
-                
-                # In Phase 6, we use non-streaming call to LLM to handle tool_calls robustly,
-                # then manually stream the text content to the user for UX.
-                response = await omni_engine.generate(
-                    context_messages,
-                    client_type,
-                    stream=False,
-                    preference=llm_pref,
-                    tool_schemas=selected_tool_schemas or None,
-                )
-                
-                # --- COST TRACKING ---
-                usage_info = getattr(response, "usage", None)
-                if usage_info:
-                    try:
-                        exec_model = getattr(response, "model", "unknown")
-                        # Routing Heuristic
-                        lane = "optimization"
-                        provider = "local"
-                        low_model = exec_model.lower()
-                        
-                        if any(k in low_model for k in ["gpt-4o", "gpt-4-turbo", "o1", "o3"]):
-                             if "mini" in low_model:
-                                 lane = "stable"
-                                 provider = "openai"
-                             else:
-                                 lane = "high"
-                                 provider = "openai"
-                        elif "gemini" in low_model:
-                             lane = "burn"
-                             provider = "gemini_trial"
-                        elif "claude" in low_model:
-                             lane = "high"
-                             provider = "claude"
-                        
-                        # Use Discord ID for tracking
-                        target_uid = self.request.user_identity.id
-                        
-                        u_obj = Usage(tokens_in=usage_info.prompt_tokens, tokens_out=usage_info.completion_tokens)
-                        self.cost_manager.add_cost(lane, provider, target_uid, u_obj)
-                        logger.info(f"💰 Cost Tracked: {lane}:{provider} ({u_obj.tokens_in} in, {u_obj.tokens_out} out)")
-                    except Exception as e:
-                        logger.error(f"Failed to track cost: {e}")
-                # ---------------------
+            async def _run_generation_pass(pass_index: int, pass_label: str) -> tuple[str, str | None]:
+                nonlocal budget_stop_reason
+                started_at = time.monotonic()
+                tool_calls_used = 0
+                pass_final_text = ""
+                last_content = ""
 
-                message = response.choices[0].message
-                content = message.content or ""
-                last_content = content
-                tool_calls = message.tool_calls
-                
-                if not tool_calls:
-                    # Final Turn (or just text)
-                    final_response_text = content
-                    context_messages.append({"role": "assistant", "content": content})
-                    break
-                else:
-                    # Intermediate turn with tool calls
-                    # Note: We must convert message to dict or store it as is if OmniEngine expects objects.
-                    # Usually OpenAI message objects work.
+                for turn in range(max_turns):
+                    if (time.monotonic() - started_at) >= float(time_budget_seconds):
+                        budget_stop_reason = "router_budget_time_exceeded"
+                        self._append_reason_code(effective_route, budget_stop_reason)
+                        break
+
+                    await self._emit_progress_event(
+                        stage="search" if selected_tool_schemas else "compose",
+                        pass_index=pass_index,
+                    )
+                    logger.info(
+                        f"Run {self.run_id} Pass {pass_label} Turn {turn+1}: Generating response (Tier: {model_tier}, Pref: {llm_pref})..."
+                    )
+                    response = await self._generate_with_registry(
+                        omni_engine=omni_engine,
+                        messages=context_messages,
+                        client_type=client_type,
+                        tool_schemas=selected_tool_schemas or None,
+                        route_band=route_band,
+                        pass_index=pass_index,
+                        llm_pref=llm_pref,
+                    )
+
+                    usage_info = getattr(response, "usage", None)
+                    if usage_info:
+                        try:
+                            exec_model = getattr(response, "model", "unknown")
+                            lane = "optimization"
+                            provider = "local"
+                            low_model = str(exec_model).lower()
+                            if any(k in low_model for k in ["gpt-", "o1", "o3", "o4"]):
+                                lane = "stable" if ("mini" in low_model or "instant" in low_model) else "high"
+                                provider = "openai"
+                            elif "gemini" in low_model:
+                                lane = "burn"
+                                provider = "google"
+                            elif "claude" in low_model:
+                                lane = "high"
+                                provider = "anthropic"
+
+                            target_uid = self.request.user_identity.id
+                            u_obj = Usage(tokens_in=usage_info.prompt_tokens, tokens_out=usage_info.completion_tokens)
+                            self.cost_manager.add_cost(lane, provider, target_uid, u_obj)
+                        except Exception as e:
+                            logger.error(f"Failed to track cost: {e}")
+
+                    message = response.choices[0].message
+                    content = message.content or ""
+                    last_content = content
+                    tool_calls = message.tool_calls
+
+                    if not tool_calls:
+                        pass_final_text = content
+                        context_messages.append({"role": "assistant", "content": content})
+                        break
+
                     context_messages.append(message)
-                    
                     for tc in tool_calls:
                         if (time.monotonic() - started_at) >= float(time_budget_seconds):
                             budget_stop_reason = "router_budget_time_exceeded"
@@ -460,6 +618,7 @@ class MainProcess:
                             budget_stop_reason = "router_budget_tool_exceeded"
                             self._append_reason_code(effective_route, budget_stop_reason)
                             break
+
                         tc_id = tc.id
                         t_name = tc.function.name
                         try:
@@ -490,8 +649,6 @@ class MainProcess:
                                 }
                             )
                             continue
-                        
-                        logger.info(f"Executing Tool: {t_name} (ID: {tc_id})")
 
                         req_meta = self.request.request_meta.model_dump() if self.request.request_meta else None
                         result = await runner.run_tool(
@@ -505,10 +662,6 @@ class MainProcess:
                             effective_route=effective_route,
                         )
 
-                        # Hub->Spoke bridge:
-                        # If this tool was proxied to Discord client action, wait for submitted
-                        # tool output from /v1/runs/{run_id}/results before continuing.
-                        tool_data: Any = None
                         if isinstance(result, dict):
                             tool_data = result.get("result") if result.get("result") is not None else result.get("error")
                         else:
@@ -520,17 +673,9 @@ class MainProcess:
                             and "client_action" in result.get("result", {})
                         )
                         if dispatched_externally:
-                            await event_manager.emit(
-                                self.run_id,
-                                "progress",
-                                {"status": f"Waiting client tool result: {t_name}"},
-                            )
+                            await self._emit_progress_event(stage="search", pass_index=pass_index)
                             try:
-                                submitted = await event_manager.wait_for_tool_result(
-                                    self.run_id,
-                                    tc_id,
-                                    timeout_sec=180,
-                                )
+                                submitted = await event_manager.wait_for_tool_result(self.run_id, tc_id, timeout_sec=180)
                                 tool_data = submitted.get("result", "[Success]")
                             except asyncio.TimeoutError:
                                 tool_data = {
@@ -545,50 +690,143 @@ class MainProcess:
                                     "ok": False,
                                     "error": {
                                         "code": "CLIENT_RESULT_CANCELLED",
-                                     "message": f"Client result wait cancelled: {t_name}",
-                                 },
-                             }
-                        
-                        context_messages.append({
-                            "role": "tool",
-                            "tool_call_id": tc_id,
-                            "name": t_name,
-                            "content": _tool_content(tool_data)
-                        })
+                                        "message": f"Client result wait cancelled: {t_name}",
+                                    },
+                                }
+
+                        context_messages.append(
+                            {
+                                "role": "tool",
+                                "tool_call_id": tc_id,
+                                "name": t_name,
+                                "content": _tool_content(tool_data),
+                            }
+                        )
                         tool_calls_used += 1
                     if budget_stop_reason:
                         break
+                else:
+                    self._append_reason_code(effective_route, "router_budget_turn_exceeded")
+                    pass_final_text = last_content.strip() or (
+                        f"[System] Tool execution exceeded {max_turns} turns. "
+                        "Last tool calls were processed but a final response could not be generated."
+                    )
+
+                if budget_stop_reason and not pass_final_text.strip():
+                    pass_final_text = last_content.strip() or self._budget_stop_user_message(
+                        effective_route=effective_route,
+                        reason_code=budget_stop_reason,
+                    )
+                return pass_final_text, budget_stop_reason
+
+            plan_toc = ["draft", "critique_patch", "deliver"] if route_band == "agent" else ["draft", "deliver"]
+            await self._emit_progress_event(stage="plan", pass_index=1, toc=plan_toc)
+            await self._emit_progress_event(stage="memory", pass_index=1)
+
+            if route_band == "agent":
+                try:
+                    final_response_text, budget_stop_reason = await asyncio.wait_for(
+                        _run_generation_pass(pass_index=1, pass_label="draft"),
+                        timeout=float(pass_timeout_seconds),
+                    )
+                except asyncio.TimeoutError:
+                    await self.repo.update_run_status(self.run_id, RunStatus.failed)
+                    await self._persist_effective_route(effective_route)
+                    await event_manager.emit(
+                        self.run_id,
+                        "error",
+                        {
+                            "error_code": "core_timeout",
+                            "user_safe_message": self._safe_user_message_for_error("core_timeout"),
+                        },
+                    )
+                    trace_event(
+                        "core.run.metrics",
+                        run_id=self.run_id,
+                        route_band=route_band,
+                        model_tier=model_tier,
+                        total_ms=int((time.monotonic() - run_started_at) * 1000),
+                        budget_stop=False,
+                        status="failed",
+                        error_code="core_timeout",
+                    )
+                    return
             else:
-                # The tool loop never produced a final assistant message. Avoid saving / streaming an empty response.
-                self._append_reason_code(effective_route, "router_budget_turn_exceeded")
-                final_response_text = last_content.strip() or (
-                    f"[System] Tool execution exceeded {max_turns} turns. "
-                    "Last tool calls were processed but a final response could not be generated."
-                )
+                final_response_text, budget_stop_reason = await _run_generation_pass(pass_index=1, pass_label="draft")
 
-            if budget_stop_reason and not final_response_text.strip():
-                final_response_text = last_content.strip() or self._budget_stop_user_message(
-                    effective_route=effective_route,
-                    reason_code=budget_stop_reason,
+            if route_band == "agent":
+                await self._emit_progress_event(stage="compose", pass_index=2, toc=["critique_patch"])
+                critique_prompt = (
+                    "You are in critique_patch pass. Improve clarity and correctness while preserving intent. "
+                    "Return only the final revised answer text."
                 )
+                critique_messages = list(context_messages)
+                critique_messages.append({"role": "assistant", "content": final_response_text})
+                critique_messages.append({"role": "system", "content": critique_prompt})
 
-            # 4. Save Assistant Message (Repo)
+                try:
+                    critique_response = await asyncio.wait_for(
+                        self._generate_with_registry(
+                            omni_engine=omni_engine,
+                            messages=critique_messages,
+                            client_type=client_type,
+                            tool_schemas=None,
+                            route_band=route_band,
+                            pass_index=2,
+                            llm_pref=llm_pref,
+                        ),
+                        timeout=float(pass_timeout_seconds),
+                    )
+                except asyncio.TimeoutError:
+                    await self.repo.update_run_status(self.run_id, RunStatus.failed)
+                    await self._persist_effective_route(effective_route)
+                    await event_manager.emit(
+                        self.run_id,
+                        "error",
+                        {
+                            "error_code": "core_timeout",
+                            "user_safe_message": self._safe_user_message_for_error("core_timeout"),
+                        },
+                    )
+                    trace_event(
+                        "core.run.metrics",
+                        run_id=self.run_id,
+                        route_band=route_band,
+                        model_tier=model_tier,
+                        total_ms=int((time.monotonic() - run_started_at) * 1000),
+                        budget_stop=bool(budget_stop_reason),
+                        status="failed",
+                        error_code="core_timeout",
+                    )
+                    return
+
+                try:
+                    revised = str(critique_response.choices[0].message.content or "").strip()
+                except Exception:
+                    revised = ""
+                if revised:
+                    final_response_text = revised
+
+            await self._emit_progress_event(stage="deliver", pass_index=2 if route_band == "agent" else 1)
+
             await self.repo.create_assistant_message(self.conversation_id, final_response_text)
-            
-            # 5. Update Memory (L3/L4)
             try:
                 await self._update_memory_on_completion(user.id, self.request.content, final_response_text)
             except Exception as e:
                 logger.error(f"Memory update failed (non-fatal): {e}\n{traceback.format_exc()}")
 
-            # 6. Final Event & Status
             await self._persist_effective_route(effective_route)
-            await event_manager.emit(self.run_id, "final", {
-                "text": final_response_text,
-                "message_id": "pending-db-save",
-                "effective_route": effective_route,
-            })
+            await event_manager.emit(self.run_id, "final", {"output_text": final_response_text})
             await self.repo.update_run_status(self.run_id, RunStatus.completed)
+            trace_event(
+                "core.run.metrics",
+                run_id=self.run_id,
+                route_band=route_band,
+                model_tier=model_tier,
+                total_ms=int((time.monotonic() - run_started_at) * 1000),
+                budget_stop=bool(budget_stop_reason),
+                status="completed",
+            )
 
         except Exception as e:
             logger.error(f"MainProcess Error: {e}", exc_info=True)
@@ -598,9 +836,19 @@ class MainProcess:
                 self.run_id,
                 "error",
                 {
-                    "message": str(e),
-                    "effective_route": effective_route if isinstance(effective_route, dict) else {},
+                    "error_code": "core_runtime_error",
+                    "user_safe_message": self._safe_user_message_for_error("core_runtime_error"),
                 },
+            )
+            trace_event(
+                "core.run.metrics",
+                run_id=self.run_id,
+                route_band=str(effective_route.get("route_band") or "task"),
+                model_tier=str(effective_route.get("model_tier") or "balanced"),
+                total_ms=int((time.monotonic() - run_started_at) * 1000),
+                budget_stop=bool(budget_stop_reason),
+                status="failed",
+                error_code="core_runtime_error",
             )
 
     def _resolve_selected_tools_for_core(self, client_type: str) -> list[dict[str, Any]]:
@@ -714,3 +962,4 @@ class MainProcess:
 
         # Atomic Save
         await memory_store.save_user_profile(target_memory_id, profile)
+

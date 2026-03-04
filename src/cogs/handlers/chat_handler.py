@@ -721,7 +721,16 @@ Interests: {interests}
 
                 elif ev_type == "progress":
                     # Update status bar with Harness Progress
-                    status_text = ev_data.get("status", "")
+                    stage = str(ev_data.get("stage") or "").strip() or "progress"
+                    pass_index = ev_data.get("pass")
+                    toc = ev_data.get("toc")
+                    toc_text = ""
+                    if isinstance(toc, list) and toc:
+                        toc_text = f" | {' / '.join([str(x) for x in toc[:3] if str(x).strip()])}"
+                    if pass_index is None:
+                        status_text = f"{stage}{toc_text}"
+                    else:
+                        status_text = f"{stage} (pass {pass_index}){toc_text}"
                     await status_manager.set_task_state(2, "running", status_text)
                     await status_manager.add_timeline(f"Progress: {status_text}")
                     trace_event("chat.progress", correlation_id=correlation_id, run_id=run_id, status=status_text)
