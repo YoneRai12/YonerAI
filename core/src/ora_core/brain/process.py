@@ -394,7 +394,9 @@ class MainProcess:
                 reason_codes.append("router_mode_forced_tools")
 
         if mode == "INSTANT":
-            budget["max_tool_calls"] = 0
+            # Keep band0 ("instant") fail-safe and cheap.
+            clamped_tools = min(int(budget.get("max_tool_calls", 0) or 0), 1)
+            budget["max_tool_calls"] = max(clamped_tools, 0)
             # Keep band0 ("instant") fail-safe and cheap even when hints request larger budgets.
             clamped_turns = min(int(budget.get("max_turns", 2)), int(self._ROUTE_DEFAULTS["INSTANT"]["max_turns"]))
             clamped_time = min(
@@ -408,9 +410,9 @@ class MainProcess:
                     reason_codes.append("router_budget_band0_clamped")
             budget["max_turns"] = clamped_turns
             budget["time_budget_seconds"] = clamped_time
-        elif not selected_tool_schemas:
-            # Keep Core budget consistent with the actual executable tool set.
-            budget["max_tool_calls"] = 0
+        elif int(budget.get("max_tool_calls", 0) or 0) <= 0:
+            # Respect router-provided budget for band1+ paths; only guard against invalid zero.
+            budget["max_tool_calls"] = 1
 
         route_band = self._band_from_route_score(route_score)
         model_tier = self._tier_from_route_band(route_band)

@@ -138,7 +138,32 @@ async def test_router_explicit_search_intent_forces_band1_and_min_budget() -> No
     route = sel.last_route_meta
     assert str(route.get("route_band") or "") in {"task", "agent"}
     budget = route.get("budget") if isinstance(route.get("budget"), dict) else {}
-    assert int(budget.get("max_tool_calls", 0) or 0) >= 2
+    assert int(budget.get("max_tool_calls", 0) or 0) >= 5
     reason_codes = list(route.get("reason_codes") or [])
     assert "router_search_intent_floor_applied" in reason_codes
+
+
+@pytest.mark.asyncio
+async def test_router_explicit_search_intent_raises_low_tool_budget_to_five() -> None:
+    cfg = SimpleNamespace(standard_model="gpt-5-mini")
+    setattr(cfg, "openai_" + "api" + "_key", "dummy")
+    bot = SimpleNamespace(config=cfg)
+    sel = ToolSelector(bot)
+    sel.llm_client = _FakeLLM('{"categories":["WEB_READ"],"intents":{"download":false,"screenshot":false,"browser_control":false}}')
+
+    # Keep score in band1 and intentionally lower mode budget to verify floor behavior.
+    sel._compose_route_score = lambda **_kwargs: 0.4  # type: ignore[method-assign]
+    sel._mode_budget = lambda _mode: {"max_turns": 5, "max_tool_calls": 1, "time_budget_seconds": 120}  # type: ignore[method-assign]
+    tools = [
+        {"name": "read_web_page", "tags": ["web", "read"]},
+    ]
+    out = await sel.select_tools("@YonerAI 検索して", available_tools=tools)
+    assert out
+
+    route = sel.last_route_meta
+    budget = route.get("budget") if isinstance(route.get("budget"), dict) else {}
+    assert int(budget.get("max_tool_calls", 0) or 0) >= 5
+    reason_codes = list(route.get("reason_codes") or [])
+    assert "router_search_budget_min_applied" in reason_codes
+    assert "router_search_budget_5_floor_applied" in reason_codes
 
