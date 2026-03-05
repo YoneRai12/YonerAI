@@ -635,12 +635,14 @@ class ToolSelector:
                 reason_codes.append("router_mode_forced_tools")
         route_band = self._band_from_route_score(route_score)
         route_budget = self._mode_budget(mode)
-        if explicit_search_intent and route_band == "task":
+        if explicit_search_intent and route_band in {"task", "agent"}:
             current_max_tools = int(route_budget.get("max_tool_calls", 0) or 0)
-            if current_max_tools < 2:
-                route_budget["max_tool_calls"] = 2
+            if current_max_tools < 5:
+                route_budget["max_tool_calls"] = 5
                 if "router_search_budget_min_applied" not in reason_codes:
                     reason_codes.append("router_search_budget_min_applied")
+                if "router_search_budget_5_floor_applied" not in reason_codes:
+                    reason_codes.append("router_search_budget_5_floor_applied")
         route_meta_internal = {
             "risk_score": round(security_risk_score, 2),
             "difficulty_score": round(route_score, 2),

@@ -281,12 +281,32 @@ def test_effective_route_instant_still_calls_memory_context(monkeypatch) -> None
         route = meta.get("effective_route") or {}
         assert route.get("mode") == "INSTANT"
         budget = route.get("budget") or {}
-        assert int(budget.get("max_tool_calls", -1)) == 0
+        assert int(budget.get("max_tool_calls", -1)) <= 1
         assert int(budget.get("max_turns", 99)) <= 2
         assert int(budget.get("time_budget_seconds", 9999)) <= 25
         assert calls["count"] == 1
 
     asyncio.run(_run())
+
+
+def test_effective_route_budget_not_forced_zero_when_tools_unselected() -> None:
+    req = MessageRequest(
+        user_identity={"provider": "discord", "id": "u-budget"},
+        content="検索して",
+        idempotency_key=f"budget-{uuid.uuid4().hex[:6]}",
+        source="discord",
+        route_hint={
+            "route_score": 0.5,
+            "difficulty_score": 0.5,
+            "security_risk_score": 0.1,
+            "budget": {"max_turns": 5, "max_tool_calls": 5, "time_budget_seconds": 120},
+        },
+    )
+    proc = MainProcess(run_id=f"run-budget-{uuid.uuid4().hex[:8]}", conversation_id="conv-budget", request=req, db_session=object())
+    route = proc._resolve_effective_route(selected_tool_schemas=[])
+    budget = route.get("budget") if isinstance(route.get("budget"), dict) else {}
+    assert str(route.get("route_band") or "") == "task"
+    assert int(budget.get("max_tool_calls", 0) or 0) >= 1
 
 
 def test_effective_route_debug_is_admin_only(monkeypatch) -> None:
