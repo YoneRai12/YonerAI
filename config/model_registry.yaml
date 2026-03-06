@@ -44,5 +44,3 @@ tiers:
         model_id: gemini-3.1-pro
       - provider: anthropic
         model_id: claude-opus-4-1
-      - provider: openai
-        model_id: gpt-5.4
