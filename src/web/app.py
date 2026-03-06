@@ -85,11 +85,11 @@ async def setup_ui(
 
     Guarded by the same policy as /api/*:
     - If ORA_WEB_API_TOKEN is set, require it.
-    - Otherwise allow loopback.
+    - Otherwise allow only intentional local/dev loopback bypass.
     """
-    # Usability: allow loopback access to the setup page even when ORA_WEB_API_TOKEN is set.
+    # Usability: allow local/dev loopback access to the setup page even when ORA_WEB_API_TOKEN is set.
     # The API endpoints still enforce require_web_api.
-    if not endpoints.is_loopback_request(request):
+    if not endpoints.can_bypass_web_api_auth(request):
         await endpoints.require_web_api(
             request=request,
             x_ora_token=x_ora_token,
