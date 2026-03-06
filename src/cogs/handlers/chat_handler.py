@@ -533,12 +533,15 @@ Interests: {interests}
                 "mode": route_mode,
                 "route_band": route_band,
                 "function_category": route_category,
+                "explicit_search_intent": bool(route_meta.get("explicit_search_intent")),
                 "difficulty_score": round(max(0.0, min(1.0, route_difficulty)), 2),
                 "route_score": round(route_score, 2),
                 "security_risk_score": round(max(0.0, min(1.0, route_risk)), 2),
                 "budget": route_budget,
                 "reason_codes": reason_codes,
             }
+            if route_meta.get("explicit_search_intent"):
+                route_meta["search_query_hint"] = (prompt or "").strip()[:500]
             memory_used = bool(memory_context or channel_memory_context or guild_memory_context)
             route_meta_internal = route_meta.get("route_meta") if isinstance(route_meta.get("route_meta"), dict) else {}
             route_meta_internal = {

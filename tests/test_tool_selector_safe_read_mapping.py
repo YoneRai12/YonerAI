@@ -139,6 +139,7 @@ async def test_router_explicit_search_intent_forces_band1_and_min_budget() -> No
     assert str(route.get("route_band") or "") in {"task", "agent"}
     budget = route.get("budget") if isinstance(route.get("budget"), dict) else {}
     assert int(budget.get("max_tool_calls", 0) or 0) >= 5
+    assert route.get("explicit_search_intent") is True
     reason_codes = list(route.get("reason_codes") or [])
     assert "router_search_intent_floor_applied" in reason_codes
 
