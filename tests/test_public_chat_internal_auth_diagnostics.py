@@ -47,6 +47,17 @@ def test_runtime_diagnostics_requires_admin_token(monkeypatch):
         assert r.status_code == 403
 
 
+def test_runtime_diagnostics_rejects_spoofed_loopback_header_without_admin_token(monkeypatch):
+    monkeypatch.delenv("ADMIN_DASHBOARD_TOKEN", raising=False)
+    monkeypatch.setenv("ALLOW_INSECURE_ADMIN_DASHBOARD", "1")
+    monkeypatch.setenv("ORA_ALLOW_MISSING_SECRETS", "1")
+    monkeypatch.delenv("ORA_TRUST_PROXY_HEADERS_FOR_LOCAL_AUTH", raising=False)
+
+    with TestClient(app, client=("203.0.113.10", 50000)) as client:
+        r = client.get("/api/platform/ops/web-runtime-diagnostics", headers={"x-forwarded-for": "127.0.0.1"})
+        assert r.status_code == 403
+
+
 def test_collect_memory_sync_status_handles_missing_cog(monkeypatch):
     class _FakeBot:
         def get_cog(self, _name: str):

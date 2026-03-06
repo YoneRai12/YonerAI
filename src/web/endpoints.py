@@ -8,7 +8,7 @@ import time
 import uuid
 from datetime import datetime
 from ipaddress import ip_address
-from typing import Any, List
+from typing import Any, List, Mapping
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request, Response, WebSocket, WebSocketDisconnect, Depends, Header, Query
@@ -22,6 +22,10 @@ from sse_starlette.sse import EventSourceResponse
 from src.config import COST_LIMITS
 
 router = APIRouter()
+
+_TRUE_VALUES = {"1", "true", "yes", "on"}
+_DEV_ENV_VALUES = {"dev", "development", "local", "test", "testing"}
+_NON_DEV_ENV_VALUES = {"prod", "production", "staging"}
 
 
 # -----------------------------------------------------------------------------
@@ -155,49 +159,98 @@ class SettingsEnvUpdate(BaseModel):
     mode: str | None = None
 
 
-def _is_loopback(request: Request) -> bool:
-    def _is_loopback_host(raw: str) -> bool:
-        host = (raw or "").strip()
-        if not host:
-            return False
-        if host.lower() == "localhost":
+def _bool_env(name: str, default: bool = False) -> bool:
+    raw = (os.getenv(name) or "").strip().lower()
+    if not raw:
+        return default
+    return raw in _TRUE_VALUES
+
+
+def _is_dev_mode() -> bool:
+    if _bool_env("ORA_ALLOW_MISSING_SECRETS", False):
+        return True
+    for name in ("ORA_ENV", "ORA_APP_ENV", "APP_ENV", "FASTAPI_ENV", "PYTHON_ENV", "ENV"):
+        raw = (os.getenv(name) or "").strip().lower()
+        if not raw:
+            continue
+        if raw in _DEV_ENV_VALUES:
             return True
-        # "ip:port" (IPv4) and "[ipv6]:port" normalization
-        if host.startswith("[") and "]" in host:
-            host = host[1:host.index("]")]
-        elif ":" in host and host.count(":") == 1:
-            maybe_h, maybe_p = host.rsplit(":", 1)
-            if maybe_p.isdigit():
-                host = maybe_h
-        try:
-            return ip_address(host).is_loopback
-        except Exception:
+        if raw in _NON_DEV_ENV_VALUES:
             return False
+    return False
 
-    def _forwarded_ip(req: Request) -> str:
-        # Prefer explicit single-IP headers first.
-        for k in ("cf-connecting-ip", "x-real-ip"):
-            v = (req.headers.get(k) or "").strip()
-            if v:
-                return v
-        # x-forwarded-for may be a comma-separated chain; the first is original client.
-        xff = (req.headers.get("x-forwarded-for") or "").strip()
-        if xff:
-            return xff.split(",")[0].strip()
-        return ""
 
-    # If a proxy forwards real client IP, trust that for loopback judgment.
-    fwd = _forwarded_ip(request)
-    if fwd:
-        return _is_loopback_host(fwd)
+def _is_loopback_host(raw: str) -> bool:
+    host = (raw or "").strip()
+    if not host:
+        return False
+    if host.lower() == "localhost":
+        return True
+    # "ip:port" (IPv4) and "[ipv6]:port" normalization
+    if host.startswith("[") and "]" in host:
+        host = host[1:host.index("]")]
+    elif ":" in host and host.count(":") == 1:
+        maybe_h, maybe_p = host.rsplit(":", 1)
+        if maybe_p.isdigit():
+            host = maybe_h
+    try:
+        return ip_address(host).is_loopback
+    except Exception:
+        return False
 
+
+def _forwarded_ip(headers: Mapping[str, str]) -> str:
+    for key in ("cf-connecting-ip", "x-real-ip"):
+        value = (headers.get(key) or "").strip()
+        if value:
+            return value
+
+    xff = (headers.get("x-forwarded-for") or "").strip()
+    if xff:
+        return xff.split(",")[0].strip()
+    return ""
+
+
+def _trust_proxy_headers_for_local_auth() -> bool:
+    return _bool_env("ORA_TRUST_PROXY_HEADERS_FOR_LOCAL_AUTH", False)
+
+
+def _is_loopback_client(*, peer_host: str, headers: Mapping[str, str] | None = None) -> bool:
+    if not _is_loopback_host(peer_host):
+        return False
+    if headers is None:
+        return True
+
+    forwarded = _forwarded_ip(headers)
+    if not forwarded:
+        return True
+
+    # Forwarded headers are never enough to create loopback by default.
+    # They can only preserve loopback when the direct peer is already local
+    # and trusted-proxy mode is explicitly enabled.
+    if not _trust_proxy_headers_for_local_auth():
+        return False
+
+    return _is_loopback_host(forwarded)
+
+
+def _is_loopback(request: Request) -> bool:
     host = (request.client.host if request.client else "") or ""
-    return _is_loopback_host(host)
+    return _is_loopback_client(peer_host=host, headers=request.headers)
+
+
+def _can_use_unauthenticated_loopback(request: Request) -> bool:
+    return _is_dev_mode() and _is_loopback(request)
 
 
 def is_loopback_request(request: Request) -> bool:
     """Public helper used by app.py for setup page guard."""
     return _is_loopback(request)
+
+
+def can_bypass_web_api_auth(request: Request) -> bool:
+    """Allow unauthenticated access only from intentional local/dev loopback callers."""
+    return _can_use_unauthenticated_loopback(request)
 
 
 async def require_admin(
@@ -209,10 +262,10 @@ async def require_admin(
     Admin API guard.
 
     - If `ADMIN_DASHBOARD_TOKEN` is set: require it (header `x-admin-token` or query `token`).
-    - If not set: allow only loopback requests AND `ALLOW_INSECURE_ADMIN_DASHBOARD=1` (explicit legacy opt-in).
+    - If not set: allow only dev-mode loopback requests AND `ALLOW_INSECURE_ADMIN_DASHBOARD=1`.
     """
     admin_token = (os.getenv("ADMIN_DASHBOARD_TOKEN") or "").strip()
-    allow_legacy = (os.getenv("ALLOW_INSECURE_ADMIN_DASHBOARD") or "").strip().lower() in {"1", "true", "yes", "on"}
+    allow_legacy = _bool_env("ALLOW_INSECURE_ADMIN_DASHBOARD", False)
     presented = (x_admin_token or token or "").strip()
 
     if admin_token:
@@ -223,8 +276,11 @@ async def require_admin(
     if not allow_legacy:
         raise HTTPException(status_code=503, detail="ADMIN_DASHBOARD_TOKEN is not configured")
 
+    if not _is_dev_mode():
+        raise HTTPException(status_code=503, detail="ADMIN_DASHBOARD_TOKEN is not configured")
+
     if not _is_loopback(request):
-        raise HTTPException(status_code=403, detail="Admin API only available on loopback without token")
+        raise HTTPException(status_code=403, detail="Admin API only available on loopback in dev without token")
 
 
 def _collect_memory_sync_status() -> dict[str, Any]:
@@ -311,11 +367,11 @@ async def require_web_api(
     Web API guard for internet exposure.
 
     - If `ORA_WEB_API_TOKEN` is set: require it (header `x-ora-token`, Authorization Bearer, or query `token`).
-    - If not set: allow only loopback callers.
+    - If not set: allow only dev-mode loopback callers.
     - If `ORA_REQUIRE_WEB_API_TOKEN=1`: require token even on loopback.
     """
     expected = (os.getenv("ORA_WEB_API_TOKEN") or "").strip()
-    require_token = (os.getenv("ORA_REQUIRE_WEB_API_TOKEN") or "").strip().lower() in {"1", "true", "yes", "on"}
+    require_token = _bool_env("ORA_REQUIRE_WEB_API_TOKEN", False)
 
     bearer = ""
     if authorization:
@@ -333,8 +389,11 @@ async def require_web_api(
     if require_token:
         raise HTTPException(status_code=503, detail="ORA_WEB_API_TOKEN is not configured")
 
-    if not _is_loopback(request):
+    if not _is_dev_mode():
         raise HTTPException(status_code=503, detail="ORA_WEB_API_TOKEN is not configured")
+
+    if not _is_loopback(request):
+        raise HTTPException(status_code=403, detail="Web API only available on loopback in dev without token")
 
 
 @router.get("/settings/status")
@@ -885,7 +944,7 @@ manager = ConnectionManager()
 async def websocket_endpoint(websocket: WebSocket, token: str | None = Query(None)):
     # WebSocket auth: match `require_web_api` behavior as closely as possible.
     expected = (os.getenv("ORA_WEB_API_TOKEN") or "").strip()
-    require_token = (os.getenv("ORA_REQUIRE_WEB_API_TOKEN") or "").strip().lower() in {"1", "true", "yes", "on"}
+    require_token = _bool_env("ORA_REQUIRE_WEB_API_TOKEN", False)
 
     presented = (token or "").strip()
     if not presented:
@@ -897,14 +956,14 @@ async def websocket_endpoint(websocket: WebSocket, token: str | None = Query(Non
             presented = parts[1].strip()
 
     host = (websocket.client.host if websocket.client else "") or ""
-    is_loopback = host in {"127.0.0.1", "::1", "localhost"}
+    allow_loopback_bypass = _is_dev_mode() and _is_loopback_client(peer_host=host, headers=websocket.headers)
 
     if expected:
         if (not presented) or (not hmac.compare_digest(presented, expected)):
             await websocket.close(code=1008)
             return
     else:
-        if require_token or (not is_loopback):
+        if require_token or (not allow_loopback_bypass):
             await websocket.close(code=1008)
             return
 
