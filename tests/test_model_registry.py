@@ -15,23 +15,24 @@ from ora_core.models.model_registry import ModelRegistry
 
 def _payload() -> dict:
     return {
-        "stable_fallback": {"provider": "openai", "model_id": "gpt-5-mini"},
-        "aliases": {"fast-openai": "gpt-5.3-instant"},
+        "stable_fallback": {"provider": "openai", "model_id": "gpt-5.4"},
+        "aliases": {"fast-openai": "gpt-5.3-instant", "gpt5.4": "gpt-5.4"},
         "tiers": {
             "instant": {
                 "fallback_order": [
                     {"provider": "openai", "model_id": "fast-openai"},
                     {"provider": "google", "model_id": "gemini-3.1-flash-lite-preview"},
+                    {"provider": "openai", "model_id": "gpt5.4"},
                 ]
             },
             "balanced": {
                 "fallback_order": [
-                    {"provider": "openai", "model_id": "gpt-5-mini"},
+                    {"provider": "openai", "model_id": "gpt5.4"},
                 ]
             },
             "pro": {
                 "fallback_order": [
-                    {"provider": "openai", "model_id": "gpt-5"},
+                    {"provider": "openai", "model_id": "gpt5.4"},
                     {"provider": "anthropic", "model_id": "claude-opus-4-1"},
                 ]
             },
@@ -44,7 +45,7 @@ def test_model_registry_alias_resolution_and_order() -> None:
     candidates = reg.resolve_candidates(route_band="instant")
     assert candidates[0].provider == "openai"
     assert candidates[0].model_id == "gpt-5.3-instant"
-    assert candidates[-1].model_id == "gpt-5-mini"
+    assert candidates[-1].model_id == "gpt-5.4"
 
 
 def test_model_registry_rejects_duplicate_candidates_per_tier() -> None:
@@ -64,4 +65,4 @@ def test_model_registry_strict_fallback_when_all_candidates_disabled() -> None:
     out = reg.resolve_candidates(route_band="pro")
     assert len(out) == 1
     assert out[0].provider == "openai"
-    assert out[0].model_id == "gpt-5-mini"
+    assert out[0].model_id == "gpt-5.4"
