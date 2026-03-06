@@ -12,7 +12,7 @@ class OmniEngine:
         self.api_key = (os.getenv("LLM_API_KEY") or os.getenv("OPENAI_API_KEY") or "").strip()
         self.local_url = os.getenv("LLM_BASE_URL", "http://127.0.0.1:8008/v1").rstrip("/")
         self.model = os.getenv("LLM_MODEL") or "mistralai/ministral-3-14b-reasoning"
-        self.cloud_default_model = (os.getenv("OPENAI_DEFAULT_MODEL") or "gpt-5-mini").strip()
+        self.cloud_default_model = (os.getenv("OPENAI_DEFAULT_MODEL") or "gpt-5.4").strip()
 
         # 1. Local Client (vLLM)
         # Set short timeout for local connections to fail fast and trigger fallback
