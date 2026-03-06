@@ -344,6 +344,48 @@ def test_effective_route_debug_is_admin_only(monkeypatch) -> None:
     asyncio.run(_run())
 
 
+def test_budget_stop_message_shows_reason_only_for_verified_admin(monkeypatch) -> None:
+    monkeypatch.setenv("ORA_ROUTE_DEBUG", "1")
+
+    req_admin = MessageRequest(
+        user_identity={"provider": "web", "id": "u-admin"},
+        content="budget stop message",
+        idempotency_key=f"dbgmsg-{uuid.uuid4().hex[:6]}",
+        source="web",
+        request_meta={"admin_verified": True},
+    )
+    proc_admin = MainProcess(
+        run_id=f"run-msg-admin-{uuid.uuid4().hex[:8]}",
+        conversation_id="conv-msg-admin",
+        request=req_admin,
+        db_session=object(),
+    )
+    admin_msg = proc_admin._budget_stop_user_message(
+        effective_route={"route_band": "agent"},
+        reason_code="router_budget_tool_exceeded",
+    )
+    assert "router_budget_tool_exceeded" in admin_msg
+    assert "route_band=agent" in admin_msg
+
+    req_user = MessageRequest(
+        user_identity={"provider": "web", "id": "u-user"},
+        content="budget stop message",
+        idempotency_key=f"dbgmsg-{uuid.uuid4().hex[:6]}",
+        source="web",
+    )
+    proc_user = MainProcess(
+        run_id=f"run-msg-user-{uuid.uuid4().hex[:8]}",
+        conversation_id="conv-msg-user",
+        request=req_user,
+        db_session=object(),
+    )
+    user_msg = proc_user._budget_stop_user_message(
+        effective_route={"route_band": "agent"},
+        reason_code="router_budget_tool_exceeded",
+    )
+    assert user_msg == "[System] Request stopped by Core safety limits."
+
+
 def test_effective_route_vision_floor_recomputes_mode_after_hint(monkeypatch) -> None:
     async def _run() -> None:
         run_id = f"run-vision-{uuid.uuid4().hex[:8]}"
