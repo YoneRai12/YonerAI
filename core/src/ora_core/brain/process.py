@@ -121,6 +121,18 @@ class MainProcess:
         code = str(error_code or "").strip() or "core_error"
         return f"Gateway failed: {code}"
 
+    def _budget_stop_user_message(self, *, effective_route: dict[str, Any], reason_code: str) -> str:
+        base = "[System] Request stopped by Core safety limits."
+        if not self._route_debug_enabled():
+            return base
+
+        route_band = str(effective_route.get("route_band") or "").strip().lower() or "task"
+        reason = str(reason_code or "").strip() or "router_budget_exceeded"
+        return (
+            f"[System] Route budget reached ({reason}). "
+            f"Request stopped by Core safety limits. route_band={route_band}"
+        )
+
     @staticmethod
     def _is_model_not_found_error(exc: Exception) -> bool:
         msg = str(exc or "").lower()
@@ -708,10 +720,11 @@ class MainProcess:
                     if budget_stop_reason:
                         break
                 else:
-                    self._append_reason_code(effective_route, "router_budget_turn_exceeded")
-                    pass_final_text = last_content.strip() or (
-                        f"[System] Tool execution exceeded {max_turns} turns. "
-                        "Last tool calls were processed but a final response could not be generated."
+                    budget_stop_reason = "router_budget_turn_exceeded"
+                    self._append_reason_code(effective_route, budget_stop_reason)
+                    pass_final_text = last_content.strip() or self._budget_stop_user_message(
+                        effective_route=effective_route,
+                        reason_code=budget_stop_reason,
                     )
 
                 if budget_stop_reason and not pass_final_text.strip():
