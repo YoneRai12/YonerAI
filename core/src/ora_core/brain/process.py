@@ -3,6 +3,7 @@ import asyncio
 import time
 import os
 import json
+import re
 import traceback
 from typing import Any
 from datetime import datetime
@@ -132,6 +133,238 @@ class MainProcess:
             f"[System] Route budget reached ({reason}). "
             f"Request stopped by Core safety limits. route_band={route_band}"
         )
+
+    @staticmethod
+    def _normalize_search_text(text: str) -> str:
+        lowered = str(text or "").strip().lower()
+        lowered = re.sub(r"<@!?\d+>", " ", lowered)
+        lowered = lowered.replace("@yonerai", " ")
+        lowered = re.sub(r"\s+", " ", lowered)
+        return lowered.strip()
+
+    def _search_query_hint(self, effective_route: dict[str, Any]) -> str:
+        hint = str(effective_route.get("search_query_hint") or "").strip()
+        if hint:
+            return hint
+        content = str(getattr(self.request, "content", "") or "").strip()
+        if not content:
+            return ""
+        return content.splitlines()[-1].strip()
+
+    def _clarification_allowed_before_search(self, query: str) -> bool:
+        normalized = self._normalize_search_text(query)
+        if not normalized:
+            return True
+
+        if any(marker in normalized for marker in ("この画像", "画像のurl", "このurl", "このリンク", "このページ")):
+            has_attachment = bool(getattr(self.request, "attachments", None))
+            has_url = bool(re.search(r"https?://", query or ""))
+            if not has_attachment and not has_url:
+                return True
+
+        if any(marker in normalized for marker in ("非公開", "private", "住所", "電話番号", "連絡先", "本名", "学校", "家族")):
+            return True
+
+        stripped = normalized
+        for token in (
+            "について",
+            "を",
+            "で",
+            "要約して",
+            "要約",
+            "まとめて",
+            "まとめ",
+            "比較して",
+            "比較しながら",
+            "検索して",
+            "検索",
+            "調べて",
+            "調査して",
+            "公開情報",
+            "web 全体で",
+            "web全体で",
+            "主要sns",
+            "活動内容",
+            "出典url",
+            "sources",
+            "source",
+        ):
+            stripped = stripped.replace(token, " ")
+        stripped = re.sub(r"[^0-9a-zA-Zぁ-んァ-ヶ一-龯_@.\-\s]", " ", stripped)
+        stripped = re.sub(r"\s+", " ", stripped).strip()
+        return len(stripped) < 2
+
+    @staticmethod
+    def _next_actions_for_search(query: str) -> list[str]:
+        query = str(query or "").strip()
+        return [
+            "検索語の表記ゆれを変えて再検索する",
+            "対象プラットフォームを指定して再検索する",
+            f"対象のURLやスクリーンショットを提示してもらう ({query[:60]})" if query else "対象のURLやスクリーンショットを提示してもらう",
+        ]
+
+    def _search_target_text(self, query: str) -> str:
+        stripped = self._normalize_search_text(query)
+        for token in (
+            "について",
+            "を",
+            "で",
+            "要約して",
+            "要約",
+            "まとめて",
+            "まとめ",
+            "比較して",
+            "比較しながら",
+            "検索して",
+            "検索",
+            "調べて",
+            "調査して",
+            "公開情報",
+            "web 全体で",
+            "web全体で",
+            "主要sns",
+            "活動内容",
+            "出典url",
+            "sources",
+            "source",
+        ):
+            stripped = stripped.replace(token, " ")
+        stripped = re.sub(r"[^0-9a-zA-Zぁ-んァ-ヶ一-龯_@.\-\s]", " ", stripped)
+        return re.sub(r"\s+", " ", stripped).strip()
+
+    def _build_search_result_contract(self, *, query: str, sources: list[dict[str, Any]]) -> dict[str, Any]:
+        normalized_query = self._search_target_text(query)
+        candidate_tokens = [
+            token
+            for token in re.split(r"\s+", normalized_query)
+            if len(token) >= 3 and token not in {"検索して", "要約して", "公開情報", "主要sns"}
+        ]
+        if not candidate_tokens and normalized_query:
+            candidate_tokens = [normalized_query]
+
+        matched_entities: list[str] = []
+        for source in sources:
+            hay = self._normalize_search_text(
+                " ".join(
+                    [
+                        str(source.get("title") or ""),
+                        str(source.get("snippet") or ""),
+                        str(source.get("url") or ""),
+                    ]
+                )
+            )
+            if any(token in hay for token in candidate_tokens):
+                matched_entities = [query.strip()]
+                break
+
+        confidence = 0.0
+        if sources:
+            confidence = 0.75 if matched_entities else 0.35
+
+        searched_sources = [
+            {
+                "title": str(source.get("title") or "").strip(),
+                "url": str(source.get("url") or "").strip(),
+                "snippet": str(source.get("snippet") or "").strip(),
+            }
+            for source in sources[:5]
+        ]
+
+        return {
+            "searched_sources": searched_sources,
+            "matched_entities": matched_entities,
+            "confidence": confidence,
+            "next_actions": self._next_actions_for_search(query),
+        }
+
+    @staticmethod
+    def _extract_search_sources(tool_payload: Any) -> list[dict[str, Any]]:
+        if not isinstance(tool_payload, dict):
+            return []
+        structured = tool_payload.get("structuredContent")
+        if isinstance(structured, dict) and isinstance(structured.get("sources"), list):
+            return [s for s in structured.get("sources") if isinstance(s, dict)]
+        if isinstance(tool_payload.get("sources"), list):
+            return [s for s in tool_payload.get("sources") if isinstance(s, dict)]
+        return []
+
+    @staticmethod
+    def _looks_like_clarification_only_response(text: str) -> bool:
+        normalized = str(text or "").strip()
+        if not normalized:
+            return True
+        question_markers = (
+            "確認",
+            "よろしいですか",
+            "教えてください",
+            "選んでください",
+            "どの範囲",
+            "どちら",
+            "何を",
+            "?",
+            "？",
+        )
+        source_markers = ("http://", "https://", "出典", "source", "sources")
+        has_question = any(marker in normalized for marker in question_markers)
+        has_sources = any(marker in normalized.lower() for marker in source_markers)
+        return has_question and not has_sources
+
+    def _format_search_no_match_response(self, *, query: str, contract: dict[str, Any]) -> str:
+        next_actions = contract.get("next_actions") or []
+        options = "\n".join(f"- {item}" for item in next_actions[:3])
+        query_label = query.strip() or "指定の対象"
+        return (
+            f"検索を実行しましたが、{query_label} に関する公開情報の中に自信を持って一致すると言える結果は見つかりませんでした。\n"
+            f"次にできること:\n{options}"
+        )
+
+    def _format_search_summary_fallback(self, *, query: str, contract: dict[str, Any]) -> str:
+        sources = contract.get("searched_sources") or []
+        top_lines: list[str] = []
+        for idx, source in enumerate(sources[:3], start=1):
+            title = str(source.get("title") or "無題").strip()
+            url = str(source.get("url") or "").strip()
+            snippet = str(source.get("snippet") or "").strip()
+            line = f"{idx}. {title}"
+            if url:
+                line += f" - {url}"
+            if snippet:
+                line += f"\n   {snippet[:140]}"
+            top_lines.append(line)
+        details = "\n".join(top_lines) if top_lines else "- 検索結果の詳細は取得済みです"
+        return (
+            f"{query.strip() or '指定の対象'} について検索を実行しました。公開情報の要点は次のとおりです。\n"
+            f"{details}"
+        )
+
+    async def _force_search_attempt(
+        self,
+        *,
+        runner: Any,
+        run_id: str,
+        user_id: str,
+        client_type: str,
+        query: str,
+        request_meta: dict[str, Any] | None,
+        effective_route: dict[str, Any],
+        pass_index: int,
+        tool_call_suffix: str,
+    ) -> tuple[str, dict[str, Any], dict[str, Any]]:
+        forced_tool_call_id = f"forced-search-{pass_index}-{tool_call_suffix}"
+        result = await runner.run_tool(
+            forced_tool_call_id,
+            run_id,
+            user_id,
+            "google_search",
+            {"query": query},
+            client_type,
+            request_meta=request_meta,
+            effective_route=effective_route,
+        )
+        tool_payload = result.get("result") if isinstance(result, dict) and result.get("result") is not None else result.get("error")
+        sources = self._extract_search_sources(tool_payload)
+        contract = self._build_search_result_contract(query=query, sources=sources)
+        return forced_tool_call_id, tool_payload, contract
 
     @staticmethod
     def _is_model_not_found_error(exc: Exception) -> bool:
@@ -345,6 +578,8 @@ class MainProcess:
         action_score = self._clamp_float(hint.get("action_score"), difficulty_score)
         security_risk_score = self._clamp_float(hint.get("security_risk_score"), 0.0)
         function_category = str(hint.get("function_category") or "chat").strip().lower() or "chat"
+        explicit_search_intent = bool(hint.get("explicit_search_intent"))
+        search_query_hint = str(hint.get("search_query_hint") or "").strip()[:500]
         route_score_hint = hint.get("route_score")
         if route_score_hint is None:
             route_score = (complexity_score * 0.45) + (security_risk_score * 0.35) + (action_score * 0.20)
@@ -434,6 +669,8 @@ class MainProcess:
             route_band=route_band,  # type: ignore[arg-type]
             model_tier=model_tier,  # type: ignore[arg-type]
             function_category=function_category,
+            explicit_search_intent=explicit_search_intent,
+            search_query_hint=search_query_hint or None,
             route_score=round(route_score, 2),
             difficulty_score=round(difficulty_score, 2),
             complexity_score=round(complexity_score, 2),
@@ -565,6 +802,11 @@ class MainProcess:
                 tool_calls_used = 0
                 pass_final_text = ""
                 last_content = ""
+                search_attempt_made = False
+                search_result_contract: dict[str, Any] | None = None
+                explicit_search_intent = bool(effective_route.get("explicit_search_intent"))
+                search_query_hint = self._search_query_hint(effective_route)
+                request_meta = self.request.request_meta.model_dump() if self.request.request_meta else None
 
                 for turn in range(max_turns):
                     if (time.monotonic() - started_at) >= float(time_budget_seconds):
@@ -618,8 +860,79 @@ class MainProcess:
                     tool_calls = message.tool_calls
 
                     if not tool_calls:
-                        pass_final_text = content
-                        context_messages.append({"role": "assistant", "content": content})
+                        if (
+                            explicit_search_intent
+                            and not search_attempt_made
+                            and not self._clarification_allowed_before_search(search_query_hint)
+                        ):
+                            if tool_calls_used >= max_tool_calls:
+                                budget_stop_reason = "router_budget_tool_exceeded"
+                                self._append_reason_code(effective_route, budget_stop_reason)
+                                pass_final_text = self._budget_stop_user_message(
+                                    effective_route=effective_route,
+                                    reason_code=budget_stop_reason,
+                                )
+                                context_messages.append({"role": "assistant", "content": pass_final_text})
+                                break
+
+                            forced_tool_call_id, tool_payload, search_result_contract = await self._force_search_attempt(
+                                runner=runner,
+                                run_id=self.run_id,
+                                user_id=user.id,
+                                client_type=client_type,
+                                query=search_query_hint,
+                                request_meta=request_meta,
+                                effective_route=effective_route,
+                                pass_index=pass_index,
+                                tool_call_suffix=f"{turn + 1}",
+                            )
+                            search_attempt_made = True
+                            tool_calls_used += 1
+                            context_messages.append(
+                                {
+                                    "role": "tool",
+                                    "tool_call_id": forced_tool_call_id,
+                                    "name": "google_search",
+                                    "content": _tool_content(tool_payload),
+                                }
+                            )
+                            if float(search_result_contract.get("confidence", 0.0) or 0.0) < 0.5:
+                                pass_final_text = self._format_search_no_match_response(
+                                    query=search_query_hint,
+                                    contract=search_result_contract,
+                                )
+                                context_messages.append({"role": "assistant", "content": pass_final_text})
+                                break
+
+                            context_messages.append(
+                                {
+                                    "role": "system",
+                                    "content": (
+                                        "[SEARCH-FIRST POLICY]\n"
+                                        "A real public search pass has already been executed. "
+                                        "Do not ask a clarification-only question. "
+                                        "Summarize the searched results with concrete sources. "
+                                        "If the match is weak, say that you searched but no confident match was found and list next actions."
+                                    ),
+                                }
+                            )
+                            continue
+
+                        if search_attempt_made and search_result_contract and self._looks_like_clarification_only_response(content):
+                            confidence = float(search_result_contract.get("confidence", 0.0) or 0.0)
+                            if confidence >= 0.5:
+                                pass_final_text = self._format_search_summary_fallback(
+                                    query=search_query_hint,
+                                    contract=search_result_contract,
+                                )
+                            else:
+                                pass_final_text = self._format_search_no_match_response(
+                                    query=search_query_hint,
+                                    contract=search_result_contract,
+                                )
+                        else:
+                            pass_final_text = content
+                        context_messages.append({"role": "assistant", "content": pass_final_text})
                         break
 
                     context_messages.append(message)
@@ -664,7 +977,6 @@ class MainProcess:
                             )
                             continue
 
-                        req_meta = self.request.request_meta.model_dump() if self.request.request_meta else None
                         result = await runner.run_tool(
                             tc_id,
                             self.run_id,
@@ -672,7 +984,7 @@ class MainProcess:
                             t_name,
                             t_args,
                             client_type,
-                            request_meta=req_meta,
+                            request_meta=request_meta,
                             effective_route=effective_route,
                         )
 
@@ -716,6 +1028,12 @@ class MainProcess:
                                 "content": _tool_content(tool_data),
                             }
                         )
+                        if self._extract_search_sources(tool_data):
+                            search_attempt_made = True
+                            search_result_contract = self._build_search_result_contract(
+                                query=search_query_hint or str(t_args.get("query") or ""),
+                                sources=self._extract_search_sources(tool_data),
+                            )
                         tool_calls_used += 1
                     if budget_stop_reason:
                         break

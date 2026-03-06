@@ -68,6 +68,8 @@ class RouteHint(BaseModel):
     # Entry points can provide hints only; Core decides effective_route.
     mode: Optional[str] = None
     function_category: Optional[str] = None
+    explicit_search_intent: bool = False
+    search_query_hint: Optional[str] = None
     route_score: Optional[float] = None
     difficulty_score: Optional[float] = None
     complexity_score: Optional[float] = None
@@ -89,6 +91,8 @@ class EffectiveRoute(BaseModel):
     route_band: Literal["instant", "task", "agent"] = "task"
     model_tier: Literal["instant", "balanced", "pro"] = "balanced"
     function_category: str = "chat"
+    explicit_search_intent: bool = False
+    search_query_hint: Optional[str] = None
     route_score: float = 0.5
     difficulty_score: float = 0.5
     complexity_score: float = 0.5

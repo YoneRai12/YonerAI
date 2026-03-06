@@ -108,12 +108,24 @@ class _FakeOmniEngine:
         return response
 
 
+class _SequenceOmniEngine:
+    def __init__(self, responses: list[str]):
+        self._responses = list(responses)
+
+    async def generate(self, *_args, **_kwargs):
+        content = self._responses.pop(0) if self._responses else "ok"
+        message = SimpleNamespace(content=content, tool_calls=[])
+        return SimpleNamespace(choices=[SimpleNamespace(message=message)], usage=None, model="test-model")
+
+
 async def _run_main_process(
     monkeypatch,
     req: MessageRequest,
     *,
     run_id: str,
     build_context_fn=None,
+    omni_engine=None,
+    tool_runner_cls=None,
 ) -> list[dict[str, Any]]:
     import ora_core.brain.process as process_mod
 
@@ -126,7 +138,12 @@ async def _run_main_process(
         return []
 
     fake_omni_module = types.ModuleType("ora_core.engine.omni_engine")
-    fake_omni_module.omni_engine = _FakeOmniEngine()
+    fake_omni_module.omni_engine = omni_engine or _FakeOmniEngine()
+
+    if tool_runner_cls is not None:
+        fake_runner_module = types.ModuleType("ora_core.mcp.runner")
+        fake_runner_module.ToolRunner = tool_runner_cls
+        monkeypatch.setitem(sys.modules, "ora_core.mcp.runner", fake_runner_module)
 
     monkeypatch.setattr(process_mod.event_manager, "emit", _fake_emit)
     monkeypatch.setattr(
@@ -434,5 +451,182 @@ def test_effective_route_with_tools_never_stays_instant(monkeypatch) -> None:
         route = meta.get("effective_route") or {}
         assert route.get("mode") == "TASK"
         assert "router_mode_forced_tools" in list(route.get("reason_codes") or [])
+
+    asyncio.run(_run())
+
+
+def test_explicit_search_forces_one_real_search_pass_before_final(monkeypatch) -> None:
+    class _SearchRunner:
+        calls: list[dict[str, Any]] = []
+
+        def __init__(self, _repo):
+            return None
+
+        async def run_tool(
+            self,
+            tool_call_id: str,
+            run_id: str,
+            user_id: str,
+            tool_name: str,
+            args: dict,
+            client_type: str,
+            request_meta: dict[str, Any] | None = None,
+            effective_route: dict[str, Any] | None = None,
+        ) -> dict[str, Any]:
+            del run_id, user_id, client_type, request_meta, effective_route
+            self.calls.append({"tool_call_id": tool_call_id, "tool_name": tool_name, "args": dict(args)})
+            return {
+                "status": "completed",
+                "result": {
+                    "ok": True,
+                    "structuredContent": {
+                        "sources": [
+                            {
+                                "title": "YoneRai12 - GitHub",
+                                "url": "https://github.com/YoneRai12",
+                                "snippet": "Public profile for YoneRai12",
+                            }
+                        ]
+                    },
+                    "content": [{"type": "text", "text": "search ok"}],
+                },
+            }
+
+    async def _run() -> None:
+        _SearchRunner.calls = []
+        req = MessageRequest(
+            user_identity={"provider": "discord", "id": "u-search"},
+            content="system\n\nYoneRai12について検索して要約して",
+            idempotency_key=f"search-{uuid.uuid4().hex[:6]}",
+            source="discord",
+            route_hint={
+                "route_score": 0.5,
+                "difficulty_score": 0.5,
+                "security_risk_score": 0.1,
+                "explicit_search_intent": True,
+                "search_query_hint": "YoneRai12について検索して要約して",
+            },
+        )
+        events = await _run_main_process(
+            monkeypatch,
+            req,
+            run_id=f"run-search-{uuid.uuid4().hex[:8]}",
+            omni_engine=_SequenceOmniEngine(
+                [
+                    "どの範囲で検索しますか？",
+                    "どのSNSを見るべきですか？",
+                ]
+            ),
+            tool_runner_cls=_SearchRunner,
+        )
+        assert _SearchRunner.calls
+        assert _SearchRunner.calls[0]["tool_name"] == "google_search"
+        final = _event_data(events, "final")
+        text = str(final.get("output_text") or "")
+        assert "検索を実行しました" in text
+        assert "github.com/YoneRai12" in text
+        assert "どの範囲で検索しますか" not in text
+
+    asyncio.run(_run())
+
+
+def test_explicit_search_with_no_results_returns_search_summary_not_clarification(monkeypatch) -> None:
+    class _EmptySearchRunner:
+        calls: list[dict[str, Any]] = []
+
+        def __init__(self, _repo):
+            return None
+
+        async def run_tool(
+            self,
+            tool_call_id: str,
+            run_id: str,
+            user_id: str,
+            tool_name: str,
+            args: dict,
+            client_type: str,
+            request_meta: dict[str, Any] | None = None,
+            effective_route: dict[str, Any] | None = None,
+        ) -> dict[str, Any]:
+            del run_id, user_id, client_type, request_meta, effective_route
+            self.calls.append({"tool_call_id": tool_call_id, "tool_name": tool_name, "args": dict(args)})
+            return {
+                "status": "completed",
+                "result": {
+                    "ok": True,
+                    "structuredContent": {"sources": []},
+                    "content": [{"type": "text", "text": "No search results found."}],
+                },
+            }
+
+    async def _run() -> None:
+        _EmptySearchRunner.calls = []
+        req = MessageRequest(
+            user_identity={"provider": "discord", "id": "u-search-empty"},
+            content="system\n\nYoneRai12について検索して要約して",
+            idempotency_key=f"search-empty-{uuid.uuid4().hex[:6]}",
+            source="discord",
+            route_hint={
+                "route_score": 0.5,
+                "difficulty_score": 0.5,
+                "security_risk_score": 0.1,
+                "explicit_search_intent": True,
+                "search_query_hint": "YoneRai12について検索して要約して",
+            },
+        )
+        events = await _run_main_process(
+            monkeypatch,
+            req,
+            run_id=f"run-search-empty-{uuid.uuid4().hex[:8]}",
+            omni_engine=_SequenceOmniEngine(["どの範囲で検索しますか？"]),
+            tool_runner_cls=_EmptySearchRunner,
+        )
+        assert _EmptySearchRunner.calls
+        final = _event_data(events, "final")
+        text = str(final.get("output_text") or "")
+        assert "検索を実行しました" in text
+        assert "自信を持って一致" in text
+        assert "どの範囲で検索しますか" not in text
+
+    asyncio.run(_run())
+
+
+def test_missing_search_target_allows_clarification_before_search(monkeypatch) -> None:
+    class _SearchRunner:
+        calls: list[dict[str, Any]] = []
+
+        def __init__(self, _repo):
+            return None
+
+        async def run_tool(self, *args, **kwargs) -> dict[str, Any]:
+            del args, kwargs
+            self.calls.append({"called": True})
+            return {"status": "completed", "result": {"ok": True, "structuredContent": {"sources": []}}}
+
+    async def _run() -> None:
+        _SearchRunner.calls = []
+        req = MessageRequest(
+            user_identity={"provider": "discord", "id": "u-search-missing"},
+            content="system\n\n検索して",
+            idempotency_key=f"search-missing-{uuid.uuid4().hex[:6]}",
+            source="discord",
+            route_hint={
+                "route_score": 0.5,
+                "difficulty_score": 0.5,
+                "security_risk_score": 0.1,
+                "explicit_search_intent": True,
+                "search_query_hint": "検索して",
+            },
+        )
+        events = await _run_main_process(
+            monkeypatch,
+            req,
+            run_id=f"run-search-missing-{uuid.uuid4().hex[:8]}",
+            omni_engine=_SequenceOmniEngine(["何を検索するか教えてください。"]),
+            tool_runner_cls=_SearchRunner,
+        )
+        assert not _SearchRunner.calls
+        final = _event_data(events, "final")
+        assert "何を検索するか教えてください" in str(final.get("output_text") or "")
 
     asyncio.run(_run())

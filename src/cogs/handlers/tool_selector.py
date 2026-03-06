@@ -669,6 +669,7 @@ class ToolSelector:
             "mode": mode,
             "route_band": route_band,
             "function_category": function_category,
+            "explicit_search_intent": bool(explicit_search_intent),
             "route_score": round(route_score, 2),
             # Keep compatibility with current Core route hint contract.
             "difficulty_score": round(route_score, 2),
