@@ -1,16 +1,10 @@
-from pathlib import Path
+from ora_core.env import load_runtime_env
 
-from dotenv import load_dotenv
-
-# Load environment variables from .env in the root project directory relative to this file
-# Core is at root/core, and main.py is at root/core/src/ora_core/main.py
-# 1: ora_core, 2: src, 3: core, 4: root
-ENV_PATH = Path(__file__).resolve().parent.parent.parent.parent / ".env"
-if ENV_PATH.exists():
-    load_dotenv(ENV_PATH)
+ENV_PATH = load_runtime_env(__file__)
+if ENV_PATH:
     print(f"[CORE] Loaded .env from {ENV_PATH}")
 else:
-    print(f"[CORE][WARN] .env NOT FOUND at {ENV_PATH}")
+    print("[CORE][WARN] .env NOT FOUND for runtime")
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware

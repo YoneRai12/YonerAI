@@ -1,13 +1,13 @@
 import os
 
 from openai import AsyncOpenAI
+from ora_core.env import load_runtime_env
 from ora_core.mcp.registry import tool_registry
 
 
 class OmniEngine:
     def __init__(self):
-        from dotenv import load_dotenv
-        load_dotenv(override=True)
+        load_runtime_env(__file__, override=True)
 
         self.api_key = (os.getenv("LLM_API_KEY") or os.getenv("OPENAI_API_KEY") or "").strip()
         self.local_url = os.getenv("LLM_BASE_URL", "http://127.0.0.1:8008/v1").rstrip("/")
