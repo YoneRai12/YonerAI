@@ -79,12 +79,7 @@ class Repository:
 
     async def get_or_create_conversation(self, conversation_id: str | None, user_id: str) -> Conversation:
         if conversation_id:
-            stmt = select(Conversation).where(
-                Conversation.id == conversation_id,
-                Conversation.user_id == user_id
-            )
-            result = await self.db.execute(stmt)
-            conv = result.scalar_one_or_none()
+            conv = await self.get_user_conversation(conversation_id, user_id)
             if conv:
                 return conv
         
@@ -99,6 +94,14 @@ class Repository:
         self.db.add(new_conv)
         await self.db.flush()
         return new_conv
+
+    async def get_user_conversation(self, conversation_id: str, user_id: str) -> Conversation | None:
+        stmt = select(Conversation).where(
+            Conversation.id == conversation_id,
+            Conversation.user_id == user_id,
+        )
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
 
     async def get_binding(self, provider: str, kind: str, external_id: str) -> ConversationBinding | None:
         stmt = select(ConversationBinding).where(
@@ -133,9 +136,14 @@ class Repository:
         2. If context_binding is provided (provider/kind/external_id), resolve via Bindings table.
         3. Otherwise, create a new conversation.
         """
-        # 1. Explicit ID
+        # 1. Explicit ID (must belong to the requesting user)
         if conversation_id:
-            return conversation_id
+            conv = await self.get_user_conversation(conversation_id, user_id)
+            if conv:
+                return conv.id
+
+            conv = await self.get_or_create_conversation(None, user_id)
+            return conv.id
 
         # 2. Binding
         if context_binding:
@@ -145,7 +153,20 @@ class Repository:
             if provider and kind and external_id:
                 binding = await self.get_binding(provider, kind, external_id)
                 if binding:
-                    return binding.conversation_id
+                    conv = await self.get_user_conversation(binding.conversation_id, user_id)
+                    if conv:
+                        return conv.id
+
+                    logger.warning(
+                        "Ignoring context binding %s/%s/%s for user %s because conversation %s is owned by another user",
+                        provider,
+                        kind,
+                        external_id,
+                        user_id,
+                        binding.conversation_id,
+                    )
+                    conv = await self.get_or_create_conversation(None, user_id)
+                    return conv.id
                 
                 # Create new conversation for this binding
                 new_conv = await self.get_or_create_conversation(None, user_id)
@@ -544,6 +565,5 @@ class Repository:
                 for c in recent_calls_res.scalars().all()
             ]
         }
-
 
 
