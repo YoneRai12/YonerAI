@@ -1,9 +1,12 @@
 import asyncio
 import io
+import ipaddress
 import logging
 import os
 import re
+import socket
 import tempfile
+import urllib.parse
 import uuid
 from typing import Any, Optional, Tuple
 
@@ -14,6 +17,34 @@ from PIL import Image
 from src.utils.temp_downloads import create_temporary_download, ensure_download_public_base_url
 
 logger = logging.getLogger(__name__)
+
+_BLOCKED_HOSTS = {
+    "localhost",
+    "localhost.localdomain",
+    "metadata",
+    "metadata.google.internal",
+    "metadata.azure.internal",
+}
+_BLOCKED_HOST_SUFFIXES = (".localhost", ".local", ".internal")
+_BLOCKED_NETS = (
+    ipaddress.ip_network("0.0.0.0/8"),
+    ipaddress.ip_network("10.0.0.0/8"),
+    ipaddress.ip_network("100.64.0.0/10"),
+    ipaddress.ip_network("127.0.0.0/8"),
+    ipaddress.ip_network("169.254.0.0/16"),
+    ipaddress.ip_network("172.16.0.0/12"),
+    ipaddress.ip_network("192.168.0.0/16"),
+    ipaddress.ip_network("198.18.0.0/15"),
+    ipaddress.ip_network("::1/128"),
+    ipaddress.ip_network("fc00::/7"),
+    ipaddress.ip_network("fe80::/10"),
+)
+_BLOCKED_METADATA_IPS = {
+    ipaddress.ip_address("169.254.169.254"),
+    ipaddress.ip_address("169.254.170.2"),
+    ipaddress.ip_address("100.100.100.200"),
+}
+_MAX_REDIRECTS = 3
 
 
 TOOL_SCHEMA = {
@@ -148,8 +179,7 @@ async def _find_image_url(message: discord.Message, history_limit: int) -> Optio
 
 
 async def _download_image(url: str, *, max_bytes: int = 25 * 1024 * 1024) -> bytes:
-    if not url or not re.match(r"^https?://", url.strip(), re.I):
-        raise ValueError("invalid image_url")
+    next_url, resolved_ips = await _assert_safe_image_url(url)
 
     timeout = aiohttp.ClientTimeout(total=30, connect=8)
     headers = {
@@ -158,20 +188,143 @@ async def _download_image(url: str, *, max_bytes: int = 25 * 1024 * 1024) -> byt
     }
 
     async with aiohttp.ClientSession(timeout=timeout, headers=headers) as session:
-        async with session.get(url, allow_redirects=True) as resp:
-            if resp.status != 200:
-                raise RuntimeError(f"download failed: {resp.status}")
-            cl = resp.headers.get("Content-Length")
-            if cl:
-                try:
-                    if int(cl) > max_bytes:
-                        raise RuntimeError("image too large")
-                except Exception:
-                    pass
-            data = await resp.read()
-            if len(data) > max_bytes:
-                raise RuntimeError("image too large")
-            return data
+        for _ in range(_MAX_REDIRECTS + 1):
+            async with session.get(next_url, allow_redirects=False) as resp:
+                _assert_peer_ip_safe(resp, resolved_ips)
+
+                if resp.status in {301, 302, 303, 307, 308}:
+                    location = resp.headers.get("Location")
+                    if not location:
+                        raise RuntimeError("download redirect missing location")
+                    next_url, resolved_ips = await _assert_safe_image_url(
+                        urllib.parse.urljoin(next_url, location)
+                    )
+                    continue
+
+                if resp.status != 200:
+                    raise RuntimeError(f"download failed: {resp.status}")
+                cl = resp.headers.get("Content-Length")
+                if cl:
+                    try:
+                        if int(cl) > max_bytes:
+                            raise RuntimeError("image too large")
+                    except Exception:
+                        pass
+                data = await resp.read()
+                if len(data) > max_bytes:
+                    raise RuntimeError("image too large")
+                return data
+
+    raise RuntimeError("too many redirects")
+
+
+def _normalize_host(host: str) -> str:
+    return str(host or "").strip().lower().rstrip(".")
+
+
+def _is_blocked_host(host: str) -> bool:
+    normalized = _normalize_host(host)
+    if not normalized:
+        return True
+    if normalized in _BLOCKED_HOSTS:
+        return True
+    if normalized.endswith(_BLOCKED_HOST_SUFFIXES):
+        return True
+    return False
+
+
+def _parse_ip_literal(host: str) -> ipaddress._BaseAddress | None:
+    try:
+        return ipaddress.ip_address(_normalize_host(host))
+    except Exception:
+        return None
+
+
+def _is_blocked_ip(ip_obj: ipaddress._BaseAddress) -> bool:
+    if ip_obj in _BLOCKED_METADATA_IPS:
+        return True
+    if (
+        ip_obj.is_loopback
+        or ip_obj.is_private
+        or ip_obj.is_link_local
+        or ip_obj.is_multicast
+        or ip_obj.is_reserved
+        or ip_obj.is_unspecified
+    ):
+        return True
+    for net in _BLOCKED_NETS:
+        if ip_obj in net:
+            return True
+    return False
+
+
+async def _resolve_host_ips(host: str) -> set[str]:
+    ip_lit = _parse_ip_literal(host)
+    if ip_lit is not None:
+        return {str(ip_lit)}
+
+    loop = asyncio.get_running_loop()
+    infos = await loop.getaddrinfo(_normalize_host(host), None, type=socket.SOCK_STREAM)
+
+    out: set[str] = set()
+    for info in infos:
+        sockaddr = info[4]
+        if isinstance(sockaddr, tuple) and sockaddr:
+            out.add(str(sockaddr[0]))
+    if not out:
+        raise ValueError("image_url host resolution failed")
+    return out
+
+
+async def _assert_safe_image_url(url: str) -> tuple[str, set[str]]:
+    parsed = urllib.parse.urlsplit(str(url or "").strip())
+    scheme = (parsed.scheme or "").lower()
+    if scheme not in {"http", "https"}:
+        raise ValueError("invalid image_url")
+    if parsed.username or parsed.password:
+        raise ValueError("invalid image_url")
+
+    host = _normalize_host(parsed.hostname or "")
+    if _is_blocked_host(host):
+        raise ValueError("image_url host not allowed")
+
+    ips = await _resolve_host_ips(host)
+    for raw_ip in ips:
+        if _is_blocked_ip(ipaddress.ip_address(raw_ip)):
+            raise ValueError("image_url host not allowed")
+
+    netloc = host
+    if parsed.port is not None:
+        netloc = f"{host}:{parsed.port}"
+    normalized = urllib.parse.urlunsplit(
+        (scheme, netloc, parsed.path or "/", parsed.query or "", "")
+    )
+    return normalized, ips
+
+
+def _iter_peer_ip_candidates(resp: aiohttp.ClientResponse):
+    try:
+        conn = getattr(resp, "connection", None)
+        transport = getattr(conn, "transport", None) if conn else None
+        peer = transport.get_extra_info("peername") if transport else None
+        if isinstance(peer, tuple) and peer:
+            yield str(peer[0])
+    except Exception:
+        return
+
+
+def _assert_peer_ip_safe(resp: aiohttp.ClientResponse, resolved_ips: set[str]) -> None:
+    for raw_peer in _iter_peer_ip_candidates(resp):
+        try:
+            ip_obj = ipaddress.ip_address(raw_peer)
+            if _is_blocked_ip(ip_obj):
+                raise ValueError("image_url host not allowed")
+            if resolved_ips and str(ip_obj) not in resolved_ips:
+                raise ValueError("image_url host not allowed")
+        except ValueError:
+            raise
+        except Exception:
+            continue
 
 
 def _center_crop(im: Image.Image, aspect: float) -> Image.Image:
