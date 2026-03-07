@@ -646,7 +646,7 @@ class MainProcess:
                     client_type,
                     stream=False,
                     preference=model_id,
-                    tool_schemas=tool_schemas or None,
+                    tool_schemas=tool_schemas,
                 )
                 logger.info(
                     "router.model.fallback",
@@ -699,7 +699,7 @@ class MainProcess:
                 client_type,
                 stream=False,
                 preference=stable.model_id,
-                tool_schemas=tool_schemas or None,
+                tool_schemas=tool_schemas,
             )
             logger.info(
                 "router.model.fallback",
@@ -809,7 +809,9 @@ class MainProcess:
             if "router_mode_forced_tools" not in reason_codes:
                 reason_codes.append("router_mode_forced_tools")
 
-        if mode == "INSTANT":
+        if not selected_tool_schemas and not explicit_search_intent:
+            budget["max_tool_calls"] = 0
+        elif mode == "INSTANT":
             # Keep band0 ("instant") fail-safe and cheap.
             clamped_tools = min(int(budget.get("max_tool_calls", 0) or 0), 1)
             budget["max_tool_calls"] = max(clamped_tools, 0)
@@ -994,7 +996,7 @@ class MainProcess:
                         omni_engine=omni_engine,
                         messages=context_messages,
                         client_type=client_type,
-                        tool_schemas=selected_tool_schemas or None,
+                        tool_schemas=selected_tool_schemas,
                         route_band=route_band,
                         pass_index=pass_index,
                         llm_pref=llm_pref,

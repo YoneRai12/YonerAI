@@ -306,7 +306,7 @@ def test_effective_route_instant_still_calls_memory_context(monkeypatch) -> None
     asyncio.run(_run())
 
 
-def test_effective_route_budget_not_forced_zero_when_tools_unselected() -> None:
+def test_effective_route_budget_stays_zero_when_tools_unselected() -> None:
     req = MessageRequest(
         user_identity={"provider": "discord", "id": "u-budget"},
         content="検索して",
@@ -323,7 +323,7 @@ def test_effective_route_budget_not_forced_zero_when_tools_unselected() -> None:
     route = proc._resolve_effective_route(selected_tool_schemas=[])
     budget = route.get("budget") if isinstance(route.get("budget"), dict) else {}
     assert str(route.get("route_band") or "") == "task"
-    assert int(budget.get("max_tool_calls", 0) or 0) >= 1
+    assert int(budget.get("max_tool_calls", -1) or 0) == 0
 
 
 def test_effective_route_debug_is_admin_only(monkeypatch) -> None:
