@@ -48,6 +48,8 @@ def _get_youtube_audio_stream_url_sync(query: str, proxy: Optional[str] = None) 
     Get the audio stream URL for a YouTube video or search query (Synchronous).
     Returns: (stream_url, title, duration_seconds)
     """
+    query = (query or "").strip()
+
     # Explicitly handle search queries
     if not query.startswith("http"):
         # If it looks like a search, force ytsearch prefix to be safe
@@ -55,6 +57,25 @@ def _get_youtube_audio_stream_url_sync(query: str, proxy: Optional[str] = None) 
             # ytsearch5: gets 5 results, we pick first.
             # but ytsearch1: is faster if we only need one.
             query = f"ytsearch1:{query}"
+    else:
+        # Security guard: this helper should only resolve YouTube URLs.
+        # Reject arbitrary external URLs to avoid SSRF via yt-dlp's generic extractor.
+        try:
+            host = (urlparse(query).hostname or "").lower()
+        except Exception:
+            host = ""
+
+        allowed_hosts = {
+            "youtube.com",
+            "www.youtube.com",
+            "m.youtube.com",
+            "music.youtube.com",
+            "youtu.be",
+            "www.youtu.be",
+        }
+        if host not in allowed_hosts:
+            logger.warning("Rejected non-YouTube URL in get_youtube_audio_stream_url: %s", query)
+            return None, None, None
 
     logger.info(f"Resolving YouTube URL for: {query}")
 
