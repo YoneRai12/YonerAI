@@ -60,6 +60,25 @@ class SwarmOrchestrator:
                 return False, f"Blocked by guardrail: {pat}"
         return True, "ok"
 
+    @staticmethod
+    def _build_subtask_context_binding(
+        context_binding: Optional[Dict[str, Any]],
+        correlation_id: str,
+        task_id: Any,
+    ) -> Dict[str, str]:
+        """
+        Build an isolated binding so swarm subtask traffic never lands in the
+        user-visible channel/thread conversation history.
+        """
+        base_provider = str((context_binding or {}).get("provider") or "discord")
+        safe_correlation = str(correlation_id or "swarm")
+        safe_task_id = str(task_id or "task")
+        return {
+            "provider": f"{base_provider}_swarm",
+            "kind": "swarm_subtask",
+            "external_id": f"{safe_correlation}:{safe_task_id}",
+        }
+
     async def _decompose(self, prompt: str, rag_context: str, correlation_id: str) -> List[Dict[str, Any]]:
         max_tasks = int(getattr(self.bot.config, "swarm_max_tasks", 3))
         decompose_prompt = f"""
@@ -161,7 +180,11 @@ Return STRICT JSON:
                     display_name=display_name,
                     conversation_id=None,
                     idempotency_key=f"swarm:{correlation_id}:{task.get('id')}:{attempt}",
-                    context_binding=context_binding,
+                    context_binding=self._build_subtask_context_binding(
+                        context_binding=context_binding,
+                        correlation_id=correlation_id,
+                        task_id=task.get("id"),
+                    ),
                     attachments=[],
                     stream=False,
                     client_context=client_context,
