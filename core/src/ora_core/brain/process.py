@@ -350,7 +350,7 @@ class MainProcess:
         pass_index: int,
         tool_call_suffix: str,
     ) -> tuple[str, dict[str, Any], dict[str, Any]]:
-        forced_tool_call_id = f"forced-search-{pass_index}-{tool_call_suffix}"
+        forced_tool_call_id = f"forced-search-{run_id}-{pass_index}-{tool_call_suffix}"
         result = await runner.run_tool(
             forced_tool_call_id,
             run_id,
@@ -1295,4 +1295,3 @@ class MainProcess:
 
         # Atomic Save
         await memory_store.save_user_profile(target_memory_id, profile)
-
