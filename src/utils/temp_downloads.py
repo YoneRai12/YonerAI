@@ -251,6 +251,12 @@ def _launch_quick_tunnel(log_path: str) -> None:
         )
 
 
+def _is_auto_public_download_enabled() -> bool:
+    """Require explicit opt-in before auto-starting API/tunnel for download links."""
+    raw = (os.getenv("ORA_AUTO_PUBLIC_DOWNLOAD") or "").strip().lower()
+    return raw in {"1", "true", "yes", "on"}
+
+
 async def ensure_download_public_base_url(bot=None, timeout_sec: int = 22) -> Optional[str]:
     """
     Return a public base URL for temporary download links.
@@ -261,6 +267,13 @@ async def ensure_download_public_base_url(bot=None, timeout_sec: int = 22) -> Op
     existing = resolve_public_download_base_url(bot)
     if existing:
         return existing
+
+    if not _is_auto_public_download_enabled():
+        logger.info(
+            "Auto public download URL creation is disabled. "
+            "Set ORA_AUTO_PUBLIC_DOWNLOAD=1 to enable quick tunnel auto-start."
+        )
+        return None
 
     _start_web_api_server_if_needed(bot)
 
