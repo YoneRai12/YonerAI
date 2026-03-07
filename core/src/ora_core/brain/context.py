@@ -1,3 +1,4 @@
+import re
 from typing import Any, Dict
 from datetime import datetime
 from ora_core.api.schemas.messages import MessageRequest
@@ -10,6 +11,24 @@ class ContextBuilder:
     Includes Security Protocols, Admin Detection, and Rich Personality.
     """
     
+    _FOLLOWUP_IMAGE_PATTERNS = (
+        "続き",
+        "つづき",
+        "この画像",
+        "この画面",
+        "このスクショ",
+        "このスクリーンショット",
+        "この写真",
+        "このタスクマネージャ",
+        "しっかり見て",
+        "詳しく見て",
+        "もっと詳しく",
+        "ほかに",
+        "ほかには",
+        "他には",
+    )
+    _FOLLOWUP_IMAGE_ATTACHMENT_LIMIT = 3
+
     @staticmethod
     async def build_context(req: MessageRequest, internal_user_id: str, conversation_id: str, repo: Any) -> list[dict]:
         """
@@ -59,6 +78,12 @@ class ContextBuilder:
         # 3. Construct Rich System Prompt
         system_prompt = await ContextBuilder._construct_system_prompt(req, profile)
         
+        carryover_attachments = await ContextBuilder._resolve_followup_image_attachments(
+            req,
+            conversation_id=conversation_id,
+            repo=repo,
+        )
+
         # 4. Assemble Final Message List
         messages = [
             {"role": "system", "content": system_prompt}
@@ -118,12 +143,20 @@ class ContextBuilder:
         messages.extend(llm_history)
 
         # Current Request (supports multimodal attachments)
-        messages.append({"role": "user", "content": ContextBuilder._build_user_content(req)})
+        messages.append(
+            {
+                "role": "user",
+                "content": ContextBuilder._build_user_content(
+                    req,
+                    attachments_override=carryover_attachments or None,
+                ),
+            }
+        )
         
         return messages
 
     @staticmethod
-    def _build_user_content(req: MessageRequest) -> Any:
+    def _build_user_content(req: MessageRequest, attachments_override: list[Any] | None = None) -> Any:
         """
         Build user content for OpenAI chat format.
         - Text-only -> str
@@ -135,7 +168,9 @@ class ContextBuilder:
         if text:
             parts.append({"type": "text", "text": text})
 
-        for att in (req.attachments or []):
+        attachments = attachments_override if attachments_override is not None else (req.attachments or [])
+
+        for att in attachments:
             att_type = ContextBuilder._att_get(att, "type")
             if att_type == "image_url":
                 url = ContextBuilder._extract_image_url(att)
@@ -155,6 +190,63 @@ class ContextBuilder:
             return parts
 
         return text
+
+    @staticmethod
+    def _looks_like_followup_image_request(text: str) -> bool:
+        normalized = re.sub(r"\s+", " ", str(text or "").strip().lower())
+        if not normalized:
+            return False
+        if any(marker in normalized for marker in ContextBuilder._FOLLOWUP_IMAGE_PATTERNS):
+            return True
+        return normalized.startswith("この") and len(normalized) <= 64
+
+    @staticmethod
+    def _is_image_attachment(att: Any) -> bool:
+        att_type = str(ContextBuilder._att_get(att, "type") or "").strip().lower()
+        if att_type in {"image_url", "image_base64"}:
+            return True
+        mime = str(ContextBuilder._att_get(att, "mime") or "").strip().lower()
+        return mime.startswith("image/")
+
+    @staticmethod
+    def _normalize_image_attachments(atts: list[Any] | None) -> list[Any]:
+        out: list[Any] = []
+        for att in atts or []:
+            if not ContextBuilder._is_image_attachment(att):
+                continue
+            out.append(att)
+            if len(out) >= ContextBuilder._FOLLOWUP_IMAGE_ATTACHMENT_LIMIT:
+                break
+        return out
+
+    @staticmethod
+    async def _resolve_followup_image_attachments(req: MessageRequest, *, conversation_id: str, repo: Any) -> list[Any]:
+        if req.attachments:
+            return list(req.attachments or [])
+        if not ContextBuilder._looks_like_followup_image_request(req.content):
+            return []
+        if not conversation_id or repo is None:
+            return []
+
+        try:
+            history_msgs = await repo.get_messages(conversation_id, limit=15)
+        except Exception:
+            return []
+
+        for msg in reversed(history_msgs or []):
+            author = str(getattr(msg, "author", "") or "").lower()
+            if author != "user":
+                continue
+            attachments = ContextBuilder._normalize_image_attachments(getattr(msg, "attachments", None))
+            if not attachments:
+                continue
+            current_content = str(req.content or "").strip()
+            msg_content = str(getattr(msg, "content", "") or "").strip()
+            if current_content and current_content == msg_content and not getattr(msg, "attachments", None):
+                continue
+            return attachments
+
+        return []
 
     @staticmethod
     def _extract_image_url(att: Any) -> str | None:

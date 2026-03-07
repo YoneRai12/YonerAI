@@ -48,15 +48,22 @@ if "ora_core.database.repo" not in sys.modules:
     sys.modules["ora_core.database.repo"] = repo_mod
 
 if "ora_core.brain.context" not in sys.modules:
-    ctx_mod = types.ModuleType("ora_core.brain.context")
+    try:
+        from ora_core.brain.context import ContextBuilder as _RealContextBuilder  # type: ignore
 
-    class _ContextBuilder:
-        @staticmethod
-        async def build_context(*_args, **_kwargs):
-            return []
+        ctx_mod = types.ModuleType("ora_core.brain.context")
+        ctx_mod.ContextBuilder = _RealContextBuilder
+        sys.modules["ora_core.brain.context"] = ctx_mod
+    except Exception:
+        ctx_mod = types.ModuleType("ora_core.brain.context")
 
-    ctx_mod.ContextBuilder = _ContextBuilder
-    sys.modules["ora_core.brain.context"] = ctx_mod
+        class _ContextBuilder:
+            @staticmethod
+            async def build_context(*_args, **_kwargs):
+                return []
+
+        ctx_mod.ContextBuilder = _ContextBuilder
+        sys.modules["ora_core.brain.context"] = ctx_mod
 
 if "ora_core.brain.memory" not in sys.modules:
     mem_mod = types.ModuleType("ora_core.brain.memory")
