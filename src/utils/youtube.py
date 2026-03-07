@@ -12,6 +12,30 @@ from urllib.parse import urlparse, parse_qs
 logger = logging.getLogger(__name__)
 
 
+def is_trusted_youtube_url(url: str) -> bool:
+    """Return True only for HTTP(S) URLs whose hostname is an allowed YouTube domain."""
+    u = (url or "").strip()
+    if not u or not (u.startswith("http://") or u.startswith("https://")):
+        return False
+
+    try:
+        host = (urlparse(u).hostname or "").lower().strip(".")
+    except Exception:
+        return False
+
+    allowed_hosts = {
+        "youtube.com",
+        "www.youtube.com",
+        "m.youtube.com",
+        "music.youtube.com",
+        "youtu.be",
+        "www.youtu.be",
+        "youtube-nocookie.com",
+        "www.youtube-nocookie.com",
+    }
+    return host in allowed_hosts
+
+
 def _get_ora_temp_dir() -> str:
     """
     ORA uses a configurable temp directory (often on a large drive like L:\\).

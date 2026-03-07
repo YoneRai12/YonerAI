@@ -7,6 +7,8 @@ from typing import Any
 
 import discord
 
+from ...utils.youtube import is_trusted_youtube_url
+
 logger = logging.getLogger(__name__)
 
 
@@ -76,10 +78,9 @@ async def handle_mention_music(cog: Any, message: discord.Message, clean_content
         sp_url = None
         for tok in clean_content.split():
             t = tok.strip().strip("<>").strip()
-            if ("youtube.com" in t) or ("youtu.be" in t):
-                if t.startswith("http://") or t.startswith("https://"):
-                    yt_url = t
-                    break
+            if is_trusted_youtube_url(t):
+                yt_url = t
+                break
             if (
                 ("open.spotify.com" in t)
                 or ("spotify.com" in t)
