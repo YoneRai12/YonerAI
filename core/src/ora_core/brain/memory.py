@@ -3,6 +3,7 @@ import json
 import logging
 import asyncio
 import aiofiles
+import re
 from pathlib import Path
 from typing import Any, Dict, Optional
 from datetime import datetime
@@ -72,14 +73,37 @@ class MemoryStore:
     def __init__(self):
         self._io_lock = asyncio.Lock()
 
+    _safe_id_pattern = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
+
+    @classmethod
+    def _resolve_memory_json_path(cls, base_dir: str, raw_id: str) -> str:
+        memory_id = str(raw_id or "").strip()
+        if not cls._safe_id_pattern.fullmatch(memory_id):
+            raise ValueError(f"Invalid memory id: {raw_id!r}")
+
+        filename = f"{memory_id}.json"
+        base_path = Path(base_dir).resolve()
+        resolved_path = (base_path / filename).resolve()
+        if resolved_path.parent != base_path:
+            raise ValueError(f"Invalid memory path for id: {raw_id!r}")
+        return str(resolved_path)
+
     def _get_user_path(self, user_id: str) -> str:
         # Note: Core uses internal UUIDs usually, but for migration compatibility
         # we might need to handle Discord IDs.
         # For now, we assume user_id is the filename ID.
-        return os.path.join(USER_MEMORY_DIR, f"{user_id}.json")
+        return self._resolve_memory_json_path(USER_MEMORY_DIR, user_id)
+
+    def get_channel_path(self, channel_id: str) -> str:
+        return self._resolve_memory_json_path(CHANNEL_MEMORY_DIR, channel_id)
 
     async def read_user_profile(self, user_id: str) -> Optional[Dict[str, Any]]:
-        path = self._get_user_path(user_id)
+        try:
+            path = self._get_user_path(user_id)
+        except ValueError as e:
+            logger.warning(f"Rejected profile read for invalid user id: {e}")
+            return None
+
         if not os.path.exists(path):
             return None
         
@@ -95,7 +119,12 @@ class MemoryStore:
         return None
 
     async def save_user_profile(self, user_id: str, data: Dict[str, Any]):
-        path = self._get_user_path(user_id)
+        try:
+            path = self._get_user_path(user_id)
+        except ValueError as e:
+            logger.warning(f"Rejected profile save for invalid user id: {e}")
+            return
+
         async with SimpleFileLock(path):
             temp_path = path + ".tmp"
             try:
@@ -131,7 +160,10 @@ class MemoryStore:
             "traits": [], # Legacy compat
             "status": "New"
         }
-        await self.save_user_profile(user_id, new_profile)
+        try:
+            await self.save_user_profile(user_id, new_profile)
+        except Exception as e:
+            logger.warning(f"Failed to persist profile for {user_id!r}: {e}")
         return new_profile
 
 # Singleton instance
