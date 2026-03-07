@@ -13,7 +13,9 @@ CORE_SRC = Path(__file__).resolve().parents[1] / "core" / "src"
 if str(CORE_SRC) not in sys.path:
     sys.path.insert(0, str(CORE_SRC))
 
-if "sqlalchemy.ext.asyncio" not in sys.modules:
+try:
+    from sqlalchemy.ext.asyncio import AsyncSession as _AsyncSession  # type: ignore
+except Exception:
     sa_mod = types.ModuleType("sqlalchemy")
     sa_ext_mod = types.ModuleType("sqlalchemy.ext")
     sa_async_mod = types.ModuleType("sqlalchemy.ext.asyncio")
