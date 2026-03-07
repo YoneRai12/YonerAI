@@ -13,6 +13,10 @@ from PIL import Image
 logger = logging.getLogger(__name__)
 
 
+MAX_IMAGE_BYTES = 8 * 1024 * 1024
+MAX_IMAGE_PIXELS = 20_000_000
+
+
 class VisionHandler:
     def __init__(self, cache_dir: Path):
         self.cache_dir = cache_dir
@@ -120,7 +124,14 @@ class VisionHandler:
                     async with session.get(image_url, timeout=5) as resp:
                         if resp.status != 200:
                             continue
-                        image_data = await resp.read()
+
+                        content_length = resp.headers.get("Content-Length")
+                        if content_length and content_length.isdigit() and int(content_length) > MAX_IMAGE_BYTES:
+                            continue
+
+                        image_data = await resp.content.read(MAX_IMAGE_BYTES + 1)
+                        if len(image_data) > MAX_IMAGE_BYTES:
+                            continue
 
                 # Optimize & Encode
                 b64_img = await self._optimize_and_encode(image_data)
@@ -137,8 +148,14 @@ class VisionHandler:
     async def _optimize_and_encode(self, image_data: bytes) -> Optional[str]:
         """Resize logic."""
         try:
+            if len(image_data) > MAX_IMAGE_BYTES:
+                return None
+
             # Load image with PIL
             with Image.open(io.BytesIO(image_data)) as img:
+                if img.width * img.height > MAX_IMAGE_PIXELS:
+                    return None
+
                 # Convert to RGB (in case of RGBA/PNG)
                 if img.mode in ("RGBA", "P"):
                     img = img.convert("RGB")
