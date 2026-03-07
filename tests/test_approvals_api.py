@@ -21,7 +21,7 @@ def _fresh_web_app():
 
 
 def test_approvals_endpoints_require_token(monkeypatch, tmp_path) -> None:
-    monkeypatch.setenv("ORA_WEB_API_TOKEN", "testtoken")
+    monkeypatch.setenv("ADMIN_DASHBOARD_TOKEN", "admintoken")
     monkeypatch.setenv("ORA_ALLOW_MISSING_SECRETS", "1")
     monkeypatch.setenv("ORA_BOT_DB", str(tmp_path / "ora_test.db"))
 
@@ -30,13 +30,13 @@ def test_approvals_endpoints_require_token(monkeypatch, tmp_path) -> None:
         r = c.get("/api/approvals")
         assert r.status_code == 403
 
-        r = c.get("/api/approvals", headers={"x-ora-token": "testtoken"})
+        r = c.get("/api/approvals", headers={"x-admin-token": "admintoken"})
         assert r.status_code == 200
         assert r.json()["ok"] is True
 
 
 def test_expected_code_is_not_exposed(monkeypatch, tmp_path) -> None:
-    monkeypatch.setenv("ORA_WEB_API_TOKEN", "testtoken")
+    monkeypatch.setenv("ADMIN_DASHBOARD_TOKEN", "admintoken")
     monkeypatch.setenv("ORA_ALLOW_MISSING_SECRETS", "1")
     db_path = str(tmp_path / "ora_test.db")
     monkeypatch.setenv("ORA_BOT_DB", db_path)
@@ -78,7 +78,7 @@ def test_expected_code_is_not_exposed(monkeypatch, tmp_path) -> None:
         finally:
             con.close()
 
-        r = c.get("/api/approvals", headers={"x-ora-token": "testtoken"})
+        r = c.get("/api/approvals", headers={"x-admin-token": "admintoken"})
         assert r.status_code == 200
         data = r.json()["data"]
         assert any(row.get("tool_call_id") == "call_test_1" for row in data)
@@ -86,7 +86,7 @@ def test_expected_code_is_not_exposed(monkeypatch, tmp_path) -> None:
         assert row.get("expected_code") is None
         assert row.get("expected_code_present") is True
 
-        r2 = c.get("/api/approvals/call_test_1", headers={"x-ora-token": "testtoken"})
+        r2 = c.get("/api/approvals/call_test_1", headers={"x-admin-token": "admintoken"})
         assert r2.status_code == 200
         row2 = r2.json()["data"]
         assert row2.get("expected_code") is None

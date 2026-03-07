@@ -2397,7 +2397,7 @@ async def api_list_approvals(
     request: Request,
     limit: int = 100,
     status: str | None = "pending",
-    _: None = Depends(require_web_api),
+    _: None = Depends(require_admin),
 ):
     store = get_store()
     st = (status or "").strip().lower()
@@ -2414,7 +2414,7 @@ async def api_list_approvals(
 @router.get("/approvals/{tool_call_id}")
 async def api_get_approval(
     tool_call_id: str,
-    _: None = Depends(require_web_api),
+    _: None = Depends(require_admin),
 ):
     store = get_store()
     row = await store.get_approval_request(tool_call_id=str(tool_call_id))
@@ -2433,7 +2433,7 @@ class ApprovalDecision(BaseModel):
 async def api_approve_approval(
     tool_call_id: str,
     body: ApprovalDecision,
-    _: None = Depends(require_web_api),
+    _: None = Depends(require_admin),
 ):
     store = get_store()
     row = await store.get_approval_request(tool_call_id=str(tool_call_id))
@@ -2458,7 +2458,7 @@ async def api_approve_approval(
 @router.post("/approvals/{tool_call_id}/deny")
 async def api_deny_approval(
     tool_call_id: str,
-    _: None = Depends(require_web_api),
+    _: None = Depends(require_admin),
 ):
     store = get_store()
     row = await store.get_approval_request(tool_call_id=str(tool_call_id))
