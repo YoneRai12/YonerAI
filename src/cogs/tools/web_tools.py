@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 # Since registry.py only references strings, this file won't be imported until execution.
 
 from src.utils.browser import browser_manager
-from src.utils.temp_downloads import create_temporary_download, ensure_download_public_base_url
+from src.utils.temp_downloads import create_temporary_download, resolve_public_download_base_url
 
 
 def _fmt_size_mb(size_bytes: Optional[int]) -> str:
@@ -245,10 +245,12 @@ async def screenshot(args: dict, message: discord.Message, status_manager, bot=N
             current_url = target_url or "Current Page"
 
         # If still too big, host a 30-min temp download and post the link instead of failing.
+        # Security: never auto-start web API / public tunnels from screenshot requests.
+        # Only use an already-configured public base URL.
         link_url = None
         if chosen_size > safe_limit:
             try:
-                base = await ensure_download_public_base_url(bot)
+                base = resolve_public_download_base_url(bot)
                 if base:
                     manifest = create_temporary_download(
                         chosen_path,
