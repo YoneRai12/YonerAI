@@ -630,3 +630,76 @@ def test_missing_search_target_allows_clarification_before_search(monkeypatch) -
         assert "何を検索するか教えてください" in str(final.get("output_text") or "")
 
     asyncio.run(_run())
+
+
+def test_profile_lookup_contract_prefers_exact_profile_sources_over_noisy_sources() -> None:
+    req = MessageRequest(
+        user_identity={"provider": "discord", "id": "u-search-profile"},
+        content="YoneRai12 について検索して要約して",
+        idempotency_key=f"search-profile-{uuid.uuid4().hex[:6]}",
+        source="discord",
+    )
+    proc = MainProcess(
+        run_id=f"run-search-profile-{uuid.uuid4().hex[:8]}",
+        conversation_id="conv-search-profile",
+        request=req,
+        db_session=object(),
+    )
+    contract = proc._build_search_result_contract(
+        query="YoneRai12 について検索して要約して",
+        sources=[
+            {
+                "title": "r/YoneMains",
+                "url": "https://www.reddit.com/r/YoneMains/about/",
+                "snippet": "The official subreddit for players of Yone.",
+            },
+            {
+                "title": "YoneRai12 - GitHub",
+                "url": "https://github.com/YoneRai12",
+                "snippet": "Public profile for YoneRai12",
+            },
+        ],
+    )
+    searched_sources = contract.get("searched_sources") or []
+    assert searched_sources
+    assert searched_sources[0]["url"] == "https://github.com/YoneRai12"
+    assert all("reddit.com" not in str(source.get("url") or "") for source in searched_sources)
+    assert float(contract.get("confidence", 0.0) or 0.0) >= 0.5
+
+
+def test_profile_lookup_noisy_only_sources_return_low_confidence_contract() -> None:
+    req = MessageRequest(
+        user_identity={"provider": "discord", "id": "u-search-noisy"},
+        content="YoneRai12 の公開情報を検索して要約して",
+        idempotency_key=f"search-noisy-{uuid.uuid4().hex[:6]}",
+        source="discord",
+    )
+    proc = MainProcess(
+        run_id=f"run-search-noisy-{uuid.uuid4().hex[:8]}",
+        conversation_id="conv-search-noisy",
+        request=req,
+        db_session=object(),
+    )
+    contract = proc._build_search_result_contract(
+        query="YoneRai12 の公開情報を検索して要約して",
+        sources=[
+            {
+                "title": "155,501 Quizzes - Take a Quiz on Any Topic",
+                "url": "https://www.funtivia.com/quizzes/2",
+                "snippet": "Free online trivia quizzes.",
+            },
+            {
+                "title": "r/BingHomepageQuiz",
+                "url": "https://www.reddit.com/r/BingHomepageQuiz/hot/",
+                "snippet": "Daily quiz questions and answers.",
+            },
+        ],
+    )
+    text = proc._format_search_no_match_response(
+        query="YoneRai12 の公開情報を検索して要約して",
+        contract=contract,
+    )
+    assert float(contract.get("confidence", 0.0) or 0.0) < 0.5
+    assert contract.get("searched_sources") == []
+    assert "検索を実行しましたが" in text
+    assert "自信を持って一致" in text
