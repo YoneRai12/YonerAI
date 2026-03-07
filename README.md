@@ -22,12 +22,97 @@
 
 ## What Is YonerAI?
 
-YonerAI (formerly "ORA") is a local-first AI platform built around a Discord bot, web UIs, and an optional Core process.
-It supports tool/skill execution with risk scoring + approvals, and can be extended via MCP (Model Context Protocol) tool servers.
+YonerAI is a local-first AI system designed to live on your own machine first.
+At its core, YonerAI is a **Node-style runtime** that can combine:
 
-Note: many internal paths/env vars still use the `ORA_*` prefix for compatibility. Product/release branding is controlled by `PRODUCT_NAME`.
+- Discord as a daily interface
+- local/admin web UIs
+- tool / skill execution with risk scoring + approvals
+- an optional Core process for deeper routing / reasoning
+- relay-compatible networking for hybrid or remote-assisted setups
 
-If you want the deep docs:
+This public repository is the **distributable YonerAI side**: the part that should be able to run on a user's PC, be extended locally, and remain useful without private production infrastructure.
+
+Note: many internal paths/env vars still use legacy `ORA_*` prefixes for compatibility. Product/release branding is controlled by `PRODUCT_NAME`.
+
+### Scope Of This Public Repo
+
+What this repo is for:
+
+- a local-first AI node you can run on Windows
+- a Discord-centric personal/operator workflow
+- local tool and skill execution
+- web/admin surfaces for setup and daily use
+- hybrid-ready relay/core patterns you can adapt later
+
+What this repo is **not** trying to be on its own:
+
+- the private commercial platform
+- the official `yonerai.com` operations layer
+- billing / production moderation / internal admin stacks
+- private production secrets, runbooks, or internal-only services
+
+In other words: this repo is the public YonerAI foundation you can run, inspect, and extend. The heavier private operations side is intentionally separate.
+
+### Current Status Of The Split
+
+The long-term direction is a clearer split between:
+
+- the public distributable YonerAI node side
+- the private VPS / commercial / official web side
+
+That separation is still being formalized. Because of that, this repo currently still contains some broader shared foundation code and docs, especially around hybrid deployment and future-facing architecture.
+
+### What You Can Do With YonerAI
+
+With the current public repo, you can:
+
+- run YonerAI locally as a Discord bot
+- start a local setup/admin API
+- use web chat and dashboard UIs
+- route requests through local and/or cloud model backends
+- execute tools behind approvals and audit logging
+- extend the system with built-in tools, local skills, or MCP servers
+- prepare for hybrid mode where a VPS acts as a control plane and your PC remains the worker
+
+### Runtime Components
+
+- Bot process (Discord): `python main.py`
+- Admin server (FastAPI): `uvicorn src.web.app:app --host 0.0.0.0 --port 8000`
+- Core (optional): `python -m ora_core.main`
+- Web Chat UI (Next.js): `clients/web/`
+- Dashboard UI (Next.js): `ora-ui/`
+- Relay pieces for pairing / proxy style flows: `src/relay/`
+
+### Repository Layout
+
+- `src/`
+  - bot runtime, web API, relay, tools, skills, approvals, audit, utilities
+- `core/`
+  - optional Core API and reasoning/routing logic
+- `clients/web/`
+  - public-facing chat UI
+- `ora-ui/`
+  - dashboard / operator UI
+- `docs/`
+  - architecture notes, deployment guides, diagrams, extension docs
+- `tools/`
+  - helper projects and external tool integrations
+
+### Deployment Modes
+
+You can think about this repo in three practical modes:
+
+1. **Local-only**
+   - Run the bot and optional UIs on your own PC.
+2. **Local + Core**
+   - Add the optional Core process for more explicit routing / reasoning separation.
+3. **Hybrid**
+   - Run a VPS control plane later while keeping your own PC as the high-trust worker.
+
+### Deep Docs
+
+If you want the deeper docs:
 - `docs/USER_GUIDE.md`
 - `docs/SYSTEM_ARCHITECTURE.md`
 - `docs/VPS_DEPLOYMENT.md` (run the always-on control plane on a VPS; hybrid mode)
@@ -36,16 +121,6 @@ If you want the deep docs:
 - `docs/PLATFORM_REVIEW_AND_RISKS.md` (devil's advocate review / risks)
 - `ORA_SYSTEM_SPEC.md`
 - `AGENTS.md` (Codex/agent workspace instructions for this repo)
-
----
-
-## Components
-
-- Bot process (Discord): `python main.py`
-- Admin server (FastAPI): `uvicorn src.web.app:app --host 0.0.0.0 --port 8000`
-- Core (optional): `python -m ora_core.main` (see below)
-- Web Chat UI (Next.js): `clients/web/` (default `http://localhost:3000`)
-- Dashboard UI (Next.js): `ora-ui/` (default `http://localhost:3333`)
 
 ---
 
@@ -151,7 +226,7 @@ Feature toggles you likely care about:
 
 ## Skills (Local Tools)
 
-ORA supports two local mechanisms that are both executed through the same ToolHandler boundary:
+YonerAI supports two local mechanisms that are both executed through the same ToolHandler boundary:
 
 - Static tool registry: `src/cogs/tools/registry.py`
   - Built-in tools with an implementation path like `src.cogs.tools.web_tools:navigate`.
@@ -186,7 +261,7 @@ Notes:
 
 ## MCP (Model Context Protocol) Tool Servers
 
-MCP support is **disabled by default**. When enabled, ORA connects to configured MCP servers via stdio and registers each remote tool as a local ORA tool:
+MCP support is **disabled by default**. When enabled, YonerAI connects to configured MCP servers via stdio and registers each remote tool as a local tool:
 
 - Tool name format: `mcp__<server>__<tool>`
 - Loader: `src/cogs/mcp.py`
@@ -218,9 +293,9 @@ Hardening knobs:
 
 ## Current System Flow (Hub + Spoke)
 
-ORA currently runs as a hub/spoke agent pipeline:
+YonerAI currently runs as a hub/spoke agent pipeline:
 - `ChatHandler` (Discord/Web thin client) builds context, attachments, and a filtered tool list.
-- `ORA Core API` owns the reasoning loop and emits tool calls.
+- `Core API` owns the reasoning loop and emits tool calls.
 - The bot executes tools locally and submits results back to Core.
 
 If you want to add features (tools/skills/MCP) without breaking the core loop, see: `docs/EXTENSIONS.md`.
