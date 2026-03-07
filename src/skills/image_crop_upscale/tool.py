@@ -1,9 +1,12 @@
 import asyncio
 import io
+import ipaddress
 import logging
 import os
 import re
+import socket
 import tempfile
+import urllib.parse
 import uuid
 from typing import Any, Optional, Tuple
 
@@ -14,6 +17,17 @@ from PIL import Image
 from src.utils.temp_downloads import create_temporary_download, ensure_download_public_base_url
 
 logger = logging.getLogger(__name__)
+
+_ALLOWED_IMAGE_HOSTS = {
+    "cdn.discordapp.com",
+    "cdn.discordapp.net",
+    "media.discordapp.net",
+    "images-ext-1.discordapp.net",
+    "images-ext-2.discordapp.net",
+    "images-ext-3.discordapp.net",
+    "images-ext-4.discordapp.net",
+}
+_MAX_REDIRECTS = 3
 
 
 TOOL_SCHEMA = {
@@ -148,8 +162,7 @@ async def _find_image_url(message: discord.Message, history_limit: int) -> Optio
 
 
 async def _download_image(url: str, *, max_bytes: int = 25 * 1024 * 1024) -> bytes:
-    if not url or not re.match(r"^https?://", url.strip(), re.I):
-        raise ValueError("invalid image_url")
+    next_url = await _assert_allowed_image_url(url)
 
     timeout = aiohttp.ClientTimeout(total=30, connect=8)
     headers = {
@@ -158,20 +171,97 @@ async def _download_image(url: str, *, max_bytes: int = 25 * 1024 * 1024) -> byt
     }
 
     async with aiohttp.ClientSession(timeout=timeout, headers=headers) as session:
-        async with session.get(url, allow_redirects=True) as resp:
-            if resp.status != 200:
-                raise RuntimeError(f"download failed: {resp.status}")
-            cl = resp.headers.get("Content-Length")
-            if cl:
-                try:
-                    if int(cl) > max_bytes:
-                        raise RuntimeError("image too large")
-                except Exception:
-                    pass
-            data = await resp.read()
-            if len(data) > max_bytes:
-                raise RuntimeError("image too large")
-            return data
+        for _ in range(_MAX_REDIRECTS + 1):
+            async with session.get(next_url, allow_redirects=False) as resp:
+                if resp.status in {301, 302, 303, 307, 308}:
+                    location = resp.headers.get("Location")
+                    if not location:
+                        raise RuntimeError("download redirect missing location")
+                    next_url = await _assert_allowed_image_url(urllib.parse.urljoin(next_url, location))
+                    continue
+
+                if resp.status != 200:
+                    raise RuntimeError(f"download failed: {resp.status}")
+                cl = resp.headers.get("Content-Length")
+                if cl:
+                    try:
+                        if int(cl) > max_bytes:
+                            raise RuntimeError("image too large")
+                    except Exception:
+                        pass
+                data = await resp.read()
+                if len(data) > max_bytes:
+                    raise RuntimeError("image too large")
+                return data
+
+    raise RuntimeError("too many redirects")
+
+
+def _normalize_host(host: str) -> str:
+    return str(host or "").strip().lower().rstrip(".")
+
+
+def _is_allowed_host(host: str) -> bool:
+    h = _normalize_host(host)
+    if not h:
+        return False
+    return h in _ALLOWED_IMAGE_HOSTS
+
+
+async def _resolve_host_ips(host: str) -> set[str]:
+    try:
+        ip_literal = ipaddress.ip_address(host)
+        return {str(ip_literal)}
+    except Exception:
+        pass
+
+    loop = asyncio.get_running_loop()
+    try:
+        infos = await loop.getaddrinfo(host, None, type=socket.SOCK_STREAM)
+    except Exception as exc:
+        raise ValueError("image_url host resolution failed") from exc
+
+    ips: set[str] = set()
+    for info in infos:
+        sockaddr = info[4]
+        if isinstance(sockaddr, tuple) and sockaddr:
+            ips.add(str(sockaddr[0]))
+    if not ips:
+        raise ValueError("image_url host resolution failed")
+    return ips
+
+
+def _is_private_or_loopback_ip(raw_ip: str) -> bool:
+    ip_obj = ipaddress.ip_address(raw_ip)
+    return (
+        ip_obj.is_loopback
+        or ip_obj.is_private
+        or ip_obj.is_link_local
+        or ip_obj.is_multicast
+        or ip_obj.is_reserved
+        or ip_obj.is_unspecified
+    )
+
+
+async def _assert_allowed_image_url(url: str) -> str:
+    parsed = urllib.parse.urlsplit(str(url or "").strip())
+    if parsed.scheme.lower() not in {"http", "https"}:
+        raise ValueError("invalid image_url")
+    if parsed.username or parsed.password:
+        raise ValueError("invalid image_url")
+
+    host = _normalize_host(parsed.hostname or "")
+    if not _is_allowed_host(host):
+        raise ValueError("image_url host not allowed")
+
+    for raw_ip in await _resolve_host_ips(host):
+        if _is_private_or_loopback_ip(raw_ip):
+            raise ValueError("image_url host not allowed")
+
+    netloc = host
+    if parsed.port is not None:
+        netloc = f"{host}:{parsed.port}"
+    return urllib.parse.urlunsplit((parsed.scheme.lower(), netloc, parsed.path or "/", parsed.query, ""))
 
 
 def _center_crop(im: Image.Image, aspect: float) -> Image.Image:
@@ -378,4 +468,3 @@ async def execute(args: dict, message: discord.Message, bot: Any = None) -> Any:
                 "size_bytes": size_bytes,
             },
         }
-
