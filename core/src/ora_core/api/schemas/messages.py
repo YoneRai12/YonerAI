@@ -104,6 +104,12 @@ class EffectiveRoute(BaseModel):
     source_hint_present: bool = False
     route_debug: Optional[dict[str, Any]] = None
 
+
+class DownloadLink(BaseModel):
+    url: str = Field(min_length=1)
+    label: str = Field(min_length=1)
+    file_id: Optional[str] = None
+
 class MessageRequest(BaseModel):
     conversation_id: Optional[str] = None
     user_identity: UserIdentity

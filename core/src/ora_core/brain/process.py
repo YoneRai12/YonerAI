@@ -10,7 +10,7 @@ from datetime import datetime
 from urllib.parse import urlparse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ora_core.api.schemas.messages import EffectiveRoute, MessageRequest
+from ora_core.api.schemas.messages import DownloadLink, EffectiveRoute, MessageRequest
 from ora_core.database.repo import Repository, RunStatus
 from ora_core.brain.context import ContextBuilder
 from ora_core.brain.memory import memory_store
@@ -507,6 +507,111 @@ class MainProcess:
             f"{details}"
         )
 
+    @staticmethod
+    def _dedupe_downloads(downloads: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        unique: list[dict[str, Any]] = []
+        seen_urls: set[str] = set()
+        for item in downloads:
+            if not isinstance(item, dict):
+                continue
+            url = str(item.get("url") or "").strip()
+            if not url or url in seen_urls:
+                continue
+            seen_urls.add(url)
+            unique.append(item)
+        return unique[:5]
+
+    def _coerce_download_link(
+        self,
+        *,
+        url: Any,
+        label: Any = None,
+        file_id: Any = None,
+    ) -> dict[str, Any] | None:
+        url_text = str(url or "").strip()
+        if not url_text:
+            return None
+        label_text = str(label or "ダウンロード").strip() or "ダウンロード"
+        file_id_text = str(file_id or "").strip() or None
+        try:
+            return DownloadLink(
+                url=url_text,
+                label=label_text,
+                file_id=file_id_text,
+            ).model_dump(exclude_none=True)
+        except Exception:
+            return None
+
+    def _extract_downloads_from_tool_payload(
+        self,
+        *,
+        tool_payload: Any,
+        artifact_ref: Any = None,
+    ) -> list[dict[str, Any]]:
+        downloads: list[dict[str, Any]] = []
+
+        def _append_candidate(*, url: Any, label: Any = None, file_id: Any = None) -> None:
+            item = self._coerce_download_link(url=url, label=label, file_id=file_id)
+            if item:
+                downloads.append(item)
+
+        def _consume_mapping(mapping: dict[str, Any]) -> None:
+            if not isinstance(mapping, dict):
+                return
+            _append_candidate(
+                url=(
+                    mapping.get("url")
+                    or mapping.get("download_url")
+                    or mapping.get("download_page_url")
+                    or mapping.get("href")
+                ),
+                label=(
+                    mapping.get("label")
+                    or mapping.get("name")
+                    or mapping.get("filename")
+                    or mapping.get("download_name")
+                ),
+                file_id=mapping.get("file_id"),
+            )
+
+        def _consume_list(raw: Any) -> None:
+            if not isinstance(raw, list):
+                return
+            for item in raw:
+                if isinstance(item, dict):
+                    _consume_mapping(item)
+
+        if isinstance(tool_payload, dict):
+            _consume_list(tool_payload.get("downloads"))
+            _consume_list(tool_payload.get("files"))
+            _consume_list(tool_payload.get("attachments"))
+
+            structured = tool_payload.get("structuredContent")
+            if isinstance(structured, dict):
+                _consume_list(structured.get("downloads"))
+                _consume_list(structured.get("files"))
+                _consume_list(structured.get("attachments"))
+
+            for meta_key in ("video_meta", "image_meta", "file_meta"):
+                meta = tool_payload.get(meta_key)
+                if isinstance(meta, dict):
+                    _append_candidate(
+                        url=meta.get("download_page_url") or meta.get("download_url") or meta.get("url"),
+                        label=meta.get("filename") or meta.get("download_name") or meta_key,
+                        file_id=meta.get("file_id"),
+                    )
+
+            _append_candidate(
+                url=tool_payload.get("download_page_url") or tool_payload.get("download_url"),
+                label=tool_payload.get("filename") or tool_payload.get("download_name"),
+                file_id=tool_payload.get("file_id"),
+            )
+
+        if isinstance(artifact_ref, str) and artifact_ref.strip().lower().startswith(("http://", "https://")):
+            _append_candidate(url=artifact_ref, label="ダウンロード")
+
+        return self._dedupe_downloads(downloads)
+
     async def _force_search_attempt(
         self,
         *,
@@ -975,6 +1080,7 @@ class MainProcess:
                 last_content = ""
                 search_attempt_made = False
                 search_result_contract: dict[str, Any] | None = None
+                pass_downloads: list[dict[str, Any]] = []
                 explicit_search_intent = bool(effective_route.get("explicit_search_intent"))
                 search_query_hint = self._search_query_hint(effective_route)
                 request_meta = self.request.request_meta.model_dump() if self.request.request_meta else None
@@ -1059,6 +1165,9 @@ class MainProcess:
                             )
                             search_attempt_made = True
                             tool_calls_used += 1
+                            pass_downloads = self._dedupe_downloads(
+                                pass_downloads + self._extract_downloads_from_tool_payload(tool_payload=tool_payload)
+                            )
                             context_messages.append(
                                 {
                                     "role": "tool",
@@ -1176,6 +1285,7 @@ class MainProcess:
                         )
                         if dispatched_externally:
                             await self._emit_progress_event(stage="search", pass_index=pass_index)
+                            submitted = None
                             try:
                                 submitted = await event_manager.wait_for_tool_result(self.run_id, tc_id, timeout_sec=180)
                                 tool_data = submitted.get("result", "[Success]")
@@ -1195,6 +1305,17 @@ class MainProcess:
                                         "message": f"Client result wait cancelled: {t_name}",
                                     },
                                 }
+
+                        artifact_ref = result.get("artifact_ref") if isinstance(result, dict) else None
+                        if dispatched_externally and isinstance(submitted, dict):
+                            artifact_ref = submitted.get("artifact_ref") or artifact_ref
+                        pass_downloads = self._dedupe_downloads(
+                            pass_downloads
+                            + self._extract_downloads_from_tool_payload(
+                                tool_payload=tool_data,
+                                artifact_ref=artifact_ref,
+                            )
+                        )
 
                         context_messages.append(
                             {
@@ -1226,7 +1347,7 @@ class MainProcess:
                         effective_route=effective_route,
                         reason_code=budget_stop_reason,
                     )
-                return pass_final_text, budget_stop_reason
+                return pass_final_text, budget_stop_reason, pass_downloads
 
             plan_toc = ["draft", "critique_patch", "deliver"] if route_band == "agent" else ["draft", "deliver"]
             await self._emit_progress_event(stage="plan", pass_index=1, toc=plan_toc)
@@ -1234,7 +1355,7 @@ class MainProcess:
 
             if route_band == "agent":
                 try:
-                    final_response_text, budget_stop_reason = await asyncio.wait_for(
+                    final_response_text, budget_stop_reason, final_downloads = await asyncio.wait_for(
                         _run_generation_pass(pass_index=1, pass_label="draft"),
                         timeout=float(pass_timeout_seconds),
                     )
@@ -1261,7 +1382,7 @@ class MainProcess:
                     )
                     return
             else:
-                final_response_text, budget_stop_reason = await _run_generation_pass(pass_index=1, pass_label="draft")
+                final_response_text, budget_stop_reason, final_downloads = await _run_generation_pass(pass_index=1, pass_label="draft")
 
             if route_band == "agent":
                 await self._emit_progress_event(stage="compose", pass_index=2, toc=["critique_patch"])
@@ -1325,7 +1446,10 @@ class MainProcess:
                 logger.error(f"Memory update failed (non-fatal): {e}\n{traceback.format_exc()}")
 
             await self._persist_effective_route(effective_route)
-            await event_manager.emit(self.run_id, "final", {"output_text": final_response_text})
+            final_payload: dict[str, Any] = {"output_text": final_response_text}
+            if final_downloads:
+                final_payload["downloads"] = self._dedupe_downloads(final_downloads)
+            await event_manager.emit(self.run_id, "final", final_payload)
             await self.repo.update_run_status(self.run_id, RunStatus.completed)
             trace_event(
                 "core.run.metrics",
