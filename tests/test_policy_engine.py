@@ -57,3 +57,18 @@ def test_private_owner_critical_only(monkeypatch) -> None:
     )
     assert d2.requires_approval is True
     assert d2.requires_code is True
+
+
+def test_private_guest_medium_requires_approval(monkeypatch) -> None:
+    monkeypatch.delenv("ORA_OWNER_APPROVALS", raising=False)
+    monkeypatch.delenv("ORA_OWNER_APPROVAL_SKIP_TOOLS", raising=False)
+    d = decide_tool_policy(
+        profile="private",
+        role="guest",
+        tool_name="web_download",
+        risk_score=30,
+        risk_level="MEDIUM",
+    )
+    assert d.allowed is True
+    assert d.requires_approval is True
+    assert d.requires_code is False
