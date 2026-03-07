@@ -18,6 +18,7 @@ from ora_core.models.model_registry import get_model_registry
 # from ora_core.engine.omni_engine import remote_engine # To be implemented/connected
 from ora_core.engine.simple_worker import event_manager # For event streaming
 from src.utils.cost_manager import CostManager, Usage
+from src.utils.intent_semantics import classify_semantic_intent, has_explicit_export_constraint
 
 try:
     from src.utils.agent_trace import trace_event
@@ -945,6 +946,23 @@ class MainProcess:
         function_category = str(hint.get("function_category") or "chat").strip().lower() or "chat"
         explicit_search_intent = bool(hint.get("explicit_search_intent"))
         explicit_save_intent = bool(hint.get("explicit_save_intent"))
+        if not explicit_save_intent:
+            semantic_intent = classify_semantic_intent(
+                str(getattr(self.request, "content", "") or ""),
+                has_current_image=any(
+                    str(getattr(att, "type", None) or (att.get("type") if isinstance(att, dict) else "")).strip()
+                    in {"image_url", "image_base64"}
+                    for att in (getattr(self.request, "attachments", None) or [])
+                ),
+                has_prior_image=False,
+                has_client_history=bool(getattr(self.request, "client_history", None)),
+                has_explicit_export_constraint=has_explicit_export_constraint(
+                    str(getattr(self.request, "content", "") or "")
+                ),
+            )
+            explicit_save_intent = bool(semantic_intent.save_export_intent)
+            if explicit_save_intent:
+                reason_codes = self._dedup_reason_codes(list(reason_codes) + ["semantic_save_intent_detected"])
         search_query_hint = str(hint.get("search_query_hint") or "").strip()[:500]
         route_score_hint = hint.get("route_score")
         if route_score_hint is None:
