@@ -28,6 +28,25 @@ class ContextBuilder:
         "他には",
     )
     _FOLLOWUP_IMAGE_ATTACHMENT_LIMIT = 3
+    _GENERIC_IMAGE_REQUEST_PATTERNS = (
+        "この画像を説明して",
+        "この画面を説明して",
+        "このスクリーンショットを説明して",
+        "何が映ってる",
+        "何が写ってる",
+        "何がうつってる",
+        "何が見える",
+    )
+    _FOCUSED_IMAGE_HINTS = (
+        "だけ",
+        "部分",
+        "ところ",
+        "欄",
+        "だけ説明",
+        "だけ見て",
+        "だけ教えて",
+    )
+    _IMAGE_EXPLANATION_POLICY_MARKER = "[IMAGE EXPLANATION POLICY]"
 
     @staticmethod
     async def build_context(req: MessageRequest, internal_user_id: str, conversation_id: str, repo: Any) -> list[dict]:
@@ -139,6 +158,13 @@ class ContextBuilder:
                     "content": f"[CHANNEL MEMORY (Context of this place)]\n{c_text}(Note: This is background context. Prioritize the CURRENT conversation flow.)"
                 })
 
+        effective_attachments = carryover_attachments or req.attachments or []
+        if ContextBuilder._should_apply_generic_image_explanation_policy(req, effective_attachments):
+            messages.append({
+                "role": "system",
+                "content": ContextBuilder._build_image_explanation_policy_message(),
+            })
+
         # L1: History
         messages.extend(llm_history)
 
@@ -199,6 +225,44 @@ class ContextBuilder:
         if any(marker in normalized for marker in ContextBuilder._FOLLOWUP_IMAGE_PATTERNS):
             return True
         return normalized.startswith("この") and len(normalized) <= 64
+
+    @staticmethod
+    def _looks_like_generic_image_explanation_request(text: str) -> bool:
+        normalized = re.sub(r"\s+", " ", str(text or "").strip().lower())
+        if not normalized:
+            return False
+        if any(marker in normalized for marker in ContextBuilder._FOCUSED_IMAGE_HINTS):
+            return False
+        if any(marker in normalized for marker in ContextBuilder._GENERIC_IMAGE_REQUEST_PATTERNS):
+            return True
+        return normalized in {
+            "説明して",
+            "見て",
+            "何が映ってる？",
+            "何が写ってる？",
+            "何がうつってる？",
+            "何が見える？",
+        }
+
+    @staticmethod
+    def _should_apply_generic_image_explanation_policy(req: MessageRequest, attachments: list[Any] | None) -> bool:
+        if not ContextBuilder._normalize_image_attachments(attachments):
+            return False
+        return ContextBuilder._looks_like_generic_image_explanation_request(req.content)
+
+    @staticmethod
+    def _build_image_explanation_policy_message() -> str:
+        return (
+            f"{ContextBuilder._IMAGE_EXPLANATION_POLICY_MARKER}\n"
+            "For generic image or screenshot explanation requests, answer in this order:\n"
+            "1. Identify the overall screen, app, page, or scene first.\n"
+            "2. Enumerate 2-4 major visible sections, panels, or items.\n"
+            "3. Then describe the main focus area.\n"
+            "4. Then mention concrete readable values or text if visible.\n"
+            "5. End with a short summary.\n"
+            "Do not reduce the answer to only the most salient object unless the user explicitly asked to focus on one area.\n"
+            "Do not attempt exhaustive OCR of every tiny element."
+        )
 
     @staticmethod
     def _is_image_attachment(att: Any) -> bool:
