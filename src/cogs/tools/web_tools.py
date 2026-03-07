@@ -477,7 +477,7 @@ async def download(args: dict, message: discord.Message, status_manager, bot=Non
             ttl_seconds=1800,
         )
 
-        base_url = await ensure_download_public_base_url(bot)
+        base_url = resolve_public_download_base_url(bot)
         dl_page_url = f"{base_url}/download/{manifest['token']}" if base_url else None
 
         content_lines = _build_download_message_lines(

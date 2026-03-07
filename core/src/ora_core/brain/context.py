@@ -92,7 +92,6 @@ class ContextBuilder:
             # Try to load from local file storage if shared
             import os
             import json
-            from ora_core.brain.memory import memory_store
             try:
                 c_path = memory_store.get_channel_path(ctx.channel_id)
                 if os.path.exists(c_path):
