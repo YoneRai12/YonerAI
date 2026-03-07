@@ -372,12 +372,8 @@ class ToolSelector:
             if has_url or any(k in lower_p for k in search_keywords) or any(k in lower_p for k in ["http", "google", "開いて", "スクショ", "撮って", "screenshot"]):
                  selected_categories.append("WEB_READ")
 
-            # [CRITICAL UPDATE] WEB_FETCH allows on fallback ONLY if highly certain
-            # If prompt has URL AND download-related keywords, allow it.
-            # Expanded Japanese keywords: 保存, ダウンロード, 落として, 録画, download, save, record, 持ってきて
-            download_keywords = ["save", "download", "fetch", "record", "保存", "ダウンロード", "落として", "録画", "持ってきて"]
-            if (has_url or any(k in lower_p for k in ["動画", "ビデオ", "mp4"])) and any(k in lower_p for k in download_keywords):
-                 selected_categories.append("WEB_FETCH")
+            # SECURITY: keep fallback fail-closed for download-capable tools.
+            # WEB_FETCH must only be selected by valid router output, never heuristics.
 
             # MCP (explicit)
             if "mcp" in lower_p:
@@ -948,5 +944,4 @@ class ToolSelector:
         if len(reasons) == 1:
             return "medium", reasons
         return "low", reasons
-
 
