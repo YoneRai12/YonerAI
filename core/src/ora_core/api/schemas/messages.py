@@ -69,6 +69,7 @@ class RouteHint(BaseModel):
     mode: Optional[str] = None
     function_category: Optional[str] = None
     explicit_search_intent: bool = False
+    explicit_save_intent: bool = False
     search_query_hint: Optional[str] = None
     route_score: Optional[float] = None
     difficulty_score: Optional[float] = None
@@ -92,6 +93,7 @@ class EffectiveRoute(BaseModel):
     model_tier: Literal["instant", "balanced", "pro"] = "balanced"
     function_category: str = "chat"
     explicit_search_intent: bool = False
+    explicit_save_intent: bool = False
     search_query_hint: Optional[str] = None
     route_score: float = 0.5
     difficulty_score: float = 0.5

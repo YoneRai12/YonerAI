@@ -169,6 +169,24 @@ async def test_router_explicit_search_intent_raises_low_tool_budget_to_five() ->
     assert "router_search_budget_5_floor_applied" in reason_codes
 
 
+@pytest.mark.asyncio
+async def test_router_explicit_save_intent_only_for_save_export_requests() -> None:
+    cfg = SimpleNamespace(standard_model="gpt-5-mini")
+    setattr(cfg, "open" + "ai_" + "api" + "_key", "dummy")
+    bot = SimpleNamespace(config=cfg)
+    tools = [{"name": "read_web_page", "tags": ["web", "read"]}]
+
+    sel_normal = ToolSelector(bot)
+    sel_normal.llm_client = _FakeLLM('{"categories":["MEDIA_ANALYZE"],"intents":{"download":false,"screenshot":false,"browser_control":false}}')
+    await sel_normal.select_tools("この画像を説明して", available_tools=tools)
+    assert sel_normal.last_route_meta.get("explicit_save_intent") is False
+
+    sel_save = ToolSelector(bot)
+    sel_save.llm_client = _FakeLLM('{"categories":["FILES"],"intents":{"download":true,"screenshot":false,"browser_control":false}}')
+    await sel_save.select_tools("この結果をPDFで保存して", available_tools=tools)
+    assert sel_save.last_route_meta.get("explicit_save_intent") is True
+
+
 
 @pytest.mark.asyncio
 async def test_router_fallback_does_not_enable_web_fetch_on_failure() -> None:
