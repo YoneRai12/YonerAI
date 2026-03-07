@@ -28,7 +28,7 @@ yt-dlp>=2024.3.10
 soundfile>=0.12.0
 
 # Vision & Image
-pillow>=9.5,<10.0
+pillow>=9.5,<13.0
 pytesseract>=0.3,<1.0
 opencv-python-headless>=4.8,<5.0
 mss
