@@ -6,8 +6,9 @@ if ENV_PATH:
 else:
     print("[CORE][WARN] .env NOT FOUND for runtime")
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from ora_core.api.dependencies.auth import require_core_access
 from ora_core.api.routes.auth import router as auth_router
 from ora_core.api.routes.messages import router as messages_router
 from ora_core.api.routes.runs import router as runs_router
@@ -80,9 +81,11 @@ def create_app():
         allow_headers=["*"],
     )
 
-    app.include_router(messages_router, prefix="/v1")
-    app.include_router(runs_router, prefix="/v1")
-    app.include_router(auth_router, prefix="/v1/auth") # Core generic auth routes (me, logout)
+    protected_deps = [Depends(require_core_access)]
+
+    app.include_router(messages_router, prefix="/v1", dependencies=protected_deps)
+    app.include_router(runs_router, prefix="/v1", dependencies=protected_deps)
+    app.include_router(auth_router, prefix="/v1/auth", dependencies=protected_deps) # Core generic auth routes (me, logout)
 
     # Conditional Auth Logic
     if hasattr(app.state, "config") and app.state.config.auth_strategy == "cloudflare":
@@ -108,10 +111,10 @@ def create_app():
         # User Request: Comment out Login for external connection
         # app.include_router(google_auth_router, prefix="/v1/auth")
 
-    app.include_router(stats_router, prefix="/v1")
+    app.include_router(stats_router, prefix="/v1", dependencies=protected_deps)
 
     from ora_core.api.routes.memory import router as memory_router
-    app.include_router(memory_router, prefix="/v1")
+    app.include_router(memory_router, prefix="/v1", dependencies=protected_deps)
 
     return app
 
@@ -125,4 +128,6 @@ if __name__ == "__main__":
     # Apply privacy log config to hide IP addresses
     log_config = get_privacy_log_config()
 
-    uvicorn.run("ora_core.main:app", host="0.0.0.0", port=8001, reload=True, log_config=log_config)
+    host = os.getenv("ORA_CORE_HOST", "127.0.0.1")
+    port = int(os.getenv("ORA_CORE_PORT", "8001"))
+    uvicorn.run("ora_core.main:app", host=host, port=port, reload=True, log_config=log_config)
