@@ -168,3 +168,32 @@ async def test_router_explicit_search_intent_raises_low_tool_budget_to_five() ->
     assert "router_search_budget_min_applied" in reason_codes
     assert "router_search_budget_5_floor_applied" in reason_codes
 
+
+
+@pytest.mark.asyncio
+async def test_router_fallback_does_not_enable_web_fetch_on_failure() -> None:
+    """
+    Security regression test:
+    - When router LLM fails and fallback is used, download-capable WEB_FETCH must remain disabled.
+    - Fallback should stay fail-closed and only include safe categories such as SYSTEM_UTIL/WEB_READ.
+    """
+    bot = SimpleNamespace(config=SimpleNamespace(standard_model="gpt-5-mini", openai_api_key="dummy"))
+    sel = ToolSelector(bot)
+
+    class _RaisingLLM:
+        async def chat(self, *_args, **_kwargs):
+            raise RuntimeError("forced-router-failure")
+
+    sel.llm_client = _RaisingLLM()
+
+    tools = [
+        {"name": "web_download", "tags": ["web", "download"]},
+        {"name": "read_web_page", "tags": ["web", "read"]},
+        {"name": "weather", "tags": ["system"]},
+    ]
+
+    out = await sel.select_tools("https://example.com をダウンロードして保存", available_tools=tools)
+    names = {t["name"] for t in out}
+
+    assert "web_download" not in names
+    assert "read_web_page" in names
