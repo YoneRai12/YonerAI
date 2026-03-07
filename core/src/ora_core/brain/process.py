@@ -232,6 +232,63 @@ class MainProcess:
         stripped = re.sub(r"\s+", " ", stripped).strip()
         return len(stripped) < 2
 
+    def _missing_referenced_input(self, query: str) -> bool:
+        normalized = self._normalize_search_text(query)
+        if not normalized:
+            return False
+        refers_to_missing_input = any(
+            marker in normalized
+            for marker in (
+                "\u3053\u306e\u753b\u50cf",
+                "\u3053\u306eurl",
+                "\u753b\u50cf\u306eurl",
+                "\u3053\u306e\u30ea\u30f3\u30af",
+                "\u3053\u306e\u52d5\u753b",
+                "\u3053\u306e\u97f3\u58f0",
+                "\u3053\u306e\u30d5\u30a1\u30a4\u30eb",
+                "this image",
+                "this url",
+                "this link",
+                "this video",
+                "this audio",
+                "this file",
+            )
+        )
+        if not refers_to_missing_input:
+            return False
+        has_attachment = bool(getattr(self.request, "attachments", None))
+        has_url = bool(re.search(r"https?://", query or ""))
+        return not has_attachment and not has_url
+
+    @staticmethod
+    def _has_contradictory_export_constraints(query: str) -> bool:
+        normalized = str(query or "").strip().lower()
+        if not normalized:
+            return False
+
+        wants_pdf = "pdf" in normalized
+        wants_image = any(
+            marker in normalized
+            for marker in ("png", "jpg", "jpeg", "webp", "\u753b\u50cf\u306e\u307e\u307e", "\u753b\u50cf\u3067")
+        )
+        wants_video = any(marker in normalized for marker in ("mp4", "\u52d5\u753b\u306e\u307e\u307e", "\u52d5\u753b\u3067"))
+        wants_audio = any(marker in normalized for marker in ("mp3", "wav", "\u97f3\u58f0\u3060\u3051", "\u97f3\u58f0\u3067"))
+
+        if wants_pdf and (wants_image or wants_video or wants_audio):
+            return True
+        if wants_image and wants_video:
+            return True
+        if wants_video and wants_audio:
+            return True
+        return False
+
+    def _clarification_allowed_before_save_export(self, query: str, *, explicit_save_intent: bool) -> bool:
+        if self._missing_referenced_input(query):
+            return True
+        if explicit_save_intent and self._has_contradictory_export_constraints(query):
+            return True
+        return False
+
     @staticmethod
     def _next_actions_for_search(query: str) -> list[str]:
         query = str(query or "").strip()
@@ -478,6 +535,40 @@ class MainProcess:
         has_question = any(marker in normalized for marker in question_markers)
         has_sources = any(marker in normalized.lower() for marker in source_markers)
         return has_question and not has_sources
+
+    @staticmethod
+    def _looks_like_save_export_clarification_only_response(text: str) -> bool:
+        normalized = str(text or "").strip().lower()
+        if not normalized:
+            return False
+        question_markers = (
+            "\u3069\u306e\u5f62\u5f0f",
+            "\u4fdd\u5b58\u3057\u305f\u3044\u5f62\u5f0f",
+            "\u4f55\u3092\u30c0\u30a6\u30f3\u30ed\u30fc\u30c9",
+            "\u4f55\u3092\u4fdd\u5b58",
+            "what format",
+            "which format",
+            "what do you want to download",
+            "?",
+            "\uff1f",
+        )
+        format_markers = (
+            "\u4fdd\u5b58",
+            "\u30c0\u30a6\u30f3\u30ed\u30fc\u30c9",
+            "\u5f62\u5f0f",
+            "\u30d5\u30a1\u30a4\u30eb\u540d",
+            "download",
+            "save",
+            "export",
+            "format",
+            "pdf",
+            "png",
+            "mp4",
+            "mp3",
+        )
+        has_question = any(marker in normalized for marker in question_markers)
+        has_format = any(marker in normalized for marker in format_markers)
+        return has_question and has_format
 
     def _format_search_no_match_response(self, *, query: str, contract: dict[str, Any]) -> str:
         next_actions = contract.get("next_actions") or []
@@ -853,6 +944,7 @@ class MainProcess:
         security_risk_score = self._clamp_float(hint.get("security_risk_score"), 0.0)
         function_category = str(hint.get("function_category") or "chat").strip().lower() or "chat"
         explicit_search_intent = bool(hint.get("explicit_search_intent"))
+        explicit_save_intent = bool(hint.get("explicit_save_intent"))
         search_query_hint = str(hint.get("search_query_hint") or "").strip()[:500]
         route_score_hint = hint.get("route_score")
         if route_score_hint is None:
@@ -946,6 +1038,7 @@ class MainProcess:
             model_tier=model_tier,  # type: ignore[arg-type]
             function_category=function_category,
             explicit_search_intent=explicit_search_intent,
+            explicit_save_intent=explicit_save_intent,
             search_query_hint=search_query_hint or None,
             route_score=round(route_score, 2),
             difficulty_score=round(difficulty_score, 2),
@@ -1082,8 +1175,38 @@ class MainProcess:
                 search_result_contract: dict[str, Any] | None = None
                 pass_downloads: list[dict[str, Any]] = []
                 explicit_search_intent = bool(effective_route.get("explicit_search_intent"))
+                explicit_save_intent = bool(effective_route.get("explicit_save_intent"))
                 search_query_hint = self._search_query_hint(effective_route)
+                request_query = str(getattr(self.request, "content", "") or "").strip()
+                save_clarification_allowed = self._clarification_allowed_before_save_export(
+                    request_query,
+                    explicit_save_intent=explicit_save_intent,
+                )
                 request_meta = self.request.request_meta.model_dump() if self.request.request_meta else None
+                if explicit_save_intent and not save_clarification_allowed:
+                    context_messages.append(
+                        {
+                            "role": "system",
+                            "content": (
+                                "[OUTPUT POLICY]\n"
+                                "The user explicitly requested save/export/download. "
+                                "If format is unspecified, choose the source-native/default format and proceed. "
+                                "Only ask for clarification if required input is missing or constraints conflict."
+                            ),
+                        }
+                    )
+                elif not explicit_save_intent:
+                    context_messages.append(
+                        {
+                            "role": "system",
+                            "content": (
+                                "[OUTPUT POLICY]\n"
+                                "Unless the user explicitly requested save/export/download, "
+                                "treat the request as a normal answer/action request. "
+                                "Do not ask about save/export format."
+                            ),
+                        }
+                    )
 
                 for turn in range(max_turns):
                     if (time.monotonic() - started_at) >= float(time_budget_seconds):
@@ -1135,6 +1258,37 @@ class MainProcess:
                     content = message.content or ""
                     last_content = content
                     tool_calls = message.tool_calls
+
+                    if (
+                        self._looks_like_save_export_clarification_only_response(content)
+                        and not self._missing_referenced_input(request_query)
+                    ):
+                        if not explicit_save_intent and turn < (max_turns - 1):
+                            self._append_reason_code(effective_route, "router_default_output_mode_applied")
+                            context_messages.append(
+                                {
+                                    "role": "system",
+                                    "content": (
+                                        "[OUTPUT POLICY]\n"
+                                        "The user did not request save/export/download. "
+                                        "Answer normally without asking about file format or download format."
+                                    ),
+                                }
+                            )
+                            continue
+                        if explicit_save_intent and not save_clarification_allowed and turn < (max_turns - 1):
+                            self._append_reason_code(effective_route, "router_save_default_format_applied")
+                            context_messages.append(
+                                {
+                                    "role": "system",
+                                    "content": (
+                                        "[OUTPUT POLICY]\n"
+                                        "Proceed with the default/source-native export format. "
+                                        "Do not ask for format unless the request is contradictory."
+                                    ),
+                                }
+                            )
+                            continue
 
                     if not tool_calls:
                         if (

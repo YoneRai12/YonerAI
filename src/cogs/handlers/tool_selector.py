@@ -606,6 +606,7 @@ class ToolSelector:
             selected_categories=selected_categories,
             selected_tools=final_tools,
         )
+        explicit_save_intent = self._is_explicit_save_intent(prompt)
 
         route_score = self._compose_route_score(
             complexity_score=complexity_score,
@@ -658,6 +659,7 @@ class ToolSelector:
         log_payload["security_risk_level"] = security_risk_level
         log_payload["has_vision_attachment"] = bool(has_vision_attachment)
         log_payload["explicit_search_intent"] = bool(explicit_search_intent)
+        log_payload["explicit_save_intent"] = bool(explicit_save_intent)
         if reason_codes:
             log_payload["route_reason_codes"] = list(reason_codes)
 
@@ -666,6 +668,7 @@ class ToolSelector:
             "route_band": route_band,
             "function_category": function_category,
             "explicit_search_intent": bool(explicit_search_intent),
+            "explicit_save_intent": bool(explicit_save_intent),
             "route_score": round(route_score, 2),
             # Keep compatibility with current Core route hint contract.
             "difficulty_score": round(route_score, 2),
@@ -884,6 +887,37 @@ class ToolSelector:
         has_lookup_tool = bool(tool_names & {"web_search_api", "read_web_page", "web_search"})
 
         return bool(has_search_word and (has_web_read or has_lookup_tool))
+
+    @staticmethod
+    def _is_explicit_save_intent(prompt: str) -> bool:
+        p = (prompt or "").strip().lower()
+        if not p:
+            return False
+
+        save_keywords = [
+            "download",
+            "save",
+            "export",
+            "pdf",
+            "png",
+            "jpg",
+            "jpeg",
+            "webp",
+            "mp3",
+            "mp4",
+            "wav",
+            "zip",
+            "csv",
+            "xlsx",
+            "docx",
+            "\u4fdd\u5b58",
+            "\u30c0\u30a6\u30f3\u30ed\u30fc\u30c9",
+            "\u66f8\u304d\u51fa\u3057",
+            "\u30a8\u30af\u30b9\u30dd\u30fc\u30c8",
+            "\u4fdd\u5b58\u3057\u3066",
+            "\u30d5\u30a1\u30a4\u30eb\u5316",
+        ]
+        return any(keyword in p for keyword in save_keywords)
 
     @staticmethod
     def _risk_score_from_tools(tools: List[dict]) -> float:
