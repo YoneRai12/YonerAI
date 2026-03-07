@@ -191,8 +191,16 @@ def decide_tool_policy(
             reason="private_high_requires_approval",
         )
 
-    # Keep MEDIUM+ for non-owners gated in approvals.py policy_for; but we still allow here.
+    # Private profile keeps non-owner MEDIUM+ gated behind owner approval.
     # role-based allowlist is enforced separately by src/utils/access_control.py.
+    if (not is_owner) and score >= 30:
+        return PolicyDecision(
+            allowed=True,
+            requires_approval=True,
+            requires_code=(score >= 90),
+            reason="private_guest_nonlow_requires_approval",
+        )
+
     return PolicyDecision(
         allowed=True,
         requires_approval=False,
