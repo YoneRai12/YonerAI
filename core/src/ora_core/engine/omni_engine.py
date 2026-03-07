@@ -168,7 +168,7 @@ class OmniEngine:
 
     def _get_tools_param(self, client_type: str, tool_schemas: list[dict] | None = None) -> list[dict] | None:
         """Fetch tools from registry and format for OpenAI."""
-        if tool_schemas:
+        if tool_schemas is not None:
             normalized_tools = []
             seen = set()
             for t in tool_schemas:
@@ -180,8 +180,7 @@ class OmniEngine:
                     continue
                 normalized_tools.append(normalized)
                 seen.add(name)
-            if normalized_tools:
-                return normalized_tools
+            return normalized_tools or None
 
         tools = tool_registry.list_tools_for_client(client_type)
         if not tools:
