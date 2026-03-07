@@ -7,6 +7,7 @@ import re
 import traceback
 from typing import Any
 from datetime import datetime
+from urllib.parse import urlparse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ora_core.api.schemas.messages import EffectiveRoute, MessageRequest
@@ -45,6 +46,43 @@ class MainProcess:
         "TASK": {"max_turns": 5, "max_tool_calls": 5, "time_budget_seconds": 120},
         "AGENT_LOOP": {"max_turns": 8, "max_tool_calls": 10, "time_budget_seconds": 300},
     }
+    _PROFILE_SEARCH_DOMAINS = {
+        "github.com",
+        "x.com",
+        "twitter.com",
+        "instagram.com",
+        "youtube.com",
+        "youtube.co.jp",
+        "tiktok.com",
+        "linkedin.com",
+        "lit.link",
+        "note.com",
+        "github.io",
+        "qiita.com",
+        "zenn.dev",
+        "pixiv.net",
+        "nicovideo.jp",
+        "niconico.com",
+    }
+    _NOISY_SEARCH_DOMAINS = {
+        "reddit.com",
+        "funtivia.com",
+        "quizur.com",
+        "microsoft.com",
+        "google.com",
+        "bing.com",
+        "eroguide.dk",
+    }
+    _NOISY_SEARCH_KEYWORDS = (
+        "quiz",
+        "forum",
+        "subreddit",
+        "microsoft support",
+        "google search",
+        "general guide",
+        "dictionary",
+        "wiki",
+    )
 
     @staticmethod
     def _clamp_int(value: Any, default: int, *, lo: int, hi: int) -> int:
@@ -232,34 +270,132 @@ class MainProcess:
         stripped = re.sub(r"[^0-9a-zA-Zぁ-んァ-ヶ一-龯_@.\-\s]", " ", stripped)
         return re.sub(r"\s+", " ", stripped).strip()
 
-    def _build_search_result_contract(self, *, query: str, sources: list[dict[str, Any]]) -> dict[str, Any]:
-        normalized_query = self._search_target_text(query)
-        candidate_tokens = [
-            token
+    @staticmethod
+    def _search_candidate_tokens(normalized_query: str) -> list[str]:
+        tokens = [
+            token.strip("@")
             for token in re.split(r"\s+", normalized_query)
-            if len(token) >= 3 and token not in {"検索して", "要約して", "公開情報", "主要sns"}
+            if len(token.strip("@")) >= 3 and token not in {"検索して", "要約して", "公開情報", "主要sns"}
         ]
-        if not candidate_tokens and normalized_query:
-            candidate_tokens = [normalized_query]
+        if not tokens and normalized_query:
+            fallback = normalized_query.strip("@")
+            if fallback:
+                tokens = [fallback]
+        return tokens
 
-        matched_entities: list[str] = []
-        for source in sources:
-            hay = self._normalize_search_text(
-                " ".join(
-                    [
-                        str(source.get("title") or ""),
-                        str(source.get("snippet") or ""),
-                        str(source.get("url") or ""),
-                    ]
-                )
+    @staticmethod
+    def _source_domain(url: str) -> str:
+        try:
+            domain = urlparse(str(url or "").strip()).netloc.lower()
+        except Exception:
+            return ""
+        if domain.startswith("www."):
+            domain = domain[4:]
+        return domain
+
+    def _is_profile_lookup_search(self, normalized_query: str, candidate_tokens: list[str]) -> bool:
+        if not normalized_query or not candidate_tokens:
+            return False
+        return len(candidate_tokens) == 1
+
+    @staticmethod
+    def _contains_exact_token(text: str, token: str) -> bool:
+        if not text or not token:
+            return False
+        pattern = rf"(?<![0-9a-zA-Z_]){re.escape(token)}(?![0-9a-zA-Z_])"
+        return re.search(pattern, text, flags=re.IGNORECASE) is not None
+
+    def _score_search_source(
+        self,
+        *,
+        candidate_tokens: list[str],
+        source: dict[str, Any],
+        profile_lookup: bool,
+    ) -> tuple[int, bool]:
+        title = str(source.get("title") or "").strip()
+        snippet = str(source.get("snippet") or "").strip()
+        url = str(source.get("url") or "").strip()
+        hay = self._normalize_search_text(" ".join([title, snippet, url]))
+        domain = self._source_domain(url)
+
+        score = 0
+        exact_match = False
+
+        for token in candidate_tokens:
+            if token in hay:
+                score += 2
+            if self._contains_exact_token(hay, token):
+                score += 3
+                exact_match = True
+            if url and (f"/{token.lower()}" in url.lower() or f"@{token.lower()}" in url.lower()):
+                score += 2
+                exact_match = True
+
+        if domain in self._PROFILE_SEARCH_DOMAINS:
+            score += 2
+        if profile_lookup and domain in self._NOISY_SEARCH_DOMAINS:
+            score -= 5
+        elif domain in self._NOISY_SEARCH_DOMAINS:
+            score -= 3
+
+        lowered = " ".join([title.lower(), snippet.lower(), url.lower()])
+        if any(keyword in lowered for keyword in self._NOISY_SEARCH_KEYWORDS):
+            score -= 3 if profile_lookup else 2
+
+        if profile_lookup and exact_match and domain in self._PROFILE_SEARCH_DOMAINS:
+            score += 3
+        if profile_lookup and not exact_match and domain not in self._PROFILE_SEARCH_DOMAINS:
+            score -= 1
+
+        return score, exact_match
+
+    def _rank_search_sources(self, *, query: str, sources: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[str], float]:
+        normalized_query = self._search_target_text(query)
+        candidate_tokens = self._search_candidate_tokens(normalized_query)
+        profile_lookup = self._is_profile_lookup_search(normalized_query, candidate_tokens)
+
+        scored: list[tuple[int, int, bool, dict[str, Any]]] = []
+        for index, source in enumerate(sources):
+            score, exact_match = self._score_search_source(
+                candidate_tokens=candidate_tokens,
+                source=source,
+                profile_lookup=profile_lookup,
             )
-            if any(token in hay for token in candidate_tokens):
-                matched_entities = [query.strip()]
-                break
+            scored.append((score, index, exact_match, source))
 
+        scored.sort(key=lambda item: (item[0], item[2], -item[1]), reverse=True)
+
+        positive = [source for score, _, _, source in scored if score > 0]
+        ranked_sources = positive[:5] if positive else []
+
+        top_score = scored[0][0] if scored else 0
+        top_exact = scored[0][2] if scored else False
+        matched_entities: list[str] = []
         confidence = 0.0
+
         if sources:
-            confidence = 0.75 if matched_entities else 0.35
+            if profile_lookup:
+                if top_score >= 7 and top_exact:
+                    matched_entities = [query.strip()]
+                    confidence = 0.85
+                elif top_score >= 5 and ranked_sources:
+                    matched_entities = [query.strip()]
+                    confidence = 0.65
+                else:
+                    confidence = 0.2
+            else:
+                if top_score >= 5:
+                    matched_entities = [query.strip()]
+                    confidence = 0.75
+                elif ranked_sources:
+                    confidence = 0.45
+                else:
+                    confidence = 0.25
+
+        return ranked_sources, matched_entities, confidence
+
+    def _build_search_result_contract(self, *, query: str, sources: list[dict[str, Any]]) -> dict[str, Any]:
+        ranked_sources, matched_entities, confidence = self._rank_search_sources(query=query, sources=sources)
 
         searched_sources = [
             {
@@ -267,7 +403,7 @@ class MainProcess:
                 "url": str(source.get("url") or "").strip(),
                 "snippet": str(source.get("snippet") or "").strip(),
             }
-            for source in sources[:5]
+            for source in ranked_sources[:5]
         ]
 
         return {
@@ -276,6 +412,40 @@ class MainProcess:
             "confidence": confidence,
             "next_actions": self._next_actions_for_search(query),
         }
+
+    @staticmethod
+    def _format_search_content_atoms(sources: list[dict[str, Any]]) -> list[dict[str, str]]:
+        return [
+            {
+                "type": "text",
+                "text": f"[{index}] {str(source.get('title') or '無題').strip()}\nURL: {str(source.get('url') or '').strip()}\nSnippet: {str(source.get('snippet') or '').strip()}\n",
+            }
+            for index, source in enumerate(sources[:5], start=1)
+        ]
+
+    def _normalize_search_tool_payload(self, *, query: str, tool_payload: Any) -> tuple[Any, dict[str, Any]]:
+        sources = self._extract_search_sources(tool_payload)
+        contract = self._build_search_result_contract(query=query, sources=sources)
+        normalized_sources = list(contract.get("searched_sources") or [])
+
+        if not isinstance(tool_payload, dict):
+            return tool_payload, contract
+
+        normalized_payload = dict(tool_payload)
+        structured = tool_payload.get("structuredContent")
+        if isinstance(structured, dict):
+            normalized_payload["structuredContent"] = dict(structured)
+            normalized_payload["structuredContent"]["sources"] = normalized_sources
+        elif "structuredContent" in normalized_payload:
+            normalized_payload["structuredContent"] = {"sources": normalized_sources}
+
+        if "sources" in normalized_payload:
+            normalized_payload["sources"] = normalized_sources
+
+        if "content" in normalized_payload:
+            normalized_payload["content"] = self._format_search_content_atoms(normalized_sources)
+
+        return normalized_payload, contract
 
     @staticmethod
     def _extract_search_sources(tool_payload: Any) -> list[dict[str, Any]]:
@@ -362,8 +532,7 @@ class MainProcess:
             effective_route=effective_route,
         )
         tool_payload = result.get("result") if isinstance(result, dict) and result.get("result") is not None else result.get("error")
-        sources = self._extract_search_sources(tool_payload)
-        contract = self._build_search_result_contract(query=query, sources=sources)
+        tool_payload, contract = self._normalize_search_tool_payload(query=query, tool_payload=tool_payload)
         return forced_tool_call_id, tool_payload, contract
 
     @staticmethod
@@ -992,6 +1161,11 @@ class MainProcess:
                             tool_data = result.get("result") if result.get("result") is not None else result.get("error")
                         else:
                             tool_data = result
+                        if t_name == "google_search":
+                            tool_data, search_result_contract = self._normalize_search_tool_payload(
+                                query=str(t_args.get("query") or search_query_hint or ""),
+                                tool_payload=tool_data,
+                            )
                         dispatched_externally = (
                             client_type == "discord"
                             and isinstance(result, dict)
