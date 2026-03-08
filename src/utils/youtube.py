@@ -320,6 +320,8 @@ def _get_youtube_playlist_entries_sync(
     ydl_opts: Dict[str, Any] = {
         "quiet": True,
         "noplaylist": False,
+        # Enforce extraction cap inside yt-dlp to avoid enumerating huge playlists.
+        "playlistend": lim,
         "extract_flat": True,
         "skip_download": True,
         "ignoreerrors": True,
@@ -344,13 +346,8 @@ def _get_youtube_playlist_entries_sync(
     entries = info.get("entries") or []
     out: list[Dict[str, Any]] = []
 
-    # entries can be a generator in some yt-dlp versions; iterate defensively.
-    try:
-        iterable = list(entries)
-    except Exception:
-        iterable = entries  # best effort
-
-    for e in iterable:
+    # entries can be a generator in some yt-dlp versions; consume lazily.
+    for e in entries:
         if not isinstance(e, dict):
             continue
         vid = e.get("id") or e.get("url")
