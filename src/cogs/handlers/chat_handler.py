@@ -3,6 +3,7 @@ import datetime
 import json
 import logging
 import os
+import re
 from typing import Optional
 
 import discord
@@ -28,7 +29,29 @@ class ChatHandler:
     @staticmethod
     def _sanitize_args_for_audit(args: dict) -> str:
         """Mask sensitive keys and keep payload short for Discord audit posts."""
-        sensitive_markers = ("token", "secret", "password", "api_key", "authorization", "cookie")
+        sensitive_markers = (
+            "token",
+            "secret",
+            "password",
+            "api_key",
+            "apikey",
+            "api-key",
+            "authorization",
+            "auth",
+            "cookie",
+            "session",
+            "credential",
+        )
+        sensitive_value_patterns = [
+            re.compile(r"(?i)(bearer\s+)[^\s]+"),
+            re.compile(r"(?i)((?:token|access[_-]?token|id[_-]?token|api[_-]?key|secret|password|auth(?:orization)?|cookie)=)[^&\s]+"),
+        ]
+
+        def scrub_text(text: str) -> str:
+            masked = text
+            for pattern in sensitive_value_patterns:
+                masked = pattern.sub(r"\1[REDACTED]", masked)
+            return masked
 
         def scrub(value):
             if isinstance(value, dict):
@@ -42,6 +65,8 @@ class ChatHandler:
                 return out
             if isinstance(value, list):
                 return [scrub(v) for v in value]
+            if isinstance(value, str):
+                return scrub_text(value)
             return value
 
         safe = scrub(args or {})
