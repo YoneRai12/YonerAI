@@ -151,8 +151,8 @@ def _apply_profile_secrets() -> None:
     Optional: allow per-profile secrets without juggling multiple .env files.
     If a file exists under SECRETS_DIR, load it into env.
 
-    Rationale: UI/installer-managed secrets should survive restarts even when .env already
-    contains a value. Presence of a secrets file is an explicit local choice, so it wins.
+    Environment values keep precedence so operators can rotate/revoke tokens via
+    runtime/.env without editing secret files.
     """
     base = Path(SECRETS_DIR)
     try:
@@ -166,6 +166,9 @@ def _apply_profile_secrets() -> None:
             if not env_key:
                 continue
             if not all(ch.isalnum() or ch == "_" for ch in env_key):
+                continue
+            # Keep existing env/.env values authoritative.
+            if (os.getenv(env_key) or "").strip():
                 continue
             val = p.read_text(encoding="utf-8", errors="ignore").strip()
         except Exception:
