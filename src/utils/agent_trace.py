@@ -1,5 +1,6 @@
 import json
 import os
+import re
 from datetime import datetime, timezone
 from typing import Any, Dict
 
@@ -7,7 +8,7 @@ SENSITIVE_KEYS = ("token", "secret", "password", "api_key", "authorization", "co
 
 
 def _is_enabled() -> bool:
-    raw = (os.getenv("ORA_TRACE_ENABLED") or "1").strip().lower()
+    raw = (os.getenv("ORA_TRACE_ENABLED") or "0").strip().lower()
     return raw in {"1", "true", "yes", "on"}
 
 
@@ -28,8 +29,28 @@ def _sanitize(value: Any, max_str: int = 500) -> Any:
     if isinstance(value, list):
         return [_sanitize(v, max_str=max_str) for v in value]
     if isinstance(value, str):
-        return value[:max_str] + ("..." if len(value) > max_str else "")
+        return _sanitize_text(value, max_str=max_str)
     return value
+
+
+def _sanitize_text(value: str, max_str: int = 500) -> str:
+    """Best-effort redaction for free-form text and URLs in trace payloads."""
+    sanitized = value
+    for marker in SENSITIVE_KEYS:
+        safe_marker = re.escape(marker)
+        sanitized = re.sub(
+            rf"([?&]{safe_marker}=)([^&#\s]+)",
+            r"\1[REDACTED]",
+            sanitized,
+            flags=re.IGNORECASE,
+        )
+        sanitized = re.sub(
+            rf"\b({safe_marker}\s*[:=]\s*)([^,;\s]+)",
+            r"\1[REDACTED]",
+            sanitized,
+            flags=re.IGNORECASE,
+        )
+    return sanitized[:max_str] + ("..." if len(sanitized) > max_str else "")
 
 
 def trace_event(event: str, correlation_id: str = "", **payload: Any) -> None:
