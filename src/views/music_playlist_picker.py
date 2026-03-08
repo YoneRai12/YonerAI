@@ -192,7 +192,7 @@ class PlaylistPickView(ui.View):
         try:
             ctx = await self.cog.bot.get_context(self.message) if self.message else None
             if ctx:
-                await self.cog.play_from_ai(ctx, url)
+                await self.cog.play_from_ai(ctx, url, requester=interaction.user)
             else:
                 await interaction.followup.send(f"🎵 再生: {title}\n{url}")
         except Exception as e:

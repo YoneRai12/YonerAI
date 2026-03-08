@@ -671,10 +671,12 @@ class MediaCog(commands.Cog):
         self._voice_manager.seek_music(interaction.guild.id, seconds)
         await interaction.followup.send(f"⏩ 再生位置を {timestamp} ({seconds}秒) に変更しました")
 
-    async def play_from_ai(self, ctx: commands.Context, query: str) -> None:
+    async def play_from_ai(self, ctx: commands.Context, query: str, requester: Optional[Any] = None) -> None:
         """Helper for AI to play music directly via Context."""
+        effective_author = requester or ctx.author
+
         # Ensure Voice
-        if not ctx.author.voice:
+        if not getattr(effective_author, "voice", None):
             await ctx.send("❌ ボイスチャンネルに参加してからリクエストしてください。")
             return
 
@@ -741,7 +743,7 @@ class MediaCog(commands.Cog):
                     lines.append(f"{i}. {t}{dur_str}")
                 embed.add_field(name="Top results", value="\n".join(lines)[:1000], inline=False)
 
-                view = MusicPickView(cog=self, requester_id=int(ctx.author.id), results=results, query=q, timeout=60.0)
+                view = MusicPickView(cog=self, requester_id=int(effective_author.id), results=results, query=q, timeout=60.0)
                 msg = await ctx.send(embed=embed, view=view)
                 view.message = msg
                 return
@@ -754,7 +756,7 @@ class MediaCog(commands.Cog):
 
         # 2. Play (Await once!)
         played = await self._voice_manager.play_music(
-            ctx.author, stream_url, title, is_stream=True, duration=duration_sec or 0.0
+            effective_author, stream_url, title, is_stream=True, duration=duration_sec or 0.0
         )
 
         if played:
