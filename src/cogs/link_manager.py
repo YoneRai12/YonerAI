@@ -224,6 +224,7 @@ class LinkManager(commands.Cog):
         await interaction.followup.send("Broadcast Complete:\n" + "\n".join(results))
 
     @app_commands.command(name="links", description="Show current system links (Quick Tunnel / Named Tunnel).")
+    @app_commands.checks.has_permissions(administrator=True)
     async def links(self, interaction: discord.Interaction):
         """Ephemeral: show the latest link map for quick copy/paste."""
         await interaction.response.defer(ephemeral=True)
