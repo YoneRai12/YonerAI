@@ -33,6 +33,15 @@ async def execute(args: dict, message: discord.Message) -> str:
     if not hasattr(channel, "history"):
          return "Error: This channel type does not support history reading."
 
+    # Security: ensure the requesting user can actually access/read this channel
+    # before returning history text (prevents cross-channel exfiltration by ID).
+    try:
+        perms = channel.permissions_for(message.author)
+        if not (perms.view_channel and perms.read_message_history):
+            return "Error: You do not have permission to read this channel's history."
+    except Exception:
+        return "Error: Unable to validate channel permissions."
+
     try:
         logger.info(f"ChatSkill: Reading last {limit} messages from {channel.name} ({channel.id})")
         
