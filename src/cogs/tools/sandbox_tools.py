@@ -519,14 +519,10 @@ async def download_repo(args: dict, message: discord.Message, status_manager, bo
                         shown = ", ".join([str(it.get("name")) for it in items[:30] if isinstance(it, dict) and it.get("name")])
                         if shown:
                             lines.append(f"- root: {shown}" + (" ..." if len(items) > 30 else ""))
-                if isinstance(readme, dict) and readme.get("ok") and readme.get("text"):
-                    snippet = (readme["text"] or "").strip().splitlines()
-                    snippet = snippet[:40]
-                    if snippet:
-                        lines.append("")
-                        lines.append("```text")
-                        lines.extend(snippet)
-                        lines.append("```")
+                if isinstance(readme, dict) and readme.get("ok"):
+                    lines.append(
+                        f"- readme: fetched ({len(readme.get('text') or '')} chars); content omitted from result for safety"
+                    )
 
                 lines.append("")
                 lines.append("- note: fallback is read-only via GitHub API; no repo ZIP was downloaded; no code executed.")
