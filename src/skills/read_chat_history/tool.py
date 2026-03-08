@@ -6,7 +6,7 @@ import discord
 logger = logging.getLogger(__name__)
 
 async def execute(args: dict, message: discord.Message) -> str:
-    limit = int(args.get("limit", 20))
+    limit = min(int(args.get("limit", 20)), 50)
     channel_id = args.get("channel_id")
     
     channel = None

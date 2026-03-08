@@ -27,6 +27,7 @@ class _DummyChannel:
         return self._perms
 
     async def history(self, limit: int = 20):
+        self.last_limit = limit
         if False:
             yield limit
 
@@ -46,3 +47,13 @@ async def test_read_chat_history_denies_without_permission():
     result = await execute({"limit": 5}, msg)
 
     assert result == "Error: You do not have permission to read this channel's history."
+
+
+@pytest.mark.asyncio
+async def test_read_chat_history_caps_limit_to_50():
+    channel = _DummyChannel(view_channel=True, read_history=True)
+    msg = _DummyMessage(channel)
+
+    await execute({"limit": 500}, msg)
+
+    assert channel.last_limit == 50
