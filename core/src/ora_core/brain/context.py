@@ -147,17 +147,15 @@ class ContextBuilder:
             messages.append(
                 {
                     "role": "system",
-                    "content": (
-                        "[IMAGE RESPONSE POLICY]\n"
-                        "The user asked for a broad explanation of the image or screen.\n"
-                        "Respond in this order:\n"
-                        "1. Identify the overall screen/app/page.\n"
-                        "2. Enumerate 2-4 major visible sections or regions.\n"
-                        "3. Describe the main focus area.\n"
-                        "4. Mention readable values/text that are clearly visible.\n"
-                        "5. End with a short summary.\n"
-                        "Do not focus only on the most salient object unless the user asked for a narrow explanation."
-                    ),
+                    "content": ContextBuilder._generic_image_output_contract(),
+                }
+            )
+
+        if semantic_intent.image_followup and ContextBuilder._filter_image_attachments(effective_attachments):
+            messages.append(
+                {
+                    "role": "system",
+                    "content": ContextBuilder._image_followup_contract(),
                 }
             )
 
@@ -246,6 +244,36 @@ class ContextBuilder:
             if image_attachments:
                 return image_attachments[: max(1, int(limit))]
         return []
+
+    @staticmethod
+    def _generic_image_output_contract() -> str:
+        return (
+            "[IMAGE OUTPUT CONTRACT]\n"
+            "The user asked for a broad explanation of the current image or screenshot.\n"
+            "You must answer using the following section headings in this order:\n"
+            "## 1. 何の画面か\n"
+            "## 2. 主な区画\n"
+            "## 3. 注目点\n"
+            "## 4. 読み取れる値や文字\n"
+            "## 5. 要約\n"
+            "Rules:\n"
+            "- Start with the whole screen, app, or page before any local detail.\n"
+            "- Mention 2 to 4 major visible regions in '主な区画'.\n"
+            "- In '注目点', describe the main focus area only after the whole-screen overview.\n"
+            "- In '読み取れる値や文字', list only clearly visible values or labels. Do not invent unreadable details.\n"
+            "- Do not collapse the answer into a single salient object unless the user explicitly asked for one part only.\n"
+            "- Keep the answer compact but structured."
+        )
+
+    @staticmethod
+    def _image_followup_contract() -> str:
+        return (
+            "[IMAGE FOLLOW-UP CONTRACT]\n"
+            "The current turn is a follow-up about the same image context.\n"
+            "Continue reasoning about the most recent image already in context.\n"
+            "Do not claim the image is missing if an image attachment is present in the effective context.\n"
+            "Expand, deepen, or clarify the prior explanation instead of restarting with generic filler."
+        )
 
     @staticmethod
     async def _construct_system_prompt(req: MessageRequest, profile: Dict[str, Any]) -> str:
