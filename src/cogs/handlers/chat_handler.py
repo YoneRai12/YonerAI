@@ -125,6 +125,30 @@ class ChatHandler:
             prompt=prompt,
         )
 
+        # Security gate (restored from legacy flow): anti-spam + smart-mode guardrail.
+        if self.cog._is_input_spam(prompt):
+            await message.reply(
+                "⚠️ **不正なリクエスト (Anti-Abuse L1)**\n"
+                "過度な繰り返しやリソースを浪費する可能性のある指示は実行できません。",
+                mention_author=False,
+            )
+            return
+
+        is_override = self.cog.cost_manager.unlimited_mode or str(message.author.id) in self.cog.cost_manager.unlimited_users
+        temp_user_mode = self.cog.user_prefs.get_mode(message.author.id) or "private"
+        should_check_guardrail = temp_user_mode == "smart" and not is_override
+        if should_check_guardrail:
+            guard_result = await self.cog._perform_guardrail_check(prompt, message.author.id)
+            if guard_result.get("safe") is False:
+                reason = guard_result.get("reason", "Security Policy")
+                await message.reply(
+                    "🛡️ **Security Guardrail Triggered**\n"
+                    "AIがこのリクエストを安全でない、またはスパムと判断しました。\n"
+                    f"Reason: {reason}",
+                    mention_author=False,
+                )
+                return
+
         status_manager = StatusManager(message.channel, existing_message=existing_status_msg)
 
         # Task board: show the "plan" here (card), not as an extra message.
