@@ -82,10 +82,14 @@ async def dispatch(
         pass
 
     summary = _summarize_mcp_result(res)
+    if isinstance(res, dict) and "ok" in res:
+        ok = bool(res.get("ok"))
+    else:
+        ok = bool(res)
+
     return {
-        "ok": True if isinstance(res, dict) and res.get("ok") is not False else bool(res),
+        "ok": ok,
         "result": summary,
         "raw": raw,
         "silent": True,
     }
-
