@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import base64
 import logging
 import os
@@ -11,6 +12,11 @@ import aiohttp
 import yt_dlp
 
 logger = logging.getLogger(__name__)
+
+
+def _extract_spotify_metadata_sync(url: str, ydl_opts: Dict[str, Any]) -> Any:
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        return ydl.extract_info(url, download=False)
 
 
 def parse_spotify_url(url: str) -> Tuple[Optional[str], Optional[str]]:
@@ -252,8 +258,7 @@ async def get_spotify_tracks(
         "no_warnings": True,
     }
     try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=False)
+        info = await asyncio.to_thread(_extract_spotify_metadata_sync, url, ydl_opts)
     except Exception as e:
         logger.warning("Spotify metadata extract failed: %s", e)
         return None, []
@@ -283,4 +288,3 @@ async def get_spotify_tracks(
             break
 
     return (str(title) if title else None), out
-
