@@ -82,7 +82,12 @@ class PlaylistActionsView(ui.View):
         try:
             ctx = await self.cog.bot.get_context(self.message) if self.message else None
             if ctx and hasattr(self.cog, "enqueue_playlist_url_from_ai"):
-                await self.cog.enqueue_playlist_url_from_ai(ctx, self.url, force_queue_all=True)
+                await self.cog.enqueue_playlist_url_from_ai(
+                    ctx,
+                    self.url,
+                    force_queue_all=True,
+                    requester=interaction.user,
+                )
         except Exception as e:
             logger.exception("queue_all failed: %s", e)
 
@@ -98,7 +103,13 @@ class PlaylistActionsView(ui.View):
         try:
             ctx = await self.cog.bot.get_context(self.message) if self.message else None
             if ctx and hasattr(self.cog, "enqueue_playlist_url_from_ai"):
-                await self.cog.enqueue_playlist_url_from_ai(ctx, self.url, force_queue_all=True, shuffle_override=True)
+                await self.cog.enqueue_playlist_url_from_ai(
+                    ctx,
+                    self.url,
+                    force_queue_all=True,
+                    shuffle_override=True,
+                    requester=interaction.user,
+                )
         except Exception as e:
             logger.exception("shuffle_queue failed: %s", e)
 
@@ -115,7 +126,7 @@ class PlaylistActionsView(ui.View):
         try:
             ctx = await self.cog.bot.get_context(self.message) if self.message else None
             if ctx and hasattr(self.cog, "playlist_pick_one_ui_from_ai"):
-                await self.cog.playlist_pick_one_ui_from_ai(ctx, self.url)
+                await self.cog.playlist_pick_one_ui_from_ai(ctx, self.url, requester_id=int(interaction.user.id))
         except Exception as e:
             logger.exception("pick_one failed: %s", e)
 

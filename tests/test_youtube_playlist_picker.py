@@ -20,6 +20,7 @@ def test_get_youtube_playlist_entries_sync(monkeypatch) -> None:
     class _FakeYDL:
         def __init__(self, opts: dict):
             self.opts = opts
+            called["opts"] = opts
 
         def __enter__(self):
             return self
@@ -47,7 +48,41 @@ def test_get_youtube_playlist_entries_sync(monkeypatch) -> None:
     title, entries = yt._get_youtube_playlist_entries_sync("https://www.youtube.com/playlist?list=PLx", limit=1, proxy=None)
     assert title == "My Playlist"
     assert called["download"] is False
+    assert called["opts"]["playlistend"] == 1
     assert len(entries) == 1
     # Ensure we strip playlist params from the picked entry URL (watch-only URL).
     assert entries[0]["webpage_url"] == "https://www.youtube.com/watch?v=aaa111"
 
+
+def test_get_youtube_playlist_entries_sync_stops_lazy_iteration(monkeypatch) -> None:
+    import src.utils.youtube as yt
+
+    yielded = {"count": 0}
+
+    def _gen():
+        for i in range(100):
+            yielded["count"] += 1
+            yield {"id": f"id{i}", "title": f"t{i}"}
+
+    class _FakeYDL:
+        def __init__(self, opts: dict):
+            self.opts = opts
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def extract_info(self, query: str, download: bool = False):
+            return {"title": "Big Playlist", "entries": _gen()}
+
+    class _FakeMod:
+        YoutubeDL = _FakeYDL
+
+    monkeypatch.setattr(yt, "yt_dlp", _FakeMod())
+
+    title, entries = yt._get_youtube_playlist_entries_sync("https://www.youtube.com/playlist?list=PLx", limit=5, proxy=None)
+    assert title == "Big Playlist"
+    assert len(entries) == 5
+    assert yielded["count"] == 5

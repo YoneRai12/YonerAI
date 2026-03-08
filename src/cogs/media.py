@@ -671,10 +671,12 @@ class MediaCog(commands.Cog):
         self._voice_manager.seek_music(interaction.guild.id, seconds)
         await interaction.followup.send(f"⏩ 再生位置を {timestamp} ({seconds}秒) に変更しました")
 
-    async def play_from_ai(self, ctx: commands.Context, query: str) -> None:
+    async def play_from_ai(self, ctx: commands.Context, query: str, requester: Optional[Any] = None) -> None:
         """Helper for AI to play music directly via Context."""
+        effective_author = requester or ctx.author
+
         # Ensure Voice
-        if not ctx.author.voice:
+        if not getattr(effective_author, "voice", None):
             await ctx.send("❌ ボイスチャンネルに参加してからリクエストしてください。")
             return
 
@@ -741,7 +743,7 @@ class MediaCog(commands.Cog):
                     lines.append(f"{i}. {t}{dur_str}")
                 embed.add_field(name="Top results", value="\n".join(lines)[:1000], inline=False)
 
-                view = MusicPickView(cog=self, requester_id=int(ctx.author.id), results=results, query=q, timeout=60.0)
+                view = MusicPickView(cog=self, requester_id=int(effective_author.id), results=results, query=q, timeout=60.0)
                 msg = await ctx.send(embed=embed, view=view)
                 view.message = msg
                 return
@@ -754,7 +756,7 @@ class MediaCog(commands.Cog):
 
         # 2. Play (Await once!)
         played = await self._voice_manager.play_music(
-            ctx.author, stream_url, title, is_stream=True, duration=duration_sec or 0.0
+            effective_author, stream_url, title, is_stream=True, duration=duration_sec or 0.0
         )
 
         if played:
@@ -877,7 +879,12 @@ class MediaCog(commands.Cog):
         msg = await ctx.send(embed=embed, view=view)
         view.message = msg
 
-    async def playlist_pick_one_ui_from_ai(self, ctx: commands.Context, url: str) -> None:
+    async def playlist_pick_one_ui_from_ai(
+        self,
+        ctx: commands.Context,
+        url: str,
+        requester_id: int | None = None,
+    ) -> None:
         """Provider-specific "pick one" UI for playlist-like URLs (currently YouTube only)."""
         u = (url or "").strip()
         if not u:
@@ -915,7 +922,7 @@ class MediaCog(commands.Cog):
         )
         view = PlaylistPickView(
             cog=self,
-            requester_id=int(ctx.author.id),
+            requester_id=int(requester_id if requester_id is not None else ctx.author.id),
             playlist_title=ptitle,
             playlist_url=u,
             entries=entries,
@@ -931,13 +938,16 @@ class MediaCog(commands.Cog):
         url: str,
         force_queue_all: bool = True,
         shuffle_override: bool | None = None,
+        requester: discord.abc.User | discord.Member | None = None,
     ) -> None:
         """
         Queue all tracks from a playlist-like URL (YouTube playlist, Spotify playlist/album).
 
         This is designed for mention-based UX: "@YonerAI <playlist_url> 流して" -> queue all.
         """
-        if not ctx.author.voice:
+        actor = requester or ctx.author
+
+        if not actor.voice:
             await ctx.send("❌ ボイスチャンネルに参加してからリクエストしてください。")
             return
 
@@ -1005,7 +1015,7 @@ class MediaCog(commands.Cog):
 
                     if stream_url and title:
                         ok = await self._voice_manager.play_music(
-                            ctx.author, stream_url, title, is_stream=True, duration=float(dur or 0.0)
+                            actor, stream_url, title, is_stream=True, duration=float(dur or 0.0)
                         )
                         if ok:
                             queued += 1
@@ -1063,7 +1073,7 @@ class MediaCog(commands.Cog):
                     title_for_play = str(yt_title or tr.get("title") or q).strip()
                     if stream_url and title_for_play:
                         ok = await self._voice_manager.play_music(
-                            ctx.author, stream_url, title_for_play, is_stream=True, duration=float(dur or 0.0)
+                            actor, stream_url, title_for_play, is_stream=True, duration=float(dur or 0.0)
                         )
                         if ok:
                             queued += 1

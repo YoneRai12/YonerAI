@@ -1,11 +1,14 @@
 import asyncio
+import ipaddress
 import json
 import logging
 import os
+import socket
 import shutil
 import tempfile
 import uuid
 from typing import Any, Optional
+from urllib.parse import urlparse
 
 import discord
 
@@ -118,6 +121,63 @@ def _find_ffmpeg() -> Optional[str]:
     if os.path.exists("ffmpeg.exe"):
         return os.path.abspath("ffmpeg.exe")
     return None
+
+
+def _is_private_or_local_ip(ip_text: str) -> bool:
+    try:
+        ip_obj = ipaddress.ip_address(ip_text)
+    except ValueError:
+        return True
+    return (
+        ip_obj.is_private
+        or ip_obj.is_loopback
+        or ip_obj.is_link_local
+        or ip_obj.is_multicast
+        or ip_obj.is_reserved
+        or ip_obj.is_unspecified
+    )
+
+
+def _validate_public_image_url(url: str) -> tuple[bool, str]:
+    raw = (url or "").strip()
+    if not raw:
+        return False, "image_url が空です。"
+
+    try:
+        parsed = urlparse(raw)
+    except Exception:
+        return False, "image_url の形式が不正です。"
+
+    if parsed.scheme.lower() not in {"http", "https"}:
+        return False, "image_url は http/https のみ許可されています。"
+
+    hostname = (parsed.hostname or "").strip().lower()
+    if not hostname:
+        return False, "image_url にホスト名がありません。"
+    if hostname == "localhost" or hostname.endswith(".localhost"):
+        return False, "localhost は許可されていません。"
+
+    # Literal IP safety check.
+    try:
+        ipaddress.ip_address(hostname)
+        if _is_private_or_local_ip(hostname):
+            return False, "プライベート/ローカルIPへのアクセスは許可されていません。"
+        return True, ""
+    except ValueError:
+        pass
+
+    # DNS resolution safety check (prevents obvious private-network SSRF hosts).
+    try:
+        infos = socket.getaddrinfo(hostname, None)
+    except Exception:
+        return False, "image_url の名前解決に失敗しました。"
+
+    for info in infos:
+        resolved_ip = info[4][0]
+        if _is_private_or_local_ip(resolved_ip):
+            return False, "プライベート/ローカルIPへのアクセスは許可されていません。"
+
+    return True, ""
 
 
 async def _run_cmd(cmd: list[str], *, cwd: str, timeout_sec: int) -> tuple[int, str]:
@@ -247,6 +307,9 @@ async def execute(args: dict, message: discord.Message, bot: Any = None) -> Any:
         image_url = (args.get("image_url") or "").strip()
         if not image_url:
             return "❌ caption_image には image_url が必要です。"
+        ok_url, url_err = _validate_public_image_url(image_url)
+        if not ok_url:
+            return f"❌ image_url が無効です: {url_err}"
         props["caption"] = caption[:600]
         props["imageUrl"] = image_url[:2000]
 

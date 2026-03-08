@@ -3,6 +3,7 @@ import datetime
 import json
 import logging
 import os
+import re
 from typing import Optional
 
 import discord
@@ -28,7 +29,29 @@ class ChatHandler:
     @staticmethod
     def _sanitize_args_for_audit(args: dict) -> str:
         """Mask sensitive keys and keep payload short for Discord audit posts."""
-        sensitive_markers = ("token", "secret", "password", "api_key", "authorization", "cookie")
+        sensitive_markers = (
+            "token",
+            "secret",
+            "password",
+            "api_key",
+            "apikey",
+            "api-key",
+            "authorization",
+            "auth",
+            "cookie",
+            "session",
+            "credential",
+        )
+        sensitive_value_patterns = [
+            re.compile(r"(?i)(bearer\s+)[^\s]+"),
+            re.compile(r"(?i)((?:token|access[_-]?token|id[_-]?token|api[_-]?key|secret|password|auth(?:orization)?|cookie)=)[^&\s]+"),
+        ]
+
+        def scrub_text(text: str) -> str:
+            masked = text
+            for pattern in sensitive_value_patterns:
+                masked = pattern.sub(r"\1[REDACTED]", masked)
+            return masked
 
         def scrub(value):
             if isinstance(value, dict):
@@ -42,6 +65,8 @@ class ChatHandler:
                 return out
             if isinstance(value, list):
                 return [scrub(v) for v in value]
+            if isinstance(value, str):
+                return scrub_text(value)
             return value
 
         safe = scrub(args or {})
@@ -99,6 +124,30 @@ class ChatHandler:
             channel_id=str(message.channel.id),
             prompt=prompt,
         )
+
+        # Security gate (restored from legacy flow): anti-spam + smart-mode guardrail.
+        if self.cog._is_input_spam(prompt):
+            await message.reply(
+                "⚠️ **不正なリクエスト (Anti-Abuse L1)**\n"
+                "過度な繰り返しやリソースを浪費する可能性のある指示は実行できません。",
+                mention_author=False,
+            )
+            return
+
+        is_override = self.cog.cost_manager.unlimited_mode or str(message.author.id) in self.cog.cost_manager.unlimited_users
+        temp_user_mode = self.cog.user_prefs.get_mode(message.author.id) or "private"
+        should_check_guardrail = temp_user_mode == "smart" and not is_override
+        if should_check_guardrail:
+            guard_result = await self.cog._perform_guardrail_check(prompt, message.author.id)
+            if guard_result.get("safe") is False:
+                reason = guard_result.get("reason", "Security Policy")
+                await message.reply(
+                    "🛡️ **Security Guardrail Triggered**\n"
+                    "AIがこのリクエストを安全でない、またはスパムと判断しました。\n"
+                    f"Reason: {reason}",
+                    mention_author=False,
+                )
+                return
 
         status_manager = StatusManager(message.channel, existing_message=existing_status_msg)
 

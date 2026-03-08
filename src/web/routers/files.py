@@ -231,9 +231,9 @@ async def create_file(
         allowed = any(_is_within(p, root) for root in _artifact_roots())
         if not allowed:
             raise HTTPException(status_code=403, detail="artifact_path_forbidden")
-        raw = p.read_bytes()
-        if len(raw) > max_bytes:
+        if p.stat().st_size > max_bytes:
             raise HTTPException(status_code=413, detail="file_too_large")
+        raw = p.read_bytes()
         if not raw:
             raise HTTPException(status_code=400, detail="empty_file")
         file_name = _safe_filename(filename_hint or p.name)
