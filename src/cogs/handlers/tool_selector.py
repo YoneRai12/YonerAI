@@ -5,6 +5,7 @@ import asyncio
 from typing import List, Dict, Any, Optional
 
 from src.utils.llm_client import LLMClient
+from src.utils.intent_semantics import classify_semantic_intent, has_explicit_export_constraint
 from src.utils.risk_scoring import score_tool_risk
 # S5 Optimization: Use Registry instead of heavy ToolHandler import
 from src.cogs.tools.registry import get_tool_schemas
@@ -890,34 +891,11 @@ class ToolSelector:
 
     @staticmethod
     def _is_explicit_save_intent(prompt: str) -> bool:
-        p = (prompt or "").strip().lower()
-        if not p:
-            return False
-
-        save_keywords = [
-            "download",
-            "save",
-            "export",
-            "pdf",
-            "png",
-            "jpg",
-            "jpeg",
-            "webp",
-            "mp3",
-            "mp4",
-            "wav",
-            "zip",
-            "csv",
-            "xlsx",
-            "docx",
-            "\u4fdd\u5b58",
-            "\u30c0\u30a6\u30f3\u30ed\u30fc\u30c9",
-            "\u66f8\u304d\u51fa\u3057",
-            "\u30a8\u30af\u30b9\u30dd\u30fc\u30c8",
-            "\u4fdd\u5b58\u3057\u3066",
-            "\u30d5\u30a1\u30a4\u30eb\u5316",
-        ]
-        return any(keyword in p for keyword in save_keywords)
+        semantic_intent = classify_semantic_intent(
+            prompt,
+            has_explicit_export_constraint=has_explicit_export_constraint(prompt),
+        )
+        return bool(semantic_intent.save_export_intent)
 
     @staticmethod
     def _risk_score_from_tools(tools: List[dict]) -> float:

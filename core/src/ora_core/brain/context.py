@@ -2,6 +2,7 @@ from typing import Any, Dict
 from datetime import datetime
 from ora_core.api.schemas.messages import MessageRequest
 from ora_core.brain.memory import memory_store
+from src.utils.intent_semantics import classify_semantic_intent, has_explicit_export_constraint
 
 class ContextBuilder:
     """
@@ -38,6 +39,7 @@ class ContextBuilder:
         # 2. Build History
         # Priority: Client-provided history > DB history
         llm_history = []
+        history_msgs: list[Any] = []
         if req.client_history:
             # Use pre-built history from client (richer - includes embed content, reply chains)
             for h in req.client_history:
@@ -117,13 +119,60 @@ class ContextBuilder:
         # L1: History
         messages.extend(llm_history)
 
+        current_attachments = list(req.attachments or [])
+        current_image_attachments = ContextBuilder._filter_image_attachments(current_attachments)
+        prior_image_attachments: list[Any] = []
+
+        if not current_image_attachments:
+            if not history_msgs:
+                try:
+                    history_msgs = await repo.get_messages(conversation_id, limit=10)
+                except Exception:
+                    history_msgs = []
+            prior_image_attachments = ContextBuilder._latest_prior_user_image_attachments(history_msgs, limit=3)
+
+        semantic_intent = classify_semantic_intent(
+            req.content or "",
+            has_current_image=bool(current_image_attachments),
+            has_prior_image=bool(prior_image_attachments),
+            has_client_history=bool(req.client_history),
+            has_explicit_export_constraint=has_explicit_export_constraint(req.content or ""),
+        )
+
+        effective_attachments = current_attachments
+        if not effective_attachments and semantic_intent.image_followup and prior_image_attachments:
+            effective_attachments = prior_image_attachments
+
+        if semantic_intent.generic_image_overview and ContextBuilder._filter_image_attachments(effective_attachments):
+            messages.append(
+                {
+                    "role": "system",
+                    "content": (
+                        "[IMAGE RESPONSE POLICY]\n"
+                        "The user asked for a broad explanation of the image or screen.\n"
+                        "Respond in this order:\n"
+                        "1. Identify the overall screen/app/page.\n"
+                        "2. Enumerate 2-4 major visible sections or regions.\n"
+                        "3. Describe the main focus area.\n"
+                        "4. Mention readable values/text that are clearly visible.\n"
+                        "5. End with a short summary.\n"
+                        "Do not focus only on the most salient object unless the user asked for a narrow explanation."
+                    ),
+                }
+            )
+
         # Current Request (supports multimodal attachments)
-        messages.append({"role": "user", "content": ContextBuilder._build_user_content(req)})
+        messages.append(
+            {
+                "role": "user",
+                "content": ContextBuilder._build_user_content(req, attachments_override=effective_attachments),
+            }
+        )
         
         return messages
 
     @staticmethod
-    def _build_user_content(req: MessageRequest) -> Any:
+    def _build_user_content(req: MessageRequest, attachments_override: list[Any] | None = None) -> Any:
         """
         Build user content for OpenAI chat format.
         - Text-only -> str
@@ -135,7 +184,7 @@ class ContextBuilder:
         if text:
             parts.append({"type": "text", "text": text})
 
-        for att in (req.attachments or []):
+        for att in (attachments_override if attachments_override is not None else (req.attachments or [])):
             att_type = ContextBuilder._att_get(att, "type")
             if att_type == "image_url":
                 url = ContextBuilder._extract_image_url(att)
@@ -177,6 +226,26 @@ class ContextBuilder:
         if isinstance(att, dict):
             return att.get(key)
         return getattr(att, key, None)
+
+    @staticmethod
+    def _filter_image_attachments(attachments: list[Any]) -> list[Any]:
+        out: list[Any] = []
+        for att in attachments or []:
+            att_type = ContextBuilder._att_get(att, "type")
+            if att_type in {"image_url", "image_base64"}:
+                out.append(att)
+        return out
+
+    @staticmethod
+    def _latest_prior_user_image_attachments(history_msgs: list[Any], *, limit: int = 3) -> list[Any]:
+        for msg in reversed(history_msgs or []):
+            if str(getattr(msg, "author", "") or "") != "user":
+                continue
+            attachments = list(getattr(msg, "attachments", None) or [])
+            image_attachments = ContextBuilder._filter_image_attachments(attachments)
+            if image_attachments:
+                return image_attachments[: max(1, int(limit))]
+        return []
 
     @staticmethod
     async def _construct_system_prompt(req: MessageRequest, profile: Dict[str, Any]) -> str:
