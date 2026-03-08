@@ -13,6 +13,9 @@ class EventManager:
         # the client will hang forever waiting for events that were already emitted.
         self._event_buffer: Dict[str, List[dict[str, Any]]] = {}
         self._event_buffer_limit = 200
+        self._event_buffer_timestamps: Dict[str, float] = {}
+        self._event_buffer_ttl_sec = 300
+        self._event_buffer_runs_limit = 1000
         self._event_lock = asyncio.Lock()
         # (run_id, tool_call_id) -> Future for external tool result handoff
         self._tool_result_waiters: Dict[tuple[str, str], asyncio.Future] = {}
@@ -25,7 +28,9 @@ class EventManager:
         # Register listener first so concurrent emits go to the queue, then flush any buffered events.
         async with self._event_lock:
             self.listeners[run_id] = queue
+            self._evict_event_buffers_locked(asyncio.get_running_loop().time())
             buffered = self._event_buffer.pop(run_id, None) or []
+            self._event_buffer_timestamps.pop(run_id, None)
         try:
             for ev in buffered:
                 yield ev
@@ -41,6 +46,24 @@ class EventManager:
                 self.listeners.pop(run_id, None)
                 # Drop any leftover buffered events for this run to avoid leaks.
                 self._event_buffer.pop(run_id, None)
+                self._event_buffer_timestamps.pop(run_id, None)
+
+    def _evict_event_buffers_locked(self, now: float) -> None:
+        expired = [
+            buffered_run_id
+            for buffered_run_id, ts in self._event_buffer_timestamps.items()
+            if now - ts > self._event_buffer_ttl_sec
+        ]
+        for buffered_run_id in expired:
+            self._event_buffer.pop(buffered_run_id, None)
+            self._event_buffer_timestamps.pop(buffered_run_id, None)
+
+        overflow = len(self._event_buffer) - self._event_buffer_runs_limit
+        if overflow > 0:
+            oldest_run_ids = list(self._event_buffer.keys())[:overflow]
+            for buffered_run_id in oldest_run_ids:
+                self._event_buffer.pop(buffered_run_id, None)
+                self._event_buffer_timestamps.pop(buffered_run_id, None)
 
     async def dispatch_mock_stream(self, run_id: str, conversation_id: str):
         """
@@ -119,8 +142,11 @@ class EventManager:
         else:
             # Buffer events until the first listener attaches.
             async with self._event_lock:
+                now = asyncio.get_running_loop().time()
+                self._evict_event_buffers_locked(now)
                 buf = self._event_buffer.setdefault(run_id, [])
                 buf.append(event)
+                self._event_buffer_timestamps[run_id] = now
                 # Keep buffer bounded to prevent unbounded growth if no clients connect.
                 if len(buf) > self._event_buffer_limit:
                     del buf[: len(buf) - self._event_buffer_limit]
