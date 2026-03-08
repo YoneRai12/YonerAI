@@ -945,6 +945,7 @@ class MainProcess:
         security_risk_score = self._clamp_float(hint.get("security_risk_score"), 0.0)
         function_category = str(hint.get("function_category") or "chat").strip().lower() or "chat"
         explicit_search_intent = bool(hint.get("explicit_search_intent"))
+        reason_codes = self._dedup_reason_codes(hint.get("reason_codes"))
         explicit_save_intent = bool(hint.get("explicit_save_intent"))
         if not explicit_save_intent:
             semantic_intent = classify_semantic_intent(
@@ -990,7 +991,6 @@ class MainProcess:
                 ),
             }
 
-        reason_codes = self._dedup_reason_codes(hint.get("reason_codes"))
         floor_applied = False
         if function_category == "vision" and route_score < 0.35:
             route_score = 0.35
