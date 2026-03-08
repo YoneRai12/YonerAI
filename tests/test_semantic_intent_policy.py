@@ -67,7 +67,9 @@ def test_generic_image_request_injects_broad_summary_policy() -> None:
             source="discord",
         )
         messages = await _build_context(req, _FakeRepo())
-        assert any("[IMAGE RESPONSE POLICY]" in str(m.get("content") or "") for m in messages if m.get("role") == "system")
+        joined = "\n".join(str(m.get("content") or "") for m in messages if m.get("role") == "system")
+        assert "[IMAGE OUTPUT CONTRACT]" in joined
+        assert "## 1. 何の画面か" in joined
         user_content = messages[-1]["content"]
         assert isinstance(user_content, list)
         assert sum(1 for part in user_content if part.get("type") == "image_url") == 1
@@ -85,7 +87,7 @@ def test_focused_image_request_stays_narrow() -> None:
             source="discord",
         )
         messages = await _build_context(req, _FakeRepo())
-        assert not any("[IMAGE RESPONSE POLICY]" in str(m.get("content") or "") for m in messages if m.get("role") == "system")
+        assert not any("[IMAGE OUTPUT CONTRACT]" in str(m.get("content") or "") for m in messages if m.get("role") == "system")
 
     asyncio.run(_run())
 
