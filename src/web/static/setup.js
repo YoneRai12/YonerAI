@@ -381,6 +381,10 @@ function _makeBoolEditor(currentValue, srcLabel) {
     input.dispatchEvent(new Event("input", { bubbles: true }));
   };
   input.addEventListener("change", () => {
+    if (input.dataset.unset === "1") {
+      unset.style.opacity = "0.55";
+      return;
+    }
     input.dataset.unset = "0";
     unset.style.opacity = "1";
   });
