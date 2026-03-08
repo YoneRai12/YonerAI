@@ -1,6 +1,7 @@
 import logging
 import sqlite3
 import time
+from pathlib import Path
 
 from fastapi.testclient import TestClient
 
@@ -95,3 +96,30 @@ def test_share_token_is_hashed_and_not_logged(monkeypatch, caplog):
     assert token_hash != share_token
     assert len(token_hash) == 64
 
+
+def test_artifact_source_rejects_large_file_before_read(monkeypatch, tmp_path):
+    monkeypatch.setenv("ORA_WEB_API_TOKEN", "t")
+    monkeypatch.setenv("ORA_FILES_MAX_BYTES", "8")
+    monkeypatch.setenv("ORA_FILES_ARTIFACT_ROOTS", str(tmp_path))
+
+    artifact = tmp_path / "large.bin"
+    artifact.write_bytes(b"0123456789")
+
+    original_read_bytes = Path.read_bytes
+
+    def _fail_if_read(self: Path):
+        if self == artifact:
+            raise AssertionError("read_bytes should not be called for oversized artifact")
+        return original_read_bytes(self)
+
+    monkeypatch.setattr(Path, "read_bytes", _fail_if_read)
+
+    with TestClient(app) as client:
+        resp = client.post(
+            "/v1/files",
+            headers=_auth_headers("artifact-user"),
+            json={"source_kind": "artifact", "artifact_path": str(artifact)},
+        )
+
+    assert resp.status_code == 413
+    assert resp.json().get("detail") == "file_too_large"
