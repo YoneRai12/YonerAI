@@ -36,5 +36,8 @@ async def test_sandbox_download_repo_falls_back_when_download_fails(monkeypatch)
         bot=None,
     )
     assert out.get("fallback_used") is True
-    assert "Sandbox Fallback" in (out.get("result") or "")
+    result = out.get("result") or ""
+    assert "Sandbox Fallback" in result
+    assert "readme: fetched" in result
+    assert "# Hello" not in result
 
