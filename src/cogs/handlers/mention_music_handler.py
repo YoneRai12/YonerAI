@@ -34,12 +34,11 @@ async def handle_mention_music(cog: Any, message: discord.Message, clean_content
             "on",
         }
 
-        # Default policy:
-        # - private: owner-only (safe)
-        # - shared: allow everyone by default (friend-friendly)
-        prof = (getattr(cog.bot.config, "profile", None) or "private").strip().lower()
-        default_att = "user" if prof == "shared" else "owner"
-        default_yt = "user" if prof == "shared" else "vc_admin"
+        # Default policy (safe for both private/shared unless explicitly relaxed via env):
+        # - attachment playback: owner-only
+        # - url playback: vc_admin
+        default_att = "owner"
+        default_yt = "vc_admin"
 
         level_att = (os.getenv("ORA_MUSIC_MENTION_LEVEL") or "").strip().lower() or (
             "user" if legacy_allow_all else default_att
@@ -207,4 +206,3 @@ async def handle_mention_music(cog: Any, message: discord.Message, clean_content
         logger.exception("Mention music handler failed unexpectedly")
 
     return False
-
