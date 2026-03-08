@@ -1038,7 +1038,11 @@ class ORACog(commands.Cog):
 
     @app_commands.command(name="status", description="Show basic system and GPU status.")
     async def status(self, interaction: discord.Interaction):
-        await interaction.response.defer()
+        if not await self._check_permission(interaction.user.id, "sub_admin"):
+            await interaction.response.send_message("⛔ Permission Denied.", ephemeral=True)
+            return
+
+        await interaction.response.defer(ephemeral=True)
         
         # Hardware Stats
         gpu_stats = await self.hardware_manager.get_gpu_stats()
@@ -1053,7 +1057,7 @@ class ORACog(commands.Cog):
         embed.add_field(name="Disk (Data)", value=f"{free_gb:.1f} GB Free", inline=True)
         embed.set_footer(text=f"Requested by {interaction.user.display_name}")
         
-        await interaction.followup.send(embed=embed)
+        await interaction.followup.send(embed=embed, ephemeral=True)
 
     # imagine and analyze moved to src/cogs/creative.py
 
