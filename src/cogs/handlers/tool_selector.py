@@ -46,6 +46,22 @@ class ToolSelector:
             model=self.model_name
         )
 
+    @staticmethod
+    def _coerce_intent_flag(value: Any) -> bool:
+        """Safely coerce router intent values into booleans."""
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)):
+            return value != 0
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            if normalized in {"true", "1", "yes", "on"}:
+                return True
+            if normalized in {"false", "0", "no", "off", "", "none", "null"}:
+                return False
+            return False
+        return False
+
     async def select_tools(
         self,
         prompt: str,
@@ -317,10 +333,7 @@ class ToolSelector:
                         intents_raw = parsed.get("intents") or {}
                         if isinstance(intents_raw, dict):
                             for k in ("screenshot", "browser_control", "download"):
-                                try:
-                                    router_intents[k] = bool(intents_raw.get(k, False))
-                                except Exception:
-                                    router_intents[k] = False
+                                router_intents[k] = self._coerce_intent_flag(intents_raw.get(k, False))
                     else:
                         cats_raw = []
 
@@ -414,9 +427,9 @@ class ToolSelector:
         # Primary signal is the router's inferred intents. Keyword checks are fallback-only.
         p_low = (prompt or "").lower()
 
-        wants_screenshot = bool(router_intents.get("screenshot", False))
-        wants_browser_control = bool(router_intents.get("browser_control", False))
-        wants_download = bool(router_intents.get("download", False))
+        wants_screenshot = self._coerce_intent_flag(router_intents.get("screenshot", False))
+        wants_browser_control = self._coerce_intent_flag(router_intents.get("browser_control", False))
+        wants_download = self._coerce_intent_flag(router_intents.get("download", False))
 
         # Fallback only (when router intent is all false): minimal keyword heuristics
         if not (wants_screenshot or wants_browser_control or wants_download):
@@ -948,5 +961,4 @@ class ToolSelector:
         if len(reasons) == 1:
             return "medium", reasons
         return "low", reasons
-
 
