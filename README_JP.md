@@ -8,7 +8,7 @@
 [![Release](https://img.shields.io/github/v/release/YoneRai12/YonerAI?style=for-the-badge&logo=github&color=blue)](https://github.com/YoneRai12/YonerAI/releases)
 [![Build and Test](https://github.com/YoneRai12/YonerAI/actions/workflows/test.yml/badge.svg?style=for-the-badge)](https://github.com/YoneRai12/YonerAI/actions/workflows/test.yml)
 [![Discord](https://img.shields.io/badge/Discord-Join-7289DA?style=for-the-badge&logo=discord)](https://discord.gg/YoneRai12)
-[![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
+[![License](https://img.shields.io/badge/License-CC%20BY--NC--ND%204.0-blue?style=for-the-badge)](LICENSE)
 
 [**[Manual]**](docs/USER_GUIDE.md) | [**[Env Templates]**](docs/ENV_FILES.md) | [**[Release Notes]**](docs/RELEASE_NOTES.md) | [**[Web Chat]**](http://localhost:3000) | [**[Dashboard]**](http://localhost:3333)
 
@@ -360,4 +360,6 @@ git push origin v5.1.8
 
 ## ライセンス
 
-MIT。`LICENSE` を参照。
+本プロジェクトは **CC BY-NC-ND 4.0** で提供されます。`LICENSE` を参照してください。
+
+重要: このライセンスは、クレジット表記付きの共有は許可しますが、商用利用および改変物の配布を禁止します。
