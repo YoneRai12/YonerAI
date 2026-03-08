@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import tempfile
 import time
 import zipfile
@@ -197,11 +198,17 @@ async def _download_to_file(
 def _safe_extract_zip(zip_path: Path, dest_dir: Path) -> Path:
     dest_dir.mkdir(parents=True, exist_ok=True)
     dest_root = dest_dir.resolve()
+    max_entries = int(os.getenv("ORA_SANDBOX_MAX_ZIP_ENTRIES") or "20000")
+    max_entry_bytes = int(os.getenv("ORA_SANDBOX_MAX_EXTRACT_FILE_BYTES") or str(50 * 1024 * 1024))
+    max_total_bytes = int(os.getenv("ORA_SANDBOX_MAX_EXTRACT_TOTAL_BYTES") or str(200 * 1024 * 1024))
+    total_extracted = 0
 
     with zipfile.ZipFile(zip_path) as zf:
         members = zf.infolist()
         if not members:
             raise RuntimeError("zip_empty")
+        if len(members) > max_entries:
+            raise RuntimeError("zip_too_many_entries")
 
         # Extract with traversal protection.
         for m in members:
@@ -209,12 +216,21 @@ def _safe_extract_zip(zip_path: Path, dest_dir: Path) -> Path:
             name = m.filename
             if not name or name.endswith("/"):
                 continue
+            if m.file_size > max_entry_bytes:
+                raise RuntimeError("zip_entry_too_large")
             target = (dest_dir / name).resolve()
             if not str(target).startswith(str(dest_root) + os.sep):
                 raise RuntimeError("zip_path_traversal_detected")
             target.parent.mkdir(parents=True, exist_ok=True)
             with zf.open(m, "r") as src, target.open("wb") as dst:
-                dst.write(src.read())
+                while True:
+                    chunk = src.read(1024 * 128)
+                    if not chunk:
+                        break
+                    total_extracted += len(chunk)
+                    if total_extracted > max_total_bytes:
+                        raise RuntimeError("zip_extracted_too_large")
+                    dst.write(chunk)
 
     # GitHub zip normally has a single top-level dir.
     children = [p for p in dest_dir.iterdir() if p.is_dir()]
@@ -383,7 +399,12 @@ async def download_repo(args: dict, message: discord.Message, status_manager, bo
         return {"result": "❌ url is required (GitHub repo URL)."}
 
     ref = (args or {}).get("ref")
-    max_zip_bytes = int((args or {}).get("max_zip_bytes") or os.getenv("ORA_SANDBOX_MAX_ZIP_BYTES") or 50 * 1024 * 1024)
+    default_max_zip_bytes = int(os.getenv("ORA_SANDBOX_MAX_ZIP_BYTES") or 50 * 1024 * 1024)
+    max_zip_bytes_cap = int(os.getenv("ORA_SANDBOX_MAX_ZIP_BYTES_CAP") or 100 * 1024 * 1024)
+    requested_max_zip_bytes = int((args or {}).get("max_zip_bytes") or default_max_zip_bytes)
+    if requested_max_zip_bytes <= 0:
+        requested_max_zip_bytes = default_max_zip_bytes
+    max_zip_bytes = min(requested_max_zip_bytes, max_zip_bytes_cap)
     keep = _is_truthy((args or {}).get("keep"))
 
     cfg = Config.load()
@@ -550,8 +571,7 @@ async def download_repo(args: dict, message: discord.Message, status_manager, bo
             except Exception:
                 pass
         if not keep:
-            # Keep only extracted results? For now: keep everything by default unless keep=0.
-            pass
+            shutil.rmtree(sbx_dir, ignore_errors=True)
 
 
 async def compare_repos(args: dict, message: discord.Message, status_manager, bot=None) -> Dict[str, Any]:
