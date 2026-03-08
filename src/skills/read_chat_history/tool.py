@@ -6,7 +6,7 @@ import discord
 logger = logging.getLogger(__name__)
 
 async def execute(args: dict, message: discord.Message) -> str:
-    limit = int(args.get("limit", 20))
+    limit = min(int(args.get("limit", 20)), 50)
     channel_id = args.get("channel_id")
     
     channel = None
@@ -32,6 +32,12 @@ async def execute(args: dict, message: discord.Message) -> str:
 
     if not hasattr(channel, "history"):
          return "Error: This channel type does not support history reading."
+
+    # Respect Discord permission model for guild channels.
+    if message.guild:
+        perms = channel.permissions_for(message.author)
+        if not (perms.view_channel and perms.read_message_history):
+            return "Error: You don't have permission to read message history in this channel."
 
     try:
         logger.info(f"ChatSkill: Reading last {limit} messages from {channel.name} ({channel.id})")
