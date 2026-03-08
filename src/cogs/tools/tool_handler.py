@@ -241,12 +241,24 @@ class ToolHandler:
             # If already approved/denied, respect it (best-effort).
             if requires_approval and tool_call_id and hasattr(self.bot, "store"):
                 try:
-                    st = await self.bot.store.get_approval_status(tool_call_id=tool_call_id)
+                    row = await self.bot.store.get_approval_request(tool_call_id=tool_call_id)
+                    st = (row or {}).get("status")
                     if st in {"approved", "denied"}:
                         if st == "denied":
                             return "⛔ Denied (previous decision)."
-                        # approved: proceed (skip requesting approval again)
-                        requires_approval = False
+
+                        # approved: only reuse when context matches this exact request.
+                        now = int(time.time())
+                        same_actor = str((row or {}).get("actor_id") or "") == str(message.author.id)
+                        same_tool = str((row or {}).get("tool_name") or "") == str(tool_name)
+                        same_args = str((row or {}).get("args_hash") or "") == str(
+                            args_hash(args if isinstance(args, dict) else {})
+                        )
+                        not_expired = int((row or {}).get("expires_at") or 0) >= now
+
+                        if same_actor and same_tool and same_args and not_expired:
+                            # Safe idempotent retry of the exact same approved call.
+                            requires_approval = False
                 except Exception:
                     pass
 
@@ -1795,5 +1807,4 @@ class ToolHandler:
 
         if status_manager: await status_manager.next_step(f"Generating Video (API): {prompt}...")
         return await media_api.generate_video(prompt)
-
 
