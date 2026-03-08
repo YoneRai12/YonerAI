@@ -17,7 +17,6 @@
             --warn-bg: rgba(245, 158, 11, 0.12);
             --warn-border: rgba(245, 158, 11, 0.32);
             --warn-text: #fde68a;
-            --danger: #f87171;
         }
 
         * {
@@ -74,23 +73,48 @@
             line-height: 1.7;
         }
 
-        .notice {
+        .notice,
+        .about {
             margin-top: 22px;
-            border: 1px solid var(--warn-border);
-            background: var(--warn-bg);
             border-radius: 18px;
             padding: 18px 20px;
+        }
+
+        .notice {
+            border: 1px solid var(--warn-border);
+            background: var(--warn-bg);
         }
 
         .notice strong {
             color: var(--warn-text);
         }
 
-        .notice p {
+        .notice p,
+        .about p {
             margin: 0;
-            color: #fff5cc;
             line-height: 1.65;
             font-size: 14px;
+        }
+
+        .notice p+p,
+        .about p+p {
+            margin-top: 10px;
+        }
+
+        .about {
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .about h2,
+        .contact-card h2,
+        .status-label {
+            margin: 0 0 8px;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            color: #8ea2d2;
         }
 
         .status-row {
@@ -114,18 +138,8 @@
             animation: spin 1s linear infinite;
         }
 
-        .status-label {
-            font-size: 12px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.18em;
-            color: #8ea2d2;
-            margin-bottom: 4px;
-        }
-
         .status-text {
             margin: 0;
-            color: var(--text);
             line-height: 1.6;
         }
 
@@ -147,20 +161,25 @@
             padding: 16px;
         }
 
-        .contact-card h2 {
-            margin: 0 0 8px;
-            font-size: 12px;
-            text-transform: uppercase;
-            letter-spacing: 0.16em;
-            color: #8ea2d2;
-        }
-
         .contact-card p {
             margin: 0;
-            color: var(--text);
             line-height: 1.7;
             font-size: 14px;
             word-break: break-word;
+        }
+
+        .hint {
+            margin-top: 22px;
+            font-size: 13px;
+            line-height: 1.7;
+            color: #8f9cb5;
+        }
+
+        code {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 8px;
+            padding: 1px 6px;
         }
 
         a {
@@ -170,13 +189,6 @@
 
         a:hover {
             text-decoration: underline;
-        }
-
-        .hint {
-            margin-top: 22px;
-            font-size: 13px;
-            line-height: 1.7;
-            color: #8f9cb5;
         }
 
         @keyframes spin {
@@ -203,8 +215,15 @@
 
             <div class="notice">
                 <p><strong>yonerai.com is currently under maintenance.</strong> It may continue until <strong>March 31, 2026</strong> at the latest, but maintenance may also end earlier on an irregular schedule.</p>
-                <p style="margin-top: 10px;"><strong>yonerai.com は現在メンテナンス中です。</strong> 最大で <strong>2026年3月31日</strong> まで継続予定ですが、不定期に早めに終了する場合もあります。</p>
+                <p><strong>yonerai.com は現在メンテナンス中です。</strong> 最大で <strong>2026年3月31日</strong> まで継続予定ですが、不定期に早めに終了する場合があります。</p>
             </div>
+
+            <section class="about">
+                <h2>About YonerAI</h2>
+                <p>yonerai.com は、YonerAI の公式 Web / 公開サービス入口です。</p>
+                <p>自分の PC に Node を入れて使う人だけでなく、ローカル環境を持っていない人や、まずは Web から使いたい人も含めて、みんなが使える入口を目指しています。</p>
+                <p>YonerAI combines AI chat, web experiences, and platform-style features. yonerai.com is intended as the public-facing web entry for everyone, including people who do not run their own local node.</p>
+            </section>
 
             <div class="status-row">
                 <div id="loader" class="loader"></div>
@@ -222,7 +241,6 @@
                 <div class="contact-card">
                     <h2>Mail</h2>
                     <p><a href="mailto:hello@yonerai.com">hello@yonerai.com</a></p>
-                    <p>ろー@yonerai.com</p>
                 </div>
                 <div class="contact-card">
                     <h2>Project</h2>

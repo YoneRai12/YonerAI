@@ -1,6 +1,6 @@
 import "./globals.css";
 import { Inter } from "next/font/google";
-import { Plus, MessageSquare, Settings, User, LogOut } from "lucide-react";
+import { Plus, MessageSquare, Settings, User } from "lucide-react";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -12,7 +12,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        <title>ORA Chat</title>
+        <title>YonerAI</title>
       </head>
       <body className={`${inter.className} flex h-screen w-screen bg-[#212121] text-gray-100`}>
 
