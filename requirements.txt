@@ -15,7 +15,7 @@ transformers>=4.48.0
 accelerate>=0.20.0
 openai
 google-generativeai
-numpy>=1.23,<2.0
+numpy>=1.23,<3.0
 matplotlib>=3.7.0
 
 # Voice & Audio
