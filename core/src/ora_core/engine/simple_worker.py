@@ -78,7 +78,7 @@ class EventManager:
         # TODO: Ideally fetch from DB. For now, we'll just send the "latest" logic or minimal context.
         # Since 'simple_worker' is decoupled from the HTTP request context, we need to read from DB here.
 
-        input_messages = [{"role": "system", "content": "You are YonerAI (formerly ORA), an advanced AI system. Respond concisely and helpfully."}]
+        input_messages = [{"role": "system", "content": "You are YonerAI, an advanced AI system. Respond concisely and helpfully."}]
 
         async with AsyncSessionLocal() as db:
             repo = Repository(db)
@@ -94,7 +94,7 @@ class EventManager:
 
         # 2. Stream from AI
         full_text = ""
-        used_model = "ORA Universal Brain" # Default
+        used_model = "YonerAI Universal Brain" # Default
 
         try:
             async for event_data in omni_engine.generate_stream(input_messages):

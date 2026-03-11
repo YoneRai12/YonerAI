@@ -82,7 +82,7 @@ export default function Home() {
                 const newArr = [...prev];
                 // Remove empty placeholder if failed immediately
                 if (newArr.length > 0 && newArr[newArr.length - 1].content === "") {
-                    newArr[newArr.length - 1].content = "⚠️ Error: Could not connect to ORA Brain.";
+                    newArr[newArr.length - 1].content = "⚠️ Error: Could not connect to YonerAI Brain.";
                 }
                 return newArr;
             });
@@ -95,7 +95,7 @@ export default function Home() {
 
             {/* Top Model Selector (Mock) */}
             <div className="w-full flex items-center justify-between p-4 md:hidden">
-                <span className="font-bold text-gray-200">ORA Model</span>
+                <span className="font-bold text-gray-200">YonerAI Model</span>
                 <PlusIcon />
             </div>
 
@@ -157,7 +157,7 @@ export default function Home() {
                                 }
                             }}
                             className="flex-1 bg-transparent border-0 focus:ring-0 text-white placeholder-gray-500 resize-none max-h-[200px] py-3 leading-relaxed text-[15px]"
-                            placeholder="Message ORA..."
+                            placeholder="Message YonerAI..."
                             rows={1}
                             style={{ minHeight: "44px" }}
                         />
@@ -174,7 +174,7 @@ export default function Home() {
                         </button>
                     </div>
                     <p className="text-center text-[11px] text-gray-500 mt-3 font-medium tracking-wide">
-                        ORA can make mistakes. Check important info.
+                        YonerAI can make mistakes. Check important info.
                     </p>
                 </div>
             </div>

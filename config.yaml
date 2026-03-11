@@ -1,4 +1,4 @@
-# ORA Bot Configuration
+# YonerAI Bot Configuration
 # This file defines the operational policies, limits, and router settings.
 # It is loaded by src/config.py at startup.
 

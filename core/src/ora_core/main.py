@@ -17,7 +17,7 @@ import os
 
 
 def create_app():
-    app = FastAPI(title="ORA Core", version="0.1")
+    app = FastAPI(title="YonerAI Core", version="0.1")
 
     @app.get("/health")
     async def health() -> dict:
