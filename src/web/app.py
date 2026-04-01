@@ -1,7 +1,7 @@
 import os
 import asyncio
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import Request, Query, Header
@@ -66,11 +66,22 @@ app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 @app.get("/")
 async def read_index():
-    """Serve the Remote Loader at the root."""
-    index_path = os.path.join(static_dir, "index.html")
-    if os.path.exists(index_path):
-        return FileResponse(index_path)
-    return {"detail": "ORA Web API is running, but index.html is missing."}
+    """Serve the public-safe YonerAI top page."""
+    return _serve_static_page("index.html")
+
+
+@app.get("/jp")
+@app.get("/jp/")
+async def read_index_jp():
+    """Serve the localized public-safe YonerAI top page."""
+    return _serve_static_page("index.html")
+
+
+@app.get("/jp/chat")
+@app.get("/jp/chat/")
+async def read_chat_page():
+    """Serve the managed-cloud chat shell."""
+    return _serve_static_page("chat.html")
 
 
 @app.get("/setup", response_class=HTMLResponse)
@@ -100,6 +111,13 @@ async def setup_ui(
     if os.path.exists(setup_path):
         return FileResponse(setup_path)
     return HTMLResponse("<h1>setup.html missing</h1>", status_code=404)
+
+
+def _serve_static_page(filename: str) -> FileResponse:
+    path = os.path.join(static_dir, filename)
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail=f"{filename} is missing.")
+    return FileResponse(path)
 
 
 @app.on_event("startup")

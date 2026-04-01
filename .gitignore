@@ -58,8 +58,11 @@ AGENT_MEMORY.md
 # Website/marketing drafts and platform console pages live here during development.
 src/web/static/*
 !src/web/static/index.html
+!src/web/static/chat.html
 !src/web/static/operator.html
 !src/web/static/remote.html
+!src/web/static/site.css
+!src/web/static/site.js
 !src/web/static/setup.html
 !src/web/static/setup.css
 !src/web/static/setup.js

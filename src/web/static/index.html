@@ -1,298 +1,70 @@
 <!DOCTYPE html>
-<html lang="en">
-
+<html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>YonerAI Remote Loader</title>
-    <style>
-        :root {
-            color-scheme: dark;
-            --bg: #0b0d12;
-            --panel: rgba(18, 22, 31, 0.92);
-            --border: rgba(255, 255, 255, 0.08);
-            --text: #edf2ff;
-            --muted: #a8b3c7;
-            --brand: #5b7cff;
-            --warn-bg: rgba(245, 158, 11, 0.12);
-            --warn-border: rgba(245, 158, 11, 0.32);
-            --warn-text: #fde68a;
-        }
-
-        * {
-            box-sizing: border-box;
-        }
-
-        body {
-            margin: 0;
-            min-height: 100vh;
-            background:
-                radial-gradient(circle at top, rgba(91, 124, 255, 0.24), transparent 36%),
-                linear-gradient(180deg, #0b0d12 0%, #0f131c 100%);
-            color: var(--text);
-            font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 28px;
-        }
-
-        .shell {
-            width: min(780px, 100%);
-        }
-
-        .panel {
-            background: var(--panel);
-            border: 1px solid var(--border);
-            border-radius: 28px;
-            padding: 28px;
-            box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
-            backdrop-filter: blur(18px);
-        }
-
-        .eyebrow {
-            margin: 0 0 10px;
-            font-size: 11px;
-            font-weight: 700;
-            letter-spacing: 0.24em;
-            text-transform: uppercase;
-            color: #8ea2d2;
-        }
-
-        h1 {
-            margin: 0;
-            font-size: clamp(28px, 5vw, 44px);
-            line-height: 1.04;
-            letter-spacing: -0.04em;
-        }
-
-        .sub {
-            margin: 12px 0 0;
-            color: var(--muted);
-            font-size: 15px;
-            line-height: 1.7;
-        }
-
-        .notice,
-        .about {
-            margin-top: 22px;
-            border-radius: 18px;
-            padding: 18px 20px;
-        }
-
-        .notice {
-            border: 1px solid var(--warn-border);
-            background: var(--warn-bg);
-        }
-
-        .notice strong {
-            color: var(--warn-text);
-        }
-
-        .notice p,
-        .about p {
-            margin: 0;
-            line-height: 1.65;
-            font-size: 14px;
-        }
-
-        .notice p+p,
-        .about p+p {
-            margin-top: 10px;
-        }
-
-        .about {
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            background: rgba(255, 255, 255, 0.03);
-        }
-
-        .about h2,
-        .contact-card h2,
-        .status-label {
-            margin: 0 0 8px;
-            font-size: 12px;
-            font-weight: 700;
-            letter-spacing: 0.16em;
-            text-transform: uppercase;
-            color: #8ea2d2;
-        }
-
-        .status-row {
-            display: flex;
-            align-items: center;
-            gap: 14px;
-            margin-top: 22px;
-            padding: 16px 18px;
-            border-radius: 18px;
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid var(--border);
-        }
-
-        .loader {
-            border: 3px solid rgba(255, 255, 255, 0.08);
-            border-top: 3px solid var(--brand);
-            border-radius: 50%;
-            width: 34px;
-            height: 34px;
-            flex: 0 0 auto;
-            animation: spin 1s linear infinite;
-        }
-
-        .status-text {
-            margin: 0;
-            line-height: 1.6;
-        }
-
-        .status-text.error {
-            color: #fecaca;
-        }
-
-        .contact-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-            gap: 14px;
-            margin-top: 22px;
-        }
-
-        .contact-card {
-            border: 1px solid var(--border);
-            background: rgba(255, 255, 255, 0.025);
-            border-radius: 18px;
-            padding: 16px;
-        }
-
-        .contact-card p {
-            margin: 0;
-            line-height: 1.7;
-            font-size: 14px;
-            word-break: break-word;
-        }
-
-        .hint {
-            margin-top: 22px;
-            font-size: 13px;
-            line-height: 1.7;
-            color: #8f9cb5;
-        }
-
-        code {
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 8px;
-            padding: 1px 6px;
-        }
-
-        a {
-            color: #d6e2ff;
-            text-decoration: none;
-        }
-
-        a:hover {
-            text-decoration: underline;
-        }
-
-        @keyframes spin {
-            0% {
-                transform: rotate(0deg);
-            }
-
-            100% {
-                transform: rotate(360deg);
-            }
-        }
-    </style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>YonerAI</title>
+  <meta name="description" content="YonerAI Official Managed Cloud preview" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=IBM+Plex+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/site.css?v=20260401_01" />
+  <script defer src="/static/site.js?v=20260401_01"></script>
 </head>
+<body class="site-home">
+  <div class="page-shell">
+    <header class="glass-topbar">
+      <a class="brand-mark" href="/">YonerAI</a>
+      <nav class="top-links" aria-label="Primary">
+        <a href="#what">What</a>
+        <a href="#modes">Modes</a>
+        <a href="#status">Status</a>
+        <a href="https://github.com/YoneRai12/YonerAI" target="_blank" rel="noopener noreferrer">GitHub</a>
+      </nav>
+    </header>
 
-<body>
-    <main class="shell">
-        <section class="panel">
-            <p class="eyebrow">YonerAI</p>
-            <h1>Remote Loader / Maintenance Notice</h1>
-            <p class="sub">
-                This page can load a remote YonerAI operator panel when an <code>api</code> parameter is provided.
-                Without it, this page acts as a maintenance and contact landing page for yonerai.com.
-            </p>
+    <main class="hero-grid">
+      <section class="hero-panel">
+        <p class="eyebrow">Official Managed Cloud MVP</p>
+        <h1>YonerAI を、まず安全な最小面から戻す。</h1>
+        <p class="lede">
+          `yonerai.com` は公式トップと導線だけ。
+          チャット本体は `api.yonerai.com` 側に分け、危険 capability は今は開きません。
+        </p>
+        <div class="cta-row">
+          <a class="btn btn-primary" data-chat-cta href="/jp/chat">チャットを開く</a>
+          <a class="btn btn-secondary" href="mailto:hello@yonerai.com">hello@yonerai.com</a>
+        </div>
+        <p class="micro-copy">
+          この public surface は YonerAI 全体の distribution core 上にある最小の Managed Cloud 面です。
+        </p>
+      </section>
 
-            <div class="notice">
-                <p><strong>yonerai.com is currently under maintenance.</strong> It may continue until <strong>March 31, 2026</strong> at the latest, but maintenance may also end earlier on an irregular schedule.</p>
-                <p><strong>yonerai.com は現在メンテナンス中です。</strong> 最大で <strong>2026年3月31日</strong> まで継続予定ですが、不定期に早めに終了する場合があります。</p>
-            </div>
-
-            <section class="about">
-                <h2>About YonerAI</h2>
-                <p>yonerai.com は、YonerAI の公式 Web / 公開サービス入口です。</p>
-                <p>自分の PC に Node を入れて使う人だけでなく、ローカル環境を持っていない人や、まずは Web から使いたい人も含めて、みんなが使える入口を目指しています。</p>
-                <p>YonerAI combines AI chat, web experiences, and platform-style features. yonerai.com is intended as the public-facing web entry for everyone, including people who do not run their own local node.</p>
-            </section>
-
-            <div class="status-row">
-                <div id="loader" class="loader"></div>
-                <div>
-                    <div class="status-label">Status</div>
-                    <p id="status" class="status-text">Checking remote YonerAI connection...</p>
-                </div>
-            </div>
-
-            <div class="contact-grid">
-                <div class="contact-card">
-                    <h2>Website</h2>
-                    <p><a href="https://yonerai.com">yonerai.com</a></p>
-                </div>
-                <div class="contact-card">
-                    <h2>Mail</h2>
-                    <p><a href="mailto:hello@yonerai.com">hello@yonerai.com</a></p>
-                </div>
-                <div class="contact-card">
-                    <h2>Project</h2>
-                    <p><a href="https://github.com/YoneRai12/YonerAI">github.com/YoneRai12/YonerAI</a></p>
-                </div>
-            </div>
-
-            <p class="hint">
-                To use the remote loader, open this page with an <code>?api=...</code> query that points to a running YonerAI endpoint.
-            </p>
-        </section>
+      <section class="info-stack">
+        <article class="glass-card" id="what">
+          <h2>What</h2>
+          <p>
+            YonerAI は Discord・Web・Relay・Core を 1 つの runtime contract で束ねる
+            local-first AI system です。
+          </p>
+        </article>
+        <article class="glass-card" id="modes">
+          <h2>3 Modes</h2>
+          <ul class="mode-list">
+            <li><strong>Full Private Self-Host</strong><span>自分で全部持つ</span></li>
+            <li><strong>Official Hybrid Private</strong><span>公式 orchestration + 自分の node</span></li>
+            <li><strong>Official Managed Cloud</strong><span>公式 runtime / core / memory / files</span></li>
+          </ul>
+        </article>
+        <article class="glass-card" id="status">
+          <h2>Status</h2>
+          <p>
+            今回の MVP では、公開トップ、セッション確認、メッセージ送信、SSE 応答だけを通します。
+            admin / operator / browser remote / system control は出しません。
+          </p>
+        </article>
+      </section>
     </main>
-
-    <script>
-        (async () => {
-            const params = new URLSearchParams(window.location.search);
-            const api = params.get("api");
-            const loader = document.getElementById("loader");
-            const status = document.getElementById("status");
-
-            if (!api) {
-                loader.style.display = "none";
-                status.innerText = "No api parameter was provided. Showing maintenance page instead of loading a remote operator.";
-                return;
-            }
-
-            try {
-                let baseUrl = api;
-                if (!baseUrl.startsWith("http")) {
-                    baseUrl = "https://" + baseUrl;
-                }
-                baseUrl = baseUrl.replace(/\/+$/, "");
-
-                const targetUrl = `${baseUrl}/static/operator.html`;
-                status.innerText = `Fetching interface from ${baseUrl}...`;
-
-                const response = await fetch(targetUrl);
-                if (!response.ok) {
-                    throw new Error(`Bot returned status ${response.status}`);
-                }
-
-                const html = await response.text();
-                document.open();
-                document.write(html);
-                document.close();
-            } catch (err) {
-                loader.style.display = "none";
-                status.innerText = `Connection failed: ${err.message}. Make sure your YonerAI node is running and the tunnel is active.`;
-                status.className = "status-text error";
-            }
-        })();
-    </script>
+  </div>
 </body>
-
 </html>

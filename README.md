@@ -1,7 +1,7 @@
 <div align="center">
 
 # YonerAI
-### **The Artificial Lifeform AI System (Node + Clients + Relay + Core)**
+### **Public Distribution Core For YonerAI's 3-Mode Architecture**
 
 ![YonerAI Banner](docs/images/yonerai_banner.svg)
 
@@ -31,9 +31,26 @@ At its core, YonerAI is a **Node-style runtime** that can combine:
 - an optional Core process for deeper routing / reasoning
 - relay-compatible networking for hybrid or remote-assisted setups
 
-This public repository is the **distributable YonerAI side**: the part that should be able to run on a user's PC, be extended locally, and remain useful without private production infrastructure.
+This public repository is **not** the official `yonerai.com` production runtime itself.
+Its role is the **public distribution core**: the part that can run on a user's PC, stay useful without private production infrastructure, and later branch into multiple product modes.
 
 Note: many internal paths/env vars still use legacy `ORA_*` prefixes for compatibility. Product/release branding is controlled by `PRODUCT_NAME`.
+
+## How This Repo Fits The 3-Mode Architecture
+
+The wider YonerAI system is organized as three operating modes:
+
+1. `Full Private Self-Host`
+   - the user hosts runtime, storage, domain, app, API, memory, and files
+2. `Official Hybrid Private`
+   - official identity/orchestration connects to user-side node execution and local state
+3. `Official Managed Cloud`
+   - official infrastructure hosts runtime, core, memory, files, and orchestration
+
+These are **not three separate codebases**.
+They are three modes branching from one common distribution foundation through profiles, connectors, permissions, service dependencies, and trust boundaries.
+
+This public repo is that shared foundation.
 
 ### Scope Of This Public Repo
 
@@ -52,7 +69,7 @@ What this repo is **not** trying to be on its own:
 - billing / production moderation / internal admin stacks
 - private production secrets, runbooks, or internal-only services
 
-In other words: this repo is the public YonerAI foundation you can run, inspect, and extend. The heavier private operations side is intentionally separate.
+In other words: this repo is the **public side of YonerAI's shared distribution core**, while the heavier official runtime and ops layer remain intentionally private.
 
 ### Current Status Of The Split
 
@@ -62,6 +79,24 @@ The long-term direction is a clearer split between:
 - the private VPS / commercial / official web side
 
 That separation is still being formalized. Because of that, this repo currently still contains some broader shared foundation code and docs, especially around hybrid deployment and future-facing architecture.
+
+### Current Strongest Implementation Direction
+
+The strongest surviving implementation evidence points to a split like this:
+
+- `yonerai.com`
+  - official top page and user-facing entry
+- `api.yonerai.com`
+  - web chat, auth, and public API
+- `files.yonerai.com`
+  - controlled file delivery and share links
+- `hooks.yonerai.com`
+  - webhook or gateway ingress
+
+This section describes the **current strongest implementation direction**, not a final canonical production sign-off.
+For the current MVP freeze, see:
+
+- `docs/ROUTE_FREEZE_MVP.md`
 
 ### What You Can Do With YonerAI
 
@@ -118,6 +153,7 @@ If you want the deeper docs:
 - `docs/VPS_DEPLOYMENT.md` (run the always-on control plane on a VPS; hybrid mode)
 - `docs/DOMAIN_ROUTES.md` (recommended `yonerai.com` subdomains and API path design)
 - `docs/PLATFORM_PLAN.md` (product direction: Node + Clients + Relay + Cloud)
+- `docs/ROUTE_FREEZE_MVP.md` (Official Managed Cloud MVP route freeze)
 - `docs/PLATFORM_REVIEW_AND_RISKS.md` (devil's advocate review / risks)
 - `ORA_SYSTEM_SPEC.md`
 - `AGENTS.md` (Codex/agent workspace instructions for this repo)

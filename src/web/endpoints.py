@@ -1,15 +1,20 @@
 # ruff: noqa: B904
 # --- CHAT API IMPLEMENTATION ---
 import asyncio
+import base64
+import hashlib
 import hmac
 import json
+import logging
 import os
+import secrets
 import time
 import uuid
 from datetime import datetime
 from ipaddress import ip_address
 from typing import Any, List, Mapping
 from pathlib import Path
+from urllib.parse import parse_qs, urlencode, urlsplit, urlunsplit
 
 from fastapi import APIRouter, HTTPException, Request, Response, WebSocket, WebSocketDisconnect, Depends, Header, Query
 from fastapi.responses import RedirectResponse
@@ -22,6 +27,7 @@ from sse_starlette.sse import EventSourceResponse
 from src.config import COST_LIMITS
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 _TRUE_VALUES = {"1", "true", "yes", "on"}
 _DEV_ENV_VALUES = {"dev", "development", "local", "test", "testing"}
@@ -396,6 +402,222 @@ async def require_web_api(
         raise HTTPException(status_code=403, detail="Web API only available on loopback in dev without token")
 
 
+GOOGLE_CLIENT_SECRETS_FILE = (os.getenv("GOOGLE_CLIENT_SECRETS_FILE") or "google_client_secrets.json").strip()
+GOOGLE_SCOPES = ["openid", "email", "profile"]
+WEB_SESSION_COOKIE = (os.getenv("WEB_SESSION_COOKIE_NAME") or "yonerai_session").strip() or "yonerai_session"
+WEB_SESSION_TTL_SEC = max(600, int((os.getenv("WEB_SESSION_TTL_SEC") or "2592000").strip() or "2592000"))
+WEB_OAUTH_STATE_TTL_SEC = max(60, min(3600, int((os.getenv("WEB_OAUTH_STATE_TTL_SEC") or "600").strip() or "600")))
+OAUTH_NONCE_COOKIE = (os.getenv("WEB_OAUTH_NONCE_COOKIE_NAME") or "yonerai_oauth_nonce").strip() or "yonerai_oauth_nonce"
+OAUTH_PKCE_COOKIE = (os.getenv("WEB_OAUTH_PKCE_COOKIE_NAME") or "yonerai_oauth_pkce").strip() or "yonerai_oauth_pkce"
+
+
+def _session_secret() -> str:
+    return (
+        (os.getenv("WEB_SESSION_SECRET") or "").strip()
+        or (os.getenv("ORA_WEB_API_TOKEN") or "").strip()
+        or "yonerai-dev-session-secret"
+    )
+
+
+def _session_hash(raw_token: str) -> str:
+    msg = f"{_session_secret()}:{raw_token}".encode("utf-8", errors="ignore")
+    return hashlib.sha256(msg).hexdigest()
+
+
+def _is_https_request(request: Request) -> bool:
+    proto = (request.headers.get("x-forwarded-proto") or request.url.scheme or "").lower()
+    return proto == "https"
+
+
+def _infer_origin_from_url(url: str) -> str | None:
+    raw = (url or "").strip()
+    if not raw:
+        return None
+    parts = urlsplit(raw)
+    if not parts.scheme or not parts.netloc:
+        return None
+    return f"{parts.scheme}://{parts.netloc}".rstrip("/")
+
+
+def _request_origin(request: Request) -> str:
+    proto = (request.headers.get("x-forwarded-proto") or request.url.scheme or "http").split(",")[0].strip().lower()
+    host = (request.headers.get("x-forwarded-host") or request.headers.get("host") or "").split(",")[0].strip()
+    if not host:
+        host = (request.url.netloc or "").strip()
+    return f"{proto}://{host}".rstrip("/")
+
+
+def _public_origin(request: Request) -> str:
+    configured = _infer_origin_from_url((os.getenv("GOOGLE_REDIRECT_URI") or "").strip())
+    return configured or _request_origin(request)
+
+
+def _redirect_uri_from_env_or_request(*, env_key: str, request: Request, callback_path: str) -> str:
+    configured = (os.getenv(env_key) or "").strip()
+    if configured:
+        return configured
+    return f"{_public_origin(request)}{callback_path}"
+
+
+def _normalize_next_path(next_path: str | None) -> str:
+    raw = (next_path or "").strip()
+    if not raw:
+        return "/jp/chat"
+    if "\r" in raw or "\n" in raw or "\\" in raw:
+        return "/jp/chat"
+    parts = urlsplit(raw)
+    if parts.scheme or parts.netloc:
+        return "/jp/chat"
+    if not parts.path.startswith("/") or parts.path.startswith("//") or parts.path.startswith("/\\"):
+        return "/jp/chat"
+    normalized = urlunsplit(("", "", parts.path, parts.query, parts.fragment))
+    if len(normalized) > 2048:
+        return "/jp/chat"
+    return normalized
+
+
+async def _resolve_session_by_token(token: str | None) -> dict[str, Any] | None:
+    raw = (token or "").strip()
+    if not raw:
+        return None
+    store = get_store()
+    return await store.get_web_session(session_hash=_session_hash(raw))
+
+
+async def _resolve_session_from_request(request: Request) -> dict[str, Any] | None:
+    token = (request.cookies.get(WEB_SESSION_COOKIE) or "").strip()
+    if not token:
+        token = (request.headers.get("x-yonerai-session") or "").strip()
+    if not token:
+        auth = (request.headers.get("authorization") or "").strip()
+        parts = auth.split(None, 1)
+        if len(parts) == 2 and parts[0].lower() == "bearer":
+            token = parts[1].strip()
+    return await _resolve_session_by_token(token)
+
+
+async def require_user_session(request: Request) -> dict[str, Any]:
+    session = await _resolve_session_from_request(request)
+    if not session:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    return session
+
+
+async def require_actor(request: Request) -> dict[str, Any]:
+    session = await require_user_session(request)
+    return {
+        "user_id": str(session.get("user_id") or ""),
+        "provider": str(session.get("provider") or "session"),
+        "api_key_id": None,
+    }
+
+
+async def _attach_web_session_cookie(
+    *,
+    request: Request,
+    response: Response,
+    user_id: str,
+    provider: str,
+) -> None:
+    raw_token = secrets.token_urlsafe(48)
+    store = get_store()
+    await store.create_web_session(
+        session_hash=_session_hash(raw_token),
+        user_id=str(user_id),
+        provider=str(provider).lower(),
+        ttl_sec=WEB_SESSION_TTL_SEC,
+    )
+    response.set_cookie(
+        key=WEB_SESSION_COOKIE,
+        value=raw_token,
+        max_age=WEB_SESSION_TTL_SEC,
+        path="/",
+        httponly=True,
+        secure=_is_https_request(request),
+        samesite="Lax",
+    )
+
+
+def _build_google_flow(*, request: Request, state: str | None = None, code_verifier: str | None = None) -> Flow:
+    redirect_uri = _redirect_uri_from_env_or_request(
+        env_key="GOOGLE_REDIRECT_URI",
+        request=request,
+        callback_path="/api/auth/google/callback",
+    )
+    client_secrets_path = Path(GOOGLE_CLIENT_SECRETS_FILE)
+    if client_secrets_path.exists():
+        return Flow.from_client_secrets_file(
+            str(client_secrets_path),
+            scopes=GOOGLE_SCOPES,
+            redirect_uri=redirect_uri,
+            state=state,
+            code_verifier=code_verifier,
+            autogenerate_code_verifier=False,
+        )
+
+    client_id = (os.getenv("GOOGLE_CLIENT_ID") or "").strip()
+    client_secret = (os.getenv("GOOGLE_CLIENT_SECRET") or "").strip()
+    if client_id and client_secret:
+        cfg = {
+            "web": {
+                "client_id": client_id,
+                "client_secret": client_secret,
+                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                "token_uri": "https://oauth2.googleapis.com/token",
+                "redirect_uris": [redirect_uri],
+            }
+        }
+        return Flow.from_client_config(
+            cfg,
+            scopes=GOOGLE_SCOPES,
+            redirect_uri=redirect_uri,
+            state=state,
+            code_verifier=code_verifier,
+            autogenerate_code_verifier=False,
+        )
+
+    raise HTTPException(
+        status_code=503,
+        detail="Google OAuth is not configured.",
+    )
+
+
+async def _resolve_user_id_for_google_identity(
+    *,
+    google_sub: str,
+    email: str | None,
+    display_name: str | None,
+    avatar_url: str | None,
+    link_code: str | None,
+) -> str:
+    store = get_store()
+    user_id: str | None = None
+    if link_code:
+        linked_discord_id = await store.consume_login_state(str(link_code))
+        if linked_discord_id:
+            user_id = str(linked_discord_id)
+
+    if not user_id:
+        user_id = await store.get_user_id_by_identity(provider="google", provider_sub=google_sub)
+    if not user_id:
+        user_id = await store.find_user_id_by_google_sub(google_sub)
+    if not user_id:
+        user_id = f"web:google:{google_sub}"
+
+    await store.ensure_user_id(user_id=user_id, display_name=display_name)
+    await store.upsert_user_identity(
+        provider="google",
+        provider_sub=google_sub,
+        user_id=user_id,
+        email=email,
+        display_name=display_name,
+        avatar_url=avatar_url,
+    )
+    if user_id.isdigit():
+        await store.link_discord_google(user_id, google_sub)
+    return str(user_id)
+
+
 @router.get("/settings/status")
 async def get_settings_status(_: None = Depends(require_web_api)):
     return _get_settings_status()
@@ -556,6 +778,8 @@ async def get_dashboard_summary(_: None = Depends(require_web_api)):
 _RUN_QUEUES = {}
 # Simple in-memory store for feedback queues (UUID -> asyncio.Queue)
 _RUN_TOOL_OUTPUTS = {}
+_RUN_OWNERS = {}
+_PUBLIC_CHAT_IDEMPOTENCY: dict[tuple[str, str], dict[str, Any]] = {}
 
 
 def _max_active_runs() -> int:
@@ -575,6 +799,10 @@ def _run_state_ttl_sec() -> int:
 def _cleanup_run_state(run_id: str) -> None:
     _RUN_QUEUES.pop(run_id, None)
     _RUN_TOOL_OUTPUTS.pop(run_id, None)
+    _RUN_OWNERS.pop(run_id, None)
+    stale_keys = [k for k, v in _PUBLIC_CHAT_IDEMPOTENCY.items() if str(v.get("run_id") or "") == run_id]
+    for key in stale_keys:
+        _PUBLIC_CHAT_IDEMPOTENCY.pop(key, None)
 
 
 async def _expire_run_state_later(run_id: str, delay_sec: int) -> None:
@@ -857,6 +1085,97 @@ async def submit_tool_result(run_id: str, result: dict, _: None = Depends(requir
 # ----------------------------------------------------
 
 
+class PublicChatMessageRequest(BaseModel):
+    content: str
+    idempotency_key: str | None = None
+
+
+def _public_chat_idempotency_key(request: Request, body: PublicChatMessageRequest) -> str:
+    header_key = (request.headers.get("Idempotency-Key") or request.headers.get("X-Idempotency-Key") or "").strip()
+    body_key = (body.idempotency_key or "").strip()
+    chosen = header_key or body_key
+    if not chosen:
+        return ""
+    if len(chosen) > 200:
+        raise HTTPException(status_code=400, detail="Idempotency key is too long")
+    return chosen
+
+
+@router.post("/public/chat/messages")
+async def create_public_chat_message(
+    body: PublicChatMessageRequest,
+    request: Request,
+    actor: dict[str, Any] = Depends(require_actor),
+):
+    prompt = (body.content or "").strip()
+    if not prompt:
+        raise HTTPException(status_code=400, detail="content is required")
+
+    user_id = str(actor.get("user_id") or "").strip()
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    idempotency_key = _public_chat_idempotency_key(request, body)
+    if idempotency_key:
+        cached = _PUBLIC_CHAT_IDEMPOTENCY.get((user_id, idempotency_key))
+        cached_run_id = str((cached or {}).get("run_id") or "")
+        if cached_run_id and cached_run_id in _RUN_QUEUES:
+            return {"run_id": cached_run_id, "status": "started", "idempotent_replay": True}
+
+    started_at = time.time()
+    request_bytes = len(prompt.encode("utf-8", errors="ignore"))
+    run_id = _start_agent_run(content=prompt, available_tools=[], provider_id=user_id, attachments=[])
+    _RUN_OWNERS[run_id] = user_id
+    if idempotency_key:
+        _PUBLIC_CHAT_IDEMPOTENCY[(user_id, idempotency_key)] = {"run_id": run_id, "created_at": int(time.time())}
+
+    try:
+        await get_store().record_api_usage(
+            user_id=user_id,
+            api_key_id=None,
+            method="POST",
+            path=str(request.url.path),
+            status=200,
+            latency_ms=int((time.time() - started_at) * 1000),
+            request_bytes=request_bytes,
+            response_bytes=None,
+            meta_json=json.dumps({"source": "managed_cloud_mvp"}, ensure_ascii=True),
+        )
+    except Exception:
+        logger.exception("record_api_usage failed for public chat message")
+
+    return {"run_id": run_id, "status": "started", "idempotent_replay": False}
+
+
+@router.get("/public/chat/runs/{run_id}/events")
+async def get_public_chat_events(
+    run_id: str,
+    request: Request,
+    actor: dict[str, Any] = Depends(require_actor),
+):
+    owner_id = str(_RUN_OWNERS.get(run_id) or "")
+    if not owner_id:
+        raise HTTPException(status_code=404, detail="Run not found")
+    if owner_id != str(actor.get("user_id") or ""):
+        raise HTTPException(status_code=403, detail="Run is not owned by current user")
+
+    async def event_generator():
+        queue = _RUN_QUEUES.get(run_id)
+        if not queue:
+            yield json.dumps({"event": "error", "data": {"message": "Run not found"}})
+            return
+
+        while True:
+            if await request.is_disconnected():
+                break
+            event = await queue.get()
+            if event is None:
+                break
+            yield json.dumps(event)
+
+    return EventSourceResponse(event_generator())
+
+
 class ExternalRunRequest(BaseModel):
     """
     External API request model (stable path for integrations).
@@ -975,44 +1294,75 @@ async def websocket_endpoint(websocket: WebSocket, token: str | None = Query(Non
     except WebSocketDisconnect:
         manager.disconnect(websocket)
 
+@router.get("/auth/google/start")
+async def auth_google_start(
+    request: Request,
+    link_code: str | None = None,
+    next: str | None = None,
+    return_to: str | None = Query(None, alias="returnTo"),
+):
+    nonce = secrets.token_urlsafe(16)
+    pkce_verifier = secrets.token_urlsafe(64)
+    state_payload = {
+        "nonce": nonce,
+        "next": _normalize_next_path(return_to or next or "/jp/chat"),
+        "link_code": (link_code or "").strip(),
+        "ts": int(time.time()),
+    }
+    state = base64.urlsafe_b64encode(
+        json.dumps(state_payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    ).decode("ascii").rstrip("=")
 
-GOOGLE_CLIENT_SECRETS_FILE = "google_client_secrets.json"
-GOOGLE_SCOPES = ["openid", "https://www.googleapis.com/auth/drive.file", "email", "profile"]
-GOOGLE_REDIRECT_URI = "http://localhost:8000/api/auth/google/callback"  # Update with actual domain in prod
+    flow = _build_google_flow(request=request, state=state, code_verifier=pkce_verifier)
+    auth_url, _ = flow.authorization_url(prompt="consent")
 
-
-def build_flow(state: str | None = None) -> Flow:
-    return Flow.from_client_secrets_file(
-        GOOGLE_CLIENT_SECRETS_FILE,
-        scopes=GOOGLE_SCOPES,
-        redirect_uri=GOOGLE_REDIRECT_URI,
-        state=state,
-    )
-
-
-@router.get("/auth/discord")
-async def auth_discord(request: Request, code: str | None = None, state: str | None = None):
-    # If no code, redirect to Google
-    if code is None:
-        discord_user_id = request.query_params.get("discord_user_id")
-        flow = build_flow(state=discord_user_id or "")
-        auth_url, _ = flow.authorization_url(prompt="consent", include_granted_scopes="true")
-        return RedirectResponse(auth_url)
-
-    # If code exists, handle Discord auth (not implemented yet per instructions)
-    return {"message": "Discord auth flow not fully implemented yet."}
+    response = RedirectResponse(auth_url, status_code=302)
+    cookie_opts = {
+        "max_age": WEB_OAUTH_STATE_TTL_SEC,
+        "httponly": True,
+        "secure": _is_https_request(request),
+        "samesite": "Lax",
+    }
+    response.set_cookie(OAUTH_NONCE_COOKIE, nonce, path="/api/auth/google/callback", **cookie_opts)
+    response.set_cookie(OAUTH_PKCE_COOKIE, pkce_verifier, path="/api/auth/google/callback", **cookie_opts)
+    return response
 
 
 @router.get("/auth/google/callback")
 async def auth_google_callback(request: Request, code: str, state: str | None = None):
-    # We need the store. Since we can't import from app easily due to circular deps,
-    # we will access it via the app instance attached to the request, or import it inside.
-    from src.web.app import get_store
+    raw_state = (state or "").strip()
+    payload: dict[str, Any] = {}
+    if raw_state:
+        pad = "=" * ((4 - len(raw_state) % 4) % 4)
+        try:
+            payload = json.loads(base64.urlsafe_b64decode((raw_state + pad).encode("ascii")).decode("utf-8"))
+        except Exception:
+            payload = {}
 
-    store = get_store()
+    nonce_cookie = (request.cookies.get(OAUTH_NONCE_COOKIE) or "").strip()
+    pkce_verifier = (request.cookies.get(OAUTH_PKCE_COOKIE) or "").strip()
+    ts = int(payload.get("ts") or 0) if isinstance(payload, dict) else 0
+    next_path = _normalize_next_path(payload.get("next") if isinstance(payload, dict) else None)
+    link_code = (payload.get("link_code") or "").strip() if isinstance(payload, dict) else ""
+    if (
+        not payload
+        or payload.get("nonce") != nonce_cookie
+        or not pkce_verifier
+        or not ts
+        or (int(time.time()) - ts) > WEB_OAUTH_STATE_TTL_SEC
+    ):
+        raise HTTPException(status_code=400, detail="Invalid OAuth state")
 
-    flow = build_flow(state=state)
-    flow.fetch_token(code=code)
+    flow = _build_google_flow(request=request, state=state, code_verifier=pkce_verifier)
+    flow.redirect_uri = _redirect_uri_from_env_or_request(
+        env_key="GOOGLE_REDIRECT_URI",
+        request=request,
+        callback_path="/api/auth/google/callback",
+    )
+    raw_query = (request.scope.get("query_string") or b"").decode("utf-8", errors="ignore")
+    raw_code = parse_qs(raw_query, keep_blank_values=True).get("code", [code])[0]
+    normalized_code = (raw_code or code).replace(" ", "+").strip()
+    flow.fetch_token(code=normalized_code)
 
     creds = flow.credentials
     request_adapter = g_requests.Request()
@@ -1022,53 +1372,68 @@ async def auth_google_callback(request: Request, code: str, state: str | None = 
         flow.client_config["client_id"],
     )
 
-    google_sub = idinfo["sub"]
-    email = idinfo.get("email")
+    google_sub = str(idinfo["sub"])
+    email = str(idinfo.get("email") or "") or None
+    display_name = str(idinfo.get("name") or "") or None
+    avatar_url = str(idinfo.get("picture") or "") or None
+    user_id = await _resolve_user_id_for_google_identity(
+        google_sub=google_sub,
+        email=email,
+        display_name=display_name,
+        avatar_url=avatar_url,
+        link_code=link_code or None,
+    )
 
-    # Update DB
-    await store.upsert_google_user(google_sub=google_sub, email=email, credentials=creds)
+    response = RedirectResponse(next_path, status_code=302)
+    await _attach_web_session_cookie(request=request, response=response, user_id=user_id, provider="google")
+    response.delete_cookie(OAUTH_NONCE_COOKIE, path="/api/auth/google/callback")
+    response.delete_cookie(OAUTH_PKCE_COOKIE, path="/api/auth/google/callback")
+    return response
 
-    # Link Discord User
-    discord_user_id = state
-    if discord_user_id:
-        # Validate discord_user_id is int-like
-        if discord_user_id.isdigit():
-            await store.link_discord_google(int(discord_user_id), google_sub)
 
-    return RedirectResponse(url="/linked")  # Redirect to a success page (to be created)
+@router.get("/auth/me")
+async def auth_me(session: dict[str, Any] = Depends(require_user_session)):
+    store = get_store()
+    identities = await store.list_user_identities(user_id=str(session["user_id"]))
+    display_name = None
+    avatar_url = None
+    for ident in identities:
+        if not display_name and ident.get("display_name"):
+            display_name = str(ident["display_name"])
+        if not avatar_url and ident.get("avatar_url"):
+            avatar_url = str(ident["avatar_url"])
+    return {
+        "authenticated": True,
+        "user_id": str(session.get("user_id") or ""),
+        "provider": str(session.get("provider") or "google"),
+        "display_name": display_name,
+        "avatar_url": avatar_url,
+        "identities": identities,
+    }
+
+
+@router.post("/auth/logout")
+async def auth_logout(request: Request):
+    token = (request.cookies.get(WEB_SESSION_COOKIE) or "").strip()
+    if token:
+        await get_store().revoke_web_session(session_hash=_session_hash(token))
+    response = JSONResponse({"ok": True})
+    response.delete_cookie(WEB_SESSION_COOKIE, path="/")
+    return response
 
 
 @router.post("/auth/link-code")
 async def request_link_code(request: Request):
-    """Generate a temporary link code for a Discord user."""
-    try:
-        data = await request.json()
-        discord_user_id = data.get("user_id")
-        if not discord_user_id:
-            raise HTTPException(status_code=400, detail="Missing user_id")
+    data = await request.json()
+    discord_user_id = str(data.get("user_id") or "").strip()
+    if not discord_user_id:
+        raise HTTPException(status_code=400, detail="Missing user_id")
 
-        store = get_store()
-        # Create a unique state/code
-        code = str(uuid.uuid4())
-
-        # Store it with expiration (e.g., 15 minutes)
-        await store.start_login_state(code, discord_user_id, ttl_sec=900)
-
-        # Return the auth URL that the user should visit
-        # In a real app, this might be a short link or just the code
-        # For ORA, we return the full URL to the web auth endpoint with state
-        auth_url = f"{GOOGLE_REDIRECT_URI}?state={code}"  # Wait, this is callback.
-        # We need to point to the start of the flow
-        # Actually, the user should visit /api/auth/discord?discord_user_id=...
-        # But we want to use the code as state.
-
-        # Let's construct the Google Auth URL directly or via our endpoint
-        flow = build_flow(state=code)
-        auth_url, _ = flow.authorization_url(prompt="consent", include_granted_scopes="true")
-
-        return {"url": auth_url, "code": code}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    code = str(uuid.uuid4())
+    await get_store().start_login_state(code, discord_user_id, ttl_sec=900)
+    return_to = _normalize_next_path((data.get("returnTo") or "/jp/chat"))
+    auth_url = f"/api/auth/google/start?{urlencode({'link_code': code, 'returnTo': return_to})}"
+    return {"url": auth_url, "code": code}
 
 
 @router.post("/ocr")

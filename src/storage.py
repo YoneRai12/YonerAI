@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 import sqlite3
 import time
+import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Sequence, Tuple
@@ -51,6 +53,49 @@ CREATE TABLE IF NOT EXISTS dashboard_tokens (
   created_by TEXT,
   expires_at INTEGER NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS user_identities (
+  provider TEXT NOT NULL,
+  provider_sub TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  email TEXT,
+  display_name TEXT,
+  avatar_url TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY(provider, provider_sub)
+);
+CREATE INDEX IF NOT EXISTS idx_user_identities_user_id ON user_identities(user_id);
+
+CREATE TABLE IF NOT EXISTS web_sessions (
+  session_hash TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  provider TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_web_sessions_expires ON web_sessions(expires_at);
+
+CREATE TABLE IF NOT EXISTS api_usage (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  ts INTEGER NOT NULL,
+  user_id TEXT NOT NULL,
+  api_key_id TEXT,
+  method TEXT NOT NULL,
+  path TEXT NOT NULL,
+  status INTEGER,
+  latency_ms INTEGER,
+  request_bytes INTEGER,
+  response_bytes INTEGER,
+  meta_json TEXT,
+  request_id TEXT,
+  trace_id TEXT,
+  origin TEXT,
+  origin_node TEXT,
+  tampered INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_api_usage_user_ts ON api_usage(user_id, ts);
+CREATE INDEX IF NOT EXISTS idx_api_usage_key_ts ON api_usage(api_key_id, ts);
 
 -- Owner-only scheduled tasks (safe-by-default: LLM-only unless explicitly extended later)
 CREATE TABLE IF NOT EXISTS scheduled_tasks (
@@ -1191,6 +1236,205 @@ class Store:
             await db.execute("DELETE FROM login_states WHERE state=?", (state,))
             await db.commit()
         return str(discord_user_id)
+
+    async def ensure_user_id(self, user_id: str, display_name: str | None = None) -> None:
+        now = int(time.time())
+        uid = str(user_id)
+        async with aiosqlite.connect(self._db_path) as db:
+            if display_name:
+                await db.execute(
+                    (
+                        "INSERT INTO users(id, privacy, created_at, display_name) "
+                        "VALUES(?, 'private', ?, ?) "
+                        "ON CONFLICT(id) DO UPDATE SET display_name=excluded.display_name"
+                    ),
+                    (uid, now, display_name),
+                )
+            else:
+                await db.execute(
+                    (
+                        "INSERT INTO users(id, privacy, created_at) "
+                        "VALUES(?, 'private', ?) "
+                        "ON CONFLICT(id) DO NOTHING"
+                    ),
+                    (uid, now),
+                )
+            await db.commit()
+
+    async def upsert_user_identity(
+        self,
+        *,
+        provider: str,
+        provider_sub: str,
+        user_id: str,
+        email: str | None = None,
+        display_name: str | None = None,
+        avatar_url: str | None = None,
+    ) -> None:
+        now = int(time.time())
+        p = str(provider).lower()
+        ps = str(provider_sub)
+        uid = str(user_id)
+        async with aiosqlite.connect(self._db_path) as db:
+            await db.execute(
+                (
+                    "INSERT INTO user_identities(provider, provider_sub, user_id, email, display_name, avatar_url, created_at, updated_at) "
+                    "VALUES(?, ?, ?, ?, ?, ?, ?, ?) "
+                    "ON CONFLICT(provider, provider_sub) DO UPDATE SET "
+                    "user_id=excluded.user_id, email=excluded.email, display_name=excluded.display_name, avatar_url=excluded.avatar_url, updated_at=excluded.updated_at"
+                ),
+                (
+                    p,
+                    ps,
+                    uid,
+                    str(email) if email else None,
+                    str(display_name) if display_name else None,
+                    str(avatar_url) if avatar_url else None,
+                    now,
+                    now,
+                ),
+            )
+            await db.commit()
+
+    async def get_user_id_by_identity(self, *, provider: str, provider_sub: str) -> Optional[str]:
+        async with aiosqlite.connect(self._db_path) as db:
+            async with db.execute(
+                "SELECT user_id FROM user_identities WHERE provider=? AND provider_sub=?",
+                (str(provider).lower(), str(provider_sub)),
+            ) as cursor:
+                row = await cursor.fetchone()
+        return str(row[0]) if row and row[0] is not None else None
+
+    async def list_user_identities(self, *, user_id: str) -> list[dict]:
+        async with aiosqlite.connect(self._db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                (
+                    "SELECT provider, provider_sub, email, display_name, avatar_url, created_at, updated_at "
+                    "FROM user_identities WHERE user_id=? ORDER BY provider ASC"
+                ),
+                (str(user_id),),
+            ) as cursor:
+                rows = await cursor.fetchall()
+        return [dict(r) for r in rows]
+
+    async def create_web_session(
+        self,
+        *,
+        session_hash: str,
+        user_id: str,
+        provider: str,
+        ttl_sec: int = 30 * 24 * 3600,
+    ) -> None:
+        now = int(time.time())
+        expires_at = now + max(60, int(ttl_sec))
+        async with aiosqlite.connect(self._db_path) as db:
+            await db.execute(
+                (
+                    "INSERT OR REPLACE INTO web_sessions(session_hash, user_id, provider, created_at, expires_at) "
+                    "VALUES(?, ?, ?, ?, ?)"
+                ),
+                (str(session_hash), str(user_id), str(provider).lower(), now, expires_at),
+            )
+            await db.commit()
+
+    async def get_web_session(self, *, session_hash: str) -> Optional[dict]:
+        now = int(time.time())
+        async with aiosqlite.connect(self._db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                "SELECT session_hash, user_id, provider, created_at, expires_at FROM web_sessions WHERE session_hash=?",
+                (str(session_hash),),
+            ) as cursor:
+                row = await cursor.fetchone()
+            if not row:
+                return None
+            if int(row["expires_at"]) <= now:
+                await db.execute("DELETE FROM web_sessions WHERE session_hash=?", (str(session_hash),))
+                await db.commit()
+                return None
+        return dict(row)
+
+    async def revoke_web_session(self, *, session_hash: str) -> None:
+        async with aiosqlite.connect(self._db_path) as db:
+            await db.execute("DELETE FROM web_sessions WHERE session_hash=?", (str(session_hash),))
+            await db.commit()
+
+    async def record_api_usage(
+        self,
+        *,
+        user_id: str,
+        api_key_id: str | None,
+        method: str,
+        path: str,
+        status: int | None,
+        latency_ms: int | None,
+        request_bytes: int | None,
+        response_bytes: int | None,
+        meta_json: str | None,
+        request_id: str | None = None,
+        trace_id: str | None = None,
+        origin: str | None = None,
+        origin_node: str | None = None,
+        tampered: bool = False,
+    ) -> None:
+        now = int(time.time())
+        async with aiosqlite.connect(self._db_path) as db:
+            await db.execute(
+                (
+                    "INSERT INTO api_usage(ts, user_id, api_key_id, method, path, status, latency_ms, request_bytes, response_bytes, meta_json, request_id, trace_id, origin, origin_node, tampered) "
+                    "VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                ),
+                (
+                    now,
+                    str(user_id),
+                    str(api_key_id) if api_key_id else None,
+                    str(method).upper(),
+                    str(path),
+                    int(status) if status is not None else None,
+                    int(latency_ms) if latency_ms is not None else None,
+                    int(request_bytes) if request_bytes is not None else None,
+                    int(response_bytes) if response_bytes is not None else None,
+                    str(meta_json) if meta_json else None,
+                    str(request_id) if request_id else None,
+                    str(trace_id) if trace_id else None,
+                    str(origin) if origin else None,
+                    str(origin_node) if origin_node else None,
+                    1 if tampered else 0,
+                ),
+            )
+            await db.commit()
+
+    async def count_api_usage(
+        self,
+        *,
+        user_id: str,
+        path: str | None = None,
+        since_ts: int | None = None,
+        api_key_only: bool | None = None,
+    ) -> int:
+        sql = "SELECT COUNT(*) AS n FROM api_usage WHERE user_id=?"
+        params: list[object] = [str(user_id)]
+        if path is not None:
+            sql += " AND path=?"
+            params.append(str(path))
+        if since_ts is not None:
+            sql += " AND ts>=?"
+            params.append(int(since_ts))
+        if api_key_only is True:
+            sql += " AND api_key_id IS NOT NULL"
+        elif api_key_only is False:
+            sql += " AND api_key_id IS NULL"
+
+        async with aiosqlite.connect(self._db_path) as db:
+            async with db.execute(sql, tuple(params)) as cursor:
+                row = await cursor.fetchone()
+        if not row:
+            return 0
+        try:
+            return int(row[0])
+        except Exception:
+            return 0
 
     async def add_dataset(self, discord_user_id: int, name: str, source_url: Optional[str]) -> int:
         async with aiosqlite.connect(self._db_path) as db:
