@@ -192,6 +192,7 @@
 
       const SIDEBAR_COLLAPSE_KEY = "yonerai_sidebar_collapsed_v2";
       const CHAT_DRAFT_KEY = "yonerai_guest_draft_v2";
+      const GUEST_THREADS_KEY = "yonerai_threads_v2:guest";
 
       const qp = new URLSearchParams(window.location.search);
       const linkCode = (qp.get("link_code") || "").trim();
@@ -443,15 +444,12 @@
 
       function setUsagePill(data) {
         if (!usagePill) return;
-        if (!me || !me.user_id) {
-          hideUsagePill();
-          return;
-        }
         const limit = (data && typeof data.limit === "number") ? data.limit : 0;
         const used = (data && typeof data.used === "number") ? data.used : 0;
         const remaining = (data && typeof data.remaining === "number") ? data.remaining : null;
         const usedSessionRaw = (data && typeof data.used_session_raw === "number") ? data.used_session_raw : null;
         const usedApiKeyRaw = (data && typeof data.used_api_key_raw === "number") ? data.used_api_key_raw : null;
+        const provider = String((data && data.provider) || "").trim().toLowerCase();
 
         // limit<=0 means "disabled/unlimited" (don't show a pill).
         if (!limit || limit <= 0) {
@@ -461,7 +459,10 @@
 
         const rem = remaining !== null ? remaining : Math.max(0, limit - used);
         usagePill.hidden = false;
-        usagePill.textContent = isJa() ? `今日 ${used}/${limit}` : `Today ${used}/${limit}`;
+        const providerLabel = provider === "google"
+          ? "Google"
+          : (isJa() ? "ゲスト" : "Guest");
+        usagePill.textContent = isJa() ? `${providerLabel} ${used}/${limit}` : `${providerLabel} ${used}/${limit}`;
 
         const parts = [];
         if (data && typeof data.reset_ts === "number" && data.reset_ts > 0) {
@@ -480,10 +481,6 @@
 
       async function refreshUsage() {
         if (!usagePill) return;
-        if (!me || !me.user_id) {
-          hideUsagePill();
-          return;
-        }
         try {
           const r = await fetch(apiUrl("/api/public/chat/usage"), { credentials: "include" });
           if (!r.ok) {
@@ -506,22 +503,45 @@
         return `yonerai_threads_v2:${uid}`;
       }
 
-      function loadThreads() {
+      function readThreadsFromStorage(key) {
         try {
-          const raw = localStorage.getItem(storageKey()) || "[]";
+          const raw = localStorage.getItem(String(key || "")) || "[]";
           const parsed = JSON.parse(raw);
-          threadsState = Array.isArray(parsed) ? parsed : [];
+          return Array.isArray(parsed) ? parsed : [];
         } catch (_e) {
-          threadsState = [];
+          return [];
         }
+      }
+
+      function writeThreadsToStorage(key, value) {
+        try {
+          localStorage.setItem(String(key || ""), JSON.stringify(Array.isArray(value) ? value : []));
+        } catch (_e) {
+          // ignore
+        }
+      }
+
+      function loadThreads() {
+        const primary = storageKey();
+        let parsed = readThreadsFromStorage(primary);
+
+        const isGuestUser = Boolean(me && me.provider === "guest" && me.user_id);
+        if (!parsed.length && isGuestUser && primary !== GUEST_THREADS_KEY) {
+          const fallback = readThreadsFromStorage(GUEST_THREADS_KEY);
+          if (fallback.length) {
+            parsed = fallback;
+            writeThreadsToStorage(primary, fallback);
+          }
+        }
+        threadsState = Array.isArray(parsed) ? parsed : [];
         return threadsState;
       }
 
       function saveThreads() {
-        try {
-          localStorage.setItem(storageKey(), JSON.stringify(threadsState || []));
-        } catch (_e) {
-          // ignore
+        const data = Array.isArray(threadsState) ? threadsState : [];
+        writeThreadsToStorage(storageKey(), data);
+        if (!me || me.provider === "guest") {
+          writeThreadsToStorage(GUEST_THREADS_KEY, data);
         }
       }
 
@@ -986,17 +1006,10 @@
         }
         updateComposeState();
 
-        if (!authed) {
-          setChatStatus("idle");
-          chatEmpty.hidden = false;
-          chatScroll.hidden = true;
-          return;
-        }
-
-        chatEmpty.hidden = Boolean(t && t.messages && t.messages.length);
-        chatScroll.hidden = false;
-
-        if (!t) return;
+        const hasMessages = Boolean(t && Array.isArray(t.messages) && t.messages.length);
+        chatEmpty.hidden = hasMessages;
+        chatScroll.hidden = !hasMessages;
+        if (!t || !hasMessages) return;
         (t.messages || []).forEach((m) => {
           chatScroll.appendChild(buildMessageRow(m));
         });
@@ -1178,11 +1191,13 @@
             authAuthed.hidden = true;
             authGuest.hidden = false;
             showAuthError();
-            threadsState = [];
+            loadThreads();
+            ensureThread();
             renderThreads();
             renderMessages();
             restoreGuestDraft();
             updateComposeState();
+            await refreshUsage();
             return;
           }
           me = await r.json();
@@ -1224,11 +1239,13 @@
           authAuthed.hidden = true;
           authGuest.hidden = false;
           showAuthError();
-          threadsState = [];
+          loadThreads();
+          ensureThread();
           renderThreads();
           renderMessages();
           restoreGuestDraft();
           updateComposeState();
+          await refreshUsage();
         }
       }
 
@@ -1339,7 +1356,7 @@
 
       function autosizeTextarea() {
         chatInput.style.height = "0px";
-        chatInput.style.height = `${Math.min(chatInput.scrollHeight, 220)}px`;
+        chatInput.style.height = `${Math.min(chatInput.scrollHeight, 168)}px`;
       }
 
       function syncComposeLocale() {
@@ -1967,8 +1984,13 @@
         wireEvents();
         initGoogleLinkHref();
         restoreGuestDraft();
+        loadThreads();
+        ensureThread();
+        renderThreads();
+        renderMessages();
         syncComposeLocale();
         updateComposeState();
+        await refreshUsage();
         await loadMe();
         autosizeTextarea();
       })();
