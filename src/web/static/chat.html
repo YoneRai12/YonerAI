@@ -1,66 +1,108 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ja">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>YonerAI Chat</title>
-  <meta name="description" content="YonerAI managed cloud chat" />
+  <meta name="description" content="YonerAI Chat" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=IBM+Plex+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/site.css?v=20260401_02" />
-  <script src="/static/site.js?v=20260401_02"></script>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=IBM+Plex+Sans+JP:wght@400;500;700&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="/static/site.css?v=20260401_03" />
+  <script src="/static/site.js?v=20260401_03"></script>
 </head>
-<body class="site-chat">
-  <div class="chat-shell">
-    <aside class="chat-sidebar glass-card">
-      <a class="brand-mark" href="/">YonerAI</a>
-      <p class="sidebar-copy">
-        Official Managed Cloud の最小 chat 面です。
-        Google ログイン、メッセージ送信、SSE 応答だけを public-safe に通します。
-      </p>
-      <div class="session-box">
-        <div id="session-state" class="session-state">セッションを確認しています…</div>
-        <div id="session-user" class="session-user" hidden></div>
-        <div class="session-actions">
+
+<body class="console preload" data-console-page="chat">
+  <a class="skip-link" href="#main">メインコンテンツへスキップ</a>
+
+  <div class="console-app">
+    <aside class="console-sidebar" aria-label="Sidebar" data-sidebar>
+      <div class="console-brand">
+        <a class="console-logo" href="/" aria-label="YonerAI home">YonerAI</a>
+      </div>
+
+      <div class="console-actions">
+        <button class="console-newchat" id="new-chat-btn" type="button">
+          <span class="console-plus" aria-hidden="true">+</span>
+          <span>New chat</span>
+        </button>
+      </div>
+
+      <div class="console-section">
+        <div class="console-section-label">Chats</div>
+        <nav id="thread-list" class="thread-list" aria-label="Chat threads">
+          <div class="thread-item is-active">
+            <span class="thread-title">Managed Cloud MVP</span>
+          </div>
+        </nav>
+      </div>
+
+      <div class="console-spacer"></div>
+
+      <div id="auth-box" class="console-auth" aria-label="Auth">
+        <div class="console-user">
+          <div id="session-state" class="console-user-label">セッションを確認しています…</div>
+          <div id="session-user" class="console-user-sub" hidden></div>
+        </div>
+        <div class="console-auth-actions">
           <a
+            class="console-btn primary"
             id="login-btn"
-            class="btn btn-primary"
             data-google-login
             data-return-to="/jp/chat"
             href="/api/auth/google/start?returnTo=/jp/chat"
           >Google でログイン</a>
-          <button id="logout-btn" class="btn btn-secondary" type="button" hidden>ログアウト</button>
+          <button class="console-btn" id="logout-btn" type="button" hidden>ログアウト</button>
         </div>
       </div>
     </aside>
 
-    <main class="chat-main glass-card">
-      <header class="chat-topbar">
-        <div>
-          <p class="eyebrow">Managed Cloud MVP</p>
-          <h1>YonerAI Chat</h1>
+    <main id="main" class="console-main" aria-label="Chat">
+      <header class="console-topbar" aria-label="Top bar">
+        <div class="console-topbar-title">
+          <span>YonerAI Chat</span>
         </div>
-        <a class="ghost-link" href="/">トップへ戻る</a>
+        <div class="console-topbar-right">
+          <a class="console-pill" href="/">Top</a>
+        </div>
       </header>
 
-      <section id="message-list" class="message-list" aria-live="polite"></section>
-
-      <div id="status-box" class="status-box" hidden></div>
-
-      <form id="chat-form" class="compose-form">
-        <textarea
-          id="chat-input"
-          class="compose-input"
-          rows="3"
-          placeholder="YonerAI にメッセージを送る"
-          required
-        ></textarea>
-        <div class="compose-actions">
-          <span class="compose-hint">最小 MVP なので 1 会話面だけです。</span>
-          <button id="send-btn" class="btn btn-primary" type="submit">送信</button>
+      <section class="chat-shell" aria-label="Conversation">
+        <div id="status-box" class="chat-status" hidden role="status" aria-live="polite">
+          <span class="chat-status-dot" aria-hidden="true"></span>
+          <span id="status-box-text" class="chat-status-text"></span>
         </div>
-      </form>
+
+        <div class="chat-empty">
+          <h1>What can I help with?</h1>
+          <p class="muted">
+            本命デザインを維持したまま、最小の public-safe chat だけを通しています。
+          </p>
+        </div>
+
+        <div id="message-list" class="chat-scroll" role="log" aria-live="polite" aria-relevant="additions text"></div>
+
+        <form id="chat-form" class="chat-compose" autocomplete="off">
+          <div class="compose-wrap">
+            <textarea
+              id="chat-input"
+              class="compose-input"
+              rows="1"
+              required
+              placeholder="YonerAIにメッセージ…"
+            ></textarea>
+            <button class="compose-send" id="send-btn" type="submit" aria-label="Send">
+              <span aria-hidden="true">↵</span>
+            </button>
+          </div>
+          <div class="compose-note muted">
+            いまは session 確認、メッセージ送信、SSE 応答だけを通しています。
+          </div>
+        </form>
+      </section>
     </main>
   </div>
 
@@ -70,18 +112,13 @@
 
       const app = window.YonerAIWeb;
       if (!app) {
-        const fallback = document.getElementById("status-box");
-        if (fallback) {
-          fallback.hidden = false;
-          fallback.classList.add("status-error");
-          fallback.textContent = "site.js の読み込みに失敗しました。";
-        }
         return;
       }
 
       const apiBase = app.resolveApiBase();
       const messageList = document.getElementById("message-list");
       const statusBox = document.getElementById("status-box");
+      const statusBoxText = document.getElementById("status-box-text");
       const chatForm = document.getElementById("chat-form");
       const chatInput = document.getElementById("chat-input");
       const sendBtn = document.getElementById("send-btn");
@@ -89,35 +126,33 @@
       const sessionUser = document.getElementById("session-user");
       const loginBtn = document.getElementById("login-btn");
       const logoutBtn = document.getElementById("logout-btn");
+      const newChatBtn = document.getElementById("new-chat-btn");
 
       let me = null;
       let pendingBubble = null;
 
       function showStatus(text, isError = false) {
         statusBox.hidden = false;
-        statusBox.textContent = text;
-        statusBox.classList.toggle("status-error", Boolean(isError));
+        statusBoxText.textContent = text;
+        statusBox.classList.toggle("is-error", Boolean(isError));
+        statusBox.classList.toggle("is-working", !isError);
       }
 
       function clearStatus() {
         statusBox.hidden = true;
-        statusBox.textContent = "";
-        statusBox.classList.remove("status-error");
+        statusBoxText.textContent = "";
+        statusBox.classList.remove("is-error");
+        statusBox.classList.remove("is-working");
       }
 
       function addBubble(role, text) {
         const row = document.createElement("div");
-        row.className = `message-row ${role}`;
+        row.className = `msg ${role === "user" ? "is-user" : "is-assistant"}`;
 
-        const label = document.createElement("div");
-        label.className = "message-role";
-        label.textContent = role === "user" ? "You" : "YonerAI";
-
-        const bubble = document.createElement("div");
-        bubble.className = "message-bubble";
+        const bubble = document.createElement("article");
+        bubble.className = "msg-bubble";
         bubble.textContent = text;
 
-        row.appendChild(label);
         row.appendChild(bubble);
         messageList.appendChild(row);
         messageList.scrollTop = messageList.scrollHeight;
@@ -128,17 +163,18 @@
         if (!me) {
           sessionState.textContent = "Google ログインが必要です。";
           sessionUser.hidden = true;
-          logoutBtn.hidden = true;
           loginBtn.hidden = false;
+          logoutBtn.hidden = true;
           chatInput.disabled = true;
           sendBtn.disabled = true;
           return;
         }
+
         sessionState.textContent = "ログイン済み";
         sessionUser.hidden = false;
         sessionUser.textContent = `${me.display_name || me.user_id} (${me.provider})`;
-        logoutBtn.hidden = false;
         loginBtn.hidden = true;
+        logoutBtn.hidden = false;
         chatInput.disabled = false;
         sendBtn.disabled = false;
       }
@@ -207,6 +243,7 @@
             } catch {
               return;
             }
+
             const kind = payload.event;
             const data = payload.data || {};
             if (kind === "progress") {
@@ -239,6 +276,12 @@
         });
       }
 
+      newChatBtn.addEventListener("click", () => {
+        messageList.innerHTML = "";
+        clearStatus();
+        chatInput.focus();
+      });
+
       chatForm.addEventListener("submit", async (event) => {
         event.preventDefault();
         clearStatus();
@@ -248,7 +291,9 @@
         }
 
         const content = chatInput.value.trim();
-        if (!content) return;
+        if (!content) {
+          return;
+        }
 
         addBubble("user", content);
         chatInput.value = "";

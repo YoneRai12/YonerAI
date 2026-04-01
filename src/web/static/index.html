@@ -4,67 +4,182 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>YonerAI</title>
-  <meta name="description" content="YonerAI Official Managed Cloud preview" />
+  <meta name="description" content="YonerAI official site" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=IBM+Plex+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/site.css?v=20260401_01" />
-  <script defer src="/static/site.js?v=20260401_01"></script>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=IBM+Plex+Sans+JP:wght@400;500;700&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="/static/site.css?v=20260401_03" />
+  <script src="/static/site.js?v=20260401_03"></script>
 </head>
-<body class="site-home">
-  <div class="page-shell">
-    <header class="glass-topbar">
-      <a class="brand-mark" href="/">YonerAI</a>
-      <nav class="top-links" aria-label="Primary">
-        <a href="#what">What</a>
-        <a href="#modes">Modes</a>
-        <a href="#status">Status</a>
-        <a href="https://github.com/YoneRai12/YonerAI" target="_blank" rel="noopener noreferrer">GitHub</a>
+<body class="home-openai">
+  <a class="skip-link" href="#main">メインコンテンツへスキップ</a>
+  <a class="oa-corner-brand" href="/" aria-label="YonerAI home">YonerAI</a>
+
+  <header class="oa-global-topbar" aria-label="Global top navigation">
+    <nav class="oa-global-nav" aria-label="Primary">
+      <a class="nav-link" href="#research">Overview</a>
+      <a class="nav-link" href="#safety">Safety</a>
+      <a class="nav-link" href="#modes">Modes</a>
+      <a class="nav-link" href="#news">Status</a>
+      <a class="nav-link" data-chat-cta href="/jp/chat">Open Chat</a>
+      <a class="nav-link" href="https://github.com/YoneRai12/YonerAI" target="_blank" rel="noopener noreferrer">GitHub</a>
+    </nav>
+  </header>
+
+  <div class="oa-layout">
+    <aside class="oa-sidebar reveal is-visible" aria-label="Left navigation">
+      <nav class="oa-menu" aria-label="Section links">
+        <a class="rail-link" href="#research">Overview</a>
+        <a class="rail-link" href="#safety">Safety</a>
+        <a class="rail-link" href="#modes">3 Modes</a>
+        <a class="rail-link" href="#chat">Managed Cloud</a>
+        <a class="rail-link" href="#news">Status</a>
       </nav>
-    </header>
+    </aside>
 
-    <main class="hero-grid">
-      <section class="hero-panel">
-        <p class="eyebrow">Official Managed Cloud MVP</p>
-        <h1>YonerAI を、まず安全な最小面から戻す。</h1>
-        <p class="lede">
-          `yonerai.com` は公式トップと導線だけ。
-          チャット本体は `api.yonerai.com` 側に分け、危険 capability は今は開きません。
-        </p>
-        <div class="cta-row">
-          <a class="btn btn-primary" data-chat-cta href="/jp/chat">チャットを開く</a>
-          <a class="btn btn-secondary" href="mailto:hello@yonerai.com">hello@yonerai.com</a>
+    <div class="oa-main">
+      <main id="main">
+        <section id="research" class="oa-hero reveal is-visible">
+          <article class="oa-card oa-feature">
+            <div class="oa-feature-visual" aria-hidden="true"></div>
+            <h1>YonerAI</h1>
+            <p>
+              自分の PC から始まり、必要に応じて hybrid / managed cloud に広がる
+              local-first AI system。
+            </p>
+            <div class="oa-meta">
+              <span>Official Managed Cloud MVP</span>
+              <span>public-safe surface</span>
+            </div>
+          </article>
+
+          <div class="oa-side-stack">
+            <article class="oa-card" data-card-href="#chat">
+              <div class="oa-thumb oa-thumb-blue" aria-hidden="true"></div>
+              <h2>Managed Cloud</h2>
+              <p>
+                `yonerai.com` は公式トップ、chat / auth / public API は `api.yonerai.com`
+                に分ける方向で固定しています。
+              </p>
+            </article>
+            <article class="oa-card" data-card-href="#safety">
+              <div class="oa-thumb oa-thumb-orange" aria-hidden="true"></div>
+              <h2>Public-Safe Boundary</h2>
+              <p>
+                admin / operator / browser remote / system control は公開面に出しません。
+              </p>
+            </article>
+          </div>
+        </section>
+
+        <section id="safety" class="oa-grid reveal is-visible">
+          <article class="oa-card">
+            <h2>安全性</h2>
+            <p>
+              最初の公開面は細く切り、危険 capability と内部運用面を閉じたまま復旧します。
+            </p>
+          </article>
+          <article class="oa-card">
+            <h2>公開 / 非公開</h2>
+            <p>
+              public GitHub は distribution core、private GitHub は official runtime / ops を持つ構成です。
+            </p>
+          </article>
+          <article class="oa-card">
+            <h2>Local First</h2>
+            <p>
+              まずは個人の PC で動き、あとから relay や managed cloud に広げられるようにします。
+            </p>
+          </article>
+        </section>
+
+        <div id="modes" class="oa-anchor" aria-hidden="true"></div>
+        <section class="oa-grid reveal is-visible">
+          <article class="oa-card">
+            <h2>Full Private Self-Host</h2>
+            <p>ユーザーが runtime / storage / memory / files を自分で持つ形です。</p>
+          </article>
+          <article class="oa-card">
+            <h2>Official Hybrid Private</h2>
+            <p>公式の orchestration と、ユーザー側 node 実行を組み合わせる形です。</p>
+          </article>
+          <article class="oa-card">
+            <h2>Official Managed Cloud</h2>
+            <p>公式側が runtime / core / memory / files を持つ最短導入の形です。</p>
+          </article>
+        </section>
+
+        <div id="chat" class="oa-anchor" aria-hidden="true"></div>
+        <section class="oa-cta reveal is-visible">
+          <div>
+            <h2>本命デザインを残したまま、MVP を安全に通す。</h2>
+            <p>
+              トップは `yonerai.com`、chat は `api.yonerai.com/jp/chat`。
+              今回はこの 2 面だけを復旧します。
+            </p>
+          </div>
+          <div class="actions">
+            <a class="btn primary" data-chat-cta href="/jp/chat">Open Chat</a>
+            <a class="btn" href="mailto:hello@yonerai.com">hello@yonerai.com</a>
+            <a class="btn" href="https://github.com/YoneRai12/YonerAI" target="_blank" rel="noopener noreferrer">Open GitHub</a>
+          </div>
+        </section>
+
+        <div id="news" class="oa-anchor" aria-hidden="true"></div>
+        <section class="oa-grid reveal is-visible">
+          <article class="oa-card">
+            <h2>Current Status</h2>
+            <p>
+              いまはトップ、chat shell、session 確認、message 投入、SSE 応答までを最小で通しています。
+            </p>
+          </article>
+          <article class="oa-card">
+            <h2>What Is Closed</h2>
+            <p>
+              admin、operator、browser remote、local-native control、Oracle control plane は公開面から外しています。
+            </p>
+          </article>
+          <article class="oa-card">
+            <h2>Build In Public</h2>
+            <p>
+              設計は公開しつつ、production exactness や秘密は private 側で持つ方針です。
+            </p>
+          </article>
+        </section>
+      </main>
+
+      <section class="oa-site-footer reveal is-visible" aria-label="Site footer">
+        <div class="oa-footer-grid">
+          <div class="oa-footer-col">
+            <h3>Platform</h3>
+            <a href="#research">Overview</a>
+            <a href="#modes">3 Modes</a>
+            <a href="#safety">Safety</a>
+          </div>
+          <div class="oa-footer-col">
+            <h3>Managed Cloud</h3>
+            <a data-chat-cta href="/jp/chat">Open Chat</a>
+            <a href="mailto:hello@yonerai.com">Contact</a>
+          </div>
+          <div class="oa-footer-col">
+            <h3>Open</h3>
+            <a href="https://github.com/YoneRai12/YonerAI" target="_blank" rel="noopener noreferrer">GitHub</a>
+            <a href="#news">Status</a>
+          </div>
         </div>
-        <p class="micro-copy">
-          この public surface は YonerAI 全体の distribution core 上にある最小の Managed Cloud 面です。
-        </p>
+        <footer class="oa-footer">
+          <span>YonerAI © 2026</span>
+          <span>Official Managed Cloud MVP surface</span>
+        </footer>
       </section>
 
-      <section class="info-stack">
-        <article class="glass-card" id="what">
-          <h2>What</h2>
-          <p>
-            YonerAI は Discord・Web・Relay・Core を 1 つの runtime contract で束ねる
-            local-first AI system です。
-          </p>
-        </article>
-        <article class="glass-card" id="modes">
-          <h2>3 Modes</h2>
-          <ul class="mode-list">
-            <li><strong>Full Private Self-Host</strong><span>自分で全部持つ</span></li>
-            <li><strong>Official Hybrid Private</strong><span>公式 orchestration + 自分の node</span></li>
-            <li><strong>Official Managed Cloud</strong><span>公式 runtime / core / memory / files</span></li>
-          </ul>
-        </article>
-        <article class="glass-card" id="status">
-          <h2>Status</h2>
-          <p>
-            今回の MVP では、公開トップ、セッション確認、メッセージ送信、SSE 応答だけを通します。
-            admin / operator / browser remote / system control は出しません。
-          </p>
-        </article>
+      <section id="news-visual" class="mega-word" aria-hidden="true">
+        <p>YonerAI</p>
       </section>
-    </main>
+    </div>
   </div>
 </body>
 </html>

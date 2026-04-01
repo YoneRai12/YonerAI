@@ -38,6 +38,32 @@
       const nextPath = link.getAttribute("data-return-to") || "/jp/chat";
       link.setAttribute("href", resolveGoogleStartHref(nextPath));
     });
+    document.querySelectorAll("[data-card-href]").forEach((card) => {
+      const href = card.getAttribute("data-card-href") || "";
+      if (!href) {
+        return;
+      }
+      card.setAttribute("tabindex", "0");
+      card.setAttribute("role", "link");
+      const openCard = () => {
+        if (/^https?:\/\//i.test(href)) {
+          window.open(href, "_blank", "noopener,noreferrer");
+          return;
+        }
+        window.location.assign(href);
+      };
+      card.addEventListener("click", openCard);
+      card.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          openCard();
+        }
+      });
+    });
+  }
+
+  function finishPreload() {
+    document.body.classList.remove("preload");
   }
 
   window.YonerAIWeb = {
@@ -47,8 +73,16 @@
   };
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", wireLinks, { once: true });
+    document.addEventListener(
+      "DOMContentLoaded",
+      () => {
+        wireLinks();
+        finishPreload();
+      },
+      { once: true }
+    );
   } else {
     wireLinks();
+    finishPreload();
   }
 })();
