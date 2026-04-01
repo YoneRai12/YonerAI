@@ -12,6 +12,7 @@ import time
 import uuid
 from datetime import datetime
 from ipaddress import ip_address
+from types import SimpleNamespace
 from typing import Any, List, Mapping
 from pathlib import Path
 from urllib.parse import parse_qs, urlencode, urlsplit, urlunsplit
@@ -810,12 +811,46 @@ async def _expire_run_state_later(run_id: str, delay_sec: int) -> None:
     _cleanup_run_state(run_id)
 
 
+def _is_managed_cloud_runtime(runtime_kind: str) -> bool:
+    return (runtime_kind or "").strip().lower() == "managed_cloud_web"
+
+
+async def _load_managed_cloud_recent_messages(*, user_id: str, limit_turns: int = 6) -> list[dict[str, Any]]:
+    if not user_id:
+        return []
+    try:
+        rows = await get_store().get_conversations(user_id=user_id, limit=max(1, int(limit_turns)))
+    except Exception:
+        logger.exception("Failed to load managed cloud conversation history")
+        return []
+
+    messages: list[dict[str, Any]] = []
+    for row in reversed(rows):
+        user_text = str(row.get("message") or "").strip()
+        assistant_text = str(row.get("response") or "").strip()
+        if user_text:
+            messages.append({"role": "user", "content": user_text})
+        if assistant_text:
+            messages.append({"role": "assistant", "content": assistant_text})
+    return messages
+
+
+async def _store_managed_cloud_conversation(*, user_id: str, prompt: str, response_text: str) -> None:
+    if not user_id:
+        return
+    try:
+        await get_store().add_conversation(user_id=user_id, platform="web", message=prompt, response=response_text)
+    except Exception:
+        logger.exception("Failed to persist managed cloud conversation")
+
+
 def _start_agent_run(
     *,
     content: str,
     available_tools: list[dict[str, Any]] | None = None,
     provider_id: str = "external",
     attachments: list[dict[str, Any]] | None = None,
+    runtime_kind: str = "default",
 ) -> str:
     """Create in-memory run queues and launch the background agent loop."""
     if len(_RUN_QUEUES) >= _max_active_runs():
@@ -830,16 +865,57 @@ def _start_agent_run(
             available_tools or [],
             provider_id or "external",
             attachments or [],
+            runtime_kind or "default",
         )
     )
     return run_id
 
-async def run_agent_loop(run_id: str, content: str, available_tools: list, provider_id: str, attachments: list = None):
+
+def _load_managed_cloud_runtime_config() -> SimpleNamespace:
+    """Minimal runtime config for managed-cloud web chat without bot secrets."""
+    llm_base_url = (os.getenv("LLM_BASE_URL") or "http://localhost:8008/v1").rstrip("/")
+    llm_api_key = os.getenv("LLM_API_KEY", "EMPTY")
+    llm_model = (os.getenv("LLM_MODEL") or "gpt-5-mini").strip() or "gpt-5-mini"
+    openai_base_url = (os.getenv("OPENAI_BASE_URL") or "https://api.openai.com/v1").rstrip("/")
+    profile = (os.getenv("ORA_PROFILE") or "private").strip().lower() or "private"
+    return SimpleNamespace(
+        llm_base_url=llm_base_url,
+        llm_api_key=llm_api_key,
+        llm_model=llm_model,
+        openai_base_url=openai_base_url,
+        profile=profile,
+        admin_user_id=None,
+        sub_admin_ids=set(),
+    )
+
+
+def _load_agent_runtime_config(*, runtime_kind: str) -> Any:
+    from src.config import Config, ConfigError
+
+    try:
+        return Config.load()
+    except ConfigError as exc:
+        is_managed_cloud = (runtime_kind or "").strip().lower() == "managed_cloud_web"
+        if not is_managed_cloud:
+            raise
+        if "DISCORD_BOT_TOKEN" not in str(exc):
+            raise
+        logger.warning("Managed Cloud web chat is using lightweight runtime config without DISCORD_BOT_TOKEN.")
+        return _load_managed_cloud_runtime_config()
+
+
+async def run_agent_loop(
+    run_id: str,
+    content: str,
+    available_tools: list,
+    provider_id: str,
+    attachments: list = None,
+    runtime_kind: str = "default",
+):
     """
     Background agent loop that handles LLM calls, tool dispatching, and feedback.
     """
     import json
-    from src.config import Config
     from src.utils.llm_client import LLMClient
 
     queue = _RUN_QUEUES.get(run_id)
@@ -847,17 +923,18 @@ async def run_agent_loop(run_id: str, content: str, available_tools: list, provi
         return
 
     try:
-        cfg = Config.load()
+        cfg = _load_agent_runtime_config(runtime_kind=runtime_kind)
 
         # Creator lock: web client must not be able to request restricted tools by sending them in available_tools.
         # If provider_id is not the configured owner, shrink toolset to safe allowlist.
-        try:
-            from src.utils.access_control import filter_tool_schemas_for_user
-            user_id = int(provider_id) if str(provider_id).isdigit() else None
-            available_tools = filter_tool_schemas_for_user(bot=type("B", (), {"config": cfg})(), user_id=user_id, tools=available_tools)
-        except Exception:
-            # If filtering fails, default to no tools rather than risky exposure.
-            available_tools = []
+        if available_tools:
+            try:
+                from src.utils.access_control import filter_tool_schemas_for_user
+                user_id = int(provider_id) if str(provider_id).isdigit() else None
+                available_tools = filter_tool_schemas_for_user(bot=type("B", (), {"config": cfg})(), user_id=user_id, tools=available_tools)
+            except Exception:
+                # If filtering fails, default to no tools rather than risky exposure.
+                available_tools = []
         llm = LLMClient(
             base_url=getattr(cfg, "openai_base_url", cfg.llm_base_url),
             api_key=cfg.llm_api_key,
@@ -889,8 +966,13 @@ OpenAI の Codex Harness アーキテクチャに基づき、全ての操作を�
                 if isinstance(att, dict) and att.get("type") == "image_url":
                     user_content.append(att)
 
+        history_messages: list[dict[str, Any]] = []
+        if _is_managed_cloud_runtime(runtime_kind):
+            history_messages = await _load_managed_cloud_recent_messages(user_id=str(provider_id or ""))
+
         messages = [
             {"role": "system", "content": initial_system},
+            *history_messages,
             {"role": "user", "content": user_content}
         ]
 
@@ -1001,6 +1083,12 @@ OpenAI の Codex Harness アーキテクチャに基づき、全ての操作を�
 
                 # Send final event
                 await queue.put({"event": "final", "data": {"text": content_text, "model": cfg.llm_model}})
+                if _is_managed_cloud_runtime(runtime_kind):
+                    await _store_managed_cloud_conversation(
+                        user_id=str(provider_id or ""),
+                        prompt=user_prompt,
+                        response_text=content_text,
+                    )
 
             break # Exit loop if no tool calls
 
@@ -1124,7 +1212,13 @@ async def create_public_chat_message(
 
     started_at = time.time()
     request_bytes = len(prompt.encode("utf-8", errors="ignore"))
-    run_id = _start_agent_run(content=prompt, available_tools=[], provider_id=user_id, attachments=[])
+    run_id = _start_agent_run(
+        content=prompt,
+        available_tools=[],
+        provider_id=user_id,
+        attachments=[],
+        runtime_kind="managed_cloud_web",
+    )
     _RUN_OWNERS[run_id] = user_id
     if idempotency_key:
         _PUBLIC_CHAT_IDEMPOTENCY[(user_id, idempotency_key)] = {"run_id": run_id, "created_at": int(time.time())}

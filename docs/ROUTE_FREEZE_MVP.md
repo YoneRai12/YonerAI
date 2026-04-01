@@ -151,6 +151,24 @@ The first MVP chat loop only needs:
 - message submit
 - SSE response stream
 
+### Memory-Lite
+
+This MVP should not degrade into a stateless API wrapper.
+
+The minimum YonerAI memory for this phase is:
+
+- user identity bound to a web session
+- persisted per-user conversation history
+- reuse of recent turns when generating the next response
+
+Not required in this phase:
+
+- full MemoryCog behavior
+- vector memory
+- editable memory management UI
+- long-term facts / traits panels
+- cross-device synchronization UI
+
 ### Attachments
 
 Attachments are not required for the first pass.
@@ -190,6 +208,7 @@ claim that every hostname here is already the final canonical production truth.
 - `/api/auth/*`
 - `/api/public/chat/messages`
 - `/api/public/chat/runs/{run_id}/events`
+- memory-lite conversation persistence and recent-turn reuse
 
 ### Phase 2
 

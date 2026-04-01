@@ -83,10 +83,11 @@ def test_public_chat_message_uses_session_actor(monkeypatch):
     endpoints._RUN_OWNERS.clear()
     endpoints._PUBLIC_CHAT_IDEMPOTENCY.clear()
 
-    def fake_start_agent_run(*, content: str, available_tools, provider_id: str, attachments):
+    def fake_start_agent_run(*, content: str, available_tools, provider_id: str, attachments, runtime_kind: str = "default"):
         assert content == "hello"
         assert provider_id == "web:test-user"
         assert available_tools == []
+        assert runtime_kind == "managed_cloud_web"
         return "run-public-1"
 
     monkeypatch.setattr(endpoints, "_start_agent_run", fake_start_agent_run)
@@ -139,6 +140,59 @@ def test_public_chat_events_stream_for_owner():
         assert '"event": "progress"' in response.text
         assert '"event": "final"' in response.text
         assert '"output_text": "done"' in response.text
+
+
+def test_managed_cloud_runtime_persists_and_reuses_conversation(monkeypatch):
+    endpoints._RUN_QUEUES.clear()
+    endpoints._RUN_TOOL_OUTPUTS.clear()
+    endpoints._RUN_OWNERS.clear()
+    endpoints._PUBLIC_CHAT_IDEMPOTENCY.clear()
+
+    captured: dict[str, object] = {}
+
+    class FakeLLMClient:
+        def __init__(self, base_url, api_key, model, session=None):
+            captured["base_url"] = base_url
+            captured["api_key"] = api_key
+            captured["model"] = model
+
+        async def chat(self, messages, temperature=0.7, **kwargs):
+            captured["messages"] = messages
+            return "新しい返答", None, {}
+
+    monkeypatch.setattr("src.utils.llm_client.LLMClient", FakeLLMClient)
+
+    with TestClient(app):
+        store = get_store()
+        asyncio.run(
+            store.add_conversation(
+                user_id="web:memory-user",
+                platform="web",
+                message="前の質問",
+                response="前の返答",
+            )
+        )
+        run_id = "run-memory"
+        endpoints._RUN_QUEUES[run_id] = asyncio.Queue()
+        endpoints._RUN_TOOL_OUTPUTS[run_id] = asyncio.Queue()
+
+        asyncio.run(
+            endpoints.run_agent_loop(
+                run_id,
+                "今回の質問",
+                [],
+                "web:memory-user",
+                [],
+                "managed_cloud_web",
+            )
+        )
+
+        messages = captured["messages"]
+        assert any(m.get("role") == "user" and m.get("content") == "前の質問" for m in messages)
+        assert any(m.get("role") == "assistant" and m.get("content") == "前の返答" for m in messages)
+
+        rows = asyncio.run(store.get_conversations(user_id="web:memory-user", limit=5))
+        assert any(row["message"] == "今回の質問" and row["response"] == "新しい返答" for row in rows)
 
 
 def teardown_module():
