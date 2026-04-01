@@ -1384,7 +1384,7 @@ def _public_chat_daily_limit(provider: str) -> int:
     if normalized == "google":
         raw = (os.getenv("ORA_WEB_GOOGLE_DAILY_LIMIT") or "20").strip()
     else:
-        raw = (os.getenv("ORA_WEB_GUEST_DAILY_LIMIT") or "5").strip()
+        raw = (os.getenv("ORA_WEB_GUEST_DAILY_LIMIT") or "3").strip()
     try:
         return max(0, int(raw))
     except Exception:

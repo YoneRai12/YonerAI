@@ -181,7 +181,7 @@ def test_public_chat_message_allows_guest_session(monkeypatch):
 
 def test_public_chat_usage_reports_google_limit():
     with TestClient(app) as client:
-        user_id = _attach_session_cookie(client, user_id="web:quota-google")
+        user_id = _attach_session_cookie(client, user_id=f"web:quota-google:{secrets.token_hex(4)}")
         store = get_store()
         asyncio.run(
             store.record_api_usage(
@@ -229,9 +229,9 @@ def test_public_chat_usage_issues_guest_limit(monkeypatch):
         assert first.status_code == 200
         data = first.json()
         assert data["provider"] == "guest"
-        assert data["limit"] == 5
+        assert data["limit"] == 3
         assert data["used"] == 0
-        assert data["remaining"] == 5
+        assert data["remaining"] == 3
 
 
 def test_public_chat_message_rejects_when_daily_limit_reached(monkeypatch):
@@ -246,7 +246,7 @@ def test_public_chat_message_rejects_when_daily_limit_reached(monkeypatch):
     monkeypatch.setattr(endpoints, "_start_agent_run", fail_if_started)
 
     with TestClient(app) as client:
-        user_id = _attach_session_cookie(client, user_id="web:quota-hit")
+        user_id = _attach_session_cookie(client, user_id=f"web:quota-hit:{secrets.token_hex(4)}")
         store = get_store()
         for _ in range(20):
             asyncio.run(
