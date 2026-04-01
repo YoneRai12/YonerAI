@@ -234,6 +234,19 @@ def test_managed_cloud_runtime_persists_and_reuses_conversation(monkeypatch):
             return "新しい返答", None, {}
 
     monkeypatch.setattr("src.utils.llm_client.LLMClient", FakeLLMClient)
+    monkeypatch.setattr(
+        endpoints,
+        "_load_agent_runtime_config",
+        lambda *, runtime_kind: endpoints.SimpleNamespace(
+            llm_base_url="http://example.invalid/v1",
+            llm_api_key="EMPTY",
+            llm_model="gpt-5-mini",
+            openai_base_url="http://example.invalid/v1",
+            profile="private",
+            admin_user_id=None,
+            sub_admin_ids=set(),
+        ),
+    )
 
     with TestClient(app):
         store = get_store()

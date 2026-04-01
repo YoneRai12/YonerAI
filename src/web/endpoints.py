@@ -936,20 +936,33 @@ def _start_agent_run(
 
 
 def _load_managed_cloud_runtime_config() -> SimpleNamespace:
-    """Minimal runtime config for managed-cloud web chat without bot secrets."""
-    llm_base_url = (os.getenv("LLM_BASE_URL") or "http://localhost:8008/v1").rstrip("/")
-    llm_api_key = os.getenv("LLM_API_KEY", "EMPTY")
-    llm_model = (os.getenv("LLM_MODEL") or "gpt-5-mini").strip() or "gpt-5-mini"
-    # For managed-cloud web chat MVP, default to the same base as the chat runtime.
-    # This keeps local smoke tests and sidecar-backed inference on the configured LLM endpoint,
-    # instead of accidentally preferring the OpenAI cloud base.
-    openai_base_url = (os.getenv("OPENAI_BASE_URL") or llm_base_url).rstrip("/")
+    """Minimal runtime config for managed-cloud web chat without bot secrets.
+
+    Do not silently point to a local fake server. If no real local endpoint or
+    OpenAI credentials are configured, fail closed so the UI shows an explicit
+    configuration error instead of a misleading dummy response.
+    """
+    llm_base_url = (os.getenv("LLM_BASE_URL") or "").strip().rstrip("/")
+    llm_model = (os.getenv("LLM_MODEL") or os.getenv("OPENAI_DEFAULT_MODEL") or "gpt-5-mini").strip() or "gpt-5-mini"
+    llm_api_key = (os.getenv("LLM_API_KEY") or "").strip()
+    openai_api_key = (os.getenv("OPENAI_API_KEY") or "").strip()
+    openai_base_url = (os.getenv("OPENAI_BASE_URL") or "https://api.openai.com/v1").strip().rstrip("/")
+
+    if llm_base_url:
+        resolved_base_url = llm_base_url
+        resolved_api_key = llm_api_key or "EMPTY"
+    elif openai_api_key:
+        resolved_base_url = openai_base_url
+        resolved_api_key = openai_api_key
+    else:
+        raise RuntimeError("Managed cloud LLM is not configured.")
+
     profile = (os.getenv("ORA_PROFILE") or "private").strip().lower() or "private"
     return SimpleNamespace(
-        llm_base_url=llm_base_url,
-        llm_api_key=llm_api_key,
+        llm_base_url=resolved_base_url,
+        llm_api_key=resolved_api_key,
         llm_model=llm_model,
-        openai_base_url=openai_base_url,
+        openai_base_url=resolved_base_url,
         profile=profile,
         admin_user_id=None,
         sub_admin_ids=set(),
