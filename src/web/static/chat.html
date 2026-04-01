@@ -11,8 +11,8 @@
   <link
     href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=IBM+Plex+Sans+JP:wght@400;500;700&display=swap"
     rel="stylesheet" />
-  <link rel="stylesheet" href="/static/site.css?v=20260215_02" />
-  <script defer src="/static/site.js?v=20260215_02"></script>
+  <link rel="stylesheet" href="/static/site.css?v=20260402_02" />
+  <script defer src="/static/site.js?v=20260402_02"></script>
 </head>
 
 <body class="console preload" data-console-page="chat">
@@ -128,20 +128,25 @@
           <div class="compose-wrap">
             <textarea id="chat-input" class="compose-input" rows="1" required data-placeholder-en="Message YonerAI…"
               data-placeholder-ja="YonerAIにメッセージ…" placeholder="Message YonerAI…"></textarea>
-            <button class="compose-attach" id="chat-attach-btn" type="button" aria-label="Attach image"
-              title="Attach image">
-              <span aria-hidden="true">📎</span>
-            </button>
+            <div class="compose-toolbar">
+              <div class="compose-actions">
+                <button class="compose-attach" id="chat-attach-btn" type="button" aria-label="Attach image"
+                  title="Attach image">
+                  <span aria-hidden="true">＋</span>
+                </button>
+                <span class="compose-shortcut" data-i18n-en="Ctrl + Enter to send"
+                  data-i18n-ja="Ctrl + Enter で送信">Ctrl + Enter to send</span>
+              </div>
+              <button class="compose-send" id="chat-send" type="submit" aria-label="Send">
+                <span class="compose-send-label" data-i18n-en="Send" data-i18n-ja="送信">Send</span>
+              </button>
+            </div>
             <input id="chat-attach-input" type="file" accept="image/jpeg,image/png,image/webp" multiple hidden />
-            <button class="compose-send" id="chat-send" type="submit" aria-label="Send">
-              <span aria-hidden="true">↵</span>
-            </button>
           </div>
           <div id="chat-attachments-preview" class="compose-attachments" hidden></div>
           <div class="compose-note muted"
-            data-i18n-en="Tip: Use a Discord link code if you want to carry your identity from Discord to Web."
-            data-i18n-ja="ヒント: Discordのリンクコードを使うと、Discord→WebへIDを引き継げます。">Tip: Use a Discord link code if you want to
-            carry your identity from Discord to Web.</div>
+            data-i18n-en="Enter adds a new line. Ctrl + Enter sends the message."
+            data-i18n-ja="Enterで改行、Ctrl + Enterで送信します。">Enter adds a new line. Ctrl + Enter sends the message.</div>
         </form>
       </section>
     </main>
@@ -185,8 +190,8 @@
       const openSidebarBtn = $("[data-sidebar-open]");
       const closeSidebarBtn = $("[data-sidebar-close]");
 
-      const SIDEBAR_COLLAPSE_KEY = "yonerai_sidebar_collapsed_v1";
-      const CHAT_DRAFT_KEY = "yonerai_guest_draft_v1";
+      const SIDEBAR_COLLAPSE_KEY = "yonerai_sidebar_collapsed_v2";
+      const CHAT_DRAFT_KEY = "yonerai_guest_draft_v2";
 
       const qp = new URLSearchParams(window.location.search);
       const linkCode = (qp.get("link_code") || "").trim();
@@ -498,7 +503,7 @@
 
       function storageKey() {
         const uid = me && me.user_id ? String(me.user_id) : "guest";
-        return `yonerai_threads_v1:${uid}`;
+        return `yonerai_threads_v2:${uid}`;
       }
 
       function loadThreads() {
@@ -841,6 +846,10 @@
       function renderActivityList(activityEl, activities) {
         if (!activityEl) return;
         activityEl.innerHTML = "";
+        if (!shouldShowRunActivity()) {
+          activityEl.hidden = true;
+          return;
+        }
         const items = Array.isArray(activities) ? activities : [];
         if (!items.length) {
           activityEl.hidden = true;
@@ -1225,8 +1234,12 @@
 
       async function ensureSessionForChat() {
         if (me && me.user_id) return true;
-        await loadMe();
-        return !!(me && me.user_id);
+        try {
+          await loadMe();
+        } catch (_e) {
+          // Best-effort only. Backend may still issue a guest session on submit.
+        }
+        return true;
       }
 
       function showAuthError() {
@@ -1250,6 +1263,15 @@
         }
         const h = String(window.location.hostname || "").toLowerCase();
         return h === "127.0.0.1" || h === "localhost";
+      }
+
+      function shouldShowRunActivity() {
+        try {
+          const qp = new URLSearchParams(window.location.search);
+          return (qp.get("trace") || "").trim() === "1";
+        } catch (_e) {
+          return false;
+        }
       }
 
       function formatRunError(data) {
@@ -1318,6 +1340,16 @@
       function autosizeTextarea() {
         chatInput.style.height = "0px";
         chatInput.style.height = `${Math.min(chatInput.scrollHeight, 220)}px`;
+      }
+
+      function syncComposeLocale() {
+        const lang = (document.documentElement.lang || "en").toLowerCase().startsWith("ja") ? "ja" : "en";
+        const sendLabel = chatSend ? chatSend.querySelector(".compose-send-label") : null;
+        if (sendLabel instanceof HTMLElement) {
+          sendLabel.textContent = lang === "ja"
+            ? (sendLabel.dataset.i18nJa || "送信")
+            : (sendLabel.dataset.i18nEn || "Send");
+        }
       }
 
       function updateComposeState() {
@@ -1518,10 +1550,7 @@
       }
 
       async function runChat(text) {
-        if (!(await ensureSessionForChat())) {
-          promptLoginForChat(text);
-          return;
-        }
+        await ensureSessionForChat();
         if (inflight && typeof inflight.close === "function") {
           try { inflight.close(); } catch (_e) { }
           inflight = null;
@@ -1566,19 +1595,23 @@
             return;
           }
 
-          const start = await fetch(apiUrl("/api/public/chat/messages"), {
-            method: "POST",
-            credentials: "include",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ content: text, conversation_id: conversationId, attachments: attachmentRefs }),
-          });
-          const startRawText = await start.text();
-          const parsed = parseJsonSafely(startRawText);
-          const startJson = parsed.json || {};
-          await refreshUsage();
-          if (!start.ok || !startJson.run_id) {
-            if (assistant) {
-              assistant.kind = "error";
+            const start = await fetch(apiUrl("/api/public/chat/messages"), {
+              method: "POST",
+              credentials: "include",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ content: text, conversation_id: conversationId, attachments: attachmentRefs }),
+            });
+            const startRawText = await start.text();
+            const parsed = parseJsonSafely(startRawText);
+            const startJson = parsed.json || {};
+            await refreshUsage();
+            if (start.status === 401) {
+              promptLoginForChat(text);
+              return;
+            }
+            if (!start.ok || !startJson.run_id) {
+              if (assistant) {
+                assistant.kind = "error";
               assistant.status = "done";
               const detail = startJson.detail;
               if (detail && typeof detail === "object") {
@@ -1871,14 +1904,22 @@
           updateComposeState();
         });
 
+        chatInput.addEventListener("keydown", (ev) => {
+          if (ev.key === "Enter" && (ev.ctrlKey || ev.metaKey)) {
+            ev.preventDefault();
+            if (chatForm && typeof chatForm.requestSubmit === "function") {
+              chatForm.requestSubmit();
+            } else if (chatSend) {
+              chatSend.click();
+            }
+          }
+        });
+
         chatForm.addEventListener("submit", async (ev) => {
           ev.preventDefault();
           const text = (chatInput.value || "").trim();
           if (!text && (!Array.isArray(pendingAttachments) || pendingAttachments.length === 0)) return;
-          if (!(await ensureSessionForChat())) {
-            promptLoginForChat(text);
-            return;
-          }
+          await ensureSessionForChat();
           chatInput.value = "";
           autosizeTextarea();
           clearGuestDraft();
@@ -1891,6 +1932,7 @@
           const lang = (document.documentElement.lang || "en").toLowerCase().startsWith("ja") ? "ja" : "en";
           const ph = lang === "ja" ? (chatInput.dataset.placeholderJa || "") : (chatInput.dataset.placeholderEn || "");
           if (ph) chatInput.setAttribute("placeholder", ph);
+          syncComposeLocale();
           syncSidebarButtons();
           renderThreads();
           renderMessages();
@@ -1925,6 +1967,7 @@
         wireEvents();
         initGoogleLinkHref();
         restoreGuestDraft();
+        syncComposeLocale();
         updateComposeState();
         await loadMe();
         autosizeTextarea();
@@ -1934,4 +1977,5 @@
 </body>
 
 </html>
+
 

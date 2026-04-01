@@ -42,11 +42,23 @@ CREATE TABLE IF NOT EXISTS datasets (
 CREATE TABLE IF NOT EXISTS conversations (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id TEXT NOT NULL,
+  conversation_id TEXT,
   platform TEXT NOT NULL,
   message TEXT NOT NULL,
   response TEXT,
   created_at INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS conversation_turns (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL,
+  conversation_id TEXT,
+  platform TEXT NOT NULL,
+  message TEXT NOT NULL,
+  response TEXT,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_conversation_turns_user_conv_created
+  ON conversation_turns(user_id, conversation_id, created_at);
 CREATE TABLE IF NOT EXISTS dashboard_tokens (
   token TEXT PRIMARY KEY,
   guild_id TEXT NOT NULL,
@@ -228,6 +240,19 @@ class Store:
             # Migration: Ensure permission_level column exists (default 'user')
             try:
                 await db.execute("ALTER TABLE users ADD COLUMN permission_level TEXT DEFAULT 'user'")
+            except Exception:
+                pass
+
+            # Migration: Ensure conversation_id exists for managed-cloud thread memory.
+            try:
+                async with db.execute("PRAGMA table_info(conversations)") as cur:
+                    conv_cols = {str(r[1]) for r in await cur.fetchall()}
+                if "conversation_id" not in conv_cols:
+                    await db.execute("ALTER TABLE conversations ADD COLUMN conversation_id TEXT")
+                await db.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_conversations_user_conv_created "
+                    "ON conversations(user_id, conversation_id, created_at)"
+                )
             except Exception:
                 pass
 
@@ -1460,27 +1485,50 @@ class Store:
                 rows = await cursor.fetchall()
         return [(int(r[0]), str(r[1]), r[2], int(r[3])) for r in rows]
 
-    async def add_conversation(self, user_id: str, platform: str, message: str, response: str) -> None:
+    async def add_conversation(
+        self,
+        user_id: str,
+        platform: str,
+        message: str,
+        response: str,
+        conversation_id: str | None = None,
+    ) -> None:
         """Log a conversation turn. user_id can be Discord ID or Google Sub."""
         async with aiosqlite.connect(self._db_path) as db:
             await db.execute(
-                ("INSERT INTO conversations(user_id, platform, message, response, created_at) VALUES(?, ?, ?, ?, ?)"),
-                (user_id, platform, message, response, int(time.time())),
+                (
+                    "INSERT INTO conversation_turns(user_id, conversation_id, platform, message, response, created_at) "
+                    "VALUES(?, ?, ?, ?, ?, ?)"
+                ),
+                (user_id, conversation_id, platform, message, response, int(time.time())),
             )
             await db.commit()
 
-    async def get_conversations(self, user_id: Optional[str] = None, limit: int = 20) -> list[dict]:
+    async def get_conversations(
+        self,
+        user_id: Optional[str] = None,
+        limit: int = 20,
+        conversation_id: Optional[str] = None,
+    ) -> list[dict]:
         """Get recent conversations. If user_id is None, return all."""
         async with aiosqlite.connect(self._db_path) as db:
             db.row_factory = aiosqlite.Row
+            clauses: list[str] = []
+            params: list[object] = []
             if user_id:
-                query = "SELECT * FROM conversations WHERE user_id=? ORDER BY created_at DESC LIMIT ?"
-                params = (user_id, limit)
-            else:
-                query = "SELECT * FROM conversations ORDER BY created_at DESC LIMIT ?"
-                params = (limit,)
+                clauses.append("user_id=?")
+                params.append(user_id)
+            if conversation_id:
+                clauses.append("conversation_id=?")
+                params.append(conversation_id)
 
-            async with db.execute(query, params) as cursor:
+            query = "SELECT * FROM conversation_turns"
+            if clauses:
+                query += " WHERE " + " AND ".join(clauses)
+            query += " ORDER BY created_at DESC LIMIT ?"
+            params.append(limit)
+
+            async with db.execute(query, tuple(params)) as cursor:
                 rows = await cursor.fetchall()
                 return [dict(row) for row in rows]
 
@@ -1491,11 +1539,11 @@ class Store:
             search_query = f"%{query}%"
 
             if user_id:
-                sql = "SELECT * FROM conversations WHERE user_id=? AND (message LIKE ? OR response LIKE ?) ORDER BY created_at DESC LIMIT ?"
+                sql = "SELECT * FROM conversation_turns WHERE user_id=? AND (message LIKE ? OR response LIKE ?) ORDER BY created_at DESC LIMIT ?"
                 params = (user_id, search_query, search_query, limit)
             else:
                 # Global search (if allowed permissions, but typically restricted by caller)
-                sql = "SELECT * FROM conversations WHERE message LIKE ? OR response LIKE ? ORDER BY created_at DESC LIMIT ?"
+                sql = "SELECT * FROM conversation_turns WHERE message LIKE ? OR response LIKE ? ORDER BY created_at DESC LIMIT ?"
                 params = (search_query, search_query, limit)
 
             async with db.execute(sql, params) as cursor:

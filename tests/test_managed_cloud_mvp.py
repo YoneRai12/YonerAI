@@ -125,10 +125,11 @@ def test_public_chat_message_uses_session_actor(monkeypatch):
     endpoints._RUN_OWNERS.clear()
     endpoints._PUBLIC_CHAT_IDEMPOTENCY.clear()
 
-    def fake_start_agent_run(*, content: str, available_tools, provider_id: str, attachments, runtime_kind: str = "default"):
+    def fake_start_agent_run(*, content: str, available_tools, provider_id: str, attachments, conversation_id=None, runtime_kind: str = "default"):
         assert content == "hello"
         assert provider_id == "web:test-user"
         assert available_tools == []
+        assert isinstance(conversation_id, str)
         assert runtime_kind == "managed_cloud_web"
         return "run-public-1"
 
@@ -155,8 +156,9 @@ def test_public_chat_message_allows_guest_session(monkeypatch):
 
     seen: dict[str, str] = {}
 
-    def fake_start_agent_run(*, content: str, available_tools, provider_id: str, attachments, runtime_kind: str = "default"):
+    def fake_start_agent_run(*, content: str, available_tools, provider_id: str, attachments, conversation_id=None, runtime_kind: str = "default"):
         seen["provider_id"] = provider_id
+        seen["conversation_id"] = conversation_id
         return "run-guest-1"
 
     monkeypatch.setattr(endpoints, "_start_agent_run", fake_start_agent_run)
@@ -215,6 +217,137 @@ def test_public_chat_events_stream_for_owner():
         assert '"output_text": "done"' in response.text
 
 
+def test_public_chat_message_binds_conversation_id(monkeypatch):
+    endpoints._RUN_QUEUES.clear()
+    endpoints._RUN_TOOL_OUTPUTS.clear()
+    endpoints._RUN_OWNERS.clear()
+    endpoints._PUBLIC_CHAT_IDEMPOTENCY.clear()
+
+    seen: dict[str, object] = {}
+
+    def fake_start_agent_run(*, content: str, available_tools, provider_id: str, attachments, conversation_id=None, runtime_kind: str = "default"):
+        seen["provider_id"] = provider_id
+        seen["conversation_id"] = conversation_id
+        return "run-conv-1"
+
+    monkeypatch.setattr(endpoints, "_start_agent_run", fake_start_agent_run)
+
+    with TestClient(app) as client:
+        _attach_session_cookie(client)
+        response = client.post(
+            "/api/public/chat/messages",
+            json={"content": "hello", "conversation_id": "thread-123"},
+        )
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["run_id"] == "run-conv-1"
+        assert payload["conversation_id"] == "thread-123"
+        assert seen["provider_id"] == "web:test-user"
+        assert seen["conversation_id"] == "thread-123"
+
+
+def test_managed_cloud_runtime_uses_yonerai_prompt_and_thread_memory(monkeypatch):
+    endpoints._RUN_QUEUES.clear()
+    endpoints._RUN_TOOL_OUTPUTS.clear()
+    endpoints._RUN_OWNERS.clear()
+    endpoints._PUBLIC_CHAT_IDEMPOTENCY.clear()
+
+    captured: dict[str, object] = {}
+
+    class FakeLLMClient:
+        def __init__(self, base_url, api_key, model, session=None):
+            captured["base_url"] = base_url
+            captured["api_key"] = api_key
+            captured["model"] = model
+
+        async def chat(self, messages, temperature=0.7, **kwargs):
+            captured["messages"] = messages
+            return "new answer", None, {}
+
+    monkeypatch.setattr("src.utils.llm_client.LLMClient", FakeLLMClient)
+    monkeypatch.setattr(
+        endpoints,
+        "_load_agent_runtime_config",
+        lambda *, runtime_kind: endpoints.SimpleNamespace(
+            llm_base_url="http://example.invalid/v1",
+            llm_api_key="EMPTY",
+            llm_model="gpt-5-mini",
+            openai_base_url="http://example.invalid/v1",
+            profile="private",
+            admin_user_id=None,
+            sub_admin_ids=set(),
+        ),
+    )
+
+    with TestClient(app):
+        store = get_store()
+        asyncio.run(
+            store.add_conversation(
+                user_id="web:memory-user",
+                conversation_id="conv-a",
+                platform="web",
+                message="first question",
+                response="first answer",
+            )
+        )
+        asyncio.run(
+            store.add_conversation(
+                user_id="web:memory-user",
+                conversation_id="conv-b",
+                platform="web",
+                message="other question",
+                response="other answer",
+            )
+        )
+        run_id = "run-memory-scoped"
+        endpoints._RUN_QUEUES[run_id] = asyncio.Queue()
+        endpoints._RUN_TOOL_OUTPUTS[run_id] = asyncio.Queue()
+
+        asyncio.run(
+            endpoints.run_agent_loop(
+                run_id,
+                "what did we discuss?",
+                [],
+                "web:memory-user",
+                [],
+                "conv-a",
+                "managed_cloud_web",
+            )
+        )
+
+        messages = captured["messages"]
+        system_message = str(messages[0]["content"])
+        assert "YonerAI" in system_message
+        assert "ORA (Unified GPT-5 Environment)" not in system_message
+        assert any(
+            m.get("role") == "system" and "[Current Thread Memory]" in str(m.get("content") or "")
+            for m in messages
+        )
+        assert any(m.get("role") == "user" and m.get("content") == "first question" for m in messages)
+        assert any(m.get("role") == "assistant" and m.get("content") == "first answer" for m in messages)
+        assert not any(m.get("role") == "user" and m.get("content") == "other question" for m in messages)
+
+        rows = asyncio.run(
+            store.get_conversations(user_id="web:memory-user", conversation_id="conv-a", limit=5)
+        )
+        assert any(row["message"] == "what did we discuss?" and row["response"] == "new answer" for row in rows)
+
+
+def test_managed_cloud_runtime_prefers_openai_web_model(monkeypatch):
+    monkeypatch.delenv("LLM_BASE_URL", raising=False)
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
+    monkeypatch.setenv("OPENAI_API_KEY", "test-openai-key")
+    monkeypatch.setenv("LLM_MODEL", "mistralai/ministral-3-14b-reasoning")
+    monkeypatch.delenv("OPENAI_DEFAULT_MODEL", raising=False)
+    monkeypatch.delenv("OPENAI_MODEL", raising=False)
+    monkeypatch.delenv("MANAGED_CLOUD_LLM_MODEL", raising=False)
+    monkeypatch.delenv("WEB_LLM_MODEL", raising=False)
+
+    cfg = endpoints._load_managed_cloud_runtime_config()
+    assert cfg.llm_base_url == "https://api.openai.com/v1"
+    assert cfg.llm_model == "gpt-5-mini"
+
+
 def test_managed_cloud_runtime_persists_and_reuses_conversation(monkeypatch):
     endpoints._RUN_QUEUES.clear()
     endpoints._RUN_TOOL_OUTPUTS.clear()
@@ -264,12 +397,13 @@ def test_managed_cloud_runtime_persists_and_reuses_conversation(monkeypatch):
 
         asyncio.run(
             endpoints.run_agent_loop(
-                run_id,
-                "今回の質問",
-                [],
-                "web:memory-user",
-                [],
-                "managed_cloud_web",
+                run_id=run_id,
+                content="今回の質問",
+                available_tools=[],
+                provider_id="web:memory-user",
+                attachments=[],
+                conversation_id=None,
+                runtime_kind="managed_cloud_web",
             )
         )
 

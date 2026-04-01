@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
 
 <head>
@@ -251,7 +251,7 @@
                     <button class="secondary" data-key="Enter">Enter</button>
                     <button class="secondary" data-key="Tab">Tab</button>
                     <button class="secondary" data-key="Escape">Esc</button>
-                    <button class="secondary" data-key="Backspace">⌫</button>
+                    <button class="secondary" data-key="Backspace">竚ｫ</button>
                 </div>
             </div>
             <div class="row">
@@ -497,7 +497,7 @@
             try {
                 const data = await api("state");
                 if (data.ok && data.observation) {
-                    metaEl.textContent = `${data.observation.title || "Untitled"} — ${data.observation.url || ""}`;
+                    metaEl.textContent = `${data.observation.title || "Untitled"} 窶・${data.observation.url || ""}`;
                     if (data.warning === "cdp_fallback_missing_url") {
                         showBanner("CDP URL is not set. Using a server-launched browser.");
                     } else if (data.warning === "cdp_fallback_connect_failed") {
@@ -575,7 +575,7 @@
                 tabs.forEach((tab) => {
                     const option = document.createElement("option");
                     option.value = tab.tab_id;
-                    option.textContent = `${tab.active ? "● " : ""}${tab.title || tab.url || "Untitled"}`;
+                    option.textContent = `${tab.active ? "笳・" : ""}${tab.title || tab.url || "Untitled"}`;
                     option.title = tab.url || "";
                     if (tab.active) {
                         activeId = tab.tab_id;
@@ -828,3 +828,4 @@
 </body>
 
 </html>
+

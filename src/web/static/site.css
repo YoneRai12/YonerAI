@@ -3854,21 +3854,20 @@ body.console .chat-compose.is-disabled {
 }
 
 body.console .chat-compose.is-guest .compose-wrap {
-  border-color: rgba(124, 198, 255, 0.18);
+  border-color: rgba(124, 198, 255, 0.22);
   background:
     linear-gradient(180deg, rgba(124, 198, 255, 0.06), rgba(255, 255, 255, 0.03));
   box-shadow: inset 0 0 0 1px rgba(124, 198, 255, 0.05);
 }
 
 body.console .compose-wrap {
-  border-radius: 18px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.03);
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 10px;
-  padding: 10px 10px 10px 12px;
-  align-items: end;
+  border-radius: 26px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.02));
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px 18px 14px;
   transition:
     border-color 180ms ease,
     background 180ms ease,
@@ -3877,10 +3876,10 @@ body.console .compose-wrap {
 }
 
 body.console .compose-wrap:focus-within {
-  border-color: rgba(124, 198, 255, 0.28);
-  background: rgba(255, 255, 255, 0.045);
+  border-color: rgba(124, 198, 255, 0.34);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.03));
   transform: translateY(-1px);
-  box-shadow: 0 18px 34px rgba(0, 0, 0, 0.16);
+  box-shadow: 0 18px 34px rgba(0, 0, 0, 0.16), 0 0 0 1px rgba(124, 198, 255, 0.08);
 }
 
 body.console .compose-input {
@@ -3890,33 +3889,97 @@ body.console .compose-input {
   background: transparent;
   color: rgba(255, 255, 255, 0.9);
   font: inherit;
-  font-size: 14px;
-  line-height: 1.55;
+  font-size: 15px;
+  line-height: 1.6;
   max-height: 34vh;
-  padding: 8px 0;
+  min-height: 78px;
+  padding: 0;
 }
 
 body.console .compose-input::placeholder {
-  color: rgba(255, 255, 255, 0.45);
+  color: rgba(255, 255, 255, 0.44);
 }
 
 body.console .compose-input:disabled {
   cursor: wait;
 }
 
-body.console .compose-send {
+body.console .compose-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+body.console .compose-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+body.console .compose-attach {
   appearance: none;
   border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.03);
-  color: rgba(255, 255, 255, 0.78);
-  width: 42px;
-  height: 42px;
-  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.9);
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  opacity: 0.18;
+  transition:
+    background 180ms ease,
+    border-color 180ms ease,
+    transform 180ms ease,
+    box-shadow 180ms ease,
+    opacity 180ms ease;
+}
+
+body.console .compose-attach span {
+  font-size: 26px;
+  line-height: 1;
+  transform: translateY(-1px);
+}
+
+body.console .compose-attach:hover,
+body.console .compose-attach:focus-visible {
+  border-color: rgba(124, 198, 255, 0.28);
+  background: rgba(124, 198, 255, 0.10);
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(39, 121, 255, 0.14);
+}
+
+body.console .compose-attach:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+body.console .compose-shortcut {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.52);
+  white-space: nowrap;
+}
+
+body.console .compose-send {
+  appearance: none;
+  border: 1px solid rgba(124, 198, 255, 0.2);
+  background: linear-gradient(135deg, rgba(82, 151, 255, 0.22), rgba(47, 108, 223, 0.32));
+  color: rgba(255, 255, 255, 0.94);
+  min-width: 92px;
+  height: 46px;
+  border-radius: 999px;
+  padding: 0 18px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  opacity: 0.96;
   align-self: end;
   transition:
     background 180ms ease,
@@ -3926,8 +3989,10 @@ body.console .compose-send {
     box-shadow 180ms ease;
 }
 
-body.console .compose-send span {
-  font-size: 16px;
+body.console .compose-send-label {
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
   transform: none;
   transition: transform 180ms ease;
 }
@@ -3935,34 +4000,70 @@ body.console .compose-send span {
 body.console .compose-wrap:focus-within .compose-send,
 body.console .compose-send:hover,
 body.console .compose-send:focus-visible {
-  opacity: 0.92;
-  border-color: rgba(124, 198, 255, 0.26);
-  background: rgba(124, 198, 255, 0.10);
+  opacity: 1;
+  border-color: rgba(124, 198, 255, 0.34);
+  background: linear-gradient(135deg, rgba(92, 162, 255, 0.32), rgba(47, 108, 223, 0.46));
   transform: translateY(-1px);
   box-shadow: 0 10px 24px rgba(39, 121, 255, 0.18);
 }
 
-body.console .compose-wrap:focus-within .compose-send span,
-body.console .compose-send:hover span,
-body.console .compose-send:focus-visible span {
+body.console .compose-wrap:focus-within .compose-send .compose-send-label,
+body.console .compose-send:hover .compose-send-label,
+body.console .compose-send:focus-visible .compose-send-label {
   transform: translateX(1px);
 }
 
 body.console .compose-send:active {
-  background: rgba(124, 198, 255, 0.14);
+  background: linear-gradient(135deg, rgba(92, 162, 255, 0.26), rgba(47, 108, 223, 0.4));
 }
 
 body.console .compose-send:disabled {
-  opacity: 0.35;
+  opacity: 0.38;
   cursor: not-allowed;
   transform: none;
   box-shadow: none;
+}
+
+body.console .compose-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+body.console .compose-attachment-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  padding: 6px 10px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+body.console .compose-attachment-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body.console .compose-attachment-remove {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.64);
+  cursor: pointer;
+  font: inherit;
+  font-size: 18px;
+  line-height: 1;
 }
 
 body.console .compose-note {
   margin-top: 10px;
   font-size: 12px;
   color: var(--c-dimmer);
+  text-align: center;
 }
 
 @media (max-width: 960px) {

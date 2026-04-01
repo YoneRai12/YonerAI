@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="ja">
 <head>
   <meta charset="utf-8" />
@@ -8,8 +8,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=IBM+Plex+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/site.css?v=20260215_02" />
-  <script defer src="/static/site.js?v=20260215_02"></script>
+  <link rel="stylesheet" href="/static/site.css?v=20260402_01" />
+  <script defer src="/static/site.js?v=20260402_01"></script>
   <style>
     body.console.auth-only {
       min-height: 100dvh;
@@ -175,12 +175,12 @@
     <header class="auth-head">
       <a class="auth-brand" href="/" aria-label="YonerAI home">YonerAI</a>
       <a class="auth-close" id="back-link" href="/jp/chat" aria-label="Back" title="Back">
-        <span aria-hidden="true">×</span>
+        <span aria-hidden="true">ﾃ・/span>
       </a>
     </header>
 
-    <h1 class="auth-title" data-i18n-en="Sign in" data-i18n-ja="ログイン">Sign in</h1>
-    <p class="auth-sub" data-i18n-en="Continue with Google to open your YonerAI chat." data-i18n-ja="Googleで続行して、YonerAIチャットを開きます。">Continue with Google to open your YonerAI chat.</p>
+    <h1 class="auth-title" data-i18n-en="Sign in" data-i18n-ja="繝ｭ繧ｰ繧､繝ｳ">Sign in</h1>
+    <p class="auth-sub" data-i18n-en="Continue with Google to open your YonerAI chat." data-i18n-ja="Google縺ｧ邯夊｡後＠縺ｦ縲〆onerAI繝√Ε繝・ヨ繧帝幕縺阪∪縺吶・>Continue with Google to open your YonerAI chat.</p>
 
     <section class="auth-actions" id="provider-actions" aria-label="Providers">
       <a class="console-btn primary" id="btn-google" href="/api/auth/google/start?returnTo=/jp/chat">
@@ -190,19 +190,19 @@
             <text class="badge-text" x="9" y="12.1" text-anchor="middle">G</text>
           </svg>
         </span>
-        <span class="auth-label" data-i18n-en="Continue with Google" data-i18n-ja="Googleで続行">Continue with Google</span>
+        <span class="auth-label" data-i18n-en="Continue with Google" data-i18n-ja="Google縺ｧ邯夊｡・>Continue with Google</span>
       </a>
     </section>
 
     <p class="auth-msg" id="auth-msg" aria-live="polite"></p>
 
     <footer class="auth-foot" aria-label="Legal">
-      <p class="auth-note" data-i18n-en="By continuing, you agree to YonerAI's Terms and acknowledge the Privacy Policy." data-i18n-ja="続行すると、YonerAIの利用規約に同意し、プライバシーポリシーを確認したものとみなされます。">
+      <p class="auth-note" data-i18n-en="By continuing, you agree to YonerAI's Terms and acknowledge the Privacy Policy." data-i18n-ja="邯夊｡後☆繧九→縲〆onerAI縺ｮ蛻ｩ逕ｨ隕冗ｴ・↓蜷梧э縺励√・繝ｩ繧､繝舌す繝ｼ繝昴Μ繧ｷ繝ｼ繧堤｢ｺ隱阪＠縺溘ｂ縺ｮ縺ｨ縺ｿ縺ｪ縺輔ｌ縺ｾ縺吶・>
         By continuing, you agree to YonerAI's Terms and acknowledge the Privacy Policy.
       </p>
       <nav class="auth-links" aria-label="Links">
-        <a href="/terms" data-i18n-en="Terms" data-i18n-ja="利用規約">Terms</a>
-        <a href="/privacy" data-i18n-en="Privacy" data-i18n-ja="プライバシー">Privacy</a>
+        <a href="/terms" data-i18n-en="Terms" data-i18n-ja="蛻ｩ逕ｨ隕冗ｴ・>Terms</a>
+        <a href="/privacy" data-i18n-en="Privacy" data-i18n-ja="繝励Λ繧､繝舌す繝ｼ">Privacy</a>
       </nav>
     </footer>
   </main>
@@ -286,9 +286,9 @@
       function showAuthError() {
         if (!authError) return;
         const base = authError === "invalid_state"
-          ? (isJa() ? "ログイン状態の検証に失敗しました。もう一度お試しください。" : "Login state validation failed. Please try again.")
-          : (isJa() ? "ログインに失敗しました。もう一度お試しください。" : "Login failed. Please try again.");
-        const hint = authHint ? (isJa() ? `（ヒント: ${authHint}）` : `(Hint: ${authHint})`) : "";
+          ? (isJa() ? "繝ｭ繧ｰ繧､繝ｳ迥ｶ諷九・讀懆ｨｼ縺ｫ螟ｱ謨励＠縺ｾ縺励◆縲ゅｂ縺・ｸ蠎ｦ縺願ｩｦ縺励￥縺縺輔＞縲・ : "Login state validation failed. Please try again.")
+          : (isJa() ? "繝ｭ繧ｰ繧､繝ｳ縺ｫ螟ｱ謨励＠縺ｾ縺励◆縲ゅｂ縺・ｸ蠎ｦ縺願ｩｦ縺励￥縺縺輔＞縲・ : "Login failed. Please try again.");
+        const hint = authHint ? (isJa() ? `・医ヲ繝ｳ繝・ ${authHint}・荏 : `(Hint: ${authHint})`) : "";
         authMsg.textContent = `${base} ${hint}`.trim();
       }
 
@@ -304,3 +304,4 @@
   </script>
 </body>
 </html>
+
