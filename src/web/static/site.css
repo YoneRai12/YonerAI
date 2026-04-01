@@ -2564,6 +2564,7 @@ body.console .console-app {
   display: grid;
   grid-template-columns: 320px minmax(0, 1fr);
   background: transparent;
+  transition: grid-template-columns 240ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 /* Desktop sidebar collapse (ChatGPT-like). */
@@ -2578,6 +2579,8 @@ body.console.sidebar-collapsed .console-sidebar {
   overflow: hidden;
   border-right: 0;
   pointer-events: none;
+  opacity: 0;
+  transform: translateX(-18px);
 }
 
 /* Avoid showing the "X" close button on desktop; hamburger toggles collapse. */
@@ -2596,6 +2599,15 @@ body.console .console-sidebar {
   backdrop-filter: blur(16px) saturate(140%);
   display: flex;
   flex-direction: column;
+  opacity: 1;
+  transform: translateX(0);
+  transition:
+    width 240ms cubic-bezier(0.22, 1, 0.36, 1),
+    min-width 240ms cubic-bezier(0.22, 1, 0.36, 1),
+    padding 240ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 180ms ease,
+    transform 240ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 180ms ease;
 }
 
 body.console .console-brand {
@@ -2624,18 +2636,94 @@ body.console .console-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: background 140ms ease, border-color 140ms ease, transform 140ms ease;
+  transition:
+    background 180ms ease,
+    border-color 180ms ease,
+    transform 180ms ease,
+    box-shadow 180ms ease;
 }
 
 body.console .console-icon:hover {
   background: rgba(255, 255, 255, 0.06);
   border-color: rgba(255, 255, 255, 0.2);
   transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
 }
 
 body.console .console-icon:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--c-accent) 72%, transparent);
   outline-offset: 2px;
+}
+
+body.console .console-toggle {
+  position: relative;
+  overflow: hidden;
+}
+
+body.console .console-toggle-glyph {
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+}
+
+body.console .console-toggle-panel {
+  width: 5px;
+  height: 14px;
+  border-radius: 999px;
+  background: rgba(124, 198, 255, 0.92);
+  box-shadow: 0 0 0 1px rgba(124, 198, 255, 0.14);
+  transform-origin: center;
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1), opacity 180ms ease, background 180ms ease;
+}
+
+body.console .console-toggle-lines {
+  width: 9px;
+  height: 14px;
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+}
+
+body.console .console-toggle-lines span {
+  display: block;
+  width: 100%;
+  height: 2px;
+  border-radius: 999px;
+  background: currentColor;
+  transform-origin: right center;
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1), opacity 180ms ease, width 180ms ease;
+}
+
+body.console .console-toggle[data-state="open"] .console-toggle-panel {
+  transform: translateX(1px);
+}
+
+body.console .console-toggle[data-state="open"] .console-toggle-lines span:first-child {
+  transform: translateY(3px) rotate(-36deg);
+  width: 8px;
+}
+
+body.console .console-toggle[data-state="open"] .console-toggle-lines span:last-child {
+  transform: translateY(-3px) rotate(36deg);
+  width: 8px;
+}
+
+body.console .console-toggle[data-state="closed"] .console-toggle-panel {
+  transform: translateX(-1px);
+  background: rgba(255, 255, 255, 0.34);
+}
+
+body.console .console-toggle[data-state="closed"] .console-toggle-lines span:first-child {
+  transform: translateY(0) rotate(0);
+}
+
+body.console .console-toggle[data-state="closed"] .console-toggle-lines span:last-child {
+  transform: translateY(0) rotate(0);
 }
 
 body.console .console-actions {
@@ -2946,6 +3034,7 @@ body.console .console-topbar {
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   background: linear-gradient(180deg, rgba(11, 15, 20, 0.92), rgba(11, 15, 20, 0.72));
   backdrop-filter: blur(14px) saturate(140%);
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.12);
 }
 
 body.console .console-topbar-title {
@@ -3363,6 +3452,11 @@ body.console .chat-status {
   gap: 10px;
   padding: 8px 12px;
   color: rgba(255, 255, 255, 0.84);
+  animation: consoleStatusIn 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+body.console .chat-status[hidden] {
+  display: none !important;
 }
 
 body.console .chat-status-dot {
@@ -3423,6 +3517,7 @@ body.console .chat-empty {
   margin: 8vh auto 0;
   text-align: center;
   max-width: 62ch;
+  animation: consoleRise 360ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 body.console .chat-empty h1 {
@@ -3446,6 +3541,7 @@ body.console .chat-scroll {
 body.console .msg {
   display: flex;
   width: 100%;
+  animation: messageIn 220ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 body.console .msg.is-user {
@@ -3683,6 +3779,39 @@ body.console .activity-dot.is-error {
   50% { box-shadow: 0 0 0 6px rgba(124, 198, 255, 0.10); }
 }
 
+@keyframes consoleRise {
+  0% {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes consoleStatusIn {
+  0% {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes messageIn {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 body.console .thinking {
   display: inline-flex;
   align-items: center;
@@ -3717,10 +3846,18 @@ body.console .chat-compose {
   width: var(--chat-col);
   max-width: 100%;
   margin: 0 auto;
+  animation: consoleRise 420ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 body.console .chat-compose.is-disabled {
   opacity: 0.55;
+}
+
+body.console .chat-compose.is-guest .compose-wrap {
+  border-color: rgba(124, 198, 255, 0.18);
+  background:
+    linear-gradient(180deg, rgba(124, 198, 255, 0.06), rgba(255, 255, 255, 0.03));
+  box-shadow: inset 0 0 0 1px rgba(124, 198, 255, 0.05);
 }
 
 body.console .compose-wrap {
@@ -3732,6 +3869,18 @@ body.console .compose-wrap {
   gap: 10px;
   padding: 10px 10px 10px 12px;
   align-items: end;
+  transition:
+    border-color 180ms ease,
+    background 180ms ease,
+    transform 180ms ease,
+    box-shadow 180ms ease;
+}
+
+body.console .compose-wrap:focus-within {
+  border-color: rgba(124, 198, 255, 0.28);
+  background: rgba(255, 255, 255, 0.045);
+  transform: translateY(-1px);
+  box-shadow: 0 18px 34px rgba(0, 0, 0, 0.16);
 }
 
 body.console .compose-input {
@@ -3751,6 +3900,10 @@ body.console .compose-input::placeholder {
   color: rgba(255, 255, 255, 0.45);
 }
 
+body.console .compose-input:disabled {
+  cursor: wait;
+}
+
 body.console .compose-send {
   appearance: none;
   border: 1px solid rgba(255, 255, 255, 0.14);
@@ -3765,12 +3918,18 @@ body.console .compose-send {
   justify-content: center;
   opacity: 0.18;
   align-self: end;
-  transition: background 140ms ease, border-color 140ms ease, opacity 140ms ease;
+  transition:
+    background 180ms ease,
+    border-color 180ms ease,
+    opacity 180ms ease,
+    transform 180ms ease,
+    box-shadow 180ms ease;
 }
 
 body.console .compose-send span {
   font-size: 16px;
   transform: none;
+  transition: transform 180ms ease;
 }
 
 body.console .compose-wrap:focus-within .compose-send,
@@ -3779,6 +3938,14 @@ body.console .compose-send:focus-visible {
   opacity: 0.92;
   border-color: rgba(124, 198, 255, 0.26);
   background: rgba(124, 198, 255, 0.10);
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(39, 121, 255, 0.18);
+}
+
+body.console .compose-wrap:focus-within .compose-send span,
+body.console .compose-send:hover span,
+body.console .compose-send:focus-visible span {
+  transform: translateX(1px);
 }
 
 body.console .compose-send:active {
@@ -3788,6 +3955,8 @@ body.console .compose-send:active {
 body.console .compose-send:disabled {
   opacity: 0.35;
   cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }
 
 body.console .compose-note {

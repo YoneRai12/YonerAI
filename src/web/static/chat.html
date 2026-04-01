@@ -23,8 +23,14 @@
     <aside class="console-sidebar" aria-label="Sidebar" data-sidebar>
       <div class="console-brand">
         <a class="console-logo" href="/" aria-label="YonerAI home">YonerAI</a>
-        <button class="console-icon" type="button" data-sidebar-close aria-label="Close sidebar">
-          <span aria-hidden="true">×</span>
+        <button class="console-icon console-toggle is-sidebar-close" type="button" data-sidebar-close aria-label="Close sidebar">
+          <span class="console-toggle-glyph" aria-hidden="true">
+            <span class="console-toggle-panel"></span>
+            <span class="console-toggle-lines">
+              <span></span>
+              <span></span>
+            </span>
+          </span>
         </button>
       </div>
 
@@ -82,8 +88,14 @@
 
     <main id="main" class="console-main" aria-label="Chat">
       <header class="console-topbar" aria-label="Top bar">
-        <button class="console-icon" type="button" data-sidebar-open aria-label="Open sidebar">
-          <span aria-hidden="true">☰</span>
+        <button class="console-icon console-toggle" type="button" data-sidebar-open aria-label="Open sidebar">
+          <span class="console-toggle-glyph" aria-hidden="true">
+            <span class="console-toggle-panel"></span>
+            <span class="console-toggle-lines">
+              <span></span>
+              <span></span>
+            </span>
+          </span>
         </button>
         <div class="console-topbar-title">
           <span data-i18n-en="Chat" data-i18n-ja="チャット">Chat</span>
@@ -175,6 +187,7 @@
       const closeSidebarBtn = $("[data-sidebar-close]");
 
       const SIDEBAR_COLLAPSE_KEY = "yonerai_sidebar_collapsed_v1";
+      const CHAT_DRAFT_KEY = "yonerai_guest_draft_v1";
 
       const qp = new URLSearchParams(window.location.search);
       const linkCode = (qp.get("link_code") || "").trim();
@@ -260,6 +273,54 @@
         } catch (_e) {
           return { ok: false, json: {} };
         }
+      }
+
+      function currentReturnPath() {
+        return safeChatPath(nextPath || window.location.pathname || `${localePrefix()}/chat`);
+      }
+
+      function getLoginHref() {
+        return String((googleLogin && googleLogin.getAttribute("href")) || `${AUTH_BASE}/auth/login?returnTo=${encodeURIComponent(currentReturnPath())}`);
+      }
+
+      function saveGuestDraft(text) {
+        try {
+          const payload = {
+            text: String(text || ""),
+            ts: Date.now(),
+            path: safeChatPath(`${window.location.pathname}${window.location.search}`),
+          };
+          localStorage.setItem(CHAT_DRAFT_KEY, JSON.stringify(payload));
+        } catch (_e) {
+          // ignore
+        }
+      }
+
+      function readGuestDraft() {
+        try {
+          const raw = localStorage.getItem(CHAT_DRAFT_KEY);
+          if (!raw) return "";
+          const parsed = JSON.parse(raw);
+          return String((parsed && parsed.text) || "");
+        } catch (_e) {
+          return "";
+        }
+      }
+
+      function clearGuestDraft() {
+        try {
+          localStorage.removeItem(CHAT_DRAFT_KEY);
+        } catch (_e) {
+          // ignore
+        }
+      }
+
+      function restoreGuestDraft() {
+        const draft = readGuestDraft();
+        if (!draft) return;
+        if ((chatInput.value || "").trim()) return;
+        chatInput.value = draft;
+        autosizeTextarea();
       }
 
       function looksLikeHtml(rawText) {
@@ -530,6 +591,7 @@
       function closeSidebarIfMobile() {
         if (window.matchMedia("(max-width: 960px)").matches) {
           document.body.classList.remove("sidebar-open");
+          syncSidebarButtons();
         }
       }
 
@@ -544,6 +606,7 @@
         } catch (_e) {
           // ignore
         }
+        syncSidebarButtons();
       }
 
       function applySidebarPref() {
@@ -562,6 +625,7 @@
         } else {
           document.body.classList.remove("sidebar-collapsed");
         }
+        syncSidebarButtons();
       }
 
       function openSidebar() {
@@ -571,6 +635,7 @@
           return;
         }
         document.body.classList.add("sidebar-open");
+        syncSidebarButtons();
       }
 
       function closeSidebar() {
@@ -580,6 +645,25 @@
           return;
         }
         document.body.classList.remove("sidebar-open");
+        syncSidebarButtons();
+      }
+
+      function isSidebarVisible() {
+        if (isDesktopLayout()) return !document.body.classList.contains("sidebar-collapsed");
+        return document.body.classList.contains("sidebar-open");
+      }
+
+      function syncSidebarButtons() {
+        const visible = isSidebarVisible();
+        const label = visible
+          ? (isJa() ? "サイドバーを閉じる" : "Close sidebar")
+          : (isJa() ? "サイドバーを開く" : "Open sidebar");
+        [openSidebarBtn, closeSidebarBtn].forEach((btn) => {
+          if (!btn) return;
+          btn.dataset.state = visible ? "open" : "closed";
+          btn.setAttribute("aria-label", label);
+          btn.setAttribute("aria-pressed", visible ? "true" : "false");
+        });
       }
 
       function openUserMenu() {
@@ -886,9 +970,13 @@
         domIndex = new Map();
 
         const authed = Boolean(me && me.user_id);
-        chatInput.disabled = !authed;
-        chatSend.disabled = !authed;
-        chatForm.classList.toggle("is-disabled", !authed);
+        chatInput.disabled = Boolean(inflight);
+        chatForm.classList.toggle("is-guest", !authed);
+        if (chatAttachBtn) {
+          chatAttachBtn.disabled = !authed || Boolean(inflight);
+          chatAttachBtn.setAttribute("aria-disabled", chatAttachBtn.disabled ? "true" : "false");
+        }
+        updateComposeState();
 
         if (!authed) {
           setChatStatus("idle");
@@ -1085,6 +1173,8 @@
             threadsState = [];
             renderThreads();
             renderMessages();
+            restoreGuestDraft();
+            updateComposeState();
             return;
           }
           me = await r.json();
@@ -1115,8 +1205,10 @@
           authGuest.hidden = true;
           loadThreads();
           ensureThread();
+          restoreGuestDraft();
           renderThreads();
           renderMessages();
+          updateComposeState();
           await refreshUsage();
         } catch (_e) {
           me = null;
@@ -1127,6 +1219,8 @@
           threadsState = [];
           renderThreads();
           renderMessages();
+          restoreGuestDraft();
+          updateComposeState();
         }
       }
 
@@ -1221,6 +1315,30 @@
         chatInput.style.height = `${Math.min(chatInput.scrollHeight, 220)}px`;
       }
 
+      function updateComposeState() {
+        const authed = Boolean(me && me.user_id);
+        const busy = Boolean(inflight);
+        const hasText = Boolean((chatInput.value || "").trim());
+        const hasAttachments = Array.isArray(pendingAttachments) && pendingAttachments.length > 0;
+        chatInput.disabled = busy;
+        chatForm.classList.toggle("is-disabled", busy);
+        chatForm.classList.toggle("is-guest", !authed);
+        chatSend.disabled = busy || (!hasText && !hasAttachments);
+        if (chatAttachBtn) {
+          chatAttachBtn.disabled = !authed || busy;
+        }
+      }
+
+      function promptLoginForChat(prefill) {
+        saveGuestDraft(prefill);
+        if (authMsg) {
+          authMsg.textContent = isJa()
+            ? "送信するには Google でログインしてください。入力内容は一時保存しました。"
+            : "Please sign in with Google to send. Your draft has been saved temporarily.";
+        }
+        window.location.href = getLoginHref();
+      }
+
       function formatAttachmentBytes(n) {
         const value = Number(n || 0);
         if (!Number.isFinite(value) || value <= 0) return "0 B";
@@ -1254,6 +1372,7 @@
         chatAttachmentsPreview.innerHTML = "";
         if (!Array.isArray(pendingAttachments) || pendingAttachments.length === 0) {
           chatAttachmentsPreview.hidden = true;
+          updateComposeState();
           return;
         }
         chatAttachmentsPreview.hidden = false;
@@ -1294,6 +1413,7 @@
           item.appendChild(rm);
           chatAttachmentsPreview.appendChild(item);
         });
+        updateComposeState();
       }
 
       function addPendingFiles(fileList) {
@@ -1393,7 +1513,10 @@
       }
 
       async function runChat(text) {
-        if (!me || !me.user_id) return;
+        if (!me || !me.user_id) {
+          promptLoginForChat(text);
+          return;
+        }
         if (inflight && typeof inflight.close === "function") {
           try { inflight.close(); } catch (_e) { }
           inflight = null;
@@ -1407,8 +1530,7 @@
         const assistant = appendMessage("assistant", "", null, { status: "thinking", format: "plain", activities: [] });
         const assistantId = assistant ? assistant.id : null;
 
-        chatSend.disabled = true;
-        chatInput.disabled = true;
+        updateComposeState();
         setChatStatus("working");
 
         try {
@@ -1644,8 +1766,7 @@
           }
           renderMessages();
         } finally {
-          chatSend.disabled = false;
-          chatInput.disabled = false;
+          updateComposeState();
           chatInput.focus();
         }
       }
@@ -1740,14 +1861,23 @@
           });
         }
 
-        chatInput.addEventListener("input", autosizeTextarea);
+        chatInput.addEventListener("input", () => {
+          autosizeTextarea();
+          updateComposeState();
+        });
 
         chatForm.addEventListener("submit", async (ev) => {
           ev.preventDefault();
           const text = (chatInput.value || "").trim();
-          if (!text) return;
+          if (!text && (!Array.isArray(pendingAttachments) || pendingAttachments.length === 0)) return;
+          if (!(me && me.user_id)) {
+            promptLoginForChat(text);
+            return;
+          }
           chatInput.value = "";
           autosizeTextarea();
+          clearGuestDraft();
+          updateComposeState();
           await runChat(text);
         });
 
@@ -1756,8 +1886,10 @@
           const lang = (document.documentElement.lang || "en").toLowerCase().startsWith("ja") ? "ja" : "en";
           const ph = lang === "ja" ? (chatInput.dataset.placeholderJa || "") : (chatInput.dataset.placeholderEn || "");
           if (ph) chatInput.setAttribute("placeholder", ph);
+          syncSidebarButtons();
           renderThreads();
           renderMessages();
+          updateComposeState();
           refreshUsage();
           if (!chatStatus.hidden) {
             const mode = String(chatStatus.dataset.state || "idle");
@@ -1771,7 +1903,7 @@
         // Preserve link_code + returnTo on login entry.
         const url = new URL(googleLogin.getAttribute("href") || "/auth/login?returnTo=/jp/chat", AUTH_BASE);
         if (linkCode) url.searchParams.set("link_code", linkCode);
-        url.searchParams.set("returnTo", safeChatPath(nextPath));
+        url.searchParams.set("returnTo", currentReturnPath());
         const sameOrigin = url.origin === window.location.origin;
         googleLogin.setAttribute("href", sameOrigin ? `${url.pathname}${url.search}` : `${url.origin}${url.pathname}${url.search}`);
       }
@@ -1787,6 +1919,8 @@
         }
         wireEvents();
         initGoogleLinkHref();
+        restoreGuestDraft();
+        updateComposeState();
         await loadMe();
         autosizeTextarea();
       })();
