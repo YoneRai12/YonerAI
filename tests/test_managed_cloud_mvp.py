@@ -62,6 +62,24 @@ def test_managed_cloud_pages_render():
         assert privacy.status_code == 200
         assert "Privacy Policy" in privacy.text
 
+        login = client.get("/auth/login?returnTo=/jp/chat")
+        assert login.status_code == 200
+        assert "Continue with Google" in login.text
+        assert "Sign in with Microsoft" not in login.text
+        assert "Sign in with Discord" not in login.text
+        assert "Sign in with X" not in login.text
+
+
+def test_chat_redirect_prefers_cf_country_then_accept_language():
+    with TestClient(app) as client:
+        jp = client.get("/chat", headers={"cf-ipcountry": "JP"}, follow_redirects=False)
+        assert jp.status_code == 307
+        assert jp.headers["location"] == "/jp/chat"
+
+        en = client.get("/chat", headers={"cf-ipcountry": "DE"}, follow_redirects=False)
+        assert en.status_code == 307
+        assert en.headers["location"] == "/en/chat"
+
 
 def test_auth_me_requires_session_then_returns_identity():
     with TestClient(app) as client:

@@ -876,7 +876,10 @@ def _load_managed_cloud_runtime_config() -> SimpleNamespace:
     llm_base_url = (os.getenv("LLM_BASE_URL") or "http://localhost:8008/v1").rstrip("/")
     llm_api_key = os.getenv("LLM_API_KEY", "EMPTY")
     llm_model = (os.getenv("LLM_MODEL") or "gpt-5-mini").strip() or "gpt-5-mini"
-    openai_base_url = (os.getenv("OPENAI_BASE_URL") or "https://api.openai.com/v1").rstrip("/")
+    # For managed-cloud web chat MVP, default to the same base as the chat runtime.
+    # This keeps local smoke tests and sidecar-backed inference on the configured LLM endpoint,
+    # instead of accidentally preferring the OpenAI cloud base.
+    openai_base_url = (os.getenv("OPENAI_BASE_URL") or llm_base_url).rstrip("/")
     profile = (os.getenv("ORA_PROFILE") or "private").strip().lower() or "private"
     return SimpleNamespace(
         llm_base_url=llm_base_url,
@@ -892,16 +895,14 @@ def _load_managed_cloud_runtime_config() -> SimpleNamespace:
 def _load_agent_runtime_config(*, runtime_kind: str) -> Any:
     from src.config import Config, ConfigError
 
+    is_managed_cloud = (runtime_kind or "").strip().lower() == "managed_cloud_web"
+    if is_managed_cloud:
+        return _load_managed_cloud_runtime_config()
+
     try:
         return Config.load()
     except ConfigError as exc:
-        is_managed_cloud = (runtime_kind or "").strip().lower() == "managed_cloud_web"
-        if not is_managed_cloud:
-            raise
-        if "DISCORD_BOT_TOKEN" not in str(exc):
-            raise
-        logger.warning("Managed Cloud web chat is using lightweight runtime config without DISCORD_BOT_TOKEN.")
-        return _load_managed_cloud_runtime_config()
+        raise
 
 
 async def run_agent_loop(

@@ -56,6 +56,25 @@
     return normalizeLang(lang) === "ja" ? "/jp" : "/en";
   }
 
+  function resolveChatHostBase() {
+    const host = String(window.location.hostname || "").toLowerCase();
+    const proto = String(window.location.protocol || "https:");
+    if (host === "yonerai.com" || host === "www.yonerai.com") {
+      return `${proto}//api.yonerai.com`;
+    }
+    return `${proto}//${window.location.host}`;
+  }
+
+  function resolveLocalizedChatHref(lang) {
+    return `${resolveChatHostBase()}${localePrefix(lang)}/chat`;
+  }
+
+  function resolveLocalizedLoginHref(lang) {
+    const chatHref = resolveLocalizedChatHref(lang);
+    const chatUrl = new URL(chatHref, window.location.origin);
+    return `${resolveChatHostBase()}/auth/login?returnTo=${encodeURIComponent(chatUrl.pathname)}`;
+  }
+
   function stripLocalePrefix(path) {
     const p = path || "/";
     if (p === "/jp" || p.startsWith("/jp/")) {
@@ -304,9 +323,6 @@
     if (!nodes.length) {
       return;
     }
-
-    const DEFAULT_LOGIN_HREF = "/auth/login?returnTo=/chat";
-    const DEFAULT_AUTHED_HREF = "/chat";
     let isAuthed = false;
 
     const resolveText = (node, lang) => {
@@ -324,8 +340,16 @@
     const applyState = () => {
       const lang = normalizeLang(document.documentElement.lang || detectLang());
       nodes.forEach((node) => {
-        const loginHref = node.dataset.authLoginHref || DEFAULT_LOGIN_HREF;
-        const authedHref = node.dataset.authAuthedHref || DEFAULT_AUTHED_HREF;
+        const configuredLoginHref = node.dataset.authLoginHref || "";
+        const configuredAuthedHref = node.dataset.authAuthedHref || "";
+        const loginHref =
+          !configuredLoginHref || configuredLoginHref === "/auth/login?returnTo=/chat"
+            ? resolveLocalizedLoginHref(lang)
+            : configuredLoginHref;
+        const authedHref =
+          !configuredAuthedHref || configuredAuthedHref === "/chat"
+            ? resolveLocalizedChatHref(lang)
+            : configuredAuthedHref;
         node.setAttribute("href", isAuthed ? authedHref : loginHref);
         node.textContent = resolveText(node, lang);
         node.classList.toggle("is-authenticated", isAuthed);

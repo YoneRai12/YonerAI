@@ -99,6 +99,11 @@ def _detect_preferred_lang(request: Request) -> str:
     from_cookie = _normalize_lang(request.cookies.get("yonerai_lang"))
     if request.cookies.get("yonerai_lang"):
         return from_cookie
+    country = (request.headers.get("cf-ipcountry") or "").strip().upper()
+    if country == "JP":
+        return "ja"
+    if country and country not in {"XX", "T1"}:
+        return "en"
     accept = (request.headers.get("accept-language") or "").lower()
     if "ja" in accept:
         return "ja"

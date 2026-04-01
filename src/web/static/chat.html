@@ -13,7 +13,6 @@
     rel="stylesheet" />
   <link rel="stylesheet" href="/static/site.css?v=20260215_02" />
   <script defer src="/static/site.js?v=20260215_02"></script>
-  <script defer src="https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js"></script>
 </head>
 
 <body class="console preload" data-console-page="chat">
@@ -69,12 +68,11 @@
             <div class="console-user-label" data-i18n-en="Sign in to chat" data-i18n-ja="ログインしてチャット">Sign in to chat
             </div>
             <div class="console-user-sub"
-              data-i18n-en="Choose a provider to continue. Discord users can migrate via link code."
-              data-i18n-ja="ログイン方法を選択して続行。Discordユーザーはリンクコードで移行できます。">Choose a provider to continue. Discord users can
-              migrate via link code.</div>
+              data-i18n-en="Continue with Google to open your YonerAI chat."
+              data-i18n-ja="Googleで続行して、YonerAIチャットを開きます。">Continue with Google to open your YonerAI chat.</div>
           </div>
           <div class="console-auth-actions">
-            <a class="console-btn primary" id="google-login" href="/auth/login?returnTo=/chat" data-i18n-en="Sign in"
+            <a class="console-btn primary" id="google-login" href="/auth/login?returnTo=/jp/chat" data-i18n-en="Sign in"
               data-i18n-ja="ログイン">Sign in</a>
           </div>
           <p class="console-auth-msg" id="auth-msg" aria-live="polite"></p>
@@ -151,7 +149,6 @@
       const authGuest = $("#auth-guest");
       const authMsg = $("#auth-msg");
       const logoutBtn = $("#logout-btn");
-      const appleBtn = $("#apple-login");
       const googleLogin = $("#google-login");
       const userIdEl = $("#user-id");
       const userChip = $("#user-chip");
@@ -181,7 +178,7 @@
 
       const qp = new URLSearchParams(window.location.search);
       const linkCode = (qp.get("link_code") || "").trim();
-      const nextPath = (qp.get("returnTo") || qp.get("next") || "/chat").trim();
+      const nextPath = (qp.get("returnTo") || qp.get("next") || "").trim();
       const authError = (qp.get("auth_error") || "").trim();
       const authHint = (qp.get("auth_hint") || "").trim();
 
@@ -207,6 +204,10 @@
         return String(s || "").replace(/\/+$/, "");
       }
 
+      function localePrefix() {
+        return isJa() ? "/jp" : "/en";
+      }
+
       function resolveApiBase() {
         // Highest priority: explicit runtime injection.
         const injected = String(window.__YONERAI_API_BASE__ || "").trim();
@@ -229,6 +230,17 @@
       }
 
       const API_BASE = resolveApiBase();
+      const AUTH_BASE = API_BASE;
+
+      function safeChatPath(value) {
+        const raw = String(value || "").trim();
+        const fallback = `${localePrefix()}/chat`;
+        if (!raw) return fallback;
+        if (!raw.startsWith("/") || raw.startsWith("//")) return fallback;
+        if (raw.includes("\\") || raw.includes("\n") || raw.includes("\r")) return fallback;
+        if (raw.length > 2048) return fallback;
+        return raw;
+      }
 
       function apiUrl(path) {
         const raw = String(path || "").trim();
@@ -1204,64 +1216,6 @@
         return isJa() ? "エラーが発生しました。" : "An error occurred.";
       }
 
-      async function initApple() {
-        if (!appleBtn) {
-          return;
-        }
-        try {
-          const r = await fetch(apiUrl("/api/auth/providers"));
-          const providers = await r.json();
-          if (!providers.apple || !providers.apple.enabled || !providers.apple.client_id) {
-            appleBtn.disabled = true;
-            return;
-          }
-          if (!window.AppleID || !window.AppleID.auth) {
-            appleBtn.disabled = true;
-            return;
-          }
-          window.AppleID.auth.init({
-            clientId: providers.apple.client_id,
-            scope: "name email",
-            usePopup: true,
-          });
-        } catch (_e) {
-          appleBtn.disabled = true;
-        }
-      }
-
-      async function doAppleLogin() {
-        if (!appleBtn) {
-          return;
-        }
-        authMsg.textContent = "";
-        if (!window.AppleID || !window.AppleID.auth) {
-          authMsg.textContent = isJa() ? "Appleログインは利用できません。" : "Apple login is not available.";
-          return;
-        }
-        try {
-          const result = await window.AppleID.auth.signIn();
-          const idToken = result && result.authorization ? result.authorization.id_token : null;
-          if (!idToken) {
-            authMsg.textContent = isJa() ? "Appleトークンが取得できませんでした。" : "Apple token was not returned.";
-            return;
-          }
-          const res = await fetch(apiUrl("/api/auth/apple/token"), {
-            method: "POST",
-            credentials: "include",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ id_token: idToken, link_code: linkCode || null, next: nextPath || "/chat" }),
-          });
-          const data = await res.json();
-          if (!res.ok) {
-            authMsg.textContent = data.detail || (isJa() ? "Appleログインに失敗しました。" : "Apple login failed.");
-            return;
-          }
-          window.location.assign(data.next || "/chat");
-        } catch (_e) {
-          authMsg.textContent = isJa() ? "Appleログインがキャンセルされました。" : "Apple login canceled or failed.";
-        }
-      }
-
       function autosizeTextarea() {
         chatInput.style.height = "0px";
         chatInput.style.height = `${Math.min(chatInput.scrollHeight, 220)}px`;
@@ -1786,10 +1740,6 @@
           });
         }
 
-        if (appleBtn) {
-          appleBtn.addEventListener("click", doAppleLogin);
-        }
-
         chatInput.addEventListener("input", autosizeTextarea);
 
         chatForm.addEventListener("submit", async (ev) => {
@@ -1819,17 +1769,11 @@
 
       function initGoogleLinkHref() {
         // Preserve link_code + returnTo on login entry.
-        const baseOrigin = (() => {
-          try {
-            return new URL(API_BASE).origin;
-          } catch (_e) {
-            return window.location.origin;
-          }
-        })();
-        const url = new URL(googleLogin.getAttribute("href") || "/auth/login?returnTo=/chat", baseOrigin);
+        const url = new URL(googleLogin.getAttribute("href") || "/auth/login?returnTo=/jp/chat", AUTH_BASE);
         if (linkCode) url.searchParams.set("link_code", linkCode);
-        if (nextPath) url.searchParams.set("returnTo", nextPath);
-        googleLogin.setAttribute("href", `${url.origin}${url.pathname}${url.search}`);
+        url.searchParams.set("returnTo", safeChatPath(nextPath));
+        const sameOrigin = url.origin === window.location.origin;
+        googleLogin.setAttribute("href", sameOrigin ? `${url.pathname}${url.search}` : `${url.origin}${url.pathname}${url.search}`);
       }
 
       (async () => {
@@ -1843,7 +1787,6 @@
         }
         wireEvents();
         initGoogleLinkHref();
-        await initApple();
         await loadMe();
         autosizeTextarea();
       })();

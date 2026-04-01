@@ -1,5 +1,5 @@
-﻿<!doctype html>
-<html lang="en">
+<!doctype html>
+<html lang="ja">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -10,7 +10,6 @@
   <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=IBM+Plex+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/static/site.css?v=20260215_02" />
   <script defer src="/static/site.js?v=20260215_02"></script>
-  <script defer src="https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js"></script>
   <style>
     body.console.auth-only {
       min-height: 100dvh;
@@ -106,7 +105,7 @@
       justify-content: center;
       border-radius: 6px;
       border: 1px solid rgba(255, 255, 255, 0.18);
-      background: rgba(255, 255, 255, 0.04);
+      background: rgba(124, 198, 255, 0.10);
       opacity: 0.92;
       overflow: hidden;
       flex: 0 0 auto;
@@ -128,28 +127,6 @@
       font-weight: 900;
       font-size: 10px;
       letter-spacing: -0.02em;
-    }
-
-    /* Subtle tints per provider (neutral, not copying brand assets). */
-    #btn-google .auth-icon {
-      border-color: rgba(124, 198, 255, 0.26);
-      background: rgba(124, 198, 255, 0.10);
-    }
-    #btn-apple .auth-icon {
-      border-color: rgba(255, 255, 255, 0.20);
-      background: rgba(255, 255, 255, 0.06);
-    }
-    #btn-microsoft .auth-icon {
-      border-color: rgba(38, 196, 157, 0.26);
-      background: rgba(38, 196, 157, 0.10);
-    }
-    #btn-x .auth-icon {
-      border-color: rgba(255, 255, 255, 0.20);
-      background: rgba(255, 255, 255, 0.06);
-    }
-    #btn-discord .auth-icon {
-      border-color: rgba(159, 124, 255, 0.26);
-      background: rgba(159, 124, 255, 0.10);
     }
 
     .auth-msg {
@@ -197,59 +174,23 @@
   <main id="main" class="auth-card" aria-label="Sign in">
     <header class="auth-head">
       <a class="auth-brand" href="/" aria-label="YonerAI home">YonerAI</a>
-      <a class="auth-close" id="back-link" href="/chat" aria-label="Back" title="Back">
+      <a class="auth-close" id="back-link" href="/jp/chat" aria-label="Back" title="Back">
         <span aria-hidden="true">×</span>
       </a>
     </header>
 
     <h1 class="auth-title" data-i18n-en="Sign in" data-i18n-ja="ログイン">Sign in</h1>
-    <p class="auth-sub" data-i18n-en="Choose a provider to continue." data-i18n-ja="ログイン方法を選択してください。">Choose a provider to continue.</p>
+    <p class="auth-sub" data-i18n-en="Continue with Google to open your YonerAI chat." data-i18n-ja="Googleで続行して、YonerAIチャットを開きます。">Continue with Google to open your YonerAI chat.</p>
 
     <section class="auth-actions" id="provider-actions" aria-label="Providers">
-      <a class="console-btn primary" id="btn-google" href="/api/auth/google/start?returnTo=/chat">
+      <a class="console-btn primary" id="btn-google" href="/api/auth/google/start?returnTo=/jp/chat">
         <span class="auth-icon" aria-hidden="true">
           <svg viewBox="0 0 18 18" role="img" focusable="false" aria-hidden="true">
             <rect class="badge-bg" x="1" y="1" width="16" height="16" rx="5"></rect>
             <text class="badge-text" x="9" y="12.1" text-anchor="middle">G</text>
           </svg>
         </span>
-        <span class="auth-label" data-i18n-en="Sign in with Google" data-i18n-ja="Googleでサインイン">Sign in with Google</span>
-      </a>
-      <button class="console-btn" id="btn-apple" type="button">
-        <span class="auth-icon" aria-hidden="true">
-          <svg viewBox="0 0 18 18" role="img" focusable="false" aria-hidden="true">
-            <rect class="badge-bg" x="1" y="1" width="16" height="16" rx="5"></rect>
-            <text class="badge-text" x="9" y="12.1" text-anchor="middle">A</text>
-          </svg>
-        </span>
-        <span class="auth-label" data-i18n-en="Sign in with Apple" data-i18n-ja="Appleでサインイン">Sign in with Apple</span>
-      </button>
-      <a class="console-btn" id="btn-microsoft" href="/api/auth/microsoft/start?returnTo=/chat">
-        <span class="auth-icon" aria-hidden="true">
-          <svg viewBox="0 0 18 18" role="img" focusable="false" aria-hidden="true">
-            <rect class="badge-bg" x="1" y="1" width="16" height="16" rx="5"></rect>
-            <text class="badge-text" x="9" y="12.1" text-anchor="middle">MS</text>
-          </svg>
-        </span>
-        <span class="auth-label" data-i18n-en="Sign in with Microsoft" data-i18n-ja="Microsoftでサインイン">Sign in with Microsoft</span>
-      </a>
-      <a class="console-btn" id="btn-x" href="/api/auth/x/start?returnTo=/chat">
-        <span class="auth-icon" aria-hidden="true">
-          <svg viewBox="0 0 18 18" role="img" focusable="false" aria-hidden="true">
-            <rect class="badge-bg" x="1" y="1" width="16" height="16" rx="5"></rect>
-            <text class="badge-text" x="9" y="12.1" text-anchor="middle">X</text>
-          </svg>
-        </span>
-        <span class="auth-label" data-i18n-en="Sign in with X" data-i18n-ja="Xでサインイン">Sign in with X</span>
-      </a>
-      <a class="console-btn" id="btn-discord" href="/api/auth/discord/start?returnTo=/chat">
-        <span class="auth-icon" aria-hidden="true">
-          <svg viewBox="0 0 18 18" role="img" focusable="false" aria-hidden="true">
-            <rect class="badge-bg" x="1" y="1" width="16" height="16" rx="5"></rect>
-            <text class="badge-text" x="9" y="12.1" text-anchor="middle">D</text>
-          </svg>
-        </span>
-        <span class="auth-label" data-i18n-en="Sign in with Discord" data-i18n-ja="Discordでサインイン">Sign in with Discord</span>
+        <span class="auth-label" data-i18n-en="Continue with Google" data-i18n-ja="Googleで続行">Continue with Google</span>
       </a>
     </section>
 
@@ -274,38 +215,69 @@
       const authMsg = $("#auth-msg");
       const backLink = $("#back-link");
       const btnGoogle = $("#btn-google");
-      const btnApple = $("#btn-apple");
-      const btnDiscord = $("#btn-discord");
-      const btnMicrosoft = $("#btn-microsoft");
-      const btnX = $("#btn-x");
 
       const qp = new URLSearchParams(window.location.search);
       const linkCode = (qp.get("link_code") || qp.get("linkCode") || "").trim();
-      const providerHint = (qp.get("provider") || "").trim().toLowerCase();
       const authError = (qp.get("auth_error") || "").trim();
       const authHint = (qp.get("auth_hint") || "").trim();
 
+      function normalizeLang(value) {
+        return String(value || "").toLowerCase().startsWith("ja") ? "ja" : "en";
+      }
+
+      function detectLang() {
+        const langParam = qp.get("lang");
+        if (langParam) return normalizeLang(langParam);
+        const cookieMatch = document.cookie.match(/(?:^|;\s*)yonerai_lang=([^;]+)/);
+        if (cookieMatch && cookieMatch[1]) {
+          try {
+            return normalizeLang(decodeURIComponent(cookieMatch[1]));
+          } catch (_e) {
+            return normalizeLang(cookieMatch[1]);
+          }
+        }
+        const langs = Array.isArray(navigator.languages) && navigator.languages.length
+          ? navigator.languages
+          : [navigator.language || "en"];
+        return langs.some((x) => String(x).toLowerCase().startsWith("ja")) ? "ja" : "en";
+      }
+
       function isJa() {
-        return (document.documentElement.lang || "en").toLowerCase().startsWith("ja");
+        return detectLang() === "ja";
+      }
+
+      function localePrefix() {
+        return isJa() ? "/jp" : "/en";
+      }
+
+      function resolveAuthBase() {
+        const host = String(window.location.hostname || "").toLowerCase();
+        const proto = String(window.location.protocol || "https:");
+        if (host === "yonerai.com" || host === "www.yonerai.com") {
+          return `${proto}//api.yonerai.com`;
+        }
+        return `${proto}//${window.location.host}`;
       }
 
       function safeNextPath(value) {
         const raw = String(value || "").trim();
-        if (!raw) return "/chat";
-        if (!raw.startsWith("/") || raw.startsWith("//")) return "/chat";
-        if (raw.includes("\\") || raw.includes("\n") || raw.includes("\r")) return "/chat";
-        if (raw.length > 2048) return "/chat";
+        const fallback = `${localePrefix()}/chat`;
+        if (!raw) return fallback;
+        if (!raw.startsWith("/") || raw.startsWith("//")) return fallback;
+        if (raw.includes("\\") || raw.includes("\n") || raw.includes("\r")) return fallback;
+        if (raw.length > 2048) return fallback;
         return raw;
       }
 
-      const nextPath = safeNextPath(qp.get("returnTo") || qp.get("next") || "/chat");
+      const nextPath = safeNextPath(qp.get("returnTo") || qp.get("next") || `${localePrefix()}/chat`);
 
       function setHref(anchor, url, includeLinkCode) {
         try {
-          const u = new URL(url, window.location.origin);
+          const u = new URL(url, resolveAuthBase());
           u.searchParams.set("returnTo", nextPath);
           if (includeLinkCode && linkCode) u.searchParams.set("link_code", linkCode);
-          anchor.setAttribute("href", `${u.pathname}${u.search}`);
+          const sameOrigin = u.origin === window.location.origin;
+          anchor.setAttribute("href", sameOrigin ? `${u.pathname}${u.search}` : `${u.origin}${u.pathname}${u.search}`);
         } catch (_e) {
           // ignore
         }
@@ -320,107 +292,15 @@
         authMsg.textContent = `${base} ${hint}`.trim();
       }
 
-      async function initApple() {
-        try {
-          const r = await fetch("/api/auth/providers");
-          const providers = await r.json();
-          if (!providers.apple || !providers.apple.enabled || !providers.apple.client_id) {
-            btnApple.disabled = true;
-            return;
-          }
-          if (!window.AppleID || !window.AppleID.auth) {
-            btnApple.disabled = true;
-            return;
-          }
-          window.AppleID.auth.init({
-            clientId: providers.apple.client_id,
-            scope: "name email",
-            usePopup: true,
-          });
-        } catch (_e) {
-          btnApple.disabled = true;
-        }
-      }
-
-      async function doAppleLogin() {
-        authMsg.textContent = "";
-        if (!window.AppleID || !window.AppleID.auth) {
-          authMsg.textContent = isJa() ? "Appleログインは利用できません。" : "Apple login is not available.";
-          return;
-        }
-        try {
-          const result = await window.AppleID.auth.signIn();
-          const idToken = result && result.authorization ? result.authorization.id_token : null;
-          if (!idToken) {
-            authMsg.textContent = isJa() ? "Appleトークンが取得できませんでした。" : "Apple token was not returned.";
-            return;
-          }
-          const res = await fetch("/api/auth/apple/token", {
-            method: "POST",
-            credentials: "include",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ id_token: idToken, link_code: linkCode || null, next: nextPath || "/chat" }),
-          });
-          const data = await res.json();
-          if (!res.ok) {
-            authMsg.textContent = data.detail || (isJa() ? "Appleログインに失敗しました。" : "Apple login failed.");
-            return;
-          }
-          window.location.assign(data.next || "/chat");
-        } catch (_e) {
-          authMsg.textContent = isJa() ? "Appleログインがキャンセルされました。" : "Apple login canceled or failed.";
-        }
-      }
-
-      async function initProviders() {
-        // Set defaults (keep link_code for non-Discord providers).
-        setHref(btnGoogle, "/api/auth/google/start", true);
-        setHref(btnDiscord, "/api/auth/discord/start", false);
-        setHref(btnMicrosoft, "/api/auth/microsoft/start", true);
-        setHref(btnX, "/api/auth/x/start", true);
-
-        try {
-          const r = await fetch("/api/auth/providers");
-          const providers = await r.json();
-          if (!providers.google || !providers.google.enabled) btnGoogle.hidden = true;
-          if (!providers.discord || !providers.discord.enabled) btnDiscord.hidden = true;
-          if (!providers.microsoft || !providers.microsoft.enabled) btnMicrosoft.hidden = true;
-          if (!providers.x || !providers.x.enabled) btnX.hidden = true;
-          if (!providers.apple || !providers.apple.enabled) btnApple.hidden = true;
-        } catch (_e) {
-          // ignore
-        }
-      }
-
-      function applyProviderHint() {
-        const map = {
-          google: btnGoogle,
-          apple: btnApple,
-          discord: btnDiscord,
-          microsoft: btnMicrosoft,
-          x: btnX,
-        };
-        const node = map[providerHint];
-        if (!node || node.hidden) return;
-        try {
-          node.focus({ preventScroll: true });
-        } catch (_e) {
-          // ignore
-        }
-      }
-
       backLink.setAttribute("href", nextPath);
-      btnApple.addEventListener("click", doAppleLogin);
-
-      (async () => {
-        showAuthError();
-        await initProviders();
-        await initApple();
-        applyProviderHint();
-      })();
+      setHref(btnGoogle, "/api/auth/google/start", true);
+      showAuthError();
+      try {
+        btnGoogle.focus({ preventScroll: true });
+      } catch (_e) {
+        // ignore
+      }
     })();
   </script>
 </body>
 </html>
-
-
