@@ -40,6 +40,11 @@ def _attach_session_cookie(client: TestClient, *, user_id: str = "web:test-user"
     return user_id
 
 
+def _enable_guest_chat(monkeypatch) -> None:
+    monkeypatch.setenv("ORA_WEB_GUEST_CHAT", "1")
+    monkeypatch.setattr(endpoints, "_can_use_unauthenticated_loopback", lambda _request: True)
+
+
 def test_managed_cloud_pages_render():
     with TestClient(app) as client:
         root = client.get("/")
@@ -95,6 +100,25 @@ def test_auth_me_requires_session_then_returns_identity():
         assert data["provider"] == "google"
 
 
+def test_auth_me_issues_guest_session_on_loopback(monkeypatch):
+    _enable_guest_chat(monkeypatch)
+
+    with TestClient(app) as client:
+        first = client.get("/api/auth/me", headers={"accept-language": "ja"})
+        assert first.status_code == 200
+        guest_a = first.json()
+        assert guest_a["provider"] == "guest"
+        assert guest_a["guest"] is True
+        assert guest_a["display_name"] == "ゲスト"
+        assert guest_a["user_id"].startswith("web:guest:")
+
+        second = client.get("/api/auth/me", headers={"accept-language": "ja"})
+        assert second.status_code == 200
+        guest_b = second.json()
+        assert guest_b["user_id"] == guest_a["user_id"]
+        assert guest_b["provider"] == "guest"
+
+
 def test_public_chat_message_uses_session_actor(monkeypatch):
     endpoints._RUN_QUEUES.clear()
     endpoints._RUN_TOOL_OUTPUTS.clear()
@@ -120,6 +144,37 @@ def test_public_chat_message_uses_session_actor(monkeypatch):
         assert response.status_code == 200
         assert response.json()["run_id"] == "run-public-1"
         assert endpoints._RUN_OWNERS["run-public-1"] == "web:test-user"
+
+
+def test_public_chat_message_allows_guest_session(monkeypatch):
+    endpoints._RUN_QUEUES.clear()
+    endpoints._RUN_TOOL_OUTPUTS.clear()
+    endpoints._RUN_OWNERS.clear()
+    endpoints._PUBLIC_CHAT_IDEMPOTENCY.clear()
+    _enable_guest_chat(monkeypatch)
+
+    seen: dict[str, str] = {}
+
+    def fake_start_agent_run(*, content: str, available_tools, provider_id: str, attachments, runtime_kind: str = "default"):
+        seen["provider_id"] = provider_id
+        return "run-guest-1"
+
+    monkeypatch.setattr(endpoints, "_start_agent_run", fake_start_agent_run)
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/public/chat/messages",
+            json={"content": "hello guest", "idempotency_key": "guest-123"},
+            headers={"Idempotency-Key": "guest-123"},
+        )
+        assert response.status_code == 200
+        assert response.json()["run_id"] == "run-guest-1"
+        assert seen["provider_id"].startswith("web:guest:")
+        assert endpoints._RUN_OWNERS["run-guest-1"] == seen["provider_id"]
+
+        me = client.get("/api/auth/me")
+        assert me.status_code == 200
+        assert me.json()["user_id"] == seen["provider_id"]
 
 
 def test_public_chat_events_require_owner():

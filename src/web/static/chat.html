@@ -71,15 +71,15 @@
 
         <div id="auth-guest">
           <div class="console-user">
-            <div class="console-user-label" data-i18n-en="Sign in to chat" data-i18n-ja="ログインしてチャット">Sign in to chat
+            <div class="console-user-label" data-i18n-en="Start instantly" data-i18n-ja="すぐに始める">Start instantly
             </div>
             <div class="console-user-sub"
-              data-i18n-en="Continue with Google to open your YonerAI chat."
-              data-i18n-ja="Googleで続行して、YonerAIチャットを開きます。">Continue with Google to open your YonerAI chat.</div>
+              data-i18n-en="You can start in guest mode now and connect Google later if you want to keep your history."
+              data-i18n-ja="いまはゲストですぐに始められます。履歴を引き継ぎたいときだけ後からGoogle連携できます。">You can start in guest mode now and connect Google later if you want to keep your history.</div>
           </div>
           <div class="console-auth-actions">
-            <a class="console-btn primary" id="google-login" href="/auth/login?returnTo=/jp/chat" data-i18n-en="Sign in"
-              data-i18n-ja="ログイン">Sign in</a>
+            <a class="console-btn primary" id="google-login" href="/auth/login?returnTo=/jp/chat" data-i18n-en="Connect Google"
+              data-i18n-ja="Google連携">Connect Google</a>
           </div>
           <p class="console-auth-msg" id="auth-msg" aria-live="polite"></p>
         </div>
@@ -117,9 +117,8 @@
         <div id="chat-empty" class="chat-empty" hidden>
           <h1 data-i18n-en="What can I help with?" data-i18n-ja="何をお手伝いしましょうか？">What can I help with?</h1>
           <p class="muted"
-            data-i18n-en="Sign in, then start a conversation. The browser keeps a local copy for the UI, and the server stores conversation history to provide the service."
-            data-i18n-ja="ログインして会話を開始できます。UIのためにブラウザ内にもローカル保存され、サービス提供のためサーバ側にも会話履歴が保存されます。">Sign in, then start a
-            conversation. The browser keeps a local copy for the UI, and the server stores conversation history to
+            data-i18n-en="You can start chatting right away. The browser keeps a local copy for the UI, and the server stores conversation history to provide the service."
+            data-i18n-ja="そのまま会話を始められます。UIのためにブラウザ内にもローカル保存され、サービス提供のためサーバ側にも会話履歴が保存されます。">You can start chatting right away. The browser keeps a local copy for the UI, and the server stores conversation history to
             provide the service.</p>
         </div>
 
@@ -1224,6 +1223,12 @@
         }
       }
 
+      async function ensureSessionForChat() {
+        if (me && me.user_id) return true;
+        await loadMe();
+        return !!(me && me.user_id);
+      }
+
       function showAuthError() {
         if (!authError) {
           authMsg.textContent = "";
@@ -1513,7 +1518,7 @@
       }
 
       async function runChat(text) {
-        if (!me || !me.user_id) {
+        if (!(await ensureSessionForChat())) {
           promptLoginForChat(text);
           return;
         }
@@ -1870,7 +1875,7 @@
           ev.preventDefault();
           const text = (chatInput.value || "").trim();
           if (!text && (!Array.isArray(pendingAttachments) || pendingAttachments.length === 0)) return;
-          if (!(me && me.user_id)) {
+          if (!(await ensureSessionForChat())) {
             promptLoginForChat(text);
             return;
           }

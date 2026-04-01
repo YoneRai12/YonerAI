@@ -18,7 +18,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlencode, urlsplit, urlunsplit
 
 from fastapi import APIRouter, HTTPException, Request, Response, WebSocket, WebSocketDisconnect, Depends, Header, Query
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel, Field
 from google.auth.transport import requests as g_requests
 from google.oauth2 import id_token
@@ -497,6 +497,71 @@ async def _resolve_session_from_request(request: Request) -> dict[str, Any] | No
     return await _resolve_session_by_token(token)
 
 
+def _guest_chat_enabled(request: Request) -> bool:
+    if not _bool_env("ORA_WEB_GUEST_CHAT", False):
+        return False
+    return _can_use_unauthenticated_loopback(request)
+
+
+def _legacy_guest_display_name(request: Request) -> str:
+    accept_lang = (request.headers.get("accept-language") or "").lower()
+    return "ゲスト" if "ja" in accept_lang else "Guest"
+
+
+async def _legacy_issue_guest_session(
+    *,
+    request: Request,
+    response: Response | None = None,
+) -> dict[str, Any]:
+    user_id = f"web:guest:{secrets.token_hex(8)}"
+    await _attach_web_session_cookie(
+        request=request,
+        response=response,
+        user_id=user_id,
+        provider="guest",
+    )
+    return {
+        "authenticated": False,
+        "user_id": user_id,
+        "provider": "guest",
+        "display_name": _guest_display_name(request),
+        "avatar_url": None,
+        "identities": [],
+        "guest": True,
+    }
+
+
+def _guest_display_name(request: Request) -> str:
+    accept_lang = (request.headers.get("accept-language") or "").lower()
+    return "ゲスト" if "ja" in accept_lang else "Guest"
+
+
+async def _issue_guest_session(
+    *,
+    request: Request,
+    response: Response | None = None,
+) -> dict[str, Any]:
+    user_id = f"web:guest:{secrets.token_hex(8)}"
+    display_name = _guest_display_name(request)
+    await get_store().ensure_user_id(user_id=user_id, display_name=display_name)
+    if response is not None:
+        await _attach_web_session_cookie(
+            request=request,
+            response=response,
+            user_id=user_id,
+            provider="guest",
+        )
+    return {
+        "authenticated": False,
+        "user_id": user_id,
+        "provider": "guest",
+        "display_name": display_name,
+        "avatar_url": None,
+        "identities": [],
+        "guest": True,
+    }
+
+
 async def require_user_session(request: Request) -> dict[str, Any]:
     session = await _resolve_session_from_request(request)
     if not session:
@@ -537,7 +602,6 @@ async def _attach_web_session_cookie(
         secure=_is_https_request(request),
         samesite="Lax",
     )
-
 
 def _build_google_flow(*, request: Request, state: str | None = None, code_verifier: str | None = None) -> Flow:
     redirect_uri = _redirect_uri_from_env_or_request(
@@ -1194,13 +1258,23 @@ def _public_chat_idempotency_key(request: Request, body: PublicChatMessageReques
 async def create_public_chat_message(
     body: PublicChatMessageRequest,
     request: Request,
-    actor: dict[str, Any] = Depends(require_actor),
 ):
     prompt = (body.content or "").strip()
     if not prompt:
         raise HTTPException(status_code=400, detail="content is required")
 
-    user_id = str(actor.get("user_id") or "").strip()
+    session = await _resolve_session_from_request(request)
+    guest_payload: dict[str, Any] | None = None
+    if not session:
+        if not _guest_chat_enabled(request):
+            raise HTTPException(status_code=401, detail="Authentication required")
+        guest_payload = await _issue_guest_session(request=request)
+        session = {
+            "user_id": str(guest_payload.get("user_id") or ""),
+            "provider": str(guest_payload.get("provider") or "guest"),
+        }
+
+    user_id = str(session.get("user_id") or "").strip()
     if not user_id:
         raise HTTPException(status_code=401, detail="Authentication required")
 
@@ -1209,7 +1283,15 @@ async def create_public_chat_message(
         cached = _PUBLIC_CHAT_IDEMPOTENCY.get((user_id, idempotency_key))
         cached_run_id = str((cached or {}).get("run_id") or "")
         if cached_run_id and cached_run_id in _RUN_QUEUES:
-            return {"run_id": cached_run_id, "status": "started", "idempotent_replay": True}
+            response = JSONResponse({"run_id": cached_run_id, "status": "started", "idempotent_replay": True})
+            if guest_payload is not None:
+                await _attach_web_session_cookie(
+                    request=request,
+                    response=response,
+                    user_id=user_id,
+                    provider="guest",
+                )
+            return response
 
     started_at = time.time()
     request_bytes = len(prompt.encode("utf-8", errors="ignore"))
@@ -1239,19 +1321,30 @@ async def create_public_chat_message(
     except Exception:
         logger.exception("record_api_usage failed for public chat message")
 
-    return {"run_id": run_id, "status": "started", "idempotent_replay": False}
+    response = JSONResponse({"run_id": run_id, "status": "started", "idempotent_replay": False})
+    if guest_payload is not None:
+        await _attach_web_session_cookie(
+            request=request,
+            response=response,
+            user_id=user_id,
+            provider="guest",
+        )
+    return response
 
 
 @router.get("/public/chat/runs/{run_id}/events")
 async def get_public_chat_events(
     run_id: str,
     request: Request,
-    actor: dict[str, Any] = Depends(require_actor),
 ):
+    session = await _resolve_session_from_request(request)
+    if not session:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
     owner_id = str(_RUN_OWNERS.get(run_id) or "")
     if not owner_id:
         raise HTTPException(status_code=404, detail="Run not found")
-    if owner_id != str(actor.get("user_id") or ""):
+    if owner_id != str(session.get("user_id") or ""):
         raise HTTPException(status_code=403, detail="Run is not owned by current user")
 
     async def event_generator():
@@ -1487,7 +1580,21 @@ async def auth_google_callback(request: Request, code: str, state: str | None = 
 
 
 @router.get("/auth/me")
-async def auth_me(session: dict[str, Any] = Depends(require_user_session)):
+async def auth_me(request: Request):
+    session = await _resolve_session_from_request(request)
+    if not session:
+        if not _guest_chat_enabled(request):
+            raise HTTPException(status_code=401, detail="Authentication required")
+        guest = await _issue_guest_session(request=request)
+        response = JSONResponse(guest)
+        await _attach_web_session_cookie(
+            request=request,
+            response=response,
+            user_id=str(guest["user_id"]),
+            provider="guest",
+        )
+        return response
+
     store = get_store()
     identities = await store.list_user_identities(user_id=str(session["user_id"]))
     display_name = None
