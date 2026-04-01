@@ -126,7 +126,7 @@
 
         <form id="chat-form" class="chat-compose" autocomplete="off">
           <div class="compose-wrap">
-            <textarea id="chat-input" class="compose-input" rows="1" required data-placeholder-en="Message YonerAI…"
+            <textarea id="chat-input" class="compose-input" rows="1" maxlength="5000" required data-placeholder-en="Message YonerAI…"
               data-placeholder-ja="YonerAIにメッセージ…" placeholder="Message YonerAI…"></textarea>
             <div class="compose-toolbar">
               <div class="compose-actions">
@@ -144,9 +144,12 @@
             <input id="chat-attach-input" type="file" accept="image/jpeg,image/png,image/webp" multiple hidden />
           </div>
           <div id="chat-attachments-preview" class="compose-attachments" hidden></div>
-          <div class="compose-note muted"
-            data-i18n-en="Enter adds a new line. Ctrl + Enter sends the message."
-            data-i18n-ja="Enterで改行、Ctrl + Enterで送信します。">Enter adds a new line. Ctrl + Enter sends the message.</div>
+          <div class="compose-meta">
+            <div class="compose-note muted"
+              data-i18n-en="Up to 5,000 characters and 4 images. Enter adds a new line. Ctrl + Enter sends the message."
+              data-i18n-ja="最大5000文字、画像は4枚まで。Enterで改行、Ctrl + Enterで送信します。">Up to 5,000 characters and 4 images. Enter adds a new line. Ctrl + Enter sends the message.</div>
+            <div id="compose-counter" class="compose-counter" aria-live="polite">0 / 5000</div>
+          </div>
         </form>
       </section>
     </main>
@@ -181,6 +184,7 @@
       const chatAttachBtn = $("#chat-attach-btn");
       const chatAttachInput = $("#chat-attach-input");
       const chatAttachmentsPreview = $("#chat-attachments-preview");
+      const composeCounter = $("#compose-counter");
       const usagePill = $("#usage-pill");
       const chatStatus = $("#chat-status");
       const chatStatusText = $("#chat-status-text");
@@ -213,6 +217,7 @@
       const ATTACHMENT_ALLOWED_MIME = new Set(["image/jpeg", "image/png", "image/webp"]);
       const ATTACHMENT_ALLOWED_EXT = [".jpg", ".jpeg", ".png", ".webp"];
       const ATTACHMENT_MAX_COUNT = 4;
+      const CHAT_INPUT_MAX_CHARS = 5000;
 
       function isJa() {
         return (document.documentElement.lang || "en").toLowerCase().startsWith("ja");
@@ -1001,7 +1006,7 @@
         chatInput.disabled = Boolean(inflight);
         chatForm.classList.toggle("is-guest", !authed);
         if (chatAttachBtn) {
-          chatAttachBtn.disabled = !authed || Boolean(inflight);
+          chatAttachBtn.disabled = Boolean(inflight);
           chatAttachBtn.setAttribute("aria-disabled", chatAttachBtn.disabled ? "true" : "false");
         }
         updateComposeState();
@@ -1380,6 +1385,14 @@
             ? (sendLabel.dataset.i18nJa || "送信")
             : (sendLabel.dataset.i18nEn || "Send");
         }
+        updateComposeCounter();
+      }
+
+      function updateComposeCounter() {
+        if (!composeCounter || !chatInput) return;
+        const current = Math.min(CHAT_INPUT_MAX_CHARS, String(chatInput.value || "").length);
+        composeCounter.textContent = `${current} / ${CHAT_INPUT_MAX_CHARS}`;
+        composeCounter.classList.toggle("is-near-limit", current >= Math.floor(CHAT_INPUT_MAX_CHARS * 0.9));
       }
 
       function updateComposeState() {
@@ -1392,8 +1405,10 @@
         chatForm.classList.toggle("is-guest", !authed);
         chatSend.disabled = busy || (!hasText && !hasAttachments);
         if (chatAttachBtn) {
-          chatAttachBtn.disabled = !authed || busy;
+          chatAttachBtn.disabled = busy;
+          chatAttachBtn.setAttribute("aria-disabled", chatAttachBtn.disabled ? "true" : "false");
         }
+        updateComposeCounter();
       }
 
       function promptLoginForChat(prefill) {
@@ -1529,6 +1544,25 @@
         if (!next.length) return;
         pendingAttachments = pendingAttachments.concat(next);
         renderAttachmentPreview();
+      }
+
+      function addPendingClipboardImages(items) {
+        if (!items || typeof items.length !== "number") return false;
+        const files = [];
+        for (const item of Array.from(items)) {
+          if (!item || item.kind !== "file") continue;
+          const type = String(item.type || "").trim().toLowerCase();
+          if (!type.startsWith("image/")) continue;
+          try {
+            const file = item.getAsFile();
+            if (file) files.push(file);
+          } catch (_e) {
+            // ignore clipboard extraction failure
+          }
+        }
+        if (!files.length) return false;
+        addPendingFiles(files);
+        return true;
       }
 
       function clearPendingAttachments() {
@@ -1931,8 +1965,20 @@
         }
 
         chatInput.addEventListener("input", () => {
+          if ((chatInput.value || "").length > CHAT_INPUT_MAX_CHARS) {
+            chatInput.value = String(chatInput.value || "").slice(0, CHAT_INPUT_MAX_CHARS);
+          }
           autosizeTextarea();
           updateComposeState();
+        });
+
+        chatInput.addEventListener("paste", (ev) => {
+          const clipboard = ev.clipboardData;
+          if (!clipboard || !clipboard.items || !clipboard.items.length) return;
+          if (addPendingClipboardImages(clipboard.items)) {
+            ev.preventDefault();
+            updateComposeState();
+          }
         });
 
         chatInput.addEventListener("keydown", (ev) => {
@@ -2007,6 +2053,7 @@
         await refreshUsage();
         await loadMe();
         autosizeTextarea();
+        updateComposeCounter();
       })();
     })();
   </script>

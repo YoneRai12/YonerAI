@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import os
 import secrets
 
@@ -12,6 +13,10 @@ os.environ["ORA_DISABLE_WEB_BG_TASKS"] = "1"
 
 from src.web import endpoints
 from src.web.app import app, get_store
+
+_TINY_PNG = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO7Z0MsAAAAASUVORK5CYII="
+)
 
 
 def _attach_session_cookie(client: TestClient, *, user_id: str = "web:test-user") -> str:
@@ -125,9 +130,11 @@ def test_public_chat_message_uses_session_actor(monkeypatch):
     endpoints._RUN_OWNERS.clear()
     endpoints._PUBLIC_CHAT_IDEMPOTENCY.clear()
 
+    seen: dict[str, object] = {}
+
     def fake_start_agent_run(*, content: str, available_tools, provider_id: str, attachments, conversation_id=None, runtime_kind: str = "default"):
         assert content == "hello"
-        assert provider_id == "web:test-user"
+        seen["provider_id"] = provider_id
         assert available_tools == []
         assert isinstance(conversation_id, str)
         assert runtime_kind == "managed_cloud_web"
@@ -136,7 +143,7 @@ def test_public_chat_message_uses_session_actor(monkeypatch):
     monkeypatch.setattr(endpoints, "_start_agent_run", fake_start_agent_run)
 
     with TestClient(app) as client:
-        _attach_session_cookie(client)
+        user_id = _attach_session_cookie(client, user_id=f"web:test-user:{secrets.token_hex(4)}")
         response = client.post(
             "/api/public/chat/messages",
             json={"content": "hello", "idempotency_key": "abc-123"},
@@ -144,7 +151,8 @@ def test_public_chat_message_uses_session_actor(monkeypatch):
         )
         assert response.status_code == 200
         assert response.json()["run_id"] == "run-public-1"
-        assert endpoints._RUN_OWNERS["run-public-1"] == "web:test-user"
+        assert seen["provider_id"] == user_id
+        assert endpoints._RUN_OWNERS["run-public-1"] == user_id
 
 
 def test_public_chat_message_allows_guest_session(monkeypatch):
@@ -177,6 +185,99 @@ def test_public_chat_message_allows_guest_session(monkeypatch):
         me = client.get("/api/auth/me")
         assert me.status_code == 200
         assert me.json()["user_id"] == seen["provider_id"]
+
+
+def test_public_chat_upload_accepts_guest_images(monkeypatch):
+    endpoints._PUBLIC_CHAT_ATTACHMENTS.clear()
+    _enable_guest_chat(monkeypatch)
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/public/attachments/upload",
+            files=[("files", ("tiny.png", _TINY_PNG, "image/png"))],
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["max_count"] == 4
+        assert len(data["attachments"]) == 1
+        item = data["attachments"][0]
+        assert item["mime_type"] == "image/png"
+        assert item["size"] == len(_TINY_PNG)
+        attachment_id = item["attachment_id"]
+        assert attachment_id in endpoints._PUBLIC_CHAT_ATTACHMENTS
+
+
+def test_public_chat_upload_rejects_more_than_four_images(monkeypatch):
+    endpoints._PUBLIC_CHAT_ATTACHMENTS.clear()
+    _enable_guest_chat(monkeypatch)
+
+    with TestClient(app) as client:
+        files = [("files", (f"tiny-{idx}.png", _TINY_PNG, "image/png")) for idx in range(5)]
+        response = client.post("/api/public/attachments/upload", files=files)
+        assert response.status_code == 400
+        detail = response.json()["detail"]
+        assert detail["code"] == "ATTACHMENT_TOO_MANY"
+        assert detail["max_count"] == 4
+
+
+def test_public_chat_message_rejects_content_over_5000(monkeypatch):
+    endpoints._RUN_QUEUES.clear()
+    endpoints._RUN_TOOL_OUTPUTS.clear()
+    endpoints._RUN_OWNERS.clear()
+    endpoints._PUBLIC_CHAT_IDEMPOTENCY.clear()
+    _enable_guest_chat(monkeypatch)
+
+    response = TestClient(app).post(
+        "/api/public/chat/messages",
+        json={"content": "a" * 5001},
+    )
+    assert response.status_code == 400
+    detail = response.json()["detail"]
+    assert detail["code"] == "CHAT_CONTENT_TOO_LONG"
+    assert detail["max_chars"] == 5000
+
+
+def test_public_chat_message_resolves_uploaded_image_refs(monkeypatch):
+    endpoints._RUN_QUEUES.clear()
+    endpoints._RUN_TOOL_OUTPUTS.clear()
+    endpoints._RUN_OWNERS.clear()
+    endpoints._PUBLIC_CHAT_IDEMPOTENCY.clear()
+    endpoints._PUBLIC_CHAT_ATTACHMENTS.clear()
+    _enable_guest_chat(monkeypatch)
+
+    seen: dict[str, object] = {}
+
+    def fake_start_agent_run(*, content: str, available_tools, provider_id: str, attachments, conversation_id=None, runtime_kind: str = "default"):
+        seen["content"] = content
+        seen["attachments"] = attachments
+        seen["provider_id"] = provider_id
+        return "run-vision-1"
+
+    monkeypatch.setattr(endpoints, "_start_agent_run", fake_start_agent_run)
+
+    with TestClient(app) as client:
+        upload = client.post(
+            "/api/public/attachments/upload",
+            files=[("files", ("tiny.png", _TINY_PNG, "image/png"))],
+        )
+        assert upload.status_code == 200
+        attachment_id = upload.json()["attachments"][0]["attachment_id"]
+
+        response = client.post(
+            "/api/public/chat/messages",
+            json={
+                "content": "",
+                "attachments": [{"type": "image_ref", "attachment_id": attachment_id}],
+            },
+        )
+        assert response.status_code == 200
+        assert response.json()["run_id"] == "run-vision-1"
+        assert seen["content"] == ""
+        resolved = seen["attachments"]
+        assert isinstance(resolved, list)
+        assert len(resolved) == 1
+        assert resolved[0]["type"] == "image_url"
+        assert str(resolved[0]["image_url"]["url"]).startswith("data:image/png;base64,")
 
 
 def test_public_chat_usage_reports_google_limit():
@@ -354,7 +455,7 @@ def test_public_chat_message_binds_conversation_id(monkeypatch):
     monkeypatch.setattr(endpoints, "_start_agent_run", fake_start_agent_run)
 
     with TestClient(app) as client:
-        _attach_session_cookie(client)
+        user_id = _attach_session_cookie(client, user_id=f"web:test-user:{secrets.token_hex(4)}")
         response = client.post(
             "/api/public/chat/messages",
             json={"content": "hello", "conversation_id": "thread-123"},
@@ -363,7 +464,7 @@ def test_public_chat_message_binds_conversation_id(monkeypatch):
         payload = response.json()
         assert payload["run_id"] == "run-conv-1"
         assert payload["conversation_id"] == "thread-123"
-        assert seen["provider_id"] == "web:test-user"
+        assert seen["provider_id"] == user_id
         assert seen["conversation_id"] == "thread-123"
 
 

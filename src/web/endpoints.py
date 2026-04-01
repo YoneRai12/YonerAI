@@ -1420,6 +1420,133 @@ class PublicChatTitleRequest(BaseModel):
     lang: str | None = None
 
 
+_PUBLIC_CHAT_MAX_CHARS = 5000
+_PUBLIC_CHAT_MAX_ATTACHMENTS = 4
+_PUBLIC_CHAT_ATTACHMENT_ALLOWED_MIME = {
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+}
+_PUBLIC_CHAT_ATTACHMENT_MAX_BYTES = 8 * 1024 * 1024
+_PUBLIC_CHAT_ATTACHMENT_TTL_SEC = 30 * 60
+_PUBLIC_CHAT_ATTACHMENTS: dict[str, dict[str, Any]] = {}
+
+
+def _public_chat_error(*, code: str, reason_code: str, message: str, status_code: int = 400, **extra: Any) -> HTTPException:
+    detail = {"code": code, "reason_code": reason_code, "message": message}
+    if extra:
+        detail.update(extra)
+    return HTTPException(status_code=status_code, detail=detail)
+
+
+def _public_chat_cleanup_attachments() -> None:
+    now = int(time.time())
+    expired = [
+        attachment_id
+        for attachment_id, meta in _PUBLIC_CHAT_ATTACHMENTS.items()
+        if int(meta.get("expires_at") or 0) <= now
+    ]
+    for attachment_id in expired:
+        _PUBLIC_CHAT_ATTACHMENTS.pop(attachment_id, None)
+
+
+def _public_chat_validate_prompt(content: str, *, attachment_count: int) -> str:
+    raw = str(content or "")
+    if len(raw) > _PUBLIC_CHAT_MAX_CHARS:
+        raise _public_chat_error(
+            code="CHAT_CONTENT_TOO_LONG",
+            reason_code="chat_content_too_long",
+            message="Message is too long",
+            max_chars=_PUBLIC_CHAT_MAX_CHARS,
+            actual_chars=len(raw),
+        )
+    prompt = raw.strip()
+    if not prompt and attachment_count <= 0:
+        raise HTTPException(status_code=400, detail="content is required")
+    return prompt
+
+
+def _public_chat_validate_attachment_count(attachments: list[Any] | None) -> list[Any]:
+    normalized = list(attachments or [])
+    if len(normalized) > _PUBLIC_CHAT_MAX_ATTACHMENTS:
+        raise _public_chat_error(
+            code="ATTACHMENT_TOO_MANY",
+            reason_code="attachment_too_many",
+            message="Too many attachments",
+            max_count=_PUBLIC_CHAT_MAX_ATTACHMENTS,
+            received=len(normalized),
+        )
+    return normalized
+
+
+def _public_chat_guess_mime(*, filename: str, content_type: str) -> str:
+    normalized_type = str(content_type or "").strip().lower()
+    if normalized_type in _PUBLIC_CHAT_ATTACHMENT_ALLOWED_MIME:
+        return normalized_type
+    lowered_name = str(filename or "").strip().lower()
+    if lowered_name.endswith((".jpg", ".jpeg")):
+        return "image/jpeg"
+    if lowered_name.endswith(".png"):
+        return "image/png"
+    if lowered_name.endswith(".webp"):
+        return "image/webp"
+    return normalized_type
+
+
+def _public_chat_resolve_attachments(*, user_id: str, attachments: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
+    normalized = _public_chat_validate_attachment_count(attachments)
+    if not normalized:
+        return []
+    _public_chat_cleanup_attachments()
+
+    resolved: list[dict[str, Any]] = []
+    now = int(time.time())
+    for att in normalized:
+        if not isinstance(att, dict):
+            raise _public_chat_error(
+                code="ATTACHMENT_INVALID_PAYLOAD",
+                reason_code="attachment_invalid_payload",
+                message="Attachment payload is invalid",
+            )
+        att_type = str(att.get("type") or "").strip().lower()
+        attachment_id = str(att.get("attachment_id") or "").strip()
+        if att_type != "image_ref" or not attachment_id:
+            raise _public_chat_error(
+                code="ATTACHMENT_INVALID_PAYLOAD",
+                reason_code="attachment_invalid_payload",
+                message="Attachment payload is invalid",
+            )
+
+        meta = _PUBLIC_CHAT_ATTACHMENTS.get(attachment_id)
+        if not meta:
+            raise _public_chat_error(
+                code="ATTACHMENT_EXPIRED",
+                reason_code="attachment_expired",
+                message="Attachment expired",
+            )
+        if str(meta.get("user_id") or "") != str(user_id):
+            raise _public_chat_error(
+                code="ATTACHMENT_INVALID_PAYLOAD",
+                reason_code="attachment_invalid_payload",
+                message="Attachment payload is invalid",
+            )
+        if int(meta.get("expires_at") or 0) <= now:
+            _PUBLIC_CHAT_ATTACHMENTS.pop(attachment_id, None)
+            raise _public_chat_error(
+                code="ATTACHMENT_EXPIRED",
+                reason_code="attachment_expired",
+                message="Attachment expired",
+            )
+
+        resolved.append(
+            {
+                "type": "image_url",
+                "image_url": {"url": str(meta.get("data_url") or "")},
+            }
+        )
+    return resolved
+
+
 def _public_chat_idempotency_key(request: Request, body: PublicChatMessageRequest) -> str:
     header_key = (request.headers.get("Idempotency-Key") or request.headers.get("X-Idempotency-Key") or "").strip()
     body_key = (body.idempotency_key or "").strip()
@@ -1564,14 +1691,115 @@ async def get_public_chat_usage(request: Request):
     return response
 
 
+@router.post("/public/attachments/upload")
+async def upload_public_chat_attachments(request: Request):
+    session = await _resolve_session_from_request(request)
+    guest_payload: dict[str, Any] | None = None
+    if not session:
+        if not _guest_chat_enabled(request):
+            raise HTTPException(status_code=401, detail="Authentication required")
+        guest_payload = await _issue_guest_session(request=request)
+        session = {
+            "user_id": str(guest_payload.get("user_id") or ""),
+            "provider": str(guest_payload.get("provider") or "guest"),
+        }
+
+    user_id = str(session.get("user_id") or "").strip()
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    form = await request.form()
+    files = list(form.getlist("files") or [])
+    if not files:
+        single = form.get("file")
+        if single is not None:
+            files = [single]
+    files = _public_chat_validate_attachment_count(files)
+    if not files:
+        raise _public_chat_error(
+            code="ATTACHMENT_MISSING",
+            reason_code="attachment_invalid_payload",
+            message="Attachment payload is invalid",
+        )
+
+    _public_chat_cleanup_attachments()
+    now = int(time.time())
+    uploaded: list[dict[str, Any]] = []
+    for file in files:
+        filename = str(getattr(file, "filename", "") or "attachment").strip() or "attachment"
+        content_type = _public_chat_guess_mime(
+            filename=filename,
+            content_type=str(getattr(file, "content_type", "") or ""),
+        )
+        if content_type not in _PUBLIC_CHAT_ATTACHMENT_ALLOWED_MIME:
+            raise _public_chat_error(
+                code="ATTACHMENT_UNSUPPORTED_TYPE",
+                reason_code="attachment_unsupported_type",
+                message="Unsupported attachment type",
+                allowed=sorted(_PUBLIC_CHAT_ATTACHMENT_ALLOWED_MIME),
+            )
+
+        content = await file.read()
+        if not content:
+            raise _public_chat_error(
+                code="ATTACHMENT_INVALID_PAYLOAD",
+                reason_code="attachment_invalid_payload",
+                message="Attachment payload is invalid",
+            )
+        if len(content) > _PUBLIC_CHAT_ATTACHMENT_MAX_BYTES:
+            raise _public_chat_error(
+                code="ATTACHMENT_TOO_LARGE",
+                reason_code="attachment_too_large",
+                message="Attachment is too large",
+                status_code=413,
+                max_bytes=_PUBLIC_CHAT_ATTACHMENT_MAX_BYTES,
+                actual_bytes=len(content),
+            )
+
+        attachment_id = secrets.token_urlsafe(18)
+        _PUBLIC_CHAT_ATTACHMENTS[attachment_id] = {
+            "user_id": user_id,
+            "filename": filename,
+            "mime_type": content_type,
+            "size": len(content),
+            "data_url": f"data:{content_type};base64,{base64.b64encode(content).decode('ascii')}",
+            "created_at": now,
+            "expires_at": now + _PUBLIC_CHAT_ATTACHMENT_TTL_SEC,
+        }
+        uploaded.append(
+            {
+                "attachment_id": attachment_id,
+                "filename": filename,
+                "mime_type": content_type,
+                "size": len(content),
+                "expires_in_sec": _PUBLIC_CHAT_ATTACHMENT_TTL_SEC,
+            }
+        )
+
+    response = JSONResponse(
+        {
+            "attachments": uploaded,
+            "max_count": _PUBLIC_CHAT_MAX_ATTACHMENTS,
+            "max_bytes": _PUBLIC_CHAT_ATTACHMENT_MAX_BYTES,
+        }
+    )
+    if guest_payload is not None:
+        await _attach_web_session_cookie(
+            request=request,
+            response=response,
+            user_id=user_id,
+            provider="guest",
+        )
+    return response
+
+
 @router.post("/public/chat/messages")
 async def create_public_chat_message(
     body: PublicChatMessageRequest,
     request: Request,
 ):
-    prompt = (body.content or "").strip()
-    if not prompt:
-        raise HTTPException(status_code=400, detail="content is required")
+    raw_attachments = _public_chat_validate_attachment_count(body.attachments)
+    prompt = _public_chat_validate_prompt(body.content, attachment_count=len(raw_attachments))
 
     session = await _resolve_session_from_request(request)
     guest_payload: dict[str, Any] | None = None
@@ -1588,6 +1816,7 @@ async def create_public_chat_message(
     provider = str(session.get("provider") or "guest").strip().lower() or "guest"
     if not user_id:
         raise HTTPException(status_code=401, detail="Authentication required")
+    attachments = _public_chat_resolve_attachments(user_id=user_id, attachments=raw_attachments)
 
     idempotency_key = _public_chat_idempotency_key(request, body)
     conversation_id = _public_chat_conversation_id(body)
@@ -1629,12 +1858,12 @@ async def create_public_chat_message(
         )
 
     started_at = time.time()
-    request_bytes = len(prompt.encode("utf-8", errors="ignore"))
+    request_bytes = len(str(body.content or "").encode("utf-8", errors="ignore"))
     run_id = _start_agent_run(
         content=prompt,
         available_tools=[],
         provider_id=user_id,
-        attachments=list(body.attachments or []),
+        attachments=attachments,
         conversation_id=conversation_id,
         runtime_kind="managed_cloud_web",
     )

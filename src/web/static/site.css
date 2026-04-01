@@ -3892,7 +3892,7 @@ body.console .compose-input {
   font-size: 15px;
   line-height: 1.45;
   max-height: 34vh;
-  min-height: 52px;
+  min-height: 44px;
   padding: 0;
 }
 
@@ -4060,10 +4060,28 @@ body.console .compose-attachment-remove {
 }
 
 body.console .compose-note {
-  margin-top: 10px;
   font-size: 12px;
   color: var(--c-dimmer);
-  text-align: center;
+  text-align: left;
+}
+
+body.console .compose-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+body.console .compose-counter {
+  flex: 0 0 auto;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.48);
+  text-align: right;
+}
+
+body.console .compose-counter.is-near-limit {
+  color: rgba(255, 186, 103, 0.95);
 }
 
 @media (max-width: 960px) {
