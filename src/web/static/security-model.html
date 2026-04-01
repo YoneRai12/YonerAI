@@ -1,0 +1,108 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>YonerAI Security Model</title>
+  <meta name="description" content="YonerAI security model details" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=IBM+Plex+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/site.css?v=20260215_02" />
+  <script defer src="/static/site.js?v=20260215_02"></script>
+</head>
+<body class="home-openai preload">
+  <a class="skip-link" href="#main" data-i18n-en="Skip to main content" data-i18n-ja="メインコンテンツへスキップ">Skip to main content</a>
+  <a class="oa-corner-brand" href="/" aria-label="YonerAI home">YonerAI</a>
+  <div class="shell">
+    <header class="oa-global-topbar" aria-label="Global top navigation">
+  <nav class="oa-global-nav" aria-label="Primary">
+    <a class="nav-link" href="/architecture" data-i18n-en="Research" data-i18n-ja="研究">Research</a>
+    <a class="nav-link" href="/security-model" data-i18n-en="Safety" data-i18n-ja="安全性">Safety</a>
+    <a class="nav-link" href="/roadmap" data-i18n-en="Business" data-i18n-ja="ビジネス向け">Business</a>
+    <a class="nav-link" href="/desktop-discord" data-i18n-en="Developers" data-i18n-ja="開発者向け">Developers</a>
+    <a class="nav-link" href="/relay-model" data-i18n-en="Agents" data-i18n-ja="エージェント">Agents</a>
+    <a class="nav-link" href="/about" data-i18n-en="News" data-i18n-ja="ニュース">News</a>
+    <a class="nav-link" href="https://github.com/YoneRai12/YonerAI" target="_blank" rel="noopener noreferrer" data-i18n-en="GitHub" data-i18n-ja="GitHub">GitHub</a>
+  </nav>
+</header>
+
+    <main id="main">
+      <section class="hero glass reveal">
+        <div>
+          <p class="eyebrow" data-i18n-en="Security model" data-i18n-ja="セキュリティモデル">Security model</p>
+          <h1 data-i18n-en="Secure-by-default, operator-controlled." data-i18n-ja="安全側既定、運用者が制御可能。">Secure-by-default, operator-controlled.</h1>
+          <p class="lead" data-i18n-en="YonerAI treats risky tool execution as an auditable workflow with explicit decisions, expiration windows, and policy boundaries." data-i18n-ja="YonerAIは高リスク実行を、明示的な判断・期限・ポリシー境界を持つ監査可能ワークフローとして扱います。">YonerAI treats risky tool execution as an auditable workflow with explicit decisions, expiration windows, and policy boundaries.</p>
+        </div>
+        <dl class="hero-panel">
+          <div class="metric"><dt data-i18n-en="Profiles" data-i18n-ja="プロファイル">Profiles</dt><dd>private / shared</dd></div>
+          <div class="metric"><dt data-i18n-en="Risk levels" data-i18n-ja="リスクレベル">Risk levels</dt><dd>LOW / HIGH / CRITICAL</dd></div>
+          <div class="metric"><dt data-i18n-en="Approval gate" data-i18n-ja="承認ゲート">Approval gate</dt><dd data-i18n-en="Out-of-band owner decision" data-i18n-ja="別チャネルでOwner判断">Out-of-band owner decision</dd></div>
+          <div class="metric"><dt data-i18n-en="Audit trail" data-i18n-ja="監査証跡">Audit trail</dt><dd data-i18n-en="Tool + decision logs" data-i18n-ja="ツール + 判断ログ">Tool + decision logs</dd></div>
+        </dl>
+      </section>
+
+      <section class="section glass reveal">
+        <h2 data-i18n-en="Control set" data-i18n-ja="制御セット">Control set</h2>
+        <div class="grid-3">
+          <article class="card"><h3 data-i18n-en="Role policy" data-i18n-ja="ロールポリシー">Role policy</h3><p data-i18n-en="Guest capabilities are restricted and unknown tools are never treated as low-risk by default." data-i18n-ja="Guestの権限は制限され、未知ツールは既定で低リスク扱いしません。">Guest capabilities are restricted and unknown tools are never treated as low-risk by default.</p></article>
+          <article class="card"><h3 data-i18n-en="Approval TTL" data-i18n-ja="承認TTL">Approval TTL</h3><p data-i18n-en="Approvals expire quickly. Stale approvals cannot be replayed later." data-i18n-ja="承認は短時間で失効し、古い承認の再利用を防止します。">Approvals expire quickly. Stale approvals cannot be replayed later.</p></article>
+          <article class="card"><h3 data-i18n-en="Token separation" data-i18n-ja="トークン分離">Token separation</h3><p data-i18n-en="Public web APIs require tokens and secrets are isolated from user-editable settings." data-i18n-ja="公開Web APIはトークン必須で、シークレットはユーザー編集設定と分離します。">Public web APIs require tokens and secrets are isolated from user-editable settings.</p></article>
+        </div>
+      </section>
+    </main>
+
+    <section class="oa-site-footer reveal" aria-label="Site footer">
+  <div class="oa-footer-grid">
+    <div class="oa-footer-col">
+      <h3 data-i18n-en="Platform" data-i18n-ja="プラットフォーム">Platform</h3>
+      <a href="/architecture" data-i18n-en="Architecture" data-i18n-ja="アーキテクチャ">Architecture</a>
+      <a href="/relay-model" data-i18n-en="Relay model" data-i18n-ja="Relayモデル">Relay model</a>
+      <a href="/security-model" data-i18n-en="Security model" data-i18n-ja="セキュリティモデル">Security model</a>
+    </div>
+    <div class="oa-footer-col">
+      <h3 data-i18n-en="Clients" data-i18n-ja="クライアント">Clients</h3>
+      <a href="/web-mobile" data-i18n-en="Web / iOS / Android" data-i18n-ja="Web / iOS / Android">Web / iOS / Android</a>
+      <a href="/desktop-discord" data-i18n-en="Windows / Mac / Discord" data-i18n-ja="Windows / Mac / Discord">Windows / Mac / Discord</a>
+      <a href="/roadmap" data-i18n-en="Roadmap" data-i18n-ja="ロードマップ">Roadmap</a>
+    </div>
+    <div class="oa-footer-col">
+      <h3 data-i18n-en="Company" data-i18n-ja="企業">Company</h3>
+      <a href="/about" data-i18n-en="About YonerAI" data-i18n-ja="YonerAIについて">About YonerAI</a>
+      <a href="/contact" data-i18n-en="Contact" data-i18n-ja="お問い合わせ">Contact</a>
+      <a href="https://github.com/YoneRai12/YonerAI" target="_blank" rel="noopener noreferrer" data-i18n-en="GitHub" data-i18n-ja="GitHub">GitHub</a>
+    </div>
+    <div class="oa-footer-col">
+      <h3 data-i18n-en="Policy" data-i18n-ja="ポリシー">Policy</h3>
+      <a href="/terms" data-i18n-en="Terms" data-i18n-ja="利用規約">Terms</a>
+      <a href="/privacy" data-i18n-en="Privacy" data-i18n-ja="プライバシー">Privacy</a>
+      <a href="/trust-safety" data-i18n-en="Trust & safety" data-i18n-ja="信頼と安全性">Trust & safety</a>
+    </div>
+  </div>
+  <footer class="oa-footer">
+    <span data-i18n-en="YonerAI © 2026" data-i18n-ja="YonerAI © 2026">YonerAI © 2026</span>
+    <span id="lang-note">Language preference is stored in cookie (yonerai_lang).</span>
+    <div class="oa-footer-lang">
+      <span data-i18n-en="Language" data-i18n-ja="言語">Language</span>
+      <div class="lang-switch" role="group" aria-label="Language switcher (footer)">
+        <button class="lang-btn" type="button" data-lang-btn="en" aria-pressed="false">EN</button>
+        <button class="lang-btn" type="button" data-lang-btn="ja" aria-pressed="false">JP</button>
+      </div>
+    </div>
+  </footer>
+</section>
+  </div>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+

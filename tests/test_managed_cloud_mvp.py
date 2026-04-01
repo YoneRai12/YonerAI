@@ -44,15 +44,23 @@ def test_managed_cloud_pages_render():
     with TestClient(app) as client:
         root = client.get("/")
         assert root.status_code == 200
-        assert "YonerAI" in root.text
+        assert "YonerAI Platform Preview" in root.text
 
         jp = client.get("/jp")
         assert jp.status_code == 200
-        assert "Official Managed Cloud" in jp.text
+        assert "YonerAI Platform Preview" in jp.text
 
         chat = client.get("/jp/chat")
         assert chat.status_code == 200
         assert "YonerAI Chat" in chat.text
+
+        terms = client.get("/terms")
+        assert terms.status_code == 200
+        assert "Terms of Service" in terms.text
+
+        privacy = client.get("/privacy")
+        assert privacy.status_code == 200
+        assert "Privacy Policy" in privacy.text
 
 
 def test_auth_me_requires_session_then_returns_identity():

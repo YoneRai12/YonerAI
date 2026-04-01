@@ -1,0 +1,177 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>YonerAI Platform</title>
+  <meta name="description" content="YonerAI platform architecture" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=IBM+Plex+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/site.css?v=20260215_02" />
+  <script defer src="/static/site.js?v=20260215_02"></script>
+</head>
+<body class="home-openai preload">
+  <a class="skip-link" href="#main" data-i18n-en="Skip to main content" data-i18n-ja="メインコンテンツへスキップ">Skip to main content</a>
+  <a class="oa-corner-brand" href="/" aria-label="YonerAI home">YonerAI</a>
+  <div class="shell">
+    <header class="oa-global-topbar" aria-label="Global top navigation">
+  <nav class="oa-global-nav" aria-label="Primary">
+    <a class="nav-link" href="/architecture" data-i18n-en="Research" data-i18n-ja="研究">Research</a>
+    <a class="nav-link" href="/security-model" data-i18n-en="Safety" data-i18n-ja="安全性">Safety</a>
+    <a class="nav-link" href="/roadmap" data-i18n-en="Business" data-i18n-ja="ビジネス向け">Business</a>
+    <a class="nav-link" href="/desktop-discord" data-i18n-en="Developers" data-i18n-ja="開発者向け">Developers</a>
+    <a class="nav-link" href="/relay-model" data-i18n-en="Agents" data-i18n-ja="エージェント">Agents</a>
+    <a class="nav-link" href="/about" data-i18n-en="News" data-i18n-ja="ニュース">News</a>
+    <a class="nav-link" href="https://github.com/YoneRai12/YonerAI" target="_blank" rel="noopener noreferrer" data-i18n-en="GitHub" data-i18n-ja="GitHub">GitHub</a>
+  </nav>
+</header>
+
+    <main id="main">
+      <section class="hero glass reveal">
+        <div>
+          <p class="eyebrow" data-i18n-en="Platform preview" data-i18n-ja="プラットフォームプレビュー">Platform preview</p>
+          <h1 data-i18n-en="How one click becomes a safe response." data-i18n-ja="1クリックが安全な応答になるまで。">How one click becomes a safe response.</h1>
+          <p class="lead" data-i18n-en="This page explains the YonerAI request pipeline: where context is normalized, where policy blocks dangerous actions, and how results return to users with auditability." data-i18n-ja="このページでは、YonerAIのリクエスト処理経路を説明します。文脈正規化、危険操作を止めるポリシー判定、監査可能な応答返却までを可視化しています。">This page explains the YonerAI request pipeline: where context is normalized, where policy blocks dangerous actions, and how results return to users with auditability.</p>
+        </div>
+        <dl class="hero-panel">
+          <div class="metric"><dt data-i18n-en="Input" data-i18n-ja="入力">Input</dt><dd data-i18n-en="Chat / Mention / API" data-i18n-ja="Chat / メンション / API">Chat / Mention / API</dd></div>
+          <div class="metric"><dt data-i18n-en="Policy gate" data-i18n-ja="ポリシーゲート">Policy gate</dt><dd data-i18n-en="Risk score + role checks" data-i18n-ja="リスク判定 + ロール検証">Risk score + role checks</dd></div>
+          <div class="metric"><dt data-i18n-en="Execution" data-i18n-ja="実行">Execution</dt><dd data-i18n-en="Skills / MCP / tools" data-i18n-ja="Skills / MCP / tools">Skills / MCP / tools</dd></div>
+          <div class="metric"><dt data-i18n-en="Output" data-i18n-ja="出力">Output</dt><dd data-i18n-en="Audited final response" data-i18n-ja="監査可能な最終応答">Audited final response</dd></div>
+        </dl>
+      </section>
+
+      <section class="section glass reveal flow-diagram">
+        <div class="flow-toolbar">
+          <div>
+            <h2 data-i18n-en="End-to-End request path (actual system sequence)" data-i18n-ja="End-to-End リクエスト経路（実システムのシーケンス）">End-to-End request path (actual system sequence)</h2>
+            <p class="sub" data-i18n-en="This is the real sequence diagram used in docs and release materials, not a simulated graph." data-i18n-ja="これは擬似グラフではなく、ドキュメント/リリースで使用している実シーケンス図です。">This is the real sequence diagram used in docs and release materials, not a simulated graph.</p>
+          </div>
+          <a
+            class="btn"
+            data-lang-href-en="/static/diagrams/e2e_request_path_sequence_en_dark.png"
+            data-lang-href-ja="/static/diagrams/e2e_request_path_sequence_jp_dark.png"
+            href="/static/diagrams/e2e_request_path_sequence_en_dark.png"
+            target="_blank"
+            rel="noopener noreferrer"
+            data-i18n-en="Open full resolution"
+            data-i18n-ja="高解像度で開く">Open full resolution</a>
+        </div>
+
+        <figure class="flow-diagram-figure">
+          <img
+            class="flow-diagram-image"
+            data-lang-src-en="/static/diagrams/e2e_request_path_sequence_en_dark.png"
+            data-lang-src-ja="/static/diagrams/e2e_request_path_sequence_jp_dark.png"
+            src="/static/diagrams/e2e_request_path_sequence_en_dark.png"
+            alt="YonerAI end-to-end request sequence diagram"
+            loading="lazy"
+            decoding="async" />
+          <figcaption class="flow-diagram-caption" data-i18n-en="Sequence: User -> Discord/Web -> ChatHandler -> Policy Gate -> Core Run Owner -> Tools/MCP -> Storage/Audit." data-i18n-ja="シーケンス: User -> Discord/Web -> ChatHandler -> Policy Gate -> Core Run Owner -> Tools/MCP -> Storage/Audit。">Sequence: User -> Discord/Web -> ChatHandler -> Policy Gate -> Core Run Owner -> Tools/MCP -> Storage/Audit.</figcaption>
+        </figure>
+      </section>
+
+      <section class="section glass reveal">
+        <h2 data-i18n-en="Why this architecture was designed this way" data-i18n-ja="この設計にした理由">Why this architecture was designed this way</h2>
+        <p class="sub" data-i18n-en="YonerAI is designed for long-term operation where feature growth does not destroy trust boundaries." data-i18n-ja="YonerAIは、機能が増えても信頼境界が崩れない長期運用を前提に設計しています。">YonerAI is designed for long-term operation where feature growth does not destroy trust boundaries.</p>
+        <div class="grid-3">
+          <article class="card">
+            <h3 data-i18n-en="Boundary first" data-i18n-ja="境界を先に固定">Boundary first</h3>
+            <p data-i18n-en="Execution, routing, and policy are separated so one failure does not compromise the whole system." data-i18n-ja="実行・中継・ポリシーを分離し、1箇所の故障で全体が破綻しない構造にしています。">Execution, routing, and policy are separated so one failure does not compromise the whole system.</p>
+          </article>
+          <article class="card">
+            <h3 data-i18n-en="Safe-by-default" data-i18n-ja="安全側デフォルト">Safe-by-default</h3>
+            <p data-i18n-en="Unknown or risky actions do not run automatically; they require explicit policy approval paths." data-i18n-ja="未知/高リスク操作は自動実行せず、明示的なポリシー承認経路を必須にしています。">Unknown or risky actions do not run automatically; they require explicit policy approval paths.</p>
+          </article>
+          <article class="card">
+            <h3 data-i18n-en="Auditable operation" data-i18n-ja="監査可能な運用">Auditable operation</h3>
+            <p data-i18n-en="Decision points and tool execution traces are retained to support debugging and accountability." data-i18n-ja="判断点とツール実行痕跡を保持し、デバッグと説明責任を両立します。">Decision points and tool execution traces are retained to support debugging and accountability.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section glass reveal">
+        <h2 data-i18n-en="Processing contract by layer" data-i18n-ja="レイヤ別の処理契約">Processing contract by layer</h2>
+        <p class="sub" data-i18n-en="Each layer has one job. This keeps behavior predictable under load and while adding new tools." data-i18n-ja="各レイヤの責務を1つに限定することで、高負荷時や機能追加時も挙動を予測可能に保ちます。">Each layer has one job. This keeps behavior predictable under load and while adding new tools.</p>
+        <div class="grid-4">
+          <article class="card"><h3 data-i18n-en="Client Layer" data-i18n-ja="Client層">Client Layer</h3><p data-i18n-en="Collect intent and show result. Keep UI thin." data-i18n-ja="意図を受け取り結果を返す。UIは薄く保つ。">Collect intent and show result. Keep UI thin.</p></article>
+          <article class="card"><h3 data-i18n-en="Bot + Handler" data-i18n-ja="Bot + Handler">Bot + Handler</h3><p data-i18n-en="Normalize context and dispatch deterministic requests." data-i18n-ja="文脈を正規化し、決定可能なリクエストとして送出。">Normalize context and dispatch deterministic requests.</p></article>
+          <article class="card"><h3 data-i18n-en="Core Run Owner" data-i18n-ja="Core Run Owner">Core Run Owner</h3><p data-i18n-en="Own run state and idempotent tool-result loop." data-i18n-ja="実行状態と冪等なツール結果ループを管理。">Own run state and idempotent tool-result loop.</p></article>
+          <article class="card"><h3 data-i18n-en="Tool Plane" data-i18n-ja="Tool Plane">Tool Plane</h3><p data-i18n-en="Execute bounded actions through skills/MCP/workers." data-i18n-ja="skills/MCP/worker経由で境界付き実行を行う。">Execute bounded actions through skills/MCP/workers.</p></article>
+        </div>
+      </section>
+
+      <section class="bottom-cta glass reveal">
+        <div class="copy">
+          <h2 style="margin:0;" data-i18n-en="Build features fast, but keep boundaries explicit." data-i18n-ja="機能は速く作る、境界は曖昧にしない。">Build features fast, but keep boundaries explicit.</h2>
+          <p class="sub" style="margin:0.5rem 0 0;" data-i18n-en="This is the contract that keeps YonerAI extensible without becoming unsafe." data-i18n-ja="これが、YonerAIを安全性を失わず拡張可能にするための契約です。">This is the contract that keeps YonerAI extensible without becoming unsafe.</p>
+        </div>
+        <div class="actions"><a class="btn primary" href="/architecture" data-i18n-en="Open architecture docs" data-i18n-ja="設計ドキュメントを開く">Open architecture docs</a></div>
+      </section>
+    </main>
+
+    <section class="oa-site-footer reveal" aria-label="Site footer">
+  <div class="oa-footer-grid">
+    <div class="oa-footer-col">
+      <h3 data-i18n-en="Platform" data-i18n-ja="プラットフォーム">Platform</h3>
+      <a href="/architecture" data-i18n-en="Architecture" data-i18n-ja="アーキテクチャ">Architecture</a>
+      <a href="/relay-model" data-i18n-en="Relay model" data-i18n-ja="Relayモデル">Relay model</a>
+      <a href="/security-model" data-i18n-en="Security model" data-i18n-ja="セキュリティモデル">Security model</a>
+    </div>
+    <div class="oa-footer-col">
+      <h3 data-i18n-en="Clients" data-i18n-ja="クライアント">Clients</h3>
+      <a href="/web-mobile" data-i18n-en="Web / iOS / Android" data-i18n-ja="Web / iOS / Android">Web / iOS / Android</a>
+      <a href="/desktop-discord" data-i18n-en="Windows / Mac / Discord" data-i18n-ja="Windows / Mac / Discord">Windows / Mac / Discord</a>
+      <a href="/roadmap" data-i18n-en="Roadmap" data-i18n-ja="ロードマップ">Roadmap</a>
+    </div>
+    <div class="oa-footer-col">
+      <h3 data-i18n-en="Company" data-i18n-ja="企業">Company</h3>
+      <a href="/about" data-i18n-en="About YonerAI" data-i18n-ja="YonerAIについて">About YonerAI</a>
+      <a href="/contact" data-i18n-en="Contact" data-i18n-ja="お問い合わせ">Contact</a>
+      <a href="https://github.com/YoneRai12/YonerAI" target="_blank" rel="noopener noreferrer" data-i18n-en="GitHub" data-i18n-ja="GitHub">GitHub</a>
+    </div>
+    <div class="oa-footer-col">
+      <h3 data-i18n-en="Policy" data-i18n-ja="ポリシー">Policy</h3>
+      <a href="/terms" data-i18n-en="Terms" data-i18n-ja="利用規約">Terms</a>
+      <a href="/privacy" data-i18n-en="Privacy" data-i18n-ja="プライバシー">Privacy</a>
+      <a href="/trust-safety" data-i18n-en="Trust & safety" data-i18n-ja="信頼と安全性">Trust & safety</a>
+    </div>
+  </div>
+  <footer class="oa-footer">
+    <span data-i18n-en="YonerAI © 2026" data-i18n-ja="YonerAI © 2026">YonerAI © 2026</span>
+    <span id="lang-note">Language preference is stored in cookie (yonerai_lang).</span>
+    <div class="oa-footer-lang">
+      <span data-i18n-en="Language" data-i18n-ja="言語">Language</span>
+      <div class="lang-switch" role="group" aria-label="Language switcher (footer)">
+        <button class="lang-btn" type="button" data-lang-btn="en" aria-pressed="false">EN</button>
+        <button class="lang-btn" type="button" data-lang-btn="ja" aria-pressed="false">JP</button>
+      </div>
+    </div>
+  </footer>
+</section>
+
+    <section class="mega-word" aria-hidden="true">
+      <p>YonerAI</p>
+    </section>
+  </div>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

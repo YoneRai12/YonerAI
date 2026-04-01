@@ -1,0 +1,170 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>YonerAI Developers</title>
+  <meta name="description" content="YonerAI developer resources" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=IBM+Plex+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/site.css?v=20260215_02" />
+  <script defer src="/static/site.js?v=20260215_02"></script>
+</head>
+<body class="home-openai preload">
+  <a class="skip-link" href="#main" data-i18n-en="Skip to main content" data-i18n-ja="メインコンテンツへスキップ">Skip to main content</a>
+  <a class="oa-corner-brand" href="/" aria-label="YonerAI home">YonerAI</a>
+
+  <header class="oa-global-topbar" aria-label="Global top navigation">
+    <nav class="oa-global-nav" aria-label="Primary">
+      <a class="nav-link" href="/platform" data-i18n-en="Platform" data-i18n-ja="プラットフォーム">Platform</a>
+      <a class="nav-link" href="/security-model" data-i18n-en="Security" data-i18n-ja="セキュリティ">Security</a>
+      <a class="nav-link is-active" href="/developers" data-i18n-en="Developers" data-i18n-ja="開発者向け">Developers</a>
+      <a class="nav-link" href="/chat" data-i18n-en="Chat" data-i18n-ja="チャット">Chat</a>
+      <a class="nav-link" href="/trust-safety" data-i18n-en="Trust &amp; Safety" data-i18n-ja="信頼と安全性">Trust &amp; Safety</a>
+      <a class="nav-link" href="https://github.com/YoneRai12/YonerAI" target="_blank" rel="noopener noreferrer" data-i18n-en="GitHub" data-i18n-ja="GitHub">GitHub</a>
+    </nav>
+  </header>
+
+  <main id="main" class="shell">
+    <section class="hero glass reveal">
+      <div>
+        <p class="eyebrow" data-i18n-en="Developer resources" data-i18n-ja="開発者向けリソース">Developer resources</p>
+        <h1 data-i18n-en="Integrate with YonerAI safely." data-i18n-ja="YonerAI と安全に統合する。">Integrate with YonerAI safely.</h1>
+        <p class="lead"
+          data-i18n-en="This page collects the minimal, stable API entrypoints and extension mechanisms (Skills / MCP)."
+          data-i18n-ja="このページでは、最小限で安定したAPI入口と、拡張手段（Skills / MCP）をまとめます。"
+        >This page collects the minimal, stable API entrypoints and extension mechanisms (Skills / MCP).</p>
+      </div>
+      <dl class="hero-panel">
+        <div class="metric"><dt data-i18n-en="Auth" data-i18n-ja="認証">Auth</dt><dd data-i18n-en="Token or OAuth" data-i18n-ja="トークン / OAuth">Token or OAuth</dd></div>
+        <div class="metric"><dt data-i18n-en="Transport" data-i18n-ja="通信">Transport</dt><dd data-i18n-en="HTTP + SSE" data-i18n-ja="HTTP + SSE">HTTP + SSE</dd></div>
+        <div class="metric"><dt data-i18n-en="Extensions" data-i18n-ja="拡張">Extensions</dt><dd data-i18n-en="Skills / MCP" data-i18n-ja="Skills / MCP">Skills / MCP</dd></div>
+        <div class="metric"><dt data-i18n-en="Principle" data-i18n-ja="原則">Principle</dt><dd data-i18n-en="Safe-by-default" data-i18n-ja="安全側既定">Safe-by-default</dd></div>
+      </dl>
+    </section>
+
+    <section class="section glass reveal">
+      <h2 data-i18n-en="Quick start" data-i18n-ja="クイックスタート">Quick start</h2>
+      <p class="sub"
+        data-i18n-en="The public managed-cloud MVP exposes chat only. API issuance and management endpoints stay outside the public surface."
+        data-i18n-ja="公開MVPで出すのはチャット面だけです。API発行と管理エンドポイントは公開サーフェスの外に置きます。"
+      >The public managed-cloud MVP exposes chat only. API issuance and management endpoints stay outside the public surface.</p>
+      <div class="actions">
+        <a class="btn primary" href="/chat" data-i18n-en="Open Chat" data-i18n-ja="チャットを開く">Open Chat</a>
+        <a class="btn" href="https://github.com/YoneRai12/YonerAI" target="_blank" rel="noopener noreferrer" data-i18n-en="Open GitHub" data-i18n-ja="GitHubを開く">Open GitHub</a>
+      </div>
+    </section>
+
+    <section class="section glass reveal">
+      <h2 data-i18n-en="Managed Cloud MVP routes" data-i18n-ja="Managed Cloud MVP ルート">Managed Cloud MVP routes</h2>
+      <p class="sub"
+        data-i18n-en="The public MVP keeps the surface intentionally small: one chat shell, session check, message post, and SSE stream."
+        data-i18n-ja="公開MVPはサーフェスを意図的に絞り、チャット画面・セッション確認・メッセージ送信・SSEのみに限定します。"
+      >The public MVP keeps the surface intentionally small: one chat shell, session check, message post, and SSE stream.</p>
+
+      <div class="grid-3">
+        <article class="card">
+          <h3 data-i18n-en="Chat shell" data-i18n-ja="チャット画面">Chat shell</h3>
+          <p data-i18n-en="GET /jp/chat" data-i18n-ja="GET /jp/chat">GET /jp/chat</p>
+        </article>
+        <article class="card">
+          <h3 data-i18n-en="Session check" data-i18n-ja="セッション確認">Session check</h3>
+          <p data-i18n-en="GET /api/auth/me" data-i18n-ja="GET /api/auth/me">GET /api/auth/me</p>
+        </article>
+        <article class="card">
+          <h3 data-i18n-en="Message stream" data-i18n-ja="メッセージストリーム">Message stream</h3>
+          <p data-i18n-en="POST /api/public/chat/messages + SSE" data-i18n-ja="POST /api/public/chat/messages + SSE">POST /api/public/chat/messages + SSE</p>
+        </article>
+      </div>
+
+      <h3 style="margin-top:1.1rem;" data-i18n-en="Current public entrypoint" data-i18n-ja="現在の公開入口">Current public entrypoint</h3>
+      <pre class="oa-pre"><code>yonerai.com         -> official top / explanation / CTA
+api.yonerai.com     -> /jp/chat
+api.yonerai.com     -> /api/auth/*
+api.yonerai.com     -> /api/public/chat/messages
+api.yonerai.com     -> /api/public/chat/runs/{run_id}/events</code></pre>
+      <p class="sub"
+        data-i18n-en="Public API issuance and management pages are intentionally withheld from this MVP."
+        data-i18n-ja="公開向けのAPI発行ページと管理ページは、このMVPでは意図的に公開していません。"
+      >Public API issuance and management pages are intentionally withheld from this MVP.</p>
+    </section>
+
+    <section class="section glass reveal">
+      <h2 data-i18n-en="Extensions: Skills & MCP" data-i18n-ja="拡張: Skills & MCP">Extensions: Skills & MCP</h2>
+      <p class="sub"
+        data-i18n-en="YonerAI can be extended in two ways: native Skills (Python plugins) and MCP tool servers. Both are designed to stay behind policy/approvals."
+        data-i18n-ja="YonerAI は、ネイティブ Skills（Pythonプラグイン）と MCP ツールサーバーの2つで拡張できます。どちらもポリシー/承認ゲートの内側で動く設計です。"
+      >YonerAI can be extended in two ways: native Skills (Python plugins) and MCP tool servers. Both are designed to stay behind policy/approvals.</p>
+
+      <div class="grid-3">
+        <article class="card">
+          <h3 data-i18n-en="Skills" data-i18n-ja="Skills">Skills</h3>
+          <p data-i18n-en="Drop-in Python tools under src/skills/." data-i18n-ja="src/skills/ 配下に追加するPythonツール。">Drop-in Python tools under src/skills/.</p>
+        </article>
+        <article class="card">
+          <h3 data-i18n-en="MCP" data-i18n-ja="MCP">MCP</h3>
+          <p data-i18n-en="Register external tools via ORA_MCP_SERVERS_JSON." data-i18n-ja="ORA_MCP_SERVERS_JSON で外部ツールを登録。">Register external tools via ORA_MCP_SERVERS_JSON.</p>
+        </article>
+        <article class="card">
+          <h3 data-i18n-en="Policy first" data-i18n-ja="ポリシー優先">Policy first</h3>
+          <p data-i18n-en="Unknown tools are treated as HIGH by default in shared/guest contexts." data-i18n-ja="shared/guest では未知ツールは既定でHIGH扱い。">Unknown tools are treated as HIGH by default in shared/guest contexts.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="bottom-cta glass reveal">
+      <div class="copy">
+        <h2 style="margin:0;" data-i18n-en="Need a new integration?" data-i18n-ja="統合を追加したい？">Need a new integration?</h2>
+        <p class="sub" style="margin:0.5rem 0 0;" data-i18n-en="Open a GitHub issue or propose a Skill/MCP module." data-i18n-ja="GitHub Issue を立てるか、Skill/MCP モジュール案を提案してください。">Open a GitHub issue or propose a Skill/MCP module.</p>
+      </div>
+      <div class="actions">
+        <a class="btn primary" href="https://github.com/YoneRai12/YonerAI" target="_blank" rel="noopener noreferrer" data-i18n-en="Open GitHub" data-i18n-ja="GitHubを開く">Open GitHub</a>
+      </div>
+    </section>
+
+    <section class="oa-site-footer reveal" aria-label="Site footer">
+      <div class="oa-footer-grid">
+        <div class="oa-footer-col">
+          <h3 data-i18n-en="Platform" data-i18n-ja="プラットフォーム">Platform</h3>
+          <a href="/architecture" data-i18n-en="Architecture" data-i18n-ja="アーキテクチャ">Architecture</a>
+          <a href="/relay-model" data-i18n-en="Relay model" data-i18n-ja="Relayモデル">Relay model</a>
+          <a href="/security-model" data-i18n-en="Security model" data-i18n-ja="セキュリティモデル">Security model</a>
+        </div>
+        <div class="oa-footer-col">
+          <h3 data-i18n-en="Clients" data-i18n-ja="クライアント">Clients</h3>
+          <a href="/web-mobile" data-i18n-en="Web / iOS / Android" data-i18n-ja="Web / iOS / Android">Web / iOS / Android</a>
+          <a href="/desktop-discord" data-i18n-en="Windows / Mac / Discord" data-i18n-ja="Windows / Mac / Discord">Windows / Mac / Discord</a>
+          <a href="/chat" data-i18n-en="Public Chat" data-i18n-ja="公開チャット">Public Chat</a>
+          <a href="/roadmap" data-i18n-en="Roadmap" data-i18n-ja="ロードマップ">Roadmap</a>
+        </div>
+        <div class="oa-footer-col">
+          <h3 data-i18n-en="Company" data-i18n-ja="企業">Company</h3>
+          <a href="/about" data-i18n-en="About YonerAI" data-i18n-ja="YonerAIについて">About YonerAI</a>
+          <a href="/contact" data-i18n-en="Contact" data-i18n-ja="お問い合わせ">Contact</a>
+          <a href="https://github.com/YoneRai12/YonerAI" target="_blank" rel="noopener noreferrer" data-i18n-en="GitHub" data-i18n-ja="GitHub">GitHub</a>
+        </div>
+        <div class="oa-footer-col">
+          <h3 data-i18n-en="Policy" data-i18n-ja="ポリシー">Policy</h3>
+          <a href="/terms" data-i18n-en="Terms" data-i18n-ja="利用規約">Terms</a>
+          <a href="/privacy" data-i18n-en="Privacy" data-i18n-ja="プライバシー">Privacy</a>
+          <a href="/trust-safety" data-i18n-en="Trust & safety" data-i18n-ja="信頼と安全性">Trust & safety</a>
+        </div>
+      </div>
+      <footer class="oa-footer">
+        <span data-i18n-en="YonerAI © 2026" data-i18n-ja="YonerAI © 2026">YonerAI © 2026</span>
+        <span id="lang-note">Language preference is stored in cookie (yonerai_lang).</span>
+        <div class="oa-footer-lang">
+          <span data-i18n-en="Language" data-i18n-ja="言語">Language</span>
+          <div class="lang-switch" role="group" aria-label="Language switcher (footer)">
+            <button class="lang-btn" type="button" data-lang-btn="en" aria-pressed="false">EN</button>
+            <button class="lang-btn" type="button" data-lang-btn="ja" aria-pressed="false">JP</button>
+          </div>
+        </div>
+      </footer>
+    </section>
+  </main>
+</body>
+</html>
+
+

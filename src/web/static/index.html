@@ -1,5 +1,5 @@
-<!DOCTYPE html>
-<html lang="ja">
+﻿<!DOCTYPE html>
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -7,172 +7,172 @@
   <meta name="description" content="YonerAI official site" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link
-    href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=IBM+Plex+Sans+JP:wght@400;500;700&display=swap"
-    rel="stylesheet"
-  />
-  <link rel="stylesheet" href="/static/site.css?v=20260401_03" />
-  <script src="/static/site.js?v=20260401_03"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=IBM+Plex+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/site.css?v=20260215_02" />
+  <script defer src="/static/site.js?v=20260215_02"></script>
 </head>
-<body class="home-openai">
-  <a class="skip-link" href="#main">メインコンテンツへスキップ</a>
+<body class="home-openai preload">
+  <a class="skip-link" href="#main" data-i18n-en="Skip to main content" data-i18n-ja="メインコンテンツへスキップ">Skip to main content</a>
   <a class="oa-corner-brand" href="/" aria-label="YonerAI home">YonerAI</a>
 
   <header class="oa-global-topbar" aria-label="Global top navigation">
     <nav class="oa-global-nav" aria-label="Primary">
-      <a class="nav-link" href="#research">Overview</a>
-      <a class="nav-link" href="#safety">Safety</a>
-      <a class="nav-link" href="#modes">Modes</a>
-      <a class="nav-link" href="#news">Status</a>
-      <a class="nav-link" data-chat-cta href="/jp/chat">Open Chat</a>
-      <a class="nav-link" href="https://github.com/YoneRai12/YonerAI" target="_blank" rel="noopener noreferrer">GitHub</a>
+      <a class="nav-link" href="#research" data-i18n-en="Research" data-i18n-ja="研究">Research</a>
+      <a class="nav-link" href="#safety" data-i18n-en="Safety" data-i18n-ja="安全性">Safety</a>
+      <a class="nav-link" href="#business" data-i18n-en="Business" data-i18n-ja="ビジネス向け">Business</a>
+      <a class="nav-link" href="#developers" data-i18n-en="Developers" data-i18n-ja="開発者向け">Developers</a>
+      <a class="nav-link" href="#agents" data-i18n-en="Agents" data-i18n-ja="エージェント">Agents</a>
+      <a class="nav-link" href="#news" data-i18n-en="News" data-i18n-ja="ニュース">News</a>
+      <a
+        class="nav-link"
+        data-auth-entry
+        data-auth-login-href="/auth/login?returnTo=/chat"
+        data-auth-authed-href="/chat"
+        data-auth-login-en="Sign in"
+        data-auth-login-ja="ログイン"
+        data-auth-authed-en="Open Chat"
+        data-auth-authed-ja="チャットを開く"
+        href="/auth/login?returnTo=/chat"
+      >Sign in</a>
+      <a class="nav-link" href="https://github.com/YoneRai12/YonerAI" target="_blank" rel="noopener noreferrer" data-i18n-en="GitHub" data-i18n-ja="GitHub">GitHub</a>
     </nav>
-  </header>
+</header>
 
   <div class="oa-layout">
-    <aside class="oa-sidebar reveal is-visible" aria-label="Left navigation">
+    <aside class="oa-sidebar reveal" aria-label="Left navigation">
       <nav class="oa-menu" aria-label="Section links">
-        <a class="rail-link" href="#research">Overview</a>
-        <a class="rail-link" href="#safety">Safety</a>
-        <a class="rail-link" href="#modes">3 Modes</a>
-        <a class="rail-link" href="#chat">Managed Cloud</a>
-        <a class="rail-link" href="#news">Status</a>
+        <a class="rail-link" href="#research" data-i18n-en="Research" data-i18n-ja="研究">Research</a>
+        <a class="rail-link" href="#safety" data-i18n-en="Safety" data-i18n-ja="安全性">Safety</a>
+        <a class="rail-link" href="#business" data-i18n-en="Business" data-i18n-ja="ビジネス向け">Business</a>
+        <a class="rail-link" href="#developers" data-i18n-en="Developers" data-i18n-ja="開発者向け">Developers</a>
+        <a class="rail-link" href="#chat" data-i18n-en="Yoner Chat" data-i18n-ja="Yoner Chat">Yoner Chat</a>
+        <a class="rail-link" href="#agents" data-i18n-en="Agents" data-i18n-ja="エージェント">Agents</a>
+        <a class="rail-link" href="#news" data-i18n-en="News" data-i18n-ja="ニュース">News</a>
       </nav>
     </aside>
 
     <div class="oa-main">
       <main id="main">
-        <section id="research" class="oa-hero reveal is-visible">
-          <article class="oa-card oa-feature">
+        <section id="research" class="oa-hero reveal">
+          <article class="oa-card oa-feature" data-card-href="/platform-preview">
             <div class="oa-feature-visual" aria-hidden="true"></div>
-            <h1>YonerAI</h1>
-            <p>
-              自分の PC から始まり、必要に応じて hybrid / managed cloud に広がる
-              local-first AI system。
-            </p>
+            <h1 data-i18n-en="YonerAI Platform Preview" data-i18n-ja="YonerAI プラットフォームプレビュー">YonerAI Platform Preview</h1>
+            <p data-i18n-en="A local-first AI platform that scales from your PC to cloud workers without losing control boundaries." data-i18n-ja="あなたのPCからクラウドワーカーまで、制御境界を崩さず拡張するローカルファーストAIプラットフォーム。">A local-first AI platform that scales from your PC to cloud workers without losing control boundaries.</p>
             <div class="oa-meta">
-              <span>Official Managed Cloud MVP</span>
-              <span>public-safe surface</span>
+              <span data-i18n-en="Product" data-i18n-ja="製品">Product</span>
+              <span data-i18n-en="Read time: 7 min" data-i18n-ja="読了時間: 7分">Read time: 7 min</span>
             </div>
           </article>
 
           <div class="oa-side-stack">
-            <article class="oa-card" data-card-href="#chat">
+            <article class="oa-card" data-card-href="/platform-preview">
               <div class="oa-thumb oa-thumb-blue" aria-hidden="true"></div>
-              <h2>Managed Cloud</h2>
-              <p>
-                `yonerai.com` は公式トップ、chat / auth / public API は `api.yonerai.com`
-                に分ける方向で固定しています。
-              </p>
+              <h2 data-i18n-en="M2 Relay Hardening" data-i18n-ja="M2 Relay 強化">M2 Relay Hardening</h2>
+              <p data-i18n-en="Multiplex, timeout cleanup, and one-time pairing are now baseline behavior." data-i18n-ja="多重化、timeout cleanup、ワンタイムペアリングを基準動作として実装。">Multiplex, timeout cleanup, and one-time pairing are now baseline behavior.</p>
             </article>
-            <article class="oa-card" data-card-href="#safety">
+            <article class="oa-card" data-card-href="/about">
               <div class="oa-thumb oa-thumb-orange" aria-hidden="true"></div>
-              <h2>Public-Safe Boundary</h2>
-              <p>
-                admin / operator / browser remote / system control は公開面に出しません。
-              </p>
+              <h2 data-i18n-en="Unified Public Surface" data-i18n-ja="統合公開サーフェス">Unified Public Surface</h2>
+              <p data-i18n-en="One-page public experience with language persistence and accessibility-ready structure." data-i18n-ja="言語保持とアクセシビリティ対応を備えた1ページ公開体験。">One-page public experience with language persistence and accessibility-ready structure.</p>
             </article>
           </div>
         </section>
 
-        <section id="safety" class="oa-grid reveal is-visible">
-          <article class="oa-card">
-            <h2>安全性</h2>
-            <p>
-              最初の公開面は細く切り、危険 capability と内部運用面を閉じたまま復旧します。
-            </p>
+        <section id="safety" class="oa-grid reveal">
+          <article class="oa-card" data-card-href="/security">
+            <h2 data-i18n-en="Security Model" data-i18n-ja="セキュリティモデル">Security Model</h2>
+            <p data-i18n-en="Safe-by-default controls: profile separation, risk scoring, approvals, and token boundaries." data-i18n-ja="安全側既定の制御: プロファイル分離、リスク判定、承認、トークン境界。">Safe-by-default controls: profile separation, risk scoring, approvals, and token boundaries.</p>
           </article>
-          <article class="oa-card">
-            <h2>公開 / 非公開</h2>
-            <p>
-              public GitHub は distribution core、private GitHub は official runtime / ops を持つ構成です。
-            </p>
+          <article class="oa-card" data-card-href="/about">
+            <h2 data-i18n-en="Operational Discipline" data-i18n-ja="運用規律">Operational Discipline</h2>
+            <p data-i18n-en="Architecture changes are documented and exposed publicly to keep decisions auditable." data-i18n-ja="設計変更を公開記録し、判断の追跡可能性を維持。">Architecture changes are documented and exposed publicly to keep decisions auditable.</p>
           </article>
-          <article class="oa-card">
-            <h2>Local First</h2>
-            <p>
-              まずは個人の PC で動き、あとから relay や managed cloud に広げられるようにします。
-            </p>
+          <article class="oa-card" data-card-href="/clients">
+            <h2 data-i18n-en="Cross-Platform Reach" data-i18n-ja="マルチプラットフォーム">Cross-Platform Reach</h2>
+            <p data-i18n-en="Web / iOS / Android / Windows / Mac / Discord under one behavioral contract." data-i18n-ja="Web / iOS / Android / Windows / Mac / Discord を1つの動作契約で統合。">Web / iOS / Android / Windows / Mac / Discord under one behavioral contract.</p>
           </article>
         </section>
 
-        <div id="modes" class="oa-anchor" aria-hidden="true"></div>
-        <section class="oa-grid reveal is-visible">
-          <article class="oa-card">
-            <h2>Full Private Self-Host</h2>
-            <p>ユーザーが runtime / storage / memory / files を自分で持つ形です。</p>
+        <div id="business" class="oa-anchor" aria-hidden="true"></div>
+        <section id="developers" class="oa-grid reveal">
+          <article class="oa-card" data-card-href="/developers">
+            <h2 data-i18n-en="Developer Direction" data-i18n-ja="開発方針">Developer Direction</h2>
+            <p data-i18n-en="Prioritize reliability and policy boundaries, then scale workers and advanced automation." data-i18n-ja="信頼性とポリシー境界を先に固め、その後にワーカー拡張と高度自動化へ進む。">Prioritize reliability and policy boundaries, then scale workers and advanced automation.</p>
           </article>
-          <article class="oa-card">
-            <h2>Official Hybrid Private</h2>
-            <p>公式の orchestration と、ユーザー側 node 実行を組み合わせる形です。</p>
+          <article class="oa-card" data-card-href="/about">
+            <h2 data-i18n-en="Business Path" data-i18n-ja="商用展開">Business Path</h2>
+            <p data-i18n-en="Personal node first, then shared mode, then managed cloud execution and subscriptions." data-i18n-ja="個人ノード起点で、共有モード、管理クラウド実行、サブスクリプションへ段階展開。">Personal node first, then shared mode, then managed cloud execution and subscriptions.</p>
           </article>
-          <article class="oa-card">
-            <h2>Official Managed Cloud</h2>
-            <p>公式側が runtime / core / memory / files を持つ最短導入の形です。</p>
+          <article class="oa-card" data-card-href="/clients">
+            <h2 data-i18n-en="Agent Evolution" data-i18n-ja="エージェント進化">Agent Evolution</h2>
+            <p data-i18n-en="Hybrid control plane + sandbox workers to run autonomous workflows safely." data-i18n-ja="ハイブリッド制御プレーン + サンドボックスワーカーで安全に自律ワークフローを実行。">Hybrid control plane + sandbox workers to run autonomous workflows safely.</p>
           </article>
         </section>
 
-        <div id="chat" class="oa-anchor" aria-hidden="true"></div>
-        <section class="oa-cta reveal is-visible">
+        <div id="agents" class="oa-anchor" aria-hidden="true"></div>
+        <section id="chat" class="oa-cta reveal">
           <div>
-            <h2>本命デザインを残したまま、MVP を安全に通す。</h2>
-            <p>
-              トップは `yonerai.com`、chat は `api.yonerai.com/jp/chat`。
-              今回はこの 2 面だけを復旧します。
-            </p>
+            <h2 data-i18n-en="Build in public. Ship with discipline." data-i18n-ja="公開で作り、品質で届ける。">Build in public. Ship with discipline.</h2>
+            <p data-i18n-en="Track releases and architecture decisions on GitHub." data-i18n-ja="リリースと設計判断をGitHubで継続公開。">Track releases and architecture decisions on GitHub.</p>
           </div>
           <div class="actions">
-            <a class="btn primary" data-chat-cta href="/jp/chat">Open Chat</a>
-            <a class="btn" href="mailto:hello@yonerai.com">hello@yonerai.com</a>
-            <a class="btn" href="https://github.com/YoneRai12/YonerAI" target="_blank" rel="noopener noreferrer">Open GitHub</a>
+            <a
+              class="btn primary"
+              data-auth-entry
+              data-auth-login-href="/auth/login?returnTo=/chat"
+              data-auth-authed-href="/chat"
+              data-auth-login-en="Sign in"
+              data-auth-login-ja="ログイン"
+              data-auth-authed-en="Open Chat"
+              data-auth-authed-ja="チャットを開く"
+              href="/auth/login?returnTo=/chat"
+            >Sign in</a>
+            <a class="btn" href="/trust-safety" data-i18n-en="Trust &amp; Safety" data-i18n-ja="信頼と安全性">Trust &amp; Safety</a>
+            <a class="btn" href="https://github.com/YoneRai12/YonerAI" target="_blank" rel="noopener noreferrer" data-i18n-en="Open GitHub" data-i18n-ja="GitHubを開く">Open GitHub</a>
           </div>
         </section>
 
         <div id="news" class="oa-anchor" aria-hidden="true"></div>
-        <section class="oa-grid reveal is-visible">
-          <article class="oa-card">
-            <h2>Current Status</h2>
-            <p>
-              いまはトップ、chat shell、session 確認、message 投入、SSE 応答までを最小で通しています。
-            </p>
-          </article>
-          <article class="oa-card">
-            <h2>What Is Closed</h2>
-            <p>
-              admin、operator、browser remote、local-native control、Oracle control plane は公開面から外しています。
-            </p>
-          </article>
-          <article class="oa-card">
-            <h2>Build In Public</h2>
-            <p>
-              設計は公開しつつ、production exactness や秘密は private 側で持つ方針です。
-            </p>
-          </article>
-        </section>
       </main>
 
-      <section class="oa-site-footer reveal is-visible" aria-label="Site footer">
+      <section class="oa-site-footer reveal" aria-label="Site footer">
         <div class="oa-footer-grid">
           <div class="oa-footer-col">
-            <h3>Platform</h3>
-            <a href="#research">Overview</a>
-            <a href="#modes">3 Modes</a>
-            <a href="#safety">Safety</a>
+            <h3 data-i18n-en="Platform" data-i18n-ja="プラットフォーム">Platform</h3>
+            <a href="/architecture" data-i18n-en="Architecture" data-i18n-ja="アーキテクチャ">Architecture</a>
+            <a href="/relay-model" data-i18n-en="Relay model" data-i18n-ja="Relayモデル">Relay model</a>
+            <a href="/security-model" data-i18n-en="Security model" data-i18n-ja="セキュリティモデル">Security model</a>
           </div>
           <div class="oa-footer-col">
-            <h3>Managed Cloud</h3>
-            <a data-chat-cta href="/jp/chat">Open Chat</a>
-            <a href="mailto:hello@yonerai.com">Contact</a>
+            <h3 data-i18n-en="Clients" data-i18n-ja="クライアント">Clients</h3>
+            <a href="/web-mobile" data-i18n-en="Web / iOS / Android" data-i18n-ja="Web / iOS / Android">Web / iOS / Android</a>
+            <a href="/desktop-discord" data-i18n-en="Windows / Mac / Discord" data-i18n-ja="Windows / Mac / Discord">Windows / Mac / Discord</a>
+            <a href="/chat" data-i18n-en="Public Chat" data-i18n-ja="公開チャット">Public Chat</a>
+            <a href="/roadmap" data-i18n-en="Roadmap" data-i18n-ja="ロードマップ">Roadmap</a>
           </div>
           <div class="oa-footer-col">
-            <h3>Open</h3>
-            <a href="https://github.com/YoneRai12/YonerAI" target="_blank" rel="noopener noreferrer">GitHub</a>
-            <a href="#news">Status</a>
+            <h3 data-i18n-en="Company" data-i18n-ja="企業">Company</h3>
+            <a href="/about" data-i18n-en="About YonerAI" data-i18n-ja="YonerAIについて">About YonerAI</a>
+            <a href="/contact" data-i18n-en="Contact" data-i18n-ja="お問い合わせ">Contact</a>
+            <a href="https://github.com/YoneRai12/YonerAI" target="_blank" rel="noopener noreferrer" data-i18n-en="GitHub" data-i18n-ja="GitHub">GitHub</a>
+          </div>
+          <div class="oa-footer-col">
+            <h3 data-i18n-en="Policy" data-i18n-ja="ポリシー">Policy</h3>
+            <a href="/terms" data-i18n-en="Terms" data-i18n-ja="利用規約">Terms</a>
+            <a href="/privacy" data-i18n-en="Privacy" data-i18n-ja="プライバシー">Privacy</a>
+            <a href="/trust-safety" data-i18n-en="Trust & safety" data-i18n-ja="信頼と安全性">Trust & safety</a>
           </div>
         </div>
         <footer class="oa-footer">
-          <span>YonerAI © 2026</span>
-          <span>Official Managed Cloud MVP surface</span>
+          <span data-i18n-en="YonerAI © 2026" data-i18n-ja="YonerAI © 2026">YonerAI © 2026</span>
+          <span id="lang-note">Language preference is stored in cookie (yonerai_lang).</span>
+          <div class="oa-footer-lang">
+            <span data-i18n-en="Language" data-i18n-ja="言語">Language</span>
+            <div class="lang-switch" role="group" aria-label="Language switcher (footer)">
+              <button class="lang-btn" type="button" data-lang-btn="en" aria-pressed="false">EN</button>
+              <button class="lang-btn" type="button" data-lang-btn="ja" aria-pressed="false">JP</button>
+            </div>
+          </div>
         </footer>
       </section>
 
@@ -183,3 +183,9 @@
   </div>
 </body>
 </html>
+
+
+
+
+
+

@@ -1,5 +1,6 @@
-<!doctype html>
-<html lang="ja">
+﻿<!doctype html>
+<html lang="en">
+
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -9,318 +10,1846 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
     href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=IBM+Plex+Sans+JP:wght@400;500;700&display=swap"
-    rel="stylesheet"
-  />
-  <link rel="stylesheet" href="/static/site.css?v=20260401_03" />
-  <script src="/static/site.js?v=20260401_03"></script>
+    rel="stylesheet" />
+  <link rel="stylesheet" href="/static/site.css?v=20260215_02" />
+  <script defer src="/static/site.js?v=20260215_02"></script>
+  <script defer src="https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js"></script>
 </head>
 
 <body class="console preload" data-console-page="chat">
-  <a class="skip-link" href="#main">メインコンテンツへスキップ</a>
+  <a class="skip-link" href="#main" data-i18n-en="Skip to main content" data-i18n-ja="メインコンテンツへスキップ">Skip to main
+    content</a>
 
   <div class="console-app">
     <aside class="console-sidebar" aria-label="Sidebar" data-sidebar>
       <div class="console-brand">
         <a class="console-logo" href="/" aria-label="YonerAI home">YonerAI</a>
+        <button class="console-icon" type="button" data-sidebar-close aria-label="Close sidebar">
+          <span aria-hidden="true">×</span>
+        </button>
       </div>
 
       <div class="console-actions">
         <button class="console-newchat" id="new-chat-btn" type="button">
           <span class="console-plus" aria-hidden="true">+</span>
-          <span>New chat</span>
+          <span data-i18n-en="New chat" data-i18n-ja="新規チャット">New chat</span>
         </button>
       </div>
 
       <div class="console-section">
-        <div class="console-section-label">Chats</div>
-        <nav id="thread-list" class="thread-list" aria-label="Chat threads">
-          <div class="thread-item is-active">
-            <span class="thread-title">Managed Cloud MVP</span>
-          </div>
-        </nav>
+        <div class="console-section-label" data-i18n-en="Chats" data-i18n-ja="チャット">Chats</div>
+        <nav id="thread-list" class="thread-list" aria-label="Chat threads"></nav>
       </div>
 
       <div class="console-spacer"></div>
 
+      <div class="console-mini-nav" aria-label="Quick links">
+        <a class="mini-link" href="/privacy" data-i18n-en="Privacy" data-i18n-ja="プライバシー">Privacy</a>
+        <a class="mini-link" href="/terms" data-i18n-en="Terms" data-i18n-ja="利用規約">Terms</a>
+        <a class="mini-link" href="/trust-safety" data-i18n-en="Trust &amp; Safety" data-i18n-ja="信頼と安全性">Trust &amp; Safety</a>
+      </div>
+
       <div id="auth-box" class="console-auth" aria-label="Auth">
-        <div class="console-user">
-          <div id="session-state" class="console-user-label">セッションを確認しています…</div>
-          <div id="session-user" class="console-user-sub" hidden></div>
+        <div id="auth-authed" hidden>
+          <div class="console-userchip-wrap">
+            <button class="console-userchip" id="user-chip" type="button" aria-label="Account menu" aria-haspopup="menu"
+              aria-expanded="false">
+              <span class="console-avatar" id="user-avatar" aria-hidden="true">Y</span>
+              <span class="console-userchip-name" id="user-id">anonymous</span>
+            </button>
+            <div class="console-usermenu" id="user-menu" role="menu" hidden>
+              <button class="console-usermenu-item" id="logout-btn" type="button" role="menuitem" data-i18n-en="Log out"
+                data-i18n-ja="ログアウト">Log out</button>
+            </div>
+          </div>
         </div>
-        <div class="console-auth-actions">
-          <a
-            class="console-btn primary"
-            id="login-btn"
-            data-google-login
-            data-return-to="/jp/chat"
-            href="/api/auth/google/start?returnTo=/jp/chat"
-          >Google でログイン</a>
-          <button class="console-btn" id="logout-btn" type="button" hidden>ログアウト</button>
+
+        <div id="auth-guest">
+          <div class="console-user">
+            <div class="console-user-label" data-i18n-en="Sign in to chat" data-i18n-ja="ログインしてチャット">Sign in to chat
+            </div>
+            <div class="console-user-sub"
+              data-i18n-en="Choose a provider to continue. Discord users can migrate via link code."
+              data-i18n-ja="ログイン方法を選択して続行。Discordユーザーはリンクコードで移行できます。">Choose a provider to continue. Discord users can
+              migrate via link code.</div>
+          </div>
+          <div class="console-auth-actions">
+            <a class="console-btn primary" id="google-login" href="/auth/login?returnTo=/chat" data-i18n-en="Sign in"
+              data-i18n-ja="ログイン">Sign in</a>
+          </div>
+          <p class="console-auth-msg" id="auth-msg" aria-live="polite"></p>
         </div>
       </div>
     </aside>
 
     <main id="main" class="console-main" aria-label="Chat">
       <header class="console-topbar" aria-label="Top bar">
+        <button class="console-icon" type="button" data-sidebar-open aria-label="Open sidebar">
+          <span aria-hidden="true">☰</span>
+        </button>
         <div class="console-topbar-title">
-          <span>YonerAI Chat</span>
+          <span data-i18n-en="Chat" data-i18n-ja="チャット">Chat</span>
         </div>
         <div class="console-topbar-right">
-          <a class="console-pill" href="/">Top</a>
+          <span class="console-pill" id="usage-pill" hidden></span>
+          <a class="console-pill" href="/" data-i18n-en="Back to site" data-i18n-ja="サイトへ戻る">Back to site</a>
         </div>
       </header>
 
       <section class="chat-shell" aria-label="Conversation">
-        <div id="status-box" class="chat-status" hidden role="status" aria-live="polite">
+        <div id="chat-status" class="chat-status" hidden role="status" aria-live="polite">
           <span class="chat-status-dot" aria-hidden="true"></span>
-          <span id="status-box-text" class="chat-status-text"></span>
+          <span id="chat-status-text" class="chat-status-text"></span>
+          <button id="chat-status-retry" class="chat-status-retry" type="button" hidden data-i18n-en="Retry"
+            data-i18n-ja="再試行">Retry</button>
         </div>
 
-        <div class="chat-empty">
-          <h1>What can I help with?</h1>
-          <p class="muted">
-            本命デザインを維持したまま、最小の public-safe chat だけを通しています。
-          </p>
+        <div id="chat-empty" class="chat-empty" hidden>
+          <h1 data-i18n-en="What can I help with?" data-i18n-ja="何をお手伝いしましょうか？">What can I help with?</h1>
+          <p class="muted"
+            data-i18n-en="Sign in, then start a conversation. The browser keeps a local copy for the UI, and the server stores conversation history to provide the service."
+            data-i18n-ja="ログインして会話を開始できます。UIのためにブラウザ内にもローカル保存され、サービス提供のためサーバ側にも会話履歴が保存されます。">Sign in, then start a
+            conversation. The browser keeps a local copy for the UI, and the server stores conversation history to
+            provide the service.</p>
         </div>
 
-        <div id="message-list" class="chat-scroll" role="log" aria-live="polite" aria-relevant="additions text"></div>
+        <div id="chat-scroll" class="chat-scroll" role="log" aria-live="polite" aria-relevant="additions text"></div>
 
         <form id="chat-form" class="chat-compose" autocomplete="off">
           <div class="compose-wrap">
-            <textarea
-              id="chat-input"
-              class="compose-input"
-              rows="1"
-              required
-              placeholder="YonerAIにメッセージ…"
-            ></textarea>
-            <button class="compose-send" id="send-btn" type="submit" aria-label="Send">
+            <textarea id="chat-input" class="compose-input" rows="1" required data-placeholder-en="Message YonerAI…"
+              data-placeholder-ja="YonerAIにメッセージ…" placeholder="Message YonerAI…"></textarea>
+            <button class="compose-attach" id="chat-attach-btn" type="button" aria-label="Attach image"
+              title="Attach image">
+              <span aria-hidden="true">📎</span>
+            </button>
+            <input id="chat-attach-input" type="file" accept="image/jpeg,image/png,image/webp" multiple hidden />
+            <button class="compose-send" id="chat-send" type="submit" aria-label="Send">
               <span aria-hidden="true">↵</span>
             </button>
           </div>
-          <div class="compose-note muted">
-            いまは session 確認、メッセージ送信、SSE 応答だけを通しています。
-          </div>
+          <div id="chat-attachments-preview" class="compose-attachments" hidden></div>
+          <div class="compose-note muted"
+            data-i18n-en="Tip: Use a Discord link code if you want to carry your identity from Discord to Web."
+            data-i18n-ja="ヒント: Discordのリンクコードを使うと、Discord→WebへIDを引き継げます。">Tip: Use a Discord link code if you want to
+            carry your identity from Discord to Web.</div>
         </form>
       </section>
     </main>
   </div>
 
+  <script src="/static/vendor/purify.min.js?v=20260214_06"></script>
+  <script src="/static/vendor/marked.min.js?v=20260214_06"></script>
   <script>
     (() => {
       "use strict";
 
-      const app = window.YonerAIWeb;
-      if (!app) {
-        return;
-      }
+      const $ = (sel, root = document) => root.querySelector(sel);
+      const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
-      const apiBase = app.resolveApiBase();
-      const messageList = document.getElementById("message-list");
-      const statusBox = document.getElementById("status-box");
-      const statusBoxText = document.getElementById("status-box-text");
-      const chatForm = document.getElementById("chat-form");
-      const chatInput = document.getElementById("chat-input");
-      const sendBtn = document.getElementById("send-btn");
-      const sessionState = document.getElementById("session-state");
-      const sessionUser = document.getElementById("session-user");
-      const loginBtn = document.getElementById("login-btn");
-      const logoutBtn = document.getElementById("logout-btn");
-      const newChatBtn = document.getElementById("new-chat-btn");
+      const authAuthed = $("#auth-authed");
+      const authGuest = $("#auth-guest");
+      const authMsg = $("#auth-msg");
+      const logoutBtn = $("#logout-btn");
+      const appleBtn = $("#apple-login");
+      const googleLogin = $("#google-login");
+      const userIdEl = $("#user-id");
+      const userChip = $("#user-chip");
+      const userAvatarEl = $("#user-avatar");
+      const userMenu = $("#user-menu");
+
+      const newChatBtn = $("#new-chat-btn");
+      const threadList = $("#thread-list");
+      const chatScroll = $("#chat-scroll");
+      const chatEmpty = $("#chat-empty");
+      const chatForm = $("#chat-form");
+      const chatInput = $("#chat-input");
+      const chatSend = $("#chat-send");
+      const chatAttachBtn = $("#chat-attach-btn");
+      const chatAttachInput = $("#chat-attach-input");
+      const chatAttachmentsPreview = $("#chat-attachments-preview");
+      const usagePill = $("#usage-pill");
+      const chatStatus = $("#chat-status");
+      const chatStatusText = $("#chat-status-text");
+      const chatStatusRetry = $("#chat-status-retry");
+
+      const sidebar = $("[data-sidebar]");
+      const openSidebarBtn = $("[data-sidebar-open]");
+      const closeSidebarBtn = $("[data-sidebar-close]");
+
+      const SIDEBAR_COLLAPSE_KEY = "yonerai_sidebar_collapsed_v1";
+
+      const qp = new URLSearchParams(window.location.search);
+      const linkCode = (qp.get("link_code") || "").trim();
+      const nextPath = (qp.get("returnTo") || qp.get("next") || "/chat").trim();
+      const authError = (qp.get("auth_error") || "").trim();
+      const authHint = (qp.get("auth_hint") || "").trim();
 
       let me = null;
-      let pendingBubble = null;
+      let activeThreadId = null;
+      let inflight = null;
+      let inflightRunId = "";
+      let lastSubmittedPrompt = "";
+      let lastFailedPrompt = "";
+      let threadsState = [];
+      let pendingAttachments = [];
+      let saveTimer = null;
+      let domIndex = new Map(); // message_id -> { row, bubble, content, activity }
+      const ATTACHMENT_ALLOWED_MIME = new Set(["image/jpeg", "image/png", "image/webp"]);
+      const ATTACHMENT_ALLOWED_EXT = [".jpg", ".jpeg", ".png", ".webp"];
+      const ATTACHMENT_MAX_COUNT = 4;
 
-      function showStatus(text, isError = false) {
-        statusBox.hidden = false;
-        statusBoxText.textContent = text;
-        statusBox.classList.toggle("is-error", Boolean(isError));
-        statusBox.classList.toggle("is-working", !isError);
+      function isJa() {
+        return (document.documentElement.lang || "en").toLowerCase().startsWith("ja");
       }
 
-      function clearStatus() {
-        statusBox.hidden = true;
-        statusBoxText.textContent = "";
-        statusBox.classList.remove("is-error");
-        statusBox.classList.remove("is-working");
+      function stripTrailingSlash(s) {
+        return String(s || "").replace(/\/+$/, "");
       }
 
-      function addBubble(role, text) {
-        const row = document.createElement("div");
-        row.className = `msg ${role === "user" ? "is-user" : "is-assistant"}`;
+      function resolveApiBase() {
+        // Highest priority: explicit runtime injection.
+        const injected = String(window.__YONERAI_API_BASE__ || "").trim();
+        if (injected) return stripTrailingSlash(injected);
 
-        const bubble = document.createElement("article");
-        bubble.className = "msg-bubble";
-        bubble.textContent = text;
+        // Optional override via meta tag.
+        const meta = document.querySelector('meta[name="yonerai-api-base"]');
+        const metaValue = meta ? String(meta.getAttribute("content") || "").trim() : "";
+        if (metaValue) return stripTrailingSlash(metaValue);
 
-        row.appendChild(bubble);
-        messageList.appendChild(row);
-        messageList.scrollTop = messageList.scrollHeight;
-        return bubble;
+        // Domain split fallback:
+        // - site host uses api.yonerai.com
+        // - others use same-origin
+        const host = String(window.location.hostname || "").toLowerCase();
+        const proto = String(window.location.protocol || "https:");
+        if (host === "yonerai.com" || host === "www.yonerai.com") {
+          return `${proto}//api.yonerai.com`;
+        }
+        return `${proto}//${window.location.host}`;
       }
 
-      function setAuthedUI() {
-        if (!me) {
-          sessionState.textContent = "Google ログインが必要です。";
-          sessionUser.hidden = true;
-          loginBtn.hidden = false;
-          logoutBtn.hidden = true;
-          chatInput.disabled = true;
-          sendBtn.disabled = true;
+      const API_BASE = resolveApiBase();
+
+      function apiUrl(path) {
+        const raw = String(path || "").trim();
+        if (!raw) return API_BASE;
+        if (/^https?:\/\//i.test(raw)) return raw;
+        const normalized = raw.startsWith("/") ? raw : `/${raw}`;
+        return `${API_BASE}${normalized}`;
+      }
+
+      function parseJsonSafely(rawText) {
+        const raw = String(rawText || "");
+        if (!raw.trim()) {
+          return { ok: true, json: {} };
+        }
+        try {
+          return { ok: true, json: JSON.parse(raw) };
+        } catch (_e) {
+          return { ok: false, json: {} };
+        }
+      }
+
+      function looksLikeHtml(rawText) {
+        const h = String(rawText || "").trim().slice(0, 200).toLowerCase();
+        return h.startsWith("<!doctype") || h.startsWith("<html") || h.includes("<body");
+      }
+
+      function formatNonJsonStartError({ status, reqId, rawText }) {
+        const htmlLike = looksLikeHtml(rawText);
+        const lines = [];
+        if (htmlLike) {
+          lines.push(
+            isJa()
+              ? "サーバーから HTML 応答が返ってきました。接続先の API ルート設定を確認してください。"
+              : "Server returned HTML instead of JSON. Check API route/domain wiring."
+          );
+        } else {
+          lines.push(
+            isJa()
+              ? "サーバー応答を解析できませんでした。少し待って再試行してください。"
+              : "Failed to parse server response. Please retry shortly."
+          );
+        }
+        if (reqId) {
+          lines.push(isJa() ? `参照ID: ${reqId}` : `Reference ID: ${reqId}`);
+        }
+        if (isDebug()) {
+          lines.push(`api_base: ${API_BASE}`);
+          if (htmlLike) {
+            lines.push(isJa() ? "debug: API ではないページへ到達した可能性があります。" : "debug: request may have reached a non-API page.");
+          }
+        }
+        return lines.join("\n");
+      }
+
+      function setChatStatus(state, opts = {}) {
+        if (!chatStatus || !chatStatusText) return;
+        const mode = String(state || "idle");
+        const retry = Boolean(opts.retry);
+
+        chatStatus.dataset.state = mode;
+        chatStatus.classList.remove("is-working", "is-streaming", "is-error", "is-ok");
+        if (mode === "working") chatStatus.classList.add("is-working");
+        else if (mode === "streaming") chatStatus.classList.add("is-streaming");
+        else if (mode === "error") chatStatus.classList.add("is-error");
+        else if (mode === "ok") chatStatus.classList.add("is-ok");
+
+        if (mode === "idle") {
+          chatStatus.hidden = true;
+          chatStatusText.textContent = "";
+          if (chatStatusRetry) {
+            chatStatusRetry.hidden = true;
+            chatStatusRetry.disabled = true;
+          }
           return;
         }
 
-        sessionState.textContent = "ログイン済み";
-        sessionUser.hidden = false;
-        sessionUser.textContent = `${me.display_name || me.user_id} (${me.provider})`;
-        loginBtn.hidden = true;
-        logoutBtn.hidden = false;
-        chatInput.disabled = false;
-        sendBtn.disabled = false;
+        const defaultText =
+          mode === "working"
+            ? (isJa() ? "送信中…" : "Sending…")
+            : mode === "streaming"
+              ? (isJa() ? "応答を生成中…" : "Generating response…")
+              : mode === "ok"
+                ? (isJa() ? "完了しました" : "Completed")
+                : (isJa() ? "エラーが発生しました" : "An error occurred");
+        chatStatusText.textContent = String(opts.message || defaultText);
+        chatStatus.hidden = false;
+        if (chatStatusRetry) {
+          chatStatusRetry.hidden = !retry;
+          chatStatusRetry.disabled = !retry;
+        }
       }
 
-      async function refreshSession() {
-        loginBtn.href = app.resolveGoogleStartHref("/jp/chat");
+      function reasonCodeHint(reasonCode) {
+        const r = String(reasonCode || "").trim();
+        if (!r) return "";
+        if (r === "core_timeout") {
+          return isJa() ? "サーバー応答がタイムアウトしました。少し待って再試行してください。" : "Server timed out. Please retry in a moment.";
+        }
+        if (r === "core_auth_misconfigured" || r === "core_auth_rejected") {
+          return isJa() ? "内部接続の再初期化中です。少し待って再試行してください。" : "Internal service link is recovering. Please retry shortly.";
+        }
+        if (r === "core_unavailable") {
+          return isJa() ? "サーバーが一時的に利用できません。" : "Server is temporarily unavailable.";
+        }
+        if (r === "attachment_unsupported_type") {
+          return isJa() ? "未対応の画像形式です（JPEG/PNG/WEBPのみ対応）。" : "Unsupported attachment type (JPEG/PNG/WEBP only).";
+        }
+        if (r === "attachment_too_large") {
+          return isJa() ? "添付ファイルが大きすぎます。サイズを小さくして再試行してください。" : "Attachment is too large. Please reduce file size.";
+        }
+        if (r === "attachment_too_many") {
+          return isJa() ? "一度に添付できる枚数を超えています。" : "Too many attachments in one request.";
+        }
+        if (r === "attachment_upload_failed") {
+          return isJa() ? "添付ファイルのアップロードに失敗しました。" : "Attachment upload failed.";
+        }
+        if (r === "attachment_invalid_payload") {
+          return isJa() ? "添付ファイルの内容を確認できませんでした。" : "Attachment payload is invalid.";
+        }
+        if (r === "attachment_expired") {
+          return isJa() ? "添付ファイルの有効期限が切れました。もう一度添付してください。" : "Attachment expired. Please upload again.";
+        }
+        if (r === "vision_not_configured" || r === "vision_unavailable" || r === "vision_timeout" || r === "vision_invalid_response") {
+          return isJa() ? "画像処理が一時的に利用できません。時間をおいて再試行してください。" : "Vision processing is temporarily unavailable. Please retry shortly.";
+        }
+        return "";
+      }
+
+      function hideUsagePill() {
+        if (!usagePill) return;
+        usagePill.hidden = true;
+        usagePill.textContent = "";
+        usagePill.title = "";
+      }
+
+      function setUsagePill(data) {
+        if (!usagePill) return;
+        if (!me || !me.user_id) {
+          hideUsagePill();
+          return;
+        }
+        const limit = (data && typeof data.limit === "number") ? data.limit : 0;
+        const used = (data && typeof data.used === "number") ? data.used : 0;
+        const remaining = (data && typeof data.remaining === "number") ? data.remaining : null;
+        const usedSessionRaw = (data && typeof data.used_session_raw === "number") ? data.used_session_raw : null;
+        const usedApiKeyRaw = (data && typeof data.used_api_key_raw === "number") ? data.used_api_key_raw : null;
+
+        // limit<=0 means "disabled/unlimited" (don't show a pill).
+        if (!limit || limit <= 0) {
+          hideUsagePill();
+          return;
+        }
+
+        const rem = remaining !== null ? remaining : Math.max(0, limit - used);
+        usagePill.hidden = false;
+        usagePill.textContent = isJa() ? `今日 ${used}/${limit}` : `Today ${used}/${limit}`;
+
+        const parts = [];
+        if (data && typeof data.reset_ts === "number" && data.reset_ts > 0) {
+          const dt = new Date(data.reset_ts * 1000);
+          const s = dt.toLocaleString();
+          parts.push(isJa() ? `リセット: ${s}` : `Resets: ${s}`);
+        }
+        parts.push(isJa() ? `残り: ${rem}` : `Left: ${rem}`);
+        if (usedSessionRaw !== null || usedApiKeyRaw !== null) {
+          const a = usedSessionRaw !== null ? usedSessionRaw : 0;
+          const b = usedApiKeyRaw !== null ? usedApiKeyRaw : 0;
+          parts.push(isJa() ? `内訳: ブラウザ ${a} / APIキー ${b}` : `Breakdown: Web ${a} / API key ${b}`);
+        }
+        usagePill.title = parts.join("\n");
+      }
+
+      async function refreshUsage() {
+        if (!usagePill) return;
+        if (!me || !me.user_id) {
+          hideUsagePill();
+          return;
+        }
         try {
-          const response = await fetch(`${apiBase}/api/auth/me`, {
-            credentials: "include",
-            headers: { "Accept": "application/json" },
-          });
-          if (!response.ok) {
-            me = null;
-            setAuthedUI();
+          const r = await fetch(apiUrl("/api/public/chat/usage"), { credentials: "include" });
+          if (!r.ok) {
+            hideUsagePill();
             return;
           }
-          me = await response.json();
-          setAuthedUI();
-        } catch (error) {
+          const data = await r.json();
+          setUsagePill(data);
+        } catch (_e) {
+          // ignore
+        }
+      }
+
+      function nowMs() {
+        return Date.now();
+      }
+
+      function storageKey() {
+        const uid = me && me.user_id ? String(me.user_id) : "guest";
+        return `yonerai_threads_v1:${uid}`;
+      }
+
+      function loadThreads() {
+        try {
+          const raw = localStorage.getItem(storageKey()) || "[]";
+          const parsed = JSON.parse(raw);
+          threadsState = Array.isArray(parsed) ? parsed : [];
+        } catch (_e) {
+          threadsState = [];
+        }
+        return threadsState;
+      }
+
+      function saveThreads() {
+        try {
+          localStorage.setItem(storageKey(), JSON.stringify(threadsState || []));
+        } catch (_e) {
+          // ignore
+        }
+      }
+
+      function scheduleSaveThreads() {
+        if (saveTimer) return;
+        saveTimer = window.setTimeout(() => {
+          saveTimer = null;
+          saveThreads();
+        }, 400);
+      }
+
+      function saveThreadsNow() {
+        if (saveTimer) {
+          window.clearTimeout(saveTimer);
+          saveTimer = null;
+        }
+        saveThreads();
+      }
+
+      function mkThread(title) {
+        return {
+          id: `t_${Math.random().toString(36).slice(2)}_${nowMs()}`,
+          title: title || (isJa() ? "新しいチャット" : "New chat"),
+          created_at: nowMs(),
+          // Core conversation_id (used to carry memory/RAG across messages)
+          conversation_id: null,
+          messages: [],
+        };
+      }
+
+      function isDefaultNewChatTitle(title) {
+        const raw = String(title || "").trim();
+        if (!raw) return true;
+        if (raw === "新しいチャット") return true;
+        if (raw.toLowerCase() === "new chat") return true;
+        return false;
+      }
+
+      function isReusableEmptyThread(t) {
+        if (!t) return false;
+        if (t.conversation_id) return false;
+        const msgs = Array.isArray(t.messages) ? t.messages : [];
+        if (msgs.length) return false;
+        return isDefaultNewChatTitle(t.title);
+      }
+
+      function ensureThread() {
+        if (!Array.isArray(threadsState)) {
+          threadsState = [];
+        }
+        if (activeThreadId && threadsState.some((t) => t.id === activeThreadId)) {
+          return;
+        }
+        if (threadsState.length) {
+          activeThreadId = threadsState[0].id;
+          return;
+        }
+        const t = mkThread();
+        threadsState.unshift(t);
+        activeThreadId = t.id;
+        saveThreads();
+      }
+
+      function setActiveThread(id) {
+        activeThreadId = id;
+        renderThreads();
+        renderMessages();
+        closeSidebarIfMobile();
+      }
+
+      function closeSidebarIfMobile() {
+        if (window.matchMedia("(max-width: 960px)").matches) {
+          document.body.classList.remove("sidebar-open");
+        }
+      }
+
+      function isDesktopLayout() {
+        return window.matchMedia("(min-width: 961px)").matches;
+      }
+
+      function setSidebarCollapsed(collapsed) {
+        document.body.classList.toggle("sidebar-collapsed", !!collapsed);
+        try {
+          localStorage.setItem(SIDEBAR_COLLAPSE_KEY, collapsed ? "1" : "0");
+        } catch (_e) {
+          // ignore
+        }
+      }
+
+      function applySidebarPref() {
+        const desktop = isDesktopLayout();
+        let collapsed = false;
+        try {
+          collapsed = localStorage.getItem(SIDEBAR_COLLAPSE_KEY) === "1";
+        } catch (_e) {
+          collapsed = false;
+        }
+
+        if (desktop) {
+          // Desktop uses collapsed grid; mobile uses overlay.
+          document.body.classList.remove("sidebar-open");
+          document.body.classList.toggle("sidebar-collapsed", collapsed);
+        } else {
+          document.body.classList.remove("sidebar-collapsed");
+        }
+      }
+
+      function openSidebar() {
+        if (isDesktopLayout()) {
+          document.body.classList.remove("sidebar-open");
+          setSidebarCollapsed(false);
+          return;
+        }
+        document.body.classList.add("sidebar-open");
+      }
+
+      function closeSidebar() {
+        if (isDesktopLayout()) {
+          document.body.classList.remove("sidebar-open");
+          setSidebarCollapsed(true);
+          return;
+        }
+        document.body.classList.remove("sidebar-open");
+      }
+
+      function openUserMenu() {
+        if (!userMenu || !userChip) return;
+        userMenu.hidden = false;
+        userChip.setAttribute("aria-expanded", "true");
+      }
+
+      function closeUserMenu() {
+        if (!userMenu || !userChip) return;
+        userMenu.hidden = true;
+        userChip.setAttribute("aria-expanded", "false");
+      }
+
+      function toggleUserMenu() {
+        if (!userMenu) return;
+        if (userMenu.hidden) openUserMenu();
+        else closeUserMenu();
+      }
+
+      function renderThreads() {
+        if (!threadList) return;
+        threadList.innerHTML = "";
+        threadsState.slice(0, 60).forEach((t) => {
+          const a = document.createElement("button");
+          a.type = "button";
+          a.className = "thread-item";
+          a.textContent = t.title || (isJa() ? "チャット" : "Chat");
+          const active = t.id === activeThreadId;
+          a.setAttribute("aria-current", active ? "page" : "false");
+          if (active) {
+            a.classList.add("is-active");
+          }
+          a.addEventListener("click", () => setActiveThread(t.id));
+          threadList.appendChild(a);
+        });
+      }
+
+      function markedParse() {
+        const m = window.marked;
+        if (!m) return null;
+        if (typeof m.parse === "function") return (s) => m.parse(String(s || ""));
+        if (m.marked && typeof m.marked.parse === "function") return (s) => m.marked.parse(String(s || ""));
+        if (typeof m === "function") return (s) => m(String(s || ""));
+        return null;
+      }
+
+      const _mdParse = markedParse();
+
+      function renderMarkdown(mdText) {
+        const raw = String(mdText || "");
+        if (!_mdParse || !window.DOMPurify) {
+          return raw.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+        }
+        const html = _mdParse(raw);
+        // Strictly sanitize model output before injecting as HTML.
+        return window.DOMPurify.sanitize(String(html || ""), { USE_PROFILES: { html: true } });
+      }
+
+      function isNearBottom(el, thresholdPx = 140) {
+        const d = el.scrollHeight - el.scrollTop - el.clientHeight;
+        return d < thresholdPx;
+      }
+
+      function maybeAutoscroll(wasNearBottom) {
+        if (!chatScroll) return;
+        if (wasNearBottom) chatScroll.scrollTop = chatScroll.scrollHeight;
+      }
+
+      function buildThinkingEl() {
+        const wrap = document.createElement("div");
+        wrap.className = "thinking";
+        const label = document.createElement("span");
+        label.textContent = isJa() ? "思考中" : "Thinking";
+        const dots = document.createElement("span");
+        dots.className = "thinking-dots";
+        for (let i = 0; i < 3; i++) {
+          const d = document.createElement("span");
+          d.setAttribute("aria-hidden", "true");
+          dots.appendChild(d);
+        }
+        wrap.appendChild(label);
+        wrap.appendChild(dots);
+        return wrap;
+      }
+
+      function setSafeLinks(root) {
+        if (!root) return;
+        root.querySelectorAll("a[href]").forEach((a) => {
+          try {
+            a.setAttribute("target", "_blank");
+            a.setAttribute("rel", "noopener noreferrer");
+          } catch (_e) {
+            // ignore
+          }
+        });
+      }
+
+      async function copyTextToClipboard(text) {
+        const t = String(text || "");
+        try {
+          if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+            await navigator.clipboard.writeText(t);
+            return true;
+          }
+        } catch (_e) {
+          // fall through
+        }
+        try {
+          const ta = document.createElement("textarea");
+          ta.value = t;
+          ta.setAttribute("readonly", "true");
+          ta.style.position = "fixed";
+          ta.style.top = "-1000px";
+          ta.style.left = "-1000px";
+          document.body.appendChild(ta);
+          ta.select();
+          const ok = document.execCommand("copy");
+          ta.remove();
+          return !!ok;
+        } catch (_e2) {
+          return false;
+        }
+      }
+
+      function detectCodeLang(codeEl) {
+        if (!codeEl) return "";
+        const cls = String(codeEl.className || "");
+        const m = cls.match(/\blanguage-([a-z0-9_+-]+)\b/i) || cls.match(/\blang(?:uage)?-([a-z0-9_+-]+)\b/i);
+        return m ? String(m[1] || "").toLowerCase() : "";
+      }
+
+      function decorateCodeBlocks(root) {
+        if (!root) return;
+        const pres = Array.from(root.querySelectorAll("pre"));
+        pres.forEach((pre) => {
+          if (!pre || pre.closest(".codeblock")) return;
+          const code = pre.querySelector("code");
+          if (!code) return;
+
+          const lang = detectCodeLang(code);
+
+          const wrap = document.createElement("div");
+          wrap.className = "codeblock";
+
+          const head = document.createElement("div");
+          head.className = "codeblock-head";
+
+          const langEl = document.createElement("span");
+          langEl.className = "codeblock-lang";
+          langEl.textContent = lang || "code";
+
+          const copyBtn = document.createElement("button");
+          copyBtn.type = "button";
+          copyBtn.className = "codeblock-copy";
+          copyBtn.textContent = isJa() ? "コピー" : "Copy";
+          copyBtn.addEventListener("click", async () => {
+            const ok = await copyTextToClipboard(code.textContent || "");
+            copyBtn.textContent = ok ? (isJa() ? "コピー済み" : "Copied") : (isJa() ? "失敗" : "Failed");
+            window.setTimeout(() => {
+              copyBtn.textContent = isJa() ? "コピー" : "Copy";
+            }, 1100);
+          });
+
+          head.appendChild(langEl);
+          head.appendChild(copyBtn);
+          wrap.appendChild(head);
+
+          const parent = pre.parentNode;
+          if (!parent) return;
+          parent.insertBefore(wrap, pre);
+          wrap.appendChild(pre);
+        });
+      }
+
+      function renderActivityList(activityEl, activities) {
+        if (!activityEl) return;
+        activityEl.innerHTML = "";
+        const items = Array.isArray(activities) ? activities : [];
+        if (!items.length) {
+          activityEl.hidden = true;
+          return;
+        }
+        activityEl.hidden = false;
+
+        const statusText = (state) => {
+          if (state === "running") return isJa() ? "実行中" : "running";
+          if (state === "done") return isJa() ? "完了" : "done";
+          if (state === "error") return isJa() ? "失敗" : "error";
+          return "";
+        };
+
+        items.slice(0, 8).forEach((a) => {
+          const row = document.createElement("div");
+          row.className = "activity-item";
+          const left = document.createElement("div");
+          left.className = "activity-left";
+          const dot = document.createElement("span");
+          dot.className = "activity-dot";
+          const st = String(a && a.state ? a.state : "");
+          if (st === "running") dot.classList.add("is-running");
+          else if (st === "done") dot.classList.add("is-done");
+          else if (st === "error") dot.classList.add("is-error");
+          const label = document.createElement("span");
+          label.className = "activity-label";
+          label.textContent = String((a && a.label) || "");
+          left.appendChild(dot);
+          left.appendChild(label);
+
+          const right = document.createElement("div");
+          right.className = "activity-right";
+          const extra = [];
+          const s = statusText(st);
+          if (s) extra.push(s);
+          if (a && typeof a.latency_ms === "number") {
+            extra.push(`${a.latency_ms}ms`);
+          }
+          right.textContent = extra.join(" • ");
+
+          row.appendChild(left);
+          row.appendChild(right);
+          activityEl.appendChild(row);
+        });
+      }
+
+      function renderMessageIntoDom(m, dom) {
+        if (!m || !dom) return;
+        const bubble = dom.bubble;
+        const contentEl = dom.content;
+        const activityEl = dom.activity;
+        if (!bubble || !contentEl) return;
+
+        bubble.classList.toggle("is-error", m.kind === "error");
+
+        // Content
+        contentEl.innerHTML = "";
+        contentEl.classList.remove("is-plain");
+        contentEl.removeAttribute("aria-busy");
+
+        const role = String(m.role || "");
+        const text = String(m.text || "");
+        const format = String(m.format || "");
+        const status = String(m.status || "");
+
+        if (role === "assistant" && status === "thinking" && !text) {
+          contentEl.appendChild(buildThinkingEl());
+          contentEl.setAttribute("aria-busy", "true");
+        } else if (role === "assistant" && format === "markdown" && text) {
+          contentEl.classList.add("msg-content");
+          contentEl.innerHTML = renderMarkdown(text);
+          setSafeLinks(contentEl);
+          decorateCodeBlocks(contentEl);
+        } else {
+          contentEl.classList.add("is-plain");
+          contentEl.textContent = text;
+        }
+
+        // Activity
+        renderActivityList(activityEl, m.activities || []);
+      }
+
+      function buildMessageRow(m) {
+        const row = document.createElement("div");
+        row.className = `msg ${m.role === "assistant" ? "is-assistant" : "is-user"}`;
+        row.dataset.mid = String(m.id || "");
+        const bubble = document.createElement("div");
+        bubble.className = `msg-bubble${m.kind === "error" ? " is-error" : ""}`;
+
+        const content = document.createElement("div");
+        content.className = "msg-content";
+        bubble.appendChild(content);
+
+        const activity = document.createElement("div");
+        activity.className = "msg-activity";
+        activity.hidden = true;
+        bubble.appendChild(activity);
+
+        row.appendChild(bubble);
+
+        domIndex.set(String(m.id || ""), { row, bubble, content, activity });
+        renderMessageIntoDom(m, domIndex.get(String(m.id || "")));
+        return row;
+      }
+
+      function updateMessageDom(threadId, messageId) {
+        if (threadId !== activeThreadId) return;
+        const t = (threadsState || []).find((x) => x.id === threadId);
+        if (!t || !Array.isArray(t.messages)) return;
+        const m = t.messages.find((x) => x && String(x.id) === String(messageId));
+        if (!m) return;
+        const dom = domIndex.get(String(messageId));
+        if (!dom) {
+          renderMessages();
+          return;
+        }
+        const wasNear = isNearBottom(chatScroll);
+        renderMessageIntoDom(m, dom);
+        maybeAutoscroll(wasNear);
+      }
+
+      function renderMessages() {
+        const t = (threadsState || []).find((x) => x.id === activeThreadId);
+        chatScroll.innerHTML = "";
+        domIndex = new Map();
+
+        const authed = Boolean(me && me.user_id);
+        chatInput.disabled = !authed;
+        chatSend.disabled = !authed;
+        chatForm.classList.toggle("is-disabled", !authed);
+
+        if (!authed) {
+          setChatStatus("idle");
+          chatEmpty.hidden = false;
+          chatScroll.hidden = true;
+          return;
+        }
+
+        chatEmpty.hidden = Boolean(t && t.messages && t.messages.length);
+        chatScroll.hidden = false;
+
+        if (!t) return;
+        (t.messages || []).forEach((m) => {
+          chatScroll.appendChild(buildMessageRow(m));
+        });
+        chatScroll.scrollTop = chatScroll.scrollHeight;
+      }
+
+      async function improveThreadTitleWithLLM(threadId, seedText) {
+        try {
+          const r = await fetch(apiUrl("/api/public/chat/title"), {
+            method: "POST",
+            credentials: "include",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ content: String(seedText || ""), max_len: 15, lang: isJa() ? "ja" : "en" }),
+          });
+          const j = await r.json();
+          if (!r.ok || !j || !j.title) return;
+
+          const idx = (threadsState || []).findIndex((x) => x.id === threadId);
+          if (idx < 0) return;
+          const t = threadsState[idx];
+          if (!t) return;
+
+          // Only overwrite if we are still in auto-title mode.
+          if (t._title_llm_done) return;
+          if (t.title && t.title !== "New chat" && t.title !== "新しいチャット" && !t._title_llm_pending) return;
+
+          t.title = String(j.title).trim().slice(0, 15);
+          t._title_llm_done = true;
+          t._title_llm_pending = false;
+          threadsState[idx] = t;
+          saveThreads();
+          renderThreads();
+        } catch (_e) {
+          // ignore
+        } finally {
+          const idx = (threadsState || []).findIndex((x) => x.id === threadId);
+          if (idx >= 0) {
+            const t = threadsState[idx];
+            if (t && t._title_llm_pending && !t._title_llm_done) {
+              t._title_llm_pending = false;
+              threadsState[idx] = t;
+              saveThreads();
+              renderThreads();
+            }
+          }
+        }
+      }
+
+      function updateThreadTitleFromFirstUserMessage() {
+        const idx = (threadsState || []).findIndex((x) => x.id === activeThreadId);
+        if (idx < 0) return;
+        const t = threadsState[idx];
+        if (!t || (t.title && t.title !== "New chat" && t.title !== "新しいチャット")) {
+          return;
+        }
+        const firstUser = (t.messages || []).find((m) => m.role === "user" && (m.text || "").trim());
+        if (!firstUser) return;
+        t.title = String(firstUser.text).trim().slice(0, 15);
+        if (!t._title_llm_done && !t._title_llm_pending) {
+          t._title_llm_pending = true;
+          // Fire-and-forget: generate a nicer <=15-char title in parallel.
+          void improveThreadTitleWithLLM(activeThreadId, firstUser.text);
+        }
+        threadsState[idx] = t;
+        saveThreads();
+      }
+
+      function appendMessage(role, text, kind = null, extra = null) {
+        const idx = (threadsState || []).findIndex((x) => x.id === activeThreadId);
+        if (idx < 0) return null;
+        const t = threadsState[idx];
+        const msg = { id: `m_${Math.random().toString(36).slice(2)}_${nowMs()}`, role, text: String(text || ""), ts: nowMs() };
+        if (kind) msg.kind = kind;
+        if (extra && typeof extra === "object") {
+          Object.assign(msg, extra);
+        }
+        t.messages = Array.isArray(t.messages) ? t.messages : [];
+        t.messages.push(msg);
+        threadsState[idx] = t;
+        // Keep the list fresh (most recent first)
+        threadsState.unshift(...threadsState.splice(idx, 1));
+        saveThreads();
+        updateThreadTitleFromFirstUserMessage();
+        renderThreads();
+        renderMessages();
+        return msg;
+      }
+
+      function updateMessageText(threadId, messageId, nextText) {
+        const t = (threadsState || []).find((x) => x.id === threadId);
+        if (!t || !Array.isArray(t.messages)) return;
+        const m = t.messages.find((x) => x && x.id === messageId);
+        if (!m) return;
+        m.text = String(nextText || "");
+        saveThreadsNow();
+      }
+
+      function upsertActivity(threadId, messageId, activityId, patch) {
+        const t = (threadsState || []).find((x) => x.id === threadId);
+        if (!t || !Array.isArray(t.messages)) return;
+        const m = t.messages.find((x) => x && x.id === messageId);
+        if (!m) return;
+        m.activities = Array.isArray(m.activities) ? m.activities : [];
+        const id = String(activityId || "");
+        const idx = m.activities.findIndex((a) => a && String(a.id) === id);
+        if (idx >= 0) {
+          m.activities[idx] = { ...m.activities[idx], ...(patch || {}) };
+        } else {
+          m.activities.unshift({ id, ...(patch || {}) });
+        }
+        scheduleSaveThreads();
+        updateMessageDom(threadId, messageId);
+      }
+
+      function setThreadConversationId(threadId, convId) {
+        if (!convId) return;
+        const idx = (threadsState || []).findIndex((x) => x.id === threadId);
+        if (idx < 0) return;
+        const t = threadsState[idx];
+        if (!t) return;
+        if (t.conversation_id) return; // keep first bound conv_id for this thread
+        t.conversation_id = String(convId);
+        threadsState[idx] = t;
+        saveThreads();
+      }
+
+      function hashHue(input) {
+        const s = String(input || "");
+        let h = 2166136261;
+        for (let i = 0; i < s.length; i++) {
+          h ^= s.charCodeAt(i);
+          h = Math.imul(h, 16777619);
+        }
+        return Math.abs(h) % 360;
+      }
+
+      function setUserChipIdentity(userId, displayName) {
+        if (userIdEl) userIdEl.textContent = displayName;
+        if (!userAvatarEl) return;
+        userAvatarEl.classList.remove("has-image");
+        userAvatarEl.style.backgroundImage = "";
+        const name = String(displayName || "").trim();
+        const initial = name ? name[0].toUpperCase() : "?";
+        const hue = hashHue(userId || name);
+        userAvatarEl.textContent = initial;
+        userAvatarEl.style.setProperty("--avatar-hue", String(hue));
+      }
+
+      function setUserAvatarImage(avatarUrl) {
+        if (!userAvatarEl) return;
+        const url = String(avatarUrl || "").trim();
+        if (!url) {
+          userAvatarEl.classList.remove("has-image");
+          userAvatarEl.style.backgroundImage = "";
+          return;
+        }
+
+        // Preload so we only switch to "image mode" if it actually loads.
+        const img = new Image();
+        img.decoding = "async";
+        img.onload = () => {
+          userAvatarEl.classList.add("has-image");
+          userAvatarEl.style.backgroundImage = `url(${JSON.stringify(url)})`;
+        };
+        img.onerror = () => {
+          // Keep initial-based avatar on failure.
+          userAvatarEl.classList.remove("has-image");
+          userAvatarEl.style.backgroundImage = "";
+        };
+        img.src = url;
+      }
+
+      async function loadMe() {
+        try {
+          const r = await fetch(apiUrl("/api/auth/me"), { credentials: "include" });
+          if (!r.ok) {
+            me = null;
+            hideUsagePill();
+            authAuthed.hidden = true;
+            authGuest.hidden = false;
+            showAuthError();
+            threadsState = [];
+            renderThreads();
+            renderMessages();
+            return;
+          }
+          me = await r.json();
+          const deriveDisplayName = (meObj) => {
+            const direct = String((meObj && meObj.display_name) || "").trim();
+            if (direct) return direct;
+
+            const provider = String((meObj && meObj.provider) || "").trim().toLowerCase();
+            const identities = Array.isArray(meObj && meObj.identities) ? meObj.identities : [];
+            const sameProvider = provider
+              ? identities.find((i) => String((i && i.provider) || "").trim().toLowerCase() === provider)
+              : null;
+            const ident = sameProvider || identities[0] || null;
+            if (ident) {
+              const dn = String((ident && ident.display_name) || "").trim();
+              if (dn) return dn;
+              const email = String((ident && ident.email) || "").trim();
+              if (email && email.includes("@")) return email.split("@")[0];
+            }
+
+            return isJa() ? "ユーザー" : "User";
+          };
+
+          const displayName = deriveDisplayName(me);
+          setUserChipIdentity(String(me.user_id || ""), displayName);
+          setUserAvatarImage(me && me.avatar_url ? String(me.avatar_url) : "");
+          authAuthed.hidden = false;
+          authGuest.hidden = true;
+          loadThreads();
+          ensureThread();
+          renderThreads();
+          renderMessages();
+          await refreshUsage();
+        } catch (_e) {
           me = null;
-          setAuthedUI();
-          showStatus(`セッション確認に失敗しました: ${error.message}`, true);
+          hideUsagePill();
+          authAuthed.hidden = true;
+          authGuest.hidden = false;
+          showAuthError();
+          threadsState = [];
+          renderThreads();
+          renderMessages();
         }
       }
 
-      async function logout() {
-        await fetch(`${apiBase}/api/auth/logout`, {
-          method: "POST",
-          credentials: "include",
-        });
-        me = null;
-        setAuthedUI();
-      }
-
-      async function sendMessage(content) {
-        const idem = crypto.randomUUID();
-        const response = await fetch(`${apiBase}/api/public/chat/messages`, {
-          method: "POST",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-            "Idempotency-Key": idem,
-          },
-          body: JSON.stringify({ content, idempotency_key: idem }),
-        });
-        if (!response.ok) {
-          const detail = await response.text();
-          throw new Error(detail || `HTTP ${response.status}`);
-        }
-        return response.json();
-      }
-
-      function streamRun(runId) {
-        return new Promise((resolve, reject) => {
-          pendingBubble = addBubble("assistant", "");
-          let finalText = "";
-          const eventSource = new EventSource(
-            `${apiBase}/api/public/chat/runs/${encodeURIComponent(runId)}/events`,
-            { withCredentials: true }
-          );
-
-          eventSource.onmessage = (event) => {
-            let payload;
-            try {
-              payload = JSON.parse(event.data);
-            } catch {
-              return;
-            }
-
-            const kind = payload.event;
-            const data = payload.data || {};
-            if (kind === "progress") {
-              showStatus(`処理中: ${data.stage || "working"}`);
-              return;
-            }
-            if (kind === "delta") {
-              finalText += String(data.text || "");
-              pendingBubble.textContent = finalText;
-              return;
-            }
-            if (kind === "final") {
-              finalText = String(data.text || data.output_text || finalText || "");
-              pendingBubble.textContent = finalText || "(empty)";
-              clearStatus();
-              eventSource.close();
-              resolve();
-              return;
-            }
-            if (kind === "error") {
-              eventSource.close();
-              reject(new Error(String(data.message || "unknown error")));
-            }
-          };
-
-          eventSource.onerror = () => {
-            eventSource.close();
-            reject(new Error("SSE 接続が切れました"));
-          };
-        });
-      }
-
-      newChatBtn.addEventListener("click", () => {
-        messageList.innerHTML = "";
-        clearStatus();
-        chatInput.focus();
-      });
-
-      chatForm.addEventListener("submit", async (event) => {
-        event.preventDefault();
-        clearStatus();
-        if (!me) {
-          showStatus("先に Google ログインが必要です。", true);
+      function showAuthError() {
+        if (!authError) {
+          authMsg.textContent = "";
           return;
         }
+        const base = authError === "invalid_state"
+          ? (isJa() ? "ログイン状態の検証に失敗しました。もう一度お試しください。" : "Login state validation failed. Please try again.")
+          : (isJa() ? "ログインに失敗しました。もう一度お試しください。" : "Login failed. Please try again.");
+        const hint = authHint ? (isJa() ? `（ヒント: ${authHint}）` : `(Hint: ${authHint})`) : "";
+        authMsg.textContent = `${base} ${hint}`.trim();
+      }
 
-        const content = chatInput.value.trim();
-        if (!content) {
-          return;
+      function isDebug() {
+        try {
+          const qp = new URLSearchParams(window.location.search);
+          if ((qp.get("debug") || "").trim() === "1") return true;
+        } catch (_e) {
+          // ignore
+        }
+        const h = String(window.location.hostname || "").toLowerCase();
+        return h === "127.0.0.1" || h === "localhost";
+      }
+
+      function formatRunError(data) {
+        const code = String((data && data.code) || "");
+        const model = (data && data.model) ? String(data.model) : "";
+        const baseUrl = (data && data.base_url) ? String(data.base_url) : "";
+        const showDetails = isDebug();
+
+        if (code === "CHAT_LIMIT_EXCEEDED") {
+          const limit = (data && typeof data.limit === "number") ? data.limit : null;
+          const lines = isJa()
+            ? ["今日はこのチャットの上限に達しました。しばらくしてからもう一度お試しください。"]
+            : ["You have reached today's chat limit. Please try again later."];
+          if (limit !== null) {
+            lines.push(isJa() ? `上限: ${limit} 回/日` : `Limit: ${limit} turns/day`);
+          }
+          return lines.join("\n");
         }
 
-        addBubble("user", content);
-        chatInput.value = "";
+        if (code === "LLM_NOT_CONFIGURED") {
+          const lines = isJa()
+            ? ["現在チャットが利用できません（サーバー設定中）。しばらくしてからもう一度お試しください。"]
+            : ["Chat is temporarily unavailable (server not configured). Please try again later."];
+          if (showDetails) {
+            lines.push("");
+            lines.push(isJa()
+              ? "Debug: サーバー側で `OPENAI_API_KEY` を設定するか、`LLM_BASE_URL` のローカルLLMを起動してください。"
+              : "Debug: Set `OPENAI_API_KEY` on the server, or start a local LLM at `LLM_BASE_URL`.");
+            if (model) lines.push(`model: ${model}`);
+            if (baseUrl) lines.push(`base_url: ${baseUrl}`);
+          }
+          return lines.join("\n");
+        }
+
+        if (code === "LLM_UNREACHABLE") {
+          const lines = isJa()
+            ? ["現在チャットに接続できません。しばらくしてからもう一度お試しください。"]
+            : ["Chat is currently unavailable. Please try again later."];
+          if (showDetails) {
+            lines.push("");
+            lines.push(isJa()
+              ? "Debug: `LLM_BASE_URL`（ローカルLLM）か `OPENAI_API_KEY` の設定を確認してください。"
+              : "Debug: Check `LLM_BASE_URL` (local LLM) or `OPENAI_API_KEY`.");
+            if (model) lines.push(`model: ${model}`);
+            if (baseUrl) lines.push(`base_url: ${baseUrl}`);
+          }
+          return lines.join("\n");
+        }
+
+        if (code === "CORE_UNAVAILABLE") {
+          const lines = isJa()
+            ? ["サーバー側の一時的な設定不整合が発生しています。少し待って再試行してください。"]
+            : ["Temporary server-side configuration issue. Please retry in a moment."];
+          const hint = reasonCodeHint((data && data.reason_code) || "");
+          if (hint) lines.push(hint);
+          const ref = String((data && data.error_ref) || "").trim();
+          if (ref) lines.push(isJa() ? `参照ID: ${ref}` : `Reference ID: ${ref}`);
+          return lines.join("\n");
+        }
+
+        const msg = String((data && data.message) || "");
+        if (showDetails && msg) return msg;
+        return isJa() ? "エラーが発生しました。" : "An error occurred.";
+      }
+
+      async function initApple() {
+        if (!appleBtn) {
+          return;
+        }
+        try {
+          const r = await fetch(apiUrl("/api/auth/providers"));
+          const providers = await r.json();
+          if (!providers.apple || !providers.apple.enabled || !providers.apple.client_id) {
+            appleBtn.disabled = true;
+            return;
+          }
+          if (!window.AppleID || !window.AppleID.auth) {
+            appleBtn.disabled = true;
+            return;
+          }
+          window.AppleID.auth.init({
+            clientId: providers.apple.client_id,
+            scope: "name email",
+            usePopup: true,
+          });
+        } catch (_e) {
+          appleBtn.disabled = true;
+        }
+      }
+
+      async function doAppleLogin() {
+        if (!appleBtn) {
+          return;
+        }
+        authMsg.textContent = "";
+        if (!window.AppleID || !window.AppleID.auth) {
+          authMsg.textContent = isJa() ? "Appleログインは利用できません。" : "Apple login is not available.";
+          return;
+        }
+        try {
+          const result = await window.AppleID.auth.signIn();
+          const idToken = result && result.authorization ? result.authorization.id_token : null;
+          if (!idToken) {
+            authMsg.textContent = isJa() ? "Appleトークンが取得できませんでした。" : "Apple token was not returned.";
+            return;
+          }
+          const res = await fetch(apiUrl("/api/auth/apple/token"), {
+            method: "POST",
+            credentials: "include",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ id_token: idToken, link_code: linkCode || null, next: nextPath || "/chat" }),
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            authMsg.textContent = data.detail || (isJa() ? "Appleログインに失敗しました。" : "Apple login failed.");
+            return;
+          }
+          window.location.assign(data.next || "/chat");
+        } catch (_e) {
+          authMsg.textContent = isJa() ? "Appleログインがキャンセルされました。" : "Apple login canceled or failed.";
+        }
+      }
+
+      function autosizeTextarea() {
+        chatInput.style.height = "0px";
+        chatInput.style.height = `${Math.min(chatInput.scrollHeight, 220)}px`;
+      }
+
+      function formatAttachmentBytes(n) {
+        const value = Number(n || 0);
+        if (!Number.isFinite(value) || value <= 0) return "0 B";
+        const units = ["B", "KB", "MB", "GB"];
+        let v = value;
+        let idx = 0;
+        while (v >= 1024 && idx < units.length - 1) {
+          v /= 1024;
+          idx += 1;
+        }
+        return `${v.toFixed(idx === 0 ? 0 : 1)} ${units[idx]}`;
+      }
+
+      function revokeAttachmentPreview(entry) {
+        if (!entry) return;
+        const p = String(entry.previewUrl || "").trim();
+        if (!p) return;
+        try { URL.revokeObjectURL(p); } catch (_e) { }
+      }
+
+      function isAllowedAttachmentFile(file) {
+        if (!file) return false;
+        const mime = String(file.type || "").trim().toLowerCase();
+        if (mime && ATTACHMENT_ALLOWED_MIME.has(mime)) return true;
+        const name = String(file.name || "").toLowerCase();
+        return ATTACHMENT_ALLOWED_EXT.some((ext) => name.endsWith(ext));
+      }
+
+      function renderAttachmentPreview() {
+        if (!chatAttachmentsPreview) return;
+        chatAttachmentsPreview.innerHTML = "";
+        if (!Array.isArray(pendingAttachments) || pendingAttachments.length === 0) {
+          chatAttachmentsPreview.hidden = true;
+          return;
+        }
+        chatAttachmentsPreview.hidden = false;
+        pendingAttachments.forEach((entry) => {
+          const item = document.createElement("div");
+          item.className = "compose-attachment-item";
+
+          if (entry.previewUrl) {
+            const thumb = document.createElement("img");
+            thumb.src = entry.previewUrl;
+            thumb.alt = "";
+            thumb.loading = "lazy";
+            thumb.width = 36;
+            thumb.height = 36;
+            thumb.style.width = "36px";
+            thumb.style.height = "36px";
+            thumb.style.objectFit = "cover";
+            thumb.style.borderRadius = "10px";
+            thumb.style.marginRight = "8px";
+            item.appendChild(thumb);
+          }
+
+          const label = document.createElement("span");
+          label.className = "compose-attachment-name";
+          label.textContent = `${entry.file.name} (${formatAttachmentBytes(entry.file.size)})`;
+          item.appendChild(label);
+
+          const rm = document.createElement("button");
+          rm.type = "button";
+          rm.className = "compose-attachment-remove";
+          rm.setAttribute("aria-label", isJa() ? "添付を削除" : "Remove attachment");
+          rm.textContent = "×";
+          rm.addEventListener("click", () => {
+            revokeAttachmentPreview(entry);
+            pendingAttachments = pendingAttachments.filter((x) => x.id !== entry.id);
+            renderAttachmentPreview();
+          });
+          item.appendChild(rm);
+          chatAttachmentsPreview.appendChild(item);
+        });
+      }
+
+      function addPendingFiles(fileList) {
+        if (!fileList) return;
+        const next = [];
+        let invalidType = false;
+        let tooMany = false;
+        const slots = Math.max(0, ATTACHMENT_MAX_COUNT - pendingAttachments.length);
+        if (slots <= 0) {
+          setChatStatus("error", {
+            message: reasonCodeHint("attachment_too_many") || (isJa() ? "添付枚数の上限です。" : "Too many attachments."),
+          });
+          return;
+        }
+        for (const f of Array.from(fileList)) {
+          if (!f) continue;
+          if (!isAllowedAttachmentFile(f)) {
+            invalidType = true;
+            continue;
+          }
+          if (next.length >= slots) {
+            tooMany = true;
+            continue;
+          }
+          next.push({
+            id: `${Date.now()}_${Math.random().toString(16).slice(2)}`,
+            file: f,
+            previewUrl: (() => {
+              try {
+                return URL.createObjectURL(f);
+              } catch (_e) {
+                return "";
+              }
+            })(),
+          });
+        }
+        if (invalidType) {
+          setChatStatus("error", {
+            message: reasonCodeHint("attachment_unsupported_type") || (isJa() ? "未対応の画像形式です。" : "Unsupported attachment type."),
+          });
+        } else if (tooMany) {
+          setChatStatus("error", {
+            message: reasonCodeHint("attachment_too_many") || (isJa() ? "添付枚数が多すぎます。" : "Too many attachments."),
+          });
+        }
+        if (!next.length) return;
+        pendingAttachments = pendingAttachments.concat(next);
+        renderAttachmentPreview();
+      }
+
+      function clearPendingAttachments() {
+        if (Array.isArray(pendingAttachments)) {
+          pendingAttachments.forEach((entry) => revokeAttachmentPreview(entry));
+        }
+        pendingAttachments = [];
+        if (chatAttachInput) chatAttachInput.value = "";
+        renderAttachmentPreview();
+      }
+
+      async function uploadPendingAttachments() {
+        if (!Array.isArray(pendingAttachments) || pendingAttachments.length === 0) {
+          return [];
+        }
+        const fd = new FormData();
+        pendingAttachments.forEach((entry) => {
+          if (entry && entry.file) {
+            fd.append("files", entry.file, entry.file.name || "attachment");
+          }
+        });
+        const resp = await fetch(apiUrl("/api/public/attachments/upload"), {
+          method: "POST",
+          credentials: "include",
+          body: fd,
+        });
+        const raw = await resp.text();
+        const parsed = parseJsonSafely(raw);
+        const data = parsed.json || {};
+        if (!resp.ok) {
+          const detail = (data && typeof data.detail === "object") ? data.detail : {
+            code: "ATTACHMENT_UPLOAD_FAILED",
+            reason_code: "attachment_upload_failed",
+            message: isJa() ? "添付のアップロードに失敗しました。" : "Attachment upload failed.",
+          };
+          const err = new Error("attachment_upload_failed");
+          err.detail = detail;
+          throw err;
+        }
+        const metas = Array.isArray(data.attachments) ? data.attachments : [];
+        const refs = metas
+          .map((m) => {
+            const id = String((m && m.attachment_id) || "").trim();
+            if (!id) return null;
+            return { attachment_id: id, type: "image_ref" };
+          })
+          .filter(Boolean);
+        return refs;
+      }
+
+      async function runChat(text) {
+        if (!me || !me.user_id) return;
+        if (inflight && typeof inflight.close === "function") {
+          try { inflight.close(); } catch (_e) { }
+          inflight = null;
+          inflightRunId = "";
+        }
+        const threadId = activeThreadId;
+        const thread = (threadsState || []).find((x) => x.id === threadId);
+        const conversationId = thread && thread.conversation_id ? String(thread.conversation_id) : null;
+        lastSubmittedPrompt = String(text || "");
+        appendMessage("user", text);
+        const assistant = appendMessage("assistant", "", null, { status: "thinking", format: "plain", activities: [] });
+        const assistantId = assistant ? assistant.id : null;
+
+        chatSend.disabled = true;
         chatInput.disabled = true;
-        sendBtn.disabled = true;
+        setChatStatus("working");
 
         try {
-          const result = await sendMessage(content);
-          await streamRun(result.run_id);
-        } catch (error) {
-          if (pendingBubble && !pendingBubble.textContent) {
-            pendingBubble.textContent = "応答の生成に失敗しました。";
+          let attachmentRefs = [];
+          try {
+            if (Array.isArray(pendingAttachments) && pendingAttachments.length > 0) {
+              setChatStatus("working", { message: isJa() ? "画像をアップロード中…" : "Uploading attachments…" });
+            }
+            attachmentRefs = await uploadPendingAttachments();
+            setChatStatus("working", { message: isJa() ? "メッセージを送信中…" : "Sending message…" });
+          } catch (uploadErr) {
+            if (assistant) {
+              assistant.kind = "error";
+              assistant.status = "done";
+              const detail = uploadErr && typeof uploadErr.detail === "object" ? uploadErr.detail : {};
+              assistant.text = formatRunError(detail);
+              lastFailedPrompt = String(text || "");
+              const reasonCode = String((detail && detail.reason_code) || "").trim();
+              setChatStatus("error", {
+                message: reasonCodeHint(reasonCode) || (isJa() ? "添付ファイルの処理に失敗しました。" : "Attachment handling failed."),
+                retry: true,
+              });
+              if (assistantId) {
+                updateMessageText(threadId, assistantId, assistant.text);
+              }
+            }
+            renderMessages();
+            return;
           }
-          showStatus(`失敗: ${error.message}`, true);
+
+          const start = await fetch(apiUrl("/api/public/chat/messages"), {
+            method: "POST",
+            credentials: "include",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ content: text, conversation_id: conversationId, attachments: attachmentRefs }),
+          });
+          const startRawText = await start.text();
+          const parsed = parseJsonSafely(startRawText);
+          const startJson = parsed.json || {};
+          await refreshUsage();
+          if (!start.ok || !startJson.run_id) {
+            if (assistant) {
+              assistant.kind = "error";
+              assistant.status = "done";
+              const detail = startJson.detail;
+              if (detail && typeof detail === "object") {
+                assistant.text = formatRunError(detail);
+                const reasonCode = String(detail.reason_code || "").trim();
+                setChatStatus("error", {
+                  message: reasonCodeHint(reasonCode) || (isJa() ? "チャットを開始できませんでした。再試行してください。" : "Unable to start chat. Please retry."),
+                  retry: true,
+                });
+              } else {
+                const reqId = start.headers.get("x-yonerai-request-id") || start.headers.get("x-request-id") || "";
+                if (!parsed.ok) {
+                  assistant.text = formatNonJsonStartError({
+                    status: start.status,
+                    reqId,
+                    rawText: startRawText,
+                  });
+                } else {
+                  assistant.text = detail || startJson.error || (isJa() ? "サーバー応答の解析に失敗しました。時間を置いて再試行してください。" : "Failed to parse server response. Please retry shortly.");
+                }
+                setChatStatus("error", {
+                  message: isJa() ? "チャット開始に失敗しました。再試行できます。" : "Failed to start chat. You can retry.",
+                  retry: true,
+                });
+              }
+              if (!assistant.text || /^\s*$/.test(String(assistant.text))) {
+                const reqId = start.headers.get("x-yonerai-request-id") || "";
+                assistant.text = isJa()
+                  ? `チャット開始に失敗しました (HTTP ${start.status})${reqId ? ` [req:${reqId}]` : ""}`
+                  : `Failed to start chat (HTTP ${start.status})${reqId ? ` [req:${reqId}]` : ""}`;
+              }
+              lastFailedPrompt = String(text || "");
+              if (assistantId) {
+                updateMessageText(threadId, assistantId, assistant.text);
+              }
+            }
+            renderMessages();
+            return;
+          }
+
+          const runId = startJson.run_id;
+          inflightRunId = String(runId || "");
+          // Bind Core conversation_id to this thread for memory carry-over.
+          if (startJson.conversation_id) {
+            setThreadConversationId(threadId, startJson.conversation_id);
+          }
+          clearPendingAttachments();
+          const es = new EventSource(apiUrl(`/api/public/chat/runs/${encodeURIComponent(runId)}/events`), { withCredentials: true });
+          inflight = es;
+
+          let finalSeen = false;
+          await new Promise((resolve) => {
+            const finish = () => {
+              try { es.close(); } catch (_e) { }
+              inflight = null;
+              inflightRunId = "";
+              resolve(null);
+            };
+
+            es.onmessage = (ev) => {
+              try {
+                const packet = JSON.parse(ev.data || "{}");
+                const event = packet.event;
+                const data = packet.data || {};
+                if (!assistant || !assistantId) return;
+
+                if (event === "delta") {
+                  if (assistant.status === "thinking") assistant.status = "streaming";
+                  // Web UI: render as Markdown even while streaming (tables/headings supported).
+                  assistant.format = "markdown";
+                  assistant.text += data.text || "";
+                  setChatStatus("streaming");
+                  scheduleSaveThreads();
+                  updateMessageDom(threadId, assistantId);
+                } else if (event === "dispatch") {
+                  // Core is dispatching a tool call.
+                  const tool = String((data && data.tool) || "");
+                  const tcid = String((data && data.tool_call_id) || tool || `dispatch_${nowMs()}`);
+                  upsertActivity(threadId, assistantId, tcid, { label: tool ? `Dispatch: ${tool}` : "Dispatch", state: "running" });
+                } else if (event === "tool_start") {
+                  const tool = String((data && data.tool) || "");
+                  const tcid = String((data && data.tool_call_id) || tool || `tool_${nowMs()}`);
+                  const toolStatus = tool ? (isJa() ? `ツール実行中: ${tool}` : `Running tool: ${tool}`) : (isJa() ? "ツール実行中…" : "Running tool…");
+                  setChatStatus("streaming", { message: toolStatus });
+                  upsertActivity(threadId, assistantId, tcid, { label: tool ? `Tool: ${tool}` : "Tool", state: "running" });
+                } else if (event === "tool_result") {
+                  const tool = String((data && data.tool) || "");
+                  const tcid = String((data && data.tool_call_id) || tool || `tool_${nowMs()}`);
+                  const latency = (data && typeof data.latency_ms === "number") ? data.latency_ms : undefined;
+                  upsertActivity(threadId, assistantId, tcid, { label: tool ? `Tool: ${tool}` : "Tool", state: "done", latency_ms: latency });
+                } else if (event === "tool_error") {
+                  const tool = String((data && data.tool) || "");
+                  const tcid = String((data && data.tool_call_id) || tool || `tool_${nowMs()}`);
+                  upsertActivity(threadId, assistantId, tcid, { label: tool ? `Tool: ${tool}` : "Tool", state: "error" });
+                } else if (event === "progress") {
+                  const label = String((data && (data.status || data.label || data.message)) || "").trim();
+                  if (label) {
+                    upsertActivity(threadId, assistantId, "progress", { label, state: "running" });
+                  }
+                } else if (event === "final") {
+                  assistant.status = "done";
+                  assistant.format = "markdown";
+                  assistant.text = data.text || assistant.text;
+                  // If some activities never emitted a completion event, close them out here.
+                  if (Array.isArray(assistant.activities)) {
+                    assistant.activities = assistant.activities.map((a) => {
+                      if (!a || a.state !== "running") return a;
+                      return { ...a, state: "done" };
+                    });
+                  }
+                  updateMessageText(threadId, assistantId, assistant.text);
+                  updateMessageDom(threadId, assistantId);
+                  lastFailedPrompt = "";
+                  setChatStatus("ok", { message: isJa() ? "応答を受信しました" : "Response received" });
+                  window.setTimeout(() => setChatStatus("idle"), 1400);
+                  finalSeen = true;
+                  finish();
+                } else if (event === "error") {
+                  assistant.kind = "error";
+                  assistant.status = "done";
+                  assistant.format = "plain";
+                  assistant.text = formatRunError(data);
+                  lastFailedPrompt = String(text || "");
+                  const reasonCode = String((data && data.reason_code) || "").trim();
+                  setChatStatus("error", {
+                    message: reasonCodeHint(reasonCode) || (isJa() ? "実行中にエラーが発生しました。" : "An error occurred while processing."),
+                    retry: true,
+                  });
+                  if (Array.isArray(assistant.activities)) {
+                    assistant.activities = assistant.activities.map((a) => {
+                      if (!a || a.state !== "running") return a;
+                      return { ...a, state: "error" };
+                    });
+                  }
+                  updateMessageText(threadId, assistantId, assistant.text);
+                  updateMessageDom(threadId, assistantId);
+                  finish();
+                } else if (event === "meta") {
+                  // ignore for now
+                } else {
+                  // Unknown event: treat as activity ping if it looks like progress.
+                  const label = String(event || "").trim();
+                  if (label) {
+                    upsertActivity(threadId, assistantId, `ev_${label}`, { label, state: "running" });
+                  }
+                }
+              } catch (_e) {
+                // ignore malformed
+              }
+            };
+
+            es.onerror = () => {
+              if (assistant && assistantId && !finalSeen) {
+                if (!assistant.text) {
+                  assistant.kind = "error";
+                  assistant.status = "done";
+                  assistant.format = "plain";
+                  assistant.text = isJa() ? "接続が閉じました。" : "Connection closed.";
+                  updateMessageText(threadId, assistantId, assistant.text);
+                }
+                lastFailedPrompt = String(text || "");
+                setChatStatus("error", {
+                  message: isJa() ? "接続が切れました。再試行してください。" : "Connection closed. Please retry.",
+                  retry: true,
+                });
+                if (Array.isArray(assistant.activities)) {
+                  assistant.activities = assistant.activities.map((a) => {
+                    if (!a || a.state !== "running") return a;
+                    return { ...a, state: "error" };
+                  });
+                }
+                updateMessageDom(threadId, assistantId);
+              }
+              finish();
+            };
+          });
+        } catch (e) {
+          if (assistant) {
+            assistant.kind = "error";
+            assistant.status = "done";
+            assistant.text = String(e);
+            lastFailedPrompt = String(text || "");
+            setChatStatus("error", {
+              message: isJa() ? "予期しないエラーが発生しました。再試行してください。" : "Unexpected error occurred. Please retry.",
+              retry: true,
+            });
+            if (assistantId) {
+              updateMessageText(threadId, assistantId, assistant.text);
+            }
+          }
+          renderMessages();
         } finally {
+          chatSend.disabled = false;
           chatInput.disabled = false;
-          sendBtn.disabled = false;
           chatInput.focus();
         }
-      });
+      }
 
-      logoutBtn.addEventListener("click", async () => {
-        await logout();
-      });
+      function wireEvents() {
+        openSidebarBtn && openSidebarBtn.addEventListener("click", () => {
+          if (isDesktopLayout()) {
+            const collapsed = document.body.classList.contains("sidebar-collapsed");
+            if (collapsed) openSidebar();
+            else closeSidebar();
+            return;
+          }
+          openSidebar();
+        });
+        closeSidebarBtn && closeSidebarBtn.addEventListener("click", closeSidebar);
 
-      refreshSession();
+        userChip && userChip.addEventListener("click", (e) => {
+          e.preventDefault();
+          toggleUserMenu();
+        });
+        document.addEventListener("click", (e) => {
+          if (!userMenu || userMenu.hidden) return;
+          const target = e.target;
+          if (!(target instanceof HTMLElement)) return;
+          if (userChip && userChip.contains(target)) return;
+          if (userMenu.contains(target)) return;
+          closeUserMenu();
+        });
+
+        window.addEventListener("keydown", (e) => {
+          if (e.key === "Escape") {
+            closeSidebar();
+            closeUserMenu();
+          }
+        });
+
+        if (chatAttachBtn && chatAttachInput) {
+          chatAttachBtn.addEventListener("click", () => {
+            chatAttachInput.click();
+          });
+          chatAttachInput.addEventListener("change", (ev) => {
+            const files = ev && ev.target ? ev.target.files : null;
+            addPendingFiles(files);
+            chatAttachInput.value = "";
+          });
+        }
+        if (chatForm) {
+          chatForm.addEventListener("dragover", (ev) => {
+            ev.preventDefault();
+          });
+          chatForm.addEventListener("drop", (ev) => {
+            ev.preventDefault();
+            addPendingFiles(ev.dataTransfer ? ev.dataTransfer.files : null);
+          });
+        }
+
+        newChatBtn.addEventListener("click", () => {
+          if (!Array.isArray(threadsState)) threadsState = [];
+
+          // If we're already on a fresh empty thread, ignore.
+          const active = (threadsState || []).find((t) => t && t.id === activeThreadId) || null;
+          if (isReusableEmptyThread(active)) return;
+
+          // Reuse any existing empty placeholder thread to avoid spam-creating threads.
+          const idx = (threadsState || []).findIndex((t) => isReusableEmptyThread(t));
+          if (idx >= 0) {
+            const t0 = threadsState[idx];
+            threadsState.splice(idx, 1);
+            threadsState.unshift(t0);
+            saveThreads();
+            setActiveThread(t0.id);
+            return;
+          }
+
+          const t = mkThread();
+          threadsState.unshift(t);
+          saveThreads();
+          setActiveThread(t.id);
+        });
+
+        logoutBtn.addEventListener("click", async () => {
+          await fetch(apiUrl("/api/auth/logout"), { method: "POST", credentials: "include" });
+          window.location.reload();
+        });
+
+        if (chatStatusRetry) {
+          chatStatusRetry.addEventListener("click", async () => {
+            const prompt = String(lastFailedPrompt || lastSubmittedPrompt || "").trim();
+            if (!prompt) return;
+            if (inflight) return;
+            await runChat(prompt);
+          });
+        }
+
+        if (appleBtn) {
+          appleBtn.addEventListener("click", doAppleLogin);
+        }
+
+        chatInput.addEventListener("input", autosizeTextarea);
+
+        chatForm.addEventListener("submit", async (ev) => {
+          ev.preventDefault();
+          const text = (chatInput.value || "").trim();
+          if (!text) return;
+          chatInput.value = "";
+          autosizeTextarea();
+          await runChat(text);
+        });
+
+        window.addEventListener("yonerai:lang-changed", () => {
+          // Update placeholder when language changes.
+          const lang = (document.documentElement.lang || "en").toLowerCase().startsWith("ja") ? "ja" : "en";
+          const ph = lang === "ja" ? (chatInput.dataset.placeholderJa || "") : (chatInput.dataset.placeholderEn || "");
+          if (ph) chatInput.setAttribute("placeholder", ph);
+          renderThreads();
+          renderMessages();
+          refreshUsage();
+          if (!chatStatus.hidden) {
+            const mode = String(chatStatus.dataset.state || "idle");
+            const retryVisible = !!(chatStatusRetry && !chatStatusRetry.hidden);
+            setChatStatus(mode, { retry: retryVisible });
+          }
+        });
+      }
+
+      function initGoogleLinkHref() {
+        // Preserve link_code + returnTo on login entry.
+        const baseOrigin = (() => {
+          try {
+            return new URL(API_BASE).origin;
+          } catch (_e) {
+            return window.location.origin;
+          }
+        })();
+        const url = new URL(googleLogin.getAttribute("href") || "/auth/login?returnTo=/chat", baseOrigin);
+        if (linkCode) url.searchParams.set("link_code", linkCode);
+        if (nextPath) url.searchParams.set("returnTo", nextPath);
+        googleLogin.setAttribute("href", `${url.origin}${url.pathname}${url.search}`);
+      }
+
+      (async () => {
+        applySidebarPref();
+        try {
+          const mq = window.matchMedia("(min-width: 961px)");
+          if (mq && typeof mq.addEventListener === "function") mq.addEventListener("change", applySidebarPref);
+          else if (mq && typeof mq.addListener === "function") mq.addListener(applySidebarPref);
+        } catch (_e) {
+          // ignore
+        }
+        wireEvents();
+        initGoogleLinkHref();
+        await initApple();
+        await loadMe();
+        autosizeTextarea();
+      })();
     })();
   </script>
 </body>
+
 </html>
+

@@ -57,7 +57,24 @@ AGENT_MEMORY.md
 # Private / non-distribution content (keep out of public releases)
 # Website/marketing drafts and platform console pages live here during development.
 src/web/static/*
+!src/web/static/about.html
+!src/web/static/architecture.html
+!src/web/static/clients.html
+!src/web/static/contact.html
+!src/web/static/desktop-discord.html
+!src/web/static/developers.html
 !src/web/static/index.html
+!src/web/static/linked.html
+!src/web/static/login.html
+!src/web/static/platform-preview.html
+!src/web/static/privacy.html
+!src/web/static/relay-model.html
+!src/web/static/roadmap.html
+!src/web/static/security-model.html
+!src/web/static/security.html
+!src/web/static/terms.html
+!src/web/static/trust-safety.html
+!src/web/static/web-mobile.html
 !src/web/static/chat.html
 !src/web/static/operator.html
 !src/web/static/remote.html
@@ -66,6 +83,12 @@ src/web/static/*
 !src/web/static/setup.html
 !src/web/static/setup.css
 !src/web/static/setup.js
+!src/web/static/vendor/
+!src/web/static/vendor/marked.min.js
+!src/web/static/vendor/purify.min.js
+!src/web/static/diagrams/
+!src/web/static/diagrams/e2e_request_path_sequence_en_dark.png
+!src/web/static/diagrams/e2e_request_path_sequence_jp_dark.png
 
 # Local packaging/export helpers (generated during repo-splitting)
 scripts/export_*_v6.ps1
