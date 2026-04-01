@@ -28,54 +28,45 @@
 </header>
 
     <main id="main">
-      <section class="hero glass reveal">
-        <div>
-          <p class="eyebrow" data-i18n-en="Trust & safety" data-i18n-ja="信頼と安全性">Trust & safety</p>
-          <h1 data-i18n-en="Transparent operation, measurable controls." data-i18n-ja="透明な運用、測定可能な制御。">Transparent operation, measurable controls.</h1>
-          <p class="lead" data-i18n-en="YonerAI prioritizes operator accountability: approvals, audits, clear boundaries, and explicit fallback behavior." data-i18n-ja="YonerAIは運用者の説明責任を重視し、承認・監査・境界・明示的フォールバックを基準にします。">YonerAI prioritizes operator accountability: approvals, audits, clear boundaries, and explicit fallback behavior.</p>
-        </div>
-        <dl class="hero-panel">
-          <div class="metric"><dt data-i18n-en="Policy" data-i18n-ja="ポリシー">Policy</dt><dd data-i18n-en="Safe-by-default" data-i18n-ja="安全側既定">Safe-by-default</dd></div>
-          <div class="metric"><dt data-i18n-en="Transparency" data-i18n-ja="透明性">Transparency</dt><dd data-i18n-en="Public docs + release notes" data-i18n-ja="公開ドキュメント + リリースノート">Public docs + release notes</dd></div>
-          <div class="metric"><dt data-i18n-en="Incident response" data-i18n-ja="インシデント対応">Incident response</dt><dd data-i18n-en="Audit-first triage" data-i18n-ja="監査ログ起点で切り分け">Audit-first triage</dd></div>
-          <div class="metric"><dt data-i18n-en="User control" data-i18n-ja="利用者制御">User control</dt><dd data-i18n-en="Role + approval gates" data-i18n-ja="ロール + 承認ゲート">Role + approval gates</dd></div>
-        </dl>
-      </section>
+      <section class="section glass reveal policy-doc">
+        <p class="eyebrow" data-i18n-en="Trust & Safety" data-i18n-ja="信頼と安全性">Trust & Safety</p>
+        <h1 data-i18n-en="Trust & Safety" data-i18n-ja="信頼と安全性">Trust & Safety</h1>
 
-      <section class="section glass reveal">
-        <h2 data-i18n-en="Safety commitments" data-i18n-ja="安全性コミットメント">Safety commitments</h2>
-        <div class="grid-3">
-          <article class="card"><h3 data-i18n-en="Least privilege" data-i18n-ja="最小権限">Least privilege</h3><p data-i18n-en="Shared users receive only the capabilities needed for their role." data-i18n-ja="共有ユーザーには役割に必要な最小機能のみを付与します。">Shared users receive only the capabilities needed for their role.</p></article>
-          <article class="card"><h3 data-i18n-en="Approval integrity" data-i18n-ja="承認整合性">Approval integrity</h3><p data-i18n-en="High-risk execution requires fresh approval and cannot be silently replayed." data-i18n-ja="高リスク実行には新鮮な承認が必要で、無音再実行はできません。">High-risk execution requires fresh approval and cannot be silently replayed.</p></article>
-          <article class="card"><h3 data-i18n-en="Continuous hardening" data-i18n-ja="継続的強化">Continuous hardening</h3><p data-i18n-en="Relay and tool execution paths are iteratively hardened through tests and logs." data-i18n-ja="Relayとツール経路はテストとログをもとに継続的に強化します。">Relay and tool execution paths are iteratively hardened through tests and logs.</p></article>
-        </div>
-      </section>
+        <p class="policy-meta">
+          <span data-i18n-en="Effective date:" data-i18n-ja="施行日:">Effective date:</span>
+          <span>2026-04-02</span>
+        </p>
 
-      <section class="section glass reveal">
-        <h2 data-i18n-en="Prohibited and high-risk use" data-i18n-ja="禁止用途と高リスク用途">Prohibited and high-risk use</h2>
         <div class="policy-prose">
+          <p data-i18n-en="This page explains YonerAI's public trust and safety stance. It describes the boundaries of the service, the kinds of use we prohibit, and the kinds of actions we may take when we detect abuse, danger, or legal risk." data-i18n-ja="本ページは、YonerAI の公開向けの信頼と安全性に関する方針を説明するものです。サービスの境界、禁止する利用方法、不正や危険、法的リスクを検知した際に取り得る対応について示します。">This page explains YonerAI's public trust and safety stance. It describes the boundaries of the service, the kinds of use we prohibit, and the kinds of actions we may take when we detect abuse, danger, or legal risk.</p>
+
+          <h2 data-i18n-en="1. Safety commitments" data-i18n-ja="1. 安全性コミットメント">1. Safety commitments</h2>
           <ul>
-            <li data-i18n-en="YonerAI must not be used to facilitate, coordinate, or justify violence, murder, terrorism, weapon construction, child exploitation, human trafficking, stalking, fraud, or evasion of law enforcement." data-i18n-ja="YonerAI を、暴力、殺人、テロ、武器製造、児童搾取、人身取引、ストーキング、詐欺、法執行の回避の助長・調整・正当化のために利用してはいけません。">YonerAI must not be used to facilitate, coordinate, or justify violence, murder, terrorism, weapon construction, child exploitation, human trafficking, stalking, fraud, or evasion of law enforcement.</li>
-            <li data-i18n-en="The service is not intended to provide autonomous authority over real-world systems, law-enforcement decisions, or safety-critical operations." data-i18n-ja="本サービスは、現実世界のシステム、法執行上の判断、または安全上重要な運用に対する自律的権限を与えるものではありません。">The service is not intended to provide autonomous authority over real-world systems, law-enforcement decisions, or safety-critical operations.</li>
-            <li data-i18n-en="Users remain solely responsible for how they interpret and act on outputs. Outputs do not create permission, authorization, or immunity." data-i18n-ja="出力の解釈および実行は利用者自身の責任であり、出力が許可、権限、免責を与えることはありません。">Users remain solely responsible for how they interpret and act on outputs. Outputs do not create permission, authorization, or immunity.</li>
+            <li data-i18n-en="YonerAI is designed to be safe-by-default. Public surfaces are intentionally narrower than internal or private operational systems." data-i18n-ja="YonerAI は安全側を既定とする設計を重視しています。公開面は、内部運用面や private システムより意図的に狭く制限されています。">YonerAI is designed to be safe-by-default. Public surfaces are intentionally narrower than internal or private operational systems.</li>
+            <li data-i18n-en="High-risk capabilities should require explicit authorization, and public chat surfaces should not silently gain internal control privileges." data-i18n-ja="高リスク機能は明示的な認可を前提とし、公開チャット面が内部操作権限を黙って持つことはありません。">High-risk capabilities should require explicit authorization, and public chat surfaces should not silently gain internal control privileges.</li>
+            <li data-i18n-en="We rely on logs, audits, limits, and fail-closed behavior to reduce harm and narrow the blast radius when something goes wrong." data-i18n-ja="問題が起きた場合の被害範囲を狭めるため、ログ、監査、利用制限、fail-closed の挙動を重視します。">We rely on logs, audits, limits, and fail-closed behavior to reduce harm and narrow the blast radius when something goes wrong.</li>
           </ul>
-        </div>
-      </section>
 
-      <section class="section glass reveal">
-        <h2 data-i18n-en="Response and enforcement" data-i18n-ja="対応と執行">Response and enforcement</h2>
-        <div class="grid-3">
-          <article class="card"><h3 data-i18n-en="Containment" data-i18n-ja="封じ込め">Containment</h3><p data-i18n-en="We may rate-limit, suspend, revoke, or isolate accounts and traffic when abuse or credible risk is detected." data-i18n-ja="不正または現実的なリスクを検知した場合、レート制限、停止、失効、隔離を行うことがあります。">We may rate-limit, suspend, revoke, or isolate accounts and traffic when abuse or credible risk is detected.</p></article>
-          <article class="card"><h3 data-i18n-en="Evidence preservation" data-i18n-ja="証拠保全">Evidence preservation</h3><p data-i18n-en="Relevant logs, session records, and audit data may be preserved to investigate incidents, prevent harm, or comply with law." data-i18n-ja="インシデント調査、被害防止、法令順守のため、関連ログ、セッション記録、監査データを保全する場合があります。">Relevant logs, session records, and audit data may be preserved to investigate incidents, prevent harm, or comply with law.</p></article>
-          <article class="card"><h3 data-i18n-en="Cooperation" data-i18n-ja="協力">Cooperation</h3><p data-i18n-en="We may cooperate with hosting providers, platforms, or authorities where reasonably necessary to protect users, defend rights, or respond to legal requests." data-i18n-ja="利用者保護、権利防御、法的要請への対応のため合理的に必要な場合、ホスティング事業者、プラットフォーム、当局に協力することがあります。">We may cooperate with hosting providers, platforms, or authorities where reasonably necessary to protect users, defend rights, or respond to legal requests.</p></article>
-        </div>
-      </section>
+          <h2 data-i18n-en="2. Prohibited and high-risk use" data-i18n-ja="2. 禁止用途と高リスク用途">2. Prohibited and high-risk use</h2>
+          <ul>
+            <li data-i18n-en="YonerAI must not be used to facilitate, coordinate, justify, or conceal violence, murder, terrorism, weapon construction, child exploitation, human trafficking, stalking, fraud, or evasion of law enforcement." data-i18n-ja="YonerAI を、暴力、殺人、テロ、武器製造、児童搾取、人身取引、ストーキング、詐欺、法執行の回避の助長、調整、正当化、隠蔽のために利用してはいけません。">YonerAI must not be used to facilitate, coordinate, justify, or conceal violence, murder, terrorism, weapon construction, child exploitation, human trafficking, stalking, fraud, or evasion of law enforcement.</li>
+            <li data-i18n-en="The service is not intended to provide autonomous authority over real-world systems, law-enforcement decisions, or safety-critical operations." data-i18n-ja="本サービスは、現実世界のシステム、法執行上の判断、または安全上重要な運用に対する自律的権限を与えるものではありません。">The service is not intended to provide autonomous authority over real-world systems, law-enforcement decisions, or safety-critical operations.</li>
+            <li data-i18n-en="Users remain solely responsible for how they interpret and act on outputs. Outputs do not create permission, authorization, immunity, or legal justification." data-i18n-ja="出力の解釈および実行は利用者自身の責任であり、出力が許可、権限、免責、法的正当化を与えることはありません。">Users remain solely responsible for how they interpret and act on outputs. Outputs do not create permission, authorization, immunity, or legal justification.</li>
+          </ul>
 
-      <section class="section glass reveal">
-        <h2 data-i18n-en="Operator status and limits" data-i18n-ja="運営体制と限界">Operator status and limits</h2>
-        <div class="policy-prose">
-          <p data-i18n-en="YonerAI is currently operated by a minor individual developer. That means the service is developed and moderated with best effort, but it should not be treated as a guaranteed enterprise-grade safety or legal-response program." data-i18n-ja="YonerAI は現在、未成年の個人開発者により運営されています。そのため、安全対策や対応は最善努力で行われますが、企業水準の安全保証や法務対応体制とみなすべきではありません。">YonerAI is currently operated by a minor individual developer. That means the service is developed and moderated with best effort, but it should not be treated as a guaranteed enterprise-grade safety or legal-response program.</p>
-          <p data-i18n-en="If users misuse the service for unlawful or violent conduct, responsibility remains with those users. YonerAI and its developer do not endorse, direct, or participate in such conduct." data-i18n-ja="利用者が本サービスを違法行為や暴力行為に悪用した場合、その責任は当該利用者にあります。YonerAI および開発者は、そのような行為を推奨、指示、関与するものではありません。">If users misuse the service for unlawful or violent conduct, responsibility remains with those users. YonerAI and its developer do not endorse, direct, or participate in such conduct.</p>
+          <h2 data-i18n-en="3. Response and enforcement" data-i18n-ja="3. 対応と執行">3. Response and enforcement</h2>
+          <ul>
+            <li data-i18n-en="We may rate-limit, suspend, revoke, isolate, or refuse service when abuse, credible danger, or policy violations are detected." data-i18n-ja="不正、現実的な危険、またはポリシー違反を検知した場合、レート制限、停止、失効、隔離、サービス拒否を行うことがあります。">We may rate-limit, suspend, revoke, isolate, or refuse service when abuse, credible danger, or policy violations are detected.</li>
+            <li data-i18n-en="Relevant logs, session records, and audit data may be preserved to investigate incidents, prevent harm, protect users, or comply with law." data-i18n-ja="インシデント調査、被害防止、利用者保護、法令順守のため、関連ログ、セッション記録、監査データを保全する場合があります。">Relevant logs, session records, and audit data may be preserved to investigate incidents, prevent harm, protect users, or comply with law.</li>
+            <li data-i18n-en="We may cooperate with hosting providers, platforms, security partners, or authorities where reasonably necessary to respond to abuse, legal requests, or serious safety concerns." data-i18n-ja="不正対応、法的要請、重大な安全上の懸念に対応するため合理的に必要な場合、ホスティング事業者、プラットフォーム、セキュリティ関係者、当局に協力することがあります。">We may cooperate with hosting providers, platforms, security partners, or authorities where reasonably necessary to respond to abuse, legal requests, or serious safety concerns.</li>
+          </ul>
+
+          <h2 data-i18n-en="4. Operator status and limits" data-i18n-ja="4. 運営体制と限界">4. Operator status and limits</h2>
+          <p data-i18n-en="YonerAI is currently operated by a minor individual developer. Safety measures are implemented in good faith and improved over time, but the service should not be treated as a guaranteed enterprise-grade safety or legal-response program." data-i18n-ja="YonerAI は現在、未成年の個人開発者により運営されています。安全対策は誠実に実装され継続的に改善されますが、企業水準の安全保証や法務対応体制として扱うべきものではありません。">YonerAI is currently operated by a minor individual developer. Safety measures are implemented in good faith and improved over time, but the service should not be treated as a guaranteed enterprise-grade safety or legal-response program.</p>
+          <p data-i18n-en="If users misuse the service for unlawful, violent, or otherwise harmful conduct, responsibility remains with those users. YonerAI and its developer do not endorse, direct, or participate in such conduct." data-i18n-ja="利用者が本サービスを違法、暴力的、またはその他の有害な行為に悪用した場合、その責任は当該利用者にあります。YonerAI および開発者は、そのような行為を推奨、指示、関与するものではありません。">If users misuse the service for unlawful, violent, or otherwise harmful conduct, responsibility remains with those users. YonerAI and its developer do not endorse, direct, or participate in such conduct.</p>
+
+          <h2 data-i18n-en="5. Ongoing changes" data-i18n-ja="5. 継続的な変更">5. Ongoing changes</h2>
+          <p data-i18n-en="Trust and safety controls may change as the service evolves, threats change, or new infrastructure is introduced. This page may be updated without advance notice when we believe doing so is necessary to protect users or the service." data-i18n-ja="サービスの進化、脅威の変化、新しい基盤導入に応じて、信頼と安全性の制御は変更される場合があります。利用者またはサービス保護のため必要と判断した場合、本ページは事前通知なく更新されることがあります。">Trust and safety controls may change as the service evolves, threats change, or new infrastructure is introduced. This page may be updated without advance notice when we believe doing so is necessary to protect users or the service.</p>
         </div>
       </section>
     </main>
