@@ -179,6 +179,102 @@ def test_public_chat_message_allows_guest_session(monkeypatch):
         assert me.json()["user_id"] == seen["provider_id"]
 
 
+def test_public_chat_usage_reports_google_limit():
+    with TestClient(app) as client:
+        user_id = _attach_session_cookie(client, user_id="web:quota-google")
+        store = get_store()
+        asyncio.run(
+            store.record_api_usage(
+                user_id=user_id,
+                api_key_id=None,
+                method="POST",
+                path="/api/public/chat/messages",
+                status=200,
+                latency_ms=12,
+                request_bytes=10,
+                response_bytes=20,
+                meta_json='{"source":"test"}',
+            )
+        )
+        asyncio.run(
+            store.record_api_usage(
+                user_id=user_id,
+                api_key_id=None,
+                method="POST",
+                path="/api/public/chat/messages",
+                status=200,
+                latency_ms=15,
+                request_bytes=11,
+                response_bytes=21,
+                meta_json='{"source":"test"}',
+            )
+        )
+
+        response = client.get("/api/public/chat/usage")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["provider"] == "google"
+        assert data["limit"] == 20
+        assert data["used"] == 2
+        assert data["remaining"] == 18
+        assert data["used_session_raw"] == 2
+        assert data["used_api_key_raw"] == 0
+
+
+def test_public_chat_usage_issues_guest_limit(monkeypatch):
+    _enable_guest_chat(monkeypatch)
+
+    with TestClient(app) as client:
+        first = client.get("/api/public/chat/usage")
+        assert first.status_code == 200
+        data = first.json()
+        assert data["provider"] == "guest"
+        assert data["limit"] == 5
+        assert data["used"] == 0
+        assert data["remaining"] == 5
+
+
+def test_public_chat_message_rejects_when_daily_limit_reached(monkeypatch):
+    endpoints._RUN_QUEUES.clear()
+    endpoints._RUN_TOOL_OUTPUTS.clear()
+    endpoints._RUN_OWNERS.clear()
+    endpoints._PUBLIC_CHAT_IDEMPOTENCY.clear()
+
+    def fail_if_started(**_kwargs):
+        raise AssertionError("run should not start after quota is exhausted")
+
+    monkeypatch.setattr(endpoints, "_start_agent_run", fail_if_started)
+
+    with TestClient(app) as client:
+        user_id = _attach_session_cookie(client, user_id="web:quota-hit")
+        store = get_store()
+        for _ in range(20):
+            asyncio.run(
+                store.record_api_usage(
+                    user_id=user_id,
+                    api_key_id=None,
+                    method="POST",
+                    path="/api/public/chat/messages",
+                    status=200,
+                    latency_ms=10,
+                    request_bytes=9,
+                    response_bytes=18,
+                    meta_json='{"source":"test"}',
+                )
+            )
+
+        response = client.post(
+            "/api/public/chat/messages",
+            json={"content": "limit?"},
+        )
+        assert response.status_code == 429
+        detail = response.json()["detail"]
+        assert detail["code"] == "CHAT_LIMIT_EXCEEDED"
+        assert detail["limit"] == 20
+        assert detail["used"] == 20
+        assert detail["remaining"] == 0
+
+
 def test_public_chat_events_require_owner():
     endpoints._RUN_QUEUES.clear()
     endpoints._RUN_TOOL_OUTPUTS.clear()

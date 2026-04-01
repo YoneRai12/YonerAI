@@ -10,7 +10,7 @@ import os
 import secrets
 import time
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from ipaddress import ip_address
 from types import SimpleNamespace
 from typing import Any, List, Mapping
@@ -1379,6 +1379,88 @@ def _public_chat_conversation_id(body: PublicChatMessageRequest) -> str:
     return chosen
 
 
+def _public_chat_daily_limit(provider: str) -> int:
+    normalized = (provider or "").strip().lower()
+    if normalized == "google":
+        raw = (os.getenv("ORA_WEB_GOOGLE_DAILY_LIMIT") or "20").strip()
+    else:
+        raw = (os.getenv("ORA_WEB_GUEST_DAILY_LIMIT") or "5").strip()
+    try:
+        return max(0, int(raw))
+    except Exception:
+        return 0
+
+
+def _public_chat_day_window() -> tuple[int, int]:
+    now = datetime.now().astimezone()
+    start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    end = start + timedelta(days=1)
+    return int(start.timestamp()), int(end.timestamp())
+
+
+async def _public_chat_usage_payload(*, user_id: str, provider: str) -> dict[str, Any]:
+    start_ts, reset_ts = _public_chat_day_window()
+    store = get_store()
+    used_total = await store.count_api_usage(
+        user_id=user_id,
+        path="/api/public/chat/messages",
+        since_ts=start_ts,
+    )
+    used_session = await store.count_api_usage(
+        user_id=user_id,
+        path="/api/public/chat/messages",
+        since_ts=start_ts,
+        api_key_only=False,
+    )
+    used_api_key = await store.count_api_usage(
+        user_id=user_id,
+        path="/api/public/chat/messages",
+        since_ts=start_ts,
+        api_key_only=True,
+    )
+    limit = _public_chat_daily_limit(provider)
+    remaining = None if limit <= 0 else max(0, limit - used_total)
+    return {
+        "provider": str(provider or "guest"),
+        "limit": limit,
+        "used": used_total,
+        "remaining": remaining,
+        "reset_ts": reset_ts,
+        "used_session_raw": used_session,
+        "used_api_key_raw": used_api_key,
+    }
+
+
+@router.get("/public/chat/usage")
+async def get_public_chat_usage(request: Request):
+    session = await _resolve_session_from_request(request)
+    guest_payload: dict[str, Any] | None = None
+    if not session:
+        if not _guest_chat_enabled(request):
+            raise HTTPException(status_code=401, detail="Authentication required")
+        guest_payload = await _issue_guest_session(request=request)
+        session = {
+            "user_id": str(guest_payload.get("user_id") or ""),
+            "provider": str(guest_payload.get("provider") or "guest"),
+        }
+
+    user_id = str(session.get("user_id") or "").strip()
+    provider = str(session.get("provider") or "guest").strip().lower() or "guest"
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    payload = await _public_chat_usage_payload(user_id=user_id, provider=provider)
+    response = JSONResponse(payload)
+    if guest_payload is not None:
+        await _attach_web_session_cookie(
+            request=request,
+            response=response,
+            user_id=user_id,
+            provider="guest",
+        )
+    return response
+
+
 @router.post("/public/chat/messages")
 async def create_public_chat_message(
     body: PublicChatMessageRequest,
@@ -1400,6 +1482,7 @@ async def create_public_chat_message(
         }
 
     user_id = str(session.get("user_id") or "").strip()
+    provider = str(session.get("provider") or "guest").strip().lower() or "guest"
     if not user_id:
         raise HTTPException(status_code=401, detail="Authentication required")
 
@@ -1425,6 +1508,22 @@ async def create_public_chat_message(
                     provider="guest",
                 )
             return response
+
+    usage = await _public_chat_usage_payload(user_id=user_id, provider=provider)
+    limit = int(usage.get("limit") or 0)
+    used = int(usage.get("used") or 0)
+    if limit > 0 and used >= limit:
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "code": "CHAT_LIMIT_EXCEEDED",
+                "limit": limit,
+                "used": used,
+                "remaining": 0,
+                "reset_ts": int(usage.get("reset_ts") or 0),
+                "provider": provider,
+            },
+        )
 
     started_at = time.time()
     request_bytes = len(prompt.encode("utf-8", errors="ignore"))
