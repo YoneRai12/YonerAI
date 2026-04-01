@@ -1022,7 +1022,7 @@
             method: "POST",
             credentials: "include",
             headers: { "content-type": "application/json" },
-            body: JSON.stringify({ content: String(seedText || ""), max_len: 15, lang: isJa() ? "ja" : "en" }),
+            body: JSON.stringify({ content: String(seedText || ""), max_len: 20, lang: isJa() ? "ja" : "en" }),
           });
           const j = await r.json();
           if (!r.ok || !j || !j.title) return;
@@ -1036,7 +1036,7 @@
           if (t._title_llm_done) return;
           if (t.title && t.title !== "New chat" && t.title !== "新しいチャット" && !t._title_llm_pending) return;
 
-          t.title = String(j.title).trim().slice(0, 15);
+          t.title = String(j.title).trim().slice(0, 20);
           t._title_llm_done = true;
           t._title_llm_pending = false;
           threadsState[idx] = t;
@@ -1058,20 +1058,33 @@
         }
       }
 
-      function updateThreadTitleFromFirstUserMessage() {
+      function buildThreadTitleSeed(thread) {
+        if (!thread || !Array.isArray(thread.messages)) return "";
+        const firstUser = thread.messages.find((m) => m.role === "user" && (m.text || "").trim());
+        const firstAssistant = thread.messages.find((m) => m.role === "assistant" && (m.text || "").trim());
+        const parts = [];
+        if (firstUser && firstUser.text) parts.push(String(firstUser.text).trim());
+        if (firstAssistant && firstAssistant.text) parts.push(String(firstAssistant.text).trim());
+        return parts.filter(Boolean).join("\n");
+      }
+
+      function updateThreadTitleFromConversation(forceRefresh = false) {
         const idx = (threadsState || []).findIndex((x) => x.id === activeThreadId);
         if (idx < 0) return;
         const t = threadsState[idx];
-        if (!t || (t.title && t.title !== "New chat" && t.title !== "新しいチャット")) {
-          return;
+        if (!t) return;
+        const seed = buildThreadTitleSeed(t);
+        if (!seed) return;
+        const isDefaultTitle = !t.title || t.title === "New chat" || t.title === "新しいチャット";
+        if (isDefaultTitle || forceRefresh || !t._title_llm_done) {
+          t.title = String(seed).trim().replace(/\s+/g, " ").slice(0, 20);
         }
-        const firstUser = (t.messages || []).find((m) => m.role === "user" && (m.text || "").trim());
-        if (!firstUser) return;
-        t.title = String(firstUser.text).trim().slice(0, 15);
-        if (!t._title_llm_done && !t._title_llm_pending) {
+        if ((forceRefresh || !t._title_llm_done) && !t._title_llm_pending) {
           t._title_llm_pending = true;
-          // Fire-and-forget: generate a nicer <=15-char title in parallel.
-          void improveThreadTitleWithLLM(activeThreadId, firstUser.text);
+          if (forceRefresh) {
+            t._title_llm_done = false;
+          }
+          void improveThreadTitleWithLLM(activeThreadId, seed);
         }
         threadsState[idx] = t;
         saveThreads();
@@ -1092,7 +1105,7 @@
         // Keep the list fresh (most recent first)
         threadsState.unshift(...threadsState.splice(idx, 1));
         saveThreads();
-        updateThreadTitleFromFirstUserMessage();
+        updateThreadTitleFromConversation();
         renderThreads();
         renderMessages();
         return msg;
@@ -1740,6 +1753,7 @@
                     });
                   }
                   updateMessageText(threadId, assistantId, assistant.text);
+                  updateThreadTitleFromConversation(true);
                   updateMessageDom(threadId, assistantId);
                   lastFailedPrompt = "";
                   setChatStatus("ok", { message: isJa() ? "応答を受信しました" : "Response received" });

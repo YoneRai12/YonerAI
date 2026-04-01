@@ -7,6 +7,7 @@ import hmac
 import json
 import logging
 import os
+import re
 import secrets
 import time
 import uuid
@@ -1038,6 +1039,60 @@ def _managed_cloud_memory_block(history_messages: list[dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
+def _normalize_public_chat_title(text: str, *, max_len: int, lang: str) -> str:
+    raw = str(text or "").replace("\r\n", "\n").replace("\r", "\n")
+    raw = re.sub(r"\s+", " ", raw).strip()
+    if not raw:
+        return "新しいチャット" if str(lang).lower().startswith("ja") else "New chat"
+
+    raw = raw.strip("`\"'[](){}<>")
+    raw = re.sub(r"^(user|assistant|yonerai)\s*:\s*", "", raw, flags=re.IGNORECASE)
+    if len(raw) <= max_len:
+        return raw
+    return raw[:max_len].rstrip(" 　、。,.;:!?-") or raw[:max_len]
+
+
+async def _generate_public_chat_title(*, content: str, max_len: int, lang: str) -> str:
+    fallback = _normalize_public_chat_title(content, max_len=max_len, lang=lang)
+    seed = str(content or "").strip()
+    if not seed:
+        return fallback
+
+    try:
+        cfg = _load_managed_cloud_runtime_config()
+        from src.utils.llm_client import LLMClient
+
+        llm = LLMClient(
+            base_url=getattr(cfg, "openai_base_url", cfg.llm_base_url),
+            api_key=cfg.llm_api_key,
+            model=cfg.llm_model,
+            session=None,
+        )
+        if str(lang).lower().startswith("ja"):
+            sys_prompt = (
+                f"会話タイトルを20文字以内で要約してください。"
+                f"必ず {max_len} 文字以内、引用符なし、改行なし、説明なし、タイトル本文のみを返してください。"
+            )
+        else:
+            sys_prompt = (
+                f"Summarize this chat into a concise title within {max_len} characters. "
+                "Return only the title, with no quotes, no newline, and no explanation."
+            )
+        title_text, _, _usage = await llm.chat(
+            messages=[
+                {"role": "system", "content": sys_prompt},
+                {"role": "user", "content": seed},
+            ],
+            temperature=0.2,
+            model=getattr(cfg, "llm_model", "gpt-5-mini"),
+        )
+        title = _normalize_public_chat_title(str(title_text or ""), max_len=max_len, lang=lang)
+        return title or fallback
+    except Exception:
+        logger.exception("Failed to generate public chat title")
+        return fallback
+
+
 def _load_agent_runtime_config(*, runtime_kind: str) -> Any:
     from src.config import Config, ConfigError
 
@@ -1359,6 +1414,12 @@ class PublicChatMessageRequest(BaseModel):
     attachments: list[dict[str, Any]] = Field(default_factory=list)
 
 
+class PublicChatTitleRequest(BaseModel):
+    content: str
+    max_len: int | None = None
+    lang: str | None = None
+
+
 def _public_chat_idempotency_key(request: Request, body: PublicChatMessageRequest) -> str:
     header_key = (request.headers.get("Idempotency-Key") or request.headers.get("X-Idempotency-Key") or "").strip()
     body_key = (body.idempotency_key or "").strip()
@@ -1429,6 +1490,48 @@ async def _public_chat_usage_payload(*, user_id: str, provider: str) -> dict[str
         "used_session_raw": used_session,
         "used_api_key_raw": used_api_key,
     }
+
+
+@router.post("/public/chat/title")
+async def create_public_chat_title(
+    body: PublicChatTitleRequest,
+    request: Request,
+):
+    seed = str(body.content or "").strip()
+    if not seed:
+        raise HTTPException(status_code=400, detail="content is required")
+
+    session = await _resolve_session_from_request(request)
+    guest_payload: dict[str, Any] | None = None
+    if not session:
+        if not _guest_chat_enabled(request):
+            raise HTTPException(status_code=401, detail="Authentication required")
+        guest_payload = await _issue_guest_session(request=request)
+        session = {
+            "user_id": str(guest_payload.get("user_id") or ""),
+            "provider": str(guest_payload.get("provider") or "guest"),
+        }
+
+    user_id = str(session.get("user_id") or "").strip()
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    lang = "ja" if str(body.lang or "").lower().startswith("ja") else "en"
+    try:
+        max_len = max(8, min(40, int(body.max_len or 20)))
+    except Exception:
+        max_len = 20
+
+    title = await _generate_public_chat_title(content=seed, max_len=max_len, lang=lang)
+    response = JSONResponse({"title": title, "max_len": max_len})
+    if guest_payload is not None:
+        await _attach_web_session_cookie(
+            request=request,
+            response=response,
+            user_id=user_id,
+            provider="guest",
+        )
+    return response
 
 
 @router.get("/public/chat/usage")

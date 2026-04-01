@@ -234,6 +234,31 @@ def test_public_chat_usage_issues_guest_limit(monkeypatch):
         assert data["remaining"] == 3
 
 
+def test_public_chat_title_guest_returns_summary(monkeypatch):
+    _enable_guest_chat(monkeypatch)
+
+    async def fake_title(*, content: str, max_len: int, lang: str) -> str:
+        assert "YonerAI" in content
+        assert max_len == 20
+        assert lang == "ja"
+        return "YonerAIって何者？"
+
+    monkeypatch.setattr(endpoints, "_generate_public_chat_title", fake_title)
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/public/chat/title",
+            json={"content": "君は誰 YonerAI ってどんなの？", "max_len": 20, "lang": "ja"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["title"] == "YonerAIって何者？"
+        assert data["max_len"] == 20
+        me = client.get("/api/auth/me")
+        assert me.status_code == 200
+        assert me.json()["provider"] == "guest"
+
+
 def test_public_chat_message_rejects_when_daily_limit_reached(monkeypatch):
     endpoints._RUN_QUEUES.clear()
     endpoints._RUN_TOOL_OUTPUTS.clear()
