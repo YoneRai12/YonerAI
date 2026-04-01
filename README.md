@@ -10,7 +10,7 @@
 [![Discord](https://img.shields.io/badge/Discord-Join-7289DA?style=for-the-badge&logo=discord)](https://discord.gg/YoneRai12)
 [![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
 
-[**[Manual]**](docs/USER_GUIDE.md) | [**[Env Templates]**](docs/ENV_FILES.md) | [**[Release Notes]**](docs/RELEASE_NOTES.md) | [**[Web Chat]**](http://localhost:3000) | [**[Dashboard]**](http://localhost:3333)
+[**[Manual]**](docs/USER_GUIDE.md) | [**[Env Templates]**](docs/ENV_FILES.md) | [**[Route Freeze]**](docs/ROUTE_FREEZE_MVP.md) | [**[Public/Private Boundary]**](docs/PUBLIC_PRIVATE_BOUNDARY.md) | [**[Release Notes]**](docs/RELEASE_NOTES.md)
 
 ---
 
@@ -97,6 +97,7 @@ This section describes the **current strongest implementation direction**, not a
 For the current MVP freeze, see:
 
 - `docs/ROUTE_FREEZE_MVP.md`
+- `docs/PUBLIC_PRIVATE_BOUNDARY.md`
 
 ### What You Can Do With YonerAI
 

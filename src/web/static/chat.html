@@ -8,8 +8,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=IBM+Plex+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/site.css?v=20260401_01" />
-  <script defer src="/static/site.js?v=20260401_01"></script>
+  <link rel="stylesheet" href="/static/site.css?v=20260401_02" />
+  <script src="/static/site.js?v=20260401_02"></script>
 </head>
 <body class="site-chat">
   <div class="chat-shell">
@@ -17,13 +17,19 @@
       <a class="brand-mark" href="/">YonerAI</a>
       <p class="sidebar-copy">
         Official Managed Cloud の最小 chat 面です。
-        Google ログイン後、メッセージ送信と SSE 応答だけを公開します。
+        Google ログイン、メッセージ送信、SSE 応答だけを public-safe に通します。
       </p>
       <div class="session-box">
         <div id="session-state" class="session-state">セッションを確認しています…</div>
         <div id="session-user" class="session-user" hidden></div>
         <div class="session-actions">
-          <a id="login-btn" class="btn btn-primary" data-google-login href="/api/auth/google/start?returnTo=/jp/chat">Google でログイン</a>
+          <a
+            id="login-btn"
+            class="btn btn-primary"
+            data-google-login
+            data-return-to="/jp/chat"
+            href="/api/auth/google/start?returnTo=/jp/chat"
+          >Google でログイン</a>
           <button id="logout-btn" class="btn btn-secondary" type="button" hidden>ログアウト</button>
         </div>
       </div>
@@ -43,9 +49,15 @@
       <div id="status-box" class="status-box" hidden></div>
 
       <form id="chat-form" class="compose-form">
-        <textarea id="chat-input" class="compose-input" rows="3" placeholder="YonerAI にメッセージを送る" required></textarea>
+        <textarea
+          id="chat-input"
+          class="compose-input"
+          rows="3"
+          placeholder="YonerAI にメッセージを送る"
+          required
+        ></textarea>
         <div class="compose-actions">
-          <span class="compose-hint">最初の MVP では添付なし / 1 会話面のみです。</span>
+          <span class="compose-hint">最小 MVP なので 1 会話面だけです。</span>
           <button id="send-btn" class="btn btn-primary" type="submit">送信</button>
         </div>
       </form>
@@ -57,6 +69,16 @@
       "use strict";
 
       const app = window.YonerAIWeb;
+      if (!app) {
+        const fallback = document.getElementById("status-box");
+        if (fallback) {
+          fallback.hidden = false;
+          fallback.classList.add("status-error");
+          fallback.textContent = "site.js の読み込みに失敗しました。";
+        }
+        return;
+      }
+
       const apiBase = app.resolveApiBase();
       const messageList = document.getElementById("message-list");
       const statusBox = document.getElementById("status-box");
@@ -137,8 +159,8 @@
           setAuthedUI();
         } catch (error) {
           me = null;
-          sessionState.textContent = `セッション確認に失敗しました: ${error.message}`;
           setAuthedUI();
+          showStatus(`セッション確認に失敗しました: ${error.message}`, true);
         }
       }
 
@@ -173,7 +195,10 @@
         return new Promise((resolve, reject) => {
           pendingBubble = addBubble("assistant", "");
           let finalText = "";
-          const eventSource = new EventSource(`${apiBase}/api/public/chat/runs/${encodeURIComponent(runId)}/events`, { withCredentials: true });
+          const eventSource = new EventSource(
+            `${apiBase}/api/public/chat/runs/${encodeURIComponent(runId)}/events`,
+            { withCredentials: true }
+          );
 
           eventSource.onmessage = (event) => {
             let payload;
@@ -235,7 +260,7 @@
           await streamRun(result.run_id);
         } catch (error) {
           if (pendingBubble && !pendingBubble.textContent) {
-            pendingBubble.textContent = "応答の取得に失敗しました。";
+            pendingBubble.textContent = "応答の生成に失敗しました。";
           }
           showStatus(`失敗: ${error.message}`, true);
         } finally {
