@@ -15,6 +15,10 @@ This repo includes commit-safe templates you can copy and fill in.
 The minimum required env var is `DISCORD_BOT_TOKEN`.
 Most other items are optional and only enable features.
 
+Optional semantic memory:
+- Install `requirements-optional-memory.txt` to enable ChromaDB-backed `VectorMemory`.
+- Without that extra dependency, the public node still runs; semantic memory is just unavailable.
+
 ## Profiles (private/shared) and Instance IDs
 
 ORA can isolate state for different "profiles" on the same machine (M1).

@@ -122,3 +122,4 @@ auth.py
 data/
 
 !requirements.txt
+!requirements-optional-memory.txt

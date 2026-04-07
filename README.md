@@ -143,6 +143,16 @@ python main.py
 
 Minimum required env var: `DISCORD_BOT_TOKEN`.
 
+Optional semantic memory:
+```powershell
+pip install -r requirements-optional-memory.txt
+```
+
+Notes:
+- `chromadb` is optional for the public node.
+- If it is not installed, YonerAI still starts, but VectorMemory / semantic recall stays disabled.
+- On some Windows environments, ChromaDB may require Microsoft Visual C++ Build Tools.
+
 ### 2) Admin Server (optional)
 ```powershell
 .venv\Scripts\Activate.ps1
@@ -179,6 +189,10 @@ Start from `.env.example`.
 
 Required:
 - `DISCORD_BOT_TOKEN`
+
+Optional local semantic memory:
+- Install `requirements-optional-memory.txt` if you want ChromaDB-backed VectorMemory on this node.
+- If you skip it, the bot and local web/API still run; only semantic memory is disabled.
 
 ### Web Setup UI (Optional)
 

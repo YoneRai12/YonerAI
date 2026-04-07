@@ -66,6 +66,5 @@ pytest-asyncio
 ruff
 mypy
 pip-tools
-chromadb==0.6.3
 playwright
 PyJWT[crypto]>=2.8,<3.0
