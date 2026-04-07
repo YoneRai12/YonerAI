@@ -4,8 +4,6 @@ import os
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-import chromadb
-
 # Keep VectorMemory import-safe in CI/test environments where DISCORD_BOT_TOKEN is absent.
 # Do not call Config.load() at module import time.
 try:
@@ -17,12 +15,25 @@ except Exception:
 
 logger = logging.getLogger(__name__)
 
+
+def _import_chromadb():
+    try:
+        import chromadb
+    except ImportError as exc:
+        raise RuntimeError(
+            "VectorMemory requires the optional 'chromadb' dependency. "
+            "Install requirements-optional-memory.txt to enable semantic memory."
+        ) from exc
+    return chromadb
+
+
 class VectorMemory:
     """
     Long-term Semantic Memory using ChromaDB.
     Stores conversation snippets as vectors for RAG (Retrieval Augmented Generation).
     """
     def __init__(self, collection_name: str = "ora_memory"):
+        chromadb = _import_chromadb()
         self.client = chromadb.PersistentClient(path=DB_DIR)
         
         # Use default embedding function (all-MiniLM-L6-v2) for now to keep it local/free.
