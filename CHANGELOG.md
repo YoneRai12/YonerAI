@@ -2,6 +2,13 @@
 
 See also: `docs/RELEASE_NOTES.md` (curated summary, v5.0.0 -> current).
 
+## v2026.4.7 (2026-04-07) - Public Node Bootability Hardening
+- Removed `chromadb` from the default public-node install path so `pip install -r requirements.txt` no longer blocks initial setup on Windows when ChromaDB native extensions are unavailable.
+- Added `requirements-optional-memory.txt` for operators who explicitly want ChromaDB-backed `VectorMemory`.
+- Made `src/services/vector_memory.py` import ChromaDB lazily and fail with an actionable message only when semantic memory is actually enabled.
+- Documented the optional memory dependency in `README.md` and `docs/ENV_FILES.md`.
+- Added a regression test to ensure `VectorMemory` stays import-safe without the optional dependency installed.
+
 ## v2026.2.15 (2026-02-15) - Discord Web Search/Music Fix + Core SSE Buffer
 - Fixed ToolHandler dispatch for `web_search` and added an explicit admin guard for `web_action`.
 - Fixed music tool wrappers to correctly resolve `MusicSkill` via `ORACog.tool_handler` (prevents "Music system not accessible").

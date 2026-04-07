@@ -1,5 +1,37 @@
 # YonerAI Release Notes
 
+This page is a curated summary of what changed across releases (beyond GitHub auto-generated notes).
+
+## v2026.3.8-security -> v2026.4.7 (2026-04-07)
+
+### Big Picture
+- **Public node setup is usable again on clean Windows machines**: the default install path no longer hard-fails on ChromaDB's native build chain.
+- **Semantic memory is still available, but no longer blocks first boot**: ChromaDB-backed `VectorMemory` moved behind an explicit optional install step.
+- **Release artifacts are aligned for the next tag-based release**: `VERSION`, changelog, and release note body now describe the bootability fix coherently.
+
+### What Changed (High Impact)
+- **Default install path hardened**:
+  - Removed `chromadb` from `requirements.txt`.
+  - `pip install -r requirements.txt` now succeeds without requiring Microsoft Visual C++ Build Tools just to boot the public node.
+- **Optional semantic memory lane**:
+  - Added `requirements-optional-memory.txt`.
+  - Operators can opt into ChromaDB only when they actually want local semantic recall.
+- **Runtime fallback behavior clarified**:
+  - `VectorMemory` now imports ChromaDB lazily.
+  - If the optional dependency is missing, YonerAI still starts and only semantic memory stays disabled.
+  - The failure path now points directly to `requirements-optional-memory.txt`.
+- **Docs and regression coverage**:
+  - Updated `README.md` and `docs/ENV_FILES.md` with the optional memory install path.
+  - Added a regression test to keep `VectorMemory` import-safe when `chromadb` is absent.
+
+### Operator Impact
+- **If you want the public node only**:
+  - Use the standard Quickstart with `requirements.txt`.
+- **If you want semantic memory / ChromaDB**:
+  - Install `requirements-optional-memory.txt` after the base environment is up.
+- **If you are preparing a release**:
+  - The repo is now ready for a `v2026.4.7` tag after merge.
+
 This page is a curated summary of what changed across releases (beyond GitHub’s auto-generated notes).
 
 ## v2026.2.9 -> v2026.2.11 (2026-02-11)
