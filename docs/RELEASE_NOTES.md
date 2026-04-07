@@ -23,6 +23,7 @@ This page is a curated summary of what changed across releases (beyond GitHub au
 - **Docs and regression coverage**:
   - Updated `README.md` and `docs/ENV_FILES.md` with the optional memory install path.
   - Added a regression test to keep `VectorMemory` import-safe when `chromadb` is absent.
+  - Fixed the `core-test` workflow trigger scope so the required branch-policy check is emitted for every PR to `main`.
 
 ### Operator Impact
 - **If you want the public node only**:

@@ -8,6 +8,7 @@ See also: `docs/RELEASE_NOTES.md` (curated summary, v5.0.0 -> current).
 - Made `src/services/vector_memory.py` import ChromaDB lazily and fail with an actionable message only when semantic memory is actually enabled.
 - Documented the optional memory dependency in `README.md` and `docs/ENV_FILES.md`.
 - Added a regression test to ensure `VectorMemory` stays import-safe without the optional dependency installed.
+- Updated `core-test` workflow triggers so the required branch policy check is emitted for all PRs to `main`, avoiding merge blocks on non-core changes.
 
 ## v2026.2.15 (2026-02-15) - Discord Web Search/Music Fix + Core SSE Buffer
 - Fixed ToolHandler dispatch for `web_search` and added an explicit admin guard for `web_action`.

@@ -3,15 +3,8 @@ name: ORA Core CI
 on:
   push:
     branches: [ "main" ]
-    paths:
-      - 'core/**'
-      - 'FULL_TASK_HISTORY.md'
   pull_request:
     branches: [ "main" ]
-    paths:
-      - 'core/**'
-      - 'TASK_HISTORY.md'
-      - 'TASKS.md'
 
 jobs:
   core-test:
