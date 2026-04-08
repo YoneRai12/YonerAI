@@ -59,7 +59,7 @@ export default function DashboardView({ guildId, guildName }: DashboardViewProps
             <div className="max-w-7xl mx-auto flex justify-between items-center mb-12">
                 <div>
                     <h1 className="text-4xl font-black text-white tracking-widest uppercase italic">
-                        ORA <span className="text-cyan-500 font-light">Core</span>
+                        YonerAI <span className="text-cyan-500 font-light">Core</span>
                     </h1>
                     <div className="flex items-center gap-2 mt-1">
                         <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>

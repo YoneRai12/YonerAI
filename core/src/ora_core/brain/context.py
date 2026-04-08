@@ -294,7 +294,7 @@ class ContextBuilder:
         server_name = ctx.server_name if ctx else "Unknown"
         
         base_prompt = (
-            "You are YonerAI (formerly ORA), a highly advanced AI assistant system.\n"
+            "You are YonerAI, a highly advanced AI assistant system.\n"
             "Your goal is to assist the user efficiently, securely, and with clear boundaries.\n"
             f"Current Time: {now_str}\n"
             f"User: {name} (ID: {req.user_identity.id})\n"

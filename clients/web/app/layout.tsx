@@ -12,7 +12,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        <title>ORA Chat</title>
+        <title>YonerAI Chat</title>
       </head>
       <body className={`${inter.className} flex h-screen w-screen bg-[#212121] text-gray-100`}>
 
