@@ -1846,11 +1846,22 @@ async def get_user_details(user_id: str, _: None = Depends(require_web_api)):
     """Get full details for a specific user (traits, history, context). Supports dual profiles."""
     import json
     from pathlib import Path
+    from src.config import MEMORY_DIR
 
-    MEMORY_DIR = Path("L:/ORA_Memory/users")
-    parts = user_id.split("_")
+    users_dir = (Path(MEMORY_DIR) / "users").resolve()
+    parts = user_id.split("_", 1)
     uid = parts[0]
     gid = parts[1] if len(parts) > 1 else None
+
+    # Discord IDs are numeric; block traversal/control characters entirely.
+    if not uid.isdigit() or (gid is not None and not gid.isdigit()):
+        return {"ok": False, "error": "Invalid user id format"}
+
+    def _safe_user_path(filename: str) -> Path | None:
+        candidate = (users_dir / filename).resolve()
+        if candidate != users_dir and users_dir not in candidate.parents:
+            return None
+        return candidate
 
     specific_data = None
     general_data = None
@@ -1859,20 +1870,28 @@ async def get_user_details(user_id: str, _: None = Depends(require_web_api)):
         # 1. Try Specific Profile
         if gid:
             # FIX: Check public/private suffixes matching memory.py
-            path_spec = MEMORY_DIR / f"{uid}_{gid}_public.json"
+            path_spec = _safe_user_path(f"{uid}_{gid}_public.json")
+            if not path_spec:
+                return {"ok": False, "error": "Invalid user id format"}
             if not path_spec.exists():
-                path_spec = MEMORY_DIR / f"{uid}_{gid}_private.json"
+                path_spec = _safe_user_path(f"{uid}_{gid}_private.json")
+                if not path_spec:
+                    return {"ok": False, "error": "Invalid user id format"}
 
             # Legacy fallback
             if not path_spec.exists():
-                path_spec = MEMORY_DIR / f"{uid}_{gid}.json"
+                path_spec = _safe_user_path(f"{uid}_{gid}.json")
+                if not path_spec:
+                    return {"ok": False, "error": "Invalid user id format"}
 
             if path_spec.exists():
                 with open(path_spec, "r", encoding="utf-8") as f:
                     specific_data = json.load(f)
 
         # 2. Try General Profile
-        path_gen = MEMORY_DIR / f"{uid}.json"
+        path_gen = _safe_user_path(f"{uid}.json")
+        if not path_gen:
+            return {"ok": False, "error": "Invalid user id format"}
         if path_gen.exists():
             with open(path_gen, "r", encoding="utf-8") as f:
                 general_data = json.load(f)
