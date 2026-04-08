@@ -1,9 +1,13 @@
+import asyncio
 import base64
 import io
 import logging
+import socket
 import time
+import ipaddress
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+from urllib.parse import urlparse
 
 import aiofiles  # type: ignore
 import aiohttp
@@ -37,6 +41,54 @@ class VisionHandler:
             ".ps1",
         }
         self.supported_img_ext = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"}
+
+    async def _is_safe_public_image_url(self, image_url: str) -> bool:
+        """Block SSRF targets by allowing only public http(s) hosts."""
+        parsed = urlparse(image_url)
+        if parsed.scheme not in {"http", "https"}:
+            return False
+
+        host = parsed.hostname
+        if not host:
+            return False
+
+        if host.lower() == "localhost":
+            return False
+
+        def _is_public_ip(ip_str: str) -> bool:
+            try:
+                ip_obj = ipaddress.ip_address(ip_str)
+            except ValueError:
+                return False
+            return ip_obj.is_global
+
+        # Literal IP host
+        if _is_public_ip(host):
+            return True
+
+        # Private/reserved literal IP host
+        try:
+            ipaddress.ip_address(host)
+            return False
+        except ValueError:
+            pass
+
+        # DNS host: all resolved addresses must be global/public
+        try:
+            loop = asyncio.get_running_loop()
+            addr_info = await loop.getaddrinfo(host, parsed.port or 443, type=socket.SOCK_STREAM)
+        except Exception:
+            return False
+
+        if not addr_info:
+            return False
+
+        for _, _, _, _, sockaddr in addr_info:
+            ip_str = sockaddr[0]
+            if not _is_public_ip(ip_str):
+                return False
+
+        return True
 
     async def process_attachments(
         self, attachments: List[discord.Attachment], is_reference: bool = False
@@ -119,10 +171,18 @@ class VisionHandler:
                 continue
 
             try:
+                if not await self._is_safe_public_image_url(image_url):
+                    logger.warning(f"Blocked unsafe embed image URL: {image_url}")
+                    continue
+
                 # Download
                 async with aiohttp.ClientSession() as session:
-                    async with session.get(image_url, timeout=5) as resp:
+                    async with session.get(image_url, timeout=5, allow_redirects=False) as resp:
                         if resp.status != 200:
+                            continue
+
+                        content_type = resp.headers.get("Content-Type", "")
+                        if "image" not in content_type.lower():
                             continue
 
                         content_length = resp.headers.get("Content-Length")
