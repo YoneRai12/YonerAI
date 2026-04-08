@@ -23,7 +23,8 @@ class StyleSelectView(View):
         self.is_high_quality = is_high_quality
 
     async def start_generation(self, interaction: discord.Interaction, style: str):
-        await interaction.response.defer()
+        if not interaction.response.is_done():
+            await interaction.response.defer()
 
         # Disable buttons
         for child in self.children:
