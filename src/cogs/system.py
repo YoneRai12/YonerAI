@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import re
 import secrets
 import subprocess
 from typing import Literal, Optional
@@ -73,6 +74,43 @@ class SystemCog(commands.Cog):
     def cog_unload(self):
         self.sync_discord_state.cancel()
         self.log_forwarder.cancel()
+
+    @staticmethod
+    def _sanitize_log_text(text: str, *, max_len: int = 4000) -> str:
+        """Redact common secrets/path disclosures before Discord forwarding."""
+        if not text:
+            return ""
+
+        sanitized = str(text)
+        sensitive_patterns = [
+            # e.g. API_KEY=..., token: ..., password="..."
+            r"(?i)\b(api[_-]?key|token|secret|password|passwd|authorization)\b\s*[:=]\s*[^\s,;]+",
+            # Bearer tokens
+            r"(?i)\bbearer\s+[A-Za-z0-9\-._~+/]+=*",
+        ]
+        for pattern in sensitive_patterns:
+            sanitized = re.sub(pattern, "[REDACTED]", sanitized)
+
+        try:
+            cwd = os.getcwd()
+            home = os.path.expanduser("~")
+            if cwd:
+                sanitized = sanitized.replace(cwd, "[ROOT]").replace(cwd.replace("\\", "/"), "[ROOT]")
+            if home and len(home) > 3:
+                sanitized = sanitized.replace(home, "[HOME]").replace(home.replace("\\", "/"), "[HOME]")
+        except Exception:
+            pass
+
+        return sanitized[:max_len]
+
+    @staticmethod
+    def _is_private_log_channel(channel: discord.abc.GuildChannel) -> bool:
+        """Require @everyone cannot read the log channel to reduce accidental disclosure."""
+        guild = getattr(channel, "guild", None)
+        if guild is None:
+            return False
+        everyone_perms = channel.permissions_for(guild.default_role)
+        return not everyone_perms.read_messages
 
     @tasks.loop(seconds=5)
     async def sync_discord_state(self):
@@ -162,6 +200,9 @@ class SystemCog(commands.Cog):
         channel = self.bot.get_channel(channel_id)
         if not channel:
             return
+        if isinstance(channel, discord.abc.GuildChannel) and not self._is_private_log_channel(channel):
+            logger.warning("Skipping Discord log forwarding: configured log channel is visible to @everyone.")
+            return
 
         # 1. Consume Queue
         while not queue.empty():
@@ -171,19 +212,23 @@ class SystemCog(commands.Cog):
                 # URGENT: Errors sent immediately
                 if record.levelno >= logging.ERROR:
                     timestamp = discord.utils.utcnow().strftime("%H:%M:%S")
-                    msg = record.message.replace("Vision API Error", "❌ Vision APIエラー").replace("Failed to load", "🛑 読込失敗")
+                    msg = self._sanitize_log_text(record.message)
+                    msg = msg.replace("Vision API Error", "❌ Vision APIエラー").replace("Failed to load", "🛑 読込失敗")
                     embed = discord.Embed(
                         title="🚨 緊急システム通知", 
                         description=f"`{timestamp}` 🛑 **[{record.name}]** {msg}", 
                         color=discord.Color.red(), 
                         timestamp=discord.utils.utcnow()
                     )
+                    if record.exc_text:
+                        safe_exc = self._sanitize_log_text(record.exc_text, max_len=1000)
+                        embed.add_field(name="Exception", value=f"```py\n{safe_exc}```", inline=False)
                     await channel.send(embed=embed)
                     continue
 
                 # NORMAL: Buffer Info/Warning
                 try:
-                    msg = record.message
+                    msg = self._sanitize_log_text(record.message)
                     if "We are being rate limited" in msg or "429" in msg:
                         continue
                     
