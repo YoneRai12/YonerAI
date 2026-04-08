@@ -103,9 +103,9 @@ class VoiceRecvCog(commands.Cog):
     @app_commands.command(name="listen", description="ボイスチャンネルで全員の声を聞き取ります。")
     async def listen(self, interaction: discord.Interaction):
         # Admin check
-        # if self.bot.config.admin_user_id and interaction.user.id != self.bot.config.admin_user_id:
-        #     await interaction.response.send_message("この機能は管理者専用です。", ephemeral=True)
-        #     return
+        if self.bot.config.admin_user_id and interaction.user.id != self.bot.config.admin_user_id:
+            await interaction.response.send_message("この機能は管理者専用です。", ephemeral=True)
+            return
 
         if not interaction.user.voice:
             await interaction.response.send_message("ボイスチャンネルに参加してから実行してください。", ephemeral=True)
