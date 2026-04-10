@@ -2,13 +2,77 @@
 
 See also: `docs/RELEASE_NOTES.md` (curated summary, v5.0.0 -> current).
 
-## v2026.4.7 (2026-04-07) - Public Node Bootability Hardening
-- Removed `chromadb` from the default public-node install path so `pip install -r requirements.txt` no longer blocks initial setup on Windows when ChromaDB native extensions are unavailable.
-- Added `requirements-optional-memory.txt` for operators who explicitly want ChromaDB-backed `VectorMemory`.
-- Made `src/services/vector_memory.py` import ChromaDB lazily and fail with an actionable message only when semantic memory is actually enabled.
-- Documented the optional memory dependency in `README.md` and `docs/ENV_FILES.md`.
-- Added a regression test to ensure `VectorMemory` stays import-safe without the optional dependency installed.
-- Updated `core-test` workflow triggers so the required branch policy check is emitted for all PRs to `main`, avoiding merge blocks on non-core changes.
+## v2026.4.11 (2026-04-11) - Distribution Node MVP preview: fail-closed baseline
+
+### 日本語
+
+#### このパッチでできるようになったこと
+- 署名付き release verification の fail-closed 基盤
+  - release manifest
+  - signed metadata
+  - provenance record
+  - freshness expiry
+  - rollback check
+- capability manifest の deny-only 運用
+  - `schema_version = yonerai-distribution-capabilities/v1`
+  - `profile = distribution_node_mvp`
+  - `default_action = deny` only
+- Internal Run API v0.1 の最小契約
+  - `POST /v1/messages`
+  - `GET /v1/runs/{run_id}/events`
+  - `POST /v1/runs/{run_id}/results`
+- run API の file-ref-only 化
+- files API 経由の controlled download / short-lived URL
+- Distribution Node mode での owner-scoped file / run-event / run-result access
+- band2 / SSE hardening
+- distribution file tables の Alembic migration support
+- Alembic `upgrade head` / `downgrade -1` と関連 lane tests によるローカル検証
+
+#### 含まれないもの
+- `src/cogs/ora.py` landing
+- sensitive runtime landing
+- arbitrary shell support
+- arbitrary SQL support
+- arbitrary file write support
+- high-risk control-plane execution
+- full live operational exactness
+- full product completion の主張
+- 公式クラウド全部入り通信基盤の完成版
+
+### English
+
+#### What this patch makes possible
+- A fail-closed signed release verification baseline
+  - release manifest
+  - signed metadata
+  - provenance record
+  - freshness expiry
+  - rollback check
+- Deny-only capability behavior
+  - `schema_version = yonerai-distribution-capabilities/v1`
+  - `profile = distribution_node_mvp`
+  - `default_action = deny` only
+- The narrow Internal Run API v0.1 contract
+  - `POST /v1/messages`
+  - `GET /v1/runs/{run_id}/events`
+  - `POST /v1/runs/{run_id}/results`
+- File-ref-only run APIs
+- Controlled downloads through the files API with short-lived URLs
+- Owner-scoped file / run-event / run-result access in Distribution Node mode
+- band2 / SSE hardening
+- Alembic migration support for distribution file tables
+- Local validation through Alembic `upgrade head` / `downgrade -1` and relevant lane tests
+
+#### Not included
+- `src/cogs/ora.py` landing
+- sensitive runtime landing
+- arbitrary shell support
+- arbitrary SQL support
+- arbitrary file write support
+- high-risk control-plane execution
+- full live operational exactness
+- a full product completion claim
+- a full official-cloud complete communication foundation
 
 ## v2026.2.15 (2026-02-15) - Discord Web Search/Music Fix + Core SSE Buffer
 - Fixed ToolHandler dispatch for `web_search` and added an explicit admin guard for `web_action`.
