@@ -9,6 +9,7 @@ class ToolDefinition(BaseModel):
     name: str
     description: str
     parameters: dict # JSON Schema
+    required_capability: str | None = None
     gpu_required: bool = False
     vram_hint_mb: int = 0
     timeout_sec: int = 30

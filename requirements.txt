@@ -8,6 +8,7 @@ aiosqlite>=0.19,<1.0
 requests
 httpx
 aiofiles
+cryptography
 
 # AI & Machine Learning
 torch>=2.0.0

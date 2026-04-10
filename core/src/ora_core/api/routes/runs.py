@@ -1,8 +1,11 @@
 import json
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from ora_core.api.dependencies.auth import get_current_user
+from ora_core.database.models import User
 from ora_core.database.repo import Repository
 from ora_core.database.session import get_db
+from ora_core.distribution.runtime import get_current_runtime
 from ora_core.engine.simple_worker import event_manager
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
@@ -12,15 +15,33 @@ router = APIRouter()
 
 
 class ToolResultRequest(BaseModel):
+    result_type: str = "continuation_tool_result"
     tool: str
     result: dict | str | list | int | float | bool | None = None
     tool_call_id: str | None = None
 
 @router.get("/runs/{run_id}/events")
-async def stream_run_events(run_id: str, request: Request):
+async def stream_run_events(
+    run_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    authenticated_user: User | None = Depends(get_current_user),
+):
     """
     SSE Endpoint for streaming run events.
     """
+    runtime = get_current_runtime()
+    runtime.require_capability("run.read_events")
+    repo = Repository(db)
+    run = await repo.get_run(run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Not Found")
+    if runtime.enabled:
+        if not authenticated_user:
+            raise HTTPException(status_code=401, detail="Authenticated run owner is required.")
+        if not run.user_id or run.user_id != authenticated_user.id:
+            raise HTTPException(status_code=404, detail="Not Found")
+
     async def event_generator():
         async for event in event_manager.listen(run_id):
             if await request.is_disconnected():
@@ -41,35 +62,59 @@ async def stream_run_events(run_id: str, request: Request):
 async def submit_run_tool_result(
     run_id: str,
     body: ToolResultRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
+    authenticated_user: User | None = Depends(get_current_user),
 ):
     """
     Accept external tool execution result and hand it to the active run loop.
     """
+    get_current_runtime().require_capability("run.submit_continuation_results")
+    if body.result_type != "continuation_tool_result":
+        raise HTTPException(status_code=422, detail="Only continuation tool results are accepted.")
+    if not body.tool_call_id:
+        raise HTTPException(status_code=422, detail="tool_call_id is required for continuation.")
+
     repo = Repository(db)
     run = await repo.get_run(run_id)
     if not run:
         raise HTTPException(status_code=404, detail="Not Found")
+    runtime = get_current_runtime()
+    if runtime.enabled:
+        if not authenticated_user:
+            raise HTTPException(status_code=401, detail="Authenticated run owner is required.")
+        if not run.user_id or run.user_id != authenticated_user.id:
+            raise HTTPException(status_code=404, detail="Not Found")
+    tool_call = await repo.get_tool_call(body.tool_call_id)
+    if not tool_call or tool_call.run_id != run_id or tool_call.tool_name != body.tool:
+        raise HTTPException(status_code=409, detail="Tool result does not match an active continuation tool call.")
+
+    acceptance = await event_manager.accepts_tool_result(run_id, body.tool_call_id, body.tool)
+    if acceptance == "unexpected":
+        raise HTTPException(status_code=409, detail="Run is not awaiting this continuation tool result.")
+    if acceptance == "mismatch":
+        raise HTTPException(status_code=409, detail="Tool result does not match the expected continuation tool.")
 
     payload = {
         "tool": body.tool,
         "result": body.result,
         "tool_call_id": body.tool_call_id,
     }
+    if acceptance == "duplicate":
+        return {"status": "ok", "accepted": False, "duplicate": True}
 
-    if body.tool_call_id:
-        await event_manager.submit_tool_result(run_id, body.tool_call_id, payload)
-        await event_manager.emit(
-            run_id,
-            "tool_result_submit",
-            {"tool": body.tool, "tool_call_id": body.tool_call_id},
-        )
-        return {"status": "ok", "accepted": True}
+    try:
+        accepted = await event_manager.submit_tool_result(run_id, body.tool_call_id, payload)
+    except KeyError as exc:
+        raise HTTPException(status_code=409, detail="Run is not awaiting this continuation tool result.") from exc
 
-    # Backward-compatible accept for legacy clients that do not send tool_call_id.
     await event_manager.emit(
         run_id,
         "tool_result_submit",
-        {"tool": body.tool, "tool_call_id": None, "note": "missing_tool_call_id"},
+        {"tool": body.tool, "tool_call_id": body.tool_call_id},
     )
-    return {"status": "ok", "accepted": False, "note": "tool_call_id is required for run continuation"}
+    return {
+        "status": "ok",
+        "accepted": bool(accepted),
+        "continuation_only": True,
+    }

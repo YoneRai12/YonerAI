@@ -1,11 +1,23 @@
+import os
+from pathlib import Path
 from logging.config import fileConfig
 
 from alembic import context
 from sqlalchemy import engine_from_config, pool
+from dotenv import load_dotenv
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+ENV_PATH = REPO_ROOT / ".env"
+if ENV_PATH.exists():
+    load_dotenv(ENV_PATH)
+
+db_name = os.getenv("ORA_BOT_DB", "ora.db")
+db_path = (REPO_ROOT / db_name).resolve()
+config.set_main_option("sqlalchemy.url", f"sqlite:///{db_path.as_posix()}")
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.

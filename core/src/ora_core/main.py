@@ -10,19 +10,29 @@ from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from ora_core.api.dependencies.auth import require_core_access
 from ora_core.api.routes.auth import router as auth_router
+from ora_core.api.routes.files import router as files_router
 from ora_core.api.routes.messages import router as messages_router
 from ora_core.api.routes.runs import router as runs_router
 from ora_core.api.routes.stats import router as stats_router
+from ora_core.distribution.runtime import build_runtime_from_env
 import os
 
 
 def create_app():
     app = FastAPI(title="ORA Core", version="0.1")
+    app.state.distribution_runtime = build_runtime_from_env()
 
     @app.get("/health")
     async def health() -> dict:
         # Used by the Bot's ConnectionManager to decide API vs STANDALONE mode.
-        return {"ok": True}
+        distribution = getattr(app.state, "distribution_runtime", None)
+        payload = {"ok": True}
+        if getattr(distribution, "enabled", False) and getattr(distribution, "verification", None):
+            payload["distribution_node"] = {
+                "profile": distribution.verification.manifest.profile,
+                "verified_release": distribution.verification.manifest.version,
+            }
+        return payload
 
     # Load Config
     from src.config import Config
@@ -85,6 +95,7 @@ def create_app():
 
     app.include_router(messages_router, prefix="/v1", dependencies=protected_deps)
     app.include_router(runs_router, prefix="/v1", dependencies=protected_deps)
+    app.include_router(files_router, prefix="/v1", dependencies=protected_deps)
     app.include_router(auth_router, prefix="/v1/auth", dependencies=protected_deps) # Core generic auth routes (me, logout)
 
     # Conditional Auth Logic

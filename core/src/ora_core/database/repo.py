@@ -1,6 +1,8 @@
 import logging
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
+from pathlib import Path
+import hashlib
 
 from sqlalchemy import and_, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,6 +13,9 @@ from .models import (
     Conversation,
     ConversationBinding,
     ConversationScope,
+    DistributionFile,
+    DistributionFileAudit,
+    DistributionFileTicket,
     IdentityLinkAudit,
     IdentityLinkRequest,
     Message,
@@ -66,6 +71,13 @@ class Repository:
 
     async def get_run(self, run_id: str) -> Run | None:
         stmt = select(Run).where(Run.id == run_id)
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def get_tool_call(self, tool_call_id: str, user_id: str | None = None) -> ToolCall | None:
+        stmt = select(ToolCall).where(ToolCall.id == tool_call_id)
+        if user_id is not None:
+            stmt = stmt.where(ToolCall.user_id == user_id)
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
 
@@ -565,5 +577,92 @@ class Repository:
                 for c in recent_calls_res.scalars().all()
             ]
         }
+
+    async def create_distribution_file(
+        self,
+        *,
+        owner_user_id: str,
+        run_id: str | None,
+        tool_call_id: str | None,
+        storage_path: str,
+        display_name: str,
+        media_type: str,
+    ) -> DistributionFile:
+        file_path = Path(storage_path)
+        payload = file_path.read_bytes()
+        record = DistributionFile(
+            id=str(uuid.uuid4()),
+            owner_user_id=owner_user_id,
+            run_id=run_id,
+            tool_call_id=tool_call_id,
+            storage_path=str(file_path),
+            display_name=display_name,
+            media_type=media_type,
+            sha256=hashlib.sha256(payload).hexdigest(),
+            size_bytes=len(payload),
+        )
+        self.db.add(record)
+        await self.db.commit()
+        await self.db.refresh(record)
+        return record
+
+    async def get_distribution_file(self, file_id: str) -> DistributionFile | None:
+        stmt = select(DistributionFile).where(DistributionFile.id == file_id)
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def create_distribution_file_ticket(
+        self,
+        *,
+        file_id: str,
+        owner_user_id: str,
+        expires_at: datetime,
+    ) -> DistributionFileTicket:
+        ticket = DistributionFileTicket(
+            id=str(uuid.uuid4()),
+            file_id=file_id,
+            owner_user_id=owner_user_id,
+            expires_at=expires_at,
+        )
+        self.db.add(ticket)
+        await self.db.commit()
+        await self.db.refresh(ticket)
+        return ticket
+
+    async def consume_distribution_file_ticket(self, ticket_id: str) -> DistributionFileTicket | None:
+        now = datetime.now(UTC).replace(tzinfo=None)
+        ticket = await self.get_distribution_file_ticket(ticket_id)
+        if not ticket or ticket.consumed_at is not None or ticket.expires_at <= now:
+            return None
+        ticket.consumed_at = now
+        await self.db.commit()
+        await self.db.refresh(ticket)
+        return ticket
+
+    async def get_distribution_file_ticket(self, ticket_id: str) -> DistributionFileTicket | None:
+        stmt = select(DistributionFileTicket).where(DistributionFileTicket.id == ticket_id)
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def create_distribution_file_audit(
+        self,
+        *,
+        file_id: str,
+        owner_user_id: str,
+        action: str,
+        ticket_id: str | None = None,
+        remote_address: str | None = None,
+    ) -> DistributionFileAudit:
+        audit = DistributionFileAudit(
+            file_id=file_id,
+            owner_user_id=owner_user_id,
+            action=action,
+            ticket_id=ticket_id,
+            remote_address=remote_address,
+        )
+        self.db.add(audit)
+        await self.db.commit()
+        await self.db.refresh(audit)
+        return audit
 
 
