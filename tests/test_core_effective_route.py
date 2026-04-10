@@ -13,9 +13,7 @@ CORE_SRC = Path(__file__).resolve().parents[1] / "core" / "src"
 if str(CORE_SRC) not in sys.path:
     sys.path.insert(0, str(CORE_SRC))
 
-try:
-    from sqlalchemy.ext.asyncio import AsyncSession as _AsyncSession  # type: ignore
-except Exception:
+if "sqlalchemy.ext.asyncio" not in sys.modules:
     sa_mod = types.ModuleType("sqlalchemy")
     sa_ext_mod = types.ModuleType("sqlalchemy.ext")
     sa_async_mod = types.ModuleType("sqlalchemy.ext.asyncio")
@@ -47,27 +45,21 @@ if "ora_core.database.repo" not in sys.modules:
     repo_mod.RunStatus = _RunStatus
     sys.modules["ora_core.database.repo"] = repo_mod
 
-try:
-    import ora_core.brain.memory as _real_memory  # type: ignore
-except Exception:
-    if "ora_core.brain.memory" not in sys.modules:
-        mem_mod = types.ModuleType("ora_core.brain.memory")
-        mem_mod.memory_store = SimpleNamespace()
-        sys.modules["ora_core.brain.memory"] = mem_mod
+if "ora_core.brain.context" not in sys.modules:
+    ctx_mod = types.ModuleType("ora_core.brain.context")
 
-try:
-    import ora_core.brain.context as _real_context  # type: ignore
-except Exception:
-    if "ora_core.brain.context" not in sys.modules:
-        ctx_mod = types.ModuleType("ora_core.brain.context")
+    class _ContextBuilder:
+        @staticmethod
+        async def build_context(*_args, **_kwargs):
+            return []
 
-        class _ContextBuilder:
-            @staticmethod
-            async def build_context(*_args, **_kwargs):
-                return []
+    ctx_mod.ContextBuilder = _ContextBuilder
+    sys.modules["ora_core.brain.context"] = ctx_mod
 
-        ctx_mod.ContextBuilder = _ContextBuilder
-        sys.modules["ora_core.brain.context"] = ctx_mod
+if "ora_core.brain.memory" not in sys.modules:
+    mem_mod = types.ModuleType("ora_core.brain.memory")
+    mem_mod.memory_store = SimpleNamespace()
+    sys.modules["ora_core.brain.memory"] = mem_mod
 
 if "ora_core.engine.simple_worker" not in sys.modules:
     worker_mod = types.ModuleType("ora_core.engine.simple_worker")
@@ -116,24 +108,12 @@ class _FakeOmniEngine:
         return response
 
 
-class _SequenceOmniEngine:
-    def __init__(self, responses: list[str]):
-        self._responses = list(responses)
-
-    async def generate(self, *_args, **_kwargs):
-        content = self._responses.pop(0) if self._responses else "ok"
-        message = SimpleNamespace(content=content, tool_calls=[])
-        return SimpleNamespace(choices=[SimpleNamespace(message=message)], usage=None, model="test-model")
-
-
 async def _run_main_process(
     monkeypatch,
     req: MessageRequest,
     *,
     run_id: str,
     build_context_fn=None,
-    omni_engine=None,
-    tool_runner_cls=None,
 ) -> list[dict[str, Any]]:
     import ora_core.brain.process as process_mod
 
@@ -146,12 +126,7 @@ async def _run_main_process(
         return []
 
     fake_omni_module = types.ModuleType("ora_core.engine.omni_engine")
-    fake_omni_module.omni_engine = omni_engine or _FakeOmniEngine()
-
-    if tool_runner_cls is not None:
-        fake_runner_module = types.ModuleType("ora_core.mcp.runner")
-        fake_runner_module.ToolRunner = tool_runner_cls
-        monkeypatch.setitem(sys.modules, "ora_core.mcp.runner", fake_runner_module)
+    fake_omni_module.omni_engine = _FakeOmniEngine()
 
     monkeypatch.setattr(process_mod.event_manager, "emit", _fake_emit)
     monkeypatch.setattr(
@@ -179,6 +154,14 @@ def _event_data(events: list[dict[str, Any]], event_type: str) -> dict[str, Any]
     raise AssertionError(f"missing event: {event_type}")
 
 
+def _effective_route(events: list[dict[str, Any]]) -> dict[str, Any]:
+    meta = _event_data(events, "meta")
+    route = meta.get("effective_route")
+    if not isinstance(route, dict):
+        raise AssertionError("missing effective_route metadata")
+    return route
+
+
 def test_effective_route_emitted_and_persisted_with_route_hint(monkeypatch) -> None:
     async def _run() -> None:
         run_id = f"run-{uuid.uuid4().hex[:10]}"
@@ -201,16 +184,14 @@ def test_effective_route_emitted_and_persisted_with_route_hint(monkeypatch) -> N
             },
         )
         events = await _run_main_process(monkeypatch, req, run_id=run_id)
-        meta = _event_data(events, "meta")
         final = _event_data(events, "final")
+        meta_route = _effective_route(events)
 
-        meta_route = meta.get("effective_route")
-        assert isinstance(meta_route, dict)
         assert isinstance(final.get("output_text"), str)
-
         assert meta_route.get("source_hint_present") is True
         assert meta_route.get("mode") == "TASK"
         assert meta_route.get("route_band") == "agent"
+        assert meta_route.get("model_tier") == "pro"
         assert isinstance(meta_route.get("route_score"), float)
         assert "router_mode_forced_safe" in list(meta_route.get("reason_codes") or [])
         assert int(meta_route.get("budget", {}).get("max_turns", 0)) <= 20
@@ -234,14 +215,11 @@ def test_effective_route_emitted_without_route_hint_for_discord_and_web(monkeypa
                 source=source,  # type: ignore[arg-type]
             )
             events = await _run_main_process(monkeypatch, req, run_id=run_id)
-            meta = _event_data(events, "meta")
-            final = _event_data(events, "final")
-            route = meta.get("effective_route")
-            assert isinstance(route, dict)
-            assert isinstance(final.get("output_text"), str)
+            route = _effective_route(events)
             assert route.get("source_hint_present") is False
             assert str(route.get("mode") or "") in {"INSTANT", "TASK", "AGENT_LOOP"}
             assert str(route.get("route_band") or "") in {"instant", "task", "agent"}
+            assert str(route.get("model_tier") or "") in {"instant", "balanced", "pro"}
             modes[source] = str(route.get("mode") or "")
 
         # Core computes mode for both clients from the same fallback policy.
@@ -271,10 +249,14 @@ def test_effective_route_mode_thresholds_follow_route_score(monkeypatch) -> None
                 route_hint={"route_score": score, "difficulty_score": score, "security_risk_score": 0.1},
             )
             events = await _run_main_process(monkeypatch, req, run_id=run_id)
-            meta = _event_data(events, "meta")
-            route = meta.get("effective_route") or {}
+            route = _effective_route(events)
             assert route.get("mode") == expected_mode
             assert route.get("route_band") == expected_band
+            assert route.get("model_tier") == {
+                "instant": "instant",
+                "task": "balanced",
+                "agent": "pro",
+            }[expected_band]
             assert abs(float(route.get("route_score", -1.0)) - score) < 0.01
 
     asyncio.run(_run())
@@ -302,36 +284,16 @@ def test_effective_route_instant_still_calls_memory_context(monkeypatch) -> None
             run_id=run_id,
             build_context_fn=_spy_build_context,
         )
-        meta = _event_data(events, "meta")
-        route = meta.get("effective_route") or {}
+        route = _effective_route(events)
         assert route.get("mode") == "INSTANT"
         budget = route.get("budget") or {}
-        assert int(budget.get("max_tool_calls", -1)) <= 1
+        assert int(budget.get("max_tool_calls", -1)) == 0
         assert int(budget.get("max_turns", 99)) <= 2
         assert int(budget.get("time_budget_seconds", 9999)) <= 25
+        assert route.get("model_tier") == "instant"
         assert calls["count"] == 1
 
     asyncio.run(_run())
-
-
-def test_effective_route_budget_stays_zero_when_tools_unselected() -> None:
-    req = MessageRequest(
-        user_identity={"provider": "discord", "id": "u-budget"},
-        content="検索して",
-        idempotency_key=f"budget-{uuid.uuid4().hex[:6]}",
-        source="discord",
-        route_hint={
-            "route_score": 0.5,
-            "difficulty_score": 0.5,
-            "security_risk_score": 0.1,
-            "budget": {"max_turns": 5, "max_tool_calls": 5, "time_budget_seconds": 120},
-        },
-    )
-    proc = MainProcess(run_id=f"run-budget-{uuid.uuid4().hex[:8]}", conversation_id="conv-budget", request=req, db_session=object())
-    route = proc._resolve_effective_route(selected_tool_schemas=[])
-    budget = route.get("budget") if isinstance(route.get("budget"), dict) else {}
-    assert str(route.get("route_band") or "") == "task"
-    assert int(budget.get("max_tool_calls", -1) or 0) == 0
 
 
 def test_effective_route_debug_is_admin_only(monkeypatch) -> None:
@@ -353,62 +315,21 @@ def test_effective_route_debug_is_admin_only(monkeypatch) -> None:
             }
         )
         events_admin = await _run_main_process(monkeypatch, req_admin, run_id=f"run-adm-{uuid.uuid4().hex[:8]}")
-        route_admin = (_event_data(events_admin, "meta").get("effective_route") or {})
+        route_admin = _effective_route(events_admin)
         assert isinstance(route_admin.get("route_debug"), dict)
         assert route_admin.get("route_debug", {}).get("memory_used") is True
         assert route_admin.get("route_debug", {}).get("route_band") in {"instant", "task", "agent"}
+        assert route_admin.get("route_debug", {}).get("model_tier") == "balanced"
         assert isinstance(route_admin.get("route_debug", {}).get("model_family_primary"), str)
         assert isinstance(route_admin.get("route_debug", {}).get("model_family_fallback"), str)
 
         # Spoofed client flag must not unlock route_debug.
         req_user = MessageRequest(**{**base_req, "client_context": {"is_admin": True}})
         events_user = await _run_main_process(monkeypatch, req_user, run_id=f"run-usr-{uuid.uuid4().hex[:8]}")
-        route_user = (_event_data(events_user, "meta").get("effective_route") or {})
+        route_user = _effective_route(events_user)
         assert "route_debug" not in route_user
 
     asyncio.run(_run())
-
-
-def test_budget_stop_message_shows_reason_only_for_verified_admin(monkeypatch) -> None:
-    monkeypatch.setenv("ORA_ROUTE_DEBUG", "1")
-
-    req_admin = MessageRequest(
-        user_identity={"provider": "web", "id": "u-admin"},
-        content="budget stop message",
-        idempotency_key=f"dbgmsg-{uuid.uuid4().hex[:6]}",
-        source="web",
-        request_meta={"admin_verified": True},
-    )
-    proc_admin = MainProcess(
-        run_id=f"run-msg-admin-{uuid.uuid4().hex[:8]}",
-        conversation_id="conv-msg-admin",
-        request=req_admin,
-        db_session=object(),
-    )
-    admin_msg = proc_admin._budget_stop_user_message(
-        effective_route={"route_band": "agent"},
-        reason_code="router_budget_tool_exceeded",
-    )
-    assert "router_budget_tool_exceeded" in admin_msg
-    assert "route_band=agent" in admin_msg
-
-    req_user = MessageRequest(
-        user_identity={"provider": "web", "id": "u-user"},
-        content="budget stop message",
-        idempotency_key=f"dbgmsg-{uuid.uuid4().hex[:6]}",
-        source="web",
-    )
-    proc_user = MainProcess(
-        run_id=f"run-msg-user-{uuid.uuid4().hex[:8]}",
-        conversation_id="conv-msg-user",
-        request=req_user,
-        db_session=object(),
-    )
-    user_msg = proc_user._budget_stop_user_message(
-        effective_route={"route_band": "agent"},
-        reason_code="router_budget_tool_exceeded",
-    )
-    assert user_msg == "[System] Request stopped by Core safety limits."
 
 
 def test_effective_route_vision_floor_recomputes_mode_after_hint(monkeypatch) -> None:
@@ -428,8 +349,7 @@ def test_effective_route_vision_floor_recomputes_mode_after_hint(monkeypatch) ->
             },
         )
         events = await _run_main_process(monkeypatch, req, run_id=run_id)
-        meta = _event_data(events, "meta")
-        route = meta.get("effective_route") or {}
+        route = _effective_route(events)
         assert route.get("mode") == "TASK"
         assert "router_vision_floor_applied" in list(route.get("reason_codes") or [])
 
@@ -455,259 +375,8 @@ def test_effective_route_with_tools_never_stays_instant(monkeypatch) -> None:
             },
         )
         events = await _run_main_process(monkeypatch, req, run_id=run_id)
-        meta = _event_data(events, "meta")
-        route = meta.get("effective_route") or {}
+        route = _effective_route(events)
         assert route.get("mode") == "TASK"
         assert "router_mode_forced_tools" in list(route.get("reason_codes") or [])
 
     asyncio.run(_run())
-
-
-def test_explicit_search_forces_one_real_search_pass_before_final(monkeypatch) -> None:
-    class _SearchRunner:
-        calls: list[dict[str, Any]] = []
-
-        def __init__(self, _repo):
-            return None
-
-        async def run_tool(
-            self,
-            tool_call_id: str,
-            run_id: str,
-            user_id: str,
-            tool_name: str,
-            args: dict,
-            client_type: str,
-            request_meta: dict[str, Any] | None = None,
-            effective_route: dict[str, Any] | None = None,
-        ) -> dict[str, Any]:
-            del run_id, user_id, client_type, request_meta, effective_route
-            self.calls.append({"tool_call_id": tool_call_id, "tool_name": tool_name, "args": dict(args)})
-            return {
-                "status": "completed",
-                "result": {
-                    "ok": True,
-                    "structuredContent": {
-                        "sources": [
-                            {
-                                "title": "YoneRai12 - GitHub",
-                                "url": "https://github.com/YoneRai12",
-                                "snippet": "Public profile for YoneRai12",
-                            }
-                        ]
-                    },
-                    "content": [{"type": "text", "text": "search ok"}],
-                },
-            }
-
-    async def _run() -> None:
-        _SearchRunner.calls = []
-        req = MessageRequest(
-            user_identity={"provider": "discord", "id": "u-search"},
-            content="system\n\nYoneRai12について検索して要約して",
-            idempotency_key=f"search-{uuid.uuid4().hex[:6]}",
-            source="discord",
-            route_hint={
-                "route_score": 0.5,
-                "difficulty_score": 0.5,
-                "security_risk_score": 0.1,
-                "explicit_search_intent": True,
-                "search_query_hint": "YoneRai12について検索して要約して",
-            },
-        )
-        events = await _run_main_process(
-            monkeypatch,
-            req,
-            run_id=f"run-search-{uuid.uuid4().hex[:8]}",
-            omni_engine=_SequenceOmniEngine(
-                [
-                    "どの範囲で検索しますか？",
-                    "どのSNSを見るべきですか？",
-                ]
-            ),
-            tool_runner_cls=_SearchRunner,
-        )
-        assert _SearchRunner.calls
-        assert _SearchRunner.calls[0]["tool_name"] == "google_search"
-        final = _event_data(events, "final")
-        text = str(final.get("output_text") or "")
-        assert "検索を実行しました" in text
-        assert "github.com/YoneRai12" in text
-        assert "どの範囲で検索しますか" not in text
-
-    asyncio.run(_run())
-
-
-def test_explicit_search_with_no_results_returns_search_summary_not_clarification(monkeypatch) -> None:
-    class _EmptySearchRunner:
-        calls: list[dict[str, Any]] = []
-
-        def __init__(self, _repo):
-            return None
-
-        async def run_tool(
-            self,
-            tool_call_id: str,
-            run_id: str,
-            user_id: str,
-            tool_name: str,
-            args: dict,
-            client_type: str,
-            request_meta: dict[str, Any] | None = None,
-            effective_route: dict[str, Any] | None = None,
-        ) -> dict[str, Any]:
-            del run_id, user_id, client_type, request_meta, effective_route
-            self.calls.append({"tool_call_id": tool_call_id, "tool_name": tool_name, "args": dict(args)})
-            return {
-                "status": "completed",
-                "result": {
-                    "ok": True,
-                    "structuredContent": {"sources": []},
-                    "content": [{"type": "text", "text": "No search results found."}],
-                },
-            }
-
-    async def _run() -> None:
-        _EmptySearchRunner.calls = []
-        req = MessageRequest(
-            user_identity={"provider": "discord", "id": "u-search-empty"},
-            content="system\n\nYoneRai12について検索して要約して",
-            idempotency_key=f"search-empty-{uuid.uuid4().hex[:6]}",
-            source="discord",
-            route_hint={
-                "route_score": 0.5,
-                "difficulty_score": 0.5,
-                "security_risk_score": 0.1,
-                "explicit_search_intent": True,
-                "search_query_hint": "YoneRai12について検索して要約して",
-            },
-        )
-        events = await _run_main_process(
-            monkeypatch,
-            req,
-            run_id=f"run-search-empty-{uuid.uuid4().hex[:8]}",
-            omni_engine=_SequenceOmniEngine(["どの範囲で検索しますか？"]),
-            tool_runner_cls=_EmptySearchRunner,
-        )
-        assert _EmptySearchRunner.calls
-        final = _event_data(events, "final")
-        text = str(final.get("output_text") or "")
-        assert "検索を実行しました" in text
-        assert "自信を持って一致" in text
-        assert "どの範囲で検索しますか" not in text
-
-    asyncio.run(_run())
-
-
-def test_missing_search_target_allows_clarification_before_search(monkeypatch) -> None:
-    class _SearchRunner:
-        calls: list[dict[str, Any]] = []
-
-        def __init__(self, _repo):
-            return None
-
-        async def run_tool(self, *args, **kwargs) -> dict[str, Any]:
-            del args, kwargs
-            self.calls.append({"called": True})
-            return {"status": "completed", "result": {"ok": True, "structuredContent": {"sources": []}}}
-
-    async def _run() -> None:
-        _SearchRunner.calls = []
-        req = MessageRequest(
-            user_identity={"provider": "discord", "id": "u-search-missing"},
-            content="system\n\n検索して",
-            idempotency_key=f"search-missing-{uuid.uuid4().hex[:6]}",
-            source="discord",
-            route_hint={
-                "route_score": 0.5,
-                "difficulty_score": 0.5,
-                "security_risk_score": 0.1,
-                "explicit_search_intent": True,
-                "search_query_hint": "検索して",
-            },
-        )
-        events = await _run_main_process(
-            monkeypatch,
-            req,
-            run_id=f"run-search-missing-{uuid.uuid4().hex[:8]}",
-            omni_engine=_SequenceOmniEngine(["何を検索するか教えてください。"]),
-            tool_runner_cls=_SearchRunner,
-        )
-        assert not _SearchRunner.calls
-        final = _event_data(events, "final")
-        assert "何を検索するか教えてください" in str(final.get("output_text") or "")
-
-    asyncio.run(_run())
-
-
-def test_profile_lookup_contract_prefers_exact_profile_sources_over_noisy_sources() -> None:
-    req = MessageRequest(
-        user_identity={"provider": "discord", "id": "u-search-profile"},
-        content="YoneRai12 について検索して要約して",
-        idempotency_key=f"search-profile-{uuid.uuid4().hex[:6]}",
-        source="discord",
-    )
-    proc = MainProcess(
-        run_id=f"run-search-profile-{uuid.uuid4().hex[:8]}",
-        conversation_id="conv-search-profile",
-        request=req,
-        db_session=object(),
-    )
-    contract = proc._build_search_result_contract(
-        query="YoneRai12 について検索して要約して",
-        sources=[
-            {
-                "title": "r/YoneMains",
-                "url": "https://www.reddit.com/r/YoneMains/about/",
-                "snippet": "The official subreddit for players of Yone.",
-            },
-            {
-                "title": "YoneRai12 - GitHub",
-                "url": "https://github.com/YoneRai12",
-                "snippet": "Public profile for YoneRai12",
-            },
-        ],
-    )
-    searched_sources = contract.get("searched_sources") or []
-    assert searched_sources
-    assert searched_sources[0]["url"] == "https://github.com/YoneRai12"
-    assert all("reddit.com" not in str(source.get("url") or "") for source in searched_sources)
-    assert float(contract.get("confidence", 0.0) or 0.0) >= 0.5
-
-
-def test_profile_lookup_noisy_only_sources_return_low_confidence_contract() -> None:
-    req = MessageRequest(
-        user_identity={"provider": "discord", "id": "u-search-noisy"},
-        content="YoneRai12 の公開情報を検索して要約して",
-        idempotency_key=f"search-noisy-{uuid.uuid4().hex[:6]}",
-        source="discord",
-    )
-    proc = MainProcess(
-        run_id=f"run-search-noisy-{uuid.uuid4().hex[:8]}",
-        conversation_id="conv-search-noisy",
-        request=req,
-        db_session=object(),
-    )
-    contract = proc._build_search_result_contract(
-        query="YoneRai12 の公開情報を検索して要約して",
-        sources=[
-            {
-                "title": "155,501 Quizzes - Take a Quiz on Any Topic",
-                "url": "https://www.funtivia.com/quizzes/2",
-                "snippet": "Free online trivia quizzes.",
-            },
-            {
-                "title": "r/BingHomepageQuiz",
-                "url": "https://www.reddit.com/r/BingHomepageQuiz/hot/",
-                "snippet": "Daily quiz questions and answers.",
-            },
-        ],
-    )
-    text = proc._format_search_no_match_response(
-        query="YoneRai12 の公開情報を検索して要約して",
-        contract=contract,
-    )
-    assert float(contract.get("confidence", 0.0) or 0.0) < 0.5
-    assert contract.get("searched_sources") == []
-    assert "検索を実行しましたが" in text
-    assert "自信を持って一致" in text

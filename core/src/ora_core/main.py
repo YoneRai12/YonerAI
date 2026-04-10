@@ -1,28 +1,43 @@
-from ora_core.env import load_runtime_env
+from pathlib import Path
 
-ENV_PATH = load_runtime_env(__file__)
-if ENV_PATH:
+from dotenv import load_dotenv
+
+# Load environment variables from .env in the root project directory relative to this file
+# Core is at root/core, and main.py is at root/core/src/ora_core/main.py
+# 1: ora_core, 2: src, 3: core, 4: root
+ENV_PATH = Path(__file__).resolve().parent.parent.parent.parent / ".env"
+if ENV_PATH.exists():
+    load_dotenv(ENV_PATH)
     print(f"[CORE] Loaded .env from {ENV_PATH}")
 else:
-    print("[CORE][WARN] .env NOT FOUND for runtime")
+    print(f"[CORE][WARN] .env NOT FOUND at {ENV_PATH}")
 
-from fastapi import Depends, FastAPI
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from ora_core.api.dependencies.auth import require_core_access
 from ora_core.api.routes.auth import router as auth_router
+from ora_core.api.routes.files import router as files_router
 from ora_core.api.routes.messages import router as messages_router
 from ora_core.api.routes.runs import router as runs_router
 from ora_core.api.routes.stats import router as stats_router
+from ora_core.distribution.runtime import build_runtime_from_env
 import os
 
 
 def create_app():
     app = FastAPI(title="ORA Core", version="0.1")
+    app.state.distribution_runtime = build_runtime_from_env()
 
     @app.get("/health")
     async def health() -> dict:
         # Used by the Bot's ConnectionManager to decide API vs STANDALONE mode.
-        return {"ok": True}
+        distribution = getattr(app.state, "distribution_runtime", None)
+        payload = {"ok": True}
+        if getattr(distribution, "enabled", False) and getattr(distribution, "verification", None):
+            payload["distribution_node"] = {
+                "profile": distribution.verification.manifest.profile,
+                "verified_release": distribution.verification.manifest.version,
+            }
+        return payload
 
     # Load Config
     from src.config import Config
@@ -81,11 +96,10 @@ def create_app():
         allow_headers=["*"],
     )
 
-    protected_deps = [Depends(require_core_access)]
-
-    app.include_router(messages_router, prefix="/v1", dependencies=protected_deps)
-    app.include_router(runs_router, prefix="/v1", dependencies=protected_deps)
-    app.include_router(auth_router, prefix="/v1/auth", dependencies=protected_deps) # Core generic auth routes (me, logout)
+    app.include_router(messages_router, prefix="/v1")
+    app.include_router(runs_router, prefix="/v1")
+    app.include_router(files_router, prefix="/v1")
+    app.include_router(auth_router, prefix="/v1/auth") # Core generic auth routes (me, logout)
 
     # Conditional Auth Logic
     if hasattr(app.state, "config") and app.state.config.auth_strategy == "cloudflare":
@@ -111,10 +125,10 @@ def create_app():
         # User Request: Comment out Login for external connection
         # app.include_router(google_auth_router, prefix="/v1/auth")
 
-    app.include_router(stats_router, prefix="/v1", dependencies=protected_deps)
+    app.include_router(stats_router, prefix="/v1")
 
     from ora_core.api.routes.memory import router as memory_router
-    app.include_router(memory_router, prefix="/v1", dependencies=protected_deps)
+    app.include_router(memory_router, prefix="/v1")
 
     return app
 
@@ -128,6 +142,4 @@ if __name__ == "__main__":
     # Apply privacy log config to hide IP addresses
     log_config = get_privacy_log_config()
 
-    host = os.getenv("ORA_CORE_HOST", "127.0.0.1")
-    port = int(os.getenv("ORA_CORE_PORT", "8001"))
-    uvicorn.run("ora_core.main:app", host=host, port=port, reload=True, log_config=log_config)
+    uvicorn.run("ora_core.main:app", host="0.0.0.0", port=8001, reload=True, log_config=log_config)

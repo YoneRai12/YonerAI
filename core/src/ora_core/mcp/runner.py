@@ -5,6 +5,8 @@ import time
 from typing import Any
 
 from ora_core.database.repo import Repository
+from ora_core.distribution.files import FileContractViolation, normalize_tool_result_for_run
+from ora_core.distribution.runtime import get_current_runtime
 from ora_core.engine.simple_worker import event_manager
 
 from .registry import tool_registry
@@ -57,6 +59,13 @@ class ToolRunner:
             logger.warning(f"Access denied: {client_type} tried to use {tool_name}")
             err = f"Client '{client_type}' is forbidden from using '{tool_name}'."
             await event_manager.emit(run_id, "tool_error", {"tool": tool_name, "error": err})
+            return {"status": "failed", "error": err}
+
+        try:
+            get_current_runtime().require_tool(tool_name, definition.required_capability)
+        except Exception as exc:
+            err = str(exc)
+            await event_manager.emit(run_id, "tool_error", {"tool": tool_name, "tool_call_id": tool_call_id, "error": err})
             return {"status": "failed", "error": err}
 
         # 2. DB Idempotency Check (INSERT or Get)
@@ -147,7 +156,17 @@ class ToolRunner:
             if not isinstance(result, dict):
                 # Normalize handler outputs; some tools return plain strings.
                 result = {"ok": True, "content": [{"type": "text", "text": str(result)}]}
+            runtime = get_current_runtime()
             artifact_ref = result.get("artifact_ref") # Optional artifact from tool
+            file_refs: list[dict[str, Any]] = []
+            if runtime.enabled:
+                result, artifact_ref, file_refs = await normalize_tool_result_for_run(
+                    self.repo,
+                    owner_user_id=user_id,
+                    run_id=run_id,
+                    tool_call_id=tool_call_id,
+                    result=result,
+                )
 
             # Update Success
             await self.repo.update_tool_call(
@@ -171,6 +190,7 @@ class ToolRunner:
 
             # Check for Client Action (Hub & Spoke Protocol)
             if isinstance(result, dict) and "client_action" in result:
+                await event_manager.expect_tool_result(run_id, tool_call_id, tool_name)
                 await event_manager.emit(run_id, "dispatch", {
                     "tool": tool_name,
                     "args": result["client_action"],
@@ -185,11 +205,28 @@ class ToolRunner:
                 "output_summary": summary,
                 "latency_ms": latency_ms,
                 "artifact_ref": artifact_ref,
+                "file_refs": file_refs,
                 "structuredContent": structured or {},
             })
 
             return {"status": "completed", "result": result, "artifact_ref": artifact_ref}
 
+        except FileContractViolation as e:
+            latency_ms = int((time.time() - start_time) * 1000)
+            await self.repo.update_tool_call(
+                tool_call_id,
+                user_id,
+                "failed",
+                lease_token=lease_token,
+                error=str(e),
+                latency_ms=latency_ms,
+            )
+            await event_manager.emit(
+                run_id,
+                "tool_error",
+                {"tool": tool_name, "tool_call_id": tool_call_id, "error": str(e)},
+            )
+            return {"status": "failed", "error": str(e)}
         except asyncio.TimeoutError:
             latency_ms = int((time.time() - start_time) * 1000)
             error_res = {
