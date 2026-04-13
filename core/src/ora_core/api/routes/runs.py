@@ -1,4 +1,5 @@
 import json
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from ora_core.api.dependencies.auth import get_current_user
@@ -12,6 +13,43 @@ from sse_starlette.sse import EventSourceResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
+
+_REASONING_SUMMARY_BLOCKED_KEYS = frozenset(
+    {
+        "raw_chain_of_thought",
+        "raw_prompt",
+        "raw_prompts",
+        "hidden_route_rationale",
+        "hidden_routing_rationale",
+        "operator_only_diagnostics",
+        "private_admin_state",
+    }
+)
+
+
+def _sanitize_reasoning_summary_data(value: Any) -> Any:
+    if isinstance(value, dict):
+        sanitized: dict[str, Any] = {}
+        for key, item in value.items():
+            key_text = str(key)
+            if key_text in _REASONING_SUMMARY_BLOCKED_KEYS:
+                continue
+            sanitized[key_text] = _sanitize_reasoning_summary_data(item)
+        return sanitized
+    if isinstance(value, list):
+        return [_sanitize_reasoning_summary_data(item) for item in value]
+    return value
+
+
+def _build_sse_payload(event: dict[str, Any]) -> dict[str, Any]:
+    event_type = event["event"]
+    event_data = event["data"]
+    if event_type in {"reasoning_summary", "meta"}:
+        event_data = _sanitize_reasoning_summary_data(event_data)
+    return {
+        "event": event_type,
+        "data": event_data,
+    }
 
 
 class ToolResultRequest(BaseModel):
@@ -46,11 +84,7 @@ async def stream_run_events(
         async for event in event_manager.listen(run_id):
             if await request.is_disconnected():
                 break
-            # Bundle event type into data payload for simple client parsing
-            payload = {
-                "event": event["event"],
-                "data": event["data"]
-            }
+            payload = _build_sse_payload(event)
             yield {
                 "data": json.dumps(payload)
             }

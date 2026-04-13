@@ -22,7 +22,7 @@ from ora_core.api.dependencies.auth import get_current_user
 from ora_core.database.models import Base
 from ora_core.database.repo import Repository
 from ora_core.database.session import get_db
-from ora_core.distribution.capabilities import CapabilityPolicy
+from ora_core.distribution.capabilities import CapabilityManifest, CapabilityPolicy
 from ora_core.distribution.files import normalize_tool_result_for_run
 from ora_core.distribution.release import (
     ReleaseVerificationError,
@@ -191,6 +191,51 @@ def test_distribution_node_idempotency_replay_returns_same_run_id(distribution_a
     assert first.json()["run_id"] == second.json()["run_id"]
 
 
+def test_distribution_node_messages_auth_precedence_uses_authenticated_user_for_run_owner(
+    distribution_app, monkeypatch
+) -> None:
+    async def _fake_run_brain_task(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(messages_route, "run_brain_task", _fake_run_brain_task)
+
+    payload = _default_message_payload(f"auth-precedence-{uuid.uuid4().hex[:8]}")
+    payload["user_identity"] = {
+        "provider": "web",
+        "id": "body-user-999",
+        "display_name": "body-user",
+    }
+    
+    async def _prepare_auth_user() -> str:
+        async with distribution_app["session_local"]() as session:
+            repo = Repository(session)
+            auth_user = await repo.get_or_create_user("web", "auth-user-123", "auth-user")
+            await session.commit()
+            return auth_user.id
+
+    auth_user_id = asyncio.run(_prepare_auth_user())
+
+    auth_headers = _auth_headers("web", "auth-user-123", display_name="auth-user")
+
+    with TestClient(distribution_app["app"]) as client:
+        post = client.post("/v1/messages", json=payload, headers=auth_headers)
+
+    run_id = post.json()["run_id"]
+
+    async def _inspect() -> tuple[str | None, str]:
+        async with distribution_app["session_local"]() as session:
+            repo = Repository(session)
+            run = await repo.get_run(run_id)
+            body_user = await repo.get_or_create_user("web", "body-user-999", "body-user")
+            return run.user_id, body_user.id
+
+    run_user_id, body_user_id = asyncio.run(_inspect())
+
+    assert post.status_code == 200
+    assert run_user_id == auth_user_id
+    assert run_user_id != body_user_id
+
+
 def test_distribution_node_sse_ends_with_exactly_one_terminal_event(distribution_app, monkeypatch) -> None:
     async def _fake_run_brain_task(run_id: str, *_args, **_kwargs):
         await event_manager.emit(run_id, "progress", {"stage": "deliver", "pass": 1, "toc": []})
@@ -214,6 +259,171 @@ def test_distribution_node_sse_ends_with_exactly_one_terminal_event(distribution
     terminal_events = [e for e in events if e.get("event") in {"final", "error"}]
     assert len(terminal_events) == 1
     assert terminal_events[0]["event"] == "final"
+    assert events[-1]["event"] == "final"
+
+
+def test_distribution_node_sse_unknown_event_does_not_block_terminal_event(
+    distribution_app, monkeypatch
+) -> None:
+    async def _fake_run_brain_task(run_id: str, *_args, **_kwargs):
+        await event_manager.emit(run_id, "future_extension_event", {"opaque": True})
+        await event_manager.emit(run_id, "final", {"output_text": "done"})
+
+    monkeypatch.setattr(messages_route, "run_brain_task", _fake_run_brain_task)
+
+    payload = _default_message_payload(f"sse-unknown-{uuid.uuid4().hex[:8]}")
+    with TestClient(distribution_app["app"]) as client:
+        post = client.post("/v1/messages", json=payload)
+        run_id = post.json()["run_id"]
+        with client.stream(
+            "GET",
+            f"/v1/runs/{run_id}/events",
+            headers=_auth_headers("web", "dist-user-1"),
+        ) as stream:
+            events = _read_sse_events(stream)
+
+    terminal_events = [e for e in events if e.get("event") in {"final", "error"}]
+
+    assert post.status_code == 200
+    assert len(terminal_events) == 1
+    assert terminal_events[0]["event"] == "final"
+    assert events[-1]["event"] == "final"
+
+
+def test_distribution_node_sse_reasoning_summary_does_not_expose_forbidden_probe_fields(
+    distribution_app, monkeypatch
+) -> None:
+    async def _fake_run_brain_task(run_id: str, *_args, **_kwargs):
+        await event_manager.emit(
+            run_id,
+            "reasoning_summary",
+            {
+                "summary": "safe summary",
+                "raw_prompt": "secret prompt",
+                "raw_chain_of_thought": "hidden reasoning",
+                "hidden_routing_rationale": "internal route note",
+                "operator_only_diagnostics": {"budget": 7},
+                "private_admin_state": {"role": "owner"},
+                "details": {
+                    "safe_label": "kept",
+                    "raw_prompt": "nested secret prompt",
+                },
+            },
+        )
+        await event_manager.emit(run_id, "final", {"output_text": "done"})
+
+    monkeypatch.setattr(messages_route, "run_brain_task", _fake_run_brain_task)
+
+    payload = _default_message_payload(f"sse-reasoning-{uuid.uuid4().hex[:8]}")
+    with TestClient(distribution_app["app"]) as client:
+        post = client.post("/v1/messages", json=payload)
+        run_id = post.json()["run_id"]
+        with client.stream(
+            "GET",
+            f"/v1/runs/{run_id}/events",
+            headers=_auth_headers("web", "dist-user-1"),
+        ) as stream:
+            events = _read_sse_events(stream)
+
+    reasoning_events = [e for e in events if e.get("event") == "reasoning_summary"]
+    reasoning_rendered = json.dumps(reasoning_events[0]["data"], ensure_ascii=False)
+
+    assert post.status_code == 200
+    assert len(reasoning_events) >= 1
+    assert reasoning_events[0]["data"].get("summary") == "safe summary"
+    assert reasoning_events[0]["data"]["details"]["safe_label"] == "kept"
+    assert "secret prompt" not in reasoning_rendered
+    assert "nested secret prompt" not in reasoning_rendered
+    assert "hidden reasoning" not in reasoning_rendered
+    assert "internal route note" not in reasoning_rendered
+    assert "operator_only_diagnostics" not in reasoning_rendered
+    assert "private_admin_state" not in reasoning_rendered
+    assert events[-1]["event"] == "final"
+
+
+def test_distribution_node_sse_meta_does_not_expose_forbidden_probe_fields(
+    distribution_app, monkeypatch
+) -> None:
+    async def _fake_run_brain_task(run_id: str, *_args, **_kwargs):
+        await event_manager.emit(
+            run_id,
+            "meta",
+            {
+                "state": "streaming",
+                "raw_prompt": "secret prompt",
+                "raw_chain_of_thought": "hidden reasoning",
+                "operator_only_diagnostics": {"budget": 7},
+                "private_admin_state": {"role": "owner"},
+            },
+        )
+        await event_manager.emit(run_id, "final", {"output_text": "done"})
+
+    monkeypatch.setattr(messages_route, "run_brain_task", _fake_run_brain_task)
+
+    payload = _default_message_payload(f"sse-meta-{uuid.uuid4().hex[:8]}")
+    with TestClient(distribution_app["app"]) as client:
+        post = client.post("/v1/messages", json=payload)
+        run_id = post.json()["run_id"]
+        with client.stream(
+            "GET",
+            f"/v1/runs/{run_id}/events",
+            headers=_auth_headers("web", "dist-user-1"),
+        ) as stream:
+            events = _read_sse_events(stream)
+
+    meta_events = [e for e in events if e.get("event") == "meta"]
+    meta_rendered = json.dumps(meta_events[0]["data"], ensure_ascii=False)
+
+    assert post.status_code == 200
+    assert len(meta_events) >= 1
+    assert meta_events[0]["data"].get("state") == "streaming"
+    assert "secret prompt" not in meta_rendered
+    assert "hidden reasoning" not in meta_rendered
+    assert "operator_only_diagnostics" not in meta_rendered
+    assert "private_admin_state" not in meta_rendered
+    assert events[-1]["event"] == "final"
+
+
+def test_distribution_node_sse_reasoning_summary_does_not_expose_raw_reasoning(
+    distribution_app, monkeypatch
+) -> None:
+    async def _fake_run_brain_task(run_id: str, *_args, **_kwargs):
+        await event_manager.emit(
+            run_id,
+            "reasoning_summary",
+            {
+                "summary": "safe summary",
+                "raw_chain_of_thought": "hidden reasoning",
+                "raw_prompt": "secret prompt",
+                "hidden_route_rationale": "internal route reason",
+                "operator_only_diagnostics": {"budget": 7},
+            },
+        )
+        await event_manager.emit(run_id, "final", {"output_text": "done"})
+
+    monkeypatch.setattr(messages_route, "run_brain_task", _fake_run_brain_task)
+
+    payload = _default_message_payload(f"sse-reasoning-{uuid.uuid4().hex[:8]}")
+    with TestClient(distribution_app["app"]) as client:
+        post = client.post("/v1/messages", json=payload)
+        run_id = post.json()["run_id"]
+        with client.stream(
+            "GET",
+            f"/v1/runs/{run_id}/events",
+            headers=_auth_headers("web", "dist-user-1"),
+        ) as stream:
+            events = _read_sse_events(stream)
+
+    reasoning_events = [e for e in events if e.get("event") == "reasoning_summary"]
+    reasoning_rendered = json.dumps(reasoning_events[0]["data"], ensure_ascii=False)
+
+    assert post.status_code == 200
+    assert len(reasoning_events) >= 1
+    assert reasoning_events[0]["data"].get("summary") == "safe summary"
+    assert "hidden reasoning" not in reasoning_rendered
+    assert "secret prompt" not in reasoning_rendered
+    assert "internal route reason" not in reasoning_rendered
+    assert "operator_only_diagnostics" not in reasoning_rendered
     assert events[-1]["event"] == "final"
 
 
@@ -408,6 +618,17 @@ def test_distribution_node_rejects_non_deny_default_action(tmp_path: Path) -> No
 
     with pytest.raises(RuntimeError):
         CapabilityManifest.from_path(capability_manifest)
+
+
+def test_distribution_node_manifest_explicitly_denies_excluded_capabilities() -> None:
+    manifest_path = ROOT / "config" / "distribution" / "distribution_node_capabilities.json"
+    manifest = CapabilityManifest.from_path(manifest_path)
+
+    assert manifest.default_action == "deny"
+    assert manifest.capabilities["tools.arbitrary_shell"] is False
+    assert manifest.capabilities["tools.arbitrary_sql"] is False
+    assert manifest.capabilities["files.arbitrary_write"] is False
+    assert manifest.capabilities["control_plane.high_risk"] is False
 
 
 @pytest.mark.asyncio
