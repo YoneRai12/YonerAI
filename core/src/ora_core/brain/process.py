@@ -1278,8 +1278,8 @@ class MainProcess:
                             pass_index=pass_index,
                             llm_pref=llm_pref,
                         )
-                        if pass_timeout_sec is not None:
-                            response = await asyncio.wait_for(generate_coro, timeout=float(pass_timeout_sec))
+                        if pass_timeout_seconds is not None:
+                            response = await asyncio.wait_for(generate_coro, timeout=float(pass_timeout_seconds))
                         else:
                             response = await generate_coro
 

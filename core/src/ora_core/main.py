@@ -93,9 +93,9 @@ def create_app():
 
     protected_deps = [Depends(require_core_access)]
 
-    app.include_router(messages_router, prefix="/v1", dependencies=protected_deps)
-    app.include_router(runs_router, prefix="/v1", dependencies=protected_deps)
-    app.include_router(files_router, prefix="/v1", dependencies=protected_deps)
+    app.include_router(messages_router, prefix="/v1")
+    app.include_router(runs_router, prefix="/v1")
+    app.include_router(files_router, prefix="/v1")
     app.include_router(auth_router, prefix="/v1/auth", dependencies=protected_deps) # Core generic auth routes (me, logout)
 
     # Conditional Auth Logic
