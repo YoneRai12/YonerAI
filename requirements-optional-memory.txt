@@ -4,4 +4,4 @@
 # Windows note:
 # Some environments may require Microsoft Visual C++ Build Tools to build
 # transitive native extensions for ChromaDB.
-chromadb==0.6.3
+chromadb==1.5.7
