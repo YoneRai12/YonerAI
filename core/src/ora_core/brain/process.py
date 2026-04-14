@@ -804,6 +804,35 @@ class MainProcess:
         except Exception:
             pass
 
+    @staticmethod
+    def _band2_pass_count(effective_route: dict[str, Any]) -> int:
+        route_band = str((effective_route or {}).get("route_band") or "").strip().lower()
+        return 2 if route_band == "agent" else 1
+
+    @staticmethod
+    def _band2_pass_timeout_sec() -> int | None:
+        raw = str(os.getenv("ORA_BAND2_PASS_TIMEOUT_SEC", "") or "").strip()
+        if not raw:
+            return None
+        try:
+            timeout = int(raw)
+        except Exception:
+            return None
+        return timeout if timeout > 0 else None
+
+    async def _emit_progress(self, stage: str, pass_index: int, toc: list[str] | None = None) -> None:
+        safe_stage = str(stage or "").strip().lower() or "progress"
+        safe_toc = [str(item).strip() for item in (toc or []) if str(item).strip()][:3]
+        await event_manager.emit(
+            self.run_id,
+            "progress",
+            {
+                "stage": safe_stage,
+                "pass": int(pass_index),
+                "toc": safe_toc,
+            },
+        )
+
     async def _generate_with_registry(
         self,
         *,
@@ -1239,154 +1268,171 @@ class MainProcess:
                     logger.info(
                         f"Run {self.run_id} Pass {pass_label} Turn {turn+1}: Generating response (Tier: {model_tier}, Pref: {llm_pref})..."
                     )
-                    response = await self._generate_with_registry(
-                        omni_engine=omni_engine,
-                        messages=context_messages,
-                        client_type=client_type,
-                        tool_schemas=selected_tool_schemas,
-                        route_band=route_band,
-                        pass_index=pass_index,
-                        llm_pref=llm_pref,
-                    )
-
-                    usage_info = getattr(response, "usage", None)
-                    if usage_info:
-                        try:
-                            exec_model = getattr(response, "model", "unknown")
-                            lane = "optimization"
-                            provider = "local"
-                            low_model = str(exec_model).lower()
-                            if any(k in low_model for k in ["gpt-", "o1", "o3", "o4"]):
-                                lane = "stable" if ("mini" in low_model or "instant" in low_model) else "high"
-                                provider = "openai"
-                            elif "gemini" in low_model:
-                                lane = "burn"
-                                provider = "google"
-                            elif "claude" in low_model:
-                                lane = "high"
-                                provider = "anthropic"
-
-                            target_uid = self.request.user_identity.id
-                            u_obj = Usage(tokens_in=usage_info.prompt_tokens, tokens_out=usage_info.completion_tokens)
-                            self.cost_manager.add_cost(lane, provider, target_uid, u_obj)
-                        except Exception as e:
-                            logger.error(f"Failed to track cost: {e}")
-
-                    message = response.choices[0].message
-                    content = message.content or ""
-                    last_content = content
-                    tool_calls = message.tool_calls
-
-                    if (
-                        self._looks_like_save_export_clarification_only_response(content)
-                        and not self._missing_referenced_input(request_query)
-                    ):
-                        if not explicit_save_intent and turn < (max_turns - 1):
-                            self._append_reason_code(effective_route, "router_default_output_mode_applied")
-                            context_messages.append(
-                                {
-                                    "role": "system",
-                                    "content": (
-                                        "[OUTPUT POLICY]\n"
-                                        "The user did not request save/export/download. "
-                                        "Answer normally without asking about file format or download format."
-                                    ),
-                                }
-                            )
-                            continue
-                        if explicit_save_intent and not save_clarification_allowed and turn < (max_turns - 1):
-                            self._append_reason_code(effective_route, "router_save_default_format_applied")
-                            context_messages.append(
-                                {
-                                    "role": "system",
-                                    "content": (
-                                        "[OUTPUT POLICY]\n"
-                                        "Proceed with the default/source-native export format. "
-                                        "Do not ask for format unless the request is contradictory."
-                                    ),
-                                }
-                            )
-                            continue
-
-                    if not tool_calls:
-                        if (
-                            explicit_search_intent
-                            and not search_attempt_made
-                            and not self._clarification_allowed_before_search(search_query_hint)
-                        ):
-                            if tool_calls_used >= max_tool_calls:
-                                budget_stop_reason = "router_budget_tool_exceeded"
-                                self._append_reason_code(effective_route, budget_stop_reason)
-                                pass_final_text = self._budget_stop_user_message(
-                                    effective_route=effective_route,
-                                    reason_code=budget_stop_reason,
-                                )
-                                context_messages.append({"role": "assistant", "content": pass_final_text})
-                                break
-
-                            forced_tool_call_id, tool_payload, search_result_contract = await self._force_search_attempt(
-                                runner=runner,
-                                run_id=self.run_id,
-                                user_id=user.id,
-                                client_type=client_type,
-                                query=search_query_hint,
-                                request_meta=request_meta,
-                                effective_route=effective_route,
-                                pass_index=pass_index,
-                                tool_call_suffix=f"{turn + 1}",
-                            )
-                            search_attempt_made = True
-                            tool_calls_used += 1
-                            pass_downloads = self._dedupe_downloads(
-                                pass_downloads + self._extract_downloads_from_tool_payload(tool_payload=tool_payload)
-                            )
-                            context_messages.append(
-                                {
-                                    "role": "tool",
-                                    "tool_call_id": forced_tool_call_id,
-                                    "name": "google_search",
-                                    "content": _tool_content(tool_payload),
-                                }
-                            )
-                            if float(search_result_contract.get("confidence", 0.0) or 0.0) < 0.5:
-                                pass_final_text = self._format_search_no_match_response(
-                                    query=search_query_hint,
-                                    contract=search_result_contract,
-                                )
-                                context_messages.append({"role": "assistant", "content": pass_final_text})
-                                break
-
-                            context_messages.append(
-                                {
-                                    "role": "system",
-                                    "content": (
-                                        "[SEARCH-FIRST POLICY]\n"
-                                        "A real public search pass has already been executed. "
-                                        "Do not ask a clarification-only question. "
-                                        "Summarize the searched results with concrete sources. "
-                                        "If the match is weak, say that you searched but no confident match was found and list next actions."
-                                    ),
-                                }
-                            )
-                            continue
-
-                        if search_attempt_made and search_result_contract and self._looks_like_clarification_only_response(content):
-                            confidence = float(search_result_contract.get("confidence", 0.0) or 0.0)
-                            if confidence >= 0.5:
-                                pass_final_text = self._format_search_summary_fallback(
-                                    query=search_query_hint,
-                                    contract=search_result_contract,
-                                )
-                            else:
-                                pass_final_text = self._format_search_no_match_response(
-                                    query=search_query_hint,
-                                    contract=search_result_contract,
-                                )
+                    try:
+                        generate_coro = self._generate_with_registry(
+                            omni_engine=omni_engine,
+                            messages=context_messages,
+                            client_type=client_type,
+                            tool_schemas=selected_tool_schemas,
+                            route_band=str(effective_route.get("route_band") or route_band or "task"),
+                            pass_index=pass_index,
+                            llm_pref=llm_pref,
+                        )
+                        if pass_timeout_seconds is not None:
+                            response = await asyncio.wait_for(generate_coro, timeout=float(pass_timeout_seconds))
                         else:
-                            pass_final_text = content
-                        context_messages.append({"role": "assistant", "content": pass_final_text})
-                        break
+                            response = await generate_coro
 
+                        usage_info = getattr(response, "usage", None)
+                        if usage_info:
+                            try:
+                                exec_model = getattr(response, "model", "unknown")
+                                lane = "optimization"
+                                provider = "local"
+                                low_model = str(exec_model).lower()
+                                if any(k in low_model for k in ["gpt-", "o1", "o3", "o4"]):
+                                    lane = "stable" if ("mini" in low_model or "instant" in low_model) else "high"
+                                    provider = "openai"
+                                elif "gemini" in low_model:
+                                    lane = "burn"
+                                    provider = "google"
+                                elif "claude" in low_model:
+                                    lane = "high"
+                                    provider = "anthropic"
+
+                                target_uid = self.request.user_identity.id
+                                u_obj = Usage(tokens_in=usage_info.prompt_tokens, tokens_out=usage_info.completion_tokens)
+                                self.cost_manager.add_cost(lane, provider, target_uid, u_obj)
+                            except Exception as e:
+                                logger.error(f"Failed to track cost: {e}")
+
+                        message = response.choices[0].message
+                        content = message.content or ""
+                        last_content = content
+                        tool_calls = message.tool_calls
+
+                        if (
+                            self._looks_like_save_export_clarification_only_response(content)
+                            and not self._missing_referenced_input(request_query)
+                        ):
+                            if not explicit_save_intent and turn < (max_turns - 1):
+                                self._append_reason_code(effective_route, "router_default_output_mode_applied")
+                                context_messages.append(
+                                    {
+                                        "role": "system",
+                                        "content": (
+                                            "[OUTPUT POLICY]\n"
+                                            "The user did not request save/export/download. "
+                                            "Answer normally without asking about file format or download format."
+                                        ),
+                                    }
+                                )
+                                continue
+                            if explicit_save_intent and not save_clarification_allowed and turn < (max_turns - 1):
+                                self._append_reason_code(effective_route, "router_save_default_format_applied")
+                                context_messages.append(
+                                    {
+                                        "role": "system",
+                                        "content": (
+                                            "[OUTPUT POLICY]\n"
+                                            "Proceed with the default/source-native export format. "
+                                            "Do not ask for format unless the request is contradictory."
+                                        ),
+                                    }
+                                )
+                                continue
+
+                        if not tool_calls:
+                            if (
+                                explicit_search_intent
+                                and not search_attempt_made
+                                and not self._clarification_allowed_before_search(search_query_hint)
+                            ):
+                                if tool_calls_used >= max_tool_calls:
+                                    budget_stop_reason = "router_budget_tool_exceeded"
+                                    self._append_reason_code(effective_route, budget_stop_reason)
+                                    pass_final_text = self._budget_stop_user_message(
+                                        effective_route=effective_route,
+                                        reason_code=budget_stop_reason,
+                                    )
+                                    context_messages.append({"role": "assistant", "content": pass_final_text})
+                                    break
+
+                                forced_tool_call_id, tool_payload, search_result_contract = await self._force_search_attempt(
+                                    runner=runner,
+                                    run_id=self.run_id,
+                                    user_id=user.id,
+                                    client_type=client_type,
+                                    request_meta=request_meta,
+                                    effective_route=effective_route,
+                                    query=search_query_hint,
+                                    pass_index=pass_index,
+                                    tool_call_suffix=f"{turn + 1}",
+                                )
+                                search_attempt_made = True
+                                tool_calls_used += 1
+                                pass_downloads = self._dedupe_downloads(
+                                    pass_downloads + self._extract_downloads_from_tool_payload(tool_payload=tool_payload)
+                                )
+                                context_messages.append(
+                                    {
+                                        "role": "tool",
+                                        "tool_call_id": forced_tool_call_id,
+                                        "name": "google_search",
+                                        "content": _tool_content(tool_payload),
+                                    }
+                                )
+                                if float(search_result_contract.get("confidence", 0.0) or 0.0) < 0.5:
+                                    pass_final_text = self._format_search_no_match_response(
+                                        query=search_query_hint,
+                                        contract=search_result_contract,
+                                    )
+                                    context_messages.append({"role": "assistant", "content": pass_final_text})
+                                    break
+
+                                context_messages.append(
+                                    {
+                                        "role": "system",
+                                        "content": (
+                                            "[SEARCH-FIRST POLICY]\n"
+                                            "A real public search pass has already been executed. "
+                                            "Do not ask a clarification-only question. "
+                                            "Summarize the searched results with concrete sources. "
+                                            "If the match is weak, say that you searched but no confident match was found and list next actions."
+                                        ),
+                                    }
+                                )
+                                continue
+
+                            if search_attempt_made and search_result_contract and self._looks_like_clarification_only_response(content):
+                                confidence = float(search_result_contract.get("confidence", 0.0) or 0.0)
+                                if confidence >= 0.5:
+                                    pass_final_text = self._format_search_summary_fallback(
+                                        query=search_query_hint,
+                                        contract=search_result_contract,
+                                    )
+                                else:
+                                    pass_final_text = self._format_search_no_match_response(
+                                        query=search_query_hint,
+                                        contract=search_result_contract,
+                                    )
+                            else:
+                                pass_final_text = content
+                            context_messages.append({"role": "assistant", "content": pass_final_text})
+                            break
+                    except asyncio.TimeoutError:
+                        self._append_reason_code(effective_route, "core_timeout")
+                        await self.repo.update_run_status(self.run_id, RunStatus.failed)
+                        await self._persist_effective_route(effective_route)
+                        await event_manager.emit(
+                            self.run_id,
+                            "error",
+                            {
+                                "error_code": "core_timeout",
+                                "user_safe_message": self._safe_user_message_for_error("core_timeout"),
+                            },
+                        )
+                        return
                     context_messages.append(message)
                     for tc in tool_calls:
                         if (time.monotonic() - started_at) >= float(time_budget_seconds):
@@ -1456,8 +1502,8 @@ class MainProcess:
                             and "client_action" in result.get("result", {})
                         )
                         if dispatched_externally:
-                            await self._emit_progress_event(stage="search", pass_index=pass_index)
                             submitted = None
+                            await self._emit_progress("deliver", pass_index, [f"tool:{t_name}"])
                             try:
                                 submitted = await event_manager.wait_for_tool_result(self.run_id, tc_id, timeout_sec=180)
                                 tool_data = submitted.get("result", "[Success]")

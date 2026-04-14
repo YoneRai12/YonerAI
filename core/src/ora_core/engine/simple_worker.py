@@ -17,10 +17,13 @@ class EventManager:
         self._event_buffer_ttl_sec = 300
         self._event_buffer_runs_limit = 1000
         self._event_lock = asyncio.Lock()
+        self._terminal_events: Dict[str, dict[str, Any]] = {}
         # (run_id, tool_call_id) -> Future for external tool result handoff
         self._tool_result_waiters: Dict[tuple[str, str], asyncio.Future] = {}
         # Buffer early arrivals when submit lands before wait registration
         self._tool_result_buffer: Dict[tuple[str, str], dict[str, Any]] = {}
+        self._expected_tool_results: Dict[tuple[str, str], str] = {}
+        self._submitted_tool_results: set[tuple[str, str]] = set()
         self._tool_result_lock = asyncio.Lock()
 
     async def listen(self, run_id: str):
@@ -31,6 +34,9 @@ class EventManager:
             self._evict_event_buffers_locked(asyncio.get_running_loop().time())
             buffered = self._event_buffer.pop(run_id, None) or []
             self._event_buffer_timestamps.pop(run_id, None)
+            terminal = self._terminal_events.get(run_id)
+            if terminal and not any(ev.get("event") in {"final", "error"} for ev in buffered):
+                buffered.append(terminal)
         try:
             for ev in buffered:
                 yield ev
@@ -136,12 +142,15 @@ class EventManager:
 
     async def emit(self, run_id: str, event_type: str, data: dict):
         event = {"event": event_type, "data": data}
-        queue = self.listeners.get(run_id)
-        if queue is not None:
-            await queue.put(event)
-        else:
-            # Buffer events until the first listener attaches.
-            async with self._event_lock:
+        queue = None
+        async with self._event_lock:
+            if run_id in self._terminal_events:
+                return
+            if event_type in {"final", "error"}:
+                self._terminal_events[run_id] = event
+            queue = self.listeners.get(run_id)
+            if queue is None:
+                # Buffer events until the first listener attaches.
                 now = asyncio.get_running_loop().time()
                 self._evict_event_buffers_locked(now)
                 buf = self._event_buffer.setdefault(run_id, [])
@@ -150,6 +159,8 @@ class EventManager:
                 # Keep buffer bounded to prevent unbounded growth if no clients connect.
                 if len(buf) > self._event_buffer_limit:
                     del buf[: len(buf) - self._event_buffer_limit]
+        if queue is not None:
+            await queue.put(event)
         if event_type in {"final", "error"}:
             async with self._tool_result_lock:
                 waiter_keys = [k for k in self._tool_result_waiters.keys() if k[0] == run_id]
@@ -160,19 +171,47 @@ class EventManager:
                 buffer_keys = [k for k in self._tool_result_buffer.keys() if k[0] == run_id]
                 for key in buffer_keys:
                     self._tool_result_buffer.pop(key, None)
+                expected_keys = [k for k in self._expected_tool_results.keys() if k[0] == run_id]
+                for key in expected_keys:
+                    self._expected_tool_results.pop(key, None)
+                    self._submitted_tool_results.discard(key)
 
-    async def submit_tool_result(self, run_id: str, tool_call_id: str, payload: dict[str, Any]) -> None:
+    async def expect_tool_result(self, run_id: str, tool_call_id: str, tool_name: str) -> None:
+        key = (run_id, tool_call_id)
+        async with self._tool_result_lock:
+            self._expected_tool_results[key] = tool_name
+
+    async def accepts_tool_result(self, run_id: str, tool_call_id: str, tool_name: str | None = None) -> str:
+        key = (run_id, tool_call_id)
+        async with self._tool_result_lock:
+            expected = self._expected_tool_results.get(key)
+            if expected is None:
+                return "unexpected"
+            if tool_name and expected != tool_name:
+                return "mismatch"
+            if key in self._submitted_tool_results:
+                return "duplicate"
+            return "accepted"
+
+    async def submit_tool_result(self, run_id: str, tool_call_id: str, payload: dict[str, Any]) -> bool:
         """
         Accept tool output from external clients (e.g., Discord ToolHandler).
         If a waiter is active, resolve it immediately; otherwise buffer it.
         """
         key = (run_id, tool_call_id)
         async with self._tool_result_lock:
+            expected = self._expected_tool_results.get(key)
+            if expected is None:
+                raise KeyError("unexpected_tool_result")
+            if key in self._submitted_tool_results:
+                return False
+            self._submitted_tool_results.add(key)
             waiter = self._tool_result_waiters.get(key)
             if waiter and not waiter.done():
                 waiter.set_result(payload)
             else:
                 self._tool_result_buffer[key] = payload
+        return True
 
     async def wait_for_tool_result(self, run_id: str, tool_call_id: str, timeout_sec: int = 120) -> dict[str, Any]:
         """
@@ -183,6 +222,8 @@ class EventManager:
         async with self._tool_result_lock:
             buffered = self._tool_result_buffer.pop(key, None)
             if buffered is not None:
+                self._expected_tool_results.pop(key, None)
+                self._submitted_tool_results.discard(key)
                 return buffered
             fut = asyncio.get_running_loop().create_future()
             self._tool_result_waiters[key] = fut
@@ -192,5 +233,7 @@ class EventManager:
         finally:
             async with self._tool_result_lock:
                 self._tool_result_waiters.pop(key, None)
+                self._expected_tool_results.pop(key, None)
+                self._submitted_tool_results.discard(key)
 
 event_manager = EventManager()

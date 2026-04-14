@@ -179,6 +179,14 @@ def _event_data(events: list[dict[str, Any]], event_type: str) -> dict[str, Any]
     raise AssertionError(f"missing event: {event_type}")
 
 
+def _effective_route(events: list[dict[str, Any]]) -> dict[str, Any]:
+    meta = _event_data(events, "meta")
+    route = meta.get("effective_route")
+    if not isinstance(route, dict):
+        raise AssertionError("missing effective_route metadata")
+    return route
+
+
 def test_effective_route_emitted_and_persisted_with_route_hint(monkeypatch) -> None:
     async def _run() -> None:
         run_id = f"run-{uuid.uuid4().hex[:10]}"
@@ -201,13 +209,9 @@ def test_effective_route_emitted_and_persisted_with_route_hint(monkeypatch) -> N
             },
         )
         events = await _run_main_process(monkeypatch, req, run_id=run_id)
-        meta = _event_data(events, "meta")
         final = _event_data(events, "final")
-
-        meta_route = meta.get("effective_route")
-        assert isinstance(meta_route, dict)
+        meta_route = _effective_route(events)
         assert isinstance(final.get("output_text"), str)
-
         assert meta_route.get("source_hint_present") is True
         assert meta_route.get("mode") == "TASK"
         assert meta_route.get("route_band") == "agent"
@@ -234,11 +238,9 @@ def test_effective_route_emitted_without_route_hint_for_discord_and_web(monkeypa
                 source=source,  # type: ignore[arg-type]
             )
             events = await _run_main_process(monkeypatch, req, run_id=run_id)
-            meta = _event_data(events, "meta")
             final = _event_data(events, "final")
-            route = meta.get("effective_route")
-            assert isinstance(route, dict)
             assert isinstance(final.get("output_text"), str)
+            route = _effective_route(events)
             assert route.get("source_hint_present") is False
             assert str(route.get("mode") or "") in {"INSTANT", "TASK", "AGENT_LOOP"}
             assert str(route.get("route_band") or "") in {"instant", "task", "agent"}
@@ -271,8 +273,7 @@ def test_effective_route_mode_thresholds_follow_route_score(monkeypatch) -> None
                 route_hint={"route_score": score, "difficulty_score": score, "security_risk_score": 0.1},
             )
             events = await _run_main_process(monkeypatch, req, run_id=run_id)
-            meta = _event_data(events, "meta")
-            route = meta.get("effective_route") or {}
+            route = _effective_route(events)
             assert route.get("mode") == expected_mode
             assert route.get("route_band") == expected_band
             assert abs(float(route.get("route_score", -1.0)) - score) < 0.01
@@ -302,8 +303,7 @@ def test_effective_route_instant_still_calls_memory_context(monkeypatch) -> None
             run_id=run_id,
             build_context_fn=_spy_build_context,
         )
-        meta = _event_data(events, "meta")
-        route = meta.get("effective_route") or {}
+        route = _effective_route(events)
         assert route.get("mode") == "INSTANT"
         budget = route.get("budget") or {}
         assert int(budget.get("max_tool_calls", -1)) <= 1
@@ -353,7 +353,7 @@ def test_effective_route_debug_is_admin_only(monkeypatch) -> None:
             }
         )
         events_admin = await _run_main_process(monkeypatch, req_admin, run_id=f"run-adm-{uuid.uuid4().hex[:8]}")
-        route_admin = (_event_data(events_admin, "meta").get("effective_route") or {})
+        route_admin = _effective_route(events_admin)
         assert isinstance(route_admin.get("route_debug"), dict)
         assert route_admin.get("route_debug", {}).get("memory_used") is True
         assert route_admin.get("route_debug", {}).get("route_band") in {"instant", "task", "agent"}
@@ -363,7 +363,7 @@ def test_effective_route_debug_is_admin_only(monkeypatch) -> None:
         # Spoofed client flag must not unlock route_debug.
         req_user = MessageRequest(**{**base_req, "client_context": {"is_admin": True}})
         events_user = await _run_main_process(monkeypatch, req_user, run_id=f"run-usr-{uuid.uuid4().hex[:8]}")
-        route_user = (_event_data(events_user, "meta").get("effective_route") or {})
+        route_user = _effective_route(events_user)
         assert "route_debug" not in route_user
 
     asyncio.run(_run())
@@ -428,8 +428,7 @@ def test_effective_route_vision_floor_recomputes_mode_after_hint(monkeypatch) ->
             },
         )
         events = await _run_main_process(monkeypatch, req, run_id=run_id)
-        meta = _event_data(events, "meta")
-        route = meta.get("effective_route") or {}
+        route = _effective_route(events)
         assert route.get("mode") == "TASK"
         assert "router_vision_floor_applied" in list(route.get("reason_codes") or [])
 
@@ -455,8 +454,7 @@ def test_effective_route_with_tools_never_stays_instant(monkeypatch) -> None:
             },
         )
         events = await _run_main_process(monkeypatch, req, run_id=run_id)
-        meta = _event_data(events, "meta")
-        route = meta.get("effective_route") or {}
+        route = _effective_route(events)
         assert route.get("mode") == "TASK"
         assert "router_mode_forced_tools" in list(route.get("reason_codes") or [])
 
