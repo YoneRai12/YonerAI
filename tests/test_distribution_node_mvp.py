@@ -290,7 +290,7 @@ def test_distribution_node_sse_unknown_event_does_not_block_terminal_event(
     assert events[-1]["event"] == "final"
 
 
-def test_distribution_node_sse_reasoning_summary_does_not_expose_forbidden_probe_fields(
+def test_distribution_node_sse_reasoning_summary_public_safe_schema(
     distribution_app, monkeypatch
 ) -> None:
     async def _fake_run_brain_task(run_id: str, *_args, **_kwargs):
@@ -299,22 +299,14 @@ def test_distribution_node_sse_reasoning_summary_does_not_expose_forbidden_probe
             "reasoning_summary",
             {
                 "summary": "safe summary",
-                "raw_prompt": "secret prompt",
-                "raw_chain_of_thought": "hidden reasoning",
-                "hidden_routing_rationale": "internal route note",
-                "operator_only_diagnostics": {"budget": 7},
-                "private_admin_state": {"role": "owner"},
-                "details": {
-                    "safe_label": "kept",
-                    "raw_prompt": "nested secret prompt",
-                },
+                "details": {"safe_label": "not part of public schema"},
             },
         )
         await event_manager.emit(run_id, "final", {"output_text": "done"})
 
     monkeypatch.setattr(messages_route, "run_brain_task", _fake_run_brain_task)
 
-    payload = _default_message_payload(f"sse-reasoning-{uuid.uuid4().hex[:8]}")
+    payload = _default_message_payload(f"sse-reasoning-schema-{uuid.uuid4().hex[:8]}")
     with TestClient(distribution_app["app"]) as client:
         post = client.post("/v1/messages", json=payload)
         run_id = post.json()["run_id"]
@@ -326,18 +318,13 @@ def test_distribution_node_sse_reasoning_summary_does_not_expose_forbidden_probe
             events = _read_sse_events(stream)
 
     reasoning_events = [e for e in events if e.get("event") == "reasoning_summary"]
-    reasoning_rendered = json.dumps(reasoning_events[0]["data"], ensure_ascii=False)
 
     assert post.status_code == 200
-    assert len(reasoning_events) >= 1
-    assert reasoning_events[0]["data"].get("summary") == "safe summary"
-    assert reasoning_events[0]["data"]["details"]["safe_label"] == "kept"
-    assert "secret prompt" not in reasoning_rendered
-    assert "nested secret prompt" not in reasoning_rendered
-    assert "hidden reasoning" not in reasoning_rendered
-    assert "internal route note" not in reasoning_rendered
-    assert "operator_only_diagnostics" not in reasoning_rendered
-    assert "private_admin_state" not in reasoning_rendered
+    assert len(reasoning_events) == 1
+    assert reasoning_events[0] == {
+        "event": "reasoning_summary",
+        "data": {"summary": "safe summary"},
+    }
     assert events[-1]["event"] == "final"
 
 
@@ -384,7 +371,7 @@ def test_distribution_node_sse_meta_does_not_expose_forbidden_probe_fields(
     assert events[-1]["event"] == "final"
 
 
-def test_distribution_node_sse_reasoning_summary_does_not_expose_raw_reasoning(
+def test_distribution_node_sse_reasoning_summary_strips_private_reasoning_fields(
     distribution_app, monkeypatch
 ) -> None:
     async def _fake_run_brain_task(run_id: str, *_args, **_kwargs):
@@ -395,15 +382,23 @@ def test_distribution_node_sse_reasoning_summary_does_not_expose_raw_reasoning(
                 "summary": "safe summary",
                 "raw_chain_of_thought": "hidden reasoning",
                 "raw_prompt": "secret prompt",
+                "raw_prompts": ["secret prompt 2"],
                 "hidden_route_rationale": "internal route reason",
+                "hidden_routing_rationale": "internal routing note",
                 "operator_only_diagnostics": {"budget": 7},
+                "private_admin_state": {"role": "owner"},
+                "details": {
+                    "safe_label": "not part of public schema",
+                    "raw_prompt": "nested secret prompt",
+                    "raw_chain_of_thought": "nested hidden reasoning",
+                },
             },
         )
         await event_manager.emit(run_id, "final", {"output_text": "done"})
 
     monkeypatch.setattr(messages_route, "run_brain_task", _fake_run_brain_task)
 
-    payload = _default_message_payload(f"sse-reasoning-{uuid.uuid4().hex[:8]}")
+    payload = _default_message_payload(f"sse-reasoning-leak-{uuid.uuid4().hex[:8]}")
     with TestClient(distribution_app["app"]) as client:
         post = client.post("/v1/messages", json=payload)
         run_id = post.json()["run_id"]
@@ -415,15 +410,29 @@ def test_distribution_node_sse_reasoning_summary_does_not_expose_raw_reasoning(
             events = _read_sse_events(stream)
 
     reasoning_events = [e for e in events if e.get("event") == "reasoning_summary"]
-    reasoning_rendered = json.dumps(reasoning_events[0]["data"], ensure_ascii=False)
+    data = reasoning_events[0]["data"]
+    reasoning_rendered = json.dumps(data, ensure_ascii=False)
 
     assert post.status_code == 200
-    assert len(reasoning_events) >= 1
-    assert reasoning_events[0]["data"].get("summary") == "safe summary"
-    assert "hidden reasoning" not in reasoning_rendered
-    assert "secret prompt" not in reasoning_rendered
-    assert "internal route reason" not in reasoning_rendered
-    assert "operator_only_diagnostics" not in reasoning_rendered
+    assert len(reasoning_events) == 1
+    assert data == {"summary": "safe summary"}
+    for forbidden in [
+        "raw_chain_of_thought",
+        "raw_prompt",
+        "raw_prompts",
+        "hidden_route_rationale",
+        "hidden_routing_rationale",
+        "operator_only_diagnostics",
+        "private_admin_state",
+        "hidden reasoning",
+        "nested hidden reasoning",
+        "secret prompt",
+        "secret prompt 2",
+        "nested secret prompt",
+        "internal route reason",
+        "internal routing note",
+    ]:
+        assert forbidden not in reasoning_rendered
     assert events[-1]["event"] == "final"
 
 
