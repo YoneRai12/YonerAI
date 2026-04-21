@@ -7,7 +7,7 @@ from ora_core.database.models import User
 from ora_core.database.repo import Repository
 from ora_core.database.session import get_db
 from ora_core.distribution.runtime import get_current_runtime
-from ora_core.engine.simple_worker import event_manager
+from ora_core.engine.simple_worker import event_manager, shape_reasoning_summary_data
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -41,20 +41,11 @@ def _sanitize_reasoning_summary_data(value: Any) -> Any:
     return value
 
 
-def _shape_reasoning_summary_data(value: Any) -> dict[str, str]:
-    if not isinstance(value, dict):
-        return {}
-    summary = value.get("summary")
-    if isinstance(summary, str):
-        return {"summary": summary}
-    return {}
-
-
 def _build_sse_payload(event: dict[str, Any]) -> dict[str, Any]:
     event_type = event["event"]
     event_data = event["data"]
     if event_type == "reasoning_summary":
-        event_data = _shape_reasoning_summary_data(event_data)
+        event_data = shape_reasoning_summary_data(event_data)
     elif event_type == "meta":
         event_data = _sanitize_reasoning_summary_data(event_data)
     return {

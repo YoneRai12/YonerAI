@@ -328,6 +328,56 @@ def test_distribution_node_sse_reasoning_summary_public_safe_schema(
     assert events[-1]["event"] == "final"
 
 
+def test_event_manager_shapes_reasoning_summary_at_producer_boundary() -> None:
+    async def _run() -> list[dict[str, Any]]:
+        run_id = f"event-manager-reasoning-{uuid.uuid4().hex[:8]}"
+        await event_manager.emit(
+            run_id,
+            "reasoning_summary",
+            {
+                "summary": "safe summary",
+                "details": {"hidden": "drop"},
+                "raw_prompt": "secret",
+            },
+        )
+        await event_manager.emit(run_id, "final", {"output_text": "done"})
+        events: list[dict[str, Any]] = []
+        async for event in event_manager.listen(run_id):
+            events.append(event)
+        return events
+
+    events = asyncio.run(_run())
+
+    assert events[0] == {
+        "event": "reasoning_summary",
+        "data": {"summary": "safe summary"},
+    }
+    assert events[-1]["event"] == "final"
+
+
+def test_event_manager_shapes_unusable_reasoning_summary_to_empty_payload() -> None:
+    async def _run() -> list[dict[str, Any]]:
+        run_id = f"event-manager-reasoning-empty-{uuid.uuid4().hex[:8]}"
+        await event_manager.emit(
+            run_id,
+            "reasoning_summary",
+            {
+                "raw_chain_of_thought": "hidden reasoning",
+                "hidden_routing_rationale": "internal route note",
+            },
+        )
+        await event_manager.emit(run_id, "final", {"output_text": "done"})
+        events: list[dict[str, Any]] = []
+        async for event in event_manager.listen(run_id):
+            events.append(event)
+        return events
+
+    events = asyncio.run(_run())
+
+    assert events[0] == {"event": "reasoning_summary", "data": {}}
+    assert events[-1]["event"] == "final"
+
+
 def test_distribution_node_sse_meta_does_not_expose_forbidden_probe_fields(
     distribution_app, monkeypatch
 ) -> None:
