@@ -41,10 +41,21 @@ def _sanitize_reasoning_summary_data(value: Any) -> Any:
     return value
 
 
+def _shape_reasoning_summary_data(value: Any) -> dict[str, str]:
+    if not isinstance(value, dict):
+        return {}
+    summary = value.get("summary")
+    if isinstance(summary, str):
+        return {"summary": summary}
+    return {}
+
+
 def _build_sse_payload(event: dict[str, Any]) -> dict[str, Any]:
     event_type = event["event"]
     event_data = event["data"]
-    if event_type in {"reasoning_summary", "meta"}:
+    if event_type == "reasoning_summary":
+        event_data = _shape_reasoning_summary_data(event_data)
+    elif event_type == "meta":
         event_data = _sanitize_reasoning_summary_data(event_data)
     return {
         "event": event_type,
