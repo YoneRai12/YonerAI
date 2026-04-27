@@ -26,7 +26,7 @@ edge-tts
 gTTS
 openai-whisper>=20230314.0
 yt-dlp>=2024.3.10
-soundfile>=0.12.0
+soundfile>=0.13.1
 
 # Vision & Image
 pillow>=9.5,<10.0
