@@ -10,6 +10,8 @@ from ..utils.comfy_client import ComfyWorkflow
 
 logger = logging.getLogger("CreativeCog")
 
+MAX_LAYER_UPLOAD_BYTES = 15 * 1024 * 1024  # 15MB
+
 
 class CreativeCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
@@ -190,6 +192,10 @@ class CreativeCog(commands.Cog):
         """
         if not image.content_type.startswith("image/"):
             await interaction.response.send_message("❌ Image file required.", ephemeral=True)
+            return
+
+        if image.size > MAX_LAYER_UPLOAD_BYTES:
+            await interaction.response.send_message("❌ Image is too large (max 15MB).", ephemeral=True)
             return
 
         await interaction.response.defer(thinking=True)

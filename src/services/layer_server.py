@@ -12,12 +12,11 @@ import io
 import logging
 import time
 import zipfile
-
 import torch
 import uvicorn
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import Response
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 
 # Setup Logging
 logging.basicConfig(level=logging.INFO)
@@ -32,6 +31,13 @@ async def lifespan(app: FastAPI):
     yield
 
 app = FastAPI(title="ORA Layer Service", version="1.0", lifespan=lifespan)
+
+MAX_UPLOAD_BYTES = 15 * 1024 * 1024  # 15MB
+MAX_IMAGE_WIDTH = 8192
+MAX_IMAGE_HEIGHT = 8192
+MAX_IMAGE_PIXELS = 40_000_000
+
+Image.MAX_IMAGE_PIXELS = MAX_IMAGE_PIXELS
 
 
 # Model Settings
@@ -82,6 +88,23 @@ async def garbage_collector():
             processor = None
 
 
+async def read_limited_upload(file: UploadFile, max_bytes: int) -> bytes:
+    chunk_size = 1024 * 1024
+    total_read = 0
+    chunks = []
+
+    while True:
+        chunk = await file.read(chunk_size)
+        if not chunk:
+            break
+        total_read += len(chunk)
+        if total_read > max_bytes:
+            raise HTTPException(status_code=413, detail=f"File too large (max {max_bytes // (1024 * 1024)}MB)")
+        chunks.append(chunk)
+
+    return b"".join(chunks)
+
+
 @app.post("/decompose")
 async def decompose(file: UploadFile = File(...)):
     """
@@ -92,8 +115,24 @@ async def decompose(file: UploadFile = File(...)):
     try:
         # Load Image
 
-        image_data = await file.read()
-        image = Image.open(io.BytesIO(image_data)).convert("RGB")
+        image_data = await read_limited_upload(file, MAX_UPLOAD_BYTES)
+        if not image_data:
+            raise HTTPException(status_code=400, detail="Empty upload")
+
+        try:
+            image = Image.open(io.BytesIO(image_data))
+            image.load()
+        except (UnidentifiedImageError, OSError, Image.DecompressionBombError) as e:
+            raise HTTPException(status_code=400, detail="Invalid or unsafe image") from e
+
+        width, height = image.size
+        if width > MAX_IMAGE_WIDTH or height > MAX_IMAGE_HEIGHT:
+            raise HTTPException(
+                status_code=413,
+                detail=f"Image dimensions too large (max {MAX_IMAGE_WIDTH}x{MAX_IMAGE_HEIGHT})",
+            )
+
+        image = image.convert("RGB")
 
         layers = []
 
@@ -135,6 +174,8 @@ async def decompose(file: UploadFile = File(...)):
             headers={"Content-Disposition": "attachment; filename=layers.zip"},
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Decomposition Error: {e}")
         return {"error": str(e)}
