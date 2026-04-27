@@ -11,7 +11,7 @@ duckduckgo-search
 cryptography
 
 # Shared runtime deps (imported by core brain + core<->bot bridge modules)
-aiohttp>=3.8,<4.0
+aiohttp>=3.13.5,<4.0
 aiofiles
 pytz
 openai
