@@ -3,19 +3,19 @@
 Status:
 
 - durable contract doc
-- current anchor: `v7.6`
+- current anchor: `Stage 6p post-PR153 traceability refresh`
 - fixed anchor: `YonerAI Internal Run API v0.1 Draft`
-- lane: `Distribution Node MVP`
+- lane: `YonerAI mainline`
 
 ## Purpose
 
-この文書は canonical `GET /v1/runs/{run_id}/events` の SSE semantics を固定する。
-固定対象は event meaning、terminal rule、safe exposure boundary であり、
-legacy queue framing や private operator internals を contract 化することではない。
+This document fixes the canonical `GET /v1/runs/{run_id}/events` SSE semantics.
+The fixed surface is event meaning, terminal rule, and safe exposure boundary.
+It does not contract legacy queue framing, private operator internals, or raw reasoning.
 
 ## Scope
 
-この文書が固定するもの:
+This document fixes:
 
 - canonical SSE purpose
 - event catalog
@@ -24,73 +24,69 @@ legacy queue framing や private operator internals を contract 化すること
 - `reasoning_summary` exposure boundary
 - `meta` exposure boundary
 
-この文書が固定しないもの:
+This document does not fix:
 
-- exact wire framing
+- exact canonical wire framing
+- heartbeat / retry shape
 - private operator diagnostics
 - hidden routing internals
 - raw chain-of-thought
 
 ## Canonical SSE Purpose
 
-`GET /v1/runs/{run_id}/events` は ordered run event stream を返す canonical surface である。
-この stream は user-facing progress と continuation handoff のために存在する。
-files raw bytes transport には使わない。files は file reference 経由で boundary を越える。
+`GET /v1/runs/{run_id}/events` is the canonical authenticated ordered run event stream.
+It exists for user-facing progress, safe summaries, and continuation handoff.
+It is not a raw files transport; files cross the boundary through file references.
 
 ## Transport Assumptions
 
-固定 truth:
+Fixed truth:
 
-- transport は SSE
-- stream は run-scoped
-- terminal event は `final` または `error` のどちらか 1 回だけ
-- unknown event は safe-ignore
+- transport is SSE
+- stream is run-scoped
+- terminal event is exactly one of `final` or `error`
+- unknown event is safe-ignore
 
-未固定:
+Unresolved:
 
 - exact canonical frame shape
 - retry hint
 - heartbeat shape
 
-Status:
-
-- event semantics = fixed
-- exact frame shape = `UNRESOLVED`
-
 ## Event Catalog
 
 | Event | Purpose | Allowed surface | Notes |
 | --- | --- | --- | --- |
-| `delta` | incremental user-visible output | user-facing text delta | hidden reasoning は含めない |
-| `reasoning_summary` | safe reasoning summary | concise summary only | raw chain-of-thought は含めない |
-| `trace` | safe trace labels / details / sources | already-safe backend-emitted trace material only | hidden internals は含めない |
-| `meta` | non-terminal run metadata | bounded metadata only | exact field set は `UNRESOLVED` |
-| `tool_result_submit` | continuation handoff | tool continuation request only | client は `POST /v1/runs/{run_id}/results` へ戻る |
+| `delta` | incremental user-visible output | user-facing text delta | hidden reasoning is not included |
+| `reasoning_summary` | safe reasoning summary | `{}` or `{"summary": str}` in delivered public-core scope | raw chain-of-thought is not included |
+| `trace` | safe trace labels / details / sources | already-safe backend-emitted trace material only | hidden internals are not included |
+| `meta` | non-terminal run metadata | bounded metadata only | exact field set remains unresolved |
+| `tool_result_submit` | continuation handoff | tool continuation request only | client returns through `POST /v1/runs/{run_id}/results` |
 | `final` | terminal success | final user-safe result | terminal event |
 | `error` | terminal failure | user-safe error result | terminal event |
 
 ## Terminal Rule
 
-固定 truth:
+Fixed truth:
 
-- terminal event は `final` または `error`
-- terminal event は exactly once
-- terminal event 後に user-visible event を続けない
+- terminal event is `final` or `error`
+- terminal event occurs exactly once
+- user-visible events do not continue after the terminal event
 
-未固定:
+Unresolved:
 
-- `final` と `error` の status split
+- detailed `final` / `error` status split
 - terminal error body schema
 
 ## Unknown Event Safe-Ignore Rule
 
-client は unknown event を safe-ignore してよい。
-unknown event の存在だけで stream 全体を failure にしない。
+Clients may safe-ignore unknown events.
+The existence of an unknown event must not make the whole stream fail.
 
-fixed negative predicate:
+Fixed negative predicate:
 
-- unknown event は terminal event を妨げない
-- unknown event はそれ自体を理由に canonical contract widening を要求しない
+- unknown event does not prevent a terminal event
+- unknown event does not itself require canonical contract widening
 
 Status:
 
@@ -100,53 +96,42 @@ Status:
 
 ## Reasoning Summary Exposure Boundary
 
-`reasoning_summary` は safe reasoning summary に限る。
+`reasoning_summary` is limited to public-safe summary data.
 
-fixed negative predicate:
+Fixed negative predicate:
 
-- raw chain-of-thought を運ばない
-- raw prompt / raw prompts を運ばない
-- hidden routing rationale を運ばない
-- dirty band0 / route policy internals を運ばない
-- operator-only diagnostics を運ばない
-- private admin state を運ばない
+- raw chain-of-thought must not pass
+- raw prompt / raw prompts must not pass
+- hidden routing rationale must not pass
+- dirty band0 / route policy internals must not pass
+- operator-only diagnostics must not pass
+- private admin state must not pass
 
-fixed truth:
+Post-PR153 fixed truth for delivered public-core scope:
 
-- `reasoning_summary` は concise summary only
-- contract 化するのは user-safe summary surface だけ
-
-observed source-side evidence:
-
-- serializer-boundary sanitization evidence exists in `core/src/ora_core/api/routes/runs.py`
-- current boundary sanitization removes forbidden keys from `reasoning_summary` payload before SSE serialization
-- durable negative test evidence exists in `tests/test_distribution_node_mvp.py::test_distribution_node_sse_reasoning_summary_does_not_expose_forbidden_probe_fields`
-
-still unresolved:
-
-- producer owner
-- exact payload schema
-- summary length / structure exactness
+- accepted public-core shape is `{}` or `{"summary": str}`
+- producer/event-bus shaping is accepted in `core/src/ora_core/engine/simple_worker.py`
+- public SSE boundary shaping is accepted in `core/src/ora_core/api/routes/runs.py`
+- durable negative and producer-boundary evidence exists in `tests/test_distribution_node_mvp.py`
 
 Status:
 
 - negative exposure boundary = fixed
-- serializer-boundary sanitization evidence = observed
-- producer owner = `UNRESOLVED`
-- exact payload schema = `UNRESOLVED`
+- producer owner = `confirmed for delivered public-core scope`
+- exact payload schema = `confirmed for delivered public-core scope`
+- broader summary length / UX structure exactness = `not claimed`
 
 ## Meta Exposure Boundary
 
-`meta` は bounded metadata に限る。
-open-ended dump にはしない。
+`meta` is limited to bounded metadata and must not become an open-ended dump.
 
-allowed:
+Allowed:
 
-- lifecycle に関する bounded metadata
+- lifecycle bounded metadata
 - user-safe progress metadata
 - safe correlation metadata
 
-forbidden:
+Forbidden:
 
 - operator-only diagnostics
 - private admin state
@@ -155,7 +140,7 @@ forbidden:
 - raw prompts
 - raw chain-of-thought
 
-observed source-side evidence:
+Observed source-side evidence:
 
 - serializer-boundary sanitization evidence exists in `core/src/ora_core/api/routes/runs.py`
 - current boundary sanitization removes forbidden keys from `meta` payload before SSE serialization
@@ -169,7 +154,7 @@ Status:
 
 ## Hidden Internals Not Contractized
 
-次は canonical SSE contract に含めない。
+The canonical SSE contract does not include:
 
 - raw chain-of-thought
 - private routing rationale
@@ -182,8 +167,6 @@ Status:
 
 - `UNRESOLVED`: canonical SSE wire framing
 - `UNRESOLVED`: `meta` exact field set
-- `UNRESOLVED`: `reasoning_summary` producer owner
-- `UNRESOLVED`: `reasoning_summary` exact payload schema
 - `UNRESOLVED`: unknown event safe-ignore server-side handling owner
 - `GAP`: heartbeat / retry exact contract
 - `GAP`: unknown event observability details
@@ -191,7 +174,7 @@ Status:
 
 ## Anchor Set
 
-- `docs/V76_TRUTH_SYNC_PACKET_JP.md`
-- `docs/DISTRIBUTION_NODE_MVP.md`
-- `V75_INTERNAL_API_ALIGNMENT.md`
+- `docs/CURRENT_PHASE_CONTEXT.md`
+- `docs/REASONING_SUMMARY_EXACTNESS_ACCEPTANCE_0_1.md`
+- `docs/TRACEABILITY_MATRIX_0_17.md`
 - `YonerAI Internal Run API v0.1 Draft`
