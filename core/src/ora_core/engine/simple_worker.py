@@ -4,6 +4,16 @@ from typing import Any, Dict, List
 from ora_core.database.models import RunStatus
 
 
+def shape_reasoning_summary_data(value: Any) -> dict[str, str]:
+    """Return the only public-safe reasoning_summary payload shape."""
+    if not isinstance(value, dict):
+        return {}
+    summary = value.get("summary")
+    if isinstance(summary, str):
+        return {"summary": summary}
+    return {}
+
+
 class EventManager:
     def __init__(self):
         # run_id -> asyncio.Queue
@@ -70,6 +80,12 @@ class EventManager:
             for buffered_run_id in oldest_run_ids:
                 self._event_buffer.pop(buffered_run_id, None)
                 self._event_buffer_timestamps.pop(buffered_run_id, None)
+
+    @staticmethod
+    def _shape_event_data(event_type: str, data: dict[str, Any]) -> dict[str, Any]:
+        if event_type == "reasoning_summary":
+            return shape_reasoning_summary_data(data)
+        return data
 
     async def dispatch_mock_stream(self, run_id: str, conversation_id: str):
         """
@@ -141,12 +157,16 @@ class EventManager:
         await self.emit(run_id, "final", {"text": full_text, "message_id": str(msg.id), "model": used_model})
 
     async def emit(self, run_id: str, event_type: str, data: dict):
-        event = {"event": event_type, "data": data}
+        event_type_text = str(event_type)
+        event = {
+            "event": event_type_text,
+            "data": self._shape_event_data(event_type_text, data),
+        }
         queue = None
         async with self._event_lock:
             if run_id in self._terminal_events:
                 return
-            if event_type in {"final", "error"}:
+            if event_type_text in {"final", "error"}:
                 self._terminal_events[run_id] = event
             queue = self.listeners.get(run_id)
             if queue is None:
@@ -161,7 +181,7 @@ class EventManager:
                     del buf[: len(buf) - self._event_buffer_limit]
         if queue is not None:
             await queue.put(event)
-        if event_type in {"final", "error"}:
+        if event_type_text in {"final", "error"}:
             async with self._tool_result_lock:
                 waiter_keys = [k for k in self._tool_result_waiters.keys() if k[0] == run_id]
                 for key in waiter_keys:
