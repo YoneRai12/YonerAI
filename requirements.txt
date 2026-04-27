@@ -12,7 +12,7 @@ cryptography
 
 # AI & Machine Learning
 torch>=2.0.0
-transformers>=4.48.0
+transformers>=5.6.2
 accelerate>=0.20.0
 openai
 google-generativeai
