@@ -11,7 +11,8 @@ Status:
 - mixed working repo branch = `refs/heads/codex/model-gpt-5-4`
 - mixed working repo HEAD = `2bc2ae7892598a1a9e40d67cf22b1344bb68a00d`
 - mixed working repo state = dirty keep-set; do not mutate as a delivery source
-- public `main` = `bade7d85169a37cc72fdf89b47e9c7825032c5b9`
+- release target / PR #154 merge commit = `bade7d85169a37cc72fdf89b47e9c7825032c5b9`
+- post-PR #155 public `main` = `cde640bd8fc8a05c6ddad4e372ac8f9904b57358`
 
 ## Completed Mainline Facts
 
@@ -20,6 +21,7 @@ Status:
 - control-plane deliver-now mainline delivery = `done`
 - PR #153 = merged
 - PR #154 = merged
+- PR #155 = merged as post-release state-freeze docs
 - PR #144 checkpoint release exists
 - PR #153 checkpoint release exists
 - `v2026.4.28` public progress checkpoint release exists
