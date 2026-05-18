@@ -33,7 +33,7 @@ This spec keeps self-evolution separate from API, CLI, native Japanese CLI, Web,
 | stage | purpose | allowed input | output | gate |
 |---|---|---|---|---|
 | observe | capture safe product signals | anonymized feature usage, complaint category, drop-off bucket, failure class, aggregate demand signal | normalized signal event | privacy contract |
-| aggregate | reduce individual identifiability | cohort counts, time buckets, coarse categories | aggregate metric | small-cohort threshold |
+| aggregate | reduce individual identifiability | normalized signal event | aggregate metric | small-cohort threshold |
 | interpret | turn metrics into user problems | trend deltas, repeated complaint classes, feature request clusters | problem statement | human review |
 | candidate | define possible improvement | problem statement, affected surface, expected value | candidate proposal | scope boundary review |
 | score | compare value, cost, risk, alignment | candidate proposal and evidence | scored backlog item | scoring rubric |
