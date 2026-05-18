@@ -27,7 +27,8 @@ Status:
 | --- | --- | --- |
 | PR #153 merged | `49c18cb9a61ab2cf1b2a9e115c9f030025cbf656` | confirmed |
 | PR #154 merged | `bade7d85169a37cc72fdf89b47e9c7825032c5b9` | confirmed |
-| public `main` | `bade7d85169a37cc72fdf89b47e9c7825032c5b9` | confirmed |
+| release target / PR #154 merge commit | `bade7d85169a37cc72fdf89b47e9c7825032c5b9` | confirmed |
+| post-PR #155 public `main` | `cde640bd8fc8a05c6ddad4e372ac8f9904b57358` | confirmed |
 | PR #153 checkpoint release | `checkpoint-pr153-reasoning-summary-exactness-2026-04-27` | confirmed |
 | public progress release | `v2026.4.28` targeting `bade7d85169a37cc72fdf89b47e9c7825032c5b9` | confirmed |
 | Stage 6t Pass 2 attempt | stopped safely without landing Pass 2 | confirmed |

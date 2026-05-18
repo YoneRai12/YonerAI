@@ -22,9 +22,12 @@ Status:
 - public mainline delivery = `done`
 - private deliver-now mainline delivery = `done`
 - control-plane deliver-now mainline delivery = `done`
-- public `main` = `bade7d85169a37cc72fdf89b47e9c7825032c5b9`
+- release target / PR #154 merge commit = `bade7d85169a37cc72fdf89b47e9c7825032c5b9`
+- post-PR #155 public `main` = `cde640bd8fc8a05c6ddad4e372ac8f9904b57358`
 - PR #153 = `MERGED`
 - PR #154 = `MERGED`
+- PR #155 = `MERGED`
+- PR #155 = post-release state-freeze docs merge
 - PR #153 checkpoint release exists
 - `v2026.4.28` release exists
 - `reasoning_summary` public-core exactness = `confirmed for delivered public-core scope`
