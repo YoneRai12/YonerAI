@@ -99,7 +99,7 @@ Status:
 意味:
 
 - canonical event stream entry point
-- stream semantics の durable definition は [sse-run-events.md](C:/Users/YoneRai12/Desktop/ORADiscordBOT-main3/docs/contracts/sse-run-events.md) に従う
+- stream semantics の durable definition は [sse-run-events.md](sse-run-events.md) に従う
 
 固定 truth:
 
