@@ -28,7 +28,17 @@ This repository does not claim shipping completeness, production readiness, offi
 
 Pass 2 remains stopped / not landed. `src/cogs/ora.py` remains unresolved private/runtime/control-plane boundary residue and is not treated as a narrow public patch target.
 
-## Public Scope
+## Product Modes
+
+YonerAI is designed around three high-level ways to use the same contract-first foundation:
+
+- Full Private Self-Host: the user controls the runtime boundary.
+- Official Hybrid Private: official governance and a local/private runtime can work together through explicit contracts.
+- Official Managed Cloud: the same experience can be offered as a managed surface when that lane is ready.
+
+These are product modes, not a repository map. Public docs should describe the contract and user experience, not private operational detail.
+
+## What Is Included In This Public Repo
 
 The public surface is for reviewable contracts, public-safe runtime abstractions, capability boundaries, connector patterns, client-facing documentation, and regression tests.
 
@@ -46,7 +56,7 @@ Useful starting points:
 - [v2026.5.18 checkpoint note](docs/releases/v2026.5.18-public-progress-checkpoint.md)
 - [Latest traceability matrix](docs/TRACEABILITY_MATRIX_0_19.md)
 
-## Product Lanes
+## Product Surface Lanes
 
 YonerAI keeps these lanes separate:
 
@@ -59,6 +69,24 @@ YonerAI keeps these lanes separate:
 - private runtime / control plane: execution authority, supervision, and operator-only behavior
 
 Combining these lanes into one implementation batch is not a shortcut to public-core readiness.
+
+## What Is Not Included / Not Claimed
+
+This public checkpoint does not include or claim:
+
+- production readiness
+- shipping completeness
+- official cloud completion
+- live operations completion
+- full product completion
+- `src/cogs/ora.py` implementation
+- runtime split implementation
+- API / CLI / native Japanese CLI / Web / SNS implementation
+- dependency vulnerability remediation
+- runtime hardcoded path cleanup
+- git history rewrite
+- release tag creation
+- deployment
 
 ## Local Development
 
@@ -121,3 +149,9 @@ git status --short --branch
 ```
 
 Broader test, lint, and CI commands depend on the lane. Passing docs checks does not mean production readiness.
+
+## Release Notes
+
+- [v2026.5.18 public progress checkpoint](docs/releases/v2026.5.18-public-progress-checkpoint.md)
+- [Release notes index](docs/RELEASE_NOTES.md)
+- [Current phase context](docs/CURRENT_PHASE_CONTEXT.md)

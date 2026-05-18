@@ -1,195 +1,29 @@
 # YonerAI Release Notes
 
-This page is a curated summary of what changed across releases (beyond GitHub auto-generated notes).
+This page is a public-safe index of current release notes and progress checkpoints.
 
-## v2026.5.18 Public Progress Checkpoint (2026-05-18)
+## v2026.5.18 Public Progress Checkpoint
 
 - Public checkpoint note: `docs/releases/v2026.5.18-public-progress-checkpoint.md`
-- Scope: v7.7 source-of-truth alignment, public GitHub hygiene cleanup, and self-evolution product intelligence specification.
+- Scope: v7.7 source-of-truth alignment, public GitHub hygiene cleanup, self-evolution product intelligence specification, and PR #165 public README/root-surface/release-note cleanup.
 - Status: public progress checkpoint, not a production release.
 - Still open: PR #163 boundary plan, runtime/tooling hardcoded path cleanup, optional history remediation decision, and dependency-security lane.
 
-## v2026.3.8-security -> v2026.4.7 (2026-04-07)
+## v2026.4.28 Public Progress Checkpoint
 
-### Big Picture
-- **Public node setup is usable again on clean Windows machines**: the default install path no longer hard-fails on ChromaDB's native build chain.
-- **Semantic memory is still available, but no longer blocks first boot**: ChromaDB-backed `VectorMemory` moved behind an explicit optional install step.
-- **Release artifacts are aligned for the next tag-based release**: `VERSION`, changelog, and release note body now describe the bootability fix coherently.
+- Public checkpoint note: `docs/releases/v2026.4.28-public-progress-checkpoint.md`
+- Scope: post-PR #153 / #154 / #155 public progress record and reasoning-summary exactness guardrails for delivered public-core scope.
+- Status: public progress checkpoint, not a production release.
+- Still open: Pass 2 remains stopped / not landed, and `src/cogs/ora.py` remains unresolved boundary residue.
 
-### What Changed (High Impact)
-- **Default install path hardened**:
-  - Removed `chromadb` from `requirements.txt`.
-  - `pip install -r requirements.txt` now succeeds without requiring Microsoft Visual C++ Build Tools just to boot the public node.
-- **Optional semantic memory lane**:
-  - Added `requirements-optional-memory.txt`.
-  - Operators can opt into ChromaDB only when they actually want local semantic recall.
-- **Runtime fallback behavior clarified**:
-  - `VectorMemory` now imports ChromaDB lazily.
-  - If the optional dependency is missing, YonerAI still starts and only semantic memory stays disabled.
-  - The failure path now points directly to `requirements-optional-memory.txt`.
-- **Docs and regression coverage**:
-  - Updated `README.md` and `docs/ENV_FILES.md` with the optional memory install path.
-  - Added a regression test to keep `VectorMemory` import-safe when `chromadb` is absent.
-  - Fixed the `core-test` workflow trigger scope so the required branch-policy check is emitted for every PR to `main`.
+## Older Date-Version Notes
 
-### Operator Impact
-- **If you want the public node only**:
-  - Use the standard Quickstart with `requirements.txt`.
-- **If you want semantic memory / ChromaDB**:
-  - Install `requirements-optional-memory.txt` after the base environment is up.
-- **If you are preparing a release**:
-  - The repo is now ready for a `v2026.4.7` tag after merge.
+Older release note files remain under `docs/releases/` for historical reference.
 
-This page is a curated summary of what changed across releases (beyond GitHub’s auto-generated notes).
+They are not production-readiness claims, and they should not be read as current private runtime, live operations, or control-plane truth.
 
-## v2026.2.9 -> v2026.2.11 (2026-02-11)
+Current status and boundary truth should be checked against:
 
-### Big Picture
-- **Setup UX is now production-oriented**: the setup page moved from a long flat form to a **left-nav + section card** workspace with quick actions and better information hierarchy.
-- **Date-based release line continues**: release metadata now tracks the new `v2026.2.11` drop.
-- **External API integration got a stable surface**: run lifecycle endpoints are now available under `/api/v1/agent/*` for integrations.
-
-### What Changed (High Impact)
-- **Setup UI/UX overhaul**:
-  - JP/EN language toggle.
-  - Sidebar categories + card-based form groups.
-  - 4K-aware responsive sizing and improved spacing/contrast.
-  - Quick actions for Roles / Permissions / Approvals / Relay.
-- **Web/API hardening**:
-  - Added run-state guardrails:
-    - `ORA_MAX_ACTIVE_RUNS` (active queue cap)
-    - `ORA_RUN_STATE_TTL_SEC` (state cleanup)
-  - `/config/limits` now requires web API auth.
-  - Loopback detection respects forwarded headers for reverse-proxy setups.
-- **External Agent API (stable paths)**:
-  - `POST /api/v1/agent/run`
-  - `GET /api/v1/agent/runs/{run_id}/events`
-  - `POST /api/v1/agent/runs/{run_id}/results`
-- **Tunnel lifecycle reliability**:
-  - Tracks spawned `cloudflared` children.
-  - Cleans stale PID files.
-  - Stops tunnel processes on shutdown.
-  - Adds `ORA_TUNNELS_NEW_CONSOLE` for Windows behavior.
-- **Download link/public URL handling**:
-  - Supports explicit `DOWNLOAD_PUBLIC_BASE_URL`.
-  - Better fallback/reuse logic for quick tunnel URLs.
-- **Mention music path cleanup**:
-  - Mention-music logic extracted into dedicated handler.
-  - Playlist behavior can be switched via `ORA_MUSIC_MENTION_PLAYLIST_MODE`.
-
-### Ops / Deployment Additions
-- Added VPS-first artifacts:
-  - `Dockerfile.vps`
-  - `deploy/docker-compose.vps.yml`
-  - `docs/VPS_DEPLOYMENT.md`
-  - `docs/DOMAIN_ROUTES.md`
-
-## v5.0.0 -> v2026.2.9 (2026-02-09)
-
-### Big Picture (What You Actually Got)
-- **Hub/Spoke agent runtime stabilized**: thin client (Discord/Web) delegates the reasoning loop to ORA Core; tools execute locally and results are fed back to Core.
-- **Security posture tightened**: fewer “surprise side effects” at startup; approvals/audit added so powerful tooling doesn’t silently become dangerous as features grow.
-- **Multi-platform direction clarified**: Discord bot is no longer “the product”; it’s one client for a broader ORA API + web dashboards + future mobile/desktop clients.
- - **Distribution-ready baseline**: profile isolation (`private/shared`) + Relay MVP enables a “user PC as the node” architecture without port-forwarding.
-
-### Security & Safety (High Impact)
-- **Risk-based approvals gate + audit trail**:
-  - Tool execution is gated at the ToolHandler boundary (skills, dynamic tools, MCP tools all funnel through one checkpoint).
-  - **Owner is NOT exempt**: HIGH requires approval; CRITICAL requires 2-step confirmation (button + code).
-  - SQLite tables `tool_audit` and `approval_requests` store “who did what, when, with what args (redacted), and what happened”.
-- **Safe startup defaults (no auto-expose)**:
-  - Bot no longer auto-opens local browser UIs unless explicitly enabled.
-  - Bot no longer auto-starts Cloudflare tunnels unless explicitly enabled.
-  - Quick tunnels (trycloudflare) blocked by default unless explicitly enabled.
-
-### Distribution / Relay (New)
-- **Profile isolation (M1)**:
-  - Introduces `ORA_PROFILE=private|shared` with profile-scoped `state_root` (DB/logs/memory/secrets/tmp).
-  - Adds `instance_id` persistence so each installed node is stably identifiable.
-- **Shared/guest policy as code (M3)**:
-  - Shared guests are allowlist-based and CRITICAL is blocked by default.
-  - Unknown tools default to HIGH risk to avoid accidental exposure.
-- **Relay MVP + hardening (M2/M2.5)**:
-  - WebSocket routing + pairing + HTTP proxy to the local node API.
-  - Mux (`id -> Future`), caps, timeouts, and disconnect cleanup to survive real-world networks.
-- **Cloudflare Quick Tunnel**:
-  - Domain-less external testing can be enabled via `.env` expose mode.
-
-### Static Verification (Sandbox)
-- **Sandbox repo inspection tools**:
-  - `sandbox_download_repo` downloads GitHub ZIPs into the temp sandbox and runs static inspection only (no execution).
-  - `sandbox_compare_repos` compares two repos at a high level (files/size/languages/suspicious hits).
-
-### Approvals QoL (Configurable)
-- Owner/guest approval friction can be tuned via `.env` while keeping safe defaults.
-  - Owner global knobs: `ORA_OWNER_APPROVALS`, `ORA_OWNER_APPROVAL_SKIP_TOOLS`.
-  - Shared guest threshold knob: `ORA_SHARED_GUEST_APPROVAL_MIN_SCORE`.
-
-### Tooling & Extensibility
-- **MCP client support (stdio)**:
-  - ORA can connect to configured MCP servers and expose their tools as ORA tools named like `mcp__<server>__<tool>`.
-  - MCP tools are routed through the same approvals/audit gate.
-- **MCP trust boundary tightened (safe-by-default)**:
-  - Default deny patterns for dangerous tool names (delete/remove/wipe/push/publish/exec, etc.).
-  - Optional per-server `allowed_tools` allowlist and an explicit escape hatch for dangerous tools when you really want it.
-- **Router/tool selection hardening**:
-  - Caps tool exposure to avoid massive tool lists.
-  - Adds categories so “codebase inspection” tools are only exposed when appropriate.
-  - Avoids selecting remote browser tools unless the user explicitly asks for screenshot/control.
-
-### Memory (User + Server Context)
-- **Guild/server context memory**:
-  - Adds guild-level hints to bias acronym/domain disambiguation (example: VALORANT servers).
-  - Keeps it deterministic (no extra LLM calls) and injects into system context.
-
-### Web / Media / UX Fixes That Matter
-- **Discord embed hard limit fix**:
-  - Prevents 400 errors caused by embed title length > 256.
-- **Remote browser errors are diagnosable now**:
-  - Browser API failures return an `error_id` and write contextual error logs, so “nothing shows up” can be triaged from logs.
-- **Downloads & screenshots cleanup**:
-  - Temp artifacts (screenshots/download files) are deleted after use in tool implementations.
-  - Large downloads can be delivered via temporary link pages when Discord limits are exceeded (TTL based).
-- **Everyday Discord features for non-owners (safe-by-default)**:
-  - The default non-owner allowlist now includes VC join/leave, TTS, and music controls.
-  - Added `web_search_api` for safe web search (SerpApi/DDG, no browser automation).
-- **Music UX (Discord)**:
-  - Mention-based playback supports YouTube URLs, audio attachments, and plain search queries.
-  - Optional Discord-native scroll picker (Select menu) for choosing a track from search results.
-  - **Playlist queue-all (mentions)**: `@Bot <playlist_url> 流して` queues the whole playlist in the background:
-    - YouTube playlists: queues all tracks.
-    - Spotify playlists/albums: extracts track metadata and searches YouTube for playback (Spotify audio is not streamed directly).
-
-### Observability & Reproducibility
-- **Portable logging paths**:
-  - Logging now follows `config.log_dir` (env-driven) rather than hardcoding `L:\...` paths.
-  - Guild logs and local log reader follow the same base directory.
-- **Audit log secrecy + retention**:
-  - Audit logs redact secret-like strings and bound args/result sizes.
-  - Audit tables are pruned by retention/row limits (env-driven), with a periodic pruning loop in the web app.
-- **CI/release pipeline made stricter and reproducible**:
-  - Release workflow verifies tag == `VERSION`.
-  - CI runs `ruff`, `mypy`, `compileall`, smoke tests without requiring real secrets.
-
-### Upgrade Notes (If You Want Old Behavior)
-If you previously relied on “startup auto-open” and “startup auto-tunnel”, set these in your `.env`:
-- `ORA_AUTO_OPEN_LOCAL_INTERFACES=1`
-- `ORA_AUTO_START_TUNNELS=1`
-- `ORA_TUNNELS_ALLOW_QUICK=1` (only if you explicitly want quick tunnels without a named token)
-
-## Per-Version Highlights (Quick Index)
-- **v2026.2.11**: setup UI overhaul (sidebar/cards/i18n/4K), stable external API paths, run-state caps+TTL, tunnel lifecycle hardening, deployment docs.
-- **v2026.2.9**: date-based releases + node/relay/approvals baseline + sandbox static repo inspection + approvals QoL knobs + guest-friendly Discord voice/music/search.
-- **v5.1.14**: audit redaction + retention; MCP guardrails; browser error_id + error log endpoint.
-- **v5.1.13**: empty final response fallback + less plan spam.
-- **v5.1.12**: CI mypy fix (`Store.create_scheduled_task()` return).
-- **v5.1.11**: Startup safety defaults (no auto browser/tunnels unless enabled).
-- **v5.1.10**: Portable logging paths (no L:\ hardcoding).
-- **v5.1.9**: Discord embed title length safety.
-- **v5.1.8**: Risk-based approvals gate + tool audit (SQLite).
-- **v5.1.6 / v5.1.7**: MCP tool server support + routing category.
-- **v5.1.5**: Guild memory + router cap + final response robustness + CI convenience.
-- **v5.1.4**: Core SSE retry robustness.
-- **v5.1.3**: Owner-only scheduler scaffold (disabled by default).
-- **v5.1.2**: Dynamic task board; cleanup guarantees; download page cleanup loop.
-- **v5.1.0 / v5.0.0**: Architecture diagrams + reproducible release alignment.
+- `docs/CURRENT_PHASE_CONTEXT.md`
+- `docs/TRACEABILITY_MATRIX_0_19.md`
+- `docs/releases/v2026.5.18-public-progress-checkpoint.md`
