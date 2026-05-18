@@ -28,4 +28,3 @@ Status:
 | submodule policy | Broken submodule/gitlink state must not be fixed in this lane. | `docs/CURRENT_PHASE_CONTEXT.md` | `confirmed-docs` | `reference_clawdbot` is excluded from this lane | Gitlink repair remains owner decision. |
 | dirty branch quarantine | Original dirty `codex/gpt5.5` branch is quarantine / keep-set and not a delivery source. | `docs/CURRENT_PHASE_CONTEXT.md`, `AGENTS.md` | `confirmed-docs` | branch handling section preserves original branch | Dirty files are not classified exhaustively in this clean branch. |
 | forbidden claims | Do not claim shipping-complete, production-ready, official-cloud complete, live-ops complete, full product complete, Pass 2 landed, or `src/cogs/ora.py` solved. | `docs/CURRENT_PHASE_CONTEXT.md`, `AGENTS.md` | `confirmed-docs` | do-not-claim list is explicit | Future docs must keep using negative/blocked wording until verified. |
-

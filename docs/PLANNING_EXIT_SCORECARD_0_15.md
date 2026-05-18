@@ -34,4 +34,3 @@ This scorecard does not approve:
 - full product completion
 - official-cloud completion
 - live operational completion
-
