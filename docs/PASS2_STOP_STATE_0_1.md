@@ -11,7 +11,7 @@ Status:
 
 Stage 6t attempted bounded Pass 2 execution on a fresh public worktree and stopped safely.
 
-- fresh worktree path = `C:\Users\YoneRai12\Desktop\ORADiscordBOT-main3__pass2_bounded_stage6t`
+- fresh worktree path = local-only redacted path (not a public contract)
 - branch = `public-release/pass2-bounded-stage6t`
 - base = `bade7d85169a37cc72fdf89b47e9c7825032c5b9`
 - no source edits
@@ -54,7 +54,7 @@ Do not infer that:
 - the runtime gateway is public-safe
 - `src/cogs/ora.py` landed
 - `src/cogs/ora.py` is unblocked
-- shipping-complete is now truthful
+- a shipping-complete or full product completion claim can be made
 
 ## Next Required Planning
 

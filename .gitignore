@@ -2,27 +2,50 @@
 .env
 .env.*
 !.env.example
+.envrc
 ngrok.yml
 service-account.json
+service-account*.json
 client_secret_*.json
+credentials*.json
+secrets/
+secret/
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
 
 # Debug & Temporary files
 logs/
 *.log
 *.txt
 *.part
+tmp_*.html
+.tmp_*.html
 Port
 local_*.txt
 ruff_*.json
 mypy_*.txt
 debug_*.txt
 debug_*.json
+local_*.json
 defs.txt
+/core/payload.json
+/scripts/verify_summary*.json
 
 # Databases
 *.db
 *.db-shm
 *.db-wal
+*.sqlite
+*.sqlite3
+*.sqlite3-shm
+*.sqlite3-wal
+*.sqlite-shm
+*.sqlite-wal
+*.wal
+*.shm
 
 # Build & Cache
 __pycache__/
@@ -30,11 +53,17 @@ __pycache__/
 node_modules/
 .next/
 out/
+output/
+video/
 build/
 dist/
 .mypy_cache/
 .pytest_cache/
 .ruff_cache/
+/src/data/cache/
+state/
+local_state/
+tmp/
 
 # System
 .vscode/
@@ -51,6 +80,7 @@ venv/
 /brain/
 
 # Local notes
+.codex/
 ORA_AI_HANDOVER_MAC.md
 AGENT_MEMORY.md
 
@@ -117,9 +147,9 @@ ffmpeg-*/
 # Auth scripts
 
 # Auth scripts
-auth.py
+/auth.py
 
-data/
+/data/
 
 !requirements.txt
 !requirements-optional-memory.txt

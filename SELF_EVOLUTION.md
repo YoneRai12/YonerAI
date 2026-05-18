@@ -1,51 +1,10 @@
-# ORA Self-Evolution System (Healer) Specification
+# Deprecated Self-Evolution Snapshot
 
-## 1. 概要 (Overview)
-ORAの「自己進化システム (Healer)」は、ユーザーからの要望やシステムエラーに基づいて、Bot自身が自律的にソースコードを修正・拡張する機能です。
-安全性と利便性を両立するため、**リスクベースの自動化 (Risk-Based Automation)** と **多層防御の安全性評価 (Guardrails)** を採用しています。
+This legacy self-evolution note is not the current YonerAI public contract.
 
-## 2. 進化プロセス (Evolution Process)
+Current self-evolution is product intelligence: observing public-safe signals,
+scoring proposals, applying privacy and evidence gates, and requiring approval
+before changes. It must not be treated as unapproved autonomous code mutation.
 
-### Step 1: リクエストと解析 (Request & Analysis)
-- ユーザーが「○○機能を追加して」と発言、またはシステムエラーが発生。
-- **重複チェック**: 既存のコマンドで対応可能かBotが自己スキャン。対応不可の場合のみ開発フェーズへ移行。
-- **コンテキスト認識**: 会話の流れから、変更のスコープ（全体・サーバー限定・一時的）を判断。
-- **ファイル構成認識**: 現在のプロジェクト構造 (`src/`以下) を読み込み、最適なファイル配置を設計。
-
-### Step 2: コーディングとリスク評価 (Coding & Risk Assessment)
-AIがPythonコードを生成し、同時に以下の **リスクスコア (Risk Score: 0-100)** を算出します。
-
-| スコア | レベル | 判定基準 | 処理フロー |
-| :--- | :--- | :--- | :--- |
-| **0 - 9** | **Low Risk** | 既存関数の微修正、ログ出力変更、テキスト変更など | **自動適用 (Auto-Apply)**<br>事後レポートのみ |
-| **10 - 100** | **High Risk** | 新規ファイル作成、DBスキーマ変更、外部API連携、削除操作など | **手動承認 (Manual Review)**<br>Debugチャンネルに提案送付 |
-
-### Step 3: 安全性監査 (Security Audit / CodeCritic)
-生成されたコードは、独立したAI監査モジュール (CodeCritic) によってチェックされます。
-以下の禁止事項が含まれる場合、プロセスは即座に中止されます。
-- `src/` ディレクトリ外へのファイル操作
-- 無限ループの疑い
-- トークン・パスワードの外部送信
-- 破壊的コマンド (`rm`, `del` 等)
-
-### Step 4: 適用と自律回復 (Apply & Resilience)
-承認（または自動判定）されたコードは、以下の手順で安全に適用されます。
-
-1. **スナップショット作成**: 変更前の状態をZIP形式でバックアップ。
-2. **コード書き込み**: ファイルを更新。
-3. **ホットリロード**: 対象の拡張機能 (Cog) を再読み込み。
-4. **ヘルスチェック (Health Inspector)**:
-   - DB接続確認
-   - 音声モジュール等の依存関係確認
-   - エラーログ監視
-5. **ロールバック (Rollback)**:
-   - 上記 3 または 4 で失敗した場合、**即座にバックアップから復元** します。
-   - 失敗レポートをDebugチャンネルに送信し、システムを元の状態に戻します。
-
-## 3. セキュリティプロトコル (Confidentiality Protocol)
-システム情報（ファイルパス、構成図、生のコード）は、**管理者 (ID: 1069941291661672498)** 以外のユーザーには一切開示されません。
-一般ユーザーには「機能の有無」や「使い方の案内」のみが行われます。
-
-## 4. 管理・監視 (Management)
-全ての変更履歴（成功・失敗・自動適用の事後報告）は、専用の **Debugチャンネル (ID: 1455097004433604860)** に送信されます。
-管理者はここを見るだけで、Botがいつ、どのように進化したかを把握できます。
+Use `docs/SELF_EVOLUTION_PRODUCT_INTELLIGENCE_SPEC_0_1.md` when present and
+`docs/CURRENT_PHASE_CONTEXT.md` for current scope.
