@@ -1,88 +1,94 @@
 # YonerAI
 
-プロバイダーに依存しない AI 実行基盤のための public distribution core です。
+YonerAI は、公式環境・ローカル環境・self-hosted 環境が変わっても、同じ体験と同じ契約境界を保つためのプロバイダー非依存 AI 実行基盤です。
 
-[English README](README.md) | [Current phase](docs/CURRENT_PHASE_CONTEXT.md) | [Contracts](docs/contracts) | [Release checkpoint](docs/releases/v2026.4.28-public-progress-checkpoint.md)
+[English README](README.md) | [Current phase](docs/CURRENT_PHASE_CONTEXT.md) | [Contracts](docs/contracts) | [Release checkpoint](docs/releases/v2026.5.18-public-progress-checkpoint.md)
 
-## このリポジトリの位置づけ
+## YonerAI とは
 
-YonerAI は、利用するプロバイダー、公式 UI、ローカル実行環境、self-host 形態が変わっても、同じ体験と同じ契約境界を保つための長寿命 AI 実行基盤です。
+YonerAI は、利用するモデルプロバイダー、UI、ローカル実行環境、self-hosted profile が変わっても、ユーザー体験と contract boundary を維持するための長寿命 AI runtime foundation です。
 
-この public リポジトリは distribution core です。public-safe な runtime 抽象、契約文書、schema、capability boundary、connector pattern、client surface を置きます。private runtime や production ops の実体をそのまま公開する場所ではありません。
+単なる Discord bot でも、単なる model router でもありません。Discord、Web、relay、API、CLI、native Japanese CLI、SNS distribution、self-evolution は、それぞれ失敗モードと承認条件が違う別 lane です。
 
-YonerAI は単なる Discord bot でも、単なる model routing アプリでもありません。Discord、Web、relay、API、CLI、native Japanese CLI、SNS distribution、self-evolution は、それぞれ失敗モードと承認条件が違う別 lane です。
+この README は公開向けの contract surface を説明するためのものです。内部運用詳細、credential、live route、host-specific fact を公開する文書ではありません。
 
-## 現在の状態
+## 現在の checkpoint
 
-現在の design anchor は v7.7 source-of-truth freeze です。
+現在の design anchor は v7.7 です。
 
 - provider independence
-- official / local / self-host 方向での same experience
+- official / local / self-hosted 方向での same experience
 - approval gate 付き product intelligence としての self-evolution
 - contract-first な public boundary
-- 3 つの canonical repository
+- 内部運用詳細を公開せず、contract で public / private / control-plane を分ける方針
 
-`v2026.4.28` は public progress checkpoint であり、final product release ではありません。このリポジトリは shipping-complete、production-ready、official-cloud complete、live-ops complete、full product complete を主張しません。
+`v2026.5.18` は public progress checkpoint であり、production release ではありません。
 
-Pass 2 は stopped / not landed です。`src/cogs/ora.py` は private/runtime/control-plane boundary residue のままであり、狭い public patch で解決した扱いにはしません。
+この repository は shipping completeness、production readiness、official cloud completion、live operations completion、full product completion を主張しません。
 
-## 3 つの canonical repository
+Pass 2 は stopped / not landed です。`src/cogs/ora.py` は private/runtime/control-plane boundary residue のままであり、狭い public patch で解決済みとして扱いません。
 
-- `YoneRai12/YonerAI`: public distribution core、public-safe contract、共通 runtime 抽象、public client surface、capability manifest、docs。
-- `YoneRai12/YonerAI-private`: official app runtime、official web runtime、official Discord gateway、admin / release / maintenance logic、operator-only surface。
-- `YoneRai12/YonerAI-oracle-control-plane`: Oracle VPS の deploy / rollback、supervision、health orchestration、cloudflared / hook、将来の evaluator / healing control-plane。
+## 3つの利用形態
 
-`YonerAI-VPS-private` は all-in-one private repo ではありません。古いメモに出てくる場合は、control-plane seed の可能性としてだけ扱います。
+YonerAI は、同じ contract-first foundation を次の3つの使い方で扱えるように設計しています。
 
-public artifact は private internals を直接 import しません。repo 間の連携は API、event、file、auth claim、capability manifest、protocol、schema などの contract 経由で行います。
+- Full Private Self-Host: ユーザーが runtime boundary を管理する形態。
+- Official Hybrid Private: 公式の governance と local/private runtime を明示的な contract でつなぐ形態。
+- Official Managed Cloud: その lane が準備できたときに、同じ体験を managed surface として提供する形態。
 
-## public contract の方向性
+これは product mode の説明であり、repository map ではありません。public docs では、private operational detail ではなく contract と user experience を説明します。
 
-public core は contract-first です。現在の主な契約領域は次の通りです。
+## この公開リポジトリに含まれるもの
 
-- Internal Run API と event stream contract
-- file reference / download boundary
-- capability / risk policy boundary
-- storage / relay boundary
-- public-safe reasoning summary constraint
-- approval / audit surface
+public surface で扱うのは、レビュー可能な contract、public-safe な runtime abstraction、capability boundary、connector pattern、client-facing documentation、regression test です。
 
-raw chain-of-thought は public chat、API、SSE、log、doc、trace surface に出しません。public trace は安全に見せられる summary、label、detail、source だけを扱います。
+private runtime behavior、operator-only workflow、live route、deployment truth、raw production inventory、credential、host-specific control-plane detail は、公開 README や public-facing docs に書くものではありません。
 
-入口として見るべき文書:
+境界をまたぐ連携は、API、event、file、auth claim、capability manifest、protocol、schema などの明示的な contract 経由で行います。
+
+raw chain-of-thought は public chat、API、SSE、log、documentation、trace surface に出しません。public trace で扱うのは、安全な summary、label、detail、すでに公開可能な source だけです。
+
+入口として見る文書:
 
 - [Current phase context](docs/CURRENT_PHASE_CONTEXT.md)
 - [External Agent API](docs/contracts/external-agent-api.md)
 - [SSE Run Events](docs/contracts/sse-run-events.md)
-- [Release checkpoint](docs/releases/v2026.4.28-public-progress-checkpoint.md)
+- [v2026.5.18 checkpoint note](docs/releases/v2026.5.18-public-progress-checkpoint.md)
 - [Latest traceability matrix](docs/TRACEABILITY_MATRIX_0_19.md)
 
-## product surface lane
+## Product surface lane
 
 YonerAI では次の lane を分けて扱います。
 
 - API: contract authority
 - CLI: command authority
-- native Japanese CLI: 曖昧命令の確認、説明責任、UX を扱う別 lane
+- native Japanese CLI: 曖昧命令の確認と説明責任を持つ別 UX lane
 - Web: product surface
 - SNS: distribution lane。core blocker ではありません
 - self-evolution: product intelligence と proposal scoring。未承認の code mutation ではありません
-- private runtime / control-plane: execution authority、supervision、operator-only behavior
+- private runtime / control plane: execution authority、supervision、operator-only behavior
 
 これらを 1 つの実装 batch にまとめても、public-core readiness の近道にはなりません。
 
-## リポジトリ構成
+## 含まれないもの / 主張しないもの
 
-- `core/`: public-core runtime と distribution contract implementation
-- `src/`: mixed legacy runtime code、public-safe helper、skill、adapter、分離中の private/runtime boundary residue
-- `clients/`: public / distributable client surface
-- `config/distribution/`: public capability profile と manifest
-- `docs/`: public-safe contract、phase doc、release note、traceability
-- `tests/`: contract / regression test
+この public checkpoint は、次のものを含まず、また主張しません。
 
-互換性のため `ORA_*` 名が残る箇所があります。新しい public docs では、既存互換 key を説明するとき以外は YonerAI の用語を優先します。
+- production readiness
+- shipping completeness
+- official cloud completion
+- live operations completion
+- full product completion
+- `src/cogs/ora.py` implementation
+- runtime split implementation
+- API / CLI / native Japanese CLI / Web / SNS implementation
+- dependency vulnerability remediation
+- runtime hardcoded path cleanup
+- git history rewrite
+- release tag creation
+- deployment
 
-## local development
+## Local development
 
 確認したい範囲に合う最小 profile で起動してください。
 
@@ -94,7 +100,7 @@ pip install -r requirements.txt
 Copy-Item .env.example .env
 ```
 
-`.env` や local secret file は commit しません。`.env.example` は template であり、production truth ではありません。
+`.env` や local secret file は commit しません。`.env.example` は placeholder template であり、production truth ではありません。
 
 Core API:
 
@@ -118,24 +124,24 @@ npm install
 npm run dev
 ```
 
-Discord adapter を使う場合は local Discord credentials が必要です。これは local/private profile 境界の中で扱うもので、public core の確認には必須ではありません。
+Discord adapter work には local Discord credential が必要です。これは local/private profile boundary の内側で扱うもので、public core の確認には必須ではありません。
 
-## public release hygiene
+## Public safety
 
 commit してはいけないもの:
 
-- 実 `.env` や secret backup
+- 実 `.env` file や secret backup
 - credential、service-account file、token、private key、tunnel secret
 - local SQLite database、WAL/SHM、log、cache、generated audio、local state
 - raw production inventory、live route map、operational ledger、break-glass detail、control-plane DDL
-- private renderer truth、Oracle host exactness
+- private renderer truth や host-specific operational exactness
 - public docs 内の local absolute path や user-machine path
 
-public-safe ではない情報が必要な場合は、実物ではなく template、placeholder、contract、TODO を置きます。
+必要な情報が public-safe でない場合は、実体ではなく placeholder、contract、public-safe summary、TODO を置きます。
 
-## checks
+## Checks
 
-docs-only hygiene 変更の最小確認:
+変更した領域に応じたチェックを実行してください。docs-only hygiene 変更の最小確認は以下の通りです。
 
 ```powershell
 git diff --check
@@ -143,3 +149,9 @@ git status --short --branch
 ```
 
 より広い test / lint / CI は lane ごとに判断します。docs check が通っても production readiness を意味しません。
+
+## Release notes
+
+- [v2026.5.18 public progress checkpoint](docs/releases/v2026.5.18-public-progress-checkpoint.md)
+- [Release notes index](docs/RELEASE_NOTES.md)
+- [Current phase context](docs/CURRENT_PHASE_CONTEXT.md)
