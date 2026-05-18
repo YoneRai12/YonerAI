@@ -2,6 +2,13 @@
 
 This page is a curated summary of what changed across releases (beyond GitHub auto-generated notes).
 
+## v2026.5.18 Public Progress Checkpoint (2026-05-18)
+
+- Public checkpoint note: `docs/releases/v2026.5.18-public-progress-checkpoint.md`
+- Scope: v7.7 source-of-truth alignment, public GitHub hygiene cleanup, and self-evolution product intelligence specification.
+- Status: public progress checkpoint, not a production release.
+- Still open: PR #163 boundary plan, runtime/tooling hardcoded path cleanup, optional history remediation decision, and dependency-security lane.
+
 ## v2026.3.8-security -> v2026.4.7 (2026-04-07)
 
 ### Big Picture
