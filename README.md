@@ -2,7 +2,7 @@
 
 Provider-independent AI execution foundation for keeping one reliable AI experience across official, local, and self-hosted runtimes.
 
-[Japanese README](README_JP.md) | [Current phase](docs/CURRENT_PHASE_CONTEXT.md) | [Contracts](docs/contracts) | [Release checkpoint](docs/releases/v2026.5.18-public-progress-checkpoint.md)
+[Japanese README](README_JP.md) | [Current phase](docs/CURRENT_PHASE_CONTEXT.md) | [Contracts](docs/contracts) | [Latest checkpoint](docs/releases/v2026.5.19-public-runnable-mvp-checkpoint.md)
 
 ## What YonerAI Is
 
@@ -22,7 +22,7 @@ The active design anchor is v7.7:
 - contract-first public boundaries
 - public/private/control-plane separation by contract, not by leaking internal operations detail
 
-`v2026.5.18` is a public progress checkpoint, not a production release.
+`v2026.5.19` is a public runnable MVP checkpoint, not a production release.
 
 This repository does not claim shipping completeness, production readiness, official cloud completion, live operations completion, or full product completion.
 
@@ -53,7 +53,7 @@ Useful starting points:
 - [Current phase context](docs/CURRENT_PHASE_CONTEXT.md)
 - [External Agent API](docs/contracts/external-agent-api.md)
 - [SSE Run Events](docs/contracts/sse-run-events.md)
-- [v2026.5.18 checkpoint note](docs/releases/v2026.5.18-public-progress-checkpoint.md)
+- [v2026.5.19 checkpoint note](docs/releases/v2026.5.19-public-runnable-mvp-checkpoint.md)
 - [Latest traceability matrix](docs/TRACEABILITY_MATRIX_0_19.md)
 
 ## Product Surface Lanes
