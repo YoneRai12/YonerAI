@@ -2,7 +2,7 @@
 
 Provider-independent AI execution foundation for keeping one reliable AI experience across official, local, and self-hosted runtimes.
 
-[Japanese README](README_JP.md) | [Current phase](docs/CURRENT_PHASE_CONTEXT.md) | [Contracts](docs/contracts) | [Latest checkpoint](docs/releases/v2026.5.20-public-core-message-mvp-checkpoint.md)
+[Japanese README](README_JP.md) | [Current phase](docs/CURRENT_PHASE_CONTEXT.md) | [Contracts](docs/contracts) | [Latest checkpoint](docs/releases/v2026.5.20-web-ui-mock-chat-security-checkpoint.md)
 
 ## What YonerAI Is
 
@@ -22,7 +22,7 @@ The active design anchor is v7.7:
 - contract-first public boundaries
 - public/private/control-plane separation by contract, not by leaking internal operations detail
 
-`v2026.5.20` is a public core message MVP checkpoint, not a production release.
+`v2026.5.20` is a public Web UI mock-chat security checkpoint, not a production release.
 
 This repository does not claim shipping completeness, production readiness, official cloud completion, live operations completion, or full product completion.
 
@@ -30,7 +30,7 @@ Pass 2 remains stopped / not landed. `src/cogs/ora.py` remains unresolved privat
 
 ## Current MVP Capability
 
-The current public MVP is a credential-free local Core API health smoke plus a mock/offline message contract, not a ChatGPT-like chat product.
+The current public MVP is a credential-free local Core API health smoke plus a mock/offline Web UI message surface, not a ChatGPT-like chat product.
 
 What works today:
 
@@ -39,8 +39,9 @@ What works today:
 - start the local Core API
 - call `GET /health` and receive `{"ok": true}`
 - call `POST /v1/public/messages` and receive a deterministic offline mock reply
+- open `clients/web` locally and send a mock/offline message through that endpoint
 
-Not included yet: Web UI chat, Google login, conversation history sync, persistent natural memory, web search, Discord chat, provider live generation, official cloud, deployment, or full product completion.
+Not included yet: live Web AI chat, Google login, conversation history sync, persistent natural memory, web search, Discord chat, provider live generation, official cloud, deployment, or full product completion.
 
 See [Current MVP Capability Matrix](docs/CURRENT_MVP_CAPABILITY_MATRIX.md) for the user-facing capability table.
 
@@ -70,7 +71,8 @@ Useful starting points:
 - [Current MVP Capability Matrix](docs/CURRENT_MVP_CAPABILITY_MATRIX.md)
 - [External Agent API](docs/contracts/external-agent-api.md)
 - [SSE Run Events](docs/contracts/sse-run-events.md)
-- [v2026.5.19 checkpoint note](docs/releases/v2026.5.19-public-runnable-mvp-checkpoint.md)
+- [v2026.5.20 Web UI mock-chat checkpoint note](docs/releases/v2026.5.20-web-ui-mock-chat-security-checkpoint.md)
+- [Dependabot triage 2026-05-20](docs/security/DEPENDABOT_TRIAGE_2026_05_20.md)
 - [Latest traceability matrix](docs/TRACEABILITY_MATRIX_0_19.md)
 
 ## Product Surface Lanes
@@ -99,7 +101,7 @@ This public checkpoint does not include or claim:
 - `src/cogs/ora.py` implementation
 - runtime split implementation
 - full API / CLI / native Japanese CLI / Web / SNS product implementation
-- dependency vulnerability remediation
+- full dependency vulnerability remediation
 - runtime hardcoded path cleanup
 - git history rewrite
 - signed production release
@@ -162,6 +164,16 @@ Expected public message response includes:
 
 This message endpoint is a deterministic public contract smoke. It does not call a model provider, persist memory, run tools, or complete the Web/Discord chat product.
 
+To try the public Web UI mock-chat surface, keep the Core API running on port `8001`, then start the web client from another shell:
+
+```powershell
+cd clients\web
+npm ci
+npm run dev
+```
+
+Open `http://127.0.0.1:3000` and send a short message. The page posts to `/api/public/messages`, which is rewritten locally to `/v1/public/messages`. This is still mock/offline only.
+
 Do not commit `.env` or local secret files. Treat `.env.example` as a placeholder template, not production truth. Copying `.env.example` to `.env` is optional for local experiments, but the public smoke path above intentionally runs without real secrets.
 
 Additional public-safe contract smoke:
@@ -182,7 +194,7 @@ Optional web client:
 
 ```powershell
 cd clients\web
-npm install
+npm ci
 npm run dev
 ```
 
@@ -221,10 +233,12 @@ git diff --check
 pytest tests/test_public_runnable_smoke.py tests/test_runtime_env_loader.py -q
 pytest tests/test_distribution_node_mvp.py -q
 pytest tests/test_public_core_message_mvp.py tests/test_ora_import_map.py -q
+cd clients\web; npm ci; npm run lint; npm run build; npm audit --omit=dev
 ```
 
 ## Release Notes
 
+- [v2026.5.20 Web UI mock-chat security checkpoint](docs/releases/v2026.5.20-web-ui-mock-chat-security-checkpoint.md)
 - [v2026.5.20 public core message MVP checkpoint](docs/releases/v2026.5.20-public-core-message-mvp-checkpoint.md)
 - [v2026.5.19 public runnable MVP checkpoint](docs/releases/v2026.5.19-public-runnable-mvp-checkpoint.md)
 - [v2026.5.18 public progress checkpoint](docs/releases/v2026.5.18-public-progress-checkpoint.md)

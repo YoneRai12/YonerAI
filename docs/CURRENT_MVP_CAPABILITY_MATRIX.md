@@ -4,7 +4,7 @@ Status: public-safe capability truth for the current public MVP.
 
 ## Current MVP In One Sentence
 
-The current public MVP is a credential-free local Core API health smoke plus a mock/offline message contract, not a ChatGPT-like chat product.
+The current public MVP is a credential-free local Core API health smoke plus a mock/offline Web UI message surface, not a ChatGPT-like chat product.
 
 ## Included Now
 
@@ -13,6 +13,7 @@ The current public MVP is a credential-free local Core API health smoke plus a m
 - local Core API startup
 - `GET /health -> {"ok": true}`
 - `POST /v1/public/messages -> deterministic offline mock reply`
+- `clients/web` local mock-chat page that posts to `/api/public/messages`
 - public smoke tests
 - no Discord token required
 - no provider API key required
@@ -21,7 +22,7 @@ The current public MVP is a credential-free local Core API health smoke plus a m
 
 ## Not Included Yet
 
-- Web UI chat
+- live Web AI chat
 - ChatGPT-equivalent chat
 - web search
 - Google login
@@ -39,19 +40,19 @@ The current public MVP is a credential-free local Core API health smoke plus a m
 
 | Question | Current answer |
 |---|---|
-| Can I chat with AI from Web UI? | Not yet. |
+| Can I chat with AI from Web UI? | You can use a local mock/offline Web UI surface. Live AI chat is not included yet. |
 | Can it search the web? | Not yet. |
 | Can I log in with Google and keep the same history? | Not yet. |
 | Can I host on my PC and chat from phone Web or Discord? | Not yet. |
 | Does it naturally remember what I told it before? | Not yet. |
 | Can I verify a message request contract? | Yes, through the local mock/offline `POST /v1/public/messages` endpoint. |
-| What can I verify now? | Clone, install, start local Core API, call `/health`, and call `/v1/public/messages` in mock mode. |
+| What can I verify now? | Clone, install, start local Core API, call `/health`, call `/v1/public/messages`, and use the local mock-chat page. |
 
 ## Next Capability Ladder
 
 The current checkpoint should grow in separate, reviewable lanes:
 
-1. Web UI connection to the mock/offline message endpoint
+1. Web UI mock-chat browser smoke hardening
 2. provider adapter boundary
 3. memory persistence
 4. identity / Google login
