@@ -9,6 +9,13 @@ This page is a public-safe index of current release notes and progress checkpoin
 - Status: public-safe proposal-only MVP checkpoint, not a production release.
 - Still open: real telemetry remains out of scope, SNS scraping remains out of scope, and execution lanes require owner approval.
 
+## v2026.5.19 Branch Hygiene and Refactor Readiness Checkpoint
+
+- Public checkpoint note: `docs/releases/v2026.5.19-branch-hygiene-refactor-readiness-checkpoint.md`
+- Scope: branch / PR / worktree hygiene inventory plus `src/cogs/ora.py` decomposition planning.
+- Status: maintenance checkpoint, not a production release.
+- Still open: PR #169 review fixes, dedicated worktree cleanup, dedicated remote branch deletion, dependency-security triage, and future `src/cogs/ora.py` implementation.
+
 ## v2026.5.19 Public Runnable MVP Checkpoint
 
 - Public checkpoint note: `docs/releases/v2026.5.19-public-runnable-mvp-checkpoint.md`
