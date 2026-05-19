@@ -2,6 +2,13 @@
 
 This page is a public-safe index of current release notes and progress checkpoints.
 
+## v2026.5.19 Self-Evolution Proposal-only Checkpoint
+
+- Public checkpoint note: `docs/releases/v2026.5.19-self-evolution-proposal-only-checkpoint.md`
+- Scope: synthetic fixture signal normalization, proposal scoring, owner-reviewable Markdown proposal packets, and approval-gate tests.
+- Status: public-safe proposal-only MVP checkpoint, not a production release.
+- Still open: real telemetry remains out of scope, SNS scraping remains out of scope, and execution lanes require owner approval.
+
 ## v2026.5.19 Branch Hygiene and Refactor Readiness Checkpoint
 
 - Public checkpoint note: `docs/releases/v2026.5.19-branch-hygiene-refactor-readiness-checkpoint.md`
