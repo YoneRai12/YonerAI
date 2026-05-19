@@ -12,6 +12,7 @@ from ora_core.api.dependencies.auth import require_core_access
 from ora_core.api.routes.auth import router as auth_router
 from ora_core.api.routes.files import router as files_router
 from ora_core.api.routes.messages import router as messages_router
+from ora_core.api.routes.public_messages import router as public_messages_router
 from ora_core.api.routes.runs import router as runs_router
 from ora_core.api.routes.stats import router as stats_router
 from ora_core.distribution.runtime import build_runtime_from_env
@@ -63,7 +64,7 @@ def create_app():
                 "manual": {
                     "example": {
                         "conversation_id": None,
-                        "user_identity": {"provider": "web", "id": "local-user-1", "display_name": "YoneRai12"},
+                        "user_identity": {"provider": "web", "id": "local-user-1", "display_name": "Local User"},
                         "content": "Hello",
                         "attachments": [],
                         "idempotency_key": "550e8400-e29b-41d4-a716-446655440000"
@@ -94,6 +95,7 @@ def create_app():
     protected_deps = [Depends(require_core_access)]
 
     app.include_router(messages_router, prefix="/v1")
+    app.include_router(public_messages_router, prefix="/v1")
     app.include_router(runs_router, prefix="/v1")
     app.include_router(files_router, prefix="/v1")
     app.include_router(auth_router, prefix="/v1/auth", dependencies=protected_deps) # Core generic auth routes (me, logout)
