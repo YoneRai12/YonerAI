@@ -92,21 +92,45 @@ This public checkpoint does not include or claim:
 
 Use the smallest profile that matches the area you are reviewing.
 
+### Verified public runnable MVP path
+
+The current public runnable checkpoint is the local Core API smoke path. It does not require Discord credentials, a model provider API key, a private repository, VPS access, deployment, or a release tag.
+
 ```powershell
 python -m venv .venv
 .venv\Scripts\Activate.ps1
 python -m pip install -U pip
 pip install -r requirements.txt
-Copy-Item .env.example .env
+$env:PYTHONPATH = "$PWD;$PWD\core\src"
+$env:ORA_ALLOW_MISSING_SECRETS = "1"
+python scripts/init_core_db.py
+pytest tests/test_public_runnable_smoke.py tests/test_runtime_env_loader.py -q
 ```
 
-Do not commit `.env` or local secret files. Treat `.env.example` as a placeholder template, not production truth.
-
-Core API:
+Then start the local Core API and check health from another shell:
 
 ```powershell
-$env:PYTHONPATH = "core\src"
+$env:PYTHONPATH = "$PWD;$PWD\core\src"
+$env:ORA_ALLOW_MISSING_SECRETS = "1"
 python -m ora_core.main
+```
+
+```powershell
+Invoke-WebRequest -UseBasicParsing http://127.0.0.1:8001/health
+```
+
+Expected health body:
+
+```json
+{"ok": true}
+```
+
+Do not commit `.env` or local secret files. Treat `.env.example` as a placeholder template, not production truth. Copying `.env.example` to `.env` is optional for local experiments, but the public smoke path above intentionally runs without real secrets.
+
+Additional public-safe contract smoke:
+
+```powershell
+pytest tests/test_distribution_node_mvp.py -q
 ```
 
 Optional local web/API runtime:
@@ -125,6 +149,8 @@ npm run dev
 ```
 
 Discord adapter work requires local Discord credentials and belongs behind local/private profile boundaries. It is not required to inspect the public core.
+
+VPS, tunnel, official route, and deployment flows are not part of this public runnable MVP. Those belong in private/runtime/control-plane lanes.
 
 ## Public Safety
 
@@ -150,8 +176,17 @@ git status --short --branch
 
 Broader test, lint, and CI commands depend on the lane. Passing docs checks does not mean production readiness.
 
+For the public runnable MVP, the verified minimum checks are:
+
+```powershell
+git diff --check
+pytest tests/test_public_runnable_smoke.py tests/test_runtime_env_loader.py -q
+pytest tests/test_distribution_node_mvp.py -q
+```
+
 ## Release Notes
 
+- [v2026.5.19 public runnable MVP checkpoint](docs/releases/v2026.5.19-public-runnable-mvp-checkpoint.md)
 - [v2026.5.18 public progress checkpoint](docs/releases/v2026.5.18-public-progress-checkpoint.md)
 - [Release notes index](docs/RELEASE_NOTES.md)
 - [Current phase context](docs/CURRENT_PHASE_CONTEXT.md)

@@ -92,21 +92,45 @@ YonerAI では次の lane を分けて扱います。
 
 確認したい範囲に合う最小 profile で起動してください。
 
+### 検証済みの public runnable MVP path
+
+現在の public runnable checkpoint は、ローカル Core API の smoke path です。Discord credential、model provider API key、private repository、VPS access、deployment、release tag は不要です。
+
 ```powershell
 python -m venv .venv
 .venv\Scripts\Activate.ps1
 python -m pip install -U pip
 pip install -r requirements.txt
-Copy-Item .env.example .env
+$env:PYTHONPATH = "$PWD;$PWD\core\src"
+$env:ORA_ALLOW_MISSING_SECRETS = "1"
+python scripts/init_core_db.py
+pytest tests/test_public_runnable_smoke.py tests/test_runtime_env_loader.py -q
 ```
 
-`.env` や local secret file は commit しません。`.env.example` は placeholder template であり、production truth ではありません。
-
-Core API:
+次に local Core API を起動し、別 shell から health を確認します。
 
 ```powershell
-$env:PYTHONPATH = "core\src"
+$env:PYTHONPATH = "$PWD;$PWD\core\src"
+$env:ORA_ALLOW_MISSING_SECRETS = "1"
 python -m ora_core.main
+```
+
+```powershell
+Invoke-WebRequest -UseBasicParsing http://127.0.0.1:8001/health
+```
+
+期待する health body:
+
+```json
+{"ok": true}
+```
+
+`.env` や local secret file は commit しません。`.env.example` は placeholder template であり、production truth ではありません。`.env.example` を `.env` にコピーする作業は local experiment 用には任意ですが、上記の public smoke path は実 secret なしで動くことを意図しています。
+
+追加の public-safe contract smoke:
+
+```powershell
+pytest tests/test_distribution_node_mvp.py -q
 ```
 
 任意の local web/API runtime:
@@ -125,6 +149,8 @@ npm run dev
 ```
 
 Discord adapter work には local Discord credential が必要です。これは local/private profile boundary の内側で扱うもので、public core の確認には必須ではありません。
+
+VPS、tunnel、official route、deployment flow は、この public runnable MVP には含めません。それらは private/runtime/control-plane lane で扱います。
 
 ## Public safety
 
@@ -150,8 +176,17 @@ git status --short --branch
 
 より広い test / lint / CI は lane ごとに判断します。docs check が通っても production readiness を意味しません。
 
+public runnable MVP の検証済み最小チェックは以下です。
+
+```powershell
+git diff --check
+pytest tests/test_public_runnable_smoke.py tests/test_runtime_env_loader.py -q
+pytest tests/test_distribution_node_mvp.py -q
+```
+
 ## Release notes
 
+- [v2026.5.19 public runnable MVP checkpoint](docs/releases/v2026.5.19-public-runnable-mvp-checkpoint.md)
 - [v2026.5.18 public progress checkpoint](docs/releases/v2026.5.18-public-progress-checkpoint.md)
 - [Release notes index](docs/RELEASE_NOTES.md)
 - [Current phase context](docs/CURRENT_PHASE_CONTEXT.md)
