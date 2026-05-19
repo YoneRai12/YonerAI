@@ -4,7 +4,7 @@ Status: public-safe capability truth for the current public MVP.
 
 ## Current MVP In One Sentence
 
-The current public MVP is a credential-free local Core API health smoke plus a mock/offline Web UI message surface, not a ChatGPT-like chat product.
+The current public MVP is a credential-free local Core API health smoke plus message contracts for mock/offline and loopback-only local LLM conversation, not a ChatGPT-like finished product.
 
 ## Included Now
 
@@ -13,12 +13,14 @@ The current public MVP is a credential-free local Core API health smoke plus a m
 - local Core API startup
 - `GET /health -> {"ok": true}`
 - `POST /v1/public/messages -> deterministic offline mock reply`
+- `POST /v1/public/messages` with `mode: "local"` can call an Ollama-compatible local LLM runtime on loopback only
 - `clients/web` local mock-chat page that posts to `/api/public/messages`
 - public smoke tests
 - no Discord token required
 - no provider API key required
 - no private repository required
 - no memory persistence required
+- no external provider API key required for local mode
 
 ## Not Included Yet
 
@@ -31,6 +33,8 @@ The current public MVP is a credential-free local Core API health smoke plus a m
 - PC-hosted smartphone Web chat
 - PC-hosted Discord chat
 - provider live generation
+- arbitrary remote provider URL
+- old `ora-ui` as the product foundation
 - official cloud
 - deployment
 - full API / Web / CLI / SNS implementation
@@ -40,26 +44,29 @@ The current public MVP is a credential-free local Core API health smoke plus a m
 
 | Question | Current answer |
 |---|---|
-| Can I chat with AI from Web UI? | You can use a local mock/offline Web UI surface. Live AI chat is not included yet. |
+| Can I chat with AI from Web UI? | You can use a local mock/offline Web UI smoke surface. It is not the final product UI. |
 | Can it search the web? | Not yet. |
 | Can I log in with Google and keep the same history? | Not yet. |
 | Can I host on my PC and chat from phone Web or Discord? | Not yet. |
 | Does it naturally remember what I told it before? | Not yet. |
 | Can I verify a message request contract? | Yes, through the local mock/offline `POST /v1/public/messages` endpoint. |
-| What can I verify now? | Clone, install, start local Core API, call `/health`, call `/v1/public/messages`, and use the local mock-chat page. |
+| Can I use a local LLM? | Yes, if you run an Ollama-compatible runtime on `localhost`, `127.0.0.1`, or `::1` and call `mode: "local"`. |
+| Can I point it at a remote provider URL? | No. Local LLM mode rejects arbitrary remote, LAN, tunnel, and control-plane endpoints by default. |
+| What can I verify now? | Clone, install, start local Core API, call `/health`, call `/v1/public/messages` in mock mode, optionally call local LLM mode, and use the local mock-chat smoke page. |
 
 ## Next Capability Ladder
 
 The current checkpoint should grow in separate, reviewable lanes:
 
-1. Web UI mock-chat browser smoke hardening
-2. provider adapter boundary
-3. memory persistence
-4. identity / Google login
-5. Discord gateway
-6. web search
-7. self-evolution proposal-only MVP expansion
-8. official/private runtime lanes
+1. local LLM error/reporting hardening
+2. provider adapter boundary for non-loopback private lanes
+3. Web UI replacement or clean product surface decision
+4. memory persistence
+5. identity / Google login
+6. Discord gateway
+7. web search
+8. self-evolution proposal-only MVP expansion
+9. official/private runtime lanes
 
 Each ladder step needs its own tests, privacy boundary, and public wording review.
 
@@ -76,6 +83,7 @@ This checkpoint does not claim:
 - `src/cogs/ora.py` solved or landed
 - broader SSE/product exactness closure
 - Web implementation complete
+- final Web product UI complete
 - Discord gateway complete
 - Google login complete
 - memory complete
