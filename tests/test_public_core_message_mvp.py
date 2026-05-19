@@ -77,7 +77,10 @@ def test_public_message_endpoint_supports_loopback_local_mode(monkeypatch, tmp_p
     def fake_generate_local_llm_reply(*, message, conversation_id, model=None, config=None, client=None):
         assert message == "hello"
         assert conversation_id == "local-smoke"
-        assert model == "local-test"
+        assert model is None
+        assert config is not None
+        assert config.provider == "ollama"
+        assert config.model == "local-test"
         return local_llm.LocalLLMReply(reply="local test reply", provider="local-ollama", model="local-test")
 
     monkeypatch.setattr(local_llm, "generate_local_llm_reply", fake_generate_local_llm_reply)
@@ -104,6 +107,70 @@ def test_public_message_endpoint_supports_loopback_local_mode(monkeypatch, tmp_p
     assert body["contract_version"] == "local-llm-conversation-mvp-0.1"
 
 
+def test_public_message_endpoint_supports_openai_compatible_local_provider(monkeypatch, tmp_path):
+    app = _load_core_app(monkeypatch, tmp_path)
+
+    from ora_core.providers import local_llm
+
+    def fake_generate_local_llm_reply(*, message, conversation_id, model=None, config=None, client=None):
+        assert message == "hello"
+        assert conversation_id == "local-openai-smoke"
+        assert model is None
+        assert config is not None
+        assert config.provider == "openai_compatible_local"
+        assert config.base_url == "http://127.0.0.1:1234/v1"
+        assert config.model == "lm-studio-model"
+        assert config.temperature == 0.3
+        assert config.max_tokens == 128
+        return local_llm.LocalLLMReply(
+            reply="openai compatible local reply",
+            provider="local-openai-compatible",
+            model="lm-studio-model",
+        )
+
+    monkeypatch.setattr(local_llm, "generate_local_llm_reply", fake_generate_local_llm_reply)
+
+    with TestClient(app, client=("127.0.0.1", 50000)) as client:
+        response = client.post(
+            "/v1/public/messages",
+            json={
+                "message": "hello",
+                "conversation_id": "local-openai-smoke",
+                "mode": "local",
+                "local_provider": "openai_compatible_local",
+                "local_base_url": "http://127.0.0.1:1234/v1",
+                "model": "lm-studio-model",
+                "temperature": 0.3,
+                "max_tokens": 128,
+            },
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ok"] is True
+    assert body["mode"] == "local"
+    assert body["provider"] == "local-openai-compatible"
+    assert body["model"] == "lm-studio-model"
+    assert body["reply"] == "openai compatible local reply"
+
+
+def test_public_message_endpoint_rejects_unsupported_local_provider(monkeypatch, tmp_path):
+    app = _load_core_app(monkeypatch, tmp_path)
+
+    with TestClient(app, client=("127.0.0.1", 50000)) as client:
+        response = client.post(
+            "/v1/public/messages",
+            json={"message": "hello", "mode": "local", "local_provider": "remote-openai"},
+        )
+
+    assert response.status_code == 400
+    body = response.json()
+    assert body["error"] == "unsupported_local_llm_provider"
+    assert "lmstudio" in body["message"]
+    assert "localai" in body["message"]
+    assert "detail" not in body
+
+
 def test_public_message_endpoint_rejects_non_loopback_client_for_local_mode(monkeypatch, tmp_path):
     app = _load_core_app(monkeypatch, tmp_path)
 
@@ -117,11 +184,13 @@ def test_public_message_endpoint_rejects_non_loopback_client_for_local_mode(monk
 
 
 def test_public_message_endpoint_rejects_non_loopback_local_llm_url(monkeypatch, tmp_path):
-    monkeypatch.setenv("ORA_LOCAL_LLM_BASE_URL", "https://example.com")
     app = _load_core_app(monkeypatch, tmp_path)
 
     with TestClient(app, client=("127.0.0.1", 50000)) as client:
-        response = client.post("/v1/public/messages", json={"message": "hello", "mode": "local"})
+        response = client.post(
+            "/v1/public/messages",
+            json={"message": "hello", "mode": "local", "local_base_url": "https://example.com"},
+        )
 
     assert response.status_code == 400
     body = response.json()

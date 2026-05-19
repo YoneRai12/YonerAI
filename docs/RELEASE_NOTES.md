@@ -2,9 +2,17 @@
 
 This page is a public-safe index of current release notes and progress checkpoints.
 
+## v2026.5.21 Local LLM Provider Compatibility Checkpoint
+
+- Public checkpoint note: `docs/releases/v2026.5.21-local-llm-provider-compatibility-checkpoint.md`
+- Scope: provider-neutral local LLM compatibility for Ollama-style `/api/chat` and OpenAI-compatible local `/v1/chat/completions` servers.
+- Status: public local provider compatibility checkpoint, not a production release.
+- Still open: optional loopback-only model listing endpoint, final Web product UI, Google login, persistent memory, Discord gateway completion, `ora-ui` dependency remediation, non-loopback/private provider lanes, and future `src/cogs/ora.py` extraction.
+
 ## v2026.5.20 Local LLM Conversation MVP Checkpoint
 
 - Public checkpoint note: `docs/releases/v2026.5.20-local-llm-conversation-mvp-checkpoint.md`
+- GitHub Release: `v2026.5.20` normal visible checkpoint
 - Scope: loopback-only local LLM adapter, `POST /v1/public/messages` local mode, Dependabot triage refresh, and open PR backlog gate.
 - Status: public Local LLM conversation MVP checkpoint, not a production release.
 - Still open: final Web product UI, Google login, persistent memory, Discord gateway completion, `ora-ui` dependency remediation, non-loopback/private provider lanes, and future `src/cogs/ora.py` extraction.

@@ -1,6 +1,6 @@
 # Dependabot Triage 2026-05-21
 
-Status: public-safe dependency-security gate for the Local LLM Conversation MVP.
+Status: public-safe dependency-security gate for the Local LLM Conversation MVP and provider-compatibility follow-up.
 
 This report records the open Dependabot alert state observed before this branch is merged. It is not a full vulnerability remediation claim.
 
@@ -16,6 +16,8 @@ This report records the open Dependabot alert state observed before this branch 
 ## Gate Decision
 
 The Local LLM Conversation MVP can proceed as a Core API lane because the remaining critical/high alerts are not on the Core API or local LLM path.
+
+Recheck for the provider compatibility lane found the same open-alert shape: no current Dependabot alert targets the Core Python local LLM adapter path.
 
 The old `ora-ui` surface remains deferred. It must not be used as the product foundation until its dedicated dependency-security lane is handled.
 
@@ -41,6 +43,8 @@ The old `ora-ui` surface remains deferred. It must not be used as the product fo
 ## Security Boundary For This Lane
 
 The Local LLM Conversation MVP adds a Core adapter that only accepts loopback local LLM endpoints.
+
+The provider compatibility follow-up keeps the same boundary: Ollama and OpenAI-compatible local servers are supported only through loopback URLs, and external provider URLs remain rejected by default.
 
 It does not add:
 

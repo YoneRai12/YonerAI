@@ -2,7 +2,7 @@
 
 Provider-independent AI execution foundation for keeping one reliable AI experience across official, local, and self-hosted runtimes.
 
-[Japanese README](README_JP.md) | [Current phase](docs/CURRENT_PHASE_CONTEXT.md) | [Contracts](docs/contracts) | [Latest checkpoint](docs/releases/v2026.5.20-local-llm-conversation-mvp-checkpoint.md)
+[Japanese README](README_JP.md) | [Current phase](docs/CURRENT_PHASE_CONTEXT.md) | [Contracts](docs/contracts) | [Latest checkpoint](docs/releases/v2026.5.21-local-llm-provider-compatibility-checkpoint.md)
 
 ## What YonerAI Is
 
@@ -22,7 +22,7 @@ The active design anchor is v7.7:
 - contract-first public boundaries
 - public/private/control-plane separation by contract, not by leaking internal operations detail
 
-`v2026.5.20` is a public Local LLM conversation MVP checkpoint, not a production release.
+`v2026.5.20` is now visible as a normal GitHub Release for the public Local LLM conversation MVP checkpoint. The provider-compatibility note continues that checkpoint as a repository release note; neither is a production release.
 
 This repository does not claim shipping completeness, production readiness, official cloud completion, live operations completion, or full product completion.
 
@@ -39,7 +39,8 @@ What works today:
 - start the local Core API
 - call `GET /health` and receive `{"ok": true}`
 - call `POST /v1/public/messages` and receive a deterministic offline mock reply
-- call `POST /v1/public/messages` with `mode: "local"` to reach a loopback-only local Ollama-compatible runtime
+- call `POST /v1/public/messages` with `mode: "local"` to reach a loopback-only local LLM runtime
+- choose `local_provider: "ollama"` or `local_provider: "openai_compatible_local"` for supported local server styles
 - open `clients/web` locally and send a mock/offline message through that endpoint
 
 Not included yet: final Web product UI, Google login, conversation history sync, persistent natural memory, web search, Discord chat, external provider live generation, official cloud, deployment, or full product completion.
@@ -72,6 +73,8 @@ Useful starting points:
 - [Current MVP Capability Matrix](docs/CURRENT_MVP_CAPABILITY_MATRIX.md)
 - [External Agent API](docs/contracts/external-agent-api.md)
 - [SSE Run Events](docs/contracts/sse-run-events.md)
+- [v2026.5.21 Local LLM provider compatibility checkpoint note](docs/releases/v2026.5.21-local-llm-provider-compatibility-checkpoint.md)
+- [v2026.5.20 GitHub Release checkpoint](https://github.com/YoneRai12/YonerAI/releases/tag/v2026.5.20)
 - [v2026.5.20 Web UI mock-chat checkpoint note](docs/releases/v2026.5.20-web-ui-mock-chat-security-checkpoint.md)
 - [v2026.5.20 Local LLM conversation checkpoint note](docs/releases/v2026.5.20-local-llm-conversation-mvp-checkpoint.md)
 - [Dependabot triage 2026-05-20](docs/security/DEPENDABOT_TRIAGE_2026_05_20.md)
@@ -152,12 +155,25 @@ Invoke-RestMethod -Method Post `
 If you have a local Ollama-compatible runtime listening on loopback, try local mode:
 
 ```powershell
+$env:ORA_LOCAL_LLM_PROVIDER = "ollama"
 $env:ORA_LOCAL_LLM_BASE_URL = "http://127.0.0.1:11434"
 $env:ORA_LOCAL_LLM_MODEL = "llama3.2"
 Invoke-RestMethod -Method Post `
   -Uri http://127.0.0.1:8001/v1/public/messages `
   -ContentType "application/json" `
   -Body '{"message":"hello","mode":"local"}'
+```
+
+For an OpenAI-compatible local server such as LM Studio, llama.cpp / llama-cpp-python server, text-generation-webui with OpenAI API enabled, or LocalAI, keep the server on loopback and select the compatible provider:
+
+```powershell
+$env:ORA_LOCAL_LLM_PROVIDER = "openai_compatible_local"
+$env:ORA_LOCAL_LLM_BASE_URL = "http://127.0.0.1:1234/v1"
+$env:ORA_LOCAL_LLM_MODEL = "local-model"
+Invoke-RestMethod -Method Post `
+  -Uri http://127.0.0.1:8001/v1/public/messages `
+  -ContentType "application/json" `
+  -Body '{"message":"hello","mode":"local","local_provider":"openai_compatible_local","model":"local-model"}'
 ```
 
 Expected health body:
@@ -188,9 +204,11 @@ Expected local LLM response includes:
 }
 ```
 
-Local mode is loopback-only. The configured local LLM URL must be `localhost`, `127.0.0.1`, or `::1`; arbitrary remote URLs, LAN hosts, provider APIs, tunnels, and control-plane endpoints are rejected by default.
+For OpenAI-compatible local mode, `provider` is `local-openai-compatible`.
 
-This message endpoint does not persist memory, run tools, complete the Web/Discord chat product, or call OpenAI, Anthropic, Gemini, web search, SNS, or Discord.
+Local mode is loopback-only. The configured local LLM URL must be `localhost`, `127.0.0.1`, or `::1`; arbitrary remote URLs, LAN hosts, external provider APIs, tunnels, embedded credentials, query strings, fragments, and control-plane endpoints are rejected by default. Model availability depends on the local server. YonerAI passes the requested local model name through; it does not hardcode model families.
+
+This message endpoint does not persist memory, run tools, complete the Web/Discord chat product, or call external OpenAI, Anthropic, Gemini, web search, SNS, or Discord services.
 
 To try the public Web UI mock-chat surface, keep the Core API running on port `8001`, then start the web client from another shell:
 
@@ -266,6 +284,7 @@ cd clients\web; npm ci; npm run lint; npm run build; npm audit --omit=dev
 
 ## Release Notes
 
+- [v2026.5.21 Local LLM provider compatibility checkpoint](docs/releases/v2026.5.21-local-llm-provider-compatibility-checkpoint.md)
 - [v2026.5.20 Web UI mock-chat security checkpoint](docs/releases/v2026.5.20-web-ui-mock-chat-security-checkpoint.md)
 - [v2026.5.20 public core message MVP checkpoint](docs/releases/v2026.5.20-public-core-message-mvp-checkpoint.md)
 - [v2026.5.19 public runnable MVP checkpoint](docs/releases/v2026.5.19-public-runnable-mvp-checkpoint.md)

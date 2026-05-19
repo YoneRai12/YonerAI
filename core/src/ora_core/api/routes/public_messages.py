@@ -71,7 +71,11 @@ def _build_local_message_response(
     *,
     message: str,
     conversation_id: str,
+    local_provider: str | None,
+    local_base_url: str | None,
     model: str | None,
+    temperature: float | None,
+    max_tokens: int | None,
     request: Request | None,
 ) -> PublicMessageResponse:
     client_host = request.client.host if request and request.client else None
@@ -85,13 +89,29 @@ def _build_local_message_response(
     digest = hashlib.sha256(f"local:{conversation_id}:{message}".encode("utf-8")).hexdigest()
     message_id = f"local-msg-{digest[:16]}"
     try:
+        config = local_llm.build_local_llm_config(
+            provider=local_provider,
+            base_url=local_base_url,
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
         generated = local_llm.generate_local_llm_reply(
             message=message,
             conversation_id=conversation_id,
-            model=model,
+            config=config,
         )
     except local_llm.LocalLLMDisabledError:
         _raise_public_message_error(503, "local_llm_disabled", "Local LLM mode is disabled.")
+    except local_llm.LocalLLMProviderError:
+        _raise_public_message_error(
+            400,
+            "unsupported_local_llm_provider",
+            (
+                "Local mode supports ollama and openai_compatible_local. "
+                "OpenAI-compatible local aliases include lmstudio, llama.cpp, text-generation-webui, and localai."
+            ),
+        )
     except local_llm.LocalLLMSecurityError as exc:
         _raise_public_message_error(400, "unsafe_local_llm_endpoint", str(exc))
     except local_llm.LocalLLMConnectionError:
@@ -146,7 +166,11 @@ def build_public_message_response(req: PublicMessageRequest, request: Request | 
         return _build_local_message_response(
             message=message,
             conversation_id=conversation_id,
+            local_provider=req.local_provider,
+            local_base_url=req.local_base_url,
             model=req.model,
+            temperature=req.temperature,
+            max_tokens=req.max_tokens,
             request=request,
         )
 
