@@ -13,7 +13,9 @@ The current public MVP is a credential-free local Core API health smoke plus mes
 - local Core API startup
 - `GET /health -> {"ok": true}`
 - `POST /v1/public/messages -> deterministic offline mock reply`
-- `POST /v1/public/messages` with `mode: "local"` can call an Ollama-compatible local LLM runtime on loopback only
+- `POST /v1/public/messages` with `mode: "local"` can call supported loopback-only local LLM runtimes
+- local provider choices: `ollama` and `openai_compatible_local`
+- OpenAI-compatible local examples: LM Studio, llama.cpp / llama-cpp-python server, text-generation-webui with OpenAI API enabled, and LocalAI where compatible
 - `clients/web` local mock-chat page that posts to `/api/public/messages`
 - public smoke tests
 - no Discord token required
@@ -21,6 +23,7 @@ The current public MVP is a credential-free local Core API health smoke plus mes
 - no private repository required
 - no memory persistence required
 - no external provider API key required for local mode
+- no arbitrary remote local-provider URL accepted by default
 
 ## Not Included Yet
 
@@ -51,6 +54,8 @@ The current public MVP is a credential-free local Core API health smoke plus mes
 | Does it naturally remember what I told it before? | Not yet. |
 | Can I verify a message request contract? | Yes, through the local mock/offline `POST /v1/public/messages` endpoint. |
 | Can I use a local LLM? | Yes, if you run an Ollama-compatible runtime on `localhost`, `127.0.0.1`, or `::1` and call `mode: "local"`. |
+| Can I use LM Studio or llama.cpp server? | Yes, when it exposes a loopback OpenAI-compatible `/v1/chat/completions` endpoint and you select `local_provider: "openai_compatible_local"`. |
+| Can I choose a different local model? | Yes. Pass `model` in the request or set `ORA_LOCAL_LLM_MODEL`; availability depends on the local server. |
 | Can I point it at a remote provider URL? | No. Local LLM mode rejects arbitrary remote, LAN, tunnel, and control-plane endpoints by default. |
 | What can I verify now? | Clone, install, start local Core API, call `/health`, call `/v1/public/messages` in mock mode, optionally call local LLM mode, and use the local mock-chat smoke page. |
 
@@ -59,14 +64,15 @@ The current public MVP is a credential-free local Core API health smoke plus mes
 The current checkpoint should grow in separate, reviewable lanes:
 
 1. local LLM error/reporting hardening
-2. provider adapter boundary for non-loopback private lanes
-3. Web UI replacement or clean product surface decision
-4. memory persistence
-5. identity / Google login
-6. Discord gateway
-7. web search
-8. self-evolution proposal-only MVP expansion
-9. official/private runtime lanes
+2. optional local model listing endpoint if it stays loopback-only and small
+3. provider adapter boundary for non-loopback private lanes
+4. Web UI replacement or clean product surface decision
+5. memory persistence
+6. identity / Google login
+7. Discord gateway
+8. web search
+9. self-evolution proposal-only MVP expansion
+10. official/private runtime lanes
 
 Each ladder step needs its own tests, privacy boundary, and public wording review.
 

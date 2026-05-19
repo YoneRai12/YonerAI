@@ -1,6 +1,6 @@
 # Open PR Backlog Triage 2026-05-21
 
-Status: public-safe backlog gate for the Local LLM Conversation MVP.
+Status: public-safe backlog gate for the Local LLM Conversation MVP and provider-compatibility follow-up.
 
 This report is a triage snapshot. It does not close, merge, or delete any PR.
 
@@ -16,6 +16,8 @@ This report is a triage snapshot. It does not close, merge, or delete any PR.
 The Local LLM Conversation MVP should be built from current `public/main`, not from an open backlog branch.
 
 No open PR is used as a base for this lane. `ora-ui` Dependabot PRs and old Web/cloud PRs remain outside this Core API checkpoint.
+
+Recheck for the provider compatibility lane kept the same decision: build from current `public/main`, do not merge backlog PRs in bulk, and do not use old UI branches as the product foundation.
 
 ## Backlog Classes
 

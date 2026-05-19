@@ -13,6 +13,10 @@ class PublicMessageRequest(BaseModel):
     conversation_id: Optional[str] = Field(default=None, max_length=120)
     mode: str = Field(default="mock", max_length=24)
     model: Optional[str] = Field(default=None, max_length=120)
+    local_provider: Optional[str] = Field(default=None, max_length=64)
+    local_base_url: Optional[str] = Field(default=None, max_length=200)
+    temperature: Optional[float] = Field(default=None, ge=0.0, le=2.0)
+    max_tokens: Optional[int] = Field(default=None, ge=1, le=4096)
 
 
 class PublicMessageResponse(BaseModel):

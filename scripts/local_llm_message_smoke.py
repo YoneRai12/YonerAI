@@ -38,6 +38,10 @@ def main() -> int:
     parser.add_argument("--endpoint", default=DEFAULT_ENDPOINT)
     parser.add_argument("--message", default="hello from local LLM smoke")
     parser.add_argument("--model", default=None)
+    parser.add_argument("--provider", default="ollama", choices=("ollama", "openai_compatible_local"))
+    parser.add_argument("--local-base-url", default=None)
+    parser.add_argument("--temperature", type=float, default=None)
+    parser.add_argument("--max-tokens", type=int, default=None)
     args = parser.parse_args()
 
     try:
@@ -50,9 +54,16 @@ def main() -> int:
         "message": args.message,
         "mode": "local",
         "conversation_id": "local-llm-smoke",
+        "local_provider": args.provider,
     }
     if args.model:
         payload["model"] = args.model
+    if args.local_base_url:
+        payload["local_base_url"] = _validate_loopback_endpoint(args.local_base_url)
+    if args.temperature is not None:
+        payload["temperature"] = args.temperature
+    if args.max_tokens is not None:
+        payload["max_tokens"] = args.max_tokens
 
     body = json.dumps(payload).encode("utf-8")
     req = request.Request(

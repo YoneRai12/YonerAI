@@ -14,6 +14,7 @@ This addendum records public implementation checkpoints that now exist under tha
 - credential-free `POST /v1/public/messages` mock/offline message contract
 - `clients/web` mock-chat surface that calls the public message contract locally
 - loopback-only local LLM conversation mode for `POST /v1/public/messages`
+- provider-neutral local compatibility for Ollama-style `/api/chat` and OpenAI-compatible local `/v1/chat/completions`
 
 ## Why This Is Not v7.8
 
@@ -42,4 +43,4 @@ This checkpoint does not add:
 - deployment
 - `src/cogs/ora.py` implementation or rename
 
-The local LLM mode remains loopback-only and optional. It can connect to a user-controlled local Ollama-compatible runtime, but it does not turn the public Web smoke surface into the final product UI or complete provider ecosystem support.
+The local LLM mode remains loopback-only and optional. It can connect to a user-controlled local Ollama-compatible runtime or to a loopback OpenAI-compatible local server such as LM Studio, llama.cpp / llama-cpp-python server, text-generation-webui with OpenAI API enabled, or LocalAI where compatible. This does not turn the public Web smoke surface into the final product UI and does not complete the provider ecosystem.
