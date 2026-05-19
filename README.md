@@ -1,379 +1,157 @@
-<div align="center">
-
 # YonerAI
-### **The Artificial Lifeform AI System (Node + Clients + Relay + Core)**
 
-![YonerAI Banner](docs/images/yonerai_banner.svg)
+Provider-independent AI execution foundation for keeping one reliable AI experience across official, local, and self-hosted runtimes.
 
-[![Release](https://img.shields.io/github/v/release/YoneRai12/YonerAI?style=for-the-badge&logo=github&color=blue)](https://github.com/YoneRai12/YonerAI/releases)
-[![Build and Test](https://github.com/YoneRai12/YonerAI/actions/workflows/test.yml/badge.svg?style=for-the-badge)](https://github.com/YoneRai12/YonerAI/actions/workflows/test.yml)
-[![Discord](https://img.shields.io/badge/Discord-Join-7289DA?style=for-the-badge&logo=discord)](https://discord.gg/YoneRai12)
-[![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
+[Japanese README](README_JP.md) | [Current phase](docs/CURRENT_PHASE_CONTEXT.md) | [Contracts](docs/contracts) | [Release checkpoint](docs/releases/v2026.5.18-public-progress-checkpoint.md)
 
-[**[Manual]**](docs/USER_GUIDE.md) | [**[Env Templates]**](docs/ENV_FILES.md) | [**[Release Notes]**](docs/RELEASE_NOTES.md) | [**[Web Chat]**](http://localhost:3000) | [**[Dashboard]**](http://localhost:3333)
+## What YonerAI Is
 
----
+YonerAI is a long-lived AI runtime foundation. Its purpose is to keep the same user-facing experience and the same contract boundaries even when the active model provider, UI surface, local runtime, or self-hosted profile changes.
 
-[**English**](README.md) | [日本語](README_JP.md)
+It is not just a Discord bot and not just a model router. Discord, Web, relay, API, CLI, native Japanese CLI, SNS distribution, and self-evolution are separate product lanes with different risk profiles and approval requirements.
 
-</div>
+This public README describes the public contract surface. It does not publish internal operations detail, credentials, live routes, or host-specific facts.
 
----
+## Current Checkpoint
 
-## What Is YonerAI?
+The active design anchor is v7.7:
 
-YonerAI is a local-first AI system designed to live on your own machine first.
-At its core, YonerAI is a **Node-style runtime** that can combine:
+- provider independence
+- the same experience across official, local, and self-hosted directions
+- self-evolution as approval-gated product intelligence
+- contract-first public boundaries
+- public/private/control-plane separation by contract, not by leaking internal operations detail
 
-- Discord as a daily interface
-- local/admin web UIs
-- tool / skill execution with risk scoring + approvals
-- an optional Core process for deeper routing / reasoning
-- relay-compatible networking for hybrid or remote-assisted setups
+`v2026.5.18` is a public progress checkpoint, not a production release.
 
-This public repository is the **distributable YonerAI side**: the part that should be able to run on a user's PC, be extended locally, and remain useful without private production infrastructure.
+This repository does not claim shipping completeness, production readiness, official cloud completion, live operations completion, or full product completion.
 
-Note: many internal paths/env vars still use legacy `ORA_*` prefixes for compatibility. Product/release branding is controlled by `PRODUCT_NAME`.
+Pass 2 remains stopped / not landed. `src/cogs/ora.py` remains unresolved private/runtime/control-plane boundary residue and is not treated as a narrow public patch target.
 
-### Scope Of This Public Repo
+## Product Modes
 
-What this repo is for:
+YonerAI is designed around three high-level ways to use the same contract-first foundation:
 
-- a local-first AI node you can run on Windows
-- a Discord-centric personal/operator workflow
-- local tool and skill execution
-- web/admin surfaces for setup and daily use
-- hybrid-ready relay/core patterns you can adapt later
+- Full Private Self-Host: the user controls the runtime boundary.
+- Official Hybrid Private: official governance and a local/private runtime can work together through explicit contracts.
+- Official Managed Cloud: the same experience can be offered as a managed surface when that lane is ready.
 
-What this repo is **not** trying to be on its own:
+These are product modes, not a repository map. Public docs should describe the contract and user experience, not private operational detail.
 
-- the private commercial platform
-- the official `yonerai.com` operations layer
-- billing / production moderation / internal admin stacks
-- private production secrets, runbooks, or internal-only services
+## What Is Included In This Public Repo
 
-In other words: this repo is the public YonerAI foundation you can run, inspect, and extend. The heavier private operations side is intentionally separate.
+The public surface is for reviewable contracts, public-safe runtime abstractions, capability boundaries, connector patterns, client-facing documentation, and regression tests.
 
-### Current Status Of The Split
+Private runtime behavior, operator-only workflows, live routes, deployment truth, raw production inventory, credentials, and host-specific control-plane details do not belong in public-facing documentation.
 
-The long-term direction is a clearer split between:
+Cross-boundary interaction should happen through explicit contracts such as APIs, events, files, auth claims, capability manifests, protocols, and schemas.
 
-- the public distributable YonerAI node side
-- the private VPS / commercial / official web side
+Raw chain-of-thought must not cross public chat, API, SSE, log, documentation, or trace surfaces. Public traces should expose only safe summaries, labels, details, and already-public sources.
 
-That separation is still being formalized. Because of that, this repo currently still contains some broader shared foundation code and docs, especially around hybrid deployment and future-facing architecture.
+Useful starting points:
 
-### What You Can Do With YonerAI
+- [Current phase context](docs/CURRENT_PHASE_CONTEXT.md)
+- [External Agent API](docs/contracts/external-agent-api.md)
+- [SSE Run Events](docs/contracts/sse-run-events.md)
+- [v2026.5.18 checkpoint note](docs/releases/v2026.5.18-public-progress-checkpoint.md)
+- [Latest traceability matrix](docs/TRACEABILITY_MATRIX_0_19.md)
 
-With the current public repo, you can:
+## Product Surface Lanes
 
-- run YonerAI locally as a Discord bot
-- start a local setup/admin API
-- use web chat and dashboard UIs
-- route requests through local and/or cloud model backends
-- execute tools behind approvals and audit logging
-- extend the system with built-in tools, local skills, or MCP servers
-- prepare for hybrid mode where a VPS acts as a control plane and your PC remains the worker
+YonerAI keeps these lanes separate:
 
-### Runtime Components
+- API: contract authority
+- CLI: command authority
+- native Japanese CLI: ambiguous-command confirmation and explanation responsibility
+- Web: product surface
+- SNS: distribution lane, not a core blocker
+- self-evolution: product intelligence and proposal scoring, not unapproved code mutation
+- private runtime / control plane: execution authority, supervision, and operator-only behavior
 
-- Bot process (Discord): `python main.py`
-- Admin server (FastAPI): `uvicorn src.web.app:app --host 0.0.0.0 --port 8000`
-- Core (optional): `python -m ora_core.main`
-- Web Chat UI (Next.js): `clients/web/`
-- Dashboard UI (Next.js): `ora-ui/`
-- Relay pieces for pairing / proxy style flows: `src/relay/`
+Combining these lanes into one implementation batch is not a shortcut to public-core readiness.
 
-### Repository Layout
+## What Is Not Included / Not Claimed
 
-- `src/`
-  - bot runtime, web API, relay, tools, skills, approvals, audit, utilities
-- `core/`
-  - optional Core API and reasoning/routing logic
-- `clients/web/`
-  - public-facing chat UI
-- `ora-ui/`
-  - dashboard / operator UI
-- `docs/`
-  - architecture notes, deployment guides, diagrams, extension docs
-- `tools/`
-  - helper projects and external tool integrations
+This public checkpoint does not include or claim:
 
-### Deployment Modes
+- production readiness
+- shipping completeness
+- official cloud completion
+- live operations completion
+- full product completion
+- `src/cogs/ora.py` implementation
+- runtime split implementation
+- API / CLI / native Japanese CLI / Web / SNS implementation
+- dependency vulnerability remediation
+- runtime hardcoded path cleanup
+- git history rewrite
+- release tag creation
+- deployment
 
-You can think about this repo in three practical modes:
+## Local Development
 
-1. **Local-only**
-   - Run the bot and optional UIs on your own PC.
-2. **Local + Core**
-   - Add the optional Core process for more explicit routing / reasoning separation.
-3. **Hybrid**
-   - Run a VPS control plane later while keeping your own PC as the high-trust worker.
+Use the smallest profile that matches the area you are reviewing.
 
-### Deep Docs
-
-If you want the deeper docs:
-- `docs/USER_GUIDE.md`
-- `docs/SYSTEM_ARCHITECTURE.md`
-- `docs/VPS_DEPLOYMENT.md` (run the always-on control plane on a VPS; hybrid mode)
-- `docs/DOMAIN_ROUTES.md` (recommended `yonerai.com` subdomains and API path design)
-- `docs/PLATFORM_PLAN.md` (product direction: Node + Clients + Relay + Cloud)
-- `docs/PLATFORM_REVIEW_AND_RISKS.md` (devil's advocate review / risks)
-- `ORA_SYSTEM_SPEC.md`
-- `AGENTS.md` (Codex/agent workspace instructions for this repo)
-
----
-
-## Quickstart (Windows)
-
-Prereqs:
-- Python 3.11
-- Node.js (for `clients/web`, `ora-ui`, and some skills)
-- FFmpeg on `PATH` (voice/music and some media skills)
-
-### 1) Bot
 ```powershell
 python -m venv .venv
 .venv\Scripts\Activate.ps1
-pip install -U pip
+python -m pip install -U pip
 pip install -r requirements.txt
 Copy-Item .env.example .env
-python main.py
 ```
 
-Minimum required env var: `DISCORD_BOT_TOKEN`.
+Do not commit `.env` or local secret files. Treat `.env.example` as a placeholder template, not production truth.
 
-Optional semantic memory:
+Core API:
+
 ```powershell
-pip install -r requirements-optional-memory.txt
+$env:PYTHONPATH = "core\src"
+python -m ora_core.main
 ```
 
-Notes:
-- `chromadb` is optional for the public node.
-- If it is not installed, YonerAI still starts, but VectorMemory / semantic recall stays disabled.
-- On some Windows environments, ChromaDB may require Microsoft Visual C++ Build Tools.
+Optional local web/API runtime:
 
-### 2) Admin Server (optional)
 ```powershell
 .venv\Scripts\Activate.ps1
-uvicorn src.web.app:app --reload --host 0.0.0.0 --port 8000
+uvicorn src.web.app:app --reload --host 127.0.0.1 --port 8000
 ```
 
-### 3) Web UIs (optional)
+Optional web client:
+
 ```powershell
 cd clients\web
 npm install
 npm run dev
 ```
 
+Discord adapter work requires local Discord credentials and belongs behind local/private profile boundaries. It is not required to inspect the public core.
+
+## Public Safety
+
+Do not commit:
+
+- real `.env` files or secret backups
+- credentials, service-account files, tokens, private keys, or tunnel secrets
+- local SQLite databases, WAL/SHM files, logs, caches, generated audio, or local state
+- raw production inventory, live route maps, operational ledgers, break-glass details, or control-plane DDL
+- private renderer truth or host-specific operational exactness
+- local absolute paths or user-machine paths in public docs
+
+If a required detail is not public-safe, add a placeholder, contract, public-safe summary, or TODO instead of publishing private material.
+
+## Checks
+
+Run targeted checks for the area you change. For docs-only hygiene changes, minimum validation is:
+
 ```powershell
-cd ora-ui
-npm install
-npm run dev
+git diff --check
+git status --short --branch
 ```
 
-### 4) Core (optional)
-```powershell
-$env:PYTHONPATH = "core\src"
-python -m ora_core.main
-```
+Broader test, lint, and CI commands depend on the lane. Passing docs checks does not mean production readiness.
 
-Notes:
-- `start_all.bat` is a convenience launcher, but it contains machine-specific paths. Treat it as an example to adapt.
+## Release Notes
 
----
-
-## Configuration (.env)
-
-Start from `.env.example`.
-
-Required:
-- `DISCORD_BOT_TOKEN`
-
-Optional local semantic memory:
-- Install `requirements-optional-memory.txt` if you want ChromaDB-backed VectorMemory on this node.
-- If you skip it, the bot and local web/API still run; only semantic memory is disabled.
-
-### Web Setup UI (Optional)
-
-If you don't want to edit `.env` directly, you can configure secrets + URLs via the local Setup page:
-
-1. Start the Admin server:
-   - `uvicorn src.web.app:app --reload --host 127.0.0.1 --port 8000`
-2. Open:
-   - `http://127.0.0.1:8000/setup`
-
-This writes to profile-scoped `secrets/` + `state/settings_override.json` (so you avoid committing `.env`).
-
-Recommended:
-- `DISCORD_APP_ID` (Application ID)
-- `ORA_DEV_GUILD_ID` (dev guild sync is immediate; global sync can take up to ~1 hour)
-- `ADMIN_USER_ID` (owner/creator identity)
-
-### External API Path (Token Protected)
-
-Use these stable paths for external automation/integration:
-
-- `POST /api/v1/agent/run`
-- `GET /api/v1/agent/runs/{run_id}/events`
-- `POST /api/v1/agent/runs/{run_id}/results`
-
-Authentication:
-- Set `ORA_WEB_API_TOKEN`
-- Send `Authorization: Bearer <token>` (or `x-ora-token`)
-
-Example:
-```bash
-curl -X POST "https://admin.yourdomain.com/api/v1/agent/run" \
-  -H "Authorization: Bearer $ORA_WEB_API_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"prompt":"Summarize latest status","user_id":"api-client-1"}'
-```
-
-Feature toggles you likely care about:
-- `OPENAI_API_KEY` (cloud models)
-- `LLM_BASE_URL`, `LLM_MODEL` (local gateway)
-- `ORA_PUBLIC_TOOLS`, `ORA_SUBADMIN_TOOLS` (tool allowlists)
-- `ORA_APPROVAL_TIMEOUT_SEC` and audit retention settings (approvals + audit logs)
-
----
-
-## Skills (Local Tools)
-
-YonerAI supports two local mechanisms that are both executed through the same ToolHandler boundary:
-
-- Static tool registry: `src/cogs/tools/registry.py`
-  - Built-in tools with an implementation path like `src.cogs.tools.web_tools:navigate`.
-- Dynamic skills: `src/skills/<skill_name>/`
-  - Self-describing skills in the "Clawdbot pattern": `SKILL.md` + `tool.py` (+ optional `schema.json`).
-  - Loaded by `src/skills/loader.py` and executed by `src/cogs/tools/tool_handler.py`.
-
-Skill folder shape:
-- `src/skills/<name>/SKILL.md` (usage + requirements)
-- `src/skills/<name>/tool.py`
-  - `async def execute(args: dict, message: discord.Message, bot: Any = None) -> Any`
-  - optional `TOOL_SCHEMA = {name, description, parameters, tags}`
-
-Example skill:
-- `src/skills/remotion_create_video/` (requires Node deps in `tools/remotion/`)
-
-### Remotion (Video Rendering)
-
-Skill: `remotion_create_video`
-
-Setup (one-time):
-```powershell
-cd tools/remotion
-npm ci
-```
-
-Notes:
-- Requires Node.js + `npx` on `PATH`.
-- Optional env vars: `ORA_REMOTION_PROJECT_DIR`, `ORA_REMOTION_ENTRY`, `ORA_REMOTION_RENDER_TIMEOUT_SEC`.
-
----
-
-## MCP (Model Context Protocol) Tool Servers
-
-MCP support is **disabled by default**. When enabled, YonerAI connects to configured MCP servers via stdio and registers each remote tool as a local tool:
-
-- Tool name format: `mcp__<server>__<tool>`
-- Loader: `src/cogs/mcp.py`
-- Transport: `src/utils/mcp_client.py` (minimal MCP-over-stdio client)
-
-Enable MCP:
-```ini
-ORA_MCP_ENABLED=1
-# JSON array of servers
-# Each entry supports: name, command, cwd, env, allowed_tools, allow_dangerous_tools
-ORA_MCP_SERVERS_JSON=[{"name":"artist","command":"python scripts/mock_mcp_artist.py","allowed_tools":["generate_artwork"]}]
-```
-
-Alternatively, configure `mcp_servers` in `config.yaml` (same object shape) instead of `ORA_MCP_SERVERS_JSON`.
-
-Hardening knobs:
-- `ORA_MCP_DENY_TOOL_PATTERNS` (default denies common destructive/execution-ish names)
-- `ORA_MCP_ALLOW_DANGEROUS=0` (keep deny patterns enforced)
-
----
-
-## Safety (Risk Scoring, Approvals, Audit)
-
-- Risk scoring: `src/utils/risk_scoring.py`
-- Approvals gate: `src/cogs/tools/tool_handler.py` (risk-based approval before execution)
-- Audit DB: `ora_bot.db` (retention controlled by `.env` variables like `ORA_AUDIT_RETENTION_DAYS`)
-
----
-
-## Current System Flow (Hub + Spoke)
-
-YonerAI currently runs as a hub/spoke agent pipeline:
-- `ChatHandler` (Discord/Web thin client) builds context, attachments, and a filtered tool list.
-- `Core API` owns the reasoning loop and emits tool calls.
-- The bot executes tools locally and submits results back to Core.
-
-If you want to add features (tools/skills/MCP) without breaking the core loop, see: `docs/EXTENSIONS.md`.
-
-### End-to-End Request Path (Sequence)
-<img alt="End-to-End Request Path (Sequence)" src="docs/diagrams/e2e_request_path_sequence_en.png#gh-light-mode-only" width="1100">
-<img alt="End-to-End Request Path (Sequence)" src="docs/diagrams/e2e_request_path_sequence_en_dark.png#gh-dark-mode-only" width="1100">
-
-Mermaid source: `docs/diagrams/e2e_request_path_sequence_en.mmd` (light), `docs/diagrams/e2e_request_path_sequence_en_dark.mmd` (dark)
-
----
-
-### Relay Pairing + Proxy Path (Sequence)
-<img alt="Relay Pairing + Proxy Path (Sequence)" src="docs/diagrams/relay_pairing_and_proxy_en.png#gh-light-mode-only" width="1100">
-<img alt="Relay Pairing + Proxy Path (Sequence)" src="docs/diagrams/relay_pairing_and_proxy_en_dark.png#gh-dark-mode-only" width="1100">
-
-Mermaid source: `docs/diagrams/relay_pairing_and_proxy_en.mmd` (light), `docs/diagrams/relay_pairing_and_proxy_en_dark.mmd` (dark)
-
----
-
-### Tool Policy + Approvals Gate (Flow)
-<img alt="Tool Policy + Approvals Gate (Flow)" src="docs/diagrams/tool_policy_and_approvals_flow_en.png#gh-light-mode-only" width="1100">
-<img alt="Tool Policy + Approvals Gate (Flow)" src="docs/diagrams/tool_policy_and_approvals_flow_en_dark.png#gh-dark-mode-only" width="1100">
-
-Mermaid source: `docs/diagrams/tool_policy_and_approvals_flow_en.mmd` (light), `docs/diagrams/tool_policy_and_approvals_flow_en_dark.mmd` (dark)
-
-## Dev Checks (Same As CI)
-
-```bash
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\\Scripts\\activate
-pip install -U pip
-pip install -r requirements.txt
-pip install ruff mypy pytest pytest-asyncio
-
-ruff check .
-mypy src/ --ignore-missing-imports
-python -m compileall src/
-pytest
-```
-
----
-
-## Release/Tag Rules
-
-1. Update `VERSION` using SemVer (`X.Y.Z`).
-2. Update changelog entries.
-3. Create a git tag as `vX.Y.Z` and push it.
-
-```bash
-python scripts/verify_version.py --tag v5.1.8
-git tag v5.1.8
-git push origin v5.1.8
-```
-
----
-
-## Contributing
-
-- No hardcoded API keys.
-- Keep tool schemas accurate (skills + MCP tools rely on schemas/tags for routing and risk scoring).
-
----
-
-## License
-
-MIT. See `LICENSE`.
+- [v2026.5.18 public progress checkpoint](docs/releases/v2026.5.18-public-progress-checkpoint.md)
+- [Release notes index](docs/RELEASE_NOTES.md)
+- [Current phase context](docs/CURRENT_PHASE_CONTEXT.md)
