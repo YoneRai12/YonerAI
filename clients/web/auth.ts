@@ -20,7 +20,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             return token
         },
         async session({ session, token }) {
-            // @ts-ignore
+            // @ts-expect-error Auth.js session augmentation is not declared in this public client yet.
             session.accessToken = token.accessToken
             return session
         },

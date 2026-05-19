@@ -2,6 +2,13 @@
 
 This page is a public-safe index of current release notes and progress checkpoints.
 
+## v2026.5.20 Web UI Mock-chat Security Checkpoint
+
+- Public checkpoint note: `docs/releases/v2026.5.20-web-ui-mock-chat-security-checkpoint.md`
+- Scope: Dependabot triage, public message API follow-up hardening, `clients/web` dependency cleanup, and a local mock/offline Web UI surface.
+- Status: public Web UI mock-chat checkpoint, not a production release.
+- Still open: live provider generation, Google login, persistent memory, Discord gateway completion, `ora-ui` dependency remediation, and future `src/cogs/ora.py` extraction.
+
 ## v2026.5.20 Public Core Message MVP Checkpoint
 
 - Public checkpoint note: `docs/releases/v2026.5.20-public-core-message-mvp-checkpoint.md`
