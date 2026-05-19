@@ -60,10 +60,48 @@ def test_rejects_forbidden_fields(field_name):
 
 
 @pytest.mark.parametrize(
+    "field_name",
+    [
+        "user_api_key",
+        "raw_prompt_text",
+        "discord_token",
+        "google_client_secret",
+        "private_path",
+        "secret_value",
+        "deploy_request",
+        "client_secret_value",
+        "prod_open_pr_flag",
+        "external_sns_query_text",
+    ],
+)
+def test_rejects_forbidden_field_prefix_suffix_bypasses(field_name):
+    payload = _safe_payload()
+    payload[field_name] = "unsafe"
+
+    with pytest.raises(UnsafeSignalError):
+        normalize_signal(payload)
+
+
+def test_allows_safe_synthetic_extra_fields():
+    payload = _safe_payload()
+    payload["provider_independence_gain"] = "Synthetic product scoring note only."
+
+    signal = normalize_signal(payload)
+
+    assert signal.id == "sample-safe"
+
+
+@pytest.mark.parametrize(
     "unsafe_value_factory",
     [
         lambda: "sk-" + ("x" * 24),
         lambda: "Q:" + "\\synthetic\\secret.txt",
+        lambda: "/root/.config/example",
+        lambda: "/etc/example.conf",
+        lambda: "/var/log/example.log",
+        lambda: "/tmp/example.txt",
+        lambda: "/Users/example/private.txt",
+        lambda: "/home/example/private.txt",
         lambda: "https://" + "example.invalid/source",
     ],
 )
@@ -73,6 +111,11 @@ def test_rejects_secret_path_or_live_url_values(unsafe_value_factory):
 
     with pytest.raises(UnsafeSignalError):
         normalize_signal(payload)
+
+
+def test_rejects_non_dict_signal_payload():
+    with pytest.raises(UnsafeSignalError, match="signal payload must be a dictionary"):
+        normalize_signal("unsafe")  # type: ignore[arg-type]
 
 
 @pytest.mark.parametrize(

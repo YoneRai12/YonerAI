@@ -32,6 +32,9 @@ FORBIDDEN_FIELD_NAMES = {
     "credential",
     "api_key",
     "private_key",
+    "private_path",
+    "local_path",
+    "client_secret",
 }
 
 FORBIDDEN_ACTION_FIELDS = {
@@ -54,6 +57,13 @@ FORBIDDEN_LIVE_SOURCE_FIELDS = {
     "discord_runtime_source",
 }
 
+FORBIDDEN_KEY_TERMS = frozenset(FORBIDDEN_FIELD_NAMES | FORBIDDEN_ACTION_FIELDS | FORBIDDEN_LIVE_SOURCE_FIELDS)
+FORBIDDEN_KEY_PATTERN = re.compile(
+    r"(?:^|_)(?:"
+    + "|".join(re.escape(term) for term in sorted(FORBIDDEN_KEY_TERMS, key=len, reverse=True))
+    + r")(?:_|$)"
+)
+
 SECRET_VALUE_PATTERNS = [
     re.compile(r"sk-[A-Za-z0-9_-]{20,}"),
     re.compile(r"ghp_[A-Za-z0-9_]{20,}"),
@@ -61,7 +71,10 @@ SECRET_VALUE_PATTERNS = [
     re.compile(r"[MN][A-Za-z\d]{23}\.[\w-]{6}\.[\w-]{27}"),
 ]
 
-LOCAL_PATH_PATTERN = re.compile(r"([A-Za-z]:[\\/]|\\\\|/Users/|/home/)", re.IGNORECASE)
+LOCAL_PATH_PATTERN = re.compile(
+    r"([A-Za-z]:[\\/]|\\\\|/Users/|/home/|/root/|/etc/|/var/|/tmp/)",
+    re.IGNORECASE,
+)
 URL_PATTERN = re.compile(r"https?://", re.IGNORECASE)
 DATE_BUCKET_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 ALLOWED_SOURCES = {"synthetic_fixture", "manual_fixture", "public_safe_fixture"}
@@ -83,9 +96,8 @@ class SignalEvent:
 
 
 def _check_key(key: str) -> None:
-    normalized = key.strip().lower()
-    forbidden = FORBIDDEN_FIELD_NAMES | FORBIDDEN_ACTION_FIELDS | FORBIDDEN_LIVE_SOURCE_FIELDS
-    if normalized in forbidden:
+    normalized = re.sub(r"[^a-z0-9]+", "_", key.strip().lower()).strip("_")
+    if FORBIDDEN_KEY_PATTERN.search(normalized):
         raise UnsafeSignalError(f"forbidden field: {key}")
 
 
@@ -124,6 +136,8 @@ def _bounded_int(payload: dict[str, Any], field: str) -> int:
 
 
 def normalize_signal(payload: dict[str, Any]) -> SignalEvent:
+    if not isinstance(payload, dict):
+        raise UnsafeSignalError("signal payload must be a dictionary")
     _walk_public_safe(payload)
     required = {
         "id",

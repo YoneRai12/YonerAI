@@ -7,6 +7,19 @@ from .scoring import ScoreBreakdown, score_signal
 from .signals import SignalEvent, load_signal_fixture
 
 
+PROPOSAL_MARKDOWN_TEXT = {
+    "status": "Status: owner review required",
+    "not_auto_applied": "This proposal is not auto-applied. It does not authorize code changes, publication, or deployment.",
+    "problem_statement": "## Problem Statement",
+    "safe_evidence": "## Safe Evidence Summary",
+    "candidate": "## Candidate",
+    "score": "## Score",
+    "required_tests": "## Required Tests",
+    "rollback": "## Rollback Expectation",
+    "approval_gate": "## Approval Gate",
+}
+
+
 @dataclass(frozen=True)
 class ProposalPacket:
     id: str
@@ -26,23 +39,23 @@ class ProposalPacket:
             [
                 f"# Proposal: {self.title}",
                 "",
-                "Status: owner review required",
+                PROPOSAL_MARKDOWN_TEXT["status"],
                 "",
-                "This proposal is not auto-applied. It does not authorize code changes, publication, or deployment.",
+                PROPOSAL_MARKDOWN_TEXT["not_auto_applied"],
                 "",
-                "## Problem Statement",
+                PROPOSAL_MARKDOWN_TEXT["problem_statement"],
                 "",
                 self.signal.summary,
                 "",
-                "## Safe Evidence Summary",
+                PROPOSAL_MARKDOWN_TEXT["safe_evidence"],
                 "",
                 evidence,
                 "",
-                "## Candidate",
+                PROPOSAL_MARKDOWN_TEXT["candidate"],
                 "",
                 self.proposed_change,
                 "",
-                "## Score",
+                PROPOSAL_MARKDOWN_TEXT["score"],
                 "",
                 f"- product_fit: {self.score.product_fit}",
                 f"- user_pain: {self.score.user_pain}",
@@ -53,15 +66,15 @@ class ProposalPacket:
                 f"- privacy_risk: {self.score.privacy_risk}",
                 f"- priority: {self.score.priority}",
                 "",
-                "## Required Tests",
+                PROPOSAL_MARKDOWN_TEXT["required_tests"],
                 "",
                 tests,
                 "",
-                "## Rollback Expectation",
+                PROPOSAL_MARKDOWN_TEXT["rollback"],
                 "",
                 self.rollback_note,
                 "",
-                "## Approval Gate",
+                PROPOSAL_MARKDOWN_TEXT["approval_gate"],
                 "",
                 "- owner_decision_required: true",
                 "- approved: false",
