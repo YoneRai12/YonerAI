@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  # 🤖 ORA Main Brain
+  # YonerAI legacy bot runtime.
   ora-bot:
     build: .
     container_name: ora-bot
@@ -18,20 +18,10 @@ services:
               count: all
               capabilities: [gpu]
     command: python main.py
-    stdin_open: true # For interactive console
+    stdin_open: true
     tty: true
 
-  # 💻 ORA UI (Next.js Dashboard)
-  ora-ui:
-    build: ./ora-ui
-    container_name: ora-ui
-    restart: unless-stopped
-    ports:
-      - "3333:3333"
-    depends_on:
-      - ora-web
-
-  # 🌐 NERV Dashboard Backend
+  # Legacy web backend.
   ora-web:
     build: .
     container_name: ora-web
@@ -44,34 +34,3 @@ services:
     command: uvicorn src.web.app:app --host 0.0.0.0 --port 8000 --reload
     depends_on:
       - ora-bot
-
-  # 🧠 Local LLM Engine (Optional)
-  # Uncomment to run vLLM local inference server
-  # vllm:
-  #   image: vllm/vllm-openai:latest
-  #   container_name: ora-vllm
-  #   runtime: nvidia
-  #   restart: unless-stopped
-  #   environment:
-  #     - HUGGING_FACE_HUB_TOKEN=${HUGGING_FACE_HUB_TOKEN}
-  #   volumes:
-  #     - ~/.cache/huggingface:/root/.cache/huggingface
-  #   ports:
-  #     - "8001:8000"
-  #   command: --model Qwen/Qwen2.5-VL-7B-Instruct --gpu-memory-utilization 0.8 --max-model-len 4096
-  #   deploy:
-  #     resources:
-  #       reservations:
-  #         devices:
-  #           - driver: nvidia
-  #             count: all
-  #             capabilities: [gpu]
-
-  # 🔗 Ngrok Tunnel (External Access)
-  # ngrok:
-  #   image: ngrok/ngrok:latest
-  #   container_name: ora-ngrok
-  #   command: http ora-web:8000
-  #   env_file: .env
-  #   ports:
-  #     - 4040:4040

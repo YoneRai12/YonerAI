@@ -2,12 +2,19 @@
 
 This page is a public-safe index of current release notes and progress checkpoints.
 
+## v2026.5.21 ora-ui Retirement and Security Backlog Cleanup Checkpoint
+
+- Public checkpoint note: `docs/releases/v2026.5.21-ora-ui-retirement-security-cleanup-checkpoint.md`
+- Scope: retire obsolete `ora-ui`, remove its dependency manifest from the active public surface, and update security/backlog triage.
+- Status: public maintenance checkpoint, not a production release.
+- Still open: remaining `clients/web` dependency alert, non-`ora-ui` Dependabot PRs, old security PR review, safe branch/worktree cleanup, model listing, local LLM error UX, and future `src/cogs/ora.py` extraction.
+
 ## v2026.5.21 Local LLM Provider Compatibility Checkpoint
 
 - Public checkpoint note: `docs/releases/v2026.5.21-local-llm-provider-compatibility-checkpoint.md`
 - Scope: provider-neutral local LLM compatibility for Ollama-style `/api/chat` and OpenAI-compatible local `/v1/chat/completions` servers.
 - Status: public local provider compatibility checkpoint, not a production release.
-- Still open: optional loopback-only model listing endpoint, final Web product UI, Google login, persistent memory, Discord gateway completion, `ora-ui` dependency remediation, non-loopback/private provider lanes, and future `src/cogs/ora.py` extraction.
+- Still open: optional loopback-only model listing endpoint, final Web product UI, Google login, persistent memory, Discord gateway completion, non-loopback/private provider lanes, and future `src/cogs/ora.py` extraction.
 
 ## v2026.5.20 Local LLM Conversation MVP Checkpoint
 

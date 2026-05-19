@@ -6,7 +6,7 @@ The three extension points are:
 
 1. Skills (local tools)
 2. MCP servers (external tools via stdio/JSON)
-3. Cogs / Web UI (Discord commands + dashboards)
+3. Cogs / Web UI (Discord commands + public web surfaces)
 
 ## Diagrams (README System Flows)
 
@@ -73,7 +73,8 @@ Guidelines:
 
 - Discord features typically live under `src/cogs/`.
 - Web backend lives under `src/web/`.
-- The Next.js UI lives under `ora-ui/`.
+- The current public Next.js smoke/demo surface lives under `clients/web/`.
+- The legacy `ora-ui/` dashboard is retired from the active public surface; do not use it as the product foundation.
 
 Rule of thumb:
 

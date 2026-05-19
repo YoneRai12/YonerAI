@@ -6,10 +6,11 @@ This report is a triage snapshot. It does not close, merge, or delete any PR.
 
 ## Summary
 
-- Open PRs observed: 49
+- Open PRs observed after PR #175 merge: 49
 - Dependabot/security-like PRs: 25
 - Non-Dependabot PRs: 24
 - Active owner feature PRs safe to build on for this lane: 0
+- Obvious retired-`ora-ui` Dependabot close candidates after this cleanup reaches `main`: 9
 
 ## Gate Decision
 
@@ -23,8 +24,9 @@ Recheck for the provider compatibility lane kept the same decision: build from c
 
 | class | examples | decision |
 |---|---|---|
-| Dependabot/security clean candidates | #143, #146, #147, #148, #150, #151, #152, #157, #158, #159 | Review in dependency-security lanes; do not batch-merge here. |
-| Dependabot/security blocked or stale | #6, #7, #77, #117, #118, #119, #120, #122, #125, #127, #141, #145, #156 | Rebase/recreate or inspect failures before any merge decision. |
+| Retired `ora-ui` Dependabot close candidates | #77, #118, #120, #122, #125, #141, #157, #158, #159 | Close after the `ora-ui` retirement cleanup reaches `main`; their target manifest is removed. |
+| Dependabot/security clean candidates | #143, #146, #147, #148, #150, #151, #152 | Review in dependency-security lanes; do not batch-merge here. |
+| Dependabot/security blocked or stale | #6, #7, #117, #119, #127, #145, #156 | Rebase/recreate or inspect failures before any merge decision. |
 | Old security Codex branches | #60, #67, #128, #129, #130, #131, #132, #133, #134, #135, #136, #142 | Re-evaluate against current main and recreate clean fixes if still valid. |
 | Broad Web/cloud/product PRs | #25, #26, #32, #78, #79, #81, #121 | Do not use for Local LLM MVP; several are dirty, stacked, or outside scope. |
 | Owner-only/legal/IP PRs | #107, #108 | Owner decision required. |
@@ -44,7 +46,7 @@ Proceed with the Local LLM Conversation MVP as a fresh mainline branch.
 
 After this checkpoint, handle the backlog in this order:
 
-1. dedicated `ora-ui` retire-or-remediate decision
+1. close obsolete `ora-ui` Dependabot PRs after this cleanup reaches `main`
 2. GitHub Actions Dependabot PRs that are behind or failing
 3. Python dependency PRs with major version risk
 4. old security Codex PRs recreated against current main only if still relevant

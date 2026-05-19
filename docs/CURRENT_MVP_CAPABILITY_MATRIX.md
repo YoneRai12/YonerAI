@@ -37,7 +37,7 @@ The current public MVP is a credential-free local Core API health smoke plus mes
 - PC-hosted Discord chat
 - provider live generation
 - arbitrary remote provider URL
-- old `ora-ui` as the product foundation
+- retired `ora-ui` as the product foundation
 - official cloud
 - deployment
 - full API / Web / CLI / SNS implementation
@@ -73,6 +73,7 @@ The current checkpoint should grow in separate, reviewable lanes:
 8. web search
 9. self-evolution proposal-only MVP expansion
 10. official/private runtime lanes
+11. retired UI cleanup follow-through for old PRs and alerts
 
 Each ladder step needs its own tests, privacy boundary, and public wording review.
 
