@@ -166,6 +166,8 @@ def test_public_message_endpoint_rejects_unsupported_local_provider(monkeypatch,
     assert response.status_code == 400
     body = response.json()
     assert body["error"] == "unsupported_local_llm_provider"
+    assert "lmstudio" in body["message"]
+    assert "localai" in body["message"]
     assert "detail" not in body
 
 

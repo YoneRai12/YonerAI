@@ -158,6 +158,75 @@ def test_generate_local_llm_reply_uses_openai_compatible_chat_shape() -> None:
     assert reply.model == "lm-studio-model"
 
 
+@pytest.mark.parametrize(
+    ("base_url", "expected_path"),
+    [
+        ("http://127.0.0.1:1234", "/v1/chat/completions"),
+        ("http://127.0.0.1:1234/v1", "/v1/chat/completions"),
+        ("http://127.0.0.1:1234/v1/chat/completions", "/v1/chat/completions"),
+    ],
+)
+def test_openai_compatible_endpoint_path_supports_root_v1_and_full_endpoint(
+    base_url: str, expected_path: str
+) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == expected_path
+        return httpx.Response(
+            200,
+            json={"choices": [{"message": {"role": "assistant", "content": "local reply"}}]},
+        )
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    config = LocalLLMConfig(
+        enabled=True,
+        base_url=base_url,
+        model="local-model",
+        timeout_seconds=1.0,
+        provider=LOCAL_LLM_PROVIDER_OPENAI_COMPATIBLE,
+    )
+
+    reply = generate_local_llm_reply(
+        message="hello",
+        conversation_id="local-smoke",
+        config=config,
+        client=client,
+    )
+
+    assert reply.provider == "local-openai-compatible"
+
+
+@pytest.mark.parametrize(
+    ("base_url", "expected_path"),
+    [
+        ("http://127.0.0.1:11434", "/api/chat"),
+        ("http://127.0.0.1:11434/api", "/api/chat"),
+        ("http://127.0.0.1:11434/api/chat", "/api/chat"),
+    ],
+)
+def test_ollama_endpoint_path_supports_root_api_and_full_endpoint(base_url: str, expected_path: str) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == expected_path
+        return httpx.Response(200, json={"message": {"role": "assistant", "content": "local reply"}})
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    config = LocalLLMConfig(
+        enabled=True,
+        base_url=base_url,
+        model="local-model",
+        timeout_seconds=1.0,
+        provider=LOCAL_LLM_PROVIDER_OLLAMA,
+    )
+
+    reply = generate_local_llm_reply(
+        message="hello",
+        conversation_id="local-smoke",
+        config=config,
+        client=client,
+    )
+
+    assert reply.provider == "local-ollama"
+
+
 def test_openai_compatible_local_base_url_still_rejects_remote_hosts() -> None:
     with pytest.raises(LocalLLMSecurityError):
         build_local_llm_config(

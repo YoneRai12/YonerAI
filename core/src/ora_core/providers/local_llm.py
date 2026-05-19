@@ -5,7 +5,7 @@ import os
 import threading
 from dataclasses import dataclass
 from typing import Any, Mapping
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urlparse
 
 import httpx
 
@@ -42,6 +42,7 @@ DEFAULT_OPENAI_COMPATIBLE_MODEL = "local-model"
 DEFAULT_LOCAL_LLM_TIMEOUT_SECONDS = 10.0
 MAX_LOCAL_LLM_TIMEOUT_SECONDS = 30.0
 MAX_LOCAL_LLM_MAX_TOKENS = 4096
+DEFAULT_OLLAMA_TEMPERATURE = 0.0
 LOOPBACK_HOSTNAMES = frozenset({"localhost"})
 _DEFAULT_CLIENT: httpx.Client | None = None
 _DEFAULT_CLIENT_LOCK = threading.Lock()
@@ -169,6 +170,14 @@ def validate_loopback_base_url(raw_url: str) -> str:
 
     normalized = parsed._replace(query="", fragment="").geturl().rstrip("/")
     return normalized
+
+
+def _append_url_path(base_url: str, path_suffix: str) -> str:
+    parsed = urlparse(base_url)
+    base_path = parsed.path.rstrip("/")
+    suffix = path_suffix.strip("/")
+    path = f"{base_path}/{suffix}" if base_path else f"/{suffix}"
+    return parsed._replace(path=path).geturl()
 
 
 def normalize_local_llm_provider(raw_provider: str | None) -> str:
@@ -304,7 +313,7 @@ def _ollama_chat_payload(message: str, selected_model: str, cfg: LocalLLMConfig)
     if cfg.temperature is not None:
         options["temperature"] = cfg.temperature
     else:
-        options["temperature"] = 0
+        options["temperature"] = DEFAULT_OLLAMA_TEMPERATURE
     if cfg.max_tokens is not None:
         options["num_predict"] = cfg.max_tokens
     if options:
@@ -326,10 +335,20 @@ def _openai_compatible_chat_payload(message: str, selected_model: str, cfg: Loca
 
 
 def _chat_endpoint_for_provider(cfg: LocalLLMConfig) -> str:
+    parsed = urlparse(cfg.base_url)
+    normalized_path = parsed.path.rstrip("/")
     if cfg.provider == LOCAL_LLM_PROVIDER_OPENAI_COMPATIBLE:
-        return urljoin(f"{cfg.base_url}/", "chat/completions")
+        if normalized_path.endswith("/v1/chat/completions"):
+            return cfg.base_url
+        if normalized_path.endswith("/v1"):
+            return _append_url_path(cfg.base_url, "chat/completions")
+        return _append_url_path(cfg.base_url, "v1/chat/completions")
     if cfg.provider == LOCAL_LLM_PROVIDER_OLLAMA:
-        return urljoin(f"{cfg.base_url}/", "api/chat")
+        if normalized_path.endswith("/api/chat"):
+            return cfg.base_url
+        if normalized_path.endswith("/api"):
+            return _append_url_path(cfg.base_url, "chat")
+        return _append_url_path(cfg.base_url, "api/chat")
     raise LocalLLMProviderError("Unsupported local LLM provider.")
 
 

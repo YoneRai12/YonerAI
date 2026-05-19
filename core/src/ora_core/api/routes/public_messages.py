@@ -107,7 +107,10 @@ def _build_local_message_response(
         _raise_public_message_error(
             400,
             "unsupported_local_llm_provider",
-            "Local mode supports ollama and openai_compatible_local providers.",
+            (
+                "Local mode supports ollama and openai_compatible_local. "
+                "OpenAI-compatible local aliases include lmstudio, llama.cpp, text-generation-webui, and localai."
+            ),
         )
     except local_llm.LocalLLMSecurityError as exc:
         _raise_public_message_error(400, "unsafe_local_llm_endpoint", str(exc))
