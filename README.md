@@ -28,6 +28,21 @@ This repository does not claim shipping completeness, production readiness, offi
 
 Pass 2 remains stopped / not landed. `src/cogs/ora.py` remains unresolved private/runtime/control-plane boundary residue and is not treated as a narrow public patch target.
 
+## Current MVP Capability
+
+The current public MVP is a credential-free local Core API health smoke, not a ChatGPT-like chat product.
+
+What works today:
+
+- clone the public repository
+- install dependencies
+- start the local Core API
+- call `GET /health` and receive `{"ok": true}`
+
+Not included yet: Web UI chat, Google login, conversation history sync, persistent natural memory, web search, Discord chat, official cloud, deployment, or full product completion.
+
+See [Current MVP Capability Matrix](docs/CURRENT_MVP_CAPABILITY_MATRIX.md) for the user-facing capability table.
+
 ## Product Modes
 
 YonerAI is designed around three high-level ways to use the same contract-first foundation:
@@ -51,6 +66,7 @@ Raw chain-of-thought must not cross public chat, API, SSE, log, documentation, o
 Useful starting points:
 
 - [Current phase context](docs/CURRENT_PHASE_CONTEXT.md)
+- [Current MVP Capability Matrix](docs/CURRENT_MVP_CAPABILITY_MATRIX.md)
 - [External Agent API](docs/contracts/external-agent-api.md)
 - [SSE Run Events](docs/contracts/sse-run-events.md)
 - [v2026.5.19 checkpoint note](docs/releases/v2026.5.19-public-runnable-mvp-checkpoint.md)
@@ -85,7 +101,7 @@ This public checkpoint does not include or claim:
 - dependency vulnerability remediation
 - runtime hardcoded path cleanup
 - git history rewrite
-- release tag creation
+- signed production release
 - deployment
 
 ## Local Development
