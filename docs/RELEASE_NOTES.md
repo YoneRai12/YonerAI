@@ -2,6 +2,13 @@
 
 This page is a public-safe index of current release notes and progress checkpoints.
 
+## v2026.5.19 Public Runnable MVP Checkpoint
+
+- Public checkpoint note: `docs/releases/v2026.5.19-public-runnable-mvp-checkpoint.md`
+- Scope: PR #163 boundary-plan closure plus a credential-free local Core API smoke path for fresh public checkouts.
+- Status: public runnable MVP checkpoint, not a production release.
+- Still open: broader runtime hardcoded path cleanup, deployment/control-plane docs, optional history remediation decision, dependency-security lane, and future `src/cogs/ora.py` implementation.
+
 ## v2026.5.18 Public Progress Checkpoint
 
 - Public checkpoint note: `docs/releases/v2026.5.18-public-progress-checkpoint.md`
@@ -26,4 +33,4 @@ Current status and boundary truth should be checked against:
 
 - `docs/CURRENT_PHASE_CONTEXT.md`
 - `docs/TRACEABILITY_MATRIX_0_19.md`
-- `docs/releases/v2026.5.18-public-progress-checkpoint.md`
+- `docs/releases/v2026.5.19-public-runnable-mvp-checkpoint.md`
