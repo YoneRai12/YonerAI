@@ -39,6 +39,6 @@ It also does not implement Google login, persistent memory, Discord gateway comp
 
 ## Follow-up
 
-After this cleanup reaches `main`, the `ora-ui` Dependabot PRs can be closed as obsolete because their target manifest no longer exists.
+After this cleanup reached `main`, the previously identified `ora-ui` Dependabot PRs were closed unmerged because their target manifest no longer exists.
 
 The remaining active-surface security work should focus on the `clients/web` smoke/demo surface and Core API dependencies.

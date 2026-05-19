@@ -4,7 +4,7 @@ Status: public-safe capability truth for the current public MVP.
 
 ## Current MVP In One Sentence
 
-The current public MVP is a credential-free local Core API health smoke plus message contracts for mock/offline and loopback-only local LLM conversation, not a ChatGPT-like finished product.
+The current public MVP is a credential-free local Core API health smoke plus message contracts for mock/offline and loopback-only local LLM conversation, with `clients/web` as a temporary Web Chat MVP / smoke-demo surface. It is not a ChatGPT-like finished product.
 
 ## Included Now
 
@@ -16,7 +16,9 @@ The current public MVP is a credential-free local Core API health smoke plus mes
 - `POST /v1/public/messages` with `mode: "local"` can call supported loopback-only local LLM runtimes
 - local provider choices: `ollama` and `openai_compatible_local`
 - OpenAI-compatible local examples: LM Studio, llama.cpp / llama-cpp-python server, text-generation-webui with OpenAI API enabled, and LocalAI where compatible
-- `clients/web` local mock-chat page that posts to `/api/public/messages`
+- `clients/web` temporary Web Chat MVP page that posts to `/api/public/messages`
+- `clients/web` mode controls for mock/offline, local Ollama, and OpenAI-compatible local smoke checks
+- safe local LLM error display in the temporary Web Chat MVP
 - public smoke tests
 - no Discord token required
 - no provider API key required
@@ -47,7 +49,7 @@ The current public MVP is a credential-free local Core API health smoke plus mes
 
 | Question | Current answer |
 |---|---|
-| Can I chat with AI from Web UI? | You can use a local mock/offline Web UI smoke surface. It is not the final product UI. |
+| Can I chat from a Web UI? | You can use `clients/web` as a temporary local Web Chat MVP for mock/offline and loopback local LLM smoke checks. It is not the final product UI. |
 | Can it search the web? | Not yet. |
 | Can I log in with Google and keep the same history? | Not yet. |
 | Can I host on my PC and chat from phone Web or Discord? | Not yet. |
@@ -57,7 +59,7 @@ The current public MVP is a credential-free local Core API health smoke plus mes
 | Can I use LM Studio or llama.cpp server? | Yes, when it exposes a loopback OpenAI-compatible `/v1/chat/completions` endpoint and you select `local_provider: "openai_compatible_local"`. |
 | Can I choose a different local model? | Yes. Pass `model` in the request or set `ORA_LOCAL_LLM_MODEL`; availability depends on the local server. |
 | Can I point it at a remote provider URL? | No. Local LLM mode rejects arbitrary remote, LAN, tunnel, and control-plane endpoints by default. |
-| What can I verify now? | Clone, install, start local Core API, call `/health`, call `/v1/public/messages` in mock mode, optionally call local LLM mode, and use the local mock-chat smoke page. |
+| What can I verify now? | Clone, install, start local Core API, call `/health`, call `/v1/public/messages` in mock mode, optionally call local LLM mode, and use the temporary `clients/web` chat smoke page. |
 
 ## Next Capability Ladder
 
@@ -66,7 +68,7 @@ The current checkpoint should grow in separate, reviewable lanes:
 1. local LLM error/reporting hardening
 2. optional local model listing endpoint if it stays loopback-only and small
 3. provider adapter boundary for non-loopback private lanes
-4. Web UI replacement or clean product surface decision
+4. final Web UI replacement or clean product surface decision
 5. memory persistence
 6. identity / Google login
 7. Discord gateway

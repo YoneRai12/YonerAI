@@ -5,8 +5,8 @@ import { Activity, MessageSquare, ShieldCheck, Terminal } from "lucide-react";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "YonerAI Public Mock Chat",
-  description: "Credential-free local mock chat surface for the public Core API message contract.",
+  title: "YonerAI Temporary Web Chat MVP",
+  description: "Credential-free temporary Web Chat MVP for public Core API mock and loopback local LLM contracts.",
 };
 
 export default function RootLayout({
@@ -25,20 +25,22 @@ export default function RootLayout({
               </div>
               <div>
                 <p className="text-sm font-semibold text-white">YonerAI</p>
-                <p className="text-xs text-gray-400">Public Core MVP</p>
+                <p className="text-xs text-gray-400">Temporary Web Chat MVP</p>
               </div>
             </div>
           </div>
 
           <nav className="flex-1 space-y-1 p-3">
-            <SidebarItem icon={<MessageSquare className="h-4 w-4" />} label="Mock chat" active />
+            <SidebarItem icon={<MessageSquare className="h-4 w-4" />} label="Local chat smoke" active />
             <SidebarItem icon={<Terminal className="h-4 w-4" />} label="Core API" />
             <SidebarItem icon={<ShieldCheck className="h-4 w-4" />} label="Public-safe boundary" />
           </nav>
 
           <div className="border-t border-white/10 p-4 text-xs text-gray-400">
             <p className="font-medium text-gray-200">Local checkpoint</p>
-            <p className="mt-1 leading-relaxed">Offline mock only. No provider key, Discord token, or memory store.</p>
+            <p className="mt-1 leading-relaxed">
+              Mock/offline plus loopback local LLM. No provider key, Discord token, or memory store.
+            </p>
           </div>
         </aside>
 

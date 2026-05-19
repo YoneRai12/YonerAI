@@ -1,36 +1,71 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# YonerAI clients/web
 
-## Getting Started
+`clients/web` is a temporary Web Chat MVP and smoke-demo surface for the public Core API message contract.
 
-First, run the development server:
+It is not the final YonerAI product UI, not a production Web product, and not a deployment target.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## What It Can Do
+
+- Send a message to the local Core API through `POST /v1/public/messages`.
+- Use `mock` / `offline` mode for deterministic credential-free smoke checks.
+- Use `local` mode with `local_provider: "ollama"` when an Ollama-compatible local server is already running on loopback.
+- Use `local` mode with `local_provider: "openai_compatible_local"` for loopback OpenAI-compatible local servers such as LM Studio, llama.cpp / llama-cpp-python server, text-generation-webui OpenAI API mode, or LocalAI.
+- Display safe Core API errors without exposing stack traces, secrets, or local paths.
+
+## What It Does Not Do
+
+- It does not call external OpenAI, Anthropic, Gemini, Discord, SNS, or web-search providers.
+- It does not accept arbitrary remote provider URLs from the browser.
+- It does not implement Google login.
+- It does not persist memory or conversation history.
+- It does not complete the Discord gateway.
+- It does not claim final Web UI or production readiness.
+
+## Local Run
+
+Start the Core API first from the repository root:
+
+```powershell
+$env:PYTHONPATH = "$PWD;$PWD\core\src"
+$env:ORA_ALLOW_MISSING_SECRETS = "1"
+python -m ora_core.main
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Then start this temporary web client:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```powershell
+cd clients\web
+npm ci
+npm run dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Open `http://127.0.0.1:3000`.
 
-## Learn More
+The web client posts to `/api/public/messages`, and `next.config.ts` rewrites that local request to `http://127.0.0.1:8001/v1/public/messages` by default.
 
-To learn more about Next.js, take a look at the following resources:
+If port `8001` is already occupied by another local Core API during development, start the current Core API on another loopback port and set:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```powershell
+$env:YONERAI_CORE_API_ORIGIN = "http://127.0.0.1:8011"
+npm run dev
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+`YONERAI_CORE_API_ORIGIN` is loopback-only. Remote hosts, LAN hosts, embedded credentials, query strings, and fragments are rejected by the Next config.
 
-## Deploy on Vercel
+## Local LLM Notes
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+For Ollama-compatible local mode, keep Ollama on a loopback address such as `http://127.0.0.1:11434`.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+For OpenAI-compatible local mode, keep the local server on loopback, for example `http://127.0.0.1:1234/v1` for a common LM Studio setup. The Core API owns local base URL validation; this page intentionally does not expose an arbitrary provider URL input.
+
+Model names are passed through to the local server. Availability and quality depend on the local runtime, not on this Web smoke surface.
+
+## Checks
+
+```powershell
+npm ci
+npm run lint
+npm run build
+npm audit --omit=dev
+npm audit
+```
