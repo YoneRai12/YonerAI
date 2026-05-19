@@ -23,3 +23,8 @@ class PublicMessageResponse(BaseModel):
     provider: str
     requires_approval: bool
     contract_version: str
+
+
+class PublicMessageErrorResponse(BaseModel):
+    error: str
+    message: str

@@ -55,6 +55,7 @@ def test_public_message_endpoint_returns_deterministic_offline_reply(monkeypatch
     assert "no provider call" in body["reply"]
     assert "memory store" in body["reply"]
     assert "Discord gateway" in body["reply"]
+    assert "hello" not in body["reply"]
 
 
 def test_public_message_endpoint_supports_explicit_offline_mode(monkeypatch, tmp_path):
@@ -75,7 +76,8 @@ def test_public_message_endpoint_rejects_unsupported_mode(monkeypatch, tmp_path)
         response = client.post("/v1/public/messages", json={"message": "hello", "mode": "live"})
 
     assert response.status_code == 400
-    assert response.json()["detail"]["error"] == "unsupported_mode"
+    assert response.json()["error"] == "unsupported_mode"
+    assert "detail" not in response.json()
 
 
 def test_public_message_endpoint_rejects_empty_message(monkeypatch, tmp_path):
@@ -85,7 +87,8 @@ def test_public_message_endpoint_rejects_empty_message(monkeypatch, tmp_path):
         response = client.post("/v1/public/messages", json={"message": "   "})
 
     assert response.status_code == 400
-    assert response.json()["detail"]["error"] == "empty_message"
+    assert response.json()["error"] == "empty_message"
+    assert "detail" not in response.json()
 
 
 def test_public_message_endpoint_rejects_message_length_over_cap(monkeypatch, tmp_path):
@@ -105,4 +108,19 @@ def test_public_message_endpoint_rejects_secret_like_payload(monkeypatch, tmp_pa
         response = client.post("/v1/public/messages", json={"message": "please store this api_key placeholder"})
 
     assert response.status_code == 400
-    assert response.json()["detail"]["error"] == "unsafe_public_message"
+    assert response.json()["error"] == "unsafe_public_message"
+    assert "detail" not in response.json()
+
+
+def test_public_message_endpoint_rejects_secret_like_conversation_id(monkeypatch, tmp_path):
+    app = _load_core_app(monkeypatch, tmp_path)
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/v1/public/messages",
+            json={"message": "hello", "conversation_id": "user_api_key_placeholder"},
+        )
+
+    assert response.status_code == 400
+    assert response.json()["error"] == "unsafe_public_conversation_id"
+    assert "detail" not in response.json()

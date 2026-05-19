@@ -2,10 +2,16 @@ from __future__ import annotations
 
 import hashlib
 import re
+from typing import NoReturn
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
+from fastapi.responses import JSONResponse
 
-from ora_core.api.schemas.public_messages import PublicMessageRequest, PublicMessageResponse
+from ora_core.api.schemas.public_messages import (
+    PublicMessageErrorResponse,
+    PublicMessageRequest,
+    PublicMessageResponse,
+)
 
 
 router = APIRouter()
@@ -15,7 +21,10 @@ PUBLIC_MESSAGE_PROVIDER = "offline-mock"
 PUBLIC_MESSAGE_DEFAULT_CONVERSATION_ID = "public-smoke"
 PUBLIC_MESSAGE_SUPPORTED_MODES = frozenset({"mock", "offline"})
 SECRET_KEYWORD_PATTERNS = (
-    re.compile(r"\b(api[_-]?key|access[_-]?token|refresh[_-]?token|private[_-]?key|client[_-]?secret)\b", re.IGNORECASE),
+    re.compile(
+        r"(api[_-]?key|access[_-]?token|refresh[_-]?token|discord[_-]?token|private[_-]?key|client[_-]?secret|google[_-]?client[_-]?secret)",
+        re.IGNORECASE,
+    ),
     re.compile(r"sk-[A-Za-z0-9_-]{10,}"),
     re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
 )
@@ -25,8 +34,20 @@ PRIVATE_PATH_PATTERNS = (
 )
 
 
-def _public_message_error(status_code: int, code: str, message: str) -> HTTPException:
-    return HTTPException(status_code=status_code, detail={"error": code, "message": message})
+class PublicMessageError(Exception):
+    def __init__(self, status_code: int, code: str, message: str) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+        self.code = code
+        self.message = message
+
+
+def _raise_public_message_error(status_code: int, code: str, message: str) -> NoReturn:
+    raise PublicMessageError(status_code, code, message)
+
+
+def _public_message_error_response(exc: PublicMessageError) -> JSONResponse:
+    return JSONResponse(status_code=exc.status_code, content={"error": exc.code, "message": exc.message})
 
 
 def _contains_private_marker(value: str) -> bool:
@@ -36,7 +57,7 @@ def _contains_private_marker(value: str) -> bool:
 def _normalize_mode(mode: str) -> str:
     normalized = str(mode or "mock").strip().lower()
     if normalized not in PUBLIC_MESSAGE_SUPPORTED_MODES:
-        raise _public_message_error(
+        _raise_public_message_error(
             400,
             "unsupported_mode",
             "Public Core Message MVP supports only mock/offline mode.",
@@ -47,9 +68,9 @@ def _normalize_mode(mode: str) -> str:
 def build_public_message_response(req: PublicMessageRequest) -> PublicMessageResponse:
     message = req.message.strip()
     if not message:
-        raise _public_message_error(400, "empty_message", "message must contain non-whitespace text.")
+        _raise_public_message_error(400, "empty_message", "message must contain non-whitespace text.")
     if _contains_private_marker(message):
-        raise _public_message_error(
+        _raise_public_message_error(
             400,
             "unsafe_public_message",
             "Public smoke messages must not contain secret-like values or private machine paths.",
@@ -60,7 +81,7 @@ def build_public_message_response(req: PublicMessageRequest) -> PublicMessageRes
     if not conversation_id:
         conversation_id = PUBLIC_MESSAGE_DEFAULT_CONVERSATION_ID
     if _contains_private_marker(conversation_id):
-        raise _public_message_error(
+        _raise_public_message_error(
             400,
             "unsafe_public_conversation_id",
             "Public smoke conversation_id must not contain secret-like values or private machine paths.",
@@ -85,6 +106,13 @@ def build_public_message_response(req: PublicMessageRequest) -> PublicMessageRes
     )
 
 
-@router.post("/public/messages", response_model=PublicMessageResponse)
-async def post_public_message(req: PublicMessageRequest) -> PublicMessageResponse:
-    return build_public_message_response(req)
+@router.post(
+    "/public/messages",
+    response_model=PublicMessageResponse,
+    responses={400: {"model": PublicMessageErrorResponse}},
+)
+def post_public_message(req: PublicMessageRequest) -> PublicMessageResponse | JSONResponse:
+    try:
+        return build_public_message_response(req)
+    except PublicMessageError as exc:
+        return _public_message_error_response(exc)
