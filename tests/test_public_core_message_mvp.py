@@ -69,6 +69,88 @@ def test_public_message_endpoint_supports_explicit_offline_mode(monkeypatch, tmp
     assert response.json()["provider"] == "offline-mock"
 
 
+def test_public_message_endpoint_supports_loopback_local_mode(monkeypatch, tmp_path):
+    app = _load_core_app(monkeypatch, tmp_path)
+
+    from ora_core.providers import local_llm
+
+    def fake_generate_local_llm_reply(*, message, conversation_id, model=None, config=None, client=None):
+        assert message == "hello"
+        assert conversation_id == "local-smoke"
+        assert model == "local-test"
+        return local_llm.LocalLLMReply(reply="local test reply", provider="local-ollama", model="local-test")
+
+    monkeypatch.setattr(local_llm, "generate_local_llm_reply", fake_generate_local_llm_reply)
+
+    with TestClient(app, client=("127.0.0.1", 50000)) as client:
+        response = client.post(
+            "/v1/public/messages",
+            json={
+                "message": "hello",
+                "conversation_id": "local-smoke",
+                "mode": "local",
+                "model": "local-test",
+            },
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ok"] is True
+    assert body["mode"] == "local"
+    assert body["provider"] == "local-ollama"
+    assert body["model"] == "local-test"
+    assert body["reply"] == "local test reply"
+    assert body["requires_approval"] is False
+    assert body["contract_version"] == "local-llm-conversation-mvp-0.1"
+
+
+def test_public_message_endpoint_rejects_non_loopback_client_for_local_mode(monkeypatch, tmp_path):
+    app = _load_core_app(monkeypatch, tmp_path)
+
+    with TestClient(app, client=("203.0.113.10", 50000)) as client:
+        response = client.post("/v1/public/messages", json={"message": "hello", "mode": "local"})
+
+    assert response.status_code == 403
+    body = response.json()
+    assert body["error"] == "local_llm_loopback_required"
+    assert "detail" not in body
+
+
+def test_public_message_endpoint_rejects_non_loopback_local_llm_url(monkeypatch, tmp_path):
+    monkeypatch.setenv("ORA_LOCAL_LLM_BASE_URL", "https://example.com")
+    app = _load_core_app(monkeypatch, tmp_path)
+
+    with TestClient(app, client=("127.0.0.1", 50000)) as client:
+        response = client.post("/v1/public/messages", json={"message": "hello", "mode": "local"})
+
+    assert response.status_code == 400
+    body = response.json()
+    assert body["error"] == "unsafe_local_llm_endpoint"
+    assert "detail" not in body
+    assert "example.com" not in body["message"]
+
+
+def test_public_message_endpoint_returns_safe_error_when_local_llm_unavailable(monkeypatch, tmp_path):
+    app = _load_core_app(monkeypatch, tmp_path)
+
+    from ora_core.providers import local_llm
+
+    def fail_generate_local_llm_reply(*, message, conversation_id, model=None, config=None, client=None):
+        raise local_llm.LocalLLMConnectionError("internal connection failure http://127.0.0.1/private")
+
+    monkeypatch.setattr(local_llm, "generate_local_llm_reply", fail_generate_local_llm_reply)
+
+    with TestClient(app, client=("127.0.0.1", 50000)) as client:
+        response = client.post("/v1/public/messages", json={"message": "hello", "mode": "local"})
+
+    assert response.status_code == 503
+    body = response.json()
+    assert body["error"] == "local_llm_unavailable"
+    assert "detail" not in body
+    assert "127.0.0.1" not in body["message"]
+    assert "private" not in body["message"]
+
+
 def test_public_message_endpoint_rejects_unsupported_mode(monkeypatch, tmp_path):
     app = _load_core_app(monkeypatch, tmp_path)
 

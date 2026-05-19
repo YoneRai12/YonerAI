@@ -2,7 +2,7 @@
 
 Provider-independent AI execution foundation for keeping one reliable AI experience across official, local, and self-hosted runtimes.
 
-[Japanese README](README_JP.md) | [Current phase](docs/CURRENT_PHASE_CONTEXT.md) | [Contracts](docs/contracts) | [Latest checkpoint](docs/releases/v2026.5.20-web-ui-mock-chat-security-checkpoint.md)
+[Japanese README](README_JP.md) | [Current phase](docs/CURRENT_PHASE_CONTEXT.md) | [Contracts](docs/contracts) | [Latest checkpoint](docs/releases/v2026.5.20-local-llm-conversation-mvp-checkpoint.md)
 
 ## What YonerAI Is
 
@@ -22,7 +22,7 @@ The active design anchor is v7.7:
 - contract-first public boundaries
 - public/private/control-plane separation by contract, not by leaking internal operations detail
 
-`v2026.5.20` is a public Web UI mock-chat security checkpoint, not a production release.
+`v2026.5.20` is a public Local LLM conversation MVP checkpoint, not a production release.
 
 This repository does not claim shipping completeness, production readiness, official cloud completion, live operations completion, or full product completion.
 
@@ -30,7 +30,7 @@ Pass 2 remains stopped / not landed. `src/cogs/ora.py` remains unresolved privat
 
 ## Current MVP Capability
 
-The current public MVP is a credential-free local Core API health smoke plus a mock/offline Web UI message surface, not a ChatGPT-like chat product.
+The current public MVP is a credential-free local Core API health smoke plus message contracts for mock/offline and loopback-only local LLM conversation. It is not a ChatGPT-like finished product.
 
 What works today:
 
@@ -39,9 +39,10 @@ What works today:
 - start the local Core API
 - call `GET /health` and receive `{"ok": true}`
 - call `POST /v1/public/messages` and receive a deterministic offline mock reply
+- call `POST /v1/public/messages` with `mode: "local"` to reach a loopback-only local Ollama-compatible runtime
 - open `clients/web` locally and send a mock/offline message through that endpoint
 
-Not included yet: live Web AI chat, Google login, conversation history sync, persistent natural memory, web search, Discord chat, provider live generation, official cloud, deployment, or full product completion.
+Not included yet: final Web product UI, Google login, conversation history sync, persistent natural memory, web search, Discord chat, external provider live generation, official cloud, deployment, or full product completion.
 
 See [Current MVP Capability Matrix](docs/CURRENT_MVP_CAPABILITY_MATRIX.md) for the user-facing capability table.
 
@@ -72,7 +73,10 @@ Useful starting points:
 - [External Agent API](docs/contracts/external-agent-api.md)
 - [SSE Run Events](docs/contracts/sse-run-events.md)
 - [v2026.5.20 Web UI mock-chat checkpoint note](docs/releases/v2026.5.20-web-ui-mock-chat-security-checkpoint.md)
+- [v2026.5.20 Local LLM conversation checkpoint note](docs/releases/v2026.5.20-local-llm-conversation-mvp-checkpoint.md)
 - [Dependabot triage 2026-05-20](docs/security/DEPENDABOT_TRIAGE_2026_05_20.md)
+- [Dependabot triage 2026-05-21](docs/security/DEPENDABOT_TRIAGE_2026_05_21.md)
+- [Open PR backlog triage 2026-05-21](docs/maintenance/OPEN_PR_BACKLOG_TRIAGE_2026_05_21.md)
 - [Latest traceability matrix](docs/TRACEABILITY_MATRIX_0_19.md)
 
 ## Product Surface Lanes
@@ -113,7 +117,7 @@ Use the smallest profile that matches the area you are reviewing.
 
 ### Verified public runnable MVP path
 
-The current public runnable checkpoint is the local Core API smoke path plus a credential-free mock/offline message contract. It does not require Discord credentials, a model provider API key, a private repository, VPS access, deployment, or a release tag.
+The current public runnable checkpoint is the local Core API smoke path plus credential-free mock/offline messaging and an optional loopback-only local LLM mode. It does not require Discord credentials, a cloud model provider API key, a private repository, VPS access, deployment, or a release tag.
 
 ```powershell
 python -m venv .venv
@@ -145,6 +149,17 @@ Invoke-RestMethod -Method Post `
   -Body '{"message":"hello","mode":"mock"}'
 ```
 
+If you have a local Ollama-compatible runtime listening on loopback, try local mode:
+
+```powershell
+$env:ORA_LOCAL_LLM_BASE_URL = "http://127.0.0.1:11434"
+$env:ORA_LOCAL_LLM_MODEL = "llama3.2"
+Invoke-RestMethod -Method Post `
+  -Uri http://127.0.0.1:8001/v1/public/messages `
+  -ContentType "application/json" `
+  -Body '{"message":"hello","mode":"local"}'
+```
+
 Expected health body:
 
 ```json
@@ -162,7 +177,20 @@ Expected public message response includes:
 }
 ```
 
-This message endpoint is a deterministic public contract smoke. It does not call a model provider, persist memory, run tools, or complete the Web/Discord chat product.
+Expected local LLM response includes:
+
+```json
+{
+  "ok": true,
+  "mode": "local",
+  "provider": "local-ollama",
+  "requires_approval": false
+}
+```
+
+Local mode is loopback-only. The configured local LLM URL must be `localhost`, `127.0.0.1`, or `::1`; arbitrary remote URLs, LAN hosts, provider APIs, tunnels, and control-plane endpoints are rejected by default.
+
+This message endpoint does not persist memory, run tools, complete the Web/Discord chat product, or call OpenAI, Anthropic, Gemini, web search, SNS, or Discord.
 
 To try the public Web UI mock-chat surface, keep the Core API running on port `8001`, then start the web client from another shell:
 
@@ -172,7 +200,7 @@ npm ci
 npm run dev
 ```
 
-Open `http://127.0.0.1:3000` and send a short message. The page posts to `/api/public/messages`, which is rewritten locally to `/v1/public/messages`. This is still mock/offline only.
+Open `http://127.0.0.1:3000` and send a short message. The page posts to `/api/public/messages`, which is rewritten locally to `/v1/public/messages`. This remains a smoke/demo surface, not the final product UI foundation.
 
 Do not commit `.env` or local secret files. Treat `.env.example` as a placeholder template, not production truth. Copying `.env.example` to `.env` is optional for local experiments, but the public smoke path above intentionally runs without real secrets.
 

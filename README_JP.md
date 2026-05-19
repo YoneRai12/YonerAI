@@ -2,7 +2,7 @@
 
 YonerAI は、公式環境・ローカル環境・self-hosted 環境が変わっても、同じ体験と同じ契約境界を保つための、プロバイダー非依存 AI 実行基盤です。
 
-[English README](README.md) | [Current phase](docs/CURRENT_PHASE_CONTEXT.md) | [Contracts](docs/contracts) | [Latest checkpoint](docs/releases/v2026.5.20-web-ui-mock-chat-security-checkpoint.md)
+[English README](README.md) | [Current phase](docs/CURRENT_PHASE_CONTEXT.md) | [Contracts](docs/contracts) | [Latest checkpoint](docs/releases/v2026.5.20-local-llm-conversation-mvp-checkpoint.md)
 
 ## YonerAI とは
 
@@ -72,7 +72,10 @@ raw chain-of-thought は public chat、API、SSE、log、documentation、trace s
 - [External Agent API](docs/contracts/external-agent-api.md)
 - [SSE Run Events](docs/contracts/sse-run-events.md)
 - [v2026.5.20 Web UI mock-chat checkpoint note](docs/releases/v2026.5.20-web-ui-mock-chat-security-checkpoint.md)
+- [v2026.5.20 Local LLM conversation checkpoint note](docs/releases/v2026.5.20-local-llm-conversation-mvp-checkpoint.md)
 - [Dependabot triage 2026-05-20](docs/security/DEPENDABOT_TRIAGE_2026_05_20.md)
+- [Dependabot triage 2026-05-21](docs/security/DEPENDABOT_TRIAGE_2026_05_21.md)
+- [Open PR backlog triage 2026-05-21](docs/maintenance/OPEN_PR_BACKLOG_TRIAGE_2026_05_21.md)
 - [Latest traceability matrix](docs/TRACEABILITY_MATRIX_0_19.md)
 
 ## Product surface lane
@@ -145,6 +148,17 @@ Invoke-RestMethod -Method Post `
   -Body '{"message":"hello","mode":"mock"}'
 ```
 
+ローカルに Ollama 互換 runtime が loopback で起動している場合だけ、local mode を試せます。
+
+```powershell
+$env:ORA_LOCAL_LLM_BASE_URL = "http://127.0.0.1:11434"
+$env:ORA_LOCAL_LLM_MODEL = "llama3.2"
+Invoke-RestMethod -Method Post `
+  -Uri http://127.0.0.1:8001/v1/public/messages `
+  -ContentType "application/json" `
+  -Body '{"message":"hello","mode":"local"}'
+```
+
 期待する health body:
 
 ```json
@@ -161,6 +175,19 @@ public message response には以下が含まれます。
   "requires_approval": false
 }
 ```
+
+local LLM response には以下が含まれます。
+
+```json
+{
+  "ok": true,
+  "mode": "local",
+  "provider": "local-ollama",
+  "requires_approval": false
+}
+```
+
+local mode は loopback-only です。設定できる local LLM URL は `localhost`、`127.0.0.1`、`::1` に限定されます。任意の remote URL、LAN host、provider API、tunnel、control-plane endpoint は default で拒否します。
 
 この message endpoint は deterministic な public contract smoke です。model provider、memory store、tool execution、Discord gateway は呼びません。Web / Discord chat product が完成したという意味でもありません。
 
