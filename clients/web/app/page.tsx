@@ -342,9 +342,9 @@ export default function Home() {
                 void handleSend();
               }
             }}
-            className="max-h-[180px] min-h-11 flex-1 resize-none bg-transparent px-2 py-3 text-[15px] leading-relaxed text-white outline-none placeholder:text-gray-500"
+            className="max-h-[180px] min-h-11 flex-1 bg-transparent px-2 py-3 text-[15px] leading-relaxed text-white outline-none placeholder:text-gray-500"
             placeholder="Message the temporary local Web Chat MVP..."
-            rows={1}
+            rows={3}
           />
           <button
             type="submit"
