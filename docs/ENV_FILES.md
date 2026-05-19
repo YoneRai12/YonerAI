@@ -35,16 +35,11 @@ Optional secret files (per profile) under `<...>/secrets/` are supported:
 - `browser_remote_token.txt` -> `BROWSER_REMOTE_TOKEN` / `ORA_BROWSER_REMOTE_TOKEN`
 - `admin_dashboard_token.txt` -> `ADMIN_DASHBOARD_TOKEN`
 
-## 2) Dashboard UI (Next.js) - `ora-ui/`
-
-- Template: `ora-ui/.env.example`
-- Your local file: `ora-ui/.env.local` (DO NOT commit)
-
-Used for Discord OAuth login (NextAuth/Auth.js).
-
-## 3) Web Client (Next.js) - `clients/web/`
+## 2) Web Client (Next.js) - `clients/web/`
 
 - Template: `clients/web/.env.example`
 - Your local file: `clients/web/.env.local` (DO NOT commit)
 
 Used for Discord OAuth login (NextAuth/Auth.js) and talking to ORA API/Core from the browser.
+
+The legacy `ora-ui/` dashboard has been retired from the active public surface. Do not create new public feature work on that retired UI.

@@ -1,16 +1,14 @@
 version: '3.8'
 
 services:
-  # 🤖 ORA Main Brain
+  # YonerAI legacy bot runtime.
   ora-bot:
     build: .
     container_name: ora-bot
     restart: always
     env_file: .env
     volumes:
-      # ONLY mount data, never code in production
       - ./data:/app/data
-      # If using L drive persistence, verify path existence on host
     deploy:
       resources:
         reservations:
@@ -19,28 +17,15 @@ services:
               count: all
               capabilities: [gpu]
     command: python main.py
-    # No stdin_open/tty needed for background procs typically, but harmless
 
-  # 💻 ORA UI (Next.js Dashboard)
-  ora-ui:
-    build: ./ora-ui
-    container_name: ora-ui
-    restart: always
-    ports:
-      - "3333:3333"
-    depends_on:
-      - ora-web
-
-  # 🌐 NERV Dashboard Backend
+  # Legacy web backend.
   ora-web:
     build: .
     container_name: ora-web
     restart: always
     env_file: .env
-    # No volume mount for code
     ports:
       - "8000:8000"
-    # Run WITHOUT reload for performance & security
     command: uvicorn src.web.app:app --host 0.0.0.0 --port 8000
     depends_on:
       - ora-bot

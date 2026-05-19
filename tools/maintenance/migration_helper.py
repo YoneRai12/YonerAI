@@ -12,15 +12,15 @@ EXCLUDE_DIRS = {
     "__pycache__",
     ".venv",
     "venv",
-    "ora-ui/.next",
-    "ora-ui/node_modules",
+    "clients/web/.next",
+    "clients/web/node_modules",
     "dist",
     "build",
     ".gemini",
     ".agent",
 }
 EXCLUDE_FILES = {"ora_migration.zip", ".DS_Store"}
-REQUIRED_FILES = ["src", "ora-ui", "package.json", "requirements.txt", "ora_bot.db", ".env", "migration_helper.py"]
+REQUIRED_FILES = ["src", "requirements.txt", ".env.example"]
 
 
 def generate_launcher():
@@ -62,17 +62,17 @@ fi
 # 1. Automatic Setup (includes VOICEVOX download)
 python3 migration_helper.py setup
 
-# 2. Start UI (Background)
-if [ -d "ora-ui" ]; then
-    echo "Starting Dashboard UI..."
-    cd ora-ui
+# 2. Start public web smoke/demo surface (Background)
+if [ -d "clients/web" ]; then
+    echo "Starting public web smoke/demo surface..."
+    cd clients/web
     if [ ! -d "node_modules" ]; then
         echo "Installing UI dependencies (First time)..."
         npm install
     fi
     npm run dev &
     UI_PID=$!
-    cd ..
+    cd ../..
 fi
 
 # 3. Start Backend API (Background - Localhost Only)
