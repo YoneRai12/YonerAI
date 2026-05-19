@@ -2,7 +2,7 @@
 
 Provider-independent AI execution foundation for keeping one reliable AI experience across official, local, and self-hosted runtimes.
 
-[Japanese README](README_JP.md) | [Current phase](docs/CURRENT_PHASE_CONTEXT.md) | [Contracts](docs/contracts) | [Latest checkpoint](docs/releases/v2026.5.21-local-llm-provider-compatibility-checkpoint.md)
+[Japanese README](README_JP.md) | [Current phase](docs/CURRENT_PHASE_CONTEXT.md) | [Contracts](docs/contracts) | [Latest checkpoint](docs/releases/v2026.5.22-web-chat-mvp-review-gate-checkpoint.md)
 
 ## What YonerAI Is
 
@@ -22,7 +22,7 @@ The active design anchor is v7.7:
 - contract-first public boundaries
 - public/private/control-plane separation by contract, not by leaking internal operations detail
 
-`v2026.5.20` is now visible as a normal GitHub Release for the public Local LLM conversation MVP checkpoint. The provider-compatibility note continues that checkpoint as a repository release note; neither is a production release.
+`v2026.5.21` is visible as a normal GitHub Release for the public Local LLM provider compatibility checkpoint. The current Web Chat MVP note continues that checkpoint as a repository release note; neither is a production release.
 
 This repository does not claim shipping completeness, production readiness, official cloud completion, live operations completion, or full product completion.
 
@@ -41,7 +41,9 @@ What works today:
 - call `POST /v1/public/messages` and receive a deterministic offline mock reply
 - call `POST /v1/public/messages` with `mode: "local"` to reach a loopback-only local LLM runtime
 - choose `local_provider: "ollama"` or `local_provider: "openai_compatible_local"` for supported local server styles
-- open `clients/web` locally and send a mock/offline message through that endpoint
+- open `clients/web` locally as a temporary Web Chat MVP / smoke-demo surface
+- from `clients/web`, send `mock` / `offline` messages through that endpoint
+- from `clients/web`, select local Ollama or OpenAI-compatible local mode when the Core API and local model server are already running on loopback
 
 Not included yet: final Web product UI, Google login, conversation history sync, persistent natural memory, web search, Discord chat, external provider live generation, official cloud, deployment, or full product completion.
 
@@ -73,13 +75,14 @@ Useful starting points:
 - [Current MVP Capability Matrix](docs/CURRENT_MVP_CAPABILITY_MATRIX.md)
 - [External Agent API](docs/contracts/external-agent-api.md)
 - [SSE Run Events](docs/contracts/sse-run-events.md)
+- [v2026.5.22 Web Chat MVP review-gate checkpoint note](docs/releases/v2026.5.22-web-chat-mvp-review-gate-checkpoint.md)
+- GitHub Release tag `v2026.5.21`
 - [v2026.5.21 Local LLM provider compatibility checkpoint note](docs/releases/v2026.5.21-local-llm-provider-compatibility-checkpoint.md)
-- [v2026.5.20 GitHub Release checkpoint](https://github.com/YoneRai12/YonerAI/releases/tag/v2026.5.20)
 - [v2026.5.20 Web UI mock-chat checkpoint note](docs/releases/v2026.5.20-web-ui-mock-chat-security-checkpoint.md)
 - [v2026.5.20 Local LLM conversation checkpoint note](docs/releases/v2026.5.20-local-llm-conversation-mvp-checkpoint.md)
 - [Dependabot triage 2026-05-20](docs/security/DEPENDABOT_TRIAGE_2026_05_20.md)
-- [Dependabot triage 2026-05-21](docs/security/DEPENDABOT_TRIAGE_2026_05_21.md)
-- [Open PR backlog triage 2026-05-21](docs/maintenance/OPEN_PR_BACKLOG_TRIAGE_2026_05_21.md)
+- [Dependabot triage 2026-05-22](docs/security/DEPENDABOT_TRIAGE_2026_05_22.md)
+- [Open PR backlog triage 2026-05-22](docs/maintenance/OPEN_PR_BACKLOG_TRIAGE_2026_05_22.md)
 - [Latest traceability matrix](docs/TRACEABILITY_MATRIX_0_19.md)
 
 ## Product Surface Lanes
@@ -210,7 +213,7 @@ Local mode is loopback-only. The configured local LLM URL must be `localhost`, `
 
 This message endpoint does not persist memory, run tools, complete the Web/Discord chat product, or call external OpenAI, Anthropic, Gemini, web search, SNS, or Discord services.
 
-To try the public Web UI mock-chat surface, keep the Core API running on port `8001`, then start the web client from another shell:
+To try the temporary Web Chat MVP, keep the Core API running on port `8001`, then start the web client from another shell:
 
 ```powershell
 cd clients\web
@@ -218,7 +221,9 @@ npm ci
 npm run dev
 ```
 
-Open `http://127.0.0.1:3000` and send a short message. The page posts to `/api/public/messages`, which is rewritten locally to `/v1/public/messages`. This remains a smoke/demo surface, not the final product UI foundation.
+Open `http://127.0.0.1:3000` and send a short message. The page posts to `/api/public/messages`, which is rewritten locally to `/v1/public/messages`. The page can use mock/offline mode, local Ollama mode, or OpenAI-compatible local mode. It does not expose arbitrary provider URLs; local provider base URLs stay under Core API loopback validation. This remains a temporary smoke/demo surface, not the final product UI foundation.
+
+If another local process already occupies Core API port `8001`, start the current Core API on a different loopback port and set `YONERAI_CORE_API_ORIGIN` before running `npm run dev`. That rewrite origin is loopback-only and rejects remote hosts.
 
 Do not commit `.env` or local secret files. Treat `.env.example` as a placeholder template, not production truth. Copying `.env.example` to `.env` is optional for local experiments, but the public smoke path above intentionally runs without real secrets.
 
@@ -284,6 +289,7 @@ cd clients\web; npm ci; npm run lint; npm run build; npm audit --omit=dev
 
 ## Release Notes
 
+- [v2026.5.22 Web Chat MVP review-gate checkpoint](docs/releases/v2026.5.22-web-chat-mvp-review-gate-checkpoint.md)
 - [v2026.5.21 Local LLM provider compatibility checkpoint](docs/releases/v2026.5.21-local-llm-provider-compatibility-checkpoint.md)
 - [v2026.5.20 Web UI mock-chat security checkpoint](docs/releases/v2026.5.20-web-ui-mock-chat-security-checkpoint.md)
 - [v2026.5.20 public core message MVP checkpoint](docs/releases/v2026.5.20-public-core-message-mvp-checkpoint.md)

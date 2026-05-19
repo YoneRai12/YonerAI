@@ -2,12 +2,19 @@
 
 This page is a public-safe index of current release notes and progress checkpoints.
 
+## v2026.5.22 Web Chat MVP Review-gate Checkpoint
+
+- Public checkpoint note: `docs/releases/v2026.5.22-web-chat-mvp-review-gate-checkpoint.md`
+- Scope: clarify `clients/web` as a temporary Web Chat MVP, add mock/local provider controls, improve safe Core API error display, and fix the remaining observed `clients/web` `postcss` advisory locally.
+- Status: public temporary Web Chat MVP checkpoint, not a production release.
+- Still open: GitHub Dependabot rescan after merge, final Web product UI, Google login, persistent memory, Discord gateway completion, old security PR review, safe branch/worktree cleanup, model listing, local LLM error UX, and future `src/cogs/ora.py` extraction.
+
 ## v2026.5.21 ora-ui Retirement and Security Backlog Cleanup Checkpoint
 
 - Public checkpoint note: `docs/releases/v2026.5.21-ora-ui-retirement-security-cleanup-checkpoint.md`
 - Scope: retire obsolete `ora-ui`, remove its dependency manifest from the active public surface, and update security/backlog triage.
 - Status: public maintenance checkpoint, not a production release.
-- Still open: remaining `clients/web` dependency alert, non-`ora-ui` Dependabot PRs, old security PR review, safe branch/worktree cleanup, model listing, local LLM error UX, and future `src/cogs/ora.py` extraction.
+- Still open: remaining `clients/web` dependency alert until the later web checkpoint reaches main and GitHub rescans, non-`ora-ui` Dependabot PRs, old security PR review, safe branch/worktree cleanup, model listing, local LLM error UX, and future `src/cogs/ora.py` extraction.
 
 ## v2026.5.21 Local LLM Provider Compatibility Checkpoint
 
