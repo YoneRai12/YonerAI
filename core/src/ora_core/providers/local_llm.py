@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ipaddress
 import os
+import threading
 from dataclasses import dataclass
 from typing import Mapping
 from urllib.parse import urljoin, urlparse
@@ -15,6 +16,8 @@ DEFAULT_LOCAL_LLM_TIMEOUT_SECONDS = 10.0
 MAX_LOCAL_LLM_TIMEOUT_SECONDS = 30.0
 LOOPBACK_HOSTNAMES = frozenset({"localhost"})
 LOCAL_LLM_PROVIDER = "local-ollama"
+_DEFAULT_CLIENT: httpx.Client | None = None
+_DEFAULT_CLIENT_LOCK = threading.Lock()
 
 
 class LocalLLMError(Exception):
@@ -111,6 +114,22 @@ def build_local_llm_config(environ: Mapping[str, str] | None = None) -> LocalLLM
     return LocalLLMConfig(enabled=enabled, base_url=base_url, model=model, timeout_seconds=timeout_seconds)
 
 
+def _get_default_client() -> httpx.Client:
+    global _DEFAULT_CLIENT
+    with _DEFAULT_CLIENT_LOCK:
+        if _DEFAULT_CLIENT is None or _DEFAULT_CLIENT.is_closed:
+            _DEFAULT_CLIENT = httpx.Client()
+        return _DEFAULT_CLIENT
+
+
+def close_default_client() -> None:
+    global _DEFAULT_CLIENT
+    with _DEFAULT_CLIENT_LOCK:
+        if _DEFAULT_CLIENT is not None:
+            _DEFAULT_CLIENT.close()
+            _DEFAULT_CLIENT = None
+
+
 def _extract_reply(payload: object) -> str:
     if not isinstance(payload, dict):
         raise LocalLLMResponseError("Local LLM response must be a JSON object.")
@@ -153,8 +172,7 @@ def generate_local_llm_reply(
         },
     }
 
-    owns_client = client is None
-    active_client = client or httpx.Client()
+    active_client = client or _get_default_client()
     try:
         response = active_client.post(endpoint, json=payload, timeout=cfg.timeout_seconds)
         response.raise_for_status()
@@ -162,9 +180,6 @@ def generate_local_llm_reply(
         raise LocalLLMConnectionError("Local LLM runtime timed out.") from exc
     except httpx.HTTPError as exc:
         raise LocalLLMConnectionError("Local LLM runtime is unavailable on the configured loopback endpoint.") from exc
-    finally:
-        if owns_client:
-            active_client.close()
 
     try:
         data = response.json()
