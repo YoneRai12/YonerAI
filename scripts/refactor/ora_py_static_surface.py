@@ -10,6 +10,8 @@ from typing import Any
 
 DEFAULT_TARGET = Path("src/cogs/ora.py")
 SCAN_ROOTS = ("src", "scripts", "tests", "core")
+EXCLUDE_DIRS = frozenset({"reference_clawdbot", "__pycache__", ".git", ".venv", "venv", "node_modules"})
+EXCLUDE_FILE_NAMES = frozenset({"ora_py_static_surface.py"})
 REFERENCE_PATTERNS = {
     "direct_module_string": "src.cogs.ora",
     "direct_oracog_import": "from .cogs.ora import ORACog",
@@ -102,7 +104,12 @@ def _iter_scanned_files(repo_root: Path) -> list[Path]:
         root = repo_root / root_name
         if not root.exists():
             continue
-        files.extend(path for path in root.rglob("*.py") if "reference_clawdbot" not in path.parts)
+        files.extend(
+            path
+            for path in root.rglob("*.py")
+            if not any(part in EXCLUDE_DIRS for part in path.parts)
+            and path.name not in EXCLUDE_FILE_NAMES
+        )
     return sorted(files)
 
 
@@ -110,7 +117,7 @@ def _collect_inbound_references(repo_root: Path, target: Path) -> list[dict[str,
     references: list[dict[str, Any]] = []
     target_resolved = target.resolve()
     for path in _iter_scanned_files(repo_root):
-        if path.resolve() == target_resolved or path.name == "ora_py_static_surface.py":
+        if path.resolve() == target_resolved:
             continue
         text = _read_text(path)
         matches = sorted(name for name, pattern in REFERENCE_PATTERNS.items() if pattern in text)

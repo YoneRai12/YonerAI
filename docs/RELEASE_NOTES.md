@@ -2,6 +2,13 @@
 
 This page is a public-safe index of current release notes and progress checkpoints.
 
+## v2026.5.20 Public Core Message MVP Checkpoint
+
+- Public checkpoint note: `docs/releases/v2026.5.20-public-core-message-mvp-checkpoint.md`
+- Scope: credential-free local Core API mock/offline message contract plus refactor Step 0.1 static analyzer hardening.
+- Status: public core message MVP checkpoint, not a production release.
+- Still open: Web UI chat, provider adapter boundary, memory persistence, Google login, Discord gateway completion, web search, official cloud, and future `src/cogs/ora.py` extraction.
+
 ## v2026.5.19 `ora.py` Import Map Checkpoint
 
 - Public checkpoint note: `docs/releases/v2026.5.19-ora-py-import-map-checkpoint.md`

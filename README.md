@@ -2,7 +2,7 @@
 
 Provider-independent AI execution foundation for keeping one reliable AI experience across official, local, and self-hosted runtimes.
 
-[Japanese README](README_JP.md) | [Current phase](docs/CURRENT_PHASE_CONTEXT.md) | [Contracts](docs/contracts) | [Latest checkpoint](docs/releases/v2026.5.19-public-runnable-mvp-checkpoint.md)
+[Japanese README](README_JP.md) | [Current phase](docs/CURRENT_PHASE_CONTEXT.md) | [Contracts](docs/contracts) | [Latest checkpoint](docs/releases/v2026.5.20-public-core-message-mvp-checkpoint.md)
 
 ## What YonerAI Is
 
@@ -22,7 +22,7 @@ The active design anchor is v7.7:
 - contract-first public boundaries
 - public/private/control-plane separation by contract, not by leaking internal operations detail
 
-`v2026.5.19` is a public runnable MVP checkpoint, not a production release.
+`v2026.5.20` is a public core message MVP checkpoint, not a production release.
 
 This repository does not claim shipping completeness, production readiness, official cloud completion, live operations completion, or full product completion.
 
@@ -30,7 +30,7 @@ Pass 2 remains stopped / not landed. `src/cogs/ora.py` remains unresolved privat
 
 ## Current MVP Capability
 
-The current public MVP is a credential-free local Core API health smoke, not a ChatGPT-like chat product.
+The current public MVP is a credential-free local Core API health smoke plus a mock/offline message contract, not a ChatGPT-like chat product.
 
 What works today:
 
@@ -38,8 +38,9 @@ What works today:
 - install dependencies
 - start the local Core API
 - call `GET /health` and receive `{"ok": true}`
+- call `POST /v1/public/messages` and receive a deterministic offline mock reply
 
-Not included yet: Web UI chat, Google login, conversation history sync, persistent natural memory, web search, Discord chat, official cloud, deployment, or full product completion.
+Not included yet: Web UI chat, Google login, conversation history sync, persistent natural memory, web search, Discord chat, provider live generation, official cloud, deployment, or full product completion.
 
 See [Current MVP Capability Matrix](docs/CURRENT_MVP_CAPABILITY_MATRIX.md) for the user-facing capability table.
 
@@ -97,7 +98,7 @@ This public checkpoint does not include or claim:
 - full product completion
 - `src/cogs/ora.py` implementation
 - runtime split implementation
-- API / CLI / native Japanese CLI / Web / SNS implementation
+- full API / CLI / native Japanese CLI / Web / SNS product implementation
 - dependency vulnerability remediation
 - runtime hardcoded path cleanup
 - git history rewrite
@@ -110,7 +111,7 @@ Use the smallest profile that matches the area you are reviewing.
 
 ### Verified public runnable MVP path
 
-The current public runnable checkpoint is the local Core API smoke path. It does not require Discord credentials, a model provider API key, a private repository, VPS access, deployment, or a release tag.
+The current public runnable checkpoint is the local Core API smoke path plus a credential-free mock/offline message contract. It does not require Discord credentials, a model provider API key, a private repository, VPS access, deployment, or a release tag.
 
 ```powershell
 python -m venv .venv
@@ -135,11 +136,31 @@ python -m ora_core.main
 Invoke-WebRequest -UseBasicParsing http://127.0.0.1:8001/health
 ```
 
+```powershell
+Invoke-RestMethod -Method Post `
+  -Uri http://127.0.0.1:8001/v1/public/messages `
+  -ContentType "application/json" `
+  -Body '{"message":"hello","mode":"mock"}'
+```
+
 Expected health body:
 
 ```json
 {"ok": true}
 ```
+
+Expected public message response includes:
+
+```json
+{
+  "ok": true,
+  "mode": "mock",
+  "provider": "offline-mock",
+  "requires_approval": false
+}
+```
+
+This message endpoint is a deterministic public contract smoke. It does not call a model provider, persist memory, run tools, or complete the Web/Discord chat product.
 
 Do not commit `.env` or local secret files. Treat `.env.example` as a placeholder template, not production truth. Copying `.env.example` to `.env` is optional for local experiments, but the public smoke path above intentionally runs without real secrets.
 
@@ -147,6 +168,7 @@ Additional public-safe contract smoke:
 
 ```powershell
 pytest tests/test_distribution_node_mvp.py -q
+pytest tests/test_public_core_message_mvp.py tests/test_ora_import_map.py -q
 ```
 
 Optional local web/API runtime:
@@ -198,10 +220,12 @@ For the public runnable MVP, the verified minimum checks are:
 git diff --check
 pytest tests/test_public_runnable_smoke.py tests/test_runtime_env_loader.py -q
 pytest tests/test_distribution_node_mvp.py -q
+pytest tests/test_public_core_message_mvp.py tests/test_ora_import_map.py -q
 ```
 
 ## Release Notes
 
+- [v2026.5.20 public core message MVP checkpoint](docs/releases/v2026.5.20-public-core-message-mvp-checkpoint.md)
 - [v2026.5.19 public runnable MVP checkpoint](docs/releases/v2026.5.19-public-runnable-mvp-checkpoint.md)
 - [v2026.5.18 public progress checkpoint](docs/releases/v2026.5.18-public-progress-checkpoint.md)
 - [Release notes index](docs/RELEASE_NOTES.md)

@@ -4,7 +4,7 @@ Status: public-safe capability truth for the current public MVP.
 
 ## Current MVP In One Sentence
 
-The current public MVP is a credential-free local Core API health smoke, not a ChatGPT-like chat product.
+The current public MVP is a credential-free local Core API health smoke plus a mock/offline message contract, not a ChatGPT-like chat product.
 
 ## Included Now
 
@@ -12,10 +12,12 @@ The current public MVP is a credential-free local Core API health smoke, not a C
 - dependency install
 - local Core API startup
 - `GET /health -> {"ok": true}`
+- `POST /v1/public/messages -> deterministic offline mock reply`
 - public smoke tests
 - no Discord token required
 - no provider API key required
 - no private repository required
+- no memory persistence required
 
 ## Not Included Yet
 
@@ -27,6 +29,7 @@ The current public MVP is a credential-free local Core API health smoke, not a C
 - persistent natural memory
 - PC-hosted smartphone Web chat
 - PC-hosted Discord chat
+- provider live generation
 - official cloud
 - deployment
 - full API / Web / CLI / SNS implementation
@@ -41,21 +44,21 @@ The current public MVP is a credential-free local Core API health smoke, not a C
 | Can I log in with Google and keep the same history? | Not yet. |
 | Can I host on my PC and chat from phone Web or Discord? | Not yet. |
 | Does it naturally remember what I told it before? | Not yet. |
-| What can I verify now? | Clone, install, start local Core API, call `/health`. |
+| Can I verify a message request contract? | Yes, through the local mock/offline `POST /v1/public/messages` endpoint. |
+| What can I verify now? | Clone, install, start local Core API, call `/health`, and call `/v1/public/messages` in mock mode. |
 
 ## Next Capability Ladder
 
 The current checkpoint should grow in separate, reviewable lanes:
 
-1. Core API message contract
-2. offline/mock chat endpoint
-3. Web UI chat
-4. memory persistence
-5. identity / Google login
-6. Discord gateway
-7. web search
-8. self-evolution proposal-only MVP
-9. official/private runtime lanes
+1. Web UI connection to the mock/offline message endpoint
+2. provider adapter boundary
+3. memory persistence
+4. identity / Google login
+5. Discord gateway
+6. web search
+7. self-evolution proposal-only MVP expansion
+8. official/private runtime lanes
 
 Each ladder step needs its own tests, privacy boundary, and public wording review.
 

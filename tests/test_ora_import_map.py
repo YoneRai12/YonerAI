@@ -8,6 +8,16 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT_PATH = REPO_ROOT / "scripts" / "refactor" / "ora_py_static_surface.py"
+RUNTIME_IMPORT_MODULES = ("discord", "src.cogs.ora", "src.bot")
+
+
+def _loaded_runtime_modules() -> set[str]:
+    loaded: set[str] = set()
+    for module_name in sys.modules:
+        for runtime_root in RUNTIME_IMPORT_MODULES:
+            if module_name == runtime_root or module_name.startswith(f"{runtime_root}."):
+                loaded.add(module_name)
+    return loaded
 
 
 def _load_analyzer():
@@ -20,12 +30,14 @@ def _load_analyzer():
 
 
 def test_static_surface_pins_oracog_facade_without_runtime_import():
+    runtime_baseline = _loaded_runtime_modules()
     analyzer = _load_analyzer()
-    before_discord = "discord" in sys.modules
+
+    assert _loaded_runtime_modules() == runtime_baseline
 
     surface = analyzer.analyze_ora_surface(REPO_ROOT)
 
-    assert ("discord" in sys.modules) is before_discord
+    assert _loaded_runtime_modules() == runtime_baseline
     assert surface["target"] == "src/cogs/ora.py"
     assert surface["setup"]["present"] is True
     assert surface["setup"]["async"] is True
