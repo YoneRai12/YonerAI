@@ -2,7 +2,7 @@
 
 Provider-independent AI execution foundation for keeping one reliable AI experience across official, local, and self-hosted runtimes.
 
-[Japanese README](README_JP.md) | [Current phase](docs/CURRENT_PHASE_CONTEXT.md) | [Contracts](docs/contracts) | [Latest checkpoint](docs/releases/v2026.5.20.6-hybrid-envelope-policy-semantics-checkpoint.md)
+[Japanese README](README_JP.md) | [Current phase](docs/CURRENT_PHASE_CONTEXT.md) | [Contracts](docs/contracts) | [Latest checkpoint](docs/releases/v2026.5.20.8-surface-cli-smoke-checkpoint.md)
 
 ## What YonerAI Is
 
@@ -22,7 +22,7 @@ The active design anchor is v7.7:
 - contract-first public boundaries
 - public/private/control-plane separation by contract, not by leaking internal operations detail
 
-The current public checkpoint stream uses the verified 2026-05-20 date with same-day suffixes. `v2026.5.20.6` records the hybrid envelope policy semantics fix for this lane. It is a checkpoint note, not a production release.
+The current public checkpoint stream uses the verified 2026-05-20 date with same-day suffixes. `v2026.5.20.8` records the local CLI smoke surface for this lane. It is a checkpoint note, not a production release.
 
 Older future-dated checkpoint labels can remain as historical artifacts, but they should not be used as the current public/latest checkpoint unless a current-date GitHub Release explicitly supersedes them.
 
@@ -43,6 +43,7 @@ What works today:
 - call `POST /v1/public/messages` and receive a deterministic offline mock reply
 - send follow-up public messages with `session_id` / `conversation_id` and receive non-persistent turn metadata
 - call `POST /api/v1/agent/run` for a local in-memory run smoke contract and read `events_url` / `results_url`
+- install `clients/cli` locally and run `yonerai health`, `yonerai message --mode mock "hello"`, and `yonerai run --mode mock "hello"` against loopback Core
 - call `POST /v1/public/messages` with `mode: "local"` to reach a loopback-only local LLM runtime
 - choose `local_provider: "ollama"` or `local_provider: "openai_compatible_local"` for supported local server styles
 - open `clients/web` locally as a temporary Web Chat MVP / smoke-demo surface
@@ -82,6 +83,8 @@ Useful starting points:
 - Feature inventory and releaseability map under `docs/capabilities/`
 - [External Agent API](docs/contracts/external-agent-api.md)
 - [SSE Run Events](docs/contracts/sse-run-events.md)
+- [v2026.5.20.8 Surface CLI smoke checkpoint note](docs/releases/v2026.5.20.8-surface-cli-smoke-checkpoint.md)
+- [v2026.5.20.7 Surface API run contract checkpoint note](docs/releases/v2026.5.20.7-surface-api-run-contract-checkpoint.md)
 - [v2026.5.20.6 Hybrid envelope policy semantics checkpoint note](docs/releases/v2026.5.20.6-hybrid-envelope-policy-semantics-checkpoint.md)
 - [Surface/repo strategy checkpoint](docs/strategy/SURFACE_REPO_STRATEGY_2026_05_20.md)
 - [Open PR triage checkpoint](docs/maintenance/OPEN_PR_TRIAGE_2026_05_20.md)
@@ -237,6 +240,17 @@ For OpenAI-compatible local mode, `provider` is `local-openai-compatible`.
 Local mode is loopback-only. The configured local LLM URL must be `localhost`, `127.0.0.1`, or `::1`; arbitrary remote URLs, LAN hosts, external provider APIs, tunnels, embedded credentials, query strings, fragments, and control-plane endpoints are rejected by default. Model availability depends on the local server. YonerAI passes the requested local model name through; it does not hardcode model families.
 
 This message endpoint does not persist memory, run tools, complete the Web/Discord chat product, or call external OpenAI, Anthropic, Gemini, web search, SNS, or Discord services. Session metadata is kept in the running Core API process only and is cleared on process restart.
+
+To try the temporary local CLI smoke surface, install the CLI package locally and keep the Core API running on loopback:
+
+```powershell
+python -m pip install -e clients/cli
+yonerai health
+yonerai message --mode mock "hello"
+yonerai run --mode mock "hello"
+```
+
+The CLI defaults to `http://127.0.0.1:8001`, rejects remote API origins, and does not add deploy, shell execution, persistent memory, Google login, external provider live generation, or production packaging.
 
 To try the temporary Web Chat MVP, keep the Core API running on port `8001`, then start the web client from another shell:
 
