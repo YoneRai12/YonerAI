@@ -68,6 +68,21 @@ Next lane split:
 5. Provider / media refresh: #150, #148, #147.
 6. Optional memory dependency refresh: #143 after memory-policy scope is explicit.
 
+## 2026-05-21 Public GitHub State Reconciliation
+
+- Follow-up branch: `codex/public-github-state-reconciliation`
+- Current baseline: public `main` after PR #203.
+- `origin/main`: `f636c482031021b9d21aeea1cdef1f0252e51ece`
+- GitHub source of truth: `gh pr list --state open --limit 100 --json number --jq length`
+- GitHub API open pull count: `43`
+- Public HTML pull-list check: `43 Open`
+- Latest GitHub Release: `v2026.5.20.6`
+- Ledger: `docs/maintenance/PUBLIC_GITHUB_STATE_RECONCILIATION_2026_05_21.md`
+
+Decision: open PR count increased from 33 to 43 because new security/runtime PRs #204 through #213 were opened after the prior dependency drain. This is not a regression in the prior close accounting; it is new incoming backlog.
+
+PR #195 and PR #203 current body scans found no four-question-mark mojibake sequence, no replacement characters, and no specified hidden/bidirectional Unicode controls. PR #203 had a post-merge Codex review note about documentation grouping consistency; this ledger keeps #117, #119, and #127 closed as superseded and routes future web dependency work to fresh lanes only if new alerts appear.
+
 ## Classification Rules Used
 
 | class | meaning |
@@ -75,7 +90,7 @@ Next lane split:
 | `KEEP_SECURITY_REVIEW` | Security-sensitive PR. Do not close or merge without a fresh threat review and current-main rework. |
 | `KEEP_CORRECTNESS_REVIEW` | Potential correctness/product value. Needs refresh and focused tests. |
 | `KEEP_DEPENDENCY_UPDATE` | Dependency/update PR. Needs dependency lane review and CI/security context. |
-| `CLOSE_SUPERSEDED` | Clearly replaced by landed work and safe to close with evidence. None reached that bar in this run. |
+| `CLOSE_SUPERSEDED` | Clearly replaced by landed work and safe to close with evidence. |
 | `CLOSE_DUPLICATE` | Clearly duplicate and safe to close. Security/legal duplicates were not closed because impact is uncertain. |
 | `CLOSE_STALE_UNSAFE` | Clearly stale and unsafe to merge. None closed without deeper owner review. |
 | `REPLACE_WITH_V7_7_LANE` | Old branch may contain ideas, but should be replaced by a fresh v7.7 lane rather than merged. |
