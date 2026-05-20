@@ -77,6 +77,12 @@ Next gate:
 - user-visible safety summary
 - parity tests against the API contract
 
+Native Japanese CLI contract 0.1 checkpoint:
+
+- public-safe contract path: `docs/contracts/native-japanese-cli-contract-0.1.md`
+- defines intent mapping, ambiguity handling, explain-before-action, dry-run, approval binding, capability allowlist, audit event shape, and examples
+- does not implement shell execution, deploy, persistent memory, Google login, external provider live generation, or private/control-plane access
+
 ## Web Lane
 
 The Web lane is the product surface, not the contract authority.
