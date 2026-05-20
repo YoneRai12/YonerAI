@@ -21,6 +21,9 @@ def _load_core_app(monkeypatch, tmp_path):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
     monkeypatch.delenv("DISCORD_TOKEN", raising=False)
+    monkeypatch.delenv("ORA_LOCAL_LLM_ENABLED", raising=False)
+    monkeypatch.delenv("ORA_LOCAL_LLM_PUBLIC_TOKEN", raising=False)
+    monkeypatch.delenv("ORA_LOCAL_LLM_BASE_URL", raising=False)
 
     sys.modules.pop("ora_core.main", None)
     main_mod = importlib.import_module("ora_core.main")
@@ -85,6 +88,8 @@ def test_public_message_endpoint_supports_explicit_offline_mode(monkeypatch, tmp
 
 def test_public_message_endpoint_supports_loopback_local_mode(monkeypatch, tmp_path):
     app = _load_core_app(monkeypatch, tmp_path)
+    monkeypatch.setenv("ORA_LOCAL_LLM_ENABLED", "1")
+    monkeypatch.setenv("ORA_LOCAL_LLM_PUBLIC_TOKEN", "local-test-token")
 
     from ora_core.providers import local_llm
 
@@ -102,6 +107,7 @@ def test_public_message_endpoint_supports_loopback_local_mode(monkeypatch, tmp_p
     with TestClient(app, client=("127.0.0.1", 50000)) as client:
         response = client.post(
             "/v1/public/messages",
+            headers={"X-ORA-Local-Token": "local-test-token"},
             json={
                 "message": "hello",
                 "conversation_id": "local-smoke",
@@ -123,6 +129,9 @@ def test_public_message_endpoint_supports_loopback_local_mode(monkeypatch, tmp_p
 
 def test_public_message_endpoint_supports_openai_compatible_local_provider(monkeypatch, tmp_path):
     app = _load_core_app(monkeypatch, tmp_path)
+    monkeypatch.setenv("ORA_LOCAL_LLM_ENABLED", "1")
+    monkeypatch.setenv("ORA_LOCAL_LLM_PUBLIC_TOKEN", "local-test-token")
+    monkeypatch.setenv("ORA_LOCAL_LLM_BASE_URL", "http://127.0.0.1:1234/v1")
 
     from ora_core.providers import local_llm
 
@@ -147,6 +156,7 @@ def test_public_message_endpoint_supports_openai_compatible_local_provider(monke
     with TestClient(app, client=("127.0.0.1", 50000)) as client:
         response = client.post(
             "/v1/public/messages",
+            headers={"X-ORA-Local-Token": "local-test-token"},
             json={
                 "message": "hello",
                 "conversation_id": "local-openai-smoke",
@@ -170,10 +180,13 @@ def test_public_message_endpoint_supports_openai_compatible_local_provider(monke
 
 def test_public_message_endpoint_rejects_unsupported_local_provider(monkeypatch, tmp_path):
     app = _load_core_app(monkeypatch, tmp_path)
+    monkeypatch.setenv("ORA_LOCAL_LLM_ENABLED", "1")
+    monkeypatch.setenv("ORA_LOCAL_LLM_PUBLIC_TOKEN", "local-test-token")
 
     with TestClient(app, client=("127.0.0.1", 50000)) as client:
         response = client.post(
             "/v1/public/messages",
+            headers={"X-ORA-Local-Token": "local-test-token"},
             json={"message": "hello", "mode": "local", "local_provider": "remote-openai"},
         )
 
@@ -187,9 +200,15 @@ def test_public_message_endpoint_rejects_unsupported_local_provider(monkeypatch,
 
 def test_public_message_endpoint_rejects_non_loopback_client_for_local_mode(monkeypatch, tmp_path):
     app = _load_core_app(monkeypatch, tmp_path)
+    monkeypatch.setenv("ORA_LOCAL_LLM_ENABLED", "1")
+    monkeypatch.setenv("ORA_LOCAL_LLM_PUBLIC_TOKEN", "local-test-token")
 
     with TestClient(app, client=("203.0.113.10", 50000)) as client:
-        response = client.post("/v1/public/messages", json={"message": "hello", "mode": "local"})
+        response = client.post(
+            "/v1/public/messages",
+            headers={"X-ORA-Local-Token": "local-test-token"},
+            json={"message": "hello", "mode": "local"},
+        )
 
     assert response.status_code == 403
     body = response.json()
@@ -197,25 +216,77 @@ def test_public_message_endpoint_rejects_non_loopback_client_for_local_mode(monk
     assert "detail" not in body
 
 
-def test_public_message_endpoint_rejects_non_loopback_local_llm_url(monkeypatch, tmp_path):
+def test_public_message_endpoint_ignores_request_local_base_url_override(monkeypatch, tmp_path):
     app = _load_core_app(monkeypatch, tmp_path)
+    monkeypatch.setenv("ORA_LOCAL_LLM_ENABLED", "1")
+    monkeypatch.setenv("ORA_LOCAL_LLM_PUBLIC_TOKEN", "local-test-token")
+    monkeypatch.setenv("ORA_LOCAL_LLM_BASE_URL", "http://127.0.0.1:11434")
+
+    from ora_core.providers import local_llm
+
+    def fake_generate_local_llm_reply(*, message, conversation_id, model=None, config=None, client=None):
+        assert config is not None
+        assert config.base_url == "http://127.0.0.1:11434"
+        return local_llm.LocalLLMReply(reply="local test reply", provider="local-ollama", model=config.model)
+
+    monkeypatch.setattr(local_llm, "generate_local_llm_reply", fake_generate_local_llm_reply)
 
     with TestClient(app, client=("127.0.0.1", 50000)) as client:
         response = client.post(
             "/v1/public/messages",
+            headers={"X-ORA-Local-Token": "local-test-token"},
             json={"message": "hello", "mode": "local", "local_base_url": "https://example.com"},
         )
 
-    assert response.status_code == 400
+    assert response.status_code == 200
     body = response.json()
-    assert body["error"] == "unsafe_local_llm_endpoint"
-    assert "detail" not in body
-    assert "example.com" not in body["message"]
-    assert "loopback provider endpoints" in body["message"]
+    assert body["provider"] == "local-ollama"
+    assert body["reply"] == "local test reply"
+
+
+def test_public_message_endpoint_requires_local_token_when_local_mode_enabled(monkeypatch, tmp_path):
+    app = _load_core_app(monkeypatch, tmp_path)
+    monkeypatch.setenv("ORA_LOCAL_LLM_ENABLED", "1")
+    monkeypatch.setenv("ORA_LOCAL_LLM_PUBLIC_TOKEN", "local-test-token")
+
+    with TestClient(app, client=("127.0.0.1", 50000)) as client:
+        missing = client.post("/v1/public/messages", json={"message": "hello", "mode": "local"})
+        wrong = client.post(
+            "/v1/public/messages",
+            headers={"X-ORA-Local-Token": "wrong-token"},
+            json={"message": "hello", "mode": "local"},
+        )
+
+    assert missing.status_code == 403
+    assert missing.json()["error"] == "local_llm_auth_required"
+    assert wrong.status_code == 403
+    assert wrong.json()["error"] == "local_llm_auth_required"
+    assert "local-test-token" not in str(missing.json())
+    assert "wrong-token" not in str(wrong.json())
+
+
+def test_public_message_endpoint_returns_safe_error_when_local_token_is_not_configured(monkeypatch, tmp_path):
+    app = _load_core_app(monkeypatch, tmp_path)
+    monkeypatch.setenv("ORA_LOCAL_LLM_ENABLED", "1")
+
+    with TestClient(app, client=("127.0.0.1", 50000)) as client:
+        response = client.post(
+            "/v1/public/messages",
+            headers={"X-ORA-Local-Token": "local-test-token"},
+            json={"message": "hello", "mode": "local"},
+        )
+
+    assert response.status_code == 503
+    body = response.json()
+    assert body["error"] == "local_llm_auth_not_configured"
+    assert body["status"] == "auth_not_configured"
+    assert "local-test-token" not in str(body)
 
 
 def test_public_message_endpoint_returns_safe_error_when_local_llm_unavailable(monkeypatch, tmp_path):
     app = _load_core_app(monkeypatch, tmp_path)
+    monkeypatch.setenv("ORA_LOCAL_LLM_ENABLED", "1")
+    monkeypatch.setenv("ORA_LOCAL_LLM_PUBLIC_TOKEN", "local-test-token")
 
     from ora_core.providers import local_llm
 
@@ -225,7 +296,11 @@ def test_public_message_endpoint_returns_safe_error_when_local_llm_unavailable(m
     monkeypatch.setattr(local_llm, "generate_local_llm_reply", fail_generate_local_llm_reply)
 
     with TestClient(app, client=("127.0.0.1", 50000)) as client:
-        response = client.post("/v1/public/messages", json={"message": "hello", "mode": "local"})
+        response = client.post(
+            "/v1/public/messages",
+            headers={"X-ORA-Local-Token": "local-test-token"},
+            json={"message": "hello", "mode": "local"},
+        )
 
     assert response.status_code == 503
     body = response.json()
@@ -245,6 +320,8 @@ def test_public_message_endpoint_returns_safe_local_error_metadata_for_openai_co
     monkeypatch, tmp_path
 ):
     app = _load_core_app(monkeypatch, tmp_path)
+    monkeypatch.setenv("ORA_LOCAL_LLM_ENABLED", "1")
+    monkeypatch.setenv("ORA_LOCAL_LLM_PUBLIC_TOKEN", "local-test-token")
 
     from ora_core.providers import local_llm
 
@@ -258,7 +335,7 @@ def test_public_message_endpoint_returns_safe_local_error_metadata_for_openai_co
     with TestClient(app, client=("127.0.0.1", 50000)) as client:
         response = client.post(
             "/v1/public/messages",
-            headers={"Authorization": "Bearer sk-secretvalue123"},
+            headers={"Authorization": "Bearer sk-secretvalue123", "X-ORA-Local-Token": "local-test-token"},
             json={
                 "message": "hello",
                 "mode": "local",
@@ -285,10 +362,13 @@ def test_public_message_endpoint_returns_safe_local_error_metadata_for_openai_co
 
 def test_public_message_endpoint_rejects_secret_like_model_without_echoing_value(monkeypatch, tmp_path):
     app = _load_core_app(monkeypatch, tmp_path)
+    monkeypatch.setenv("ORA_LOCAL_LLM_ENABLED", "1")
+    monkeypatch.setenv("ORA_LOCAL_LLM_PUBLIC_TOKEN", "local-test-token")
 
     with TestClient(app, client=("127.0.0.1", 50000)) as client:
         response = client.post(
             "/v1/public/messages",
+            headers={"X-ORA-Local-Token": "local-test-token"},
             json={"message": "hello", "mode": "local", "model": "sk-private-model-secret"},
         )
 
