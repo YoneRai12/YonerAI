@@ -25,9 +25,14 @@ Separate repos become useful only after a surface can be packaged without copyin
 
 The API lane is the contract authority.
 
+Surface API 0.1 checkpoint:
+
+- public Core exposes a local in-memory run smoke surface at `POST /api/v1/agent/run`
+- run events/results are available at the returned `events_url` and `results_url`
+- the surface is not production cloud, not persistent memory, and not final SSE exactness
+
 Next gates:
 
-- external run contract
 - SSE event schema
 - error schema
 - idempotency model

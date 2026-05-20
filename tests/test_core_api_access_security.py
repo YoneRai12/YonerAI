@@ -32,6 +32,7 @@ def test_core_access_gate_is_attached_to_all_sensitive_routes(monkeypatch):
         "/v1/messages",
         "/v1/runs/{run_id}/events",
         "/v1/runs/{run_id}/results",
+        "/v1/files/{file_id}/download-url",
         "/v1/auth/link-code",
         "/v1/auth/link",
         "/v1/dashboard",
@@ -44,6 +45,12 @@ def test_core_access_gate_is_attached_to_all_sensitive_routes(monkeypatch):
         if not isinstance(route, APIRoute) or route.path not in protected_paths:
             continue
         assert any(dep.call is require_core_access for dep in route.dependant.dependencies), route.path
+
+    ticket_download_paths = {"/v1/files/download/{ticket}"}
+    for route in app.routes:
+        if not isinstance(route, APIRoute) or route.path not in ticket_download_paths:
+            continue
+        assert not any(dep.call is require_core_access for dep in route.dependant.dependencies), route.path
 
 
 def test_core_access_gate_blocks_and_allows_with_token(monkeypatch):
