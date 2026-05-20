@@ -2,7 +2,7 @@
 
 Provider-independent AI execution foundation for keeping one reliable AI experience across official, local, and self-hosted runtimes.
 
-[Japanese README](README_JP.md) | [Current phase](docs/CURRENT_PHASE_CONTEXT.md) | [Contracts](docs/contracts) | [Latest checkpoint](docs/releases/v2026.5.20.5-public-surface-release-hygiene-checkpoint.md)
+[Japanese README](README_JP.md) | [Current phase](docs/CURRENT_PHASE_CONTEXT.md) | [Contracts](docs/contracts) | [Latest checkpoint](docs/releases/v2026.5.20.6-hybrid-envelope-policy-semantics-checkpoint.md)
 
 ## What YonerAI Is
 
@@ -22,7 +22,7 @@ The active design anchor is v7.7:
 - contract-first public boundaries
 - public/private/control-plane separation by contract, not by leaking internal operations detail
 
-The current public checkpoint stream uses the verified 2026-05-20 date with same-day suffixes. `v2026.5.20.5` records the public surface and release hygiene cleanup for this lane. It is a checkpoint note, not a production release.
+The current public checkpoint stream uses the verified 2026-05-20 date with same-day suffixes. `v2026.5.20.6` records the hybrid envelope policy semantics fix for this lane. It is a checkpoint note, not a production release.
 
 Older future-dated checkpoint labels can remain as historical artifacts, but they should not be used as the current public/latest checkpoint unless a current-date GitHub Release explicitly supersedes them.
 
@@ -81,7 +81,9 @@ Useful starting points:
 - Feature inventory and releaseability map under `docs/capabilities/`
 - [External Agent API](docs/contracts/external-agent-api.md)
 - [SSE Run Events](docs/contracts/sse-run-events.md)
-- [v2026.5.20.5 Public surface and release hygiene checkpoint note](docs/releases/v2026.5.20.5-public-surface-release-hygiene-checkpoint.md)
+- [v2026.5.20.6 Hybrid envelope policy semantics checkpoint note](docs/releases/v2026.5.20.6-hybrid-envelope-policy-semantics-checkpoint.md)
+- [Surface/repo strategy checkpoint](docs/strategy/SURFACE_REPO_STRATEGY_2026_05_20.md)
+- [Open PR triage checkpoint](docs/maintenance/OPEN_PR_TRIAGE_2026_05_20.md)
 - [Root surface policy](docs/repo/ROOT_SURFACE_POLICY.md)
 - [Release date hygiene policy](docs/repo/RELEASE_DATE_HYGIENE_POLICY.md)
 - [Public presentation policy](docs/repo/PUBLIC_PRESENTATION_POLICY.md)
@@ -311,6 +313,7 @@ cd clients\web; npm ci; npm run lint; npm run build; npm audit --omit=dev
 
 ## Release Notes
 
+- [v2026.5.20.6 Hybrid envelope policy semantics checkpoint](docs/releases/v2026.5.20.6-hybrid-envelope-policy-semantics-checkpoint.md)
 - [v2026.5.20.5 Public surface and release hygiene checkpoint](docs/releases/v2026.5.20.5-public-surface-release-hygiene-checkpoint.md)
 - [v2026.5.20.4 Hybrid Connector Fixture and Memory Policy checkpoint](docs/releases/v2026.5.20.4-hybrid-connector-fixture-memory-policy-checkpoint.md)
 - [v2026.5.20.3 Hybrid Signed Envelope Donation Policy checkpoint](docs/releases/v2026.5.20.3-hybrid-signed-envelope-donation-policy-checkpoint.md)
