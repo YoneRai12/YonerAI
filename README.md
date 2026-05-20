@@ -88,6 +88,8 @@ Useful starting points:
 - [Web surface capability manifest](docs/contracts/web-surface-capability-manifest-0.1.md)
 - [Capability / Extension Boundary 0.1](docs/contracts/capability-extension-boundary-0.1.md)
 - [Tools/MCP Safe Subset 0.1](docs/contracts/tools-mcp-safe-subset-0.1.md)
+- [Large codebase feature inventory](docs/architecture/LARGE_CODEBASE_FEATURE_INVENTORY_2026_05_21.md)
+- [v7.7 integration map](docs/architecture/V7_7_INTEGRATION_MAP_2026_05_21.md)
 - [Growth/SNS claim guardrails](docs/growth/CLAIM_GUARDRAILS_2026_05_20.md)
 - [Growth/SNS demo plan](docs/growth/DEMO_PLAN_2026_05_20.md)
 - [Growth/SNS FAQ](docs/growth/FAQ_2026_05_20.md)
