@@ -5,8 +5,8 @@ Status: public-safe inventory. This document classifies existing tracked code an
 ## Snapshot
 
 - Tracked files at this inventory recheck: 795
-- Text-like lines counted, excluding `src/cogs/ora.py`: about 103,410
-- `src/cogs/ora.py`: `DO_NOT_TOUCH`; excluded from line-level inspection in this pass.
+- Text-like lines counted in the rough inventory: about 103,410
+- `src/cogs/ora.py`: `DO_NOT_TOUCH`; included only in parent rough aggregates, not semantically inspected in this pass.
 - Current public posture: API/CLI/Web smoke surfaces are active, while Discord, memory, broad tools/MCP, deploy, private runtime, and control-plane integration remain separate lanes.
 - Next lane board: `docs/roadmap/V7_7_NEXT_IMPLEMENTATION_LANES_2026_05_21.md`
 
@@ -31,8 +31,8 @@ The tracked repository grew from the earlier inventory because more maintenance,
 | `docs/` | 219 | 15,306 | Contracts, release notes, maintenance, policies | `PUBLIC_ACTIVE` | Main public truth surface | Stale/future-dated historical notes and overclaim risk | Keep style guide and text hygiene scans active. |
 | `tests/` | 76 | 8,659 | Public regression and contract tests | `PUBLIC_ACTIVE` | Smoke, security, hybrid, capability, CLI/API tests | Some tests describe non-public surfaces | Use targeted tests per lane; do not infer completion from mentions. |
 | `src/` | 185 | 46,109 | Legacy/runtime/private-adjacent application code | `SECURITY_REVIEW_REQUIRED` | Some public docs refer to boundaries, but not public-ready as a whole | Discord/private/runtime/deploy/tool surfaces are mixed | Keep as inventory target; do not wire broadly. |
-| `src/cogs/` | 39 | 18,767 | Discord cogs and runtime handlers; also included in the broader `src/` total, with `src/cogs/ora.py` excluded from line count | `PRIVATE_OR_CONTROL_PLANE_BOUNDARY` | Not part of current public Core MVP | Auth, Discord, command, and private runtime risks | Dedicated Discord/private runtime security review only. |
-| `src/cogs/ora.py` | 1 | 0 | legacy boundary residue; intentionally excluded from line-level inspection | `DO_NOT_TOUCH` | Explicitly not solved | Large mixed runtime/control-plane surface | Separate extraction lane only. |
+| `src/cogs/` | 39 | 18,767 | Discord cogs and runtime handlers; also included in the broader `src/` total. The `src/cogs/ora.py` boundary file is included only in this rough aggregate, not semantically inspected. | `PRIVATE_OR_CONTROL_PLANE_BOUNDARY` | Not part of current public Core MVP | Auth, Discord, command, and private runtime risks | Dedicated Discord/private runtime security review only. |
+| `src/cogs/ora.py` | 1 | 0 | legacy boundary residue; tracked as a separate boundary item but intentionally not semantically inspected | `DO_NOT_TOUCH` | Explicitly not solved | Large mixed runtime/control-plane surface | Separate extraction lane only. |
 | `scripts/` | 88 | 5,142 | setup, debug, runtime, migration helpers | `SECURITY_REVIEW_REQUIRED` | Some setup/dev utility | Shell/deploy/local machine assumptions | Move only reference-validated helpers; no shell/tool execution expansion. |
 | `tools/` | 98 | 6,099 | maintenance, debug, media, setup helpers | `CONNECT_CANDIDATE` | Public maintenance folder | Debug/deploy/helper code can look product-active | Keep categorized; add tool safe-subset contracts before runtime wiring. |
 | `.github/` | 8 | 300 | CI and automation | `PUBLIC_ACTIVE` | Required checks on PRs | Dependency workflow PR backlog | Handle in dependency lane. |
