@@ -6,7 +6,7 @@ YonerAI is a public v7.7 implementation and research repository. It is not a pro
 
 Please do not open public issues or pull requests that include secrets, private runtime inventory, live routes, hostnames, usernames, local absolute paths, break-glass details, control-plane internals, raw prompt/completion logs, or raw chain-of-thought.
 
-Use the repository owner's preferred private reporting channel when available. If a private channel is not available, open a minimal public issue that describes the affected public-safe component and impact without exploit secrets or environment-specific details.
+Use the repository owner's preferred private reporting channel when available. If no private channel is visible, do not publish vulnerability impact, exploit details, affected private surfaces, or environment-specific evidence in a public issue. Instead, open a minimal public contact request that asks for a private security reporting path and does not describe the suspected vulnerability beyond "security report contact requested."
 
 ## Public-Safe Scope
 
