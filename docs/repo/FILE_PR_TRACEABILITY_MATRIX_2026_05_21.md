@@ -9,7 +9,7 @@ This matrix explains GitHub root-visible entries without mass-touching files to 
 - `origin/main`: `e64299142bb68a731245b03678e8531dc18b36a9`
 - Verified open PR count at the companion reality check: `36`
 - Root list source: `git ls-tree --name-only origin/main`
-- Last commit source: `git log -1 --format=%h %s origin/main -- <path>`
+- Last commit source: `git log -1 --format='%h %s' origin/main -- <path>`
 - Companion ledgers:
   - `docs/maintenance/CURRENT_PR_BRANCH_REALITY_2026_05_21.md`
   - `docs/maintenance/OPEN_PR_TRIAGE_2026_05_20.md`
