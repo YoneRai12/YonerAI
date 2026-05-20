@@ -2,6 +2,14 @@
 
 This page is a public-safe index of current release notes and progress checkpoints.
 
+## v2026.5.21.1 Public Repository Hardening Checkpoint
+
+- Public checkpoint note: `docs/releases/v2026.5.21.1-public-repository-hardening-checkpoint.md`
+- GitHub Release target: `v2026.5.21.1` after this alignment PR lands.
+- Scope: public GitHub state ledger, file-to-PR traceability, large-codebase integration map, local LLM public access hardening, dependency lane triage, root physical cleanup decision, and release alignment.
+- Status: public repository hardening checkpoint, not production, not deploy, not full product completion, and not a v7.8 start.
+- Still open: remaining security/runtime PR reproduction, dependency PR lane decisions, root launcher/config migration, README_JP UTF-8 restoration, v7.7 evidence ledger, and future `src/cogs/ora.py` extraction.
+
 ## v2026.5.20.14 Tools/MCP Safe Subset Contract Checkpoint
 
 - Public checkpoint note: `docs/releases/v2026.5.20.14-tools-mcp-safe-subset-contract-checkpoint.md`
