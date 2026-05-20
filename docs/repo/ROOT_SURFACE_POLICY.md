@@ -86,7 +86,7 @@ Debug helpers that read local state files must not embed a user or machine path.
 
 `reference_clawdbot` is classified separately as a gitlink/submodule residue and must not be initialized, repaired, removed, or replaced in generic root cleanup.
 
-Root helpers that can affect legacy runtime files, such as `remove_legacy.ps1`, should be treated as `DO_NOT_RUN / RETIRE_CANDIDATE` until a dedicated owner-approved lane validates their behavior. A generic root cleanup must not run or move them just to make the file list look cleaner.
+Root helpers that can affect legacy runtime files, such as `tools/maintenance/remove_legacy.ps1`, should be treated as `DO_NOT_RUN / RETIRE_CANDIDATE` until a dedicated owner-approved lane validates their behavior. A generic root cleanup must not run them just to make the file list look cleaner. If such a helper is moved out of root, the move must be reference-scanned, documented, and kept non-executable by policy.
 
 ## Product Presentation
 

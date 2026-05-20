@@ -5,10 +5,10 @@ Status: public-safe root inventory. This checkpoint now includes small validated
 ## 2026-05-21 Recheck
 
 - Public file index added: `docs/repo/PUBLIC_FILE_INDEX.md`.
-- No root files were moved in this pass.
+- Follow-up cleanup moved `remove_legacy.ps1` to `tools/maintenance/remove_legacy.ps1` without running it.
 - `debug_state.py`, `video_utils.py`, and `run_dashboard_backend.py` remain out of root.
-- `config.yaml`, `main.py`, `start.sh`, `start_all.bat`, `start_vllm.bat`, `start_windows.bat`, compose files, `remove_legacy.ps1`, and `reference_clawdbot` remain visible.
-- `remove_legacy.ps1` remains `RETIRE_CANDIDATE` / `DO_NOT_RUN` because it can alter runtime code.
+- `config.yaml`, `main.py`, `start.sh`, `start_all.bat`, `start_vllm.bat`, `start_windows.bat`, compose files, and `reference_clawdbot` remain visible.
+- `tools/maintenance/remove_legacy.ps1` remains `RETIRE_CANDIDATE` / `DO_NOT_RUN` because it can alter runtime code.
 - `reference_clawdbot` remains `DO_NOT_TOUCH`.
 - `start_all.bat` remains `UNKNOWN`; it was not moved because expected owner workflow is not confirmed.
 
@@ -55,7 +55,7 @@ This pass classifies the surface first. Runtime-moving cleanup is deferred until
 | `docker-compose.yml` | KEEP_ROOT | Referenced by docs and pairs with root `main.py`. | Keep. |
 | `docker-compose.prod.yml` | KEEP_ROOT | Root production-like compose file; moving could alter operator expectations. | Keep; do not change runtime behavior. |
 | `main.py` | KEEP_ROOT | Referenced by Dockerfile, compose files, pyproject, scripts, and docs. | Keep. |
-| `remove_legacy.ps1` | DO_NOT_RUN / RETIRE_CANDIDATE | No clear static references found; script name and behavior imply legacy runtime mutation risk. | Do not run, move, or delete without owner confirmation. |
+| `tools/maintenance/remove_legacy.ps1` | MOVE_TOOLS / DO_NOT_RUN / RETIRE_CANDIDATE | No clear static references found; script rewrites `src/cogs/ora.py` if executed, so it should not be root-visible as an active helper. | Moved from root to `tools/maintenance/`; do not run without a dedicated owner-approved `src/cogs/ora.py` extraction lane. |
 | `run_dashboard_backend.py` | MOVE_TOOLS | No static references found outside this inventory; helper imports dashboard backend directly and is not an active root launcher. | Moved to `tools/maintenance/run_dashboard_backend.py` with repo-root path resolution. |
 | `start.sh` | KEEP_ROOT | Referenced by setup wizard as recommended launcher. | Keep. |
 | `start_all.bat` | UNKNOWN | No clear static references found. | Do not move without owner confirmation. |
@@ -84,9 +84,8 @@ This cleanup remains intentionally narrow:
 Pick one helper group at a time:
 
 1. remaining no-reference helper: `start_all.bat`
-2. risky legacy mutation helper: `remove_legacy.ps1`
-3. active launchers: `start.sh`, `start_windows.bat`, `start_vllm.bat`
-4. config surface: `config.yaml`, `config/`
-5. optional memory dependencies: `requirements-optional-memory.txt`, `memory/`, related docs
+2. active launchers: `start.sh`, `start_windows.bat`, `start_vllm.bat`
+3. config surface: `config.yaml`, `config/`
+4. optional memory dependencies: `requirements-optional-memory.txt`, `memory/`, related docs
 
 Each move needs reference updates and targeted validation.
