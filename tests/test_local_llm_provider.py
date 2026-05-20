@@ -91,6 +91,11 @@ def test_build_local_llm_config_defaults_openai_compatible_local_to_loopback_v1(
     assert config.model == "lm-studio-model"
 
 
+def test_build_local_llm_config_defaults_local_mode_to_disabled_when_env_missing() -> None:
+    config = build_local_llm_config({})
+    assert config.enabled is False
+
+
 def test_generate_local_llm_reply_uses_ollama_chat_shape() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/api/chat"

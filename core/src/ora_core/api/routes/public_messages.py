@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import re
 from typing import NoReturn
 
@@ -131,6 +132,21 @@ def _build_local_message_response(
     max_tokens: int | None,
     request: Request | None,
 ) -> PublicMessageResponse:
+    expected_token = (os.getenv("ORA_LOCAL_LLM_PUBLIC_TOKEN") or "").strip()
+    if not expected_token:
+        _raise_public_message_error(
+            503,
+            "local_llm_auth_not_configured",
+            "Local LLM mode requires explicit token configuration.",
+        )
+    presented_token = (request.headers.get("x-ora-local-token") if request is not None else None) or ""
+    if presented_token != expected_token:
+        _raise_public_message_error(
+            403,
+            "local_llm_auth_required",
+            "Local LLM mode requires a valid local access token.",
+        )
+
     client_host = request.client.host if request and request.client else None
     if not local_llm.is_loopback_host(client_host):
         _raise_public_message_error(
