@@ -169,6 +169,25 @@ def _payload_contains_forbidden_marker(root: Any) -> bool:
     return False
 
 
+def _has_memory_candidate_semantics(envelope: HybridSignedEnvelope) -> bool:
+    return (
+        envelope.envelope_type == "memory_candidate"
+        or envelope.data_class == "memory_candidate"
+        or envelope.capability == "memory_candidate_review"
+        or envelope.purpose == "memory_candidate_review"
+    )
+
+
+def _has_improvement_proposal_semantics(envelope: HybridSignedEnvelope) -> bool:
+    # `self_evolution_proposal` is also used by signal donations, so purpose alone
+    # is not enough to apply proposal-payload requirements.
+    return (
+        envelope.envelope_type == "improvement_proposal"
+        or envelope.data_class == "improvement_proposal"
+        or envelope.capability == "improvement_proposal_review"
+    )
+
+
 def evaluate_memory_candidate_policy(envelope: HybridSignedEnvelope) -> MemoryCandidatePolicyDecision:
     reasons: list[str] = []
     payload = envelope.payload
@@ -209,7 +228,7 @@ def evaluate_memory_candidate_policy(envelope: HybridSignedEnvelope) -> MemoryCa
 
 
 def validate_self_evolution_proposal_payload(envelope: HybridSignedEnvelope) -> tuple[str, ...]:
-    if envelope.data_class != "improvement_proposal":
+    if not _has_improvement_proposal_semantics(envelope):
         return ()
     payload = envelope.payload
     if not isinstance(payload, Mapping):
@@ -257,7 +276,7 @@ def evaluate_donation_policy(
         reasons.append("replayed_nonce")
     if _payload_contains_forbidden_marker(envelope.payload):
         reasons.append("forbidden_payload_marker")
-    if envelope.data_class == "memory_candidate":
+    if _has_memory_candidate_semantics(envelope):
         memory_policy = evaluate_memory_candidate_policy(envelope)
         if memory_policy.status == MEMORY_STATUS_REJECTED:
             reasons.extend(memory_policy.reasons)

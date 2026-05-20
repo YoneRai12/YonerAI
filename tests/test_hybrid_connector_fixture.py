@@ -127,6 +127,99 @@ def test_improvement_proposal_fixture_requires_owner_review_fields() -> None:
     assert "improvement_proposal_required_fields_missing" in incomplete_decision.reasons
 
 
+def test_memory_candidate_envelope_type_cannot_bypass_policy_with_spoofed_data_class() -> None:
+    envelope = build_fixture_envelope(
+        envelope_type="memory_candidate",
+        capability="memory_candidate_review",
+        data_class="local_llm_result",
+        purpose="memory_candidate_review",
+        nonce="memory-candidate-spoofed-data-class",
+        payload={"candidate_summary": "Synthetic memory candidate.", "memory_persisted": True},
+    )
+
+    decision = evaluate_donation_policy(
+        envelope,
+        trust_registry=build_fixture_trust_registry(),
+        nonce_store=InMemoryNonceStore(),
+        signature_verifier=build_memory_candidate_fixture().signature_verifier,
+        now=FIXTURE_NOW,
+    )
+
+    assert decision.action == "reject"
+    assert "not_memory_candidate_data_class" in decision.reasons
+    assert "memory_persistence_not_allowed" in decision.reasons
+
+
+def test_memory_candidate_capability_and_purpose_cannot_bypass_policy_with_spoofed_data_class() -> None:
+    envelope = build_fixture_envelope(
+        envelope_type="conversation_result",
+        capability="memory_candidate_review",
+        data_class="local_llm_result",
+        purpose="memory_candidate_review",
+        nonce="memory-candidate-capability-purpose-spoof",
+        payload={"candidate_summary": "Synthetic memory candidate.", "memory_persisted": True},
+    )
+
+    decision = evaluate_donation_policy(
+        envelope,
+        trust_registry=build_fixture_trust_registry(),
+        nonce_store=InMemoryNonceStore(),
+        signature_verifier=build_memory_candidate_fixture().signature_verifier,
+        now=FIXTURE_NOW,
+    )
+
+    assert decision.action == "reject"
+    assert "not_memory_candidate_envelope" in decision.reasons
+    assert "not_memory_candidate_data_class" in decision.reasons
+    assert "memory_persistence_not_allowed" in decision.reasons
+
+
+def test_improvement_proposal_envelope_type_cannot_bypass_payload_validation_with_spoofed_data_class() -> None:
+    envelope = build_fixture_envelope(
+        envelope_type="improvement_proposal",
+        capability="improvement_proposal_review",
+        data_class="local_llm_result",
+        purpose="self_evolution_proposal",
+        nonce="improvement-proposal-spoofed-data-class",
+        payload={"proposal_summary": "Missing required safety fields.", "automatic_mutation": True},
+    )
+
+    decision = evaluate_donation_policy(
+        envelope,
+        trust_registry=build_fixture_trust_registry(),
+        nonce_store=InMemoryNonceStore(),
+        signature_verifier=build_improvement_proposal_fixture().signature_verifier,
+        now=FIXTURE_NOW,
+    )
+
+    assert decision.action == "reject"
+    assert "improvement_proposal_required_fields_missing" in decision.reasons
+    assert "automatic_mutation_not_allowed" in decision.reasons
+
+
+def test_improvement_proposal_capability_and_purpose_cannot_bypass_payload_validation_with_spoofed_data_class() -> None:
+    envelope = build_fixture_envelope(
+        envelope_type="conversation_result",
+        capability="improvement_proposal_review",
+        data_class="local_llm_result",
+        purpose="self_evolution_proposal",
+        nonce="improvement-proposal-capability-purpose-spoof",
+        payload={"proposal_summary": "Missing required safety fields.", "automatic_mutation": True},
+    )
+
+    decision = evaluate_donation_policy(
+        envelope,
+        trust_registry=build_fixture_trust_registry(),
+        nonce_store=InMemoryNonceStore(),
+        signature_verifier=build_improvement_proposal_fixture().signature_verifier,
+        now=FIXTURE_NOW,
+    )
+
+    assert decision.action == "reject"
+    assert "improvement_proposal_required_fields_missing" in decision.reasons
+    assert "automatic_mutation_not_allowed" in decision.reasons
+
+
 def test_fixture_policy_rejects_replay_wrong_audience_expired_hash_and_bad_signature() -> None:
     fixture = build_memory_candidate_fixture()
     first = _evaluate_fixture(fixture)
