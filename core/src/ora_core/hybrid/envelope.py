@@ -68,6 +68,64 @@ class HybridSignedEnvelope:
     contract_version: str = HYBRID_ENVELOPE_CONTRACT_VERSION
 
 
+def envelope_to_mapping(envelope: HybridSignedEnvelope) -> dict[str, Any]:
+    return {
+        "contract_version": envelope.contract_version,
+        "envelope_type": envelope.envelope_type,
+        "issuer_node_id": envelope.issuer_node_id,
+        "subject_user_id": envelope.subject_user_id,
+        "account_ref": envelope.account_ref,
+        "audience": envelope.audience,
+        "session_id": envelope.session_id,
+        "conversation_id": envelope.conversation_id,
+        "capability": envelope.capability,
+        "data_class": envelope.data_class,
+        "purpose": envelope.purpose,
+        "issued_at": envelope.issued_at,
+        "expires_at": envelope.expires_at,
+        "nonce": envelope.nonce,
+        "payload_hash": envelope.payload_hash,
+        "payload": dict(envelope.payload),
+        "signature": {
+            "algorithm": envelope.signature.algorithm,
+            "key_id": envelope.signature.key_id,
+            "signature": envelope.signature.signature,
+        },
+    }
+
+
+def envelope_from_mapping(data: Mapping[str, Any]) -> HybridSignedEnvelope:
+    signature_data = data.get("signature")
+    if not isinstance(signature_data, Mapping):
+        signature_data = {}
+    payload = data.get("payload")
+    if not isinstance(payload, Mapping):
+        payload = {}
+    return HybridSignedEnvelope(
+        contract_version=str(data.get("contract_version") or HYBRID_ENVELOPE_CONTRACT_VERSION),
+        envelope_type=str(data.get("envelope_type") or ""),
+        issuer_node_id=str(data.get("issuer_node_id") or ""),
+        subject_user_id=data.get("subject_user_id"),
+        account_ref=data.get("account_ref"),
+        audience=str(data.get("audience") or ""),
+        session_id=str(data.get("session_id") or ""),
+        conversation_id=str(data.get("conversation_id") or ""),
+        capability=str(data.get("capability") or ""),
+        data_class=str(data.get("data_class") or ""),
+        purpose=str(data.get("purpose") or ""),
+        issued_at=str(data.get("issued_at") or ""),
+        expires_at=str(data.get("expires_at") or ""),
+        nonce=str(data.get("nonce") or ""),
+        payload_hash=str(data.get("payload_hash") or ""),
+        payload=payload,
+        signature=HybridEnvelopeSignature(
+            algorithm=str(signature_data.get("algorithm") or ""),
+            key_id=str(signature_data.get("key_id") or ""),
+            signature=str(signature_data.get("signature") or ""),
+        ),
+    )
+
+
 def canonical_payload_json(payload: Mapping[str, Any]) -> str:
     return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 

@@ -116,6 +116,16 @@ A signed memory candidate is still only a candidate.
 
 The MVP requires quarantine and owner/control-plane approval before any future memory lane may use it. This contract does not implement persistent memory, cross-device history, Google login, or official identity.
 
+Fixture memory states are:
+
+- `observed`
+- `quarantined`
+- `rejected`
+- `approved_for_memory`
+- `expired`
+
+Current behavior is quarantine first. `memory_persisted` must remain `false` in fixture donations.
+
 ## 9. Self-evolution Signal / Proposal Queue
 
 Self-evolution donations may only enter a proposal queue or quarantine state. They must not:
@@ -152,11 +162,14 @@ The public repo implements:
 
 - envelope dataclasses
 - canonical payload hash helper
+- mapping round-trip helpers for public-safe fixture serialization
 - structural validation
 - in-memory trust registry fixture
 - in-memory nonce store fixture
 - verifier protocol
 - static test verifier
+- synthetic connector fixture builders
+- memory candidate policy scaffold
 - donation policy tests that prove signed payloads are not trusted automatically
 
 ## 13. What Official Control-plane Implements
@@ -169,6 +182,8 @@ The control-plane MVP may implement:
 - donation quarantine records
 - audit events
 - self-evolution donation queue boundary
+- synthetic connector fixture ingress tests
+- memory candidate quarantine status
 
 It must not require production DBs, deployment, live traffic, provider secrets, or real private data.
 
@@ -186,7 +201,7 @@ Those details are not in the public repo and must cross repos only through this 
 
 ## 15. Not Included
 
-- production hybrid connector
+- full or production hybrid connector
 - persistent memory
 - official cloud completion
 - Google login
@@ -214,7 +229,17 @@ The minimum test set must cover:
 - invalid signature rejection
 - secret-like payload rejection
 - self-evolution donation quarantine without mutation
+- memory candidate quarantine with no persistence
+- improvement proposal evidence field requirements
 
-## 17. Next Lane
+## 17. Hybrid Connector Fixture
 
-The next safe lane is a private/local signing fixture plus a control-plane review UI contract, still without persistent memory, Google login, full hybrid connector, or deployment.
+The synthetic Hybrid Connector Fixture is documented separately in:
+
+`docs/contracts/HYBRID_CONNECTOR_FIXTURE_2026_05_20.md`
+
+It covers the current test-only path from public fixture envelope creation to official control-plane ingress behavior. It does not ingest real private data and does not implement production signing.
+
+## 18. Next Lane
+
+The next safe lane is capability / extension boundary hardening before tools, MCP, swarm, identity, Discord, final Web UI, or memory persistence.

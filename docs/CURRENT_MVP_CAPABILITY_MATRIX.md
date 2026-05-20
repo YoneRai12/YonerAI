@@ -22,6 +22,9 @@ The current public MVP is a credential-free local Core API health smoke plus mes
 - safe local LLM error display in the temporary Web Chat MVP
 - public-safe Official Cloud Control Plane MVP planning contracts
 - public-safe Hybrid Signed Envelope / Donation Policy contract and test fixtures for future hybrid ingress
+- synthetic Hybrid Connector Fixture for memory candidate, self-evolution signal, and improvement proposal envelopes
+- memory candidate donation policy scaffold: quarantine first, `memory_persisted: false`, approval required before persistence
+- capability priority map for the next design lanes
 - public smoke tests
 - no Discord token required
 - no provider API key required
@@ -48,6 +51,7 @@ The current public MVP is a credential-free local Core API health smoke plus mes
 - official cloud
 - deployment
 - full hybrid connector
+- production hybrid connector
 - persistent donation-backed memory
 - full API / Web / CLI / SNS implementation
 - production readiness
@@ -68,25 +72,24 @@ The current public MVP is a credential-free local Core API health smoke plus mes
 | Can I choose a different local model? | Yes. Pass `model` in the request or set `ORA_LOCAL_LLM_MODEL`; availability depends on the local server. |
 | Can I point it at a remote provider URL? | No. Local LLM mode rejects arbitrary remote, LAN, tunnel, and control-plane endpoints by default. |
 | Is official cloud available now? | Not yet. The repository now has planning contracts for the Official Cloud Control Plane MVP, but no deployed official cloud product. |
-| What can I verify now? | Clone, install, start local Core API, call `/health`, call `/v1/public/messages` in mock mode, optionally call local LLM mode, and use the temporary `clients/web` chat smoke page. |
+| What can I verify now? | Clone, install, start local Core API, call `/health`, call `/v1/public/messages` in mock mode, optionally call local LLM mode, use the temporary `clients/web` chat smoke page, and run synthetic hybrid connector fixture tests. |
 
 ## Next Capability Ladder
 
 The current checkpoint should grow in separate, reviewable lanes:
 
 1. local LLM error/reporting hardening
-2. private/local signing fixture and hybrid owner-review flow contract
-3. optional local model listing endpoint if it stays loopback-only and small
-4. provider adapter boundary for non-loopback private lanes
-5. final Web UI replacement or clean product surface decision
-6. memory persistence
-7. identity / Google login
-8. Discord gateway
+2. capability / extension boundary hardening
+3. agent swarm releaseability map
+4. tools/MCP safe subset
+5. `src/cogs/ora.py` extraction step
+6. identity / Google login
+7. Discord gateway
+8. final Web UI replacement or clean product surface decision
 9. web search
-10. self-evolution proposal-only MVP expansion
-11. official cloud control-plane skeleton and hybrid private contract lanes
-12. official/private runtime lanes
-13. retired UI cleanup follow-through for old PRs and alerts
+10. memory persistence only after approval workflow and privacy policy are stable
+11. official/private runtime lanes
+12. retired UI cleanup follow-through for old PRs and alerts
 
 Each ladder step needs its own tests, privacy boundary, and public wording review.
 
