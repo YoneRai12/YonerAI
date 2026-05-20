@@ -2,6 +2,13 @@
 
 This page is a public-safe index of current release notes and progress checkpoints.
 
+## v2026.5.20.5 Public Surface and Release Hygiene Checkpoint
+
+- Public checkpoint note: `docs/releases/v2026.5.20.5-public-surface-release-hygiene-checkpoint.md`
+- Scope: public README/checkpoint hygiene, same-day release suffix policy, root surface policy/inventory updates, PR-number presentation policy, and zero-trust practicality matrix.
+- Status: public surface checkpoint, not production and not a deploy.
+- Still open: older future-dated release metadata correction decision, safe root helper movement lane, provider boundary hardening, local LLM error UX, memory policy, and future `src/cogs/ora.py` extraction.
+
 ## v2026.5.20.4 Hybrid Connector Fixture and Memory Policy Checkpoint
 
 - Public checkpoint note: `docs/releases/v2026.5.20.4-hybrid-connector-fixture-memory-policy-checkpoint.md`
@@ -16,12 +23,18 @@ This page is a public-safe index of current release notes and progress checkpoin
 - Status: hybrid contract checkpoint, not a production release and not a full hybrid connector.
 - Still open: private/local signing fixture, production-grade key lifecycle design, durable replay store, owner approval UI contract, persistent memory decision, and official control-plane deployment-free ingress review.
 
+## Historical Future-Dated Labels Requiring Correction
+
+These entries are kept for traceability, but their labels are future-dated relative to the verified 2026-05-20 cleanup date. They should not be used as the current public latest checkpoint.
+
 ## v2026.5.22 Web Chat MVP Review-gate Checkpoint
 
 - Public checkpoint note: `docs/releases/v2026.5.22-web-chat-mvp-review-gate-checkpoint.md`
 - Scope: clarify `clients/web` as a temporary Web Chat MVP, add mock/local provider controls, improve safe Core API error display, and fix the remaining observed `clients/web` `postcss` advisory locally.
 - Status: public temporary Web Chat MVP checkpoint, not a production release.
 - Still open: GitHub Dependabot rescan after merge, final Web product UI, Google login, persistent memory, Discord gateway completion, old security PR review, safe branch/worktree cleanup, model listing, local LLM error UX, and future `src/cogs/ora.py` extraction.
+
+Note: this historical markdown note uses a future date relative to the verified 2026-05-20 cleanup date. It should not be treated as the current public latest checkpoint.
 
 ## v2026.5.21 ora-ui Retirement and Security Backlog Cleanup Checkpoint
 
@@ -30,12 +43,18 @@ This page is a public-safe index of current release notes and progress checkpoin
 - Status: public maintenance checkpoint, not a production release.
 - Still open: remaining `clients/web` dependency alert until the later web checkpoint reaches main and GitHub rescans, non-`ora-ui` Dependabot PRs, old security PR review, safe branch/worktree cleanup, model listing, local LLM error UX, and future `src/cogs/ora.py` extraction.
 
+Note: this historical markdown note uses a future date relative to the verified 2026-05-20 cleanup date. It should not be treated as the current public latest checkpoint.
+
 ## v2026.5.21 Local LLM Provider Compatibility Checkpoint
 
 - Public checkpoint note: `docs/releases/v2026.5.21-local-llm-provider-compatibility-checkpoint.md`
 - Scope: provider-neutral local LLM compatibility for Ollama-style `/api/chat` and OpenAI-compatible local `/v1/chat/completions` servers.
 - Status: public local provider compatibility checkpoint, not a production release.
 - Still open: optional loopback-only model listing endpoint, final Web product UI, Google login, persistent memory, Discord gateway completion, non-loopback/private provider lanes, and future `src/cogs/ora.py` extraction.
+
+Note: the GitHub Release/tag exists, but its label is future-dated relative to the verified 2026-05-20 cleanup date. Do not delete or retag it without explicit owner approval; use a corrected current-date release for latest visibility when safe.
+
+## Same-Day 2026-05-20 Checkpoint History
 
 ## v2026.5.20.2 Conversation Session Scaffold Checkpoint
 
