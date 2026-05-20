@@ -27,6 +27,24 @@ Status: public-safe maintenance checkpoint from live GitHub state. This ledger c
   - `docs/releases/v2026.5.20.7-surface-api-run-contract-checkpoint.md` records this narrower replacement.
 - Risk decision: closing PR #142 is safer than merging it because #142 would reapply the stale broad `files_router` dependency model and conflict with the current ticket-download boundary.
 
+## 2026-05-21 PR Count Reconciliation
+
+- Follow-up branch: `codex/pr-backlog-reconciliation-pass`
+- Current replacement baseline: public `main` after PR #197.
+- GitHub source of truth: `gh pr list --state open --limit 100 --json number --jq length`
+- Open PR count before this reconciliation: 39.
+- Open PR count after this reconciliation: 36.
+- Confirmed closed / merged state:
+  - PR #142 remains `CLOSED` and unmerged as superseded by PR #186 and current-main tests.
+  - PR #195 remains `MERGED`; its public body was rewritten as clean UTF-8 English in the preceding hygiene pass.
+- PRs closed in this reconciliation:
+  - PR #67: closed as superseded by PR #186, current `require_core_access` wiring, and `tests/test_core_api_access_security.py`.
+  - PR #130: closed as a duplicate of PR #129; #129 remains open as the survivor for future current-main Discord/private-runtime security review.
+  - PR #136: closed as a duplicate of PR #135; #135 remains open as the survivor for future current-main Discord/private-runtime security review.
+- Dependabot alert check: `gh api "/repos/YoneRai12/YonerAI/dependabot/alerts?state=open&per_page=100" --jq length` returned `0`.
+- Dependency PR decision: left open because no dependency PR was proven superseded by a newer open PR during this pass; each still needs a dependency-specific validation lane.
+- Security PR decision: left non-duplicate security PRs open unless current main replacement evidence was strong enough to close safely.
+
 ## Classification Rules Used
 
 | class | meaning |
@@ -55,13 +73,13 @@ Status: public-safe maintenance checkpoint from live GitHub state. This ledger c
 | #145 | build(deps): update pynacl requirement | dependabot / `dependabot/pip/pynacl-gte-1.6.2-and-lt-2.0` | 23d | open | BEHIND | KEEP_DEPENDENCY_UPDATE | Discord/crypto dependency | Keep for dependency lane | `requirements.txt` | Boundary/security dependency; not a batch merge. |
 | #143 | build(deps): bump chromadb | dependabot / `dependabot/pip/chromadb-1.5.8` | 30d | open | BEHIND | KEEP_DEPENDENCY_UPDATE | optional memory lane | Keep for memory/dependency lane | `requirements-optional-memory.txt` | Memory is not complete; do not merge without memory policy decision. |
 | #142 | fix(core): restore require_core_access on main v1 routers | owner / `codex/fix-core-api-access-vulnerability` | 35d | closed | CLOSED_SUPERSEDED | CLOSE_SUPERSEDED | API security | Closed with evidence comment | Replaced by PR #186 plus `tests/test_core_api_access_security.py`; current main protects sensitive routes and intentionally keeps ticket download outside the core token dependency | Stale PR should not merge because it would restore a broad files-router dependency model that conflicts with the current ticket-based download boundary. |
-| #136 | Discord log forwarding masking and channel restriction | owner / `codex/fix-unredacted-log-forwarding-issue-xxune2` | 42d | open | BEHIND | KEEP_SECURITY_REVIEW | Discord/private runtime | Keep, compare with #135 | `src/cogs/system.py`, same title as #135 | Possible duplicate, but security impact uncertain; do not close in this checkpoint. |
+| #136 | Discord log forwarding masking and channel restriction | owner / `codex/fix-unredacted-log-forwarding-issue-xxune2` | 42d | closed | CLOSED_DUPLICATE | CLOSE_DUPLICATE | Discord/private runtime | Closed as duplicate of #135 | `src/cogs/system.py`, same title/files/body as #135 | #135 remains open as survivor; this does not claim the issue is fixed on main. |
 | #135 | Discord log forwarding masking and channel restriction | owner / `codex/fix-unredacted-log-forwarding-issue` | 42d | open | BEHIND | KEEP_SECURITY_REVIEW | Discord/private runtime | Keep, compare with #136 | `src/cogs/system.py`, same title as #136 | Possible duplicate, but security impact uncertain; do not close in this checkpoint. |
 | #134 | prevent double interaction defer | owner / `codex/fix-double-defer-in-auto-style-generation` | 42d | open | BEHIND | KEEP_CORRECTNESS_REVIEW | image generation UX | Keep for correctness lane | `src/views/image_gen.py` | Old runtime surface; refresh and test before merge. |
 | #133 | harden embed image fetching against SSRF | owner / `codex/fix-ssrf-risk-in-embed-image-processing` | 42d | open | BEHIND | KEEP_SECURITY_REVIEW | media/security | Keep, recreate if still valid | handler + security test | SSRF-sensitive; do not close without replacement. |
 | #132 | Mitigate unbounded image upload DoS | owner / `codex/fix-unbounded-image-upload-vulnerability` | 42d | open | BEHIND | KEEP_SECURITY_REVIEW | media/security | Keep, recreate if still valid | creative/layer server files | DoS-sensitive; needs current-main patch review. |
 | #131 | Restore admin-only guard for /listen | owner / `codex/propose-fix-for-/listen-command-vulnerability` | 42d | open | BEHIND | KEEP_SECURITY_REVIEW | Discord/private runtime | Keep, recreate if still valid | `src/cogs/voice_recv.py` | Authorization-sensitive; do not close. |
-| #130 | restore `/say` admin check | owner / `codex/fix-authorization-bypass-in-/say-command-wsvf7m` | 42d | open | BEHIND | KEEP_SECURITY_REVIEW | Discord/private runtime | Keep, compare with #129 | `src/cogs/core.py`, same title as #129 | Possible duplicate, but security impact uncertain. |
+| #130 | restore `/say` admin check | owner / `codex/fix-authorization-bypass-in-/say-command-wsvf7m` | 42d | closed | CLOSED_DUPLICATE | CLOSE_DUPLICATE | Discord/private runtime | Closed as duplicate of #129 | `src/cogs/core.py`, same title/files/body as #129 | #129 remains open as survivor; this does not claim the issue is fixed on main. |
 | #129 | restore `/say` admin check | owner / `codex/fix-authorization-bypass-in-/say-command` | 42d | open | BEHIND | KEEP_SECURITY_REVIEW | Discord/private runtime | Keep, compare with #130 | `src/cogs/core.py`, same title as #130 | Possible duplicate, but security impact uncertain. |
 | #128 | path traversal in dashboard user detail endpoint | owner / `codex/fix-path-traversal-vulnerability-in-api` | 42d | open | BEHIND | KEEP_SECURITY_REVIEW | Web/API security | Keep, recreate if still valid | `src/web/endpoints.py` | Path traversal-sensitive; needs current-main review. |
 | #127 | lodash in `/clients/web` | dependabot / `dependabot/npm_and_yarn/clients/web/lodash-4.18.1` | 43d | open | DIRTY | KEEP_DEPENDENCY_UPDATE | temporary Web Chat MVP | Keep for web dependency lane | `clients/web/package-lock.json` | Conflicted dependency lock update. |
@@ -76,7 +94,7 @@ Status: public-safe maintenance checkpoint from live GitHub state. This ledger c
 | #79 | broaden generic image explanations | owner / `codex/public-image-explanation-broad-summary` | 74d | open | CLEAN on non-main base | KEEP_CORRECTNESS_REVIEW | multimodal contract | Keep, rebase only if still needed | base is `codex/public-multimodal-followup-carryover` | Stacked PR; cannot merge to main as-is. |
 | #78 | preserve recent image context | owner / `codex/public-multimodal-followup-carryover` | 74d | open | DIRTY | KEEP_CORRECTNESS_REVIEW | multimodal continuity | Keep, refresh later | Core brain/context and tests | Dirty and old; evaluate after current conversation/session contracts. |
 | #74 | 3-mode node split migration ledger | owner / `codex/node-3mode-planning-ledger` | 74d | open | BEHIND | REPLACE_WITH_V7_7_LANE | repo split / same experience | Replace with current v7.7 docs | docs-only 3-mode migration ledger | Likely superseded by current contracts; keep until owner confirms. |
-| #67 | protect ORA Core endpoints | owner / `codex/propose-fix-for-unauthenticated-api` | 74d | open | DIRTY | KEEP_SECURITY_REVIEW | API security | Keep, recreate if still valid | auth dependency and main | Security-sensitive and conflicted; do not close. |
+| #67 | protect ORA Core endpoints | owner / `codex/propose-fix-for-unauthenticated-api` | 74d | closed | CLOSED_SUPERSEDED | CLOSE_SUPERSEDED | API security | Closed with evidence comment | Replaced by PR #186 plus current `require_core_access` wiring and `tests/test_core_api_access_security.py` | Conflicted branch should not merge as-is; no unique remaining implementation found. |
 | #60 | image_crop_upscale SSRF validation | owner / `codex/fix-ssrf-vulnerability-in-image_crop_upscale` | 74d | open | DIRTY | KEEP_SECURITY_REVIEW | tool/media security | Keep, recreate if still valid | tool + security test | SSRF-sensitive; do not close. |
 | #34 | git-auto-commit-action from 5 to 7 | dependabot / `dependabot/github_actions/stefanzweifel/git-auto-commit-action-7` | 80d | open | BEHIND | KEEP_DEPENDENCY_UPDATE | CI/release hygiene | Keep for dependency lane | `.github/workflows/diagrams.yml` | Action may affect automation; test workflow before merge. |
 | #32 | band1/band2 skeleton | owner / `feat/router-band1-band2-skeleton` | 81d | open | BEHIND | REPLACE_WITH_V7_7_LANE | routing/capability boundary | Replace with v7.7 capability boundary lane | route policy and chat handler files | Old runtime routing branch; do not merge into public Core without contract plan. |
@@ -141,16 +159,16 @@ The following GitHub check rollups were read after the open PR list. A passing h
 
 ## Top 10 Next PR Decisions
 
-1. #142: API access guard security; recreate clean patch if still valid.
-2. #67: unauthenticated API guard; compare with current public Core auth boundary.
-3. #128: dashboard path traversal; determine whether public/private boundary makes it public-safe or private-only.
-4. #133: embed image SSRF; re-evaluate against current media/tool boundary.
-5. #60: image crop/upscale SSRF; re-evaluate against current tools policy.
-6. #131: `/listen` authorization; private runtime/Discord boundary review.
-7. #129 / #130: duplicate `/say` authorization fixes; choose one current-main replacement or close both after replacement.
-8. #135 / #136: duplicate Discord log masking fixes; choose one current-main replacement or close both after replacement.
-9. #127 / #119 / #117: refresh `clients/web` dependency lockfile in one web dependency lane.
-10. #156 / #7 / #6 / #34: refresh GitHub Actions dependency lane with workflow validation.
+1. #128: dashboard path traversal; determine whether public/private boundary makes it public-safe or private-only.
+2. #133: embed image SSRF; re-evaluate against current media/tool boundary.
+3. #60: image crop/upscale SSRF; re-evaluate against current tools policy.
+4. #131: `/listen` authorization; private runtime/Discord boundary review.
+5. #129: `/say` authorization survivor after duplicate #130 was closed.
+6. #135: Discord log masking survivor after duplicate #136 was closed.
+7. #132: image upload DoS; confirm whether the vulnerable surface still exists.
+8. #127 / #119 / #117: refresh `clients/web` dependency lockfile in one web dependency lane.
+9. #156 / #7 / #6 / #34: refresh GitHub Actions dependency lane with workflow validation.
+10. #152 / #151 / #150 / #146: refresh high-risk Python dependency lane with focused tests.
 
 ## Next Safe Actions
 
