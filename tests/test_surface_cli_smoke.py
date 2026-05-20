@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 import sys
+import urllib.error
 from pathlib import Path
+from io import BytesIO
 
 
 def _load_cli_module():
@@ -120,3 +122,38 @@ def test_cli_help_text_is_public_safe(capsys):
     assert "local public MVP smoke CLI" in help_text
     assert "not a deploy tool" in help_text
     assert "production-ready" not in help_text
+
+
+def test_cli_reports_non_json_success_response(monkeypatch, capsys):
+    cli = _load_cli_module()
+
+    class NonJsonResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def read(self):
+            return b"not json"
+
+    monkeypatch.setattr(cli.urllib.request, "urlopen", lambda request, timeout: NonJsonResponse())
+
+    exit_code = cli.main(["health"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "failed to parse JSON response" in captured.err
+
+
+def test_cli_http_error_uses_string_detail():
+    cli = _load_cli_module()
+    error = urllib.error.HTTPError(
+        "http://127.0.0.1:8001/health",
+        400,
+        "Bad Request",
+        {},
+        BytesIO(b'{"detail":"bad request"}'),
+    )
+
+    assert cli._safe_http_error(error) == "request failed with status 400: bad request"

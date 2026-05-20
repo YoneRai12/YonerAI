@@ -58,13 +58,23 @@ def request_json(method: str, origin: str, path: str, body: dict[str, Any] | Non
     request = urllib.request.Request(url, data=payload, headers=headers, method=method)
     try:
         with urllib.request.urlopen(request, timeout=20) as response:
-            return json.loads(response.read().decode("utf-8"))
+            return _load_response_json(response.read())
     except urllib.error.HTTPError as exc:
         raise CliError(_safe_http_error(exc), exit_code=1) from exc
     except urllib.error.URLError as exc:
         raise CliError(f"request failed: {exc.reason}", exit_code=1) from exc
     except TimeoutError as exc:
         raise CliError("request timed out.", exit_code=1) from exc
+
+
+def _load_response_json(raw: bytes) -> dict[str, Any]:
+    try:
+        data = json.loads(raw.decode("utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise CliError("failed to parse JSON response.", exit_code=1) from exc
+    if not isinstance(data, dict):
+        raise CliError("response JSON must be an object.", exit_code=1)
+    return data
 
 
 def _safe_http_error(exc: urllib.error.HTTPError) -> str:
@@ -77,6 +87,8 @@ def _safe_http_error(exc: urllib.error.HTTPError) -> str:
         code = detail.get("error") or data.get("error")
         message = detail.get("message") or "request failed"
         return f"request failed with status {exc.code}: {code or 'error'}: {message}"
+    if isinstance(detail, str):
+        return f"request failed with status {exc.code}: {detail}"
     if isinstance(data, dict):
         return f"request failed with status {exc.code}: {data.get('error') or 'error'}"
     return f"request failed with status {exc.code}."
