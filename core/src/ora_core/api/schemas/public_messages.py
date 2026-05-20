@@ -10,6 +10,7 @@ PUBLIC_MESSAGE_MAX_LENGTH = 2000
 
 class PublicMessageRequest(BaseModel):
     message: str = Field(min_length=1, max_length=PUBLIC_MESSAGE_MAX_LENGTH)
+    session_id: Optional[str] = Field(default=None, max_length=120)
     conversation_id: Optional[str] = Field(default=None, max_length=120)
     mode: str = Field(default="mock", max_length=24)
     model: Optional[str] = Field(default=None, max_length=120)
@@ -22,8 +23,12 @@ class PublicMessageRequest(BaseModel):
 class PublicMessageResponse(BaseModel):
     ok: bool
     mode: str
+    session_id: str
     conversation_id: str
     message_id: str
+    turn_index: int
+    history_count: int
+    memory_persisted: bool
     reply: str
     provider: str
     model: Optional[str] = None

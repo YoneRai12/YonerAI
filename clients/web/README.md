@@ -10,6 +10,7 @@ It is not the final YonerAI product UI, not a production Web product, and not a 
 - Use `mock` / `offline` mode for deterministic credential-free smoke checks.
 - Use `local` mode with `local_provider: "ollama"` when an Ollama-compatible local server is already running on loopback.
 - Use `local` mode with `local_provider: "openai_compatible_local"` for loopback OpenAI-compatible local servers such as LM Studio, llama.cpp / llama-cpp-python server, text-generation-webui OpenAI API mode, or LocalAI.
+- Reuse the Core API's returned `session_id` for follow-up messages in the same temporary in-memory session.
 - Display safe Core API errors without exposing stack traces, secrets, or local paths.
 
 ## What It Does Not Do
@@ -18,6 +19,7 @@ It is not the final YonerAI product UI, not a production Web product, and not a 
 - It does not accept arbitrary remote provider URLs from the browser.
 - It does not implement Google login.
 - It does not persist memory or conversation history.
+- It does not sync sessions across devices or process restarts.
 - It does not complete the Discord gateway.
 - It does not claim final Web UI or production readiness.
 
