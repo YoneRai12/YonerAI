@@ -48,7 +48,6 @@ This index explains what a reader sees at the GitHub root without pretending eve
 | `pyproject.toml` | Python project config | tooling config | `KEEP_ROOT` | Keep. |
 | `pytest.ini` | pytest config | test config | `KEEP_ROOT` | Keep. |
 | `reference_clawdbot` | gitlink/submodule-like residue | not fixed | `DO_NOT_TOUCH` | Do not initialize, repair, remove, replace, or stage. |
-| `remove_legacy.ps1` | legacy removal helper that can edit runtime files | unsafe to present as active | `RETIRE_CANDIDATE` | Owner decision before move/delete; do not run. |
 | `requirements-optional-memory.txt` | optional memory dependencies | optional dependency lane | `KEEP_ROOT` | Keep until memory policy lane decides package shape. |
 | `requirements.txt` | Python dependencies | runtime/test dependency root | `KEEP_ROOT` | Dependency PRs need separate validation. |
 | `scripts` | setup/debug/runtime helper scripts | mixed tools | `KEEP_ROOT` | Continue moving only validated helpers. |
@@ -64,8 +63,15 @@ This index explains what a reader sees at the GitHub root without pretending eve
 ## Current Root Boundary
 
 - `debug_state.py`, `video_utils.py`, and `run_dashboard_backend.py` are no longer root entries.
-- `config.yaml`, launch scripts, compose files, `main.py`, `remove_legacy.ps1`, and `reference_clawdbot` remain visible.
+- `remove_legacy.ps1` is no longer a root entry; it has moved to `tools/maintenance/remove_legacy.ps1` and remains `DO_NOT_RUN`.
+- `config.yaml`, launch scripts, compose files, `main.py`, and `reference_clawdbot` remain visible.
 - Remaining visible clutter is classified here rather than hidden by unsafe deletes.
+
+## Moved Maintenance Helpers
+
+| path | what it is | public status | current action | next safe action |
+|---|---|---|---|---|
+| `tools/maintenance/remove_legacy.ps1` | legacy removal helper that can edit runtime files | unsafe to present as active | `MOVE_TOOLS` / `DO_NOT_RUN` | Keep out of root; do not run without an owner-approved `src/cogs/ora.py` extraction lane. |
 
 ## Non-Claims
 

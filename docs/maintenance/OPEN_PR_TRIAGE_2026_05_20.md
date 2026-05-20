@@ -8,7 +8,7 @@ Status: public-safe maintenance checkpoint from live GitHub state. This ledger c
 - Latest GitHub Release: `v2026.5.20.6`
 - Open PR count before this checkpoint: 40
 - Open PR count after this checkpoint: 40
-- Root verification: `debug_state.py`, `video_utils.py`, and `run_dashboard_backend.py` are no longer root files; `config.yaml`, `remove_legacy.ps1`, `start.sh`, `start_all.bat`, `start_vllm.bat`, `start_windows.bat`, compose files, and `main.py` remain in root.
+- Root verification: `debug_state.py`, `video_utils.py`, `run_dashboard_backend.py`, and `remove_legacy.ps1` are no longer root files; `config.yaml`, `start.sh`, `start_all.bat`, `start_vllm.bat`, `start_windows.bat`, compose files, and `main.py` remain in root.
 - Close decision: no PR met all safe-close rules during this 60-minute checkpoint.
 
 ## 2026-05-20 Security PR Follow-Up
