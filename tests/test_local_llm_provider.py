@@ -81,14 +81,21 @@ def test_normalize_local_llm_provider_rejects_unknown_provider() -> None:
 
 def test_build_local_llm_config_defaults_openai_compatible_local_to_loopback_v1() -> None:
     config = build_local_llm_config(
-        {},
+        {"ORA_LOCAL_LLM_ENABLED": "1"},
         provider="openai_compatible_local",
         model="lm-studio-model",
     )
 
+    assert config.enabled is True
     assert config.provider == LOCAL_LLM_PROVIDER_OPENAI_COMPATIBLE
     assert config.base_url == "http://127.0.0.1:1234/v1"
     assert config.model == "lm-studio-model"
+
+
+def test_build_local_llm_config_defaults_disabled_without_explicit_opt_in() -> None:
+    config = build_local_llm_config({})
+
+    assert config.enabled is False
 
 
 def test_generate_local_llm_reply_uses_ollama_chat_shape() -> None:

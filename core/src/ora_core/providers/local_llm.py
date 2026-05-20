@@ -92,7 +92,7 @@ class LocalLLMReply:
 
 def _env_enabled(raw: str | None) -> bool:
     if raw is None:
-        return True
+        return False
     return raw.strip().lower() not in {"0", "false", "no", "off"}
 
 

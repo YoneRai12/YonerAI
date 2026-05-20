@@ -20,6 +20,9 @@ def _load_core_app(monkeypatch, tmp_path, *, token: str | None = None):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
     monkeypatch.delenv("DISCORD_TOKEN", raising=False)
+    monkeypatch.delenv("ORA_LOCAL_LLM_ENABLED", raising=False)
+    monkeypatch.delenv("ORA_LOCAL_LLM_PUBLIC_TOKEN", raising=False)
+    monkeypatch.delenv("ORA_LOCAL_LLM_BASE_URL", raising=False)
     if token is None:
         monkeypatch.delenv("ORA_CORE_API_TOKEN", raising=False)
     else:
@@ -149,11 +152,13 @@ def test_surface_agent_mock_output_is_deterministic_and_no_local_provider_call(m
 
 def test_surface_agent_local_mode_remains_loopback_only(monkeypatch, tmp_path):
     app = _load_core_app(monkeypatch, tmp_path, token="secret-token")
+    monkeypatch.setenv("ORA_LOCAL_LLM_ENABLED", "1")
+    monkeypatch.setenv("ORA_LOCAL_LLM_PUBLIC_TOKEN", "local-test-token")
 
     with TestClient(app, client=("203.0.113.10", 50000)) as client:
         response = client.post(
             "/api/v1/agent/run",
-            headers={"X-ORA-Core-Token": "secret-token"},
+            headers={"X-ORA-Core-Token": "secret-token", "X-ORA-Local-Token": "local-test-token"},
             json={"prompt": "hello", "mode": "local"},
         )
 
@@ -163,6 +168,8 @@ def test_surface_agent_local_mode_remains_loopback_only(monkeypatch, tmp_path):
 
 def test_surface_agent_local_error_includes_safe_provider_metadata(monkeypatch, tmp_path):
     app = _load_core_app(monkeypatch, tmp_path)
+    monkeypatch.setenv("ORA_LOCAL_LLM_ENABLED", "1")
+    monkeypatch.setenv("ORA_LOCAL_LLM_PUBLIC_TOKEN", "local-test-token")
 
     from ora_core.providers import local_llm
 
@@ -174,6 +181,7 @@ def test_surface_agent_local_error_includes_safe_provider_metadata(monkeypatch, 
     with TestClient(app, client=("127.0.0.1", 50000)) as client:
         response = client.post(
             "/api/v1/agent/run",
+            headers={"X-ORA-Local-Token": "local-test-token"},
             json={
                 "prompt": "hello",
                 "mode": "local",
@@ -191,6 +199,52 @@ def test_surface_agent_local_error_includes_safe_provider_metadata(monkeypatch, 
     assert detail["status"] == "unavailable"
     assert "127.0.0.1" not in str(detail)
     assert "private" not in str(detail)
+
+
+def test_surface_agent_local_mode_requires_local_token(monkeypatch, tmp_path):
+    app = _load_core_app(monkeypatch, tmp_path)
+    monkeypatch.setenv("ORA_LOCAL_LLM_ENABLED", "1")
+    monkeypatch.setenv("ORA_LOCAL_LLM_PUBLIC_TOKEN", "local-test-token")
+
+    with TestClient(app, client=("127.0.0.1", 50000)) as client:
+        response = client.post(
+            "/api/v1/agent/run",
+            json={"prompt": "hello", "mode": "local"},
+        )
+
+    assert response.status_code == 403
+    detail = response.json()["detail"]
+    assert detail["error"] == "local_llm_auth_required"
+    assert detail["status"] == "auth_required"
+    assert "local-test-token" not in str(detail)
+
+
+def test_surface_agent_local_mode_ignores_request_local_base_url_override(monkeypatch, tmp_path):
+    app = _load_core_app(monkeypatch, tmp_path)
+    monkeypatch.setenv("ORA_LOCAL_LLM_ENABLED", "1")
+    monkeypatch.setenv("ORA_LOCAL_LLM_PUBLIC_TOKEN", "local-test-token")
+    monkeypatch.setenv("ORA_LOCAL_LLM_BASE_URL", "http://127.0.0.1:11434")
+
+    from ora_core.providers import local_llm
+
+    def fake_generate_local_llm_reply(*, message, conversation_id, model=None, config=None, client=None):
+        assert config is not None
+        assert config.base_url == "http://127.0.0.1:11434"
+        return local_llm.LocalLLMReply(reply="local run reply", provider="local-ollama", model=config.model)
+
+    monkeypatch.setattr(local_llm, "generate_local_llm_reply", fake_generate_local_llm_reply)
+
+    with TestClient(app, client=("127.0.0.1", 50000)) as client:
+        response = client.post(
+            "/api/v1/agent/run",
+            headers={"X-ORA-Local-Token": "local-test-token"},
+            json={"prompt": "hello", "mode": "local", "local_base_url": "https://example.com"},
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["provider"] == "local-ollama"
+    assert body["reply"] == "local run reply"
 
 
 def test_surface_agent_run_respects_core_token_gate(monkeypatch, tmp_path):

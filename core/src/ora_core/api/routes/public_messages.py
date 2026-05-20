@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import re
+import secrets
 from typing import NoReturn
 
 from fastapi import APIRouter, Request
@@ -24,6 +26,8 @@ router = APIRouter()
 
 PUBLIC_MESSAGE_CONTRACT_VERSION = "public-core-message-mvp-0.1"
 LOCAL_LLM_MESSAGE_CONTRACT_VERSION = "local-llm-conversation-mvp-0.1"
+LOCAL_LLM_PUBLIC_TOKEN_ENV = "ORA_LOCAL_LLM_PUBLIC_TOKEN"
+LOCAL_LLM_PUBLIC_TOKEN_HEADER = "X-ORA-Local-Token"
 PUBLIC_MESSAGE_PROVIDER = "offline-mock"
 PUBLIC_MESSAGE_DEFAULT_CONVERSATION_ID = "public-smoke"
 PUBLIC_MESSAGE_SUPPORTED_MODES = frozenset({"mock", "offline", "local"})
@@ -119,6 +123,26 @@ def _record_session_turn(*, session_id: str | None, conversation_id: str) -> Con
         _raise_public_message_error(400, "invalid_public_session", str(exc))
 
 
+def _require_local_llm_public_token(request: Request | None) -> None:
+    configured_token = os.getenv(LOCAL_LLM_PUBLIC_TOKEN_ENV, "").strip()
+    if not configured_token:
+        _raise_public_message_error(
+            503,
+            "local_llm_auth_not_configured",
+            "Local LLM public mode requires an explicit local token before it can be used.",
+            _local_error_metadata(status="auth_not_configured"),
+        )
+
+    supplied_token = request.headers.get(LOCAL_LLM_PUBLIC_TOKEN_HEADER, "").strip() if request is not None else ""
+    if not supplied_token or not secrets.compare_digest(supplied_token, configured_token):
+        _raise_public_message_error(
+            403,
+            "local_llm_auth_required",
+            "Local LLM public mode requires a configured local token.",
+            _local_error_metadata(status="auth_required"),
+        )
+
+
 def _build_local_message_response(
     *,
     message: str,
@@ -138,12 +162,12 @@ def _build_local_message_response(
             "local_llm_loopback_required",
             "Local LLM mode can only be called from a loopback client.",
         )
+    _require_local_llm_public_token(request)
 
     config: local_llm.LocalLLMConfig | None = None
     try:
         config = local_llm.build_local_llm_config(
             provider=local_provider,
-            base_url=local_base_url,
             model=model,
             temperature=temperature,
             max_tokens=max_tokens,
