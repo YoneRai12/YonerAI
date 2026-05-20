@@ -40,7 +40,7 @@ This index explains what a reader sees at the GitHub root without pretending eve
 | `config` | config helpers/data | mixed config | `KEEP_ROOT` | Review before moving any config. |
 | `config.yaml` | legacy runtime config read by current code | active legacy config | `KEEP_ROOT` | Keep until references are redesigned and tested. |
 | `core` | public Core API package | public active core | `KEEP_ROOT` | Keep as API contract authority. |
-| `docker-compose.prod.yml` | compose profile with production-like name | runtime config | `KEEP_ROOT` with caution | Do not claim production readiness; review naming in deploy lane. |
+| `docker-compose.prod.yml` | compose profile with production-like name | runtime config | `KEEP_ROOT` | Caution: do not claim production readiness; review naming in deploy lane. |
 | `docker-compose.yml` | local compose profile | runtime config | `KEEP_ROOT` | Keep; validate before changing service paths. |
 | `docs` | contracts, releases, repo policy, architecture | public docs | `KEEP_ROOT` | Keep organized by contract/repo/security/release/architecture. |
 | `main.py` | runtime entrypoint used by Docker/scripts | active entrypoint | `KEEP_ROOT` | Do not move without updating Docker/scripts/tests. |
@@ -48,11 +48,11 @@ This index explains what a reader sees at the GitHub root without pretending eve
 | `pyproject.toml` | Python project config | tooling config | `KEEP_ROOT` | Keep. |
 | `pytest.ini` | pytest config | test config | `KEEP_ROOT` | Keep. |
 | `reference_clawdbot` | gitlink/submodule-like residue | not fixed | `DO_NOT_TOUCH` | Do not initialize, repair, remove, replace, or stage. |
-| `remove_legacy.ps1` | legacy removal helper that can edit runtime files | unsafe to present as active | `RETIRE_CANDIDATE` / `DO_NOT_RUN` | Owner decision before move/delete; do not run. |
+| `remove_legacy.ps1` | legacy removal helper that can edit runtime files | unsafe to present as active | `RETIRE_CANDIDATE` | Owner decision before move/delete; do not run. |
 | `requirements-optional-memory.txt` | optional memory dependencies | optional dependency lane | `KEEP_ROOT` | Keep until memory policy lane decides package shape. |
 | `requirements.txt` | Python dependencies | runtime/test dependency root | `KEEP_ROOT` | Dependency PRs need separate validation. |
 | `scripts` | setup/debug/runtime helper scripts | mixed tools | `KEEP_ROOT` | Continue moving only validated helpers. |
-| `src` | legacy/runtime/private-adjacent code | mixed boundary surface | `CONNECT_CANDIDATE` / caution | Do not treat all `src` as public-ready. |
+| `src` | legacy/runtime/private-adjacent code | mixed boundary surface | `CONNECT_CANDIDATE` | Caution: do not treat all `src` as public-ready. |
 | `start.sh` | shell launcher | active legacy launcher | `KEEP_ROOT` | Do not move without setup wizard/reference validation. |
 | `start_all.bat` | Windows launcher wrapper | uncertain active helper | `UNKNOWN` | Leave until owner confirms expected workflow. |
 | `start_vllm.bat` | local model launcher referenced by resource manager | active local helper | `KEEP_ROOT` | Keep loopback/local framing; do not claim provider ecosystem completion. |
