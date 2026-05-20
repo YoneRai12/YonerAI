@@ -54,6 +54,8 @@ Root directories should have clear ownership:
 - `src`: legacy/runtime code that still needs boundary-specific lanes
 - `assets`, `config`, `templates`, `memory`, `data`: keep until reference audit proves a safe move or retirement
 
+Local-only ignored cache/state directories such as `.venv`, `.pytest_cache`, `.ruff_cache`, and `data` must not be treated as GitHub-visible root product surface unless they are tracked.
+
 ## Move Candidates
 
 Move a root file only when all are true:
@@ -81,6 +83,14 @@ Suggested future homes:
 - control-plane internals
 
 `reference_clawdbot` is classified separately as a gitlink/submodule residue and must not be initialized, repaired, removed, or replaced in generic root cleanup.
+
+Root helpers that can affect legacy runtime files, such as `remove_legacy.ps1`, should be treated as `DO_NOT_RUN / RETIRE_CANDIDATE` until a dedicated owner-approved lane validates their behavior. A generic root cleanup must not run or move them just to make the file list look cleaner.
+
+## Product Presentation
+
+README first-screen content, release titles, and current checkpoint summaries should use capability names rather than PR-number-first wording. PR numbers belong in traceability sections, maintenance ledgers, or PR bodies, not in the product-facing headline.
+
+See [Public Presentation Policy](PUBLIC_PRESENTATION_POLICY.md) and [Release Date Hygiene Policy](RELEASE_DATE_HYGIENE_POLICY.md).
 
 ## Required Validation
 

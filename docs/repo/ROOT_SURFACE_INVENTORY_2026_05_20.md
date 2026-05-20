@@ -4,7 +4,7 @@ Status: public-safe root inventory. This checkpoint intentionally performs no fi
 
 ## Summary
 
-The current root contains normal public repository entrypoints, active packaging/test config, active launchers, legacy runtime helpers, and one gitlink residue.
+The Git-visible root contains normal public repository entrypoints, active packaging/test config, active launchers, legacy runtime helpers, and one gitlink residue.
 
 This pass classifies the surface first. Runtime-moving cleanup is deferred until references can be updated and validated in a dedicated PR.
 
@@ -28,7 +28,6 @@ This pass classifies the surface first. Runtime-moving cleanup is deferred until
 | `clients` | KEEP_ROOT | Contains temporary Web Chat MVP / smoke-demo client. | Keep. |
 | `config` | KEEP_ROOT | Public-safe config directory. | Keep pending config ownership audit. |
 | `core` | KEEP_ROOT | Public Core API. | Keep. |
-| `data` | UNKNOWN | Runtime/data ownership needs separate audit. | Do not move in this PR. |
 | `docs` | KEEP_ROOT | Public-safe docs and release notes. | Keep. |
 | `memory` | UNKNOWN | Memory-related root directory; persistent-memory implications require a dedicated lane. | Do not move in this PR. |
 | `pyproject.toml` | KEEP_ROOT | Python packaging and tooling config. | Keep. |
@@ -42,11 +41,11 @@ This pass classifies the surface first. Runtime-moving cleanup is deferred until
 | `tools` | KEEP_ROOT | Tooling directory. | Keep. |
 | `reference_clawdbot` | DO_NOT_TOUCH | Tracked as gitlink/submodule residue. Owner scope says do not fix. | Do not init, update, remove, replace, or repair. |
 | `config.yaml` | KEEP_ROOT | Loaded from process working directory by runtime config and MCP code. | Keep until config lane updates references. |
-| `debug_state.py` | UNKNOWN | No clear static references found. Could be operator helper. | Do not move without owner confirmation. |
+| `debug_state.py` | RETIRE_CANDIDATE | No clear static references found. Could be local/operator state helper. | Do not move or delete without owner confirmation. |
 | `docker-compose.yml` | KEEP_ROOT | Referenced by docs and pairs with root `main.py`. | Keep. |
 | `docker-compose.prod.yml` | KEEP_ROOT | Root production-like compose file; moving could alter operator expectations. | Keep; do not change runtime behavior. |
 | `main.py` | KEEP_ROOT | Referenced by Dockerfile, compose files, pyproject, scripts, and docs. | Keep. |
-| `remove_legacy.ps1` | UNKNOWN | No clear static references found. | Do not move without owner confirmation. |
+| `remove_legacy.ps1` | DO_NOT_RUN / RETIRE_CANDIDATE | No clear static references found; script name and behavior imply legacy runtime mutation risk. | Do not run, move, or delete without owner confirmation. |
 | `run_dashboard_backend.py` | UNKNOWN | No clear static references found. | Do not move without owner confirmation. |
 | `start.sh` | KEEP_ROOT | Referenced by setup wizard as recommended launcher. | Keep. |
 | `start_all.bat` | UNKNOWN | No clear static references found. | Do not move without owner confirmation. |
@@ -56,7 +55,7 @@ This pass classifies the surface first. Runtime-moving cleanup is deferred until
 
 ## Local-Only Entries Observed
 
-The working tree also contains local development/cache directories such as `.venv`, `.pytest_cache`, and `.ruff_cache`. They are not root product surface and should remain ignored/untracked.
+The working tree also contains local development/cache/state directories such as `.venv`, `.pytest_cache`, `.ruff_cache`, and `data`. They are not GitHub-visible root product surface in this pass and should remain ignored/untracked unless a dedicated storage lane proves otherwise.
 
 ## Minimal Cleanup Decision
 

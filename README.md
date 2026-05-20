@@ -2,7 +2,7 @@
 
 Provider-independent AI execution foundation for keeping one reliable AI experience across official, local, and self-hosted runtimes.
 
-[Japanese README](README_JP.md) | [Current phase](docs/CURRENT_PHASE_CONTEXT.md) | [Contracts](docs/contracts) | [Latest checkpoint](docs/releases/v2026.5.22-web-chat-mvp-review-gate-checkpoint.md)
+[Japanese README](README_JP.md) | [Current phase](docs/CURRENT_PHASE_CONTEXT.md) | [Contracts](docs/contracts) | [Latest checkpoint](docs/releases/v2026.5.20.5-public-surface-release-hygiene-checkpoint.md)
 
 ## What YonerAI Is
 
@@ -22,7 +22,9 @@ The active design anchor is v7.7:
 - contract-first public boundaries
 - public/private/control-plane separation by contract, not by leaking internal operations detail
 
-`v2026.5.21` is visible as a normal GitHub Release for the public Local LLM provider compatibility checkpoint. The current Web Chat MVP note continues that checkpoint as a repository release note; neither is a production release.
+The current public checkpoint stream uses the verified 2026-05-20 date with same-day suffixes. `v2026.5.20.5` records the public surface and release hygiene cleanup for this lane. It is a checkpoint note, not a production release.
+
+Older future-dated checkpoint labels can remain as historical artifacts, but they should not be used as the current public/latest checkpoint unless a current-date GitHub Release explicitly supersedes them.
 
 This repository does not claim shipping completeness, production readiness, official cloud completion, live operations completion, or full product completion.
 
@@ -76,19 +78,19 @@ Useful starting points:
 - [Current MVP Capability Matrix](docs/CURRENT_MVP_CAPABILITY_MATRIX.md)
 - [Cross-repo same-experience matrix](docs/contracts/CROSS_REPO_SAME_EXPERIENCE_MATRIX_2026_05_20.md)
 - [Official Cloud Control Plane MVP contract](docs/contracts/OFFICIAL_CLOUD_CONTROL_PLANE_MVP_2026_05_20.md)
-- [Feature inventory](docs/capabilities/FEATURE_INVENTORY_2026_05_22.md)
-- [Releaseability map](docs/capabilities/RELEASEABILITY_MAP_2026_05_22.md)
+- Feature inventory and releaseability map under `docs/capabilities/`
 - [External Agent API](docs/contracts/external-agent-api.md)
 - [SSE Run Events](docs/contracts/sse-run-events.md)
-- [v2026.5.22 Web Chat MVP review-gate checkpoint note](docs/releases/v2026.5.22-web-chat-mvp-review-gate-checkpoint.md)
-- GitHub Release tag `v2026.5.21`
-- [v2026.5.21 Local LLM provider compatibility checkpoint note](docs/releases/v2026.5.21-local-llm-provider-compatibility-checkpoint.md)
+- [v2026.5.20.5 Public surface and release hygiene checkpoint note](docs/releases/v2026.5.20.5-public-surface-release-hygiene-checkpoint.md)
+- [Root surface policy](docs/repo/ROOT_SURFACE_POLICY.md)
+- [Release date hygiene policy](docs/repo/RELEASE_DATE_HYGIENE_POLICY.md)
+- [Public presentation policy](docs/repo/PUBLIC_PRESENTATION_POLICY.md)
+- [Zero-trust practicality matrix](docs/security/ZERO_TRUST_PRACTICALITY_MATRIX.md)
 - [v2026.5.20.1 Official Cloud Control Plane MVP planning checkpoint](docs/releases/v2026.5.20.1-official-cloud-control-plane-mvp-planning-checkpoint.md)
 - [v2026.5.20 Web UI mock-chat checkpoint note](docs/releases/v2026.5.20-web-ui-mock-chat-security-checkpoint.md)
 - [v2026.5.20 Local LLM conversation checkpoint note](docs/releases/v2026.5.20-local-llm-conversation-mvp-checkpoint.md)
 - [Dependabot triage 2026-05-20](docs/security/DEPENDABOT_TRIAGE_2026_05_20.md)
-- [Dependabot triage 2026-05-22](docs/security/DEPENDABOT_TRIAGE_2026_05_22.md)
-- [Open PR backlog triage 2026-05-22](docs/maintenance/OPEN_PR_BACKLOG_TRIAGE_2026_05_22.md)
+- Security and backlog triage docs under `docs/security/` and `docs/maintenance/`
 - [Latest traceability matrix](docs/TRACEABILITY_MATRIX_0_19.md)
 
 ## Product Surface Lanes
@@ -309,9 +311,11 @@ cd clients\web; npm ci; npm run lint; npm run build; npm audit --omit=dev
 
 ## Release Notes
 
-- [v2026.5.22 Web Chat MVP review-gate checkpoint](docs/releases/v2026.5.22-web-chat-mvp-review-gate-checkpoint.md)
-- [v2026.5.21 Local LLM provider compatibility checkpoint](docs/releases/v2026.5.21-local-llm-provider-compatibility-checkpoint.md)
+- [v2026.5.20.5 Public surface and release hygiene checkpoint](docs/releases/v2026.5.20.5-public-surface-release-hygiene-checkpoint.md)
+- [v2026.5.20.4 Hybrid Connector Fixture and Memory Policy checkpoint](docs/releases/v2026.5.20.4-hybrid-connector-fixture-memory-policy-checkpoint.md)
+- [v2026.5.20.3 Hybrid Signed Envelope Donation Policy checkpoint](docs/releases/v2026.5.20.3-hybrid-signed-envelope-donation-policy-checkpoint.md)
 - [v2026.5.20.2 Conversation Session Scaffold checkpoint](docs/releases/v2026.5.20.2-conversation-session-scaffold-checkpoint.md)
+- [v2026.5.20.1 Official Cloud Control Plane MVP planning checkpoint](docs/releases/v2026.5.20.1-official-cloud-control-plane-mvp-planning-checkpoint.md)
 - [v2026.5.20 Web UI mock-chat security checkpoint](docs/releases/v2026.5.20-web-ui-mock-chat-security-checkpoint.md)
 - [v2026.5.20 public core message MVP checkpoint](docs/releases/v2026.5.20-public-core-message-mvp-checkpoint.md)
 - [v2026.5.19 public runnable MVP checkpoint](docs/releases/v2026.5.19-public-runnable-mvp-checkpoint.md)
