@@ -53,15 +53,16 @@ Status: public-safe maintenance checkpoint from live GitHub state. This ledger c
 - Open PR count before this dependency pass: 36.
 - Dependabot alert check: `gh api "/repos/YoneRai12/YonerAI/dependabot/alerts?state=open&per_page=100" --jq length` returned `0`.
 - Open dependency PRs observed: 16.
-- Dependency PRs closed in this pass: 0.
+- Dependency PRs closed in this pass: 3 (#117, #119, #127).
+- Open PR count after this dependency pass: 33.
 - Ledger: `docs/security/DEPENDENCY_PR_DRAIN_2026_05_21.md`
 
-Decision: all dependency PRs remain open. The current alert count is clean, but no remaining dependency PR was proven obsolete, duplicated by a newer PR, or superseded by a current-main manifest change. Closing them would make the backlog look smaller without resolving the dependency lane.
+Decision: #117, #119, and #127 were closed as superseded by the current `clients/web/package-lock.json` and a 0-alert Dependabot check. All other dependency PRs remain open because no remaining dependency PR was proven obsolete, duplicated by a newer PR, or superseded by a current-main manifest change.
 
 Next lane split:
 
 1. GitHub Actions workflow refresh: #156, #34, #7, #6.
-2. Web lockfile refresh: #127, #119, #117.
+2. Web lockfile lane: #117, #119, and #127 are now closed as superseded; create a fresh lane only if new web alerts appear.
 3. Python runtime refresh: #146, #152, #18.
 4. Discord / crypto boundary refresh: #151, #145.
 5. Provider / media refresh: #150, #148, #147.
@@ -104,10 +105,10 @@ Next lane split:
 | #130 | restore `/say` admin check | owner / `codex/fix-authorization-bypass-in-/say-command-wsvf7m` | 42d | closed | CLOSED_DUPLICATE | CLOSE_DUPLICATE | Discord/private runtime | Closed as duplicate of #129 | `src/cogs/core.py`, same title/files/body as #129 | #129 remains open as survivor; this does not claim the issue is fixed on main. |
 | #129 | restore `/say` admin check | owner / `codex/fix-authorization-bypass-in-/say-command` | 42d | open | BEHIND | KEEP_SECURITY_REVIEW | Discord/private runtime | Keep, compare with #130 | `src/cogs/core.py`, same title as #130 | Possible duplicate, but security impact uncertain. |
 | #128 | path traversal in dashboard user detail endpoint | owner / `codex/fix-path-traversal-vulnerability-in-api` | 42d | open | BEHIND | KEEP_SECURITY_REVIEW | Web/API security | Keep, recreate if still valid | `src/web/endpoints.py` | Path traversal-sensitive; needs current-main review. |
-| #127 | lodash in `/clients/web` | dependabot / `dependabot/npm_and_yarn/clients/web/lodash-4.18.1` | 43d | open | DIRTY | KEEP_DEPENDENCY_UPDATE | temporary Web Chat MVP | Keep for web dependency lane | `clients/web/package-lock.json` | Conflicted dependency lock update. |
+| #127 | lodash in `/clients/web` | dependabot / `dependabot/npm_and_yarn/clients/web/lodash-4.18.1` | 43d | closed | CLOSED_SUPERSEDED | CLOSE_SUPERSEDED | temporary Web Chat MVP | Closed with evidence comment | Current `clients/web/package-lock.json` no longer contains a `node_modules/lodash` package entry; Dependabot alerts are 0 | Recreate only if `lodash` reappears in the active web lockfile. |
 | #121 | restore managed-cloud mvp surface | owner / `codex/managed-cloud-mvp-phase1` | 49d | draft | DIRTY | REPLACE_WITH_V7_7_LANE | official cloud/Web | Replace, do not merge | 42 files, 13k additions, broad Web/runtime docs | Too broad and old; use v7.7 contract/control-plane lanes instead. |
-| #119 | picomatch in `/clients/web` | dependabot / `dependabot/npm_and_yarn/clients/web/multi-bf05dc1ecf` | 55d | open | BEHIND | KEEP_DEPENDENCY_UPDATE | temporary Web Chat MVP | Keep for web dependency lane | `clients/web/package-lock.json` | Needs fresh lockfile update and web build. |
-| #117 | flatted in `/clients/web` | dependabot / `dependabot/npm_and_yarn/clients/web/flatted-3.4.2` | 60d | open | BEHIND | KEEP_DEPENDENCY_UPDATE | temporary Web Chat MVP | Keep for web dependency lane | `clients/web/package-lock.json` | Needs fresh lockfile update and web build. |
+| #119 | picomatch in `/clients/web` | dependabot / `dependabot/npm_and_yarn/clients/web/multi-bf05dc1ecf` | 55d | closed | CLOSED_SUPERSEDED | CLOSE_SUPERSEDED | temporary Web Chat MVP | Closed with evidence comment | Current `clients/web/package-lock.json` contains `picomatch` 2.3.2 and nested `picomatch` 4.0.4; Dependabot alerts are 0 | Recreate only if a new web alert appears. |
+| #117 | flatted in `/clients/web` | dependabot / `dependabot/npm_and_yarn/clients/web/flatted-3.4.2` | 60d | closed | CLOSED_SUPERSEDED | CLOSE_SUPERSEDED | temporary Web Chat MVP | Closed with evidence comment | Current `clients/web/package-lock.json` contains `flatted` 3.4.2; Dependabot alerts are 0 | Recreate only if a new web alert appears. |
 | #111 | rename public-facing ORA branding | owner / `codex/public-ora-branding-cleanup` | 70d | open | DIRTY | REPLACE_WITH_V7_7_LANE | public presentation | Replace with current docs/root policy lane | touches env, workflows, clients, config, core | Much of presentation work superseded; broad dirty branch still may contain ideas. |
 | #108 | license/IP valuation report | owner / `codex/evaluate-intellectual-property-value-wmiu77` | 73d | open | DIRTY | NEEDS_OWNER_DECISION | legal/IP | Keep for owner decision | README/license/IP valuation docs | Legal/license change cannot be closed or merged by maintenance triage. |
 | #107 | license/IP valuation report | owner / `codex/evaluate-intellectual-property-value` | 73d | draft | DIRTY | NEEDS_OWNER_DECISION | legal/IP | Keep for owner decision | Similar to #108 | Possible duplicate, but legal decision belongs to owner. |
@@ -188,9 +189,9 @@ The following GitHub check rollups were read after the open PR list. A passing h
 5. #129: `/say` authorization survivor after duplicate #130 was closed.
 6. #135: Discord log masking survivor after duplicate #136 was closed.
 7. #132: image upload DoS; confirm whether the vulnerable surface still exists.
-8. #127 / #119 / #117: refresh `clients/web` dependency lockfile in one web dependency lane.
-9. #156 / #7 / #6 / #34: refresh GitHub Actions dependency lane with workflow validation.
-10. #152 / #151 / #150 / #146: refresh high-risk Python dependency lane with focused tests.
+8. #156 / #7 / #6 / #34: refresh GitHub Actions dependency lane with workflow validation.
+9. #152 / #151 / #150 / #146: refresh high-risk Python dependency lane with focused tests.
+10. #143: keep optional memory dependency work blocked behind explicit memory-policy scope.
 
 ## Next Safe Actions
 
