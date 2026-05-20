@@ -55,15 +55,15 @@ Status: public-safe maintenance checkpoint from live GitHub state. This ledger c
 | #145 | build(deps): update pynacl requirement | dependabot / `dependabot/pip/pynacl-gte-1.6.2-and-lt-2.0` | 23d | open | BEHIND | KEEP_DEPENDENCY_UPDATE | Discord/crypto dependency | Keep for dependency lane | `requirements.txt` | Boundary/security dependency; not a batch merge. |
 | #143 | build(deps): bump chromadb | dependabot / `dependabot/pip/chromadb-1.5.8` | 30d | open | BEHIND | KEEP_DEPENDENCY_UPDATE | optional memory lane | Keep for memory/dependency lane | `requirements-optional-memory.txt` | Memory is not complete; do not merge without memory policy decision. |
 | #142 | fix(core): restore require_core_access on main v1 routers | owner / `codex/fix-core-api-access-vulnerability` | 35d | closed | CLOSED_SUPERSEDED | CLOSE_SUPERSEDED | API security | Closed with evidence comment | Replaced by PR #186 plus `tests/test_core_api_access_security.py`; current main protects sensitive routes and intentionally keeps ticket download outside the core token dependency | Stale PR should not merge because it would restore a broad files-router dependency model that conflicts with the current ticket-based download boundary. |
-| #136 | Discord log forwarding masking and channel restriction | owner / `codex/fix-unredacted-log-forwarding-issue-xxune2` | 42d | open | BEHIND | KEEP_SECURITY_REVIEW | Discord/private runtime | Keep, compare with #135 | `src/cogs/system.py`, same title as #135 | Possible duplicate, but security impact uncertain; do not close in this checkpoint. |
-| #135 | Discord log forwarding masking and channel restriction | owner / `codex/fix-unredacted-log-forwarding-issue` | 42d | open | BEHIND | KEEP_SECURITY_REVIEW | Discord/private runtime | Keep, compare with #136 | `src/cogs/system.py`, same title as #136 | Possible duplicate, but security impact uncertain; do not close in this checkpoint. |
+| #136 | security-sensitive PR (redacted) | owner / internal branch redacted | 42d | open | BEHIND | KEEP_SECURITY_REVIEW | security lane | Keep under restricted review | evidence redacted | Security details intentionally withheld from public docs. |
+| #135 | security-sensitive PR (redacted) | owner / internal branch redacted | 42d | open | BEHIND | KEEP_SECURITY_REVIEW | security lane | Keep under restricted review | evidence redacted | Security details intentionally withheld from public docs. |
 | #134 | prevent double interaction defer | owner / `codex/fix-double-defer-in-auto-style-generation` | 42d | open | BEHIND | KEEP_CORRECTNESS_REVIEW | image generation UX | Keep for correctness lane | `src/views/image_gen.py` | Old runtime surface; refresh and test before merge. |
-| #133 | harden embed image fetching against SSRF | owner / `codex/fix-ssrf-risk-in-embed-image-processing` | 42d | open | BEHIND | KEEP_SECURITY_REVIEW | media/security | Keep, recreate if still valid | handler + security test | SSRF-sensitive; do not close without replacement. |
-| #132 | Mitigate unbounded image upload DoS | owner / `codex/fix-unbounded-image-upload-vulnerability` | 42d | open | BEHIND | KEEP_SECURITY_REVIEW | media/security | Keep, recreate if still valid | creative/layer server files | DoS-sensitive; needs current-main patch review. |
-| #131 | Restore admin-only guard for /listen | owner / `codex/propose-fix-for-/listen-command-vulnerability` | 42d | open | BEHIND | KEEP_SECURITY_REVIEW | Discord/private runtime | Keep, recreate if still valid | `src/cogs/voice_recv.py` | Authorization-sensitive; do not close. |
-| #130 | restore `/say` admin check | owner / `codex/fix-authorization-bypass-in-/say-command-wsvf7m` | 42d | open | BEHIND | KEEP_SECURITY_REVIEW | Discord/private runtime | Keep, compare with #129 | `src/cogs/core.py`, same title as #129 | Possible duplicate, but security impact uncertain. |
-| #129 | restore `/say` admin check | owner / `codex/fix-authorization-bypass-in-/say-command` | 42d | open | BEHIND | KEEP_SECURITY_REVIEW | Discord/private runtime | Keep, compare with #130 | `src/cogs/core.py`, same title as #130 | Possible duplicate, but security impact uncertain. |
-| #128 | path traversal in dashboard user detail endpoint | owner / `codex/fix-path-traversal-vulnerability-in-api` | 42d | open | BEHIND | KEEP_SECURITY_REVIEW | Web/API security | Keep, recreate if still valid | `src/web/endpoints.py` | Path traversal-sensitive; needs current-main review. |
+| #133 | security-sensitive PR (redacted) | owner / internal branch redacted | 42d | open | BEHIND | KEEP_SECURITY_REVIEW | security lane | Keep under restricted review | evidence redacted | Security details intentionally withheld from public docs. |
+| #132 | security-sensitive PR (redacted) | owner / internal branch redacted | 42d | open | BEHIND | KEEP_SECURITY_REVIEW | security lane | Keep under restricted review | evidence redacted | Security details intentionally withheld from public docs. |
+| #131 | security-sensitive PR (redacted) | owner / internal branch redacted | 42d | open | BEHIND | KEEP_SECURITY_REVIEW | security lane | Keep under restricted review | evidence redacted | Security details intentionally withheld from public docs. |
+| #130 | security-sensitive PR (redacted) | owner / internal branch redacted | 42d | open | BEHIND | KEEP_SECURITY_REVIEW | security lane | Keep under restricted review | evidence redacted | Security details intentionally withheld from public docs. |
+| #129 | security-sensitive PR (redacted) | owner / internal branch redacted | 42d | open | BEHIND | KEEP_SECURITY_REVIEW | security lane | Keep under restricted review | evidence redacted | Security details intentionally withheld from public docs. |
+| #128 | security-sensitive PR (redacted) | owner / internal branch redacted | 42d | open | BEHIND | KEEP_SECURITY_REVIEW | security lane | Keep under restricted review | evidence redacted | Security details intentionally withheld from public docs. |
 | #127 | lodash in `/clients/web` | dependabot / `dependabot/npm_and_yarn/clients/web/lodash-4.18.1` | 43d | open | DIRTY | KEEP_DEPENDENCY_UPDATE | temporary Web Chat MVP | Keep for web dependency lane | `clients/web/package-lock.json` | Conflicted dependency lock update. |
 | #121 | restore managed-cloud mvp surface | owner / `codex/managed-cloud-mvp-phase1` | 49d | draft | DIRTY | REPLACE_WITH_V7_7_LANE | official cloud/Web | Replace, do not merge | 42 files, 13k additions, broad Web/runtime docs | Too broad and old; use v7.7 contract/control-plane lanes instead. |
 | #119 | picomatch in `/clients/web` | dependabot / `dependabot/npm_and_yarn/clients/web/multi-bf05dc1ecf` | 55d | open | BEHIND | KEEP_DEPENDENCY_UPDATE | temporary Web Chat MVP | Keep for web dependency lane | `clients/web/package-lock.json` | Needs fresh lockfile update and web build. |
@@ -76,8 +76,8 @@ Status: public-safe maintenance checkpoint from live GitHub state. This ledger c
 | #79 | broaden generic image explanations | owner / `codex/public-image-explanation-broad-summary` | 74d | open | CLEAN on non-main base | KEEP_CORRECTNESS_REVIEW | multimodal contract | Keep, rebase only if still needed | base is `codex/public-multimodal-followup-carryover` | Stacked PR; cannot merge to main as-is. |
 | #78 | preserve recent image context | owner / `codex/public-multimodal-followup-carryover` | 74d | open | DIRTY | KEEP_CORRECTNESS_REVIEW | multimodal continuity | Keep, refresh later | Core brain/context and tests | Dirty and old; evaluate after current conversation/session contracts. |
 | #74 | 3-mode node split migration ledger | owner / `codex/node-3mode-planning-ledger` | 74d | open | BEHIND | REPLACE_WITH_V7_7_LANE | repo split / same experience | Replace with current v7.7 docs | docs-only 3-mode migration ledger | Likely superseded by current contracts; keep until owner confirms. |
-| #67 | protect ORA Core endpoints | owner / `codex/propose-fix-for-unauthenticated-api` | 74d | open | DIRTY | KEEP_SECURITY_REVIEW | API security | Keep, recreate if still valid | auth dependency and main | Security-sensitive and conflicted; do not close. |
-| #60 | image_crop_upscale SSRF validation | owner / `codex/fix-ssrf-vulnerability-in-image_crop_upscale` | 74d | open | DIRTY | KEEP_SECURITY_REVIEW | tool/media security | Keep, recreate if still valid | tool + security test | SSRF-sensitive; do not close. |
+| #67 | security-sensitive PR (redacted) | owner / internal branch redacted | 74d | open | DIRTY | KEEP_SECURITY_REVIEW | security lane | Keep under restricted review | evidence redacted | Security details intentionally withheld from public docs. |
+| #60 | security-sensitive PR (redacted) | owner / internal branch redacted | 74d | open | DIRTY | KEEP_SECURITY_REVIEW | security lane | Keep under restricted review | evidence redacted | Security details intentionally withheld from public docs. |
 | #34 | git-auto-commit-action from 5 to 7 | dependabot / `dependabot/github_actions/stefanzweifel/git-auto-commit-action-7` | 80d | open | BEHIND | KEEP_DEPENDENCY_UPDATE | CI/release hygiene | Keep for dependency lane | `.github/workflows/diagrams.yml` | Action may affect automation; test workflow before merge. |
 | #32 | band1/band2 skeleton | owner / `feat/router-band1-band2-skeleton` | 81d | open | BEHIND | REPLACE_WITH_V7_7_LANE | routing/capability boundary | Replace with v7.7 capability boundary lane | route policy and chat handler files | Old runtime routing branch; do not merge into public Core without contract plan. |
 | #26 | Cloudflare DNS/tunnel + redirect policy template | owner / `feat/domain-cloudflare-plan` | 83d | open | BEHIND | NEEDS_OWNER_DECISION | deploy/domain docs | Keep for owner/control-plane decision | domain docs | Deployment/domain lane is outside current public checkpoint. |
@@ -141,14 +141,14 @@ The following GitHub check rollups were read after the open PR list. A passing h
 
 ## Top 10 Next PR Decisions
 
-1. #142: API access guard security; recreate clean patch if still valid.
-2. #67: unauthenticated API guard; compare with current public Core auth boundary.
-3. #128: dashboard path traversal; determine whether public/private boundary makes it public-safe or private-only.
-4. #133: embed image SSRF; re-evaluate against current media/tool boundary.
-5. #60: image crop/upscale SSRF; re-evaluate against current tools policy.
-6. #131: `/listen` authorization; private runtime/Discord boundary review.
-7. #129 / #130: duplicate `/say` authorization fixes; choose one current-main replacement or close both after replacement.
-8. #135 / #136: duplicate Discord log masking fixes; choose one current-main replacement or close both after replacement.
+1. #142: security-sensitive review item (details redacted in public docs).
+2. #67: security-sensitive review item (details redacted in public docs).
+3. #128: security-sensitive review item (details redacted in public docs).
+4. #133: security-sensitive review item (details redacted in public docs).
+5. #60: security-sensitive review item (details redacted in public docs).
+6. #131: security-sensitive review item (details redacted in public docs).
+7. #129 / #130: security-sensitive review item (details redacted in public docs).
+8. #135 / #136: security-sensitive review item (details redacted in public docs).
 9. #127 / #119 / #117: refresh `clients/web` dependency lockfile in one web dependency lane.
 10. #156 / #7 / #6 / #34: refresh GitHub Actions dependency lane with workflow validation.
 
