@@ -31,6 +31,7 @@ The current public MVP is a credential-free local Core API health smoke plus mes
 - public-safe Hybrid Signed Envelope / Donation Policy contract and test fixtures for future hybrid ingress
 - synthetic Hybrid Connector Fixture for memory candidate, self-evolution signal, and improvement proposal envelopes
 - memory candidate donation policy scaffold: quarantine first, `memory_persisted: false`, approval required before persistence
+- public capability / extension boundary manifest with unknown capabilities denied by default
 - capability priority map for the next design lanes
 - public smoke tests
 - no Discord token required
@@ -88,17 +89,16 @@ The current public MVP is a credential-free local Core API health smoke plus mes
 
 The current checkpoint should grow in separate, reviewable lanes:
 
-1. capability / extension boundary hardening
-2. tools/MCP safe subset
-3. agent swarm releaseability map
-4. `src/cogs/ora.py` extraction step
-5. identity / Google login
-6. Discord gateway
-7. final Web UI replacement or clean product surface decision
-8. web search
-9. memory persistence only after approval workflow and privacy policy are stable
-10. official/private runtime lanes
-11. retired UI cleanup follow-through for old PRs and alerts
+1. tools/MCP safe subset
+2. agent swarm releaseability map
+3. `src/cogs/ora.py` extraction step
+4. identity / Google login
+5. Discord gateway
+6. final Web UI replacement or clean product surface decision
+7. web search
+8. memory persistence only after approval workflow and privacy policy are stable
+9. official/private runtime lanes
+10. retired UI cleanup follow-through for old PRs and alerts
 
 Each ladder step needs its own tests, privacy boundary, and public wording review.
 

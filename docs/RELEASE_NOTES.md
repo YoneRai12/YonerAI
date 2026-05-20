@@ -2,12 +2,19 @@
 
 This page is a public-safe index of current release notes and progress checkpoints.
 
+## v2026.5.20.13 Capability / Extension Boundary Checkpoint
+
+- Public checkpoint note: `docs/releases/v2026.5.20.13-capability-extension-boundary-checkpoint.md`
+- Scope: code-level public capability manifest, unknown-capability deny-by-default tests, and capability boundary contract.
+- Status: public boundary hardening checkpoint, not production, not deploy, and not tools/MCP completion.
+- Still open: tools/MCP safe subset contract, security PR backlog resolution, agent swarm releaseability, and `src/cogs/ora.py` extraction lane.
+
 ## v2026.5.20.12 Local LLM Error Reporting Hardening Checkpoint
 
 - Public checkpoint note: `docs/releases/v2026.5.20.12-local-llm-error-reporting-hardening-checkpoint.md`
 - Scope: safe local LLM error metadata for public messages, Surface API runs, and local smoke CLI output.
 - Status: public local-provider hardening checkpoint, not production, not deploy, and not provider ecosystem completion.
-- Still open: capability/extension boundary hardening, tools/MCP safe subset contract, security PR backlog resolution, and local model listing.
+- Still open: tools/MCP safe subset contract, security PR backlog resolution, and local model listing.
 
 ## v2026.5.20.11 Growth/SNS Claim Guardrails Checkpoint
 

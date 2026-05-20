@@ -6,7 +6,7 @@ Status: public-safe roadmap. This is not a shipping or production-readiness clai
 |---|---|---|---|---|---|---|---|
 | 1 | Hybrid connector fixture | It proves local/private-to-official result transfer without trusting donated data blindly. | Signed envelope policy and control-plane ingress skeleton. | Secret leakage, replay, over-trusting signed data. | Public + control-plane | Fixture envelope, signature, replay, quarantine, audit. | CONTRACT_READY |
 | 2 | Memory policy scaffold | It defines what may become memory before any persistence exists. | Hybrid donation quarantine and approval model. | Memory poisoning, raw prompt/completion ingestion, privacy leakage. | Public + control-plane | Memory candidate allowed fields, forbidden markers, approval required. | CONTRACT_READY |
-| 3 | Capability / extension boundary | Tools, MCP, providers, and future skills need explicit capability grants before exposure. | Donation policy, trust registry, and same-experience matrix. | Overbroad tool permission, hidden private dependency. | Public first, private/control-plane adapters later. | Capability allowlist, denied capability, revoked issuer. | NEEDS_CONTRACT |
+| 3 | Capability / extension boundary | Tools, MCP, providers, and future skills need explicit capability grants before exposure. | Donation policy, trust registry, and same-experience matrix. | Overbroad tool permission, hidden private dependency. | Public first, private/control-plane adapters later. | Unknown capability deny-by-default, private/control-plane disabled, public surface labels. | CONTRACT_READY |
 | 4 | Agent swarm releaseability | Multi-agent behavior must be framed as reviewable workflows, not autonomous production actions. | Capability boundary and approval gates. | Unbounded autonomous actions, hidden mutation. | Public docs + control-plane proposal queue. | Synthetic swarm proposal fixtures, no auto-merge/deploy. | NEEDS_CONTRACT |
 | 5 | Tools/MCP safe subset | Useful user-visible capability, but only after capability grants and data policy are stable. | Capability boundary and secret-scan guardrails. | Secret-bearing tool calls, private repo coupling. | Public for safe contracts, private for secret-bearing connectors. | Tool allow/deny, no network where disallowed, no secret output. | TESTABLE_INTERNAL |
 | 6 | `src/cogs/ora.py` extraction step | It is known runtime residue, but extraction should follow contract coverage. | Import map, facade tests, message/session/hybrid boundaries. | Broad runtime behavior drift. | Public with dedicated refactor lane. | Facade contract, smoke, no runtime behavior change. | NEEDS_REFACTOR |
@@ -17,7 +17,7 @@ Status: public-safe roadmap. This is not a shipping or production-readiness clai
 
 ## Current Next Lane
 
-The next recommended lane is capability / extension boundary hardening, because hybrid connector and memory policy scaffolds now provide the minimum guardrails for donated results.
+The next recommended lane is Tools/MCP safe subset contract, because the public capability boundary now marks Tools/MCP as contract-only or disabled by default.
 
 ## Non-Claims
 

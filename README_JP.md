@@ -2,7 +2,7 @@
 
 YonerAI は、公式・ローカル・self-hosted の実行環境が変わっても、同じ体験と契約境界を保つための provider-independent AI execution foundation です。
 
-[English README](README.md) | [Current phase](docs/CURRENT_PHASE_CONTEXT.md) | [Contracts](docs/contracts) | [Latest checkpoint](docs/releases/v2026.5.20.12-local-llm-error-reporting-hardening-checkpoint.md)
+[English README](README.md) | [Current phase](docs/CURRENT_PHASE_CONTEXT.md) | [Contracts](docs/contracts) | [Latest checkpoint](docs/releases/v2026.5.20.13-capability-extension-boundary-checkpoint.md)
 
 ## YonerAI とは
 
@@ -22,7 +22,7 @@ YonerAI は長く使う AI runtime foundation です。目的は、利用する 
 - contract-first な public boundary
 - private / control-plane の詳細を漏らさず、contract で public と分ける方針
 
-現在の public checkpoint stream は、検証済みの 2026-05-20 日付と同日 suffix を使います。`v2026.5.20.12` は、この lane の local LLM error/reporting hardening を記録する checkpoint note です。production release ではありません。
+現在の public checkpoint stream は、検証済みの 2026-05-20 日付と同日 suffix を使います。`v2026.5.20.13` は、この lane の capability / extension boundary hardening を記録する checkpoint note です。production release ではありません。
 
 過去に作られた未来日付の checkpoint label は historical artifact として残る場合がありますが、current-date GitHub Release が明示的に supersede するまでは、現在の public/latest checkpoint として扱いません。
 
@@ -96,9 +96,11 @@ raw chain-of-thought は public chat、API、SSE、log、documentation、trace s
 - [SSE Run Events](docs/contracts/sse-run-events.md)
 - [Native Japanese CLI contract](docs/contracts/native-japanese-cli-contract-0.1.md)
 - [Web surface capability manifest](docs/contracts/web-surface-capability-manifest-0.1.md)
+- [Capability / Extension Boundary 0.1](docs/contracts/capability-extension-boundary-0.1.md)
 - [Growth/SNS claim guardrails](docs/growth/CLAIM_GUARDRAILS_2026_05_20.md)
 - [Growth/SNS demo plan](docs/growth/DEMO_PLAN_2026_05_20.md)
 - [Growth/SNS FAQ](docs/growth/FAQ_2026_05_20.md)
+- [v2026.5.20.13 Capability / Extension Boundary checkpoint note](docs/releases/v2026.5.20.13-capability-extension-boundary-checkpoint.md)
 - [v2026.5.20.12 Local LLM error reporting hardening checkpoint note](docs/releases/v2026.5.20.12-local-llm-error-reporting-hardening-checkpoint.md)
 - [v2026.5.20.11 Growth/SNS claim guardrails checkpoint note](docs/releases/v2026.5.20.11-growth-sns-claim-guardrails-checkpoint.md)
 - [v2026.5.20.10 Web surface capability manifest checkpoint note](docs/releases/v2026.5.20.10-web-surface-capability-manifest-checkpoint.md)
