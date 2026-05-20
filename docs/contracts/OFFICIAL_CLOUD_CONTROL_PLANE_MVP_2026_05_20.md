@@ -45,6 +45,7 @@ The contract includes:
 - memory policy is explicit and never implied
 - self-evolution proposals require approval
 - evidence, test requirements, rollback notes, and audit events are part of the proposal lifecycle
+- hybrid donated payloads are signed for origin and integrity only; they still require donation policy checks, quarantine, and approval before use
 
 The public `POST /v1/public/messages` endpoint remains the public/local smoke endpoint. It is not the official cloud run API.
 
@@ -77,6 +78,8 @@ Required MVP operations:
 - create/list `ImprovementProposal`
 - approve/reject/defer proposal
 - append/list `AuditEvent`
+- verify or reject a non-production Hybrid Signed Envelope
+- quarantine a donated memory candidate, local result, tool result, or self-evolution signal
 
 If the control-plane repository has no clear API framework, do not invent production endpoints. Implement service functions and tests first.
 
@@ -160,5 +163,6 @@ After the skeleton lands, the next safe lane is one of:
 1. local-only official control-plane model listing / provider policy metadata
 2. proposal queue evidence schema hardening
 3. hybrid private result-envelope contract
-4. memory policy reference scaffold without memory completion claim
-5. owner approval UI contract, not implementation
+4. donation policy quarantine and owner-review flow contract
+5. memory policy reference scaffold without memory completion claim
+6. owner approval UI contract, not implementation

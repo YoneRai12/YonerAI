@@ -18,6 +18,7 @@ This addendum records public implementation checkpoints that now exist under tha
 - non-persistent Conversation Session Scaffold metadata on the public message contract
 - feature inventory and releaseability map for existing public-repo code
 - public-safe Official Cloud Control Plane MVP planning contracts for same-experience alignment
+- public-safe Hybrid Signed Envelope and Donation Policy contract for future hybrid private/control-plane ingress
 
 ## Why This Is Not v7.8
 
@@ -29,6 +30,7 @@ Create a v7.8 design document only when one of these changes lands:
 - non-loopback provider adapter boundary is implemented
 - memory or identity architecture is selected
 - session semantics become persistent or cross-device
+- hybrid donation policy changes from quarantine-only to active ingestion
 - private/oracle self-evolution boundary changes
 - `src/cogs/ora.py` boundary implementation lands
 
@@ -46,6 +48,8 @@ This checkpoint does not add:
 - web search
 - official cloud
 - deployment
+- full hybrid connector
+- persistent donated memory
 - `src/cogs/ora.py` implementation or rename
 
 The local LLM mode remains loopback-only and optional. It can connect to a user-controlled local Ollama-compatible runtime or to a loopback OpenAI-compatible local server such as LM Studio, llama.cpp / llama-cpp-python server, text-generation-webui with OpenAI API enabled, or LocalAI where compatible. This does not turn the public Web smoke surface into the final product UI and does not complete the provider ecosystem.
@@ -62,3 +66,5 @@ The Official Cloud Control Plane MVP planning lane adds contract documents only 
 These documents define entity names and same-experience semantics for account/session/conversation/message envelope/provider intent/memory policy/self-evolution proposal queue/approval/audit boundaries.
 
 They do not add deployment, official cloud runtime, real Google login, persistent memory, billing, real telemetry, production provider orchestration, or automatic self-evolution mutation.
+
+The Hybrid Signed Envelope / Donation Policy contract adds a future hybrid ingress security boundary. It defines origin/integrity checks, replay protection, trust registry shape, field-level denial, and quarantine behavior. It does not implement full hybrid connection, production keys, production replay storage, persistent memory, or official cloud deployment.
