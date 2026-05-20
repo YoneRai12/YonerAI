@@ -97,6 +97,21 @@ Decision: PR #216 landed the current-main v7.7-scoped replacements for the safe 
 
 PRs #205, #206, and #207 remain open because they need a separate current-main security review and were not fixed by #216. Older security PRs #128, #133, #60, #131, #132, #135, and #129 also remain open because their risk is not safely replaced or disproven.
 
+## 2026-05-21 Current PR / Branch Reality Recheck
+
+- Follow-up branch: `codex/current-pr-branch-reality-ledger`
+- Current baseline: public `main` after PR #218.
+- `origin/main`: `e64299142bb68a731245b03678e8531dc18b36a9`
+- GitHub source of truth: `gh pr list --state open --limit 100 --json number --jq length`
+- Verified open PR count: 36.
+- Latest GitHub Release observed: `v2026.5.20.6`.
+- README markdown checkpoint link observed: `docs/releases/v2026.5.20.14-tools-mcp-safe-subset-contract-checkpoint.md`.
+- Ledger: `docs/maintenance/CURRENT_PR_BRANCH_REALITY_2026_05_21.md`
+
+Decision: the current open PR count is not treated as a standalone problem. The remaining count is explained by currently open security/runtime PRs, dependency PRs, and owner/product-boundary lanes. PRs #205, #206, and #207 remain open for fresh current-main security review. No PR is closed by this recheck.
+
+Root reality: `remove_legacy.ps1` is no longer root-visible after PR #218 and is present at `tools/maintenance/remove_legacy.ps1`. `config.yaml`, `main.py`, launch scripts, compose files, and `reference_clawdbot` remain root-visible and must stay governed by the root inventory and future reference-validated cleanup lanes.
+
 ## Classification Rules Used
 
 | class | meaning |
