@@ -5,12 +5,12 @@ Status: public-safe implementation lane board. This document turns the large-cod
 ## Evidence Baseline
 
 - `origin/main`: `e64299142bb68a731245b03678e8531dc18b36a9`
-- Tracked files counted: `794`
+- Tracked files counted: `795`
 - Largest current surfaces by rough line count:
   - `src/`: `185` files / about `46,109` lines, excluding line-level inspection of `src/cogs/ora.py`
-  - `docs/`: `216` files / about `15,066` lines
-  - `core/`: `55` files / about `9,391` lines
-  - `tests/`: `76` files / about `8,518` lines
+  - `docs/`: `219` files / about `15,306` lines
+  - `core/`: `55` files / about `9,415` lines
+  - `tests/`: `76` files / about `8,659` lines
   - `clients/`: `29` files / about `8,121` lines
   - `tools/`: `98` files / about `6,099` lines
   - `scripts/`: `88` files / about `5,142` lines
@@ -26,7 +26,7 @@ Status: public-safe implementation lane board. This document turns the large-cod
 | 4 | Memory donation review fixture | `core/src/ora_core/hybrid`, memory policy docs/tests | v7.7 requires privacy-preserving learning and quarantine-first memory | accidental persistence | hybrid policy tests, memory quarantine tests | no | small | memory candidates remain quarantine-first with better fixture evidence | persistent memory |
 | 5 | Self-evolution approval queue contract | `src/self_evolution`, docs/tests | self-evolution must stay proposal-only and approval-gated | automatic mutation / auto PR impression | proposal-only tests, audit shape tests | maybe | small | proposal queue contract is clearer | automatic self-evolution |
 | 6 | Tools/MCP decision fixture | `docs/contracts/tools-mcp-safe-subset-0.1.md`, possible safe fixture tests | Tools/MCP needs deny-by-default evidence without runtime execution | accidental shell/tool enablement | docs scan, optional deny fixture tests | no | small | Tools/MCP safe subset has stronger evidence | Tools/MCP complete |
-| 7 | Local provider model metadata fixture | `core/src/ora_core/llm`, local provider tests | Provider independence needs safe local metadata without external calls | provider ecosystem overclaim | local provider tests, no external call checks | no | small | local loopback metadata is safer | provider ecosystem completion |
+| 7 | Local provider model metadata fixture | `core/src/ora_core/providers/local_llm.py`, local provider tests | Provider independence needs safe local metadata without external calls | provider ecosystem overclaim | local provider tests, no external call checks | no | small | local loopback metadata is safer | provider ecosystem completion |
 | 8 | Public file/artifact contract hardening | `core/src/ora_core/distribution`, files tests | artifact references are security-sensitive | path traversal or file exposure | files API/distribution tests | no | small | public file refs are better constrained | private file ingestion |
 | 9 | Root launcher migration pilot | `start_all.bat` or one launcher group, `scripts/launchers` | root professionalism with validated moves | breaking owner workflow | reference scan, public smoke, CLI smoke if relevant | yes for active launchers | small | one launcher is moved safely | root fully clean |
 | 10 | README_JP UTF-8 restoration | `README_JP.md`, text hygiene docs | public first screen is visibly mojibake in local output | mistranslation or overclaim | mojibake/hidden Unicode scan, docs diff check | no | small | Japanese public first screen is readable | product completion |
