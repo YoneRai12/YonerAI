@@ -10,6 +10,7 @@ from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from ora_core.api.dependencies.auth import require_core_access
 from ora_core.api.routes.auth import router as auth_router
+from ora_core.api.routes.agent_runs import router as agent_runs_router
 from ora_core.api.routes.files import router as files_router
 from ora_core.api.routes.messages import router as messages_router
 from ora_core.api.routes.public_messages import router as public_messages_router
@@ -94,9 +95,10 @@ def create_app():
 
     protected_deps = [Depends(require_core_access)]
 
-    app.include_router(messages_router, prefix="/v1")
+    app.include_router(agent_runs_router, prefix="/api/v1/agent", dependencies=protected_deps)
+    app.include_router(messages_router, prefix="/v1", dependencies=protected_deps)
     app.include_router(public_messages_router, prefix="/v1")
-    app.include_router(runs_router, prefix="/v1")
+    app.include_router(runs_router, prefix="/v1", dependencies=protected_deps)
     app.include_router(files_router, prefix="/v1")
     app.include_router(auth_router, prefix="/v1/auth", dependencies=protected_deps) # Core generic auth routes (me, logout)
 

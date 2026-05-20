@@ -42,6 +42,7 @@ Pass 2 は stopped / not landed のままです。`src/cogs/ora.py` は private/
 - `GET /health` を呼び、`{"ok": true}` を受け取る
 - `POST /v1/public/messages` で deterministic offline mock reply を受け取る
 - `session_id` / `conversation_id` で一時的な conversation session metadata を返し、次の request に渡せる
+- `POST /api/v1/agent/run` で local in-memory run smoke contract を確認し、`events_url` / `results_url` を受け取る
 - `POST /v1/public/messages` に `mode: "local"` を指定して、loopback-only local LLM runtime に接続する
 - `local_provider: "ollama"` または `local_provider: "openai_compatible_local"` を選ぶ
 - `clients/web` を temporary Web Chat MVP としてローカルで開く

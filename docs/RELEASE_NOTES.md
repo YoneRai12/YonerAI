@@ -2,6 +2,13 @@
 
 This page is a public-safe index of current release notes and progress checkpoints.
 
+## v2026.5.20.7 Surface API Run Contract Checkpoint
+
+- Public checkpoint note: `docs/releases/v2026.5.20.7-surface-api-run-contract-checkpoint.md`
+- Scope: public Core Surface API 0.1 run contract, in-memory run events/results, and a fresh narrow #142 access-gate fix for current main.
+- Status: public API surface checkpoint, not production and not official-cloud completion.
+- Still open: CLI smoke client, native Japanese CLI contract, Web capability manifest, Growth/SNS claim guardrails, and broader old security PR review.
+
 ## v2026.5.20.6 Hybrid Envelope Policy Semantics Checkpoint
 
 - Public checkpoint note: `docs/releases/v2026.5.20.6-hybrid-envelope-policy-semantics-checkpoint.md`

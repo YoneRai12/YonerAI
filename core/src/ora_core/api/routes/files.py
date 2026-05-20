@@ -9,7 +9,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ora_core.api.dependencies.auth import get_current_user
+from ora_core.api.dependencies.auth import get_current_user, require_core_access
 from ora_core.api.schemas.messages import UserIdentity
 from ora_core.database.models import User
 from ora_core.database.repo import Repository
@@ -29,6 +29,7 @@ async def issue_distribution_file_download_url(
     file_id: str,
     body: FileDownloadRequest,
     request: Request,
+    _: None = Depends(require_core_access),
     db: AsyncSession = Depends(get_db),
     authenticated_user: Optional[User] = Depends(get_current_user),
 ):

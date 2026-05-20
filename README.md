@@ -42,6 +42,7 @@ What works today:
 - call `GET /health` and receive `{"ok": true}`
 - call `POST /v1/public/messages` and receive a deterministic offline mock reply
 - send follow-up public messages with `session_id` / `conversation_id` and receive non-persistent turn metadata
+- call `POST /api/v1/agent/run` for a local in-memory run smoke contract and read `events_url` / `results_url`
 - call `POST /v1/public/messages` with `mode: "local"` to reach a loopback-only local LLM runtime
 - choose `local_provider: "ollama"` or `local_provider: "openai_compatible_local"` for supported local server styles
 - open `clients/web` locally as a temporary Web Chat MVP / smoke-demo surface

@@ -3,9 +3,9 @@
 Status:
 
 - planning gate durable doc
-- current anchor: `v7.6`
+- current anchor: `v7.7`
 - fixed anchor: `YonerAI Internal Run API v0.1 Draft`
-- lane: `Distribution Node MVP`
+- lane: `surface-api-0.1`
 
 ## Purpose
 
@@ -49,7 +49,7 @@ current phase で固定する canonical contract は次の 3 endpoint のみ。
 
 この 3 本以外は、Distribution Node MVP の shared run contract に含めない。
 
-### External Alias Surface
+### External Alias Surface / Surface API 0.1
 
 現在の external alias surface は少なくとも次を含む。
 
@@ -57,12 +57,20 @@ current phase で固定する canonical contract は次の 3 endpoint のみ。
 - `GET /api/v1/agent/runs/{run_id}/events`
 - `POST /api/v1/agent/runs/{run_id}/results`
 
-この alias surface について固定する truth は次だけである。
+Surface API 0.1 では、この alias surface を public Core 側にも実装する。
+この surface は canonical `/v1/*` contract を置き換えない。public/local smoke 用の
+小さい run-oriented bridge として扱う。
+
+固定する truth:
 
 - path existence は維持する
 - response URL continuity は維持する
 - alias は canonical core contract そのものではない
-- alias は legacy queue surface の上に残る stable external surface として扱う
+- alias は public Core の mock/offline smoke と loopback-only local mode を扱う
+- run state は in-memory であり、persistent memory ではない
+- signed/hybrid donation trust とは別であり、submitted results は trusted にならない
+- `ORA_CORE_API_TOKEN` が設定されている場合は token gate を通す
+- token が未設定の場合でも non-loopback client は Core access gate で reject される
 
 以下はこの phase では固定しない。
 
@@ -72,8 +80,38 @@ current phase で固定する canonical contract は次の 3 endpoint のみ。
 
 Status:
 
-- alias exact behavior = `UNRESOLVED`
+- alias exact behavior = `surface-api-0.1 public smoke subset only`
 - alias widening = `NO`
+
+## Surface API 0.1 Behavior
+
+`POST /api/v1/agent/run` accepts a narrow public-safe request:
+
+- `prompt`
+- `mode`: `mock`, `offline`, or `local`
+- optional `session_id` / `conversation_id`
+- optional loopback local LLM fields already supported by `/v1/public/messages`
+
+Success returns:
+
+- `run_id`
+- `status`
+- `events_url`
+- `results_url`
+- provider / model metadata
+- `memory_persisted: false`
+- `contract_version: surface-api-run-contract-0.1`
+
+`GET /api/v1/agent/runs/{run_id}/events` returns the in-memory event snapshot for
+the run. The Surface API 0.1 event shape is JSON, not a final SSE framing claim.
+
+`POST /api/v1/agent/runs/{run_id}/results` records a public-safe continuation
+result event for the in-memory run. The accepted result is `trusted: false` and
+does not create memory.
+
+This surface does not add production deployment, external provider live
+generation, Google login, persistent memory, full hybrid connector behavior, or
+control-plane internals.
 
 ## Canonical Endpoint Semantics
 
