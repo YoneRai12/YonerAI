@@ -21,6 +21,7 @@ The current public MVP is a credential-free local Core API health smoke plus mes
 - `clients/web` mode controls for mock/offline, local Ollama, and OpenAI-compatible local smoke checks
 - safe local LLM error display in the temporary Web Chat MVP
 - public-safe Official Cloud Control Plane MVP planning contracts
+- public-safe Hybrid Signed Envelope / Donation Policy contract and test fixtures for future hybrid ingress
 - public smoke tests
 - no Discord token required
 - no provider API key required
@@ -29,6 +30,7 @@ The current public MVP is a credential-free local Core API health smoke plus mes
 - no session metadata persisted across process restart
 - no external provider API key required for local mode
 - no arbitrary remote local-provider URL accepted by default
+- no donated hybrid payload trusted solely because it is signed
 
 ## Not Included Yet
 
@@ -45,6 +47,8 @@ The current public MVP is a credential-free local Core API health smoke plus mes
 - retired `ora-ui` as the product foundation
 - official cloud
 - deployment
+- full hybrid connector
+- persistent donation-backed memory
 - full API / Web / CLI / SNS implementation
 - production readiness
 
@@ -71,7 +75,7 @@ The current public MVP is a credential-free local Core API health smoke plus mes
 The current checkpoint should grow in separate, reviewable lanes:
 
 1. local LLM error/reporting hardening
-2. hybrid private result envelope and memory policy scaffold contract
+2. private/local signing fixture and hybrid owner-review flow contract
 3. optional local model listing endpoint if it stays loopback-only and small
 4. provider adapter boundary for non-loopback private lanes
 5. final Web UI replacement or clean product surface decision

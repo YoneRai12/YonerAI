@@ -2,6 +2,13 @@
 
 This page is a public-safe index of current release notes and progress checkpoints.
 
+## v2026.5.20.3 Hybrid Signed Envelope Donation Policy Checkpoint
+
+- Public checkpoint note: `docs/releases/v2026.5.20.3-hybrid-signed-envelope-donation-policy-checkpoint.md`
+- Scope: public-safe Hybrid Signed Envelope contract, donation quarantine policy, schema helpers, and tests proving signed donated payloads are not trusted automatically.
+- Status: hybrid contract checkpoint, not a production release and not a full hybrid connector.
+- Still open: private/local signing fixture, production-grade key lifecycle design, durable replay store, owner approval UI contract, persistent memory decision, and official control-plane deployment-free ingress review.
+
 ## v2026.5.22 Web Chat MVP Review-gate Checkpoint
 
 - Public checkpoint note: `docs/releases/v2026.5.22-web-chat-mvp-review-gate-checkpoint.md`

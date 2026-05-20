@@ -27,6 +27,8 @@ It is a contract and planning checkpoint, not an official cloud completion claim
 | official provider orchestration | not implemented | not public | future control-plane policy only | official orchestration must not require public self-host path to weaken safeguards | planning only | define non-production policy boundary |
 | memory | no persistent memory claim | may own private memory | owns official memory policy metadata, not memory completion | memory policy must be shown as none/private/official, never implicit | public says no memory | define `MemoryPolicyRef` |
 | self-evolution signal | public synthetic proposal-only fixtures | may hold private/local signals | official queue may accept sanitized/synthetic MVP signals | no raw prompts, completions, chain-of-thought, or private data cross the boundary | public proposal-only exists | define official queue boundary |
+| hybrid signed envelope | public schema and policy tests only | later signs local/private result envelopes | verifies origin/integrity before policy review | signature proves origin/integrity, never trust or approval by itself | contract added | implement private/local signing fixture later |
+| donation policy | public contract rejects or quarantines donated payloads | may prepare memory candidates or local results | applies trust, replay, field, data-class, and approval checks | donated data must be quarantined or reviewed before use | contract added | add owner-review flow contract |
 | proposal queue | Markdown proposal-only output | may prepare local review data | owns official proposal queue and approval state | proposal score never equals approval | public proposal-only exists | define `ImprovementProposal` |
 | approval gate | owner review required | local owner approval remains authoritative | official approval state is explicit and auditable | no automatic mutation, PR, merge, deploy, or bypass | guardrail documented | define `ApprovalDecision` |
 | audit event | public docs/tests only | private runtime may audit locally | official control-plane records audit metadata | audit event must avoid secrets and raw private payloads | planning only | define public-safe `AuditEvent` sketch |
@@ -43,6 +45,7 @@ It is a contract and planning checkpoint, not an official cloud completion claim
 - Hybrid private mode must use contracts rather than direct private imports.
 - Public docs may describe entity names and message semantics, but must not publish control-plane DDL, live routes, private runtime inventory, operational ledgers, or break-glass details.
 - Official self-evolution begins as a proposal queue with explicit approval, not an autonomous mutation pipeline.
+- Hybrid donated payloads must pass envelope validation and donation policy. A valid signature is not approval and does not make payload content trusted.
 
 ## Current Blockers And Unknowns
 
