@@ -224,3 +224,45 @@ def test_surface_agent_run_store_evicts_oldest_run(monkeypatch, tmp_path):
     assert evicted.status_code == 404
     assert evicted.json()["detail"]["error"] == "run_not_found"
     assert latest.status_code == 200
+
+
+def test_surface_agent_result_rejects_oversized_payload(monkeypatch, tmp_path):
+    app = _load_core_app(monkeypatch, tmp_path)
+
+    from ora_core.api.routes.agent_runs import SURFACE_AGENT_RUN_RESULT_MAX_BYTES
+
+    with TestClient(app, client=("127.0.0.1", 50000)) as client:
+        created = client.post("/api/v1/agent/run", json={"prompt": "hello"})
+        run_id = created.json()["run_id"]
+        oversized_blob = "x" * SURFACE_AGENT_RUN_RESULT_MAX_BYTES
+        response = client.post(
+            f"/api/v1/agent/runs/{run_id}/results",
+            json={"result": {"blob": oversized_blob}},
+        )
+
+    assert response.status_code == 413
+    assert response.json()["detail"]["error"] == "result_too_large"
+
+
+def test_surface_agent_results_are_bounded_per_run(monkeypatch, tmp_path):
+    app = _load_core_app(monkeypatch, tmp_path)
+
+    from ora_core.api.routes.agent_runs import (
+        SURFACE_AGENT_RUN_MAX_RESULTS_PER_RUN,
+        _RUNS,
+    )
+
+    with TestClient(app, client=("127.0.0.1", 50000)) as client:
+        run_id = client.post("/api/v1/agent/run", json={"prompt": "hello"}).json()["run_id"]
+        for index in range(SURFACE_AGENT_RUN_MAX_RESULTS_PER_RUN + 5):
+            response = client.post(
+                f"/api/v1/agent/runs/{run_id}/results",
+                json={"result": {"index": index}},
+            )
+            assert response.status_code == 200
+
+    run = _RUNS[run_id]
+    assert len(run.accepted_results) == SURFACE_AGENT_RUN_MAX_RESULTS_PER_RUN
+    assert run.accepted_results[0]["result"]["index"] == 5
+    tool_events = [event for event in run.events if event["event"] == "tool_result_submit"]
+    assert len(tool_events) == SURFACE_AGENT_RUN_MAX_RESULTS_PER_RUN

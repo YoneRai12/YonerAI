@@ -45,7 +45,10 @@ def _is_loopback_host(hostname: str | None) -> bool:
 
 
 def normalize_loopback_origin(origin: str) -> str:
-    parsed = urllib.parse.urlparse(origin)
+    try:
+        parsed = urllib.parse.urlparse(origin)
+    except ValueError as exc:
+        raise CliError("api origin is invalid.") from exc
     if parsed.scheme not in {"http", "https"}:
         raise CliError("api origin must use http or https.")
     if parsed.username or parsed.password:

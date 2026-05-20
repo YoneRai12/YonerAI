@@ -191,6 +191,19 @@ def test_invalid_signature_and_secret_like_payload_are_rejected_without_trusting
     assert "forbidden_payload_marker" in token_payload.reasons
 
 
+def test_camel_and_pascal_case_secret_keys_are_rejected() -> None:
+    camel_case = _evaluate(_valid_envelope(payload={"accessToken": "placeholder"}))
+    pascal_case = _evaluate(_valid_envelope(payload={"PrivateKey": "placeholder"}))
+    nested_camel = _evaluate(_valid_envelope(payload={"meta": {"apiKey": "placeholder"}}))
+
+    assert camel_case.action == "reject"
+    assert "forbidden_payload_marker" in camel_case.reasons
+    assert pascal_case.action == "reject"
+    assert "forbidden_payload_marker" in pascal_case.reasons
+    assert nested_camel.action == "reject"
+    assert "forbidden_payload_marker" in nested_camel.reasons
+
+
 def test_common_llm_token_count_metadata_is_not_rejected_by_substring_match() -> None:
     decision = _evaluate(
         _valid_envelope(
