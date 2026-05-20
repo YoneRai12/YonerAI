@@ -2,10 +2,18 @@
 
 from .connector_fixture import (
     FIXTURE_NOW,
+    FIXTURE_ISSUER_NODE_ID,
     HybridConnectorFixture,
     build_improvement_proposal_fixture,
     build_memory_candidate_fixture,
     build_self_evolution_signal_fixture,
+)
+from .discord_gateway_contract import (
+    DISCORD_GATEWAY_PREFLIGHT_CONTRACT_VERSION,
+    DiscordGatewayContractDecision,
+    build_synthetic_discord_gateway_payload,
+    validate_discord_gateway_envelope,
+    validate_discord_gateway_payload,
 )
 from .envelope import (
     HybridEnvelopeSignature,
@@ -28,7 +36,10 @@ from .policy import (
 
 __all__ = [
     "DonationPolicyDecision",
+    "DISCORD_GATEWAY_PREFLIGHT_CONTRACT_VERSION",
     "FIXTURE_NOW",
+    "FIXTURE_ISSUER_NODE_ID",
+    "DiscordGatewayContractDecision",
     "HybridEnvelopeSignature",
     "HybridConnectorFixture",
     "HybridSignedEnvelope",
@@ -40,10 +51,13 @@ __all__ = [
     "build_improvement_proposal_fixture",
     "build_memory_candidate_fixture",
     "build_self_evolution_signal_fixture",
+    "build_synthetic_discord_gateway_payload",
     "canonical_payload_hash",
     "envelope_from_mapping",
     "envelope_to_mapping",
     "evaluate_donation_policy",
     "evaluate_memory_candidate_policy",
+    "validate_discord_gateway_envelope",
+    "validate_discord_gateway_payload",
     "validate_hybrid_envelope",
 ]
