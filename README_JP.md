@@ -88,9 +88,9 @@ raw chain-of-thought は public chat、API、SSE、log、documentation、trace s
 - [Official Cloud Control Plane MVP contract](docs/contracts/OFFICIAL_CLOUD_CONTROL_PLANE_MVP_2026_05_20.md)
 - [External Agent API](docs/contracts/external-agent-api.md)
 - [SSE Run Events](docs/contracts/sse-run-events.md)
-- [v2026.5.20.1 Official Cloud Control Plane MVP planning checkpoint](docs/releases/v2026.5.20.1-official-cloud-control-plane-mvp-planning-checkpoint.md)
 - [v2026.5.22 Web Chat MVP review-gate checkpoint note](docs/releases/v2026.5.22-web-chat-mvp-review-gate-checkpoint.md)
 - GitHub Release tag `v2026.5.21`
+- [v2026.5.20.1 Official Cloud Control Plane MVP planning checkpoint](docs/releases/v2026.5.20.1-official-cloud-control-plane-mvp-planning-checkpoint.md)
 - [Dependabot triage 2026-05-22](docs/security/DEPENDABOT_TRIAGE_2026_05_22.md)
 - [Open PR backlog triage 2026-05-22](docs/maintenance/OPEN_PR_BACKLOG_TRIAGE_2026_05_22.md)
 - [Latest traceability matrix](docs/TRACEABILITY_MATRIX_0_19.md)

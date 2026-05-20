@@ -2,13 +2,6 @@
 
 This page is a public-safe index of current release notes and progress checkpoints.
 
-## v2026.5.20.1 Official Cloud Control Plane MVP Planning Checkpoint
-
-- Public checkpoint note: `docs/releases/v2026.5.20.1-official-cloud-control-plane-mvp-planning-checkpoint.md`
-- Scope: cross-repo same-experience matrix, Official Cloud Control Plane MVP contract, and official self-evolution proposal queue boundary.
-- Status: public-safe planning checkpoint, not a production release and not a claim that official cloud is complete.
-- Still open: control-plane skeleton PR review, private runtime clean-baseline decision, hybrid private result-envelope contract, memory policy scaffold, owner approval UI contract, and deployment-free official control-plane tests.
-
 ## v2026.5.22 Web Chat MVP Review-gate Checkpoint
 
 - Public checkpoint note: `docs/releases/v2026.5.22-web-chat-mvp-review-gate-checkpoint.md`
@@ -29,6 +22,13 @@ This page is a public-safe index of current release notes and progress checkpoin
 - Scope: provider-neutral local LLM compatibility for Ollama-style `/api/chat` and OpenAI-compatible local `/v1/chat/completions` servers.
 - Status: public local provider compatibility checkpoint, not a production release.
 - Still open: optional loopback-only model listing endpoint, final Web product UI, Google login, persistent memory, Discord gateway completion, non-loopback/private provider lanes, and future `src/cogs/ora.py` extraction.
+
+## v2026.5.20.1 Official Cloud Control Plane MVP Planning Checkpoint
+
+- Public checkpoint note: `docs/releases/v2026.5.20.1-official-cloud-control-plane-mvp-planning-checkpoint.md`
+- Scope: cross-repo same-experience matrix, Official Cloud Control Plane MVP contract, and official self-evolution proposal queue boundary.
+- Status: public-safe planning checkpoint, not a production release and not a claim that official cloud is complete.
+- Still open: control-plane skeleton PR review, private runtime clean-baseline decision, hybrid private result-envelope contract, memory policy scaffold, owner approval UI contract, and deployment-free official control-plane tests.
 
 ## v2026.5.20 Local LLM Conversation MVP Checkpoint
 

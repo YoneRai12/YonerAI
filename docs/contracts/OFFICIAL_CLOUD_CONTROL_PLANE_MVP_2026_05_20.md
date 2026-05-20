@@ -50,7 +50,7 @@ The public `POST /v1/public/messages` endpoint remains the public/local smoke en
 
 ## 4. Minimal Entities
 
-Public docs may use schema sketches only. Exact persistence and operational schemas belong in the control-plane repository and must remain non-secret.
+Public docs may use schema sketches only. Exact persistence and operational schemas belong in the control-plane repository and must remain non-public.
 
 - `AccountRef`: opaque account reference, display label, capability tier.
 - `ProjectRef`: workspace/project reference scoped to an account.
