@@ -174,6 +174,34 @@ def test_memory_candidate_capability_and_purpose_cannot_bypass_policy_with_spoof
     assert "memory_persistence_not_allowed" in decision.reasons
 
 
+def test_memory_candidate_semantics_require_review_capability() -> None:
+    envelope = build_fixture_envelope(
+        envelope_type="memory_candidate",
+        capability="local_llm_result_donation",
+        data_class="memory_candidate",
+        purpose="memory_candidate_review",
+        nonce="memory-candidate-wrong-capability",
+        payload={
+            "candidate_summary": "Synthetic memory candidate.",
+            "memory_persisted": False,
+        },
+    )
+
+    memory_policy = evaluate_memory_candidate_policy(envelope)
+    decision = evaluate_donation_policy(
+        envelope,
+        trust_registry=build_fixture_trust_registry(),
+        nonce_store=InMemoryNonceStore(),
+        signature_verifier=build_memory_candidate_fixture().signature_verifier,
+        now=FIXTURE_NOW,
+    )
+
+    assert memory_policy.status == "rejected"
+    assert decision.action == "reject"
+    assert "invalid_memory_candidate_capability" in memory_policy.reasons
+    assert "invalid_memory_candidate_capability" in decision.reasons
+
+
 def test_improvement_proposal_envelope_type_cannot_bypass_payload_validation_with_spoofed_data_class() -> None:
     envelope = build_fixture_envelope(
         envelope_type="improvement_proposal",
@@ -193,6 +221,7 @@ def test_improvement_proposal_envelope_type_cannot_bypass_payload_validation_wit
     )
 
     assert decision.action == "reject"
+    assert "not_improvement_proposal_data_class" in decision.reasons
     assert "improvement_proposal_required_fields_missing" in decision.reasons
     assert "automatic_mutation_not_allowed" in decision.reasons
 
@@ -216,8 +245,49 @@ def test_improvement_proposal_capability_and_purpose_cannot_bypass_payload_valid
     )
 
     assert decision.action == "reject"
+    assert "not_improvement_proposal_envelope" in decision.reasons
+    assert "not_improvement_proposal_data_class" in decision.reasons
     assert "improvement_proposal_required_fields_missing" in decision.reasons
     assert "automatic_mutation_not_allowed" in decision.reasons
+
+
+def test_improvement_proposal_semantics_require_consistent_fields_with_valid_payload() -> None:
+    valid_payload = dict(build_improvement_proposal_fixture().envelope.payload)
+    wrong_data_class = build_fixture_envelope(
+        envelope_type="improvement_proposal",
+        capability="improvement_proposal_review",
+        data_class="local_llm_result",
+        purpose="self_evolution_proposal",
+        nonce="improvement-proposal-valid-payload-wrong-data-class",
+        payload=valid_payload,
+    )
+    wrong_capability = build_fixture_envelope(
+        envelope_type="improvement_proposal",
+        capability="local_llm_result_donation",
+        data_class="improvement_proposal",
+        purpose="self_evolution_proposal",
+        nonce="improvement-proposal-valid-payload-wrong-capability",
+        payload=valid_payload,
+    )
+
+    def evaluate(envelope):
+        return evaluate_donation_policy(
+            envelope,
+            trust_registry=build_fixture_trust_registry(),
+            nonce_store=InMemoryNonceStore(),
+            signature_verifier=build_improvement_proposal_fixture().signature_verifier,
+            now=FIXTURE_NOW,
+        )
+
+    wrong_data_class_decision = evaluate(wrong_data_class)
+    wrong_capability_decision = evaluate(wrong_capability)
+
+    assert wrong_data_class_decision.action == "reject"
+    assert "not_improvement_proposal_data_class" in wrong_data_class_decision.reasons
+    assert "improvement_proposal_required_fields_missing" not in wrong_data_class_decision.reasons
+    assert wrong_capability_decision.action == "reject"
+    assert "invalid_improvement_proposal_capability" in wrong_capability_decision.reasons
+    assert "improvement_proposal_required_fields_missing" not in wrong_capability_decision.reasons
 
 
 def test_fixture_policy_rejects_replay_wrong_audience_expired_hash_and_bad_signature() -> None:
