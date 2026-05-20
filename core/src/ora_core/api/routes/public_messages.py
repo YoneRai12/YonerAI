@@ -143,7 +143,6 @@ def _build_local_message_response(
     try:
         config = local_llm.build_local_llm_config(
             provider=local_provider,
-            base_url=local_base_url,
             model=model,
             temperature=temperature,
             max_tokens=max_tokens,

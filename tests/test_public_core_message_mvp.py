@@ -168,6 +168,36 @@ def test_public_message_endpoint_supports_openai_compatible_local_provider(monke
     assert body["reply"] == "openai compatible local reply"
 
 
+
+
+def test_public_message_endpoint_ignores_request_local_base_url_override(monkeypatch, tmp_path):
+    app = _load_core_app(monkeypatch, tmp_path)
+
+    from ora_core.providers import local_llm
+
+    captured = {}
+
+    def fake_generate_local_llm_reply(*, message, conversation_id, model=None, config=None, client=None):
+        assert config is not None
+        captured["base_url"] = config.base_url
+        return local_llm.LocalLLMReply(reply="local test reply", provider="local-ollama", model=config.model)
+
+    monkeypatch.setenv("ORA_LOCAL_LLM_BASE_URL", "http://127.0.0.1:11434/operator-config")
+    monkeypatch.setattr(local_llm, "generate_local_llm_reply", fake_generate_local_llm_reply)
+
+    with TestClient(app, client=("127.0.0.1", 50000)) as client:
+        response = client.post(
+            "/v1/public/messages",
+            json={
+                "message": "hello",
+                "conversation_id": "local-smoke",
+                "mode": "local",
+                "local_base_url": "http://127.0.0.1:42831/attacker",
+            },
+        )
+
+    assert response.status_code == 200
+    assert captured["base_url"] == "http://127.0.0.1:11434/operator-config"
 def test_public_message_endpoint_rejects_unsupported_local_provider(monkeypatch, tmp_path):
     app = _load_core_app(monkeypatch, tmp_path)
 
@@ -197,8 +227,17 @@ def test_public_message_endpoint_rejects_non_loopback_client_for_local_mode(monk
     assert "detail" not in body
 
 
-def test_public_message_endpoint_rejects_non_loopback_local_llm_url(monkeypatch, tmp_path):
+def test_public_message_endpoint_ignores_non_loopback_local_base_url(monkeypatch, tmp_path):
     app = _load_core_app(monkeypatch, tmp_path)
+
+    from ora_core.providers import local_llm
+
+    def fake_generate_local_llm_reply(*, message, conversation_id, model=None, config=None, client=None):
+        assert config is not None
+        assert config.base_url == "http://127.0.0.1:11434"
+        return local_llm.LocalLLMReply(reply="local test reply", provider="local-ollama", model=config.model)
+
+    monkeypatch.setattr(local_llm, "generate_local_llm_reply", fake_generate_local_llm_reply)
 
     with TestClient(app, client=("127.0.0.1", 50000)) as client:
         response = client.post(
@@ -206,12 +245,7 @@ def test_public_message_endpoint_rejects_non_loopback_local_llm_url(monkeypatch,
             json={"message": "hello", "mode": "local", "local_base_url": "https://example.com"},
         )
 
-    assert response.status_code == 400
-    body = response.json()
-    assert body["error"] == "unsafe_local_llm_endpoint"
-    assert "detail" not in body
-    assert "example.com" not in body["message"]
-    assert "loopback provider endpoints" in body["message"]
+    assert response.status_code == 200
 
 
 def test_public_message_endpoint_returns_safe_error_when_local_llm_unavailable(monkeypatch, tmp_path):
