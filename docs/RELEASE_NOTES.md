@@ -23,6 +23,13 @@ This page is a public-safe index of current release notes and progress checkpoin
 - Status: public local provider compatibility checkpoint, not a production release.
 - Still open: optional loopback-only model listing endpoint, final Web product UI, Google login, persistent memory, Discord gateway completion, non-loopback/private provider lanes, and future `src/cogs/ora.py` extraction.
 
+## v2026.5.20.2 Conversation Session Scaffold Checkpoint
+
+- Public checkpoint note: `docs/releases/v2026.5.20.2-conversation-session-scaffold-checkpoint.md`
+- Scope: public Core API conversation session metadata, feature inventory, and releaseability map.
+- Status: public conversation session scaffold checkpoint, not a production release and not persistent memory.
+- Still open: memory policy scaffold, identity/login, cross-device history, official cloud runtime, stale dashboard/login route isolation, and future `src/cogs/ora.py` extraction.
+
 ## v2026.5.20.1 Official Cloud Control Plane MVP Planning Checkpoint
 
 - Public checkpoint note: `docs/releases/v2026.5.20.1-official-cloud-control-plane-mvp-planning-checkpoint.md`

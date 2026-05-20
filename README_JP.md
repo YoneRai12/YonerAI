@@ -39,6 +39,7 @@ Pass 2 は stopped / not landed のままです。`src/cogs/ora.py` は private/
 - local Core API を起動する
 - `GET /health` を呼び、`{"ok": true}` を受け取る
 - `POST /v1/public/messages` で deterministic offline mock reply を受け取る
+- `session_id` / `conversation_id` で一時的な conversation session metadata を返し、次の request に渡せる
 - `POST /v1/public/messages` に `mode: "local"` を指定して、loopback-only local LLM runtime に接続する
 - `local_provider: "ollama"` または `local_provider: "openai_compatible_local"` を選ぶ
 - `clients/web` を temporary Web Chat MVP としてローカルで開く
@@ -50,6 +51,7 @@ Pass 2 は stopped / not landed のままです。`src/cogs/ora.py` は private/
 - Google login
 - conversation history sync
 - persistent natural memory
+- cross-device session history
 - web search
 - Discord chat / Discord gateway completion
 - external provider live generation
@@ -165,6 +167,15 @@ Invoke-RestMethod -Method Post `
   -Uri http://127.0.0.1:8001/v1/public/messages `
   -ContentType "application/json" `
   -Body '{"message":"hello","mode":"mock"}'
+```
+
+同じ一時 session に follow-up message を送る場合は、返ってきた `session_id` を次の request に渡します。これは local process 内の metadata だけで、persistent memory や cross-device history ではありません。
+
+```powershell
+Invoke-RestMethod -Method Post `
+  -Uri http://127.0.0.1:8001/v1/public/messages `
+  -ContentType "application/json" `
+  -Body '{"message":"follow up","mode":"mock","session_id":"session-smoke","conversation_id":"public-smoke"}'
 ```
 
 Ollama-compatible runtime が loopback で起動している場合だけ、local mode を試せます。

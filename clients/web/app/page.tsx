@@ -23,8 +23,12 @@ type ChatMode = "mock" | "local-ollama" | "local-openai-compatible";
 type PublicMessageResponse = {
   ok: boolean;
   mode: string;
+  session_id: string;
   conversation_id: string;
   message_id: string;
+  turn_index: number;
+  history_count: number;
+  memory_persisted: boolean;
   reply: string;
   provider: string;
   model?: string | null;
@@ -96,7 +100,12 @@ function isPublicMessageResponse(value: unknown): value is PublicMessageResponse
     typeof value.reply === "string" &&
     typeof value.provider === "string" &&
     typeof value.mode === "string" &&
+    typeof value.session_id === "string" &&
+    typeof value.conversation_id === "string" &&
     typeof value.message_id === "string" &&
+    typeof value.turn_index === "number" &&
+    typeof value.history_count === "number" &&
+    typeof value.memory_persisted === "boolean" &&
     typeof value.contract_version === "string"
   );
 }
@@ -129,12 +138,15 @@ function toSafeErrorMessage(value: unknown, status: number): string {
   return errorBody.message || detailToMessage(errorBody.detail) || errorBody.error || `Core API returned ${status}.`;
 }
 
-function buildRequestBody(mode: ModeOption, message: string, model: string) {
+function buildRequestBody(mode: ModeOption, message: string, model: string, sessionId: string | null) {
   const body: Record<string, string> = {
     message,
     conversation_id: DEFAULT_CONVERSATION_ID,
     mode: mode.requestMode,
   };
+  if (sessionId) {
+    body.session_id = sessionId;
+  }
 
   if (mode.localProvider) {
     body.local_provider = mode.localProvider;
@@ -155,6 +167,7 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [lastError, setLastError] = useState<string | null>(null);
   const [lastContract, setLastContract] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
 
   const mode = useMemo(
     () => MODE_OPTIONS.find((option) => option.id === selectedMode) ?? MODE_OPTIONS[0],
@@ -184,7 +197,7 @@ export default function Home() {
       const res = await fetch("/api/public/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(buildRequestBody(mode, userMsg, model)),
+        body: JSON.stringify(buildRequestBody(mode, userMsg, model, sessionId)),
       });
 
       const body = await parsePublicMessageBody(res);
@@ -196,7 +209,16 @@ export default function Home() {
         throw new Error("Core API returned a malformed public message response.");
       }
 
-      const responseMeta = [body.provider, body.mode, body.model, body.message_id].filter(Boolean).join(" / ");
+      const responseMeta = [
+        body.provider,
+        body.mode,
+        body.model,
+        `session:${body.session_id}`,
+        `turn:${body.turn_index}`,
+        body.message_id,
+      ]
+        .filter(Boolean)
+        .join(" / ");
 
       setMessages((prev) => [
         ...prev,
@@ -207,6 +229,7 @@ export default function Home() {
         },
       ]);
       setLastContract(body.contract_version);
+      setSessionId(body.session_id);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Could not reach the local public Core API.";
       setLastError(message);
@@ -257,7 +280,8 @@ export default function Home() {
               </h2>
               <p className="mt-4 max-w-2xl text-sm leading-6 text-gray-400">
                 Use mock/offline mode for deterministic smoke checks, or local mode when an Ollama-compatible or
-                OpenAI-compatible local server is already running on loopback.
+                OpenAI-compatible local server is already running on loopback. Session metadata is kept only in the
+                running Core API process.
               </p>
 
               <div className="mt-8 grid gap-3 md:grid-cols-3">
@@ -314,6 +338,9 @@ export default function Home() {
               <p className="mt-1">
                 <code className="rounded bg-white/10 px-1.5 py-0.5">/api/public/messages</code> rewrites locally to{" "}
                 <code className="rounded bg-white/10 px-1.5 py-0.5">/v1/public/messages</code>.
+              </p>
+              <p className="mt-2">
+                Session: <span className="text-gray-200">{sessionId ?? "created after first reply"}</span>
               </p>
             </div>
           </div>

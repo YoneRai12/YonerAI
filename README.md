@@ -39,13 +39,14 @@ What works today:
 - start the local Core API
 - call `GET /health` and receive `{"ok": true}`
 - call `POST /v1/public/messages` and receive a deterministic offline mock reply
+- send follow-up public messages with `session_id` / `conversation_id` and receive non-persistent turn metadata
 - call `POST /v1/public/messages` with `mode: "local"` to reach a loopback-only local LLM runtime
 - choose `local_provider: "ollama"` or `local_provider: "openai_compatible_local"` for supported local server styles
 - open `clients/web` locally as a temporary Web Chat MVP / smoke-demo surface
 - from `clients/web`, send `mock` / `offline` messages through that endpoint
 - from `clients/web`, select local Ollama or OpenAI-compatible local mode when the Core API and local model server are already running on loopback
 
-Not included yet: final Web product UI, Google login, conversation history sync, persistent natural memory, web search, Discord chat, external provider live generation, official cloud, deployment, or full product completion.
+Not included yet: final Web product UI, Google login, conversation history sync, persistent natural memory, web search, Discord chat, external provider live generation, official cloud, deployment, or full product completion. The public session scaffold is in-memory metadata only; it is not persistent memory or cross-device history.
 
 See [Current MVP Capability Matrix](docs/CURRENT_MVP_CAPABILITY_MATRIX.md) for the user-facing capability table.
 
@@ -75,6 +76,8 @@ Useful starting points:
 - [Current MVP Capability Matrix](docs/CURRENT_MVP_CAPABILITY_MATRIX.md)
 - [Cross-repo same-experience matrix](docs/contracts/CROSS_REPO_SAME_EXPERIENCE_MATRIX_2026_05_20.md)
 - [Official Cloud Control Plane MVP contract](docs/contracts/OFFICIAL_CLOUD_CONTROL_PLANE_MVP_2026_05_20.md)
+- [Feature inventory](docs/capabilities/FEATURE_INVENTORY_2026_05_22.md)
+- [Releaseability map](docs/capabilities/RELEASEABILITY_MAP_2026_05_22.md)
 - [External Agent API](docs/contracts/external-agent-api.md)
 - [SSE Run Events](docs/contracts/sse-run-events.md)
 - [v2026.5.22 Web Chat MVP review-gate checkpoint note](docs/releases/v2026.5.22-web-chat-mvp-review-gate-checkpoint.md)
@@ -159,6 +162,15 @@ Invoke-RestMethod -Method Post `
   -Body '{"message":"hello","mode":"mock"}'
 ```
 
+To group follow-up messages in one temporary public session, pass the returned `session_id` back on the next request:
+
+```powershell
+Invoke-RestMethod -Method Post `
+  -Uri http://127.0.0.1:8001/v1/public/messages `
+  -ContentType "application/json" `
+  -Body '{"message":"follow up","mode":"mock","session_id":"session-smoke","conversation_id":"public-smoke"}'
+```
+
 If you have a local Ollama-compatible runtime listening on loopback, try local mode:
 
 ```powershell
@@ -195,6 +207,10 @@ Expected public message response includes:
 {
   "ok": true,
   "mode": "mock",
+  "session_id": "session-smoke",
+  "turn_index": 1,
+  "history_count": 1,
+  "memory_persisted": false,
   "provider": "offline-mock",
   "requires_approval": false
 }
@@ -215,7 +231,7 @@ For OpenAI-compatible local mode, `provider` is `local-openai-compatible`.
 
 Local mode is loopback-only. The configured local LLM URL must be `localhost`, `127.0.0.1`, or `::1`; arbitrary remote URLs, LAN hosts, external provider APIs, tunnels, embedded credentials, query strings, fragments, and control-plane endpoints are rejected by default. Model availability depends on the local server. YonerAI passes the requested local model name through; it does not hardcode model families.
 
-This message endpoint does not persist memory, run tools, complete the Web/Discord chat product, or call external OpenAI, Anthropic, Gemini, web search, SNS, or Discord services.
+This message endpoint does not persist memory, run tools, complete the Web/Discord chat product, or call external OpenAI, Anthropic, Gemini, web search, SNS, or Discord services. Session metadata is kept in the running Core API process only and is cleared on process restart.
 
 To try the temporary Web Chat MVP, keep the Core API running on port `8001`, then start the web client from another shell:
 
@@ -295,6 +311,7 @@ cd clients\web; npm ci; npm run lint; npm run build; npm audit --omit=dev
 
 - [v2026.5.22 Web Chat MVP review-gate checkpoint](docs/releases/v2026.5.22-web-chat-mvp-review-gate-checkpoint.md)
 - [v2026.5.21 Local LLM provider compatibility checkpoint](docs/releases/v2026.5.21-local-llm-provider-compatibility-checkpoint.md)
+- [v2026.5.20.2 Conversation Session Scaffold checkpoint](docs/releases/v2026.5.20.2-conversation-session-scaffold-checkpoint.md)
 - [v2026.5.20 Web UI mock-chat security checkpoint](docs/releases/v2026.5.20-web-ui-mock-chat-security-checkpoint.md)
 - [v2026.5.20 public core message MVP checkpoint](docs/releases/v2026.5.20-public-core-message-mvp-checkpoint.md)
 - [v2026.5.19 public runnable MVP checkpoint](docs/releases/v2026.5.19-public-runnable-mvp-checkpoint.md)

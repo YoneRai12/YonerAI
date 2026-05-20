@@ -15,6 +15,8 @@ This addendum records public implementation checkpoints that now exist under tha
 - `clients/web` mock-chat surface that calls the public message contract locally
 - loopback-only local LLM conversation mode for `POST /v1/public/messages`
 - provider-neutral local compatibility for Ollama-style `/api/chat` and OpenAI-compatible local `/v1/chat/completions`
+- non-persistent Conversation Session Scaffold metadata on the public message contract
+- feature inventory and releaseability map for existing public-repo code
 - public-safe Official Cloud Control Plane MVP planning contracts for same-experience alignment
 
 ## Why This Is Not v7.8
@@ -26,6 +28,7 @@ Create a v7.8 design document only when one of these changes lands:
 - Web UI plus Core message contract stabilizes as a broader user-facing surface
 - non-loopback provider adapter boundary is implemented
 - memory or identity architecture is selected
+- session semantics become persistent or cross-device
 - private/oracle self-evolution boundary changes
 - `src/cogs/ora.py` boundary implementation lands
 
@@ -37,6 +40,7 @@ This checkpoint does not add:
 - arbitrary remote provider URL
 - Google login
 - persistent memory
+- persistent session history
 - cross-device conversation history
 - Discord gateway completion
 - web search
@@ -45,6 +49,8 @@ This checkpoint does not add:
 - `src/cogs/ora.py` implementation or rename
 
 The local LLM mode remains loopback-only and optional. It can connect to a user-controlled local Ollama-compatible runtime or to a loopback OpenAI-compatible local server such as LM Studio, llama.cpp / llama-cpp-python server, text-generation-webui with OpenAI API enabled, or LocalAI where compatible. This does not turn the public Web smoke surface into the final product UI and does not complete the provider ecosystem.
+
+The Conversation Session Scaffold is metadata-only. It groups public message calls by `session_id` and `conversation_id`, returns `turn_index` and `history_count`, and always reports `memory_persisted: false`. It is cleared when the Core API process restarts and is not a memory, identity, or official cloud login implementation.
 
 ## Official Cloud Control Plane MVP Planning
 

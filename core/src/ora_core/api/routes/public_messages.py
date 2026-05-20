@@ -13,6 +13,11 @@ from ora_core.api.schemas.public_messages import (
     PublicMessageResponse,
 )
 from ora_core.providers import local_llm
+from ora_core.sessions import (
+    ConversationSessionError,
+    ConversationSessionState,
+    get_public_conversation_session_store,
+)
 
 
 router = APIRouter()
@@ -67,9 +72,20 @@ def _normalize_mode(mode: str) -> str:
     return normalized
 
 
+def _record_session_turn(*, session_id: str | None, conversation_id: str) -> ConversationSessionState:
+    try:
+        return get_public_conversation_session_store().record_turn(
+            session_id=session_id,
+            conversation_id=conversation_id,
+        )
+    except ConversationSessionError as exc:
+        _raise_public_message_error(400, "invalid_public_session", str(exc))
+
+
 def _build_local_message_response(
     *,
     message: str,
+    session_id: str | None,
     conversation_id: str,
     local_provider: str | None,
     local_base_url: str | None,
@@ -86,8 +102,6 @@ def _build_local_message_response(
             "Local LLM mode can only be called from a loopback client.",
         )
 
-    digest = hashlib.sha256(f"local:{conversation_id}:{message}".encode("utf-8")).hexdigest()
-    message_id = f"local-msg-{digest[:16]}"
     try:
         config = local_llm.build_local_llm_config(
             provider=local_provider,
@@ -127,11 +141,21 @@ def _build_local_message_response(
             "Local LLM runtime returned an unsupported response.",
         )
 
+    session_state = _record_session_turn(session_id=session_id, conversation_id=conversation_id)
+    digest = hashlib.sha256(
+        f"local:{session_state.session_id}:{conversation_id}:{session_state.turn_index}:{message}".encode("utf-8")
+    ).hexdigest()
+    message_id = f"local-msg-{digest[:16]}"
+
     return PublicMessageResponse(
         ok=True,
         mode="local",
+        session_id=session_state.session_id,
         conversation_id=conversation_id,
         message_id=message_id,
+        turn_index=session_state.turn_index,
+        history_count=session_state.history_count,
+        memory_persisted=session_state.memory_persisted,
         reply=generated.reply,
         provider=generated.provider,
         model=generated.model,
@@ -161,10 +185,18 @@ def build_public_message_response(req: PublicMessageRequest, request: Request | 
             "unsafe_public_conversation_id",
             "Public smoke conversation_id must not contain secret-like values or private machine paths.",
         )
+    session_id = req.session_id.strip() if req.session_id else None
+    if session_id and _contains_private_marker(session_id):
+        _raise_public_message_error(
+            400,
+            "unsafe_public_session_id",
+            "Public smoke session_id must not contain secret-like values or private machine paths.",
+        )
 
     if mode == "local":
         return _build_local_message_response(
             message=message,
+            session_id=session_id,
             conversation_id=conversation_id,
             local_provider=req.local_provider,
             local_base_url=req.local_base_url,
@@ -174,18 +206,26 @@ def build_public_message_response(req: PublicMessageRequest, request: Request | 
             request=request,
         )
 
-    digest = hashlib.sha256(f"{mode}:{conversation_id}:{message}".encode("utf-8")).hexdigest()
+    session_state = _record_session_turn(session_id=session_id, conversation_id=conversation_id)
+    digest = hashlib.sha256(
+        f"{mode}:{session_state.session_id}:{conversation_id}:{session_state.turn_index}:{message}".encode("utf-8")
+    ).hexdigest()
     message_id = f"public-msg-{digest[:16]}"
     reply = (
         f"{PUBLIC_MESSAGE_PROVIDER}: received {len(message)} characters. "
-        "This deterministic public message contract used no provider call, memory store, or Discord gateway."
+        "This deterministic public message contract used no provider call, memory store, or Discord gateway. "
+        "Conversation session metadata is in-memory only and is not persistent memory."
     )
 
     return PublicMessageResponse(
         ok=True,
         mode=mode,
+        session_id=session_state.session_id,
         conversation_id=conversation_id,
         message_id=message_id,
+        turn_index=session_state.turn_index,
+        history_count=session_state.history_count,
+        memory_persisted=session_state.memory_persisted,
         reply=reply,
         provider=PUBLIC_MESSAGE_PROVIDER,
         model=None,

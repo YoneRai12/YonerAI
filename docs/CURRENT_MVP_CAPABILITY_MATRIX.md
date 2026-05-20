@@ -14,6 +14,7 @@ The current public MVP is a credential-free local Core API health smoke plus mes
 - `GET /health -> {"ok": true}`
 - `POST /v1/public/messages -> deterministic offline mock reply`
 - `POST /v1/public/messages` with `mode: "local"` can call supported loopback-only local LLM runtimes
+- `POST /v1/public/messages` returns non-persistent conversation session metadata: `session_id`, `turn_index`, `history_count`, and `memory_persisted: false`
 - local provider choices: `ollama` and `openai_compatible_local`
 - OpenAI-compatible local examples: LM Studio, llama.cpp / llama-cpp-python server, text-generation-webui with OpenAI API enabled, and LocalAI where compatible
 - `clients/web` temporary Web Chat MVP page that posts to `/api/public/messages`
@@ -25,6 +26,7 @@ The current public MVP is a credential-free local Core API health smoke plus mes
 - no provider API key required
 - no private repository required
 - no memory persistence required
+- no session metadata persisted across process restart
 - no external provider API key required for local mode
 - no arbitrary remote local-provider URL accepted by default
 
@@ -56,6 +58,7 @@ The current public MVP is a credential-free local Core API health smoke plus mes
 | Can I host on my PC and chat from phone Web or Discord? | Not yet. |
 | Does it naturally remember what I told it before? | Not yet. |
 | Can I verify a message request contract? | Yes, through the local mock/offline `POST /v1/public/messages` endpoint. |
+| Can I send follow-up messages in one temporary session? | Yes. The public endpoint returns and accepts `session_id` for in-memory turn metadata. This is not persistent memory or cross-device history. |
 | Can I use a local LLM? | Yes, if you run an Ollama-compatible runtime on `localhost`, `127.0.0.1`, or `::1` and call `mode: "local"`. |
 | Can I use LM Studio or llama.cpp server? | Yes, when it exposes a loopback OpenAI-compatible `/v1/chat/completions` endpoint and you select `local_provider: "openai_compatible_local"`. |
 | Can I choose a different local model? | Yes. Pass `model` in the request or set `ORA_LOCAL_LLM_MODEL`; availability depends on the local server. |
@@ -68,17 +71,18 @@ The current public MVP is a credential-free local Core API health smoke plus mes
 The current checkpoint should grow in separate, reviewable lanes:
 
 1. local LLM error/reporting hardening
-2. optional local model listing endpoint if it stays loopback-only and small
-3. provider adapter boundary for non-loopback private lanes
-4. final Web UI replacement or clean product surface decision
-5. memory persistence
-6. identity / Google login
-7. Discord gateway
-8. web search
-9. self-evolution proposal-only MVP expansion
-10. official cloud control-plane skeleton and hybrid private contract lanes
-11. official/private runtime lanes
-12. retired UI cleanup follow-through for old PRs and alerts
+2. hybrid private result envelope and memory policy scaffold contract
+3. optional local model listing endpoint if it stays loopback-only and small
+4. provider adapter boundary for non-loopback private lanes
+5. final Web UI replacement or clean product surface decision
+6. memory persistence
+7. identity / Google login
+8. Discord gateway
+9. web search
+10. self-evolution proposal-only MVP expansion
+11. official cloud control-plane skeleton and hybrid private contract lanes
+12. official/private runtime lanes
+13. retired UI cleanup follow-through for old PRs and alerts
 
 Each ladder step needs its own tests, privacy boundary, and public wording review.
 
