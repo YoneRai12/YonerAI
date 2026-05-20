@@ -45,6 +45,28 @@ Status: public-safe maintenance checkpoint from live GitHub state. This ledger c
 - Dependency PR decision: left open because no dependency PR was proven superseded by a newer open PR during this pass; each still needs a dependency-specific validation lane.
 - Security PR decision: left non-duplicate security PRs open unless current main replacement evidence was strong enough to close safely.
 
+## 2026-05-21 Dependency PR Drain Pass
+
+- Follow-up branch: `codex/dependency-pr-drain-pass`
+- Current baseline: public `main` after the large-codebase feature inventory merge.
+- GitHub source of truth: `gh pr list --state open --limit 100 --json number,title,headRefName,mergeStateStatus,labels,url`
+- Open PR count before this dependency pass: 36.
+- Dependabot alert check: `gh api "/repos/YoneRai12/YonerAI/dependabot/alerts?state=open&per_page=100" --jq length` returned `0`.
+- Open dependency PRs observed: 16.
+- Dependency PRs closed in this pass: 0.
+- Ledger: `docs/security/DEPENDENCY_PR_DRAIN_2026_05_21.md`
+
+Decision: all dependency PRs remain open. The current alert count is clean, but no remaining dependency PR was proven obsolete, duplicated by a newer PR, or superseded by a current-main manifest change. Closing them would make the backlog look smaller without resolving the dependency lane.
+
+Next lane split:
+
+1. GitHub Actions workflow refresh: #156, #34, #7, #6.
+2. Web lockfile refresh: #127, #119, #117.
+3. Python runtime refresh: #146, #152, #18.
+4. Discord / crypto boundary refresh: #151, #145.
+5. Provider / media refresh: #150, #148, #147.
+6. Optional memory dependency refresh: #143 after memory-policy scope is explicit.
+
 ## Classification Rules Used
 
 | class | meaning |
