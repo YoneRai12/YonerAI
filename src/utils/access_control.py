@@ -131,6 +131,11 @@ def is_sub_admin(bot: object, user_id: Optional[int]) -> bool:
         return False
 
 
+def can_use_voice_listen(bot: object, user_id: Optional[int]) -> bool:
+    """Return whether a user may start the high-risk voice listener."""
+    return is_owner(bot, user_id)
+
+
 def is_tool_allowed(bot: object, user_id: Optional[int], tool_name: str) -> bool:
     if not tool_name:
         return False
