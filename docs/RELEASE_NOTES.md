@@ -2,12 +2,19 @@
 
 This page is a public-safe index of current release notes and progress checkpoints.
 
+## v2026.5.20.11 Growth/SNS Claim Guardrails Checkpoint
+
+- Public checkpoint note: `docs/releases/v2026.5.20.11-growth-sns-claim-guardrails-checkpoint.md`
+- Scope: claim-guarded demo plan, public FAQ, and SNS/release/README wording guardrails for the v7.7 public surface ladder.
+- Status: public distribution-documentation checkpoint, not production, not deploy, and not a launch-complete claim.
+- Still open: approved public assets, local LLM error/reporting hardening, capability/extension boundary hardening, final Web UI decision, and broader old PR review.
+
 ## v2026.5.20.10 Web Surface Capability Manifest Checkpoint
 
 - Public checkpoint note: `docs/releases/v2026.5.20.10-web-surface-capability-manifest-checkpoint.md`
 - Scope: Web surface capability manifest and same-experience ledger alignment for the temporary `clients/web` smoke-demo surface.
 - Status: public Web contract checkpoint, not final Web UI, not production, and not deploy.
-- Still open: Web manifest display fixture, Growth/SNS claim guardrails, final Web UI decision, and old web dependency PR refresh.
+- Still open: Web manifest display fixture, final Web UI decision, and old web dependency PR refresh.
 
 ## v2026.5.20.9 Native Japanese CLI Contract Checkpoint
 

@@ -115,11 +115,18 @@ SNS and growth work belongs in the public repo as docs, examples, FAQ, release n
 
 This lane is not a core branch blocker.
 
+Growth/SNS 0.1 checkpoint:
+
+- public-safe guardrails path: `docs/growth/CLAIM_GUARDRAILS_2026_05_20.md`
+- demo plan path: `docs/growth/DEMO_PLAN_2026_05_20.md`
+- FAQ path: `docs/growth/FAQ_2026_05_20.md`
+- records what public demo/SNS copy may claim today and what it must not claim
+- does not deploy, create a campaign runtime, add telemetry, add provider live generation, or claim production readiness
+
 Next gates:
 
-- demo plan
-- release-note checklist
-- public claim guardrails
+- owner-approved demo assets / copy review
+- release-note checklist automation
 - FAQ for local/self-host/official directions
 - no production or provider-parity overclaim
 

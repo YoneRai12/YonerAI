@@ -25,6 +25,7 @@ The current public MVP is a credential-free local Core API health smoke plus mes
 - `clients/web` mode controls for mock/offline, local Ollama, and OpenAI-compatible local smoke checks
 - safe local LLM error display in the temporary Web Chat MVP
 - Web surface capability manifest for current allowed/denied `clients/web` capabilities
+- Growth/SNS claim guardrails, FAQ, and demo plan for public-safe distribution wording
 - public-safe Official Cloud Control Plane MVP planning contracts
 - public-safe Hybrid Signed Envelope / Donation Policy contract and test fixtures for future hybrid ingress
 - synthetic Hybrid Connector Fixture for memory candidate, self-evolution signal, and improvement proposal envelopes
@@ -58,7 +59,7 @@ The current public MVP is a credential-free local Core API health smoke plus mes
 - full hybrid connector
 - production hybrid connector
 - persistent donation-backed memory
-- full API / Web / CLI / SNS implementation
+- full API / Web / CLI / SNS product implementation
 - final SSE framing for the Surface API alias
 - production readiness
 
@@ -86,21 +87,18 @@ The current public MVP is a credential-free local Core API health smoke plus mes
 
 The current checkpoint should grow in separate, reviewable lanes:
 
-1. native Japanese CLI confirmation contract
-2. Web surface capability manifest
-3. Growth/SNS claim guardrails
-4. local LLM error/reporting hardening
-5. capability / extension boundary hardening
-6. agent swarm releaseability map
-7. tools/MCP safe subset
-8. `src/cogs/ora.py` extraction step
-9. identity / Google login
-10. Discord gateway
-11. final Web UI replacement or clean product surface decision
-12. web search
-13. memory persistence only after approval workflow and privacy policy are stable
-14. official/private runtime lanes
-15. retired UI cleanup follow-through for old PRs and alerts
+1. local LLM error/reporting hardening
+2. capability / extension boundary hardening
+3. agent swarm releaseability map
+4. tools/MCP safe subset
+5. `src/cogs/ora.py` extraction step
+6. identity / Google login
+7. Discord gateway
+8. final Web UI replacement or clean product surface decision
+9. web search
+10. memory persistence only after approval workflow and privacy policy are stable
+11. official/private runtime lanes
+12. retired UI cleanup follow-through for old PRs and alerts
 
 Each ladder step needs its own tests, privacy boundary, and public wording review.
 
