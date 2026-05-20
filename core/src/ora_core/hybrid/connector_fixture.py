@@ -98,6 +98,15 @@ def build_fixture_envelope(
     )
 
 
+def _build_connector_fixture(envelope: HybridSignedEnvelope) -> HybridConnectorFixture:
+    return HybridConnectorFixture(
+        envelope=envelope,
+        trust_registry=build_fixture_trust_registry(),
+        nonce_store=InMemoryNonceStore(),
+        signature_verifier=build_fixture_signature_verifier(),
+    )
+
+
 def build_memory_candidate_fixture(*, nonce: str = "fixture-memory-candidate") -> HybridConnectorFixture:
     envelope = build_fixture_envelope(
         envelope_type="memory_candidate",
@@ -115,12 +124,7 @@ def build_memory_candidate_fixture(*, nonce: str = "fixture-memory-candidate") -
             "retention_hint": "ephemeral_fixture",
         },
     )
-    return HybridConnectorFixture(
-        envelope=envelope,
-        trust_registry=build_fixture_trust_registry(),
-        nonce_store=InMemoryNonceStore(),
-        signature_verifier=build_fixture_signature_verifier(),
-    )
+    return _build_connector_fixture(envelope)
 
 
 def build_self_evolution_signal_fixture(*, nonce: str = "fixture-self-evolution-signal") -> HybridConnectorFixture:
@@ -140,12 +144,7 @@ def build_self_evolution_signal_fixture(*, nonce: str = "fixture-self-evolution-
             "same_experience_score": 1.0,
         },
     )
-    return HybridConnectorFixture(
-        envelope=envelope,
-        trust_registry=build_fixture_trust_registry(),
-        nonce_store=InMemoryNonceStore(),
-        signature_verifier=build_fixture_signature_verifier(),
-    )
+    return _build_connector_fixture(envelope)
 
 
 def build_improvement_proposal_fixture(*, nonce: str = "fixture-improvement-proposal") -> HybridConnectorFixture:
@@ -166,9 +165,4 @@ def build_improvement_proposal_fixture(*, nonce: str = "fixture-improvement-prop
             "automatic_mutation": False,
         },
     )
-    return HybridConnectorFixture(
-        envelope=envelope,
-        trust_registry=build_fixture_trust_registry(),
-        nonce_store=InMemoryNonceStore(),
-        signature_verifier=build_fixture_signature_verifier(),
-    )
+    return _build_connector_fixture(envelope)
