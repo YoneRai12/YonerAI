@@ -15,7 +15,8 @@ This policy does not change runtime behavior. It supports provider independence,
 - Put PR numbers, merge commits, and related links in a late `Traceability` section.
 - Prefer concise English PR bodies when GitHub rendering or automation may corrupt Japanese text.
 - Japanese is allowed when verified as UTF-8 and when it is needed for user-facing clarity.
-- Never leave repeated question marks, replacement characters, or mojibake in a merged PR body when it can be edited or corrected with a follow-up comment.
+- Never leave four consecutive question marks, Unicode replacement characters, or mojibake in a merged PR body when it can be edited or corrected with a follow-up comment.
+- If a merged PR body is editable, replace corrupted text with clean UTF-8 English or verified UTF-8 Japanese. If the body cannot be safely edited, add a clean follow-up comment and update the maintained ledger.
 
 ## Release Notes
 
@@ -28,33 +29,60 @@ This policy does not change runtime behavior. It supports provider independence,
 
 Maintained public docs must not contain:
 
-- repeated question-mark mojibake such as `????`;
-- Unicode replacement characters;
-- common mojibake fragments such as `ã`, `縺`, `鬆`, `譁`, `繧`, `蟆`, `荳`, or `驥` unless the file is explicitly documenting mojibake;
+- four consecutive question marks used as corrupted replacement text;
+- Unicode replacement characters, recorded as code point U+FFFD;
+- common mojibake fragments, recorded in scan tooling by code point or escaped form rather than pasted as corrupted display text;
 - bidirectional or hidden control characters U+202A through U+202E, U+2066 through U+2069, U+200B, U+200C, U+200D, or U+FEFF.
 
-Suggested scans:
+Suggested PowerShell-safe scan:
 
-```bash
-rg -n "(\?\?\?\?|�|ã|縺|鬆|譁|繧|蟆|荳|驥)" README.md README_JP.md docs .github
-python - <<'PY'
+```powershell
+@'
 from pathlib import Path
-bad = []
-for path in [
-    p
-    for p in [Path("README.md"), Path("README_JP.md")]
-    + list(Path("docs").rglob("*"))
-    + list(Path(".github").rglob("*"))
-    if p.is_file()
-]:
-    text = path.read_text(encoding="utf-8", errors="ignore")
+
+marker_codepoints = {
+    "question_mark_sequence": "?" * 4,
+    "replacement_character": "\ufffd",
+    "latin_mojibake_a_tilde": "\u00e3",
+    "mojibake_ko": "\u7e3a",
+    "mojibake_bin": "\u9b06",
+    "mojibake_bun": "\u8b41",
+    "mojibake_ru": "\u7e67",
+    "mojibake_mushi": "\u87c6",
+    "mojibake_sou": "\u8373",
+    "mojibake_ki": "\u9a65",
+}
+hidden = set(range(0x202A, 0x202F)) | set(range(0x2066, 0x206A)) | {
+    0x200B,
+    0x200C,
+    0x200D,
+    0xFEFF,
+}
+paths = [p for p in [Path("README.md"), Path("README_JP.md")] if p.is_file()]
+paths += [p for p in Path("docs").rglob("*") if p.is_file()]
+paths += [p for p in Path(".github").rglob("*") if p.is_file()]
+
+for path in paths:
+    if path.suffix.lower() not in {"", ".md", ".txt", ".csv", ".json", ".yml", ".yaml"}:
+        continue
+    text = path.read_text(encoding="utf-8", errors="replace")
+    for name, marker in marker_codepoints.items():
+        if marker in text:
+            print(f"{path}: marker:{name}")
     for index, char in enumerate(text):
-        cp = ord(char)
-        if 0x202A <= cp <= 0x202E or 0x2066 <= cp <= 0x2069 or cp in {0x200B, 0x200C, 0x200D, 0xFEFF}:
-            bad.append(f"{path}:{index}:U+{cp:04X}")
-print("\n".join(bad))
-PY
+        if ord(char) in hidden:
+            print(f"{path}: hidden:{index}:U+{ord(char):04X}")
+'@ | python -
 ```
+
+## GitHub Warning Response
+
+When GitHub shows a hidden or bidirectional Unicode warning:
+
+1. Check whether the warning is in an editable PR body, a review comment, a diff, or a historical immutable commit.
+2. If it is in an editable body, rewrite the body with a UTF-8 body file and re-read it through `gh pr view`.
+3. If it is in a comment you own and the API can edit it safely, edit it; otherwise add a clean follow-up comment.
+4. If it is historical or immutable, document the clean maintained source and do not rewrite history.
 
 ## Commit Subjects
 
