@@ -24,6 +24,7 @@ The current public MVP is a credential-free local Core API health smoke plus mes
 - `clients/web` temporary Web Chat MVP page that posts to `/api/public/messages`
 - `clients/web` mode controls for mock/offline, local Ollama, and OpenAI-compatible local smoke checks
 - safe local LLM error display in the temporary Web Chat MVP
+- Web surface capability manifest for current allowed/denied `clients/web` capabilities
 - public-safe Official Cloud Control Plane MVP planning contracts
 - public-safe Hybrid Signed Envelope / Donation Policy contract and test fixtures for future hybrid ingress
 - synthetic Hybrid Connector Fixture for memory candidate, self-evolution signal, and improvement proposal envelopes
@@ -65,7 +66,7 @@ The current public MVP is a credential-free local Core API health smoke plus mes
 
 | Question | Current answer |
 |---|---|
-| Can I chat from a Web UI? | You can use `clients/web` as a temporary local Web Chat MVP for mock/offline and loopback local LLM smoke checks. It is not the final product UI. |
+| Can I chat from a Web UI? | You can use `clients/web` as a temporary local Web Chat MVP for mock/offline and loopback local LLM smoke checks. Its capability manifest is documented; it is not the final product UI. |
 | Can it search the web? | Not yet. |
 | Can I log in with Google and keep the same history? | Not yet. |
 | Can I host on my PC and chat from phone Web or Discord? | Not yet. |
