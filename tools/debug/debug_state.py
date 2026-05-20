@@ -38,7 +38,7 @@ def main() -> int:
         ub = data.get("user_buckets", {})
         print(f"Total Users in Active Buckets: {len(ub)}")
     except FileNotFoundError:
-        print(f"State file not found. Set {STATE_PATH_ENV} or create {DEFAULT_STATE_PATH}.")
+        print(f"State file not found at {state_path}. Set {STATE_PATH_ENV} correctly or create {DEFAULT_STATE_PATH}.")
         return 1
     except Exception as exc:
         print(f"Error: {exc}")
