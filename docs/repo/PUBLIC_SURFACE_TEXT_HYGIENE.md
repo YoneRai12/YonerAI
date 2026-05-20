@@ -58,14 +58,14 @@ hidden = set(range(0x202A, 0x202F)) | set(range(0x2066, 0x206A)) | {
     0x200D,
     0xFEFF,
 }
-paths = [Path("README.md"), Path("README_JP.md")]
+paths = [p for p in [Path("README.md"), Path("README_JP.md")] if p.is_file()]
 paths += [p for p in Path("docs").rglob("*") if p.is_file()]
 paths += [p for p in Path(".github").rglob("*") if p.is_file()]
 
 for path in paths:
     if path.suffix.lower() not in {"", ".md", ".txt", ".csv", ".json", ".yml", ".yaml"}:
         continue
-    text = path.read_text(encoding="utf-8", errors="ignore")
+    text = path.read_text(encoding="utf-8", errors="replace")
     for name, marker in marker_codepoints.items():
         if marker in text:
             print(f"{path}: marker:{name}")
