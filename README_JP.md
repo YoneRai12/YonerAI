@@ -84,8 +84,11 @@ raw chain-of-thought は public chat、API、SSE、log、documentation、trace s
 
 - [Current phase context](docs/CURRENT_PHASE_CONTEXT.md)
 - [Current MVP Capability Matrix](docs/CURRENT_MVP_CAPABILITY_MATRIX.md)
+- [Cross-repo same-experience matrix](docs/contracts/CROSS_REPO_SAME_EXPERIENCE_MATRIX_2026_05_20.md)
+- [Official Cloud Control Plane MVP contract](docs/contracts/OFFICIAL_CLOUD_CONTROL_PLANE_MVP_2026_05_20.md)
 - [External Agent API](docs/contracts/external-agent-api.md)
 - [SSE Run Events](docs/contracts/sse-run-events.md)
+- [v2026.5.20.1 Official Cloud Control Plane MVP planning checkpoint](docs/releases/v2026.5.20.1-official-cloud-control-plane-mvp-planning-checkpoint.md)
 - [v2026.5.22 Web Chat MVP review-gate checkpoint note](docs/releases/v2026.5.22-web-chat-mvp-review-gate-checkpoint.md)
 - GitHub Release tag `v2026.5.21`
 - [Dependabot triage 2026-05-22](docs/security/DEPENDABOT_TRIAGE_2026_05_22.md)
@@ -124,6 +127,7 @@ YonerAI では次の lane を分けて扱います。
 - git history rewrite
 - signed production release
 - deployment
+- official cloud runtime
 
 ## Local development
 

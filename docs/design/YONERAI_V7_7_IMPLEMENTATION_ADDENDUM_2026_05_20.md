@@ -15,6 +15,7 @@ This addendum records public implementation checkpoints that now exist under tha
 - `clients/web` mock-chat surface that calls the public message contract locally
 - loopback-only local LLM conversation mode for `POST /v1/public/messages`
 - provider-neutral local compatibility for Ollama-style `/api/chat` and OpenAI-compatible local `/v1/chat/completions`
+- public-safe Official Cloud Control Plane MVP planning contracts for same-experience alignment
 
 ## Why This Is Not v7.8
 
@@ -44,3 +45,14 @@ This checkpoint does not add:
 - `src/cogs/ora.py` implementation or rename
 
 The local LLM mode remains loopback-only and optional. It can connect to a user-controlled local Ollama-compatible runtime or to a loopback OpenAI-compatible local server such as LM Studio, llama.cpp / llama-cpp-python server, text-generation-webui with OpenAI API enabled, or LocalAI where compatible. This does not turn the public Web smoke surface into the final product UI and does not complete the provider ecosystem.
+
+## Official Cloud Control Plane MVP Planning
+
+The Official Cloud Control Plane MVP planning lane adds contract documents only in the public repository:
+
+- `docs/contracts/CROSS_REPO_SAME_EXPERIENCE_MATRIX_2026_05_20.md`
+- `docs/contracts/OFFICIAL_CLOUD_CONTROL_PLANE_MVP_2026_05_20.md`
+
+These documents define entity names and same-experience semantics for account/session/conversation/message envelope/provider intent/memory policy/self-evolution proposal queue/approval/audit boundaries.
+
+They do not add deployment, official cloud runtime, real Google login, persistent memory, billing, real telemetry, production provider orchestration, or automatic self-evolution mutation.

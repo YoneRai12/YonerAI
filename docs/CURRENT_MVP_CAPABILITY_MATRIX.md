@@ -19,6 +19,7 @@ The current public MVP is a credential-free local Core API health smoke plus mes
 - `clients/web` temporary Web Chat MVP page that posts to `/api/public/messages`
 - `clients/web` mode controls for mock/offline, local Ollama, and OpenAI-compatible local smoke checks
 - safe local LLM error display in the temporary Web Chat MVP
+- public-safe Official Cloud Control Plane MVP planning contracts
 - public smoke tests
 - no Discord token required
 - no provider API key required
@@ -59,6 +60,7 @@ The current public MVP is a credential-free local Core API health smoke plus mes
 | Can I use LM Studio or llama.cpp server? | Yes, when it exposes a loopback OpenAI-compatible `/v1/chat/completions` endpoint and you select `local_provider: "openai_compatible_local"`. |
 | Can I choose a different local model? | Yes. Pass `model` in the request or set `ORA_LOCAL_LLM_MODEL`; availability depends on the local server. |
 | Can I point it at a remote provider URL? | No. Local LLM mode rejects arbitrary remote, LAN, tunnel, and control-plane endpoints by default. |
+| Is official cloud available now? | Not yet. The repository now has planning contracts for the Official Cloud Control Plane MVP, but no deployed official cloud product. |
 | What can I verify now? | Clone, install, start local Core API, call `/health`, call `/v1/public/messages` in mock mode, optionally call local LLM mode, and use the temporary `clients/web` chat smoke page. |
 
 ## Next Capability Ladder
@@ -74,8 +76,9 @@ The current checkpoint should grow in separate, reviewable lanes:
 7. Discord gateway
 8. web search
 9. self-evolution proposal-only MVP expansion
-10. official/private runtime lanes
-11. retired UI cleanup follow-through for old PRs and alerts
+10. official cloud control-plane skeleton and hybrid private contract lanes
+11. official/private runtime lanes
+12. retired UI cleanup follow-through for old PRs and alerts
 
 Each ladder step needs its own tests, privacy boundary, and public wording review.
 
