@@ -10,6 +10,14 @@ This page is a public-safe index of current release notes and progress checkpoin
 - Status: public repository presentation addendum, not production, not deploy, not full product completion, and not a v7.8 start.
 - Still open: remaining security/runtime PR reproduction, dependency PR lane decisions, root launcher/config migration, README_JP broader UTF-8 presentation review, and future `src/cogs/ora.py` extraction.
 
+## v2026.5.21.3 Clean Continuation Security and Discord Preflight Checkpoint
+
+- Public checkpoint note: `docs/releases/v2026.5.21.3-clean-continuation-security-discord-preflight-checkpoint.md`
+- GitHub Release target: `v2026.5.21.3` after this alignment PR lands and the release is created.
+- Scope: dirty-worktree rescue traceability, `/listen` owner/admin boundary restoration, and Discord Hybrid/Self-Host signed-contract preflight fixtures.
+- Status: clean-continuation checkpoint, not production, not deploy, not Discord gateway completion, and not a v7.8 start.
+- Still open: remaining stale security/runtime PRs, dependency PR lane decisions, root launcher/config migration, live/private Discord gateway implementation, and future `src/cogs/ora.py` extraction.
+
 ## v2026.5.21.1 Public Repository Hardening Checkpoint
 
 - Public checkpoint note: `docs/releases/v2026.5.21.1-public-repository-hardening-checkpoint.md`
