@@ -39,3 +39,7 @@ class PublicMessageResponse(BaseModel):
 class PublicMessageErrorResponse(BaseModel):
     error: str
     message: str
+    mode: Optional[str] = None
+    provider: Optional[str] = None
+    model: Optional[str] = None
+    status: Optional[str] = None

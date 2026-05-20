@@ -21,6 +21,7 @@ The current public MVP is a credential-free local Core API health smoke plus mes
 - `clients/cli` can call loopback Core API health, public mock/offline messages, and the Surface API run smoke path
 - local provider choices: `ollama` and `openai_compatible_local`
 - OpenAI-compatible local examples: LM Studio, llama.cpp / llama-cpp-python server, text-generation-webui with OpenAI API enabled, and LocalAI where compatible
+- local LLM error responses include safe public metadata: `mode`, `provider`, `model`, and `status`
 - `clients/web` temporary Web Chat MVP page that posts to `/api/public/messages`
 - `clients/web` mode controls for mock/offline, local Ollama, and OpenAI-compatible local smoke checks
 - safe local LLM error display in the temporary Web Chat MVP
@@ -87,18 +88,17 @@ The current public MVP is a credential-free local Core API health smoke plus mes
 
 The current checkpoint should grow in separate, reviewable lanes:
 
-1. local LLM error/reporting hardening
-2. capability / extension boundary hardening
+1. capability / extension boundary hardening
+2. tools/MCP safe subset
 3. agent swarm releaseability map
-4. tools/MCP safe subset
-5. `src/cogs/ora.py` extraction step
-6. identity / Google login
-7. Discord gateway
-8. final Web UI replacement or clean product surface decision
-9. web search
-10. memory persistence only after approval workflow and privacy policy are stable
-11. official/private runtime lanes
-12. retired UI cleanup follow-through for old PRs and alerts
+4. `src/cogs/ora.py` extraction step
+5. identity / Google login
+6. Discord gateway
+7. final Web UI replacement or clean product surface decision
+8. web search
+9. memory persistence only after approval workflow and privacy policy are stable
+10. official/private runtime lanes
+11. retired UI cleanup follow-through for old PRs and alerts
 
 Each ladder step needs its own tests, privacy boundary, and public wording review.
 

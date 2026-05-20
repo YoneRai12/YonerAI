@@ -4,6 +4,7 @@ import argparse
 import ipaddress
 import json
 import os
+import re
 import sys
 import urllib.error
 import urllib.parse
@@ -13,6 +14,15 @@ from typing import Any
 
 DEFAULT_API_ORIGIN = "http://127.0.0.1:8001"
 TOKEN_ENV = "ORA_CORE_API_TOKEN"
+PRIVATE_MARKERS = (
+    re.compile(r"[A-Za-z]:[\\/]+Users[\\/]+", re.IGNORECASE),
+    re.compile(r"(?:^|[\s\"'=])/(root|etc|home|users|var|tmp)/", re.IGNORECASE),
+    re.compile(
+        r"(api[_-]?key|access[_-]?token|refresh[_-]?token|discord[_-]?token|private[_-]?key|client[_-]?secret|authorization)",
+        re.IGNORECASE,
+    ),
+    re.compile(r"sk-[A-Za-z0-9_-]{10,}"),
+)
 
 
 class CliError(Exception):
@@ -61,8 +71,8 @@ def request_json(method: str, origin: str, path: str, body: dict[str, Any] | Non
             return _load_response_json(response.read())
     except urllib.error.HTTPError as exc:
         raise CliError(_safe_http_error(exc), exit_code=1) from exc
-    except urllib.error.URLError as exc:
-        raise CliError(f"request failed: {exc.reason}", exit_code=1) from exc
+    except urllib.error.URLError:
+        raise CliError("request failed: could not reach loopback Core API.", exit_code=1)
     except TimeoutError as exc:
         raise CliError("request timed out.", exit_code=1) from exc
 
@@ -84,14 +94,37 @@ def _safe_http_error(exc: urllib.error.HTTPError) -> str:
         return f"request failed with status {exc.code}."
     detail = data.get("detail") if isinstance(data, dict) else None
     if isinstance(detail, dict):
-        code = detail.get("error") or data.get("error")
-        message = detail.get("message") or "request failed"
-        return f"request failed with status {exc.code}: {code or 'error'}: {message}"
+        return _format_error_body(exc.code, detail, fallback_code=data.get("error") if isinstance(data, dict) else None)
     if isinstance(detail, str):
-        return f"request failed with status {exc.code}: {detail}"
+        return f"request failed with status {exc.code}: {_safe_error_text(detail, fallback='request failed')}"
     if isinstance(data, dict):
-        return f"request failed with status {exc.code}: {data.get('error') or 'error'}"
+        return _format_error_body(exc.code, data)
     return f"request failed with status {exc.code}."
+
+
+def _safe_error_text(value: object, *, fallback: str) -> str:
+    if not isinstance(value, str):
+        return fallback
+    cleaned = " ".join(value.split())
+    if not cleaned:
+        return fallback
+    if any(pattern.search(cleaned) for pattern in PRIVATE_MARKERS):
+        return fallback
+    return cleaned[:220]
+
+
+def _format_error_body(status_code: int, body: dict[str, Any], *, fallback_code: object | None = None) -> str:
+    code = _safe_error_text(body.get("error") or fallback_code or "error", fallback="error")
+    message = _safe_error_text(body.get("message"), fallback="request failed")
+    parts = [f"request failed with status {status_code}: {code}: {message}"]
+    context = []
+    for key in ("mode", "provider", "model", "status"):
+        safe_value = _safe_error_text(body.get(key), fallback="")
+        if safe_value:
+            context.append(f"{key}={safe_value}")
+    if context:
+        parts.append(f"({', '.join(context)})")
+    return " ".join(parts)
 
 
 def _print_json(data: dict[str, Any]) -> None:

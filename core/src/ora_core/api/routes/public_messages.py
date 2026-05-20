@@ -42,23 +42,60 @@ PRIVATE_PATH_PATTERNS = (
 
 
 class PublicMessageError(Exception):
-    def __init__(self, status_code: int, code: str, message: str) -> None:
+    def __init__(self, status_code: int, code: str, message: str, metadata: dict[str, str] | None = None) -> None:
         super().__init__(message)
         self.status_code = status_code
         self.code = code
         self.message = message
+        self.metadata = metadata or {}
 
 
-def _raise_public_message_error(status_code: int, code: str, message: str) -> NoReturn:
-    raise PublicMessageError(status_code, code, message)
+def _raise_public_message_error(
+    status_code: int, code: str, message: str, metadata: dict[str, str] | None = None
+) -> NoReturn:
+    raise PublicMessageError(status_code, code, message, metadata=metadata)
 
 
 def _public_message_error_response(exc: PublicMessageError) -> JSONResponse:
-    return JSONResponse(status_code=exc.status_code, content={"error": exc.code, "message": exc.message})
+    body = {"error": exc.code, "message": exc.message}
+    body.update(exc.metadata)
+    return JSONResponse(status_code=exc.status_code, content=body)
 
 
 def _contains_private_marker(value: str) -> bool:
     return any(pattern.search(value) for pattern in (*SECRET_KEYWORD_PATTERNS, *PRIVATE_PATH_PATTERNS))
+
+
+def _safe_metadata_value(value: str | None) -> str | None:
+    if not value:
+        return None
+    cleaned = str(value).strip()
+    if not cleaned or _contains_private_marker(cleaned):
+        return None
+    return cleaned[:120]
+
+
+def _local_error_metadata(
+    *,
+    provider: str | None = None,
+    model: str | None = None,
+    status: str,
+    config: local_llm.LocalLLMConfig | None = None,
+) -> dict[str, str]:
+    selected_provider = provider
+    selected_model = model
+    if config is not None:
+        selected_provider = local_llm.LOCAL_LLM_PROVIDER_LABELS.get(config.provider, config.provider)
+        selected_model = config.model
+
+    metadata: dict[str, str] = {"mode": "local", "status": status}
+    safe_provider = _safe_metadata_value(selected_provider)
+    safe_model = _safe_metadata_value(selected_model)
+    if safe_provider:
+        metadata["provider"] = safe_provider
+    if safe_model:
+        metadata["model"] = safe_model
+    return metadata
 
 
 def _normalize_mode(mode: str) -> str:
@@ -102,6 +139,7 @@ def _build_local_message_response(
             "Local LLM mode can only be called from a loopback client.",
         )
 
+    config: local_llm.LocalLLMConfig | None = None
     try:
         config = local_llm.build_local_llm_config(
             provider=local_provider,
@@ -116,7 +154,12 @@ def _build_local_message_response(
             config=config,
         )
     except local_llm.LocalLLMDisabledError:
-        _raise_public_message_error(503, "local_llm_disabled", "Local LLM mode is disabled.")
+        _raise_public_message_error(
+            503,
+            "local_llm_disabled",
+            "Local LLM mode is disabled.",
+            _local_error_metadata(status="disabled", config=config),
+        )
     except local_llm.LocalLLMProviderError:
         _raise_public_message_error(
             400,
@@ -125,20 +168,28 @@ def _build_local_message_response(
                 "Local mode supports ollama and openai_compatible_local. "
                 "OpenAI-compatible local aliases include lmstudio, llama.cpp, text-generation-webui, and localai."
             ),
+            _local_error_metadata(status="unsupported_provider"),
         )
-    except local_llm.LocalLLMSecurityError as exc:
-        _raise_public_message_error(400, "unsafe_local_llm_endpoint", str(exc))
+    except local_llm.LocalLLMSecurityError:
+        _raise_public_message_error(
+            400,
+            "unsafe_local_llm_endpoint",
+            "Local LLM mode only accepts loopback provider endpoints without credentials, query strings, or fragments.",
+            _local_error_metadata(provider=local_provider, model=model, status="blocked_by_loopback_policy"),
+        )
     except local_llm.LocalLLMConnectionError:
         _raise_public_message_error(
             503,
             "local_llm_unavailable",
             "Local LLM runtime is unavailable on the configured loopback endpoint.",
+            _local_error_metadata(status="unavailable", config=config),
         )
     except local_llm.LocalLLMResponseError:
         _raise_public_message_error(
             502,
             "local_llm_bad_response",
             "Local LLM runtime returned an unsupported response.",
+            _local_error_metadata(status="bad_response", config=config),
         )
 
     session_state = _record_session_turn(session_id=session_id, conversation_id=conversation_id)
@@ -191,6 +242,12 @@ def build_public_message_response(req: PublicMessageRequest, request: Request | 
             400,
             "unsafe_public_session_id",
             "Public smoke session_id must not contain secret-like values or private machine paths.",
+        )
+    if req.model and _contains_private_marker(req.model):
+        _raise_public_message_error(
+            400,
+            "unsafe_public_model",
+            "Public smoke model must not contain secret-like values or private machine paths.",
         )
 
     if mode == "local":

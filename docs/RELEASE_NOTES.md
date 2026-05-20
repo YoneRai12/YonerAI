@@ -2,12 +2,19 @@
 
 This page is a public-safe index of current release notes and progress checkpoints.
 
+## v2026.5.20.12 Local LLM Error Reporting Hardening Checkpoint
+
+- Public checkpoint note: `docs/releases/v2026.5.20.12-local-llm-error-reporting-hardening-checkpoint.md`
+- Scope: safe local LLM error metadata for public messages, Surface API runs, and local smoke CLI output.
+- Status: public local-provider hardening checkpoint, not production, not deploy, and not provider ecosystem completion.
+- Still open: capability/extension boundary hardening, tools/MCP safe subset contract, security PR backlog resolution, and local model listing.
+
 ## v2026.5.20.11 Growth/SNS Claim Guardrails Checkpoint
 
 - Public checkpoint note: `docs/releases/v2026.5.20.11-growth-sns-claim-guardrails-checkpoint.md`
 - Scope: claim-guarded demo plan, public FAQ, and SNS/release/README wording guardrails for the v7.7 public surface ladder.
 - Status: public distribution-documentation checkpoint, not production, not deploy, and not a launch-complete claim.
-- Still open: approved public assets, local LLM error/reporting hardening, capability/extension boundary hardening, final Web UI decision, and broader old PR review.
+- Still open: approved public assets, capability/extension boundary hardening, final Web UI decision, and broader old PR review.
 
 ## v2026.5.20.10 Web Surface Capability Manifest Checkpoint
 
