@@ -1,13 +1,15 @@
 
-import uvicorn
-import os
 import sys
+from pathlib import Path
+
+import uvicorn
 
 # Force project root into sys.path
-sys.path.insert(0, os.path.abspath("."))
+REPO_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPO_ROOT))
 
 from dotenv import load_dotenv
-load_dotenv()
+load_dotenv(REPO_ROOT / ".env")
 
 
 if __name__ == "__main__":

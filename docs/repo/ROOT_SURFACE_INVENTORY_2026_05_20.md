@@ -1,12 +1,12 @@
 # Root Surface Inventory 2026-05-20
 
-Status: public-safe root inventory. This checkpoint now includes a small validated helper move.
+Status: public-safe root inventory. This checkpoint now includes small validated helper moves.
 
 ## Summary
 
 The Git-visible root contains normal public repository entrypoints, active packaging/test config, active launchers, legacy runtime helpers, and one gitlink residue.
 
-This pass classifies the surface first. Runtime-moving cleanup is deferred until references can be updated and validated in a dedicated PR. The first follow-up cleanup moved only no-reference helper files that do not affect active runtime launch behavior.
+This pass classifies the surface first. Runtime-moving cleanup is deferred until references can be updated and validated in a dedicated PR. Follow-up cleanup moved only no-reference helper files that do not affect active runtime launch behavior.
 
 ## Classification Table
 
@@ -46,7 +46,7 @@ This pass classifies the surface first. Runtime-moving cleanup is deferred until
 | `docker-compose.prod.yml` | KEEP_ROOT | Root production-like compose file; moving could alter operator expectations. | Keep; do not change runtime behavior. |
 | `main.py` | KEEP_ROOT | Referenced by Dockerfile, compose files, pyproject, scripts, and docs. | Keep. |
 | `remove_legacy.ps1` | DO_NOT_RUN / RETIRE_CANDIDATE | No clear static references found; script name and behavior imply legacy runtime mutation risk. | Do not run, move, or delete without owner confirmation. |
-| `run_dashboard_backend.py` | UNKNOWN | No clear static references found. | Do not move without owner confirmation. |
+| `run_dashboard_backend.py` | MOVE_TOOLS | No static references found outside this inventory; helper imports dashboard backend directly and is not an active root launcher. | Moved to `tools/maintenance/run_dashboard_backend.py` with repo-root path resolution. |
 | `start.sh` | KEEP_ROOT | Referenced by setup wizard as recommended launcher. | Keep. |
 | `start_all.bat` | UNKNOWN | No clear static references found. | Do not move without owner confirmation. |
 | `start_vllm.bat` | KEEP_ROOT | Referenced by resource manager and maintenance/setup scripts. | Keep. |
@@ -63,7 +63,7 @@ This cleanup remains intentionally narrow:
 
 - keep root policy
 - update inventory
-- move only `debug_state.py` and `video_utils.py`
+- move only no-reference helper files after reference scan: `debug_state.py`, `video_utils.py`, and `run_dashboard_backend.py`
 - do not move active launchers or config files
 - do not delete `reference_clawdbot`
 - do not touch `src/cogs/ora.py`
@@ -73,7 +73,7 @@ This cleanup remains intentionally narrow:
 
 Pick one helper group at a time:
 
-1. remaining no-reference helpers: `run_dashboard_backend.py`, `start_all.bat`
+1. remaining no-reference helper: `start_all.bat`
 2. risky legacy mutation helper: `remove_legacy.ps1`
 3. active launchers: `start.sh`, `start_windows.bat`, `start_vllm.bat`
 4. config surface: `config.yaml`, `config/`
