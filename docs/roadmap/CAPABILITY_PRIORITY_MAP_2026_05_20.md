@@ -31,4 +31,3 @@ This map does not claim:
 - Google login completion
 - Discord gateway completion
 - `src/cogs/ora.py` resolution
-

@@ -159,4 +159,3 @@ Required fixture tests:
 - payload hash mismatch rejects
 - invalid signature rejects
 - secret-like memory payload rejects
-
