@@ -6,6 +6,8 @@ Status: public-safe root surface index for the v7.7 public repository.
 
 This index explains what a reader sees at the GitHub root without pretending every visible file is final product surface. It is documentation only; it does not move, delete, initialize, or repair files.
 
+For file-to-PR traceability and current GitHub last-commit context, see [File / PR Traceability Matrix 2026-05-21](FILE_PR_TRACEABILITY_MATRIX_2026_05_21.md). For the current root recheck after PR #218, see [Root Surface Inventory 2026-05-21](ROOT_SURFACE_INVENTORY_2026_05_21.md).
+
 ## Classification Key
 
 | class | meaning |
