@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import json
 from datetime import UTC, datetime
 from typing import Any, Literal
 from uuid import uuid4
@@ -23,6 +24,8 @@ router = APIRouter()
 SURFACE_API_CONTRACT_VERSION = "surface-api-run-contract-0.1"
 SUPPORTED_RUN_MODES = frozenset({"mock", "offline", "local"})
 SURFACE_AGENT_RUN_STORE_MAX_ENTRIES = 128
+SURFACE_AGENT_RUN_MAX_RESULTS_PER_RUN = 32
+SURFACE_AGENT_RUN_RESULT_MAX_BYTES = 16 * 1024
 
 
 class AgentRunRequest(BaseModel):
@@ -84,6 +87,18 @@ def _store_run(run: AgentRunState) -> None:
         _RUNS.pop(next(iter(_RUNS)))
     _RUNS[run.run_id] = run
 
+
+
+
+def _trim_oldest_tool_result_event(run: AgentRunState) -> None:
+    for idx, event in enumerate(run.events):
+        if event.get("event") == "tool_result_submit":
+            run.events.pop(idx)
+            break
+
+
+def _result_payload_size_bytes(payload: dict[str, Any]) -> int:
+    return len(json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
 
 def _build_events(*, run_id: str, response_body: dict[str, Any]) -> list[dict[str, Any]]:
     meta = {
@@ -196,7 +211,16 @@ def submit_agent_run_result(run_id: str, req: AgentRunResultRequest) -> dict[str
             "memory_persisted": False,
         },
     }
-    run.accepted_results.append(req.model_dump())
+    payload = req.model_dump()
+    payload_size = _result_payload_size_bytes(payload)
+    if payload_size > SURFACE_AGENT_RUN_RESULT_MAX_BYTES:
+        raise _public_error(413, "result_too_large", "result payload exceeds size limit.")
+
+    while len(run.accepted_results) >= SURFACE_AGENT_RUN_MAX_RESULTS_PER_RUN:
+        run.accepted_results.pop(0)
+        _trim_oldest_tool_result_event(run)
+
+    run.accepted_results.append(payload)
     run.events.append(event)
     return {
         "ok": True,
