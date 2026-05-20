@@ -90,6 +90,7 @@ raw chain-of-thought は public chat、API、SSE、log、documentation、trace s
 
 - [Current phase context](docs/CURRENT_PHASE_CONTEXT.md)
 - [Current MVP Capability Matrix](docs/CURRENT_MVP_CAPABILITY_MATRIX.md)
+- [Public file index](docs/repo/PUBLIC_FILE_INDEX.md)
 - [Cross-repo same-experience matrix](docs/contracts/CROSS_REPO_SAME_EXPERIENCE_MATRIX_2026_05_20.md)
 - [Official Cloud Control Plane MVP contract](docs/contracts/OFFICIAL_CLOUD_CONTROL_PLANE_MVP_2026_05_20.md)
 - [External Agent API](docs/contracts/external-agent-api.md)

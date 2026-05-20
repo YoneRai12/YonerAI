@@ -2,6 +2,16 @@
 
 Status: public-safe root inventory. This checkpoint now includes small validated helper moves.
 
+## 2026-05-21 Recheck
+
+- Public file index added: `docs/repo/PUBLIC_FILE_INDEX.md`.
+- No root files were moved in this pass.
+- `debug_state.py`, `video_utils.py`, and `run_dashboard_backend.py` remain out of root.
+- `config.yaml`, `main.py`, `start.sh`, `start_all.bat`, `start_vllm.bat`, `start_windows.bat`, compose files, `remove_legacy.ps1`, and `reference_clawdbot` remain visible.
+- `remove_legacy.ps1` remains `RETIRE_CANDIDATE` / `DO_NOT_RUN` because it can alter runtime code.
+- `reference_clawdbot` remains `DO_NOT_TOUCH`.
+- `start_all.bat` remains `UNKNOWN`; it was not moved because expected owner workflow is not confirmed.
+
 ## Summary
 
 The Git-visible root contains normal public repository entrypoints, active packaging/test config, active launchers, legacy runtime helpers, and one gitlink residue.
