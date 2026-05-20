@@ -68,6 +68,30 @@ The next safe action is to split the backlog into focused refresh lanes:
 5. Keep model/media dependencies separate: #150, #148, #147.
 6. Keep optional memory dependency update #143 blocked behind memory-policy scope.
 
+## 2026-05-21 Post-Security-Patch Recheck
+
+- Follow-up branch: `codex/dependency-pr-lane-drain`
+- Baseline: public `main` after PR #222.
+- Source of truth: `gh pr list --state open --limit 100 --json number,title,headRefName,mergeStateStatus,labels,url`
+- Open Dependabot alerts observed: 0.
+- Open dependency PRs observed: 13.
+- Open dependency PRs still present: #156, #152, #151, #150, #148, #147, #146, #145, #143, #34, #18, #7, #6.
+- Close result in this recheck: 0.
+
+Decision: no additional dependency PR met the safe-close bar. All 13 remaining dependency PRs are stale/behind, but each still maps to a live dependency lane or workflow lane. Open Dependabot alerts are 0, so none is treated as an urgent security fix in this pass; however, 0 alerts is not proof that the version-update PR is obsolete.
+
+Current lane grouping:
+
+| lane | PRs | decision |
+|---|---|---|
+| GitHub Actions / release workflow | #156, #34, #7, #6 | Keep open; release/workflow automation needs dry-run and CI validation before merge or closure. |
+| Python runtime / network / metadata | #152, #146, #18 | Keep open; refresh separately with Python tests and compatibility review. |
+| Discord / crypto boundary | #151, #145 | Keep open; Discord/private-runtime boundary review is required. |
+| Provider / media / OCR / audio | #150, #148, #147 | Keep open; broad model/media dependency jumps need focused tests. |
+| Optional memory/vector | #143 | Keep open; memory dependency changes remain blocked behind memory-policy scope. |
+
+Next dependency action should be a fresh Actions-lane or Python-runtime-lane PR from current `main`, not direct merge of the stale PR branches.
+
 ## Non-Claims
 
 This pass does not claim that dependencies are fully up to date, that all historical dependency risk is resolved, that the project is production-ready, or that Discord, memory, provider ecosystem, tools/MCP, official cloud, or private runtime lanes are complete.
