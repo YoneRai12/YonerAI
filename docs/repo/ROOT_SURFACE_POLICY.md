@@ -4,7 +4,7 @@ Status: public-safe repository hygiene policy. This document does not move runti
 
 ## Purpose
 
-The repository root should make YonerAI look like a professional public distribution-core project without hiding current runtime boundaries or breaking active scripts.
+The repository root should make YonerAI look like a professional public distribution-core project without hiding current runtime boundaries or breaking active scripts. Some legacy runtime files still use ORA names; root policy should preserve those references until a dedicated rename or extraction lane updates them safely.
 
 Root cleanup must preserve the v7.7 implementation anchor:
 
