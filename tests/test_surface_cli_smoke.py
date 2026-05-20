@@ -110,6 +110,16 @@ def test_cli_origin_rejects_credentials_path_query_and_fragment():
         raise AssertionError(f"origin should be rejected: {origin}")
 
 
+def test_cli_rejects_malformed_api_origin(capsys):
+    cli = _load_cli_module()
+
+    exit_code = cli.main(["health", "--api-origin", "http://[::1"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 2
+    assert "api origin is invalid" in captured.err
+
+
 def test_cli_help_text_is_public_safe(capsys):
     cli = _load_cli_module()
 
