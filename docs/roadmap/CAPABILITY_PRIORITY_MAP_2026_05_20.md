@@ -8,7 +8,7 @@ Status: public-safe roadmap. This is not a shipping or production-readiness clai
 | 2 | Memory policy scaffold | It defines what may become memory before any persistence exists. | Hybrid donation quarantine and approval model. | Memory poisoning, raw prompt/completion ingestion, privacy leakage. | Public + control-plane | Memory candidate allowed fields, forbidden markers, approval required. | CONTRACT_READY |
 | 3 | Capability / extension boundary | Tools, MCP, providers, and future skills need explicit capability grants before exposure. | Donation policy, trust registry, and same-experience matrix. | Overbroad tool permission, hidden private dependency. | Public first, private/control-plane adapters later. | Unknown capability deny-by-default, private/control-plane disabled, public surface labels. | CONTRACT_READY |
 | 4 | Agent swarm releaseability | Multi-agent behavior must be framed as reviewable workflows, not autonomous production actions. | Capability boundary and approval gates. | Unbounded autonomous actions, hidden mutation. | Public docs + control-plane proposal queue. | Synthetic swarm proposal fixtures, no auto-merge/deploy. | NEEDS_CONTRACT |
-| 5 | Tools/MCP safe subset | Useful user-visible capability, but only after capability grants and data policy are stable. | Capability boundary and secret-scan guardrails. | Secret-bearing tool calls, private repo coupling. | Public for safe contracts, private for secret-bearing connectors. | Tool allow/deny, no network where disallowed, no secret output. | TESTABLE_INTERNAL |
+| 5 | Tools/MCP safe subset | Useful user-visible capability, but only after capability grants and data policy are stable. | Capability boundary and secret-scan guardrails. | Secret-bearing tool calls, private repo coupling. | Public for safe contracts, private for secret-bearing connectors. | Disabled-by-default contract, approval/audit shape, no secret output. | CONTRACT_READY |
 | 6 | `src/cogs/ora.py` extraction step | It is known runtime residue, but extraction should follow contract coverage. | Import map, facade tests, message/session/hybrid boundaries. | Broad runtime behavior drift. | Public with dedicated refactor lane. | Facade contract, smoke, no runtime behavior change. | NEEDS_REFACTOR |
 | 7 | Identity / Google login | Identity should not precede memory and capability policy because it changes trust semantics. | Session semantics, memory policy, official-cloud auth contract. | False login-complete claim, cross-device data leak. | Control-plane + private runtime later. | Stub auth contract, no real Google login until approved. | CONTROL_PLANE_ONLY |
 | 8 | Discord gateway | Discord should connect to stabilized Core contracts, not carry product truth itself. | Message/session/provider boundary and identity/memory decisions. | Token handling, gateway behavior drift. | Private runtime primarily. | Gateway contract fixtures, no public token dependency. | PRIVATE_ONLY |
@@ -17,7 +17,7 @@ Status: public-safe roadmap. This is not a shipping or production-readiness clai
 
 ## Current Next Lane
 
-The next recommended lane is Tools/MCP safe subset contract, because the public capability boundary now marks Tools/MCP as contract-only or disabled by default.
+The next recommended lane is targeted security PR backlog resolution, because the public capability boundary and Tools/MCP contract now clarify that runtime widening should not proceed until stale access/security branches are either replaced or explicitly left open.
 
 ## Non-Claims
 
