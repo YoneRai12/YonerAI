@@ -1,26 +1,45 @@
-## Description
-Please include a summary of the change and which issue is fixed. Please also include relevant motivation and context.
+## Scope
 
-Fixes # (issue)
+- What changed:
+- Why it is needed:
+- Lane:
+  - [ ] API
+  - [ ] CLI
+  - [ ] Native Japanese CLI
+  - [ ] Web
+  - [ ] Growth/SNS
+  - [ ] Security/runtime
+  - [ ] Dependency
+  - [ ] Repository presentation/docs
+  - [ ] Other:
 
-## Type of change
-- [ ] Bug fix (non-breaking change which fixes an issue)
-- [ ] New feature (non-breaking change which adds functionality)
-- [ ] Breaking change (fix or feature that would cause existing functionality to not work as expected)
-- [ ] This change requires a documentation update
+## Validation
 
-## How Has This Been Tested?
-Please describe the tests that you ran to verify your changes. 
+- [ ] `git diff --check`
+- [ ] Targeted tests:
+- [ ] Targeted lint/compile/build:
+- [ ] Changed-file secret scan
+- [ ] Changed-file local absolute path / username / hostname scan
+- [ ] Mojibake / hidden Unicode scan for public docs
 
-- [ ] `test.bat` (Local Smoke Test)
-- [ ] Manual verification via Discord
-- [ ] Linting (Ruff) & Type Check (Mypy)
+## Boundary Confirmations
 
-## Checklist:
-- [ ] My code follows the style guidelines of this project
-- [ ] I have performed a self-review of my own code
-- [ ] I have commented my code, particularly in hard-to-understand areas
-- [ ] I have made corresponding changes to the documentation
-- [ ] My changes generate no new warnings
-- [ ] I have added tests that prove my fix is effective or that my feature works
-- [ ] New and existing unit tests pass locally with my changes
+- [ ] `src/cogs/ora.py` unchanged, or explicitly approved in this PR
+- [ ] `reference_clawdbot` not initialized, repaired, removed, replaced, staged, or edited
+- [ ] No deploy or production operation
+- [ ] No production signing keys or production trust stores
+- [ ] No persistent memory added
+- [ ] No Google login added
+- [ ] No external provider live generation added
+- [ ] No raw chain-of-thought exposed
+- [ ] No secrets, local absolute paths, usernames, hostnames, private route maps, live operational inventory, break-glass details, or control-plane internals exposed
+
+## Non-Claims
+
+This PR does not claim production readiness, shipping completeness, official-cloud completion, live-ops completion, full product completion, hybrid completion, persistent memory completion, Google login completion, Discord gateway completion, provider ecosystem completion, final Web UI completion, Tools/MCP completion, ChatGPT-equivalent parity, Pass 2 landing, all security backlog resolution, all dependency backlog resolution, v7.8 start/completion, or `src/cogs/ora.py` resolution unless the PR explicitly proves that claim with approved scope and tests.
+
+## Traceability
+
+- Related issues / PRs:
+- Replacement evidence for any old PRs closed:
+- Release note / checkpoint, if applicable:
