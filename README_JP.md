@@ -2,7 +2,7 @@
 
 YonerAI は、公式・ローカル・self-hosted の実行環境が変わっても、同じ体験と契約境界を保つための provider-independent AI execution foundation です。
 
-[English README](README.md) | [Current phase](docs/CURRENT_PHASE_CONTEXT.md) | [Contracts](docs/contracts) | [Latest checkpoint](docs/releases/v2026.5.21.1-public-repository-hardening-checkpoint.md)
+[English README](README.md) | [Current phase](docs/CURRENT_PHASE_CONTEXT.md) | [Contracts](docs/contracts) | [Latest checkpoint](docs/releases/v2026.5.21.2-final-public-presentation-checkpoint.md)
 
 ## YonerAI とは
 
@@ -22,7 +22,7 @@ YonerAI は長く使う AI runtime foundation です。目的は、利用する 
 - contract-first な public boundary
 - private / control-plane の詳細を漏らさず、contract で public と分ける方針
 
-現在の public checkpoint stream は、検証済みの日付と同日 suffix を使います。`v2026.5.21.1` は、この lane の public repository hardening、traceability、security-backlog、dependency-lane、root-surface、release-alignment を記録する checkpoint note / GitHub Release alignment target です。production release ではありません。
+現在の public checkpoint stream は、検証済みの日付と同日 suffix を使います。`v2026.5.21.2` は、この run の v7.7 evidence ledger、v7.8 readiness decision、SECURITY.md、PR template 更新後の final public presentation addendum を記録する checkpoint note / GitHub Release alignment target です。production release ではありません。
 
 過去に作られた未来日付の checkpoint label は historical artifact として残る場合がありますが、current-date GitHub Release が明示的に supersede するまでは、現在の public/latest checkpoint として扱いません。
 
@@ -104,6 +104,7 @@ raw chain-of-thought は public chat、API、SSE、log、documentation、trace s
 - [Growth/SNS claim guardrails](docs/growth/CLAIM_GUARDRAILS_2026_05_20.md)
 - [Growth/SNS demo plan](docs/growth/DEMO_PLAN_2026_05_20.md)
 - [Growth/SNS FAQ](docs/growth/FAQ_2026_05_20.md)
+- [v2026.5.21.2 Final public presentation checkpoint note](docs/releases/v2026.5.21.2-final-public-presentation-checkpoint.md)
 - [v2026.5.21.1 Public repository hardening checkpoint note](docs/releases/v2026.5.21.1-public-repository-hardening-checkpoint.md)
 - [v2026.5.20.14 Tools/MCP safe subset contract checkpoint note](docs/releases/v2026.5.20.14-tools-mcp-safe-subset-contract-checkpoint.md)
 - [v2026.5.20.13 Capability / Extension Boundary checkpoint note](docs/releases/v2026.5.20.13-capability-extension-boundary-checkpoint.md)
