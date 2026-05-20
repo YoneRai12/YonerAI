@@ -16,6 +16,7 @@ This inventory supersedes the root-status facts in the 2026-05-20 inventory for 
 - `tools/maintenance/remove_legacy.ps1` exists and remains `DO_NOT_RUN` / `RETIRE_CANDIDATE`.
 - `debug_state.py`, `video_utils.py`, and `run_dashboard_backend.py` remain absent from root.
 - `config.yaml`, `main.py`, launchers, compose files, and `reference_clawdbot` remain visible.
+- A 2026-05-21 physical-cleanup pass rechecked the remaining root candidates and made no move because references or owner-workflow uncertainty remain. See [Root Physical Cleanup Decision 2026-05-21](ROOT_PHYSICAL_CLEANUP_DECISION_2026_05_21.md).
 
 ## Classification Summary
 
