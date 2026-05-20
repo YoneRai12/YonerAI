@@ -139,7 +139,10 @@ def validate_hybrid_envelope(
     except ValueError:
         errors.append("invalid_timestamp")
     else:
-        current = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+        current = now or datetime.now(timezone.utc)
+        if current.tzinfo is None:
+            current = current.replace(tzinfo=timezone.utc)
+        current = current.astimezone(timezone.utc)
         if expires_at <= issued_at:
             errors.append("invalid_expiry_window")
         if current < issued_at:

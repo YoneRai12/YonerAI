@@ -165,7 +165,7 @@ def evaluate_donation_policy(
         return DonationPolicyDecision(
             action=DONATION_ACTION_REJECT,
             trusted=False,
-            requires_approval=True,
+            requires_approval=False,
             reasons=tuple(reasons),
         )
 

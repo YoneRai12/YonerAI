@@ -23,6 +23,7 @@ from ora_core.hybrid import (  # noqa: E402
 
 
 NOW = datetime(2026, 5, 20, 6, 0, tzinfo=timezone.utc)
+NAIVE_NOW = datetime(2026, 5, 20, 6, 0)
 
 
 def _valid_envelope(**overrides) -> HybridSignedEnvelope:
@@ -130,6 +131,7 @@ def test_wrong_audience_expired_hash_mismatch_and_replay_are_rejected() -> None:
     assert "payload_hash_mismatch" in hash_mismatch.reasons
     assert first.action == "quarantine"
     assert replay.action == "reject"
+    assert replay.requires_approval is False
     assert "replayed_nonce" in replay.reasons
 
 
@@ -201,6 +203,18 @@ def test_common_llm_token_count_metadata_is_not_rejected_by_substring_match() ->
 
     assert decision.action == "quarantine"
     assert "forbidden_payload_marker" not in decision.reasons
+
+
+def test_naive_now_is_treated_as_utc_for_fixture_policy_evaluation() -> None:
+    decision = evaluate_donation_policy(
+        _valid_envelope(),
+        trust_registry=_trusted_registry(),
+        nonce_store=InMemoryNonceStore(),
+        signature_verifier=_verifier(),
+        now=NAIVE_NOW,
+    )
+
+    assert decision.action == "quarantine"
 
 
 def test_deep_payload_is_rejected_without_recursive_scan_error() -> None:
