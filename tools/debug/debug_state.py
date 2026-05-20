@@ -7,7 +7,8 @@ from pathlib import Path
 
 
 STATE_PATH_ENV = "YONERAI_DEBUG_STATE_PATH"
-DEFAULT_STATE_PATH = Path("data/cost_state.json")
+REPO_ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_STATE_PATH = REPO_ROOT / "data" / "cost_state.json"
 
 
 def main() -> int:
