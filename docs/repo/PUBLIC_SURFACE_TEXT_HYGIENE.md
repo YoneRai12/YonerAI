@@ -40,7 +40,13 @@ rg -n "(\?\?\?\?|�|ã|縺|鬆|譁|繧|蟆|荳|驥)" README.md README_JP.md doc
 python - <<'PY'
 from pathlib import Path
 bad = []
-for path in [Path(p) for p in ["README.md", "README_JP.md"] + [str(p) for p in Path("docs").rglob("*") if p.is_file()]]:
+for path in [
+    p
+    for p in [Path("README.md"), Path("README_JP.md")]
+    + list(Path("docs").rglob("*"))
+    + list(Path(".github").rglob("*"))
+    if p.is_file()
+]:
     text = path.read_text(encoding="utf-8", errors="ignore")
     for index, char in enumerate(text):
         cp = ord(char)
