@@ -19,6 +19,10 @@ YonerAI v7.7 keeps one common distribution core and separates behavior through c
 | Hybrid signed envelope | fixture/policy boundary | `core/src/ora_core/hybrid/`, hybrid docs/tests | durable replay/trust registry lane, no production keys. |
 | Tools/MCP | contract-only safe subset | `docs/contracts/tools-mcp-safe-subset-0.1.md` | safe decision fixture, no dynamic runtime execution. |
 
+## 2026-05-21 Next-Lane Board
+
+See `docs/roadmap/V7_7_NEXT_IMPLEMENTATION_LANES_2026_05_21.md` for the current ordered implementation, security review, connection, and retirement candidates. The board intentionally keeps API, CLI, native Japanese CLI, Web, SNS/growth, security/runtime, dependency, root cleanup, and release-alignment lanes separate.
+
 ## Connect Later, Not Now
 
 | area | likely path | classification | why not now | next safe lane |
@@ -31,6 +35,12 @@ YonerAI v7.7 keeps one common distribution core and separates behavior through c
 | Provider ecosystem | provider markers across code/docs | `CONNECT_CANDIDATE` | provider independence is a design truth, not provider completion | provider manifest and local-only policy lane. |
 | `src/cogs/ora.py` | `src/cogs/ora.py` | `DO_NOT_TOUCH` | explicit boundary residue | separate extraction lane only. |
 | `reference_clawdbot` | gitlink | `DO_NOT_TOUCH` | external/broken gitlink risk | owner decision only. |
+
+## Current Connect / Retire Decision
+
+- Connect now: only existing public Core, CLI smoke, Web smoke, local LLM loopback, hybrid policy fixture, public capability boundary, and proposal-only self-evolution lanes.
+- Connect later: Discord, memory persistence, dashboard/operator surfaces, media/image/video processing, deploy/ops, broad provider ecosystem, and Tools/MCP runtime execution.
+- Retire later: only after owner approval and replacement evidence. The current top retire candidates are listed in the next-lane board and remain non-deletion recommendations.
 
 ## Repo Split Alignment
 
