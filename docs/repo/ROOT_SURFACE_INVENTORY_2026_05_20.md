@@ -1,12 +1,12 @@
 # Root Surface Inventory 2026-05-20
 
-Status: public-safe root inventory. This checkpoint intentionally performs no file moves.
+Status: public-safe root inventory. This checkpoint now includes a small validated helper move.
 
 ## Summary
 
 The Git-visible root contains normal public repository entrypoints, active packaging/test config, active launchers, legacy runtime helpers, and one gitlink residue.
 
-This pass classifies the surface first. Runtime-moving cleanup is deferred until references can be updated and validated in a dedicated PR.
+This pass classifies the surface first. Runtime-moving cleanup is deferred until references can be updated and validated in a dedicated PR. The first follow-up cleanup moved only no-reference helper files that do not affect active runtime launch behavior.
 
 ## Classification Table
 
@@ -41,7 +41,7 @@ This pass classifies the surface first. Runtime-moving cleanup is deferred until
 | `tools` | KEEP_ROOT | Tooling directory. | Keep. |
 | `reference_clawdbot` | DO_NOT_TOUCH | Tracked as gitlink/submodule residue. Owner scope says do not fix. | Do not init, update, remove, replace, or repair. |
 | `config.yaml` | KEEP_ROOT | Loaded from process working directory by runtime config and MCP code. | Keep until config lane updates references. |
-| `debug_state.py` | RETIRE_CANDIDATE | No clear static references found. Could be local/operator state helper. | Do not move or delete without owner confirmation. |
+| `debug_state.py` | MOVE_TOOLS | No static runtime references found; previous root helper contained a local absolute default path. | Moved to `tools/debug/debug_state.py` and changed to env/relative state path lookup. |
 | `docker-compose.yml` | KEEP_ROOT | Referenced by docs and pairs with root `main.py`. | Keep. |
 | `docker-compose.prod.yml` | KEEP_ROOT | Root production-like compose file; moving could alter operator expectations. | Keep; do not change runtime behavior. |
 | `main.py` | KEEP_ROOT | Referenced by Dockerfile, compose files, pyproject, scripts, and docs. | Keep. |
@@ -51,7 +51,7 @@ This pass classifies the surface first. Runtime-moving cleanup is deferred until
 | `start_all.bat` | UNKNOWN | No clear static references found. | Do not move without owner confirmation. |
 | `start_vllm.bat` | KEEP_ROOT | Referenced by resource manager and maintenance/setup scripts. | Keep. |
 | `start_windows.bat` | KEEP_ROOT | Referenced by setup wizard as recommended launcher. | Keep. |
-| `video_utils.py` | UNKNOWN | No clear static references found. | Do not move without owner confirmation. |
+| `video_utils.py` | MOVE_TOOLS | No static runtime references found; generic ffprobe helper. | Moved to `tools/media/video_utils.py`. |
 
 ## Local-Only Entries Observed
 
@@ -59,11 +59,12 @@ The working tree also contains local development/cache/state directories such as
 
 ## Minimal Cleanup Decision
 
-This PR is docs-only:
+This cleanup remains intentionally narrow:
 
-- add root policy
-- add inventory
-- do not move root helpers
+- keep root policy
+- update inventory
+- move only `debug_state.py` and `video_utils.py`
+- do not move active launchers or config files
 - do not delete `reference_clawdbot`
 - do not touch `src/cogs/ora.py`
 - do not change runtime launch behavior
@@ -72,9 +73,10 @@ This PR is docs-only:
 
 Pick one helper group at a time:
 
-1. no-reference helpers: `debug_state.py`, `remove_legacy.ps1`, `run_dashboard_backend.py`, `start_all.bat`, `video_utils.py`
-2. active launchers: `start.sh`, `start_windows.bat`, `start_vllm.bat`
-3. config surface: `config.yaml`, `config/`
-4. optional memory dependencies: `requirements-optional-memory.txt`, `memory/`, related docs
+1. remaining no-reference helpers: `run_dashboard_backend.py`, `start_all.bat`
+2. risky legacy mutation helper: `remove_legacy.ps1`
+3. active launchers: `start.sh`, `start_windows.bat`, `start_vllm.bat`
+4. config surface: `config.yaml`, `config/`
+5. optional memory dependencies: `requirements-optional-memory.txt`, `memory/`, related docs
 
 Each move needs reference updates and targeted validation.

@@ -73,6 +73,8 @@ Suggested future homes:
 - long-form repo policy: `docs/repo/`
 - retired notes: `docs/legacy/`
 
+Debug helpers that read local state files must not embed a user or machine path. Prefer an environment variable with a repository-relative fallback, and keep the helper under `tools/debug/` instead of the repository root.
+
 ## Do Not Touch In Generic Cleanup
 
 - `reference_clawdbot`

@@ -1,16 +1,19 @@
-import subprocess
 import json
-import os
+import subprocess
+
 
 def get_video_duration(path):
     """Get video duration in seconds using ffprobe."""
     try:
         cmd = [
-            "ffprobe", 
-            "-v", "error", 
-            "-show_entries", "format=duration", 
-            "-of", "json", 
-            path
+            "ffprobe",
+            "-v",
+            "error",
+            "-show_entries",
+            "format=duration",
+            "-of",
+            "json",
+            path,
         ]
         result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         data = json.loads(result.stdout)
