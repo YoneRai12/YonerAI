@@ -18,10 +18,11 @@ PRIVATE_MARKERS = (
     re.compile(r"[A-Za-z]:[\\/]+Users[\\/]+", re.IGNORECASE),
     re.compile(r"(?:^|[\s\"'=])/(root|etc|home|users|var|tmp)/", re.IGNORECASE),
     re.compile(
-        r"(api[_-]?key|access[_-]?token|refresh[_-]?token|discord[_-]?token|private[_-]?key|client[_-]?secret|authorization)",
+        r"(api[_-]?key|access[_-]?token|refresh[_-]?token|discord[_-]?token|private[_-]?key|client[_-]?secret|google[_-]?client[_-]?secret|authorization)",
         re.IGNORECASE,
     ),
     re.compile(r"sk-[A-Za-z0-9_-]{10,}"),
+    re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
 )
 
 
