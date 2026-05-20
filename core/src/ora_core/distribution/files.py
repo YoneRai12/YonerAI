@@ -61,16 +61,24 @@ async def normalize_tool_result_for_run(
         return result, artifact_text, file_refs
 
     artifact_path = Path(artifact_text)
-    if not artifact_path.exists() or not artifact_path.is_file():
+    if artifact_path.is_absolute():
+        raise FileContractViolation("artifact_ref must be a relative path under the current working directory.")
+
+    resolved_path = (Path.cwd() / artifact_path).resolve()
+    cwd_root = Path.cwd().resolve()
+    if cwd_root != resolved_path and cwd_root not in resolved_path.parents:
+        raise FileContractViolation("artifact_ref must stay within the current working directory.")
+
+    if not resolved_path.exists() or not resolved_path.is_file():
         raise FileContractViolation("artifact_ref must resolve to a local file before it can be exposed as a file ref.")
 
     created = await repo.create_distribution_file(
         owner_user_id=owner_user_id,
         run_id=run_id,
         tool_call_id=tool_call_id,
-        storage_path=str(artifact_path.resolve()),
-        display_name=artifact_path.name,
-        media_type=_guess_media_type(artifact_path),
+        storage_path=str(resolved_path),
+        display_name=resolved_path.name,
+        media_type=_guess_media_type(resolved_path),
     )
     file_ref = FileRef(
         file_id=created.id,

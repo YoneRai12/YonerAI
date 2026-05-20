@@ -23,7 +23,7 @@ from ora_core.database.models import Base
 from ora_core.database.repo import Repository
 from ora_core.database.session import get_db
 from ora_core.distribution.capabilities import CapabilityManifest, CapabilityPolicy
-from ora_core.distribution.files import normalize_tool_result_for_run
+from ora_core.distribution.files import FileContractViolation, normalize_tool_result_for_run
 from ora_core.distribution.release import (
     ReleaseVerificationError,
     build_signed_release_bundle,
@@ -546,7 +546,7 @@ def test_distribution_node_results_accept_continuation_only(distribution_app) ->
 @pytest.mark.asyncio
 async def test_distribution_node_files_are_refs_only_and_downloadable(distribution_app) -> None:
     session_local = distribution_app["session_local"]
-    artifact_path = Path(distribution_app["db_path"]).parent / "artifact.txt"
+    artifact_path = Path("artifact.txt")
     artifact_path.write_text("hello artifact", encoding="utf-8")
 
     async with session_local() as session:
@@ -567,7 +567,7 @@ async def test_distribution_node_files_are_refs_only_and_downloadable(distributi
     assert artifact_ref and artifact_ref.startswith("fileref:")
     assert len(file_refs) == 1
     assert normalized["artifact_ref"] == artifact_ref
-    assert str(artifact_path) not in json.dumps(normalized, ensure_ascii=False)
+    assert str(artifact_path.resolve()) not in json.dumps(normalized, ensure_ascii=False)
 
     with TestClient(distribution_app["app"]) as client:
         ticket = client.post(
@@ -575,13 +575,35 @@ async def test_distribution_node_files_are_refs_only_and_downloadable(distributi
             json={},
             headers=_auth_headers("web", "dist-user-files", display_name="tester"),
         )
+        assert ticket.status_code == 200, ticket.text
         download_url = ticket.json()["download_url"]
         download = client.get(download_url)
 
-    assert ticket.status_code == 200
     assert download.status_code == 200
     assert download.text == "hello artifact"
     assert download.headers["cache-control"].startswith("no-store")
+    artifact_path.unlink(missing_ok=True)
+
+
+@pytest.mark.asyncio
+async def test_distribution_node_rejects_absolute_artifact_paths(distribution_app) -> None:
+    session_local = distribution_app["session_local"]
+
+    async with session_local() as session:
+        repo = Repository(session)
+        user = await repo.get_or_create_user("web", "dist-user-files-abs", "tester")
+        with pytest.raises(FileContractViolation, match="relative path"):
+            await normalize_tool_result_for_run(
+                repo,
+                owner_user_id=user.id,
+                run_id="run-files-002",
+                tool_call_id="tc-files-002",
+                result={
+                    "ok": True,
+                    "content": [{"type": "text", "text": "created file"}],
+                    "artifact_ref": "/etc/hostname",
+                },
+            )
 
 
 def test_distribution_node_release_verification_fails_closed(tmp_path: Path) -> None:
