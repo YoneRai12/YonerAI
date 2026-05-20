@@ -2,7 +2,7 @@
 
 Provider-independent AI execution foundation for keeping one reliable AI experience across official, local, and self-hosted runtimes.
 
-[Japanese README](README_JP.md) | [Current phase](docs/CURRENT_PHASE_CONTEXT.md) | [Contracts](docs/contracts) | [Latest checkpoint](docs/releases/v2026.5.21.1-public-repository-hardening-checkpoint.md)
+[Japanese README](README_JP.md) | [Current phase](docs/CURRENT_PHASE_CONTEXT.md) | [Contracts](docs/contracts) | [Latest checkpoint](docs/releases/v2026.5.21.2-final-public-presentation-checkpoint.md)
 
 ## What YonerAI Is
 
@@ -22,7 +22,7 @@ The active design anchor is v7.7:
 - contract-first public boundaries
 - public/private/control-plane separation by contract, not by leaking internal operations detail
 
-The current public checkpoint stream uses verified dates with same-day suffixes. `v2026.5.21.1` records the public repository hardening, traceability, security-backlog, dependency-lane, root-surface, and release-alignment checkpoint for this lane. It is a checkpoint note and GitHub Release alignment target, not a production release.
+The current public checkpoint stream uses verified dates with same-day suffixes. `v2026.5.21.2` records the final public presentation addendum for this run after the v7.7 evidence ledger, v7.8 readiness decision, SECURITY.md, and PR template updates landed. It is a checkpoint note and GitHub Release alignment target, not a production release.
 
 Older future-dated checkpoint labels can remain as historical artifacts, but they should not be used as the current public/latest checkpoint unless a current-date GitHub Release explicitly supersedes them.
 
@@ -93,6 +93,7 @@ Useful starting points:
 - [Growth/SNS claim guardrails](docs/growth/CLAIM_GUARDRAILS_2026_05_20.md)
 - [Growth/SNS demo plan](docs/growth/DEMO_PLAN_2026_05_20.md)
 - [Growth/SNS FAQ](docs/growth/FAQ_2026_05_20.md)
+- [v2026.5.21.2 Final public presentation checkpoint note](docs/releases/v2026.5.21.2-final-public-presentation-checkpoint.md)
 - [v2026.5.21.1 Public repository hardening checkpoint note](docs/releases/v2026.5.21.1-public-repository-hardening-checkpoint.md)
 - [v2026.5.20.14 Tools/MCP safe subset contract checkpoint note](docs/releases/v2026.5.20.14-tools-mcp-safe-subset-contract-checkpoint.md)
 - [v2026.5.20.13 Capability / Extension Boundary checkpoint note](docs/releases/v2026.5.20.13-capability-extension-boundary-checkpoint.md)

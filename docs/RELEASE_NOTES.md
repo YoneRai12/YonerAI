@@ -2,6 +2,14 @@
 
 This page is a public-safe index of current release notes and progress checkpoints.
 
+## v2026.5.21.2 Final Public Presentation Checkpoint
+
+- Public checkpoint note: `docs/releases/v2026.5.21.2-final-public-presentation-checkpoint.md`
+- GitHub Release target: `v2026.5.21.2` after this alignment PR lands.
+- Scope: v7.7 evidence ledger, v7.8 readiness decision, `SECURITY.md`, and PR template presentation hardening.
+- Status: public repository presentation addendum, not production, not deploy, not full product completion, and not a v7.8 start.
+- Still open: remaining security/runtime PR reproduction, dependency PR lane decisions, root launcher/config migration, README_JP broader UTF-8 presentation review, and future `src/cogs/ora.py` extraction.
+
 ## v2026.5.21.1 Public Repository Hardening Checkpoint
 
 - Public checkpoint note: `docs/releases/v2026.5.21.1-public-repository-hardening-checkpoint.md`
