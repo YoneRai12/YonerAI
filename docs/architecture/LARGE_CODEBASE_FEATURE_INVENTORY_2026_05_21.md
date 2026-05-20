@@ -4,8 +4,8 @@ Status: public-safe inventory. This document classifies existing tracked code an
 
 ## Snapshot
 
-- Tracked files: 786
-- Text-like lines counted, excluding `src/cogs/ora.py`: about 100,680
+- Tracked files at this inventory commit: 788
+- Text-like lines counted, excluding `src/cogs/ora.py`: about 100,810
 - `src/cogs/ora.py`: `DO_NOT_TOUCH`; excluded from line-level inspection in this pass.
 - Current public posture: API/CLI/Web smoke surfaces are active, while Discord, memory, broad tools/MCP, deploy, private runtime, and control-plane integration remain separate lanes.
 
@@ -14,20 +14,20 @@ Status: public-safe inventory. This document classifies existing tracked code an
 | path | rough files | rough lines | purpose | classification | current public connection | risks | next safe action |
 |---|---:|---:|---|---|---|---|---|
 | `core/` | 55 | 9,325 | Public Core API, contracts, hybrid/public capability helpers | `PUBLIC_ACTIVE` | Health, public messages, run contract, local provider boundary, hybrid policy tests | Must not grow private/control-plane imports | Keep as API contract authority; add tests per narrow lane. |
-| `clients/cli/` | included in `clients` | included in `clients` | Local smoke CLI | `PUBLIC_ACTIVE` | `yonerai health`, `yonerai message`, `yonerai run` | Not final CLI; remote origins denied by policy | Keep local-only; native Japanese CLI remains separate. |
-| `clients/web/` | included in `clients` | included in `clients` | Temporary Web Chat MVP / smoke-demo | `PUBLIC_PARTIAL` | Mock/offline and loopback local provider smoke | Not final Web UI; dependency PRs remain open | Keep smoke scope; do not add Google login/final UI here. |
+| `clients/cli/` | 5 | 253 | Local smoke CLI; also included in the broader `clients/` total | `PUBLIC_ACTIVE` | `yonerai health`, `yonerai message`, `yonerai run` | Not final CLI; remote origins denied by policy | Keep local-only; native Japanese CLI remains separate. |
+| `clients/web/` | 24 | 7,764 | Temporary Web Chat MVP / smoke-demo; also included in the broader `clients/` total | `PUBLIC_PARTIAL` | Mock/offline and loopback local provider smoke | Not final Web UI; dependency PRs remain open | Keep smoke scope; do not add Google login/final UI here. |
 | `clients/` | 29 | 8,017 | Public client surfaces | `PUBLIC_PARTIAL` | CLI and Web smoke surfaces | Mixed web/node dependency state | Maintain lane separation: API, CLI, Web, Japanese CLI. |
 | `docs/` | 210 | 13,733 | Contracts, release notes, maintenance, policies | `PUBLIC_ACTIVE` | Main public truth surface | Stale/future-dated historical notes and overclaim risk | Keep style guide and text hygiene scans active. |
 | `tests/` | 76 | 8,423 | Public regression and contract tests | `PUBLIC_ACTIVE` | Smoke, security, hybrid, capability, CLI/API tests | Some tests describe non-public surfaces | Use targeted tests per lane; do not infer completion from mentions. |
 | `src/` | 185 | 46,104 | Legacy/runtime/private-adjacent application code | `SECURITY_REVIEW_REQUIRED` | Some public docs refer to boundaries, but not public-ready as a whole | Discord/private/runtime/deploy/tool surfaces are mixed | Keep as inventory target; do not wire broadly. |
-| `src/cogs/` | included in `src` | excluded for `ora.py` | Discord cogs and runtime handlers | `PRIVATE_OR_CONTROL_PLANE_BOUNDARY` | Not part of current public Core MVP | Auth, Discord, command, and private runtime risks | Dedicated Discord/private runtime security review only. |
-| `src/cogs/ora.py` | 1 | not counted | legacy boundary residue | `DO_NOT_TOUCH` | Explicitly not solved | Large mixed runtime/control-plane surface | Separate extraction lane only. |
+| `src/cogs/` | 39 | 15,487 | Discord cogs and runtime handlers; also included in the broader `src/` total, with `src/cogs/ora.py` excluded from line count | `PRIVATE_OR_CONTROL_PLANE_BOUNDARY` | Not part of current public Core MVP | Auth, Discord, command, and private runtime risks | Dedicated Discord/private runtime security review only. |
+| `src/cogs/ora.py` | 1 | 0 | legacy boundary residue; intentionally excluded from line-level inspection | `DO_NOT_TOUCH` | Explicitly not solved | Large mixed runtime/control-plane surface | Separate extraction lane only. |
 | `scripts/` | 88 | 5,037 | setup, debug, runtime, migration helpers | `SECURITY_REVIEW_REQUIRED` | Some setup/dev utility | Shell/deploy/local machine assumptions | Move only reference-validated helpers; no shell/tool execution expansion. |
 | `tools/` | 97 | 6,031 | maintenance, debug, media, setup helpers | `CONNECT_CANDIDATE` | Public maintenance folder | Debug/deploy/helper code can look product-active | Keep categorized; add tool safe-subset contracts before runtime wiring. |
 | `.github/` | 8 | 300 | CI and automation | `PUBLIC_ACTIVE` | Required checks on PRs | Dependency workflow PR backlog | Handle in dependency lane. |
 | `config/` and `config.yaml` | 7 | 757 | runtime config | `SECURITY_REVIEW_REQUIRED` | Read by current legacy runtime code | Moving can break launchers; may expose legacy assumptions | Keep root config until references are redesigned. |
 | `main.py` | 1 | 14 | runtime entrypoint | `CONNECT_CANDIDATE` | Docker/scripts reference it | Moving breaks launch path | Keep root until runtime entrypoint lane. |
-| launch scripts | 4 | 61 | root start helpers | `CONNECT_CANDIDATE` / `UNKNOWN` | Local legacy launch workflows | User workflows and setup wizard references | Do not move without reference validation. |
+| launch scripts | 4 | 61 | root start helpers | `UNKNOWN` | Local legacy launch workflows | User workflows and setup wizard references | Do not move without reference validation. |
 | compose files | 2 | 67 | local/container profiles | `CONNECT_CANDIDATE` | Docker/local run support | `prod` wording can overclaim | Keep, clarify non-production. |
 | `memory/` and optional memory requirements | 2 | 25 | memory-related package/dependencies | `PUBLIC_CONTRACT_ONLY` | Memory policy docs only | Persistent-memory overclaim risk | Keep quarantine/policy wording; no persistent memory. |
 | `templates/` | 4 | 1,692 | prompts/templates | `CONNECT_CANDIDATE` | Not current public MVP | May imply agent/tool behavior | Inventory before exposing. |

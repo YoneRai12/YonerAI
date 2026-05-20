@@ -26,8 +26,8 @@ YonerAI v7.7 keeps one common distribution core and separates behavior through c
 | Discord gateway | `src/cogs/`, `src/bot.py` | `PRIVATE_OR_CONTROL_PLANE_BOUNDARY` | auth/command/private runtime risks | Discord boundary and security replacement PRs. |
 | Memory | `memory/`, `src/*memory*`, optional requirements | `PUBLIC_CONTRACT_ONLY` | persistent memory is not implemented/claimed | memory candidate approval and storage policy lane. |
 | Dashboard/operator surfaces | `src/web/`, dashboard scripts | `SECURITY_REVIEW_REQUIRED` | auth/private/runtime exposure risks | dashboard boundary audit. |
-| Media/image/video | image/video scripts and cogs | `SECURITY_REVIEW_REQUIRED` | SSRF/DoS and provider/tool risks | media security PR replacement lane. |
-| Deploy/ops | compose, cloudflare, scripts/tools | `PRIVATE_OR_CONTROL_PLANE_BOUNDARY` | public repo must not deploy or expose live ops | control-plane/private repo contracts only. |
+| Media/image/video | `src/cogs/`, `tools/media/`, `scripts/*image*`, `scripts/*video*` | `SECURITY_REVIEW_REQUIRED` | SSRF/DoS and provider/tool risks | media security PR replacement lane. |
+| Deploy/ops | `docker-compose.yml`, `docker-compose.prod.yml`, `tools/cloudflare/`, `scripts/install_cloudflared.ps1`, `scripts/start_tunnel_helper.bat` | `PRIVATE_OR_CONTROL_PLANE_BOUNDARY` | public repo must not deploy or expose live ops | control-plane/private repo contracts only. |
 | Provider ecosystem | provider markers across code/docs | `CONNECT_CANDIDATE` | provider independence is a design truth, not provider completion | provider manifest and local-only policy lane. |
 | `src/cogs/ora.py` | `src/cogs/ora.py` | `DO_NOT_TOUCH` | explicit boundary residue | separate extraction lane only. |
 | `reference_clawdbot` | gitlink | `DO_NOT_TOUCH` | external/broken gitlink risk | owner decision only. |
