@@ -83,6 +83,20 @@ Decision: open PR count increased from 33 to 43 because new security/runtime PRs
 
 PR #195 and PR #203 current body scans found no four-question-mark mojibake sequence, no replacement characters, and no specified hidden/bidirectional Unicode controls. PR #203 had a post-merge Codex review note about documentation grouping consistency; this ledger keeps #117, #119, and #127 closed as superseded and routes future web dependency work to fresh lanes only if new alerts appear.
 
+## 2026-05-21 Security Runtime Replacement Pass
+
+- Follow-up branch: `codex/security-runtime-pr-validation-pass`
+- Current-main replacement PR: #216
+- Replacement merge commit: `f26211b89cfc30c182ea7d7c8e8435f8f67cd457`
+- GitHub source of truth after close pass: `gh pr list --state open --limit 100 --json number --jq length`
+- Open PR count before replacement close pass: 43.
+- Open PR count after replacement close pass: 36.
+- Ledger: `docs/maintenance/SECURITY_RUNTIME_PR_VALIDATION_2026_05_21.md`
+
+Decision: PR #216 landed the current-main v7.7-scoped replacements for the safe subset of the new security/runtime backlog. PRs #204, #208, #209, #210, #211, #212, and #213 were closed as superseded or duplicate with close comments citing #216, merge commit `f26211b89cfc30c182ea7d7c8e8435f8f67cd457`, and the relevant replacement tests.
+
+PRs #205, #206, and #207 remain open because they need a separate current-main security review and were not fixed by #216. Older security PRs #128, #133, #60, #131, #132, #135, and #129 also remain open because their risk is not safely replaced or disproven.
+
 ## Classification Rules Used
 
 | class | meaning |
@@ -197,16 +211,16 @@ The following GitHub check rollups were read after the open PR list. A passing h
 
 ## Top 10 Next PR Decisions
 
-1. #128: dashboard path traversal; determine whether public/private boundary makes it public-safe or private-only.
-2. #133: embed image SSRF; re-evaluate against current media/tool boundary.
-3. #60: image crop/upscale SSRF; re-evaluate against current tools policy.
-4. #131: `/listen` authorization; private runtime/Discord boundary review.
-5. #129: `/say` authorization survivor after duplicate #130 was closed.
-6. #135: Discord log masking survivor after duplicate #136 was closed.
-7. #132: image upload DoS; confirm whether the vulnerable surface still exists.
-8. #156 / #7 / #6 / #34: refresh GitHub Actions dependency lane with workflow validation.
-9. #152 / #151 / #150 / #146: refresh high-risk Python dependency lane with focused tests.
-10. #143: keep optional memory dependency work blocked behind explicit memory-policy scope.
+1. #206 / #207: local LLM public-mode auth and request-controlled loopback endpoint override; review together and replace with one current-main patch if still reproducible.
+2. #205: redact sensitive public ledger details if current maintained docs still expose too much implementation detail.
+3. #128: dashboard path traversal; determine whether public/private boundary makes it public-safe or private-only.
+4. #133: embed image SSRF; re-evaluate against current media/tool boundary.
+5. #60: image crop/upscale SSRF; re-evaluate against current tools policy.
+6. #131: `/listen` authorization; private runtime/Discord boundary review.
+7. #129: `/say` authorization survivor after duplicate #130 was closed.
+8. #135: Discord log masking survivor after duplicate #136 was closed.
+9. #132: image upload DoS; confirm whether the vulnerable surface still exists.
+10. #156 / #7 / #6 / #34: refresh GitHub Actions dependency lane with workflow validation.
 
 ## Next Safe Actions
 
