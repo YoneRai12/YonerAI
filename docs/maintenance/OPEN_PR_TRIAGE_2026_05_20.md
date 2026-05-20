@@ -11,6 +11,22 @@ Status: public-safe maintenance checkpoint from live GitHub state. This ledger c
 - Root verification: `debug_state.py`, `video_utils.py`, and `run_dashboard_backend.py` are no longer root files; `config.yaml`, `remove_legacy.ps1`, `start.sh`, `start_all.bat`, `start_vllm.bat`, `start_windows.bat`, compose files, and `main.py` remain in root.
 - Close decision: no PR met all safe-close rules during this 60-minute checkpoint.
 
+## 2026-05-20 Security PR Follow-Up
+
+- Follow-up branch: `codex/security-pr-backlog-resolution-pass`
+- Current replacement baseline: public `main` after PR #194, with prior PR #186 merged.
+- Target reviewed: PR #142 (`codex/fix-core-api-access-vulnerability`)
+- Classification update: `CLOSE_SUPERSEDED`
+- Close result: PR #142 closed unmerged with replacement evidence comment.
+- Open PR count after close: 39.
+- Replacement evidence:
+  - PR #186 merged the current-main Surface API access/security checkpoint.
+  - `tests/test_core_api_access_security.py` verifies sensitive Core routes carry `require_core_access`.
+  - Current main protects `/v1/messages`, `/v1/runs/{run_id}/events`, `/v1/runs/{run_id}/results`, `/v1/files/{file_id}/download-url`, auth, dashboard, stats, and memory routes.
+  - Current main intentionally leaves `/v1/files/download/{ticket}` outside the core token dependency because it is ticket-based access.
+  - `docs/releases/v2026.5.20.7-surface-api-run-contract-checkpoint.md` records this narrower replacement.
+- Risk decision: closing PR #142 is safer than merging it because #142 would reapply the stale broad `files_router` dependency model and conflict with the current ticket-download boundary.
+
 ## Classification Rules Used
 
 | class | meaning |
@@ -38,7 +54,7 @@ Status: public-safe maintenance checkpoint from live GitHub state. This ledger c
 | #146 | build(deps): update aiohttp requirement | dependabot / `dependabot/pip/aiohttp-gte-3.13.5-and-lt-4.0` | 23d | open | BEHIND | KEEP_DEPENDENCY_UPDATE | API/web runtime dependency | Keep for dependency lane | `core/requirements.txt`, `requirements.txt` | Network stack dependency; run Core API tests before any merge. |
 | #145 | build(deps): update pynacl requirement | dependabot / `dependabot/pip/pynacl-gte-1.6.2-and-lt-2.0` | 23d | open | BEHIND | KEEP_DEPENDENCY_UPDATE | Discord/crypto dependency | Keep for dependency lane | `requirements.txt` | Boundary/security dependency; not a batch merge. |
 | #143 | build(deps): bump chromadb | dependabot / `dependabot/pip/chromadb-1.5.8` | 30d | open | BEHIND | KEEP_DEPENDENCY_UPDATE | optional memory lane | Keep for memory/dependency lane | `requirements-optional-memory.txt` | Memory is not complete; do not merge without memory policy decision. |
-| #142 | fix(core): restore require_core_access on main v1 routers | owner / `codex/fix-core-api-access-vulnerability` | 35d | open | DIRTY | KEEP_SECURITY_REVIEW | API security | Keep, recreate if still valid | `core/src/ora_core/main.py` | Security-sensitive and conflicted; fresh current-main review required. |
+| #142 | fix(core): restore require_core_access on main v1 routers | owner / `codex/fix-core-api-access-vulnerability` | 35d | closed | CLOSED_SUPERSEDED | CLOSE_SUPERSEDED | API security | Closed with evidence comment | Replaced by PR #186 plus `tests/test_core_api_access_security.py`; current main protects sensitive routes and intentionally keeps ticket download outside the core token dependency | Stale PR should not merge because it would restore a broad files-router dependency model that conflicts with the current ticket-based download boundary. |
 | #136 | Discord log forwarding masking and channel restriction | owner / `codex/fix-unredacted-log-forwarding-issue-xxune2` | 42d | open | BEHIND | KEEP_SECURITY_REVIEW | Discord/private runtime | Keep, compare with #135 | `src/cogs/system.py`, same title as #135 | Possible duplicate, but security impact uncertain; do not close in this checkpoint. |
 | #135 | Discord log forwarding masking and channel restriction | owner / `codex/fix-unredacted-log-forwarding-issue` | 42d | open | BEHIND | KEEP_SECURITY_REVIEW | Discord/private runtime | Keep, compare with #136 | `src/cogs/system.py`, same title as #136 | Possible duplicate, but security impact uncertain; do not close in this checkpoint. |
 | #134 | prevent double interaction defer | owner / `codex/fix-double-defer-in-auto-style-generation` | 42d | open | BEHIND | KEEP_CORRECTNESS_REVIEW | image generation UX | Keep for correctness lane | `src/views/image_gen.py` | Old runtime surface; refresh and test before merge. |
@@ -70,11 +86,11 @@ Status: public-safe maintenance checkpoint from live GitHub state. This ledger c
 | #7 | setup-python from 4 to 6 | dependabot / `dependabot/github_actions/actions/setup-python-6` | 121d | open | BEHIND | KEEP_DEPENDENCY_UPDATE | CI hygiene | Keep for dependency lane | workflow files | Could be replaced by fresh Dependabot; verify before close. |
 | #6 | checkout from 4 to 6 | dependabot / `dependabot/github_actions/actions/checkout-6` | 121d | open | BEHIND | KEEP_DEPENDENCY_UPDATE | CI hygiene | Keep for dependency lane | workflow files | Could be replaced by fresh Dependabot; verify before close. |
 
-## PRs Not Closed
+## PR Closure Follow-Up
 
-No PR was closed in this checkpoint.
+PR #142 is now safe to close as superseded by current main. Other stale security PRs remain open.
 
-Reason: all apparent duplicates or stale branches either touch security-sensitive code, legal/license decisions, broad product surfaces, dependency state, or owner judgment. Closing them without deeper inspection would violate the safe-close rules.
+Reason: all other apparent duplicates or stale branches either touch security-sensitive code, legal/license decisions, broad product surfaces, dependency state, or owner judgment. Closing them without deeper inspection would violate the safe-close rules.
 
 ## Check Status Snapshot
 
