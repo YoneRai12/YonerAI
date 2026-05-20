@@ -2,7 +2,7 @@
 
 Provider-independent AI execution foundation for keeping one reliable AI experience across official, local, and self-hosted runtimes.
 
-[Japanese README](README_JP.md) | [Current phase](docs/CURRENT_PHASE_CONTEXT.md) | [Contracts](docs/contracts) | [Latest checkpoint](docs/releases/v2026.5.20.9-native-japanese-cli-contract-checkpoint.md)
+[Japanese README](README_JP.md) | [Current phase](docs/CURRENT_PHASE_CONTEXT.md) | [Contracts](docs/contracts) | [Latest checkpoint](docs/releases/v2026.5.20.10-web-surface-capability-manifest-checkpoint.md)
 
 ## What YonerAI Is
 
@@ -22,7 +22,7 @@ The active design anchor is v7.7:
 - contract-first public boundaries
 - public/private/control-plane separation by contract, not by leaking internal operations detail
 
-The current public checkpoint stream uses the verified 2026-05-20 date with same-day suffixes. `v2026.5.20.9` records the native Japanese CLI contract scaffold for this lane. It is a checkpoint note, not a production release.
+The current public checkpoint stream uses the verified 2026-05-20 date with same-day suffixes. `v2026.5.20.10` records the Web surface capability manifest for this lane. It is a checkpoint note, not a production release.
 
 Older future-dated checkpoint labels can remain as historical artifacts, but they should not be used as the current public/latest checkpoint unless a current-date GitHub Release explicitly supersedes them.
 
@@ -84,6 +84,8 @@ Useful starting points:
 - [External Agent API](docs/contracts/external-agent-api.md)
 - [SSE Run Events](docs/contracts/sse-run-events.md)
 - [Native Japanese CLI contract](docs/contracts/native-japanese-cli-contract-0.1.md)
+- [Web surface capability manifest](docs/contracts/web-surface-capability-manifest-0.1.md)
+- [v2026.5.20.10 Web surface capability manifest checkpoint note](docs/releases/v2026.5.20.10-web-surface-capability-manifest-checkpoint.md)
 - [v2026.5.20.9 Native Japanese CLI contract checkpoint note](docs/releases/v2026.5.20.9-native-japanese-cli-contract-checkpoint.md)
 - [v2026.5.20.8 Surface CLI smoke checkpoint note](docs/releases/v2026.5.20.8-surface-cli-smoke-checkpoint.md)
 - [v2026.5.20.7 Surface API run contract checkpoint note](docs/releases/v2026.5.20.7-surface-api-run-contract-checkpoint.md)

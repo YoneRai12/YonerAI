@@ -101,6 +101,12 @@ Next gates:
 - dropoff and error UX events
 - privacy-preserving feedback affordances
 
+Web surface capability manifest 0.1 checkpoint:
+
+- public-safe contract path: `docs/contracts/web-surface-capability-manifest-0.1.md`
+- records allowed/denied `clients/web` capabilities, loopback/local provider boundaries, temporary session behavior, and same-experience alignment with API/CLI/Japanese CLI lanes
+- does not implement final Web UI, Google login, persistent memory, deployment, or official cloud
+
 Do not build final Web UI from old broad branches without a fresh v7.7 surface plan.
 
 ## SNS / Growth Lane

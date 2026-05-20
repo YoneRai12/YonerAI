@@ -2,6 +2,13 @@
 
 This page is a public-safe index of current release notes and progress checkpoints.
 
+## v2026.5.20.10 Web Surface Capability Manifest Checkpoint
+
+- Public checkpoint note: `docs/releases/v2026.5.20.10-web-surface-capability-manifest-checkpoint.md`
+- Scope: Web surface capability manifest and same-experience ledger alignment for the temporary `clients/web` smoke-demo surface.
+- Status: public Web contract checkpoint, not final Web UI, not production, and not deploy.
+- Still open: Web manifest display fixture, Growth/SNS claim guardrails, final Web UI decision, and old web dependency PR refresh.
+
 ## v2026.5.20.9 Native Japanese CLI Contract Checkpoint
 
 - Public checkpoint note: `docs/releases/v2026.5.20.9-native-japanese-cli-contract-checkpoint.md`
