@@ -2,12 +2,19 @@
 
 This page is a public-safe index of current release notes and progress checkpoints.
 
+## v2026.5.20.14 Tools/MCP Safe Subset Contract Checkpoint
+
+- Public checkpoint note: `docs/releases/v2026.5.20.14-tools-mcp-safe-subset-contract-checkpoint.md`
+- Scope: public-safe Tools/MCP subset contract, disabled-by-default requirements, approval/audit boundaries, and contract tests.
+- Status: public contract checkpoint, not runtime Tools/MCP completion, not production, and not deploy.
+- Still open: safe tool decision fixture, security PR backlog resolution, agent swarm releaseability, and `src/cogs/ora.py` extraction lane.
+
 ## v2026.5.20.13 Capability / Extension Boundary Checkpoint
 
 - Public checkpoint note: `docs/releases/v2026.5.20.13-capability-extension-boundary-checkpoint.md`
 - Scope: code-level public capability manifest, unknown-capability deny-by-default tests, and capability boundary contract.
 - Status: public boundary hardening checkpoint, not production, not deploy, and not tools/MCP completion.
-- Still open: tools/MCP safe subset contract, security PR backlog resolution, agent swarm releaseability, and `src/cogs/ora.py` extraction lane.
+- Still open: safe tool decision fixture, security PR backlog resolution, agent swarm releaseability, and `src/cogs/ora.py` extraction lane.
 
 ## v2026.5.20.12 Local LLM Error Reporting Hardening Checkpoint
 

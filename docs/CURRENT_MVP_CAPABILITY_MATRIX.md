@@ -32,6 +32,7 @@ The current public MVP is a credential-free local Core API health smoke plus mes
 - synthetic Hybrid Connector Fixture for memory candidate, self-evolution signal, and improvement proposal envelopes
 - memory candidate donation policy scaffold: quarantine first, `memory_persisted: false`, approval required before persistence
 - public capability / extension boundary manifest with unknown capabilities denied by default
+- Tools/MCP safe subset contract; runtime Tools/MCP execution remains disabled by default
 - capability priority map for the next design lanes
 - public smoke tests
 - no Discord token required
@@ -89,7 +90,7 @@ The current public MVP is a credential-free local Core API health smoke plus mes
 
 The current checkpoint should grow in separate, reviewable lanes:
 
-1. tools/MCP safe subset
+1. security PR backlog resolution for stale access/security PRs
 2. agent swarm releaseability map
 3. `src/cogs/ora.py` extraction step
 4. identity / Google login
