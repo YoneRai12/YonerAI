@@ -2,6 +2,13 @@
 
 This page is a public-safe index of current release notes and progress checkpoints.
 
+## v2026.5.20.9 Native Japanese CLI Contract Checkpoint
+
+- Public checkpoint note: `docs/releases/v2026.5.20.9-native-japanese-cli-contract-checkpoint.md`
+- Scope: native Japanese CLI UX contract for intent mapping, ambiguity handling, dry-run, approval binding, capability allowlist, and audit event shape.
+- Status: public contract checkpoint, not an implementation, not final CLI, not production, and not deploy.
+- Still open: parser fixtures, dry-run tests, Web capability manifest, Growth/SNS claim guardrails, and final package decision.
+
 ## v2026.5.20.8 Surface CLI Smoke Checkpoint
 
 - Public checkpoint note: `docs/releases/v2026.5.20.8-surface-cli-smoke-checkpoint.md`
