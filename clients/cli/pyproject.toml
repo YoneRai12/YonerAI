@@ -1,0 +1,11 @@
+[project]
+name = "yonerai-cli"
+version = "0.1.0"
+description = "Temporary YonerAI local public MVP smoke CLI"
+requires-python = ">=3.11"
+
+[project.scripts]
+yonerai = "yonerai_cli.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]

@@ -4,7 +4,7 @@ Status: public-safe capability truth for the current public MVP.
 
 ## Current MVP In One Sentence
 
-The current public MVP is a credential-free local Core API health smoke plus message contracts for mock/offline and loopback-only local LLM conversation, with `clients/web` as a temporary Web Chat MVP / smoke-demo surface. It is not a ChatGPT-like finished product.
+The current public MVP is a credential-free local Core API health smoke plus message contracts for mock/offline and loopback-only local LLM conversation, with `clients/web` as a temporary Web Chat MVP / smoke-demo surface and `clients/cli` as a local smoke CLI. It is not a ChatGPT-like finished product.
 
 ## Included Now
 
@@ -18,6 +18,7 @@ The current public MVP is a credential-free local Core API health smoke plus mes
 - `POST /api/v1/agent/run` starts a public-safe in-memory run surface for mock/offline smoke and loopback-only local mode
 - `GET /api/v1/agent/runs/{run_id}/events` returns the in-memory public run event snapshot
 - `POST /api/v1/agent/runs/{run_id}/results` records public-safe continuation result metadata with `trusted: false` and `memory_persisted: false`
+- `clients/cli` can call loopback Core API health, public mock/offline messages, and the Surface API run smoke path
 - local provider choices: `ollama` and `openai_compatible_local`
 - OpenAI-compatible local examples: LM Studio, llama.cpp / llama-cpp-python server, text-generation-webui with OpenAI API enabled, and LocalAI where compatible
 - `clients/web` temporary Web Chat MVP page that posts to `/api/public/messages`
@@ -71,6 +72,7 @@ The current public MVP is a credential-free local Core API health smoke plus mes
 | Does it naturally remember what I told it before? | Not yet. |
 | Can I verify a message request contract? | Yes, through the local mock/offline `POST /v1/public/messages` endpoint. |
 | Can I verify a run-oriented public API surface? | Yes, through the local `POST /api/v1/agent/run`, `GET /api/v1/agent/runs/{run_id}/events`, and `POST /api/v1/agent/runs/{run_id}/results` smoke contract. It is in-memory and not production cloud. |
+| Can I use a CLI? | Yes, `clients/cli` provides a local smoke CLI for `yonerai health`, `yonerai message --mode mock "hello"`, and `yonerai run --mode mock "hello"` after local install. It only accepts loopback origins and is not the final CLI product. |
 | Can I send follow-up messages in one temporary session? | Yes. The public endpoint returns and accepts `session_id` for in-memory turn metadata. This is not persistent memory or cross-device history. |
 | Can I use a local LLM? | Yes, if you run an Ollama-compatible runtime on `localhost`, `127.0.0.1`, or `::1` and call `mode: "local"`. |
 | Can I use LM Studio or llama.cpp server? | Yes, when it exposes a loopback OpenAI-compatible `/v1/chat/completions` endpoint and you select `local_provider: "openai_compatible_local"`. |
@@ -83,18 +85,21 @@ The current public MVP is a credential-free local Core API health smoke plus mes
 
 The current checkpoint should grow in separate, reviewable lanes:
 
-1. local LLM error/reporting hardening
-2. capability / extension boundary hardening
-3. agent swarm releaseability map
-4. tools/MCP safe subset
-5. `src/cogs/ora.py` extraction step
-6. identity / Google login
-7. Discord gateway
-8. final Web UI replacement or clean product surface decision
-9. web search
-10. memory persistence only after approval workflow and privacy policy are stable
-11. official/private runtime lanes
-12. retired UI cleanup follow-through for old PRs and alerts
+1. native Japanese CLI confirmation contract
+2. Web surface capability manifest
+3. Growth/SNS claim guardrails
+4. local LLM error/reporting hardening
+5. capability / extension boundary hardening
+6. agent swarm releaseability map
+7. tools/MCP safe subset
+8. `src/cogs/ora.py` extraction step
+9. identity / Google login
+10. Discord gateway
+11. final Web UI replacement or clean product surface decision
+12. web search
+13. memory persistence only after approval workflow and privacy policy are stable
+14. official/private runtime lanes
+15. retired UI cleanup follow-through for old PRs and alerts
 
 Each ladder step needs its own tests, privacy boundary, and public wording review.
 

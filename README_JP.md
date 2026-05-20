@@ -2,7 +2,7 @@
 
 YonerAI は、公式・ローカル・self-hosted の実行環境が変わっても、同じ体験と契約境界を保つための provider-independent AI execution foundation です。
 
-[English README](README.md) | [Current phase](docs/CURRENT_PHASE_CONTEXT.md) | [Contracts](docs/contracts) | [Latest checkpoint](docs/releases/v2026.5.20.6-hybrid-envelope-policy-semantics-checkpoint.md)
+[English README](README.md) | [Current phase](docs/CURRENT_PHASE_CONTEXT.md) | [Contracts](docs/contracts) | [Latest checkpoint](docs/releases/v2026.5.20.8-surface-cli-smoke-checkpoint.md)
 
 ## YonerAI とは
 
@@ -45,6 +45,7 @@ Pass 2 は stopped / not landed のままです。`src/cogs/ora.py` は private/
 - `POST /api/v1/agent/run` で local in-memory run smoke contract を確認し、`events_url` / `results_url` を受け取る
 - `POST /v1/public/messages` に `mode: "local"` を指定して、loopback-only local LLM runtime に接続する
 - `local_provider: "ollama"` または `local_provider: "openai_compatible_local"` を選ぶ
+- `clients/cli` を local smoke CLI として install し、`yonerai health` / `yonerai message --mode mock "hello"` / `yonerai run --mode mock "hello"` を loopback Core に対して実行する
 - `clients/web` を temporary Web Chat MVP としてローカルで開く
 - `clients/web` から mock/offline、local Ollama、OpenAI-compatible local の smoke check を行う
 
@@ -210,6 +211,19 @@ Invoke-RestMethod -Method Post `
 ```
 
 local mode は loopback-only です。設定できる local LLM URL は `localhost`、`127.0.0.1`、`::1` に限定されます。任意の remote URL、LAN host、外部 provider API、tunnel、credential 埋め込み、query string、fragment、control-plane endpoint は default で拒否されます。
+
+### Local CLI smoke
+
+Core API を loopback で起動したまま、temporary local CLI smoke surface を試す場合:
+
+```powershell
+python -m pip install -e clients/cli
+yonerai health
+yonerai message --mode mock "hello"
+yonerai run --mode mock "hello"
+```
+
+この CLI は default で `http://127.0.0.1:8001` を使い、remote API origin を拒否します。deploy、shell execution、persistent memory、Google login、external provider live generation、production packaging は追加しません。
 
 ### Temporary Web Chat MVP
 

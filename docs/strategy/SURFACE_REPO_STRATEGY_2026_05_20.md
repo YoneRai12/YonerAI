@@ -43,7 +43,15 @@ Do not broaden runtime behavior from old dashboard or Discord branches until the
 
 ## CLI Lane
 
-The normal CLI should remain future public-repo work, likely under `clients/cli` or `packages/yonerai-cli`, after the API run contract is stable.
+The normal CLI remains public-repo work under `clients/cli` after the Surface API 0.1 run contract is stable.
+
+Surface CLI 0.1 checkpoint:
+
+- `clients/cli` is a temporary local public MVP smoke CLI
+- `yonerai health` calls local Core `/health`
+- `yonerai message --mode mock "hello"` calls `/v1/public/messages`
+- `yonerai run --mode mock "hello"` calls `/api/v1/agent/run`
+- remote API origins are rejected by default; loopback Core is required
 
 The CLI should be install-first, test-backed, and narrow:
 

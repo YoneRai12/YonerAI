@@ -2,6 +2,13 @@
 
 This page is a public-safe index of current release notes and progress checkpoints.
 
+## v2026.5.20.8 Surface CLI Smoke Checkpoint
+
+- Public checkpoint note: `docs/releases/v2026.5.20.8-surface-cli-smoke-checkpoint.md`
+- Scope: temporary local smoke CLI under `clients/cli` for health, public message, and Surface API run checks against loopback Core.
+- Status: public CLI smoke checkpoint, not final CLI, not native Japanese CLI, not production, and not deploy.
+- Still open: native Japanese CLI contract, Web capability manifest, Growth/SNS claim guardrails, final packaging/signing, and broader old PR review.
+
 ## v2026.5.20.7 Surface API Run Contract Checkpoint
 
 - Public checkpoint note: `docs/releases/v2026.5.20.7-surface-api-run-contract-checkpoint.md`
