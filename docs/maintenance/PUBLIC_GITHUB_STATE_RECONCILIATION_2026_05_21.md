@@ -1,87 +1,102 @@
 # Public GitHub State Reconciliation 2026-05-21
 
-Status: public-safe GitHub state checkpoint for v7.7 repository professionalization.
+Status: refreshed public-safe GitHub state checkpoint after dirty-worktree preservation and clean `origin/main` continuation.
 
-This document reconciles the current GitHub PR count, recent closure/merge state, and public text-warning state. It does not change runtime behavior and does not claim the security backlog is complete.
+This document reconciles the current GitHub PR count, release state, root state, and the mismatch between older ledgers, public pages, and the current `gh` source of truth. It does not change runtime behavior and does not claim the security backlog is complete.
 
 ## Source Of Truth
 
-Use GitHub API / `gh` as the operational source of truth for PR state.
+Use GitHub API / `gh` as the operational source of truth for PR and Release state.
 
-- `gh pr list --state open --limit 100 --json number --jq length`: `43`
-- `gh api "/repos/YoneRai12/YonerAI/pulls?state=open&per_page=100" --jq length`: `43`
-- Public HTML check for `https://github.com/YoneRai12/YonerAI/pulls`: rendered `43 Open`
-- `origin/main`: `f636c482031021b9d21aeea1cdef1f0252e51ece`
-- Latest GitHub Release: `v2026.5.20.6`
+| item | verified value |
+|---|---|
+| `origin/main` | `2e72ab680faa94f1542315c07355065f50f0fe18` |
+| clean reconciliation branch | `codex/clean-state-reconcile-and-continue` |
+| `gh` open PR count | `34` |
+| latest GitHub Release from `gh repo view` | `v2026.5.21.2` |
+| latest GitHub Release title | `YonerAI Final Public Presentation Checkpoint` |
+| latest GitHub Release target | `2e72ab680faa94f1542315c07355065f50f0fe18` |
+| latest GitHub Release published time | `2026-05-20T19:33:53Z` |
 
-If another GitHub surface shows a different count, treat it as a rendered/cache/filter difference until the API and `gh` disagree.
+If another public GitHub surface shows `34`, `36`, or `37` open pull requests, use the `gh` count above for this checkpoint. The observed divergence is a rendered/filter/cache difference unless the GitHub API and `gh` disagree.
 
-## Recent State Changes
+## Prior Report Check
 
-The previous checkpoint reduced open PR count from 39 to 33, then new security/runtime PRs #204 through #213 were opened. The current open count is therefore 43.
+The prior Codex report that claimed PRs #219 through #228 were merged and that `v2026.5.21.2` exists was correct after fetch/prune and `gh` verification.
 
-Recent merged maintenance PRs:
+| item | result |
+|---|---|
+| PR #228 exists | yes |
+| PR #228 state | `MERGED` |
+| PR #228 merge commit | `2e72ab680faa94f1542315c07355065f50f0fe18` |
+| PR #228 branch | `codex/release-alignment-final-checkpoint` |
+| `v2026.5.21.2` exists | yes |
+| `v2026.5.21.2` is latest in `gh release list` | yes |
+| `v2026.5.20.6` still exists | yes; not latest |
 
-| PR | result | merge commit | note |
-|---|---|---|---|
-| #197 | merged | `e72537278d680c3f4d25f962e8caa3d704fad9c2` | Public PR text hygiene and mojibake cleanup. |
-| #198 | merged | `06f809ed78fcdd12c2048f0a2bc055f208fc3c95` | PR backlog reconciliation. |
-| #199 | merged | `2c61644e1f2352b3b98d6126bbd7ed65af3ec3ff` | Release note style guide. |
-| #200 | merged | `5be49fe5a8e5388ae8f232ed38caceb7c1a1d1b9` | Public file index. |
-| #201 | merged | `eb6b8e3321ca1465a54876c0c1b4a3cc9bfa2936` | Large-codebase feature inventory. |
-| #202 | merged | `9f85b4d9997ae02ffe93a915310a389abbea8e7c` | Dependency PR drain ledger. |
-| #203 | merged | `f636c482031021b9d21aeea1cdef1f0252e51ece` | Web dependency PR closure ledger. |
+## Recent Mainline State
 
-Recent PR closures:
+Recent merged maintenance PRs now verified on current `origin/main`:
 
-| PR | close result | reason |
-|---|---|---|
-| #67 | closed unmerged | Superseded by PR #186 / current `require_core_access` tests. |
-| #117 | closed unmerged | Current `clients/web/package-lock.json` contains `flatted` `3.4.2`; Dependabot alerts are 0. |
-| #119 | closed unmerged | Current `clients/web/package-lock.json` contains `picomatch` `2.3.2` and nested `4.0.4`; Dependabot alerts are 0. |
-| #127 | closed unmerged | Current `clients/web/package-lock.json` no longer contains a `node_modules/lodash` package entry; Dependabot alerts are 0. |
-| #130 | closed unmerged | Duplicate of still-open #129. |
-| #136 | closed unmerged | Duplicate of still-open #135. |
-| #142 | closed unmerged | Superseded by PR #186 / current-main access-gate tests. |
+| PR | branch | merge commit | result |
+|---:|---|---|---|
+| #219 | `codex/current-pr-branch-reality-ledger` | `7f747a481150e46ae86ec1b9303c2d90f303ed40` | merged |
+| #220 | `codex/file-pr-traceability-matrix` | `2694503a463d52d6a2c12df72f10d394ab3de2da` | merged |
+| #221 | `codex/large-codebase-integration-retirement-map` | `146d2b5948e05775786a14d5345e192e7ce5e8f2` | merged |
+| #222 | `codex/security-runtime-deep-pass-1` | `d977ab45af3957e2a7fb8a2483de975ef1c753e5` | merged |
+| #223 | `codex/dependency-pr-lane-drain` | `a4cbbdd828a3196e30fc25728a399cefc8b506d7` | merged |
+| #224 | `codex/root-surface-physical-cleanup-pass` | `6fe30e16cca6542b85c5ae67bd5e39486f9afb92` | merged |
+| #225 | `codex/release-alignment-current-checkpoint` | `fcc34426b69c4c48c52b223bc9c7e4106c66cd14` | merged |
+| #226 | `codex/v7-7-evidence-v7-8-readiness` | `6f2d7ce94aed3ffb7df4a7f1f4de2c3e79dc4567` | merged |
+| #227 | `codex/public-repo-presentation-pass` | `c0abb5cbbd4ee1642917fd68717af8c6f5917a3a` | merged |
+| #228 | `codex/release-alignment-final-checkpoint` | `2e72ab680faa94f1542315c07355065f50f0fe18` | merged |
 
-## PR #142
+## Root State
 
-PR #142 remains `CLOSED` and unmerged.
+`remove_legacy.ps1` is not present in the `origin/main` root tree. It is present at `tools/maintenance/remove_legacy.ps1`.
 
-Current replacement evidence remains PR #186 plus `tests/test_core_api_access_security.py`. The old PR should not be merged because it would reapply a stale broad files-router dependency model that conflicts with the current ticket-download boundary.
+Root entries still include:
 
-## PR #195
+- `config.yaml`
+- `main.py`
+- `start.sh`
+- `start_all.bat`
+- `start_vllm.bat`
+- `start_windows.bat`
+- `docker-compose.yml`
+- `docker-compose.prod.yml`
+- `reference_clawdbot`
 
-PR #195 remains `MERGED`.
-
-Current PR body scan:
-
-- four-question-mark mojibake sequence: not found
-- replacement character: not found
-- specified hidden/bidirectional Unicode controls: not found
-
-The body now records that its earlier Japanese sections contained question-mark mojibake and were rewritten as clean UTF-8 English after merge.
-
-## PR #203
-
-PR #203 remains `MERGED`.
-
-Current PR body scan:
-
-- four-question-mark mojibake sequence: not found
-- replacement character: not found
-- specified hidden/bidirectional Unicode controls: not found
-
-Post-merge Codex review noted a documentation grouping inconsistency between the dependency lane split and the Top 10 list. That inconsistency is handled in the updated open-PR triage ledger by keeping web lockfile PRs #117/#119/#127 closed as superseded and moving future dependency work to fresh lanes.
+If a public GitHub page shows `remove_legacy.ps1` at root, that page is stale or not showing current `main`. The current `origin/main` tree and GitHub-backed `gh` verification show it is out of root.
 
 ## Open PR Shape
 
 Current open PRs include:
 
-- new security/runtime PRs #204 through #213;
-- older security/runtime PRs #128, #129, #131, #132, #133, #134, #135, and #60;
+- security/runtime PRs #205, #128, #129, #131, #132, #133, #134, #135, and #60;
 - remaining dependency PRs #156, #152, #151, #150, #148, #147, #146, #145, #143, #34, #18, #7, and #6;
-- broad product/legal/strategy PRs that need owner decisions or fresh v7.7 lanes.
+- broad product/legal/strategy PRs #25, #26, #32, #74, #78, #79, #81, #82, #107, #108, #111, and #121.
+
+PRs #206 and #207 are no longer open in the refreshed `gh` list. They were part of the prior backlog spike and should not be counted as current open PR debt.
+
+## Dirty Worktree Relation
+
+The earlier local dirty branch `codex/gpt5.5` was not public truth. Its changes were preserved locally and were not adopted into this clean continuation. See `DIRTY_WORKTREE_PRESERVATION_2026_05_21.md`.
+
+## Commands Recorded
+
+- `git fetch --all --prune`
+- `git rev-parse origin/main`
+- `git log --oneline -n 60`
+- `git ls-tree --name-only origin/main`
+- `gh repo view --json nameWithOwner,url,defaultBranchRef,latestRelease`
+- `gh pr list --state open --limit 100 --json number,title,author,createdAt,updatedAt,isDraft,baseRefName,headRefName,mergeStateStatus,reviewDecision,labels,url`
+- `gh pr list --state closed --limit 150 --json number,title,mergedAt,closedAt,headRefName,baseRefName,url`
+- `gh pr view 222 --json number,state,title,mergedAt,mergeCommit,headRefName,baseRefName,url`
+- `gh pr view 228 --json number,state,title,mergedAt,mergeCommit,headRefName,baseRefName,url`
+- `gh release list --limit 80`
+- `gh release view v2026.5.21.2`
+- `gh release view v2026.5.20.6`
 
 ## Non-Claims
 
