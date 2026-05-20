@@ -137,13 +137,19 @@ class StaticSignatureVerifier:
         return expected is not None and envelope.signature.signature == expected
 
 
+def _normalize_payload_key(raw_key: Any) -> str:
+    key = str(raw_key).strip()
+    key = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "_", key)
+    key = re.sub(r"[-.\s]+", "_", key)
+    return key.lower()
+
+
 def _is_forbidden_payload_key(raw_key: Any) -> bool:
-    key = re.sub(r"[-.\s]+", "_", str(raw_key).strip().lower())
-    return key in FORBIDDEN_PAYLOAD_KEYS
+    return _normalize_payload_key(raw_key) in FORBIDDEN_PAYLOAD_KEYS
 
 
 def _normalized_payload_keys(payload: Mapping[str, Any]) -> set[str]:
-    return {re.sub(r"[-.\s]+", "_", str(raw_key).strip().lower()) for raw_key in payload}
+    return {_normalize_payload_key(raw_key) for raw_key in payload}
 
 
 def _payload_contains_forbidden_marker(root: Any) -> bool:
