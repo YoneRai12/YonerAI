@@ -2,6 +2,13 @@
 
 This page is a public-safe index of current release notes and progress checkpoints.
 
+## v2026.5.20.6 Hybrid Envelope Policy Semantics Checkpoint
+
+- Public checkpoint note: `docs/releases/v2026.5.20.6-hybrid-envelope-policy-semantics-checkpoint.md`
+- Scope: post-merge hybrid policy semantics fix so memory-candidate and improvement-proposal policy checks cannot be bypassed by spoofing `data_class` or mixing inconsistent semantic fields.
+- Status: public policy/correctness checkpoint, not production and not a full hybrid connector.
+- Still open: production key lifecycle, durable replay protection, root helper retirement, persistent memory decision, and future `src/cogs/ora.py` extraction.
+
 ## v2026.5.20.5 Public Surface and Release Hygiene Checkpoint
 
 - Public checkpoint note: `docs/releases/v2026.5.20.5-public-surface-release-hygiene-checkpoint.md`
