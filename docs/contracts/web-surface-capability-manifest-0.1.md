@@ -27,8 +27,8 @@ production_ready: false
 |---|---|---|---|
 | health context | Core `GET /health` via docs/runbook only | documented, not surfaced as final status center | local Core only |
 | public mock/offline message | Web rewrite `/api/public/messages` -> Core `/v1/public/messages` | usable smoke path | no provider key required |
-| local Ollama message | Core `/v1/public/messages` with `mode: local`, `local_provider: ollama` | usable when loopback server is already running | loopback-only |
-| local OpenAI-compatible message | Core `/v1/public/messages` with `local_provider: openai_compatible_local` | usable when loopback compatible server is already running | loopback-only |
+| local Ollama message | Web rewrite `/api/public/messages` -> Core `/v1/public/messages` with `mode: local`, `local_provider: ollama` | usable when loopback server is already running | loopback-only |
+| local OpenAI-compatible message | Web rewrite `/api/public/messages` -> Core `/v1/public/messages` with `mode: local`, `local_provider: openai_compatible_local` | usable when loopback compatible server is already running | loopback-only |
 | temporary session pass-through | returned `session_id` reused for follow-up messages | non-persistent session metadata | process-local only |
 | safe error display | Core error body rendered without stack traces | usable smoke UX | no secrets/local paths |
 
