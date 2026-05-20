@@ -171,3 +171,21 @@ def test_surface_agent_run_respects_core_token_gate(monkeypatch, tmp_path):
 
     assert denied.status_code == 401
     assert allowed.status_code == 200
+
+
+def test_surface_agent_run_store_evicts_oldest_run(monkeypatch, tmp_path):
+    app = _load_core_app(monkeypatch, tmp_path)
+
+    from ora_core.api.routes.agent_runs import SURFACE_AGENT_RUN_STORE_MAX_ENTRIES
+
+    with TestClient(app, client=("127.0.0.1", 50000)) as client:
+        first = client.post("/api/v1/agent/run", json={"prompt": "first"}).json()["run_id"]
+        for index in range(SURFACE_AGENT_RUN_STORE_MAX_ENTRIES):
+            response = client.post("/api/v1/agent/run", json={"prompt": f"next {index}"})
+            assert response.status_code == 200
+        evicted = client.get(f"/api/v1/agent/runs/{first}/events")
+        latest = client.get(f"/api/v1/agent/runs/{response.json()['run_id']}/events")
+
+    assert evicted.status_code == 404
+    assert evicted.json()["detail"]["error"] == "run_not_found"
+    assert latest.status_code == 200

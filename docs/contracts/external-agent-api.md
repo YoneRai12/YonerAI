@@ -109,6 +109,12 @@ the run. The Surface API 0.1 event shape is JSON, not a final SSE framing claim.
 result event for the in-memory run. The accepted result is `trusted: false` and
 does not create memory.
 
+The in-memory run store is bounded and evicts the oldest run after the Surface
+API 0.1 smoke limit is reached. This is intentionally not persistent memory.
+The store is process-local; multi-worker deployments can return `run_not_found`
+if follow-up calls land on a different worker. Multi-worker persistence and
+cross-process synchronization remain outside this checkpoint.
+
 This surface does not add production deployment, external provider live
 generation, Google login, persistent memory, full hybrid connector behavior, or
 control-plane internals.

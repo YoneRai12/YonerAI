@@ -22,6 +22,7 @@ router = APIRouter()
 
 SURFACE_API_CONTRACT_VERSION = "surface-api-run-contract-0.1"
 SUPPORTED_RUN_MODES = frozenset({"mock", "offline", "local"})
+SURFACE_AGENT_RUN_STORE_MAX_ENTRIES = 128
 
 
 class AgentRunRequest(BaseModel):
@@ -73,6 +74,12 @@ def _get_run_or_404(run_id: str) -> AgentRunState:
     if not run:
         raise _public_error(404, "run_not_found", "Run not found.")
     return run
+
+
+def _store_run(run: AgentRunState) -> None:
+    while len(_RUNS) >= SURFACE_AGENT_RUN_STORE_MAX_ENTRIES:
+        _RUNS.pop(next(iter(_RUNS)))
+    _RUNS[run.run_id] = run
 
 
 def _build_events(*, run_id: str, response_body: dict[str, Any]) -> list[dict[str, Any]]:
@@ -129,11 +136,13 @@ def create_agent_run(req: AgentRunRequest, request: Request) -> dict[str, Any]:
     response_body = public_response.model_dump()
     run_id = f"surface-run-{uuid4().hex}"
     events = _build_events(run_id=run_id, response_body=response_body)
-    _RUNS[run_id] = AgentRunState(
-        run_id=run_id,
-        status="completed",
-        events=events,
-        created_at=_now_iso(),
+    _store_run(
+        AgentRunState(
+            run_id=run_id,
+            status="completed",
+            events=events,
+            created_at=_now_iso(),
+        )
     )
 
     return {
