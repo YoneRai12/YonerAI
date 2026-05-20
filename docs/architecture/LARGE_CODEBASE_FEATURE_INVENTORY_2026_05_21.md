@@ -4,10 +4,21 @@ Status: public-safe inventory. This document classifies existing tracked code an
 
 ## Snapshot
 
-- Tracked files at this inventory commit: 788
-- Text-like lines counted, excluding `src/cogs/ora.py`: about 100,810
+- Tracked files at this inventory recheck: 794
+- Text-like lines counted, excluding `src/cogs/ora.py`: about 104,583
 - `src/cogs/ora.py`: `DO_NOT_TOUCH`; excluded from line-level inspection in this pass.
 - Current public posture: API/CLI/Web smoke surfaces are active, while Discord, memory, broad tools/MCP, deploy, private runtime, and control-plane integration remain separate lanes.
+- Next lane board: `docs/roadmap/V7_7_NEXT_IMPLEMENTATION_LANES_2026_05_21.md`
+
+## 2026-05-21 Recheck Summary
+
+The tracked repository grew from the earlier inventory because more maintenance, traceability, and security/release documents were added after the first large-codebase pass. The ranking did not change materially:
+
+- `src/` remains the largest mixed and security-review-required area.
+- `core/`, `clients/cli`, and `clients/web` remain the current public implementation surfaces.
+- `docs/`, `tests/`, and `tools/` grew as the professionalization and security-backlog ledgers accumulated.
+- No large legacy module is safe to delete or wire directly from this recheck.
+- The next implementation lanes are now listed in the roadmap board rather than embedded as an implicit recommendation.
 
 ## Top-Level Inventory
 
