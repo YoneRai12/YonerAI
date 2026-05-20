@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Mapping, Protocol
@@ -30,6 +31,9 @@ FORBIDDEN_PAYLOAD_KEYS = frozenset(
         "token",
     }
 )
+PAYLOAD_SCAN_MAX_DEPTH = 32
+PAYLOAD_SCAN_MAX_ITEMS = 4096
+NONCE_STORE_MAX_ENTRIES = 4096
 SECRET_VALUE_PATTERNS = (
     re.compile(r"sk-[A-Za-z0-9_-]{10,}"),
     re.compile("-----BEGIN " + r"[A-Z ]*PRIVATE KEY-----"),
@@ -68,14 +72,19 @@ class InMemoryTrustRegistry:
 
 
 class InMemoryNonceStore:
-    def __init__(self) -> None:
-        self._seen: set[tuple[str, str, str]] = set()
+    def __init__(self, *, max_entries: int = NONCE_STORE_MAX_ENTRIES) -> None:
+        if max_entries < 1:
+            raise ValueError("max_entries must be at least 1")
+        self._max_entries = max_entries
+        self._seen: OrderedDict[tuple[str, str, str], None] = OrderedDict()
 
     def claim(self, *, issuer_node_id: str, audience: str, nonce: str) -> bool:
         key = (issuer_node_id, audience, nonce)
         if key in self._seen:
             return False
-        self._seen.add(key)
+        self._seen[key] = None
+        if len(self._seen) > self._max_entries:
+            self._seen.popitem(last=False)
         return True
 
 
@@ -90,21 +99,31 @@ class StaticSignatureVerifier:
         return expected is not None and envelope.signature.signature == expected
 
 
-def _payload_contains_forbidden_marker(value: Any) -> bool:
-    if isinstance(value, Mapping):
-        for raw_key, raw_value in value.items():
-            key = str(raw_key).strip().lower()
-            if key in FORBIDDEN_PAYLOAD_KEYS:
-                return True
-            if any(fragment in key for fragment in FORBIDDEN_PAYLOAD_KEYS):
-                return True
-            if _payload_contains_forbidden_marker(raw_value):
-                return True
-        return False
-    if isinstance(value, (list, tuple, set)):
-        return any(_payload_contains_forbidden_marker(item) for item in value)
-    if isinstance(value, str):
-        return any(pattern.search(value) for pattern in SECRET_VALUE_PATTERNS)
+def _is_forbidden_payload_key(raw_key: Any) -> bool:
+    key = re.sub(r"[-.\s]+", "_", str(raw_key).strip().lower())
+    return key in FORBIDDEN_PAYLOAD_KEYS
+
+
+def _payload_contains_forbidden_marker(root: Any) -> bool:
+    stack: list[tuple[Any, int]] = [(root, 0)]
+    scanned = 0
+    while stack:
+        value, depth = stack.pop()
+        scanned += 1
+        if scanned > PAYLOAD_SCAN_MAX_ITEMS or depth > PAYLOAD_SCAN_MAX_DEPTH:
+            return True
+        if isinstance(value, Mapping):
+            for raw_key, raw_value in value.items():
+                if _is_forbidden_payload_key(raw_key):
+                    return True
+                stack.append((raw_value, depth + 1))
+            continue
+        if isinstance(value, (list, tuple, set)):
+            for item in value:
+                stack.append((item, depth + 1))
+            continue
+        if isinstance(value, str) and any(pattern.search(value) for pattern in SECRET_VALUE_PATTERNS):
+            return True
     return False
 
 

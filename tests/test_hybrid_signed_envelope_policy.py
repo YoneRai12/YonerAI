@@ -189,6 +189,44 @@ def test_invalid_signature_and_secret_like_payload_are_rejected_without_trusting
     assert "forbidden_payload_marker" in token_payload.reasons
 
 
+def test_common_llm_token_count_metadata_is_not_rejected_by_substring_match() -> None:
+    decision = _evaluate(
+        _valid_envelope(
+            payload={
+                "reply_summary": "Local result summarized.",
+                "usage": {"prompt_tokens": 4, "completion_tokens": 6, "total_tokens": 10},
+            }
+        )
+    )
+
+    assert decision.action == "quarantine"
+    assert "forbidden_payload_marker" not in decision.reasons
+
+
+def test_deep_payload_is_rejected_without_recursive_scan_error() -> None:
+    nested = {}
+    current = nested
+    for index in range(40):
+        current["child"] = {}
+        current = current["child"]
+        current["index"] = index
+
+    decision = _evaluate(_valid_envelope(payload=nested))
+
+    assert decision.action == "reject"
+    assert "forbidden_payload_marker" in decision.reasons
+
+
+def test_nonce_store_is_bounded_and_evicts_oldest_nonce() -> None:
+    nonce_store = InMemoryNonceStore(max_entries=2)
+
+    assert nonce_store.claim(issuer_node_id="node", audience="aud", nonce="one") is True
+    assert nonce_store.claim(issuer_node_id="node", audience="aud", nonce="two") is True
+    assert nonce_store.claim(issuer_node_id="node", audience="aud", nonce="three") is True
+    assert nonce_store.claim(issuer_node_id="node", audience="aud", nonce="one") is True
+    assert nonce_store.claim(issuer_node_id="node", audience="aud", nonce="three") is False
+
+
 def test_unsupported_signature_algorithm_is_rejected_before_trust() -> None:
     envelope = _valid_envelope(
         signature=HybridEnvelopeSignature(
