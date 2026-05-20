@@ -1,14 +1,16 @@
 from __future__ import annotations
 
-import hashlib
 import re
 import threading
+import uuid
+from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Optional
 
 
 PUBLIC_SESSION_MAX_ID_LENGTH = 120
 PUBLIC_SESSION_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,119}$")
+PUBLIC_SESSION_MAX_ENTRIES = 1024
 
 
 class ConversationSessionError(ValueError):
@@ -27,8 +29,7 @@ class ConversationSessionState:
 def normalize_public_session_id(session_id: Optional[str], conversation_id: str) -> str:
     raw_session_id = (session_id or "").strip()
     if not raw_session_id:
-        digest = hashlib.sha256(conversation_id.encode("utf-8")).hexdigest()
-        raw_session_id = f"session-{digest[:16]}"
+        raw_session_id = f"session-{uuid.uuid4().hex[:16]}"
 
     if len(raw_session_id) > PUBLIC_SESSION_MAX_ID_LENGTH or not PUBLIC_SESSION_ID_PATTERN.fullmatch(
         raw_session_id
@@ -47,9 +48,12 @@ class PublicConversationSessionStore:
     and process restart clears all state.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, *, max_entries: int = PUBLIC_SESSION_MAX_ENTRIES) -> None:
+        if max_entries < 1:
+            raise ValueError("max_entries must be at least 1")
+        self._max_entries = max_entries
         self._lock = threading.Lock()
-        self._sessions: dict[str, ConversationSessionState] = {}
+        self._sessions: OrderedDict[str, ConversationSessionState] = OrderedDict()
 
     def record_turn(self, *, session_id: Optional[str], conversation_id: str) -> ConversationSessionState:
         normalized_session_id = normalize_public_session_id(session_id, conversation_id)
@@ -59,6 +63,8 @@ class PublicConversationSessionStore:
                 raise ConversationSessionError(
                     "session_id is already associated with a different conversation_id in this process."
                 )
+            if existing:
+                self._sessions.move_to_end(normalized_session_id)
 
             next_turn = 1 if existing is None else existing.turn_index + 1
             state = ConversationSessionState(
@@ -69,6 +75,8 @@ class PublicConversationSessionStore:
                 memory_persisted=False,
             )
             self._sessions[normalized_session_id] = state
+            if len(self._sessions) > self._max_entries:
+                self._sessions.popitem(last=False)
             return state
 
     def clear(self) -> None:

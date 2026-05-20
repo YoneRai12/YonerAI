@@ -52,15 +52,17 @@ def test_public_message_endpoint_returns_deterministic_offline_reply(monkeypatch
     second_body = second.json()
     assert body["ok"] is True
     assert body["mode"] == "mock"
-    assert body["session_id"] == second_body["session_id"]
+    assert body["session_id"].startswith("session-")
+    assert second_body["session_id"].startswith("session-")
+    assert body["session_id"] != second_body["session_id"]
     assert body["conversation_id"] == "optional-public-smoke"
     assert body["message_id"].startswith("public-msg-")
     assert second_body["message_id"].startswith("public-msg-")
     assert body["reply"] == second_body["reply"]
     assert body["turn_index"] == 1
     assert body["history_count"] == 1
-    assert second_body["turn_index"] == 2
-    assert second_body["history_count"] == 2
+    assert second_body["turn_index"] == 1
+    assert second_body["history_count"] == 1
     assert body["memory_persisted"] is False
     assert body["provider"] == "offline-mock"
     assert body["requires_approval"] is False

@@ -46,6 +46,24 @@ def test_public_message_creates_non_persistent_session_metadata(monkeypatch, tmp
     assert "not persistent memory" in body["reply"]
 
 
+def test_omitted_session_id_creates_independent_session_ids(monkeypatch, tmp_path):
+    app = _load_core_app(monkeypatch, tmp_path)
+
+    with TestClient(app) as client:
+        first = client.post("/v1/public/messages", json={"message": "hello", "conversation_id": "public-smoke"})
+        second = client.post("/v1/public/messages", json={"message": "hello", "conversation_id": "public-smoke"})
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    first_body = first.json()
+    second_body = second.json()
+    assert first_body["session_id"].startswith("session-")
+    assert second_body["session_id"].startswith("session-")
+    assert first_body["session_id"] != second_body["session_id"]
+    assert first_body["turn_index"] == 1
+    assert second_body["turn_index"] == 1
+
+
 def test_public_message_reuses_session_and_increments_turn_metadata(monkeypatch, tmp_path):
     app = _load_core_app(monkeypatch, tmp_path)
     payload = {
@@ -97,6 +115,21 @@ def test_public_message_rejects_secret_like_session_id(monkeypatch, tmp_path):
     body = response.json()
     assert body["error"] == "unsafe_public_session_id"
     assert "detail" not in body
+
+
+def test_session_store_evicts_oldest_entry_when_bounded():
+    from ora_core.sessions import PublicConversationSessionStore
+
+    store = PublicConversationSessionStore(max_entries=2)
+    first = store.record_turn(session_id="session-a", conversation_id="conversation-a")
+    second = store.record_turn(session_id="session-b", conversation_id="conversation-b")
+    third = store.record_turn(session_id="session-c", conversation_id="conversation-c")
+    replay_first = store.record_turn(session_id="session-a", conversation_id="conversation-a")
+
+    assert first.turn_index == 1
+    assert second.turn_index == 1
+    assert third.turn_index == 1
+    assert replay_first.turn_index == 1
 
 
 def test_public_message_rejects_session_reused_for_different_conversation(monkeypatch, tmp_path):

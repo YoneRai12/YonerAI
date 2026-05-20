@@ -50,7 +50,7 @@ This checkpoint does not add:
 
 The local LLM mode remains loopback-only and optional. It can connect to a user-controlled local Ollama-compatible runtime or to a loopback OpenAI-compatible local server such as LM Studio, llama.cpp / llama-cpp-python server, text-generation-webui with OpenAI API enabled, or LocalAI where compatible. This does not turn the public Web smoke surface into the final product UI and does not complete the provider ecosystem.
 
-The Conversation Session Scaffold is metadata-only. It groups public message calls by `session_id` and `conversation_id`, returns `turn_index` and `history_count`, and always reports `memory_persisted: false`. It is cleared when the Core API process restarts and is not a memory, identity, or official cloud login implementation.
+The Conversation Session Scaffold is metadata-only. It groups public message calls by `session_id` and `conversation_id`, returns `turn_index` and `history_count`, and always reports `memory_persisted: false`. Omitted session ids are generated uniquely, and the in-memory store is bounded. Session metadata is cleared when the Core API process restarts and is not a memory, identity, or official cloud login implementation.
 
 ## Official Cloud Control Plane MVP Planning
 
