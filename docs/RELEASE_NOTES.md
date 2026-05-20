@@ -2,6 +2,13 @@
 
 This page is a public-safe index of current release notes and progress checkpoints.
 
+## v2026.5.20.4 Hybrid Connector Fixture and Memory Policy Checkpoint
+
+- Public checkpoint note: `docs/releases/v2026.5.20.4-hybrid-connector-fixture-memory-policy-checkpoint.md`
+- Scope: synthetic Hybrid Connector Fixture, memory candidate quarantine policy scaffold, public fixture helpers, and capability priority map.
+- Status: hybrid fixture checkpoint, not production and not a full hybrid connector.
+- Still open: real private connector implementation, production signing/key lifecycle, durable replay protection, approval workflow UI, persistent memory decision, and capability/extension boundary hardening.
+
 ## v2026.5.20.3 Hybrid Signed Envelope Donation Policy Checkpoint
 
 - Public checkpoint note: `docs/releases/v2026.5.20.3-hybrid-signed-envelope-donation-policy-checkpoint.md`

@@ -11,6 +11,33 @@ from .envelope import DEFAULT_CONTROL_PLANE_AUDIENCE, HybridSignedEnvelope, vali
 
 DONATION_ACTION_REJECT = "reject"
 DONATION_ACTION_QUARANTINE = "quarantine"
+MEMORY_STATUS_OBSERVED = "observed"
+MEMORY_STATUS_QUARANTINED = "quarantined"
+MEMORY_STATUS_REJECTED = "rejected"
+MEMORY_STATUS_APPROVED_FOR_MEMORY = "approved_for_memory"
+MEMORY_STATUS_EXPIRED = "expired"
+MEMORY_CANDIDATE_ALLOWED_KEYS = frozenset(
+    {
+        "approval_required",
+        "candidate_summary",
+        "evidence_summary",
+        "memory_persisted",
+        "retention_hint",
+        "source_conversation_id",
+        "source_session_id",
+    }
+)
+SELF_EVOLUTION_PROPOSAL_REQUIRED_KEYS = frozenset(
+    {
+        "proposal_summary",
+        "test_plan",
+        "rollback_plan",
+        "privacy_risk",
+        "hype_debt",
+        "provider_independence_score",
+        "same_experience_score",
+    }
+)
 FORBIDDEN_PAYLOAD_KEYS = frozenset(
     {
         "api_key",
@@ -21,12 +48,15 @@ FORBIDDEN_PAYLOAD_KEYS = frozenset(
         "credential",
         "discord_token",
         "google_client_secret",
+        "live_route_map",
         "local_file_path",
         "local_path",
         "password",
+        "private_runtime_inventory",
         "private_key",
         "raw_completion",
         "raw_prompt",
+        "route_map",
         "secret",
         "token",
     }
@@ -59,6 +89,14 @@ class TrustRegistryEntry:
 class DonationPolicyDecision:
     action: str
     trusted: bool
+    requires_approval: bool
+    reasons: tuple[str, ...] = field(default_factory=tuple)
+
+
+@dataclass(frozen=True)
+class MemoryCandidatePolicyDecision:
+    status: str
+    memory_persisted: bool
     requires_approval: bool
     reasons: tuple[str, ...] = field(default_factory=tuple)
 
@@ -104,6 +142,10 @@ def _is_forbidden_payload_key(raw_key: Any) -> bool:
     return key in FORBIDDEN_PAYLOAD_KEYS
 
 
+def _normalized_payload_keys(payload: Mapping[str, Any]) -> set[str]:
+    return {re.sub(r"[-.\s]+", "_", str(raw_key).strip().lower()) for raw_key in payload}
+
+
 def _payload_contains_forbidden_marker(root: Any) -> bool:
     stack: list[tuple[Any, int]] = [(root, 0)]
     scanned = 0
@@ -125,6 +167,61 @@ def _payload_contains_forbidden_marker(root: Any) -> bool:
         if isinstance(value, str) and any(pattern.search(value) for pattern in SECRET_VALUE_PATTERNS):
             return True
     return False
+
+
+def evaluate_memory_candidate_policy(envelope: HybridSignedEnvelope) -> MemoryCandidatePolicyDecision:
+    reasons: list[str] = []
+    payload = envelope.payload
+
+    if envelope.envelope_type != "memory_candidate":
+        reasons.append("not_memory_candidate_envelope")
+    if envelope.data_class != "memory_candidate":
+        reasons.append("not_memory_candidate_data_class")
+    if envelope.purpose != "memory_candidate_review":
+        reasons.append("invalid_memory_candidate_purpose")
+    if not isinstance(payload, Mapping):
+        reasons.append("memory_candidate_payload_not_object")
+    else:
+        normalized_keys = _normalized_payload_keys(payload)
+        disallowed_keys = normalized_keys - MEMORY_CANDIDATE_ALLOWED_KEYS
+        if disallowed_keys:
+            reasons.append("memory_candidate_payload_field_not_allowed")
+        if not str(payload.get("candidate_summary") or "").strip():
+            reasons.append("candidate_summary_required")
+        if payload.get("memory_persisted") is not False:
+            reasons.append("memory_persistence_not_allowed")
+        if _payload_contains_forbidden_marker(payload):
+            reasons.append("forbidden_payload_marker")
+
+    if reasons:
+        return MemoryCandidatePolicyDecision(
+            status=MEMORY_STATUS_REJECTED,
+            memory_persisted=False,
+            requires_approval=False,
+            reasons=tuple(dict.fromkeys(reasons)),
+        )
+    return MemoryCandidatePolicyDecision(
+        status=MEMORY_STATUS_QUARANTINED,
+        memory_persisted=False,
+        requires_approval=True,
+        reasons=("memory_candidate_quarantine_required",),
+    )
+
+
+def validate_self_evolution_proposal_payload(envelope: HybridSignedEnvelope) -> tuple[str, ...]:
+    if envelope.data_class != "improvement_proposal":
+        return ()
+    payload = envelope.payload
+    if not isinstance(payload, Mapping):
+        return ("improvement_proposal_payload_not_object",)
+    normalized_keys = _normalized_payload_keys(payload)
+    missing = SELF_EVOLUTION_PROPOSAL_REQUIRED_KEYS - normalized_keys
+    reasons: list[str] = []
+    if missing:
+        reasons.append("improvement_proposal_required_fields_missing")
+    if payload.get("automatic_mutation") is not False:
+        reasons.append("automatic_mutation_not_allowed")
+    return tuple(reasons)
 
 
 def evaluate_donation_policy(
@@ -160,13 +257,18 @@ def evaluate_donation_policy(
         reasons.append("replayed_nonce")
     if _payload_contains_forbidden_marker(envelope.payload):
         reasons.append("forbidden_payload_marker")
+    if envelope.data_class == "memory_candidate":
+        memory_policy = evaluate_memory_candidate_policy(envelope)
+        if memory_policy.status == MEMORY_STATUS_REJECTED:
+            reasons.extend(memory_policy.reasons)
+    reasons.extend(validate_self_evolution_proposal_payload(envelope))
 
     if reasons:
         return DonationPolicyDecision(
             action=DONATION_ACTION_REJECT,
             trusted=False,
             requires_approval=False,
-            reasons=tuple(reasons),
+            reasons=tuple(dict.fromkeys(reasons)),
         )
 
     return DonationPolicyDecision(
