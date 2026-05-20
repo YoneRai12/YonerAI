@@ -65,8 +65,11 @@ def _now_iso() -> str:
     return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
-def _public_error(status_code: int, code: str, message: str) -> HTTPException:
-    return HTTPException(status_code=status_code, detail={"error": code, "message": message})
+def _public_error(status_code: int, code: str, message: str, metadata: dict[str, str] | None = None) -> HTTPException:
+    detail = {"error": code, "message": message}
+    if metadata:
+        detail.update(metadata)
+    return HTTPException(status_code=status_code, detail=detail)
 
 
 def _get_run_or_404(run_id: str) -> AgentRunState:
@@ -104,6 +107,9 @@ def _build_events(*, run_id: str, response_body: dict[str, Any]) -> list[dict[st
             "data": {
                 "run_id": run_id,
                 "reply": response_body["reply"],
+                "mode": response_body["mode"],
+                "provider": response_body["provider"],
+                "model": response_body.get("model"),
                 "memory_persisted": False,
                 "requires_approval": response_body["requires_approval"],
             },
@@ -131,7 +137,7 @@ def create_agent_run(req: AgentRunRequest, request: Request) -> dict[str, Any]:
     try:
         public_response = build_public_message_response(public_req, request)
     except PublicMessageError as exc:
-        raise _public_error(exc.status_code, exc.code, exc.message) from exc
+        raise _public_error(exc.status_code, exc.code, exc.message, exc.metadata) from exc
 
     response_body = public_response.model_dump()
     run_id = f"surface-run-{uuid4().hex}"

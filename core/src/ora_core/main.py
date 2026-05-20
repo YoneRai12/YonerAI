@@ -16,8 +16,45 @@ from ora_core.api.routes.messages import router as messages_router
 from ora_core.api.routes.public_messages import router as public_messages_router
 from ora_core.api.routes.runs import router as runs_router
 from ora_core.api.routes.stats import router as stats_router
-from ora_core.distribution.runtime import build_runtime_from_env
 import os
+import re
+
+from ora_core.distribution.runtime import build_runtime_from_env
+
+
+PRIVATE_ERROR_MARKERS = (
+    re.compile(r"[A-Za-z]:[\\/]+Users[\\/]+", re.IGNORECASE),
+    re.compile(r"(?:^|[\s\"'=])/(root|etc|home|users|var|tmp)/", re.IGNORECASE),
+    re.compile(
+        r"(api[_-]?key|access[_-]?token|refresh[_-]?token|discord[_-]?token|private[_-]?key|client[_-]?secret|google[_-]?client[_-]?secret|authorization)",
+        re.IGNORECASE,
+    ),
+    re.compile(r"sk-[A-Za-z0-9_-]{10,}"),
+    re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
+)
+
+
+def _safe_validation_message(value: object) -> str:
+    if not isinstance(value, str):
+        return "Request field failed validation."
+    cleaned = " ".join(value.split())
+    if not cleaned or any(pattern.search(cleaned) for pattern in PRIVATE_ERROR_MARKERS):
+        return "Request field failed validation."
+    return cleaned[:160]
+
+
+def _safe_validation_details(errors: list[dict]) -> list[dict]:
+    safe_details: list[dict] = []
+    for error in errors:
+        loc = error.get("loc", ())
+        safe_details.append(
+            {
+                "type": str(error.get("type") or "validation_error")[:80],
+                "loc": [str(part) for part in loc],
+                "msg": _safe_validation_message(error.get("msg")),
+            }
+        )
+    return safe_details
 
 
 def create_app():
@@ -61,7 +98,7 @@ def create_app():
             content={
                 "error": "VALIDATION_ERROR",
                 "message": "Request schema is invalid. Please follow the Canonical Schema.",
-                "details": exc.errors(),
+                "details": _safe_validation_details(exc.errors()),
                 "manual": {
                     "example": {
                         "conversation_id": None,

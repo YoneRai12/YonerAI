@@ -211,6 +211,7 @@ def test_public_message_endpoint_rejects_non_loopback_local_llm_url(monkeypatch,
     assert body["error"] == "unsafe_local_llm_endpoint"
     assert "detail" not in body
     assert "example.com" not in body["message"]
+    assert "loopback provider endpoints" in body["message"]
 
 
 def test_public_message_endpoint_returns_safe_error_when_local_llm_unavailable(monkeypatch, tmp_path):
@@ -229,9 +230,72 @@ def test_public_message_endpoint_returns_safe_error_when_local_llm_unavailable(m
     assert response.status_code == 503
     body = response.json()
     assert body["error"] == "local_llm_unavailable"
+    assert body["mode"] == "local"
+    assert body["provider"] == "local-ollama"
+    assert body["model"] == "llama3.2"
+    assert body["status"] == "unavailable"
     assert "detail" not in body
     assert "127.0.0.1" not in body["message"]
     assert "private" not in body["message"]
+    assert "Authorization" not in str(body)
+    assert "token" not in str(body).lower()
+
+
+def test_public_message_endpoint_returns_safe_local_error_metadata_for_openai_compatible_provider(
+    monkeypatch, tmp_path
+):
+    app = _load_core_app(monkeypatch, tmp_path)
+
+    from ora_core.providers import local_llm
+
+    private_path = "C:" + "\\Users\\dev\\private.txt"
+
+    def fail_generate_local_llm_reply(*, message, conversation_id, model=None, config=None, client=None):
+        raise local_llm.LocalLLMResponseError(f"bad json from {private_path}")
+
+    monkeypatch.setattr(local_llm, "generate_local_llm_reply", fail_generate_local_llm_reply)
+
+    with TestClient(app, client=("127.0.0.1", 50000)) as client:
+        response = client.post(
+            "/v1/public/messages",
+            headers={"Authorization": "Bearer sk-secretvalue123"},
+            json={
+                "message": "hello",
+                "mode": "local",
+                "local_provider": "openai_compatible_local",
+                "model": "local-visible-model",
+            },
+        )
+
+    assert response.status_code == 502
+    body = response.json()
+    assert body == {
+        "error": "local_llm_bad_response",
+        "message": "Local LLM runtime returned an unsupported response.",
+        "mode": "local",
+        "provider": "local-openai-compatible",
+        "model": "local-visible-model",
+        "status": "bad_response",
+    }
+    serialized = str(body)
+    assert "C:\\Users" not in serialized
+    assert "sk-secret" not in serialized
+    assert "Authorization" not in serialized
+
+
+def test_public_message_endpoint_rejects_secret_like_model_without_echoing_value(monkeypatch, tmp_path):
+    app = _load_core_app(monkeypatch, tmp_path)
+
+    with TestClient(app, client=("127.0.0.1", 50000)) as client:
+        response = client.post(
+            "/v1/public/messages",
+            json={"message": "hello", "mode": "local", "model": "sk-private-model-secret"},
+        )
+
+    assert response.status_code == 400
+    body = response.json()
+    assert body["error"] == "unsafe_public_model"
+    assert "sk-private" not in str(body)
 
 
 def test_public_message_endpoint_rejects_unsupported_mode(monkeypatch, tmp_path):
@@ -264,6 +328,34 @@ def test_public_message_endpoint_rejects_message_length_over_cap(monkeypatch, tm
 
     assert response.status_code == 422
     assert response.json()["error"] == "VALIDATION_ERROR"
+
+
+def test_public_message_validation_error_does_not_echo_input_values(monkeypatch, tmp_path):
+    app = _load_core_app(monkeypatch, tmp_path)
+    private_path = "C:" + "\\Users\\dev\\private.txt"
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/v1/public/messages",
+            headers={"Authorization": "Bearer sk-secretvalue123"},
+            json={
+                "message": [private_path],
+                "mode": "local",
+                "model": "sk-private-model-secret",
+            },
+        )
+
+    assert response.status_code == 422
+    body = response.json()
+    assert body["error"] == "VALIDATION_ERROR"
+    assert body["details"]
+    assert all(set(detail) == {"type", "loc", "msg"} for detail in body["details"])
+    serialized = str(body)
+    assert "input" not in serialized
+    assert "ctx" not in serialized
+    assert private_path not in serialized
+    assert "sk-private" not in serialized
+    assert "Authorization" not in serialized
 
 
 def test_public_message_endpoint_rejects_secret_like_payload(monkeypatch, tmp_path):

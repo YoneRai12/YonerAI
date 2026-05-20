@@ -82,6 +82,9 @@ def test_surface_agent_events_and_results_round_trip(monkeypatch, tmp_path):
     assert event_body["ok"] is True
     assert event_body["memory_persisted"] is False
     assert [event["event"] for event in event_body["events"]] == ["meta", "final"]
+    assert event_body["events"][1]["data"]["mode"] == "mock"
+    assert event_body["events"][1]["data"]["provider"] == "offline-mock"
+    assert event_body["events"][1]["data"]["model"] is None
 
     assert result.status_code == 200
     result_body = result.json()
@@ -156,6 +159,38 @@ def test_surface_agent_local_mode_remains_loopback_only(monkeypatch, tmp_path):
 
     assert response.status_code == 403
     assert response.json()["detail"]["error"] == "local_llm_loopback_required"
+
+
+def test_surface_agent_local_error_includes_safe_provider_metadata(monkeypatch, tmp_path):
+    app = _load_core_app(monkeypatch, tmp_path)
+
+    from ora_core.providers import local_llm
+
+    def fail_generate_local_llm_reply(*, message, conversation_id, model=None, config=None, client=None):
+        raise local_llm.LocalLLMConnectionError("failed against http://127.0.0.1/private")
+
+    monkeypatch.setattr(local_llm, "generate_local_llm_reply", fail_generate_local_llm_reply)
+
+    with TestClient(app, client=("127.0.0.1", 50000)) as client:
+        response = client.post(
+            "/api/v1/agent/run",
+            json={
+                "prompt": "hello",
+                "mode": "local",
+                "local_provider": "openai_compatible_local",
+                "model": "local-run-model",
+            },
+        )
+
+    assert response.status_code == 503
+    detail = response.json()["detail"]
+    assert detail["error"] == "local_llm_unavailable"
+    assert detail["mode"] == "local"
+    assert detail["provider"] == "local-openai-compatible"
+    assert detail["model"] == "local-run-model"
+    assert detail["status"] == "unavailable"
+    assert "127.0.0.1" not in str(detail)
+    assert "private" not in str(detail)
 
 
 def test_surface_agent_run_respects_core_token_gate(monkeypatch, tmp_path):

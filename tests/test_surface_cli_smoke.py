@@ -157,3 +157,77 @@ def test_cli_http_error_uses_string_detail():
     )
 
     assert cli._safe_http_error(error) == "request failed with status 400: bad request"
+
+
+def test_cli_http_error_includes_safe_local_provider_context_without_secret_values():
+    cli = _load_cli_module()
+    error = urllib.error.HTTPError(
+        "http://127.0.0.1:8001/v1/public/messages",
+        503,
+        "Service Unavailable",
+        {},
+        BytesIO(
+            b'{"error":"local_llm_unavailable","message":"Local LLM runtime is unavailable.",'
+            b'"mode":"local","provider":"local-ollama","model":"local-test","status":"unavailable"}'
+        ),
+    )
+
+    message = cli._safe_http_error(error)
+
+    assert message == (
+        "request failed with status 503: local_llm_unavailable: Local LLM runtime is unavailable. "
+        "(mode=local, provider=local-ollama, model=local-test, status=unavailable)"
+    )
+    assert "Authorization" not in message
+    assert "token" not in message.lower()
+
+
+def test_cli_http_error_redacts_secret_like_and_local_path_messages():
+    cli = _load_cli_module()
+    private_path = "C:" + "\\Users\\dev\\secret.txt"
+    error = urllib.error.HTTPError(
+        "http://127.0.0.1:8001/v1/public/messages",
+        503,
+        "Service Unavailable",
+        {},
+        BytesIO(
+            json.dumps(
+                {
+                    "error": "local_llm_unavailable",
+                    "message": f"failed at {private_path}",
+                    "mode": "local",
+                    "provider": "local-ollama",
+                    "model": "sk-secret-model-value",
+                    "status": "unavailable",
+                }
+            ).encode("utf-8")
+        ),
+    )
+
+    message = cli._safe_http_error(error)
+
+    assert message == (
+        "request failed with status 503: local_llm_unavailable: request failed "
+        "(mode=local, provider=local-ollama, status=unavailable)"
+    )
+    assert private_path not in message
+    assert "sk-secret" not in message
+
+
+def test_cli_url_error_does_not_print_local_paths_or_hosts(monkeypatch, capsys):
+    cli = _load_cli_module()
+    private_path = "C:" + "\\Users\\dev\\secret.txt"
+    host = "DESKTOP" + "-LOCAL"
+
+    def fail_urlopen(_request, timeout):
+        raise urllib.error.URLError(f"failed at {private_path} on host {host}")
+
+    monkeypatch.setattr(cli.urllib.request, "urlopen", fail_urlopen)
+
+    exit_code = cli.main(["health"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "could not reach loopback Core API" in captured.err
+    assert private_path not in captured.err
+    assert host not in captured.err
