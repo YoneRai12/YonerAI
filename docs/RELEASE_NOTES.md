@@ -7,7 +7,8 @@ This page is a public-safe index of current release notes and progress checkpoin
 - Public checkpoint note: `docs/releases/v2026.5.20.14-tools-mcp-safe-subset-contract-checkpoint.md`
 - Scope: public-safe Tools/MCP subset contract, disabled-by-default requirements, approval/audit boundaries, and contract tests.
 - Status: public contract checkpoint, not runtime Tools/MCP completion, not production, and not deploy.
-- Still open: safe tool decision fixture, security PR backlog resolution, agent swarm releaseability, and `src/cogs/ora.py` extraction lane.
+- Style: follows `docs/repo/RELEASE_NOTE_STYLE_GUIDE.md`.
+- Still open: safe tool decision fixture, remaining security PR backlog review, agent swarm releaseability, and `src/cogs/ora.py` extraction lane.
 
 ## v2026.5.20.13 Capability / Extension Boundary Checkpoint
 
@@ -88,7 +89,7 @@ This page is a public-safe index of current release notes and progress checkpoin
 
 ## Historical Future-Dated Labels Requiring Correction
 
-These entries are kept for traceability, but their labels are future-dated relative to the verified 2026-05-20 cleanup date. They should not be used as the current public latest checkpoint.
+These entries are kept for traceability. Some labels were future-dated relative to the verified 2026-05-20 cleanup date, and one `v2026.5.22` markdown note remains future-dated relative to 2026-05-21. They should not be used as the current public latest checkpoint.
 
 ## v2026.5.22 Web Chat MVP Review-gate Checkpoint
 
@@ -97,7 +98,7 @@ These entries are kept for traceability, but their labels are future-dated relat
 - Status: public temporary Web Chat MVP checkpoint, not a production release.
 - Still open: GitHub Dependabot rescan after merge, final Web product UI, Google login, persistent memory, Discord gateway completion, old security PR review, safe branch/worktree cleanup, model listing, local LLM error UX, and future `src/cogs/ora.py` extraction.
 
-Note: this historical markdown note uses a future date relative to the verified 2026-05-20 cleanup date. It should not be treated as the current public latest checkpoint.
+Note: this historical markdown note remains future-dated relative to the verified 2026-05-21 repository state. It should not be treated as the current public latest checkpoint.
 
 ## v2026.5.21 ora-ui Retirement and Security Backlog Cleanup Checkpoint
 
@@ -106,7 +107,7 @@ Note: this historical markdown note uses a future date relative to the verified 
 - Status: public maintenance checkpoint, not a production release.
 - Still open: remaining `clients/web` dependency alert until the later web checkpoint reaches main and GitHub rescans, non-`ora-ui` Dependabot PRs, old security PR review, safe branch/worktree cleanup, model listing, local LLM error UX, and future `src/cogs/ora.py` extraction.
 
-Note: this historical markdown note uses a future date relative to the verified 2026-05-20 cleanup date. It should not be treated as the current public latest checkpoint.
+Note: this historical markdown note was future-dated during the 2026-05-20 cleanup pass and is retained for traceability. It should not be treated as the current public latest checkpoint unless a later release-hygiene pass explicitly supersedes it.
 
 ## v2026.5.21 Local LLM Provider Compatibility Checkpoint
 
@@ -115,7 +116,7 @@ Note: this historical markdown note uses a future date relative to the verified 
 - Status: public local provider compatibility checkpoint, not a production release.
 - Still open: optional loopback-only model listing endpoint, final Web product UI, Google login, persistent memory, Discord gateway completion, non-loopback/private provider lanes, and future `src/cogs/ora.py` extraction.
 
-Note: the GitHub Release/tag exists, but its label is future-dated relative to the verified 2026-05-20 cleanup date. Do not delete or retag it without explicit owner approval; use a corrected current-date release for latest visibility when safe.
+Note: the GitHub Release/tag exists and was future-dated during the 2026-05-20 cleanup pass. Do not delete or retag it without explicit owner approval; use a corrected current-date release for latest visibility when safe.
 
 ## Same-Day 2026-05-20 Checkpoint History
 
@@ -208,4 +209,5 @@ Current status and boundary truth should be checked against:
 
 - `docs/CURRENT_PHASE_CONTEXT.md`
 - `docs/TRACEABILITY_MATRIX_0_19.md`
-- `docs/releases/v2026.5.19-public-runnable-mvp-checkpoint.md`
+- `docs/releases/v2026.5.20.14-tools-mcp-safe-subset-contract-checkpoint.md`
+- `docs/repo/RELEASE_NOTE_STYLE_GUIDE.md`
