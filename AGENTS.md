@@ -24,6 +24,7 @@
 - Keep PRs lane-scoped; do not mix unrelated lanes in one PR.
 - Do not push, create PRs, merge, tag, create releases, deploy, migrate, or broaden scope unless the current user goal explicitly authorizes that action.
 - Do not create GitHub Releases or tags for internal checkpoints, docs-only/process-only PRs, ledgers, root inventory, or PR-count reconciliation. Use `docs/changelog/checkpoints/` for checkpoint logs.
+- Squash merge subjects should use `type: concise summary (#PR)`, with the PR number at the end. Do not rewrite old history or mass-touch files to change GitHub root "Last commit message" display.
 
 ## Required First Reads
 
