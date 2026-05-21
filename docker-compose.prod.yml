@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  # YonerAI legacy bot runtime.
+  # YonerAI legacy ORA-compatible bot runtime.
   ora-bot:
     build: .
     container_name: ora-bot
@@ -18,7 +18,7 @@ services:
               capabilities: [gpu]
     command: python main.py
 
-  # Legacy web backend.
+  # YonerAI legacy ORA-compatible web backend.
   ora-web:
     build: .
     container_name: ora-web
