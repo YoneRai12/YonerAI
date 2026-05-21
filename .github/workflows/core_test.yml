@@ -1,4 +1,4 @@
-name: ORA Core CI
+name: YonerAI Core CI
 
 on:
   push:

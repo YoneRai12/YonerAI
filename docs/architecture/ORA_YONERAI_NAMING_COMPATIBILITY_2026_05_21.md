@@ -28,6 +28,13 @@ Any future ORA-to-YonerAI runtime migration must include:
 
 A broad ORA rename is not current priority. Cosmetic rename work is lower value than security/runtime hardening, behavior-preserving `src/cogs/ora.py` extraction, Discord contract acceptance tests, and three-mode capability harness coverage.
 
+## Public-Facing Audit Notes
+
+- GitHub Actions display names should use `YonerAI` unless the workflow is intentionally documenting an ORA compatibility surface.
+- Docker Compose service keys such as `ora-bot` and `ora-web` remain compatibility names until service-name aliases and dependent scripts are tested.
+- Existing `ORA_*` environment examples remain compatibility contract examples and should not be renamed in public docs without alias tests.
+- Legacy docs with ORA-era UI or Discord wording should be updated only in scoped cleanup lanes, especially when the file already has encoding or mojibake risk.
+
 ## What Can Be Claimed
 
 - YonerAI is the public product name.
