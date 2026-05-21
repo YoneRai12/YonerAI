@@ -45,14 +45,16 @@ def _prepare_public_env() -> None:
         os.environ.pop(key, None)
 
 
-def _fresh_core_app():
+def _clear_public_runtime_modules() -> None:
+    for name in list(sys.modules):
+        if name == "ora_core" or name.startswith("ora_core.") or name in {"src.config"} or name.startswith("src.web."):
+            sys.modules.pop(name, None)
+
+
+def _fresh_core_app() -> Any:
     _prepare_import_path()
     _prepare_public_env()
-    for name in (
-        "ora_core.main",
-        "ora_core.api.routes.agent_runs",
-    ):
-        sys.modules.pop(name, None)
+    _clear_public_runtime_modules()
 
     with redirect_stdout(io.StringIO()):
         main_mod = importlib.import_module("ora_core.main")
@@ -65,7 +67,7 @@ def _fresh_core_app():
     return main_mod.app
 
 
-def _assert_json_response(response, *, endpoint: str) -> dict[str, Any]:
+def _assert_json_response(response: Any, *, endpoint: str) -> dict[str, Any]:
     try:
         body = response.json()
     except Exception as exc:  # pragma: no cover - defensive command-line guard
