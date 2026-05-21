@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import ipaddress
 import json
 import os
@@ -136,9 +137,24 @@ def _print_json(data: dict[str, Any]) -> None:
     print(json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True))
 
 
+def _load_public_mvp_smoke_module() -> Any:
+    repo_root = Path(__file__).resolve().parents[3]
+    smoke_path = repo_root / "scripts" / "dev" / "public_mvp_smoke.py"
+    if not smoke_path.is_file():
+        raise FileNotFoundError(smoke_path)
+
+    spec = importlib.util.spec_from_file_location("yonerai_trusted_public_mvp_smoke", smoke_path)
+    if spec is None or spec.loader is None:
+        raise ImportError("failed to load trusted public_mvp_smoke module")
+
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def _run_public_mvp_smoke(*, json_output: bool = False, pretty: bool = False) -> int:
     try:
-        from scripts.dev import public_mvp_smoke
+        public_mvp_smoke = _load_public_mvp_smoke_module()
     except Exception as exc:
         raise CliError("public MVP smoke is unavailable.", exit_code=1) from exc
     try:

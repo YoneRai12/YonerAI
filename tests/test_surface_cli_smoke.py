@@ -68,14 +68,14 @@ def test_cli_smoke_import_failure_is_public_safe(monkeypatch, capsys):
 def test_cli_smoke_treats_system_exit_none_as_success(monkeypatch):
     cli = _load_cli_module()
 
-    def exit_none(json_output=False, pretty=False):
-        del json_output, pretty
+    def exit_none(argv):
+        del argv
         raise SystemExit
 
     class FakeSmoke:
         main = staticmethod(exit_none)
 
-    monkeypatch.setitem(sys.modules, "scripts.dev.public_mvp_smoke", FakeSmoke)
+    monkeypatch.setattr(cli, "_load_public_mvp_smoke_module", lambda: FakeSmoke)
 
     assert cli._run_public_mvp_smoke() == 0
 
