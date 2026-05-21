@@ -50,6 +50,7 @@ def _build_ora_helper_fixture():
 
     namespace: dict[str, object] = {}
     namespace["clean_content"] = clean_content
+    namespace["clean_ora_content"] = clean_content
     exec(compile(module, str(source_path), "exec"), namespace)
     return namespace["OraHelperFixture"]()
 
