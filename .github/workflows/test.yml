@@ -1,4 +1,4 @@
-name: ORA Core Tests
+name: YonerAI Core Tests
 
 on:
   push:
