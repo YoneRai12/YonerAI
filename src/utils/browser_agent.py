@@ -12,17 +12,27 @@ import asyncio
 import re
 import os
 
-import playwright
-
-from playwright.async_api import (
-    Browser,
-    BrowserContext,
-    Frame,
-    Page,
-    Playwright,
-    TimeoutError as PlaywrightTimeoutError,
-    async_playwright,
-)
+try:
+    import playwright
+    from playwright.async_api import (
+        Browser,
+        BrowserContext,
+        Frame,
+        Page,
+        Playwright,
+        TimeoutError as PlaywrightTimeoutError,
+        async_playwright,
+    )
+except ModuleNotFoundError as exc:
+    if exc.name != "playwright":
+        raise
+    playwright = None
+    Browser = BrowserContext = Frame = Page = Playwright = Any
+    PlaywrightTimeoutError = asyncio.TimeoutError
+    async_playwright = None
+    PLAYWRIGHT_IMPORT_ERROR = exc
+else:
+    PLAYWRIGHT_IMPORT_ERROR = None
 
 BrowserMode = Literal["launch", "cdp"]
 RefMode = Literal["aria", "role", "css"]
@@ -266,6 +276,12 @@ class BrowserAgent:
         record_video_dir: str | None,
         record_video_size: dict[str, int] | None,
     ) -> None:
+        if async_playwright is None:
+            raise RuntimeError(
+                "Browser automation requires the optional dependency 'playwright'. "
+                "Install the browser extra or add Playwright to the environment."
+            ) from PLAYWRIGHT_IMPORT_ERROR
+
         self._playwright = await async_playwright().start()
         log.info("Playwright version: %s", getattr(playwright, "__version__", "unknown"))
 
