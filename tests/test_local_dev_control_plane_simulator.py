@@ -35,6 +35,13 @@ def test_local_dev_control_plane_reports_non_production_status() -> None:
     assert status.local_node.trusted is False
 
 
+
+
+def test_local_dev_control_plane_status_uses_runtime_time_by_default() -> None:
+    simulator = _load_local_dev_module()
+
+    assert simulator.build_local_dev_control_plane_status.__defaults__ is None
+    assert simulator.build_local_dev_control_plane_status.__kwdefaults__["now"] is None
 def test_local_dev_node_capabilities_are_declared_and_approval_gated() -> None:
     simulator = _load_local_dev_module()
 
