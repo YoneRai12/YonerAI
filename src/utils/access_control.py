@@ -136,6 +136,11 @@ def can_use_voice_listen(bot: object, user_id: Optional[int]) -> bool:
     return is_owner(bot, user_id)
 
 
+def can_use_say_command(bot: object, user_id: Optional[int]) -> bool:
+    """Return whether a user may make the bot send arbitrary text."""
+    return is_owner(bot, user_id)
+
+
 def is_tool_allowed(bot: object, user_id: Optional[int], tool_name: str) -> bool:
     if not tool_name:
         return False
