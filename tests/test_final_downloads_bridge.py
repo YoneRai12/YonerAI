@@ -86,6 +86,40 @@ class _VideoMetaRunner:
         }
 
 
+
+
+class _MalformedDownloadsRunner:
+    def __init__(self, _repo):
+        return None
+
+    async def run_tool(
+        self,
+        tool_call_id: str,
+        run_id: str,
+        user_id: str,
+        tool_name: str,
+        args: dict,
+        client_type: str,
+        request_meta: dict | None = None,
+        effective_route: dict | None = None,
+    ) -> dict:
+        del tool_call_id, run_id, user_id, tool_name, args, client_type, request_meta, effective_route
+        return {
+            "status": "completed",
+            "result": {
+                "ok": True,
+                "downloads": [
+                    {"url": "https://[", "label": "malformed"},
+                    {
+                        "url": "https://files.yonerai.com/v1/files/file_safe/download",
+                        "label": "safe.pdf",
+                        "file_id": "file_safe",
+                    },
+                ],
+            },
+        }
+
+
 class _ExternalDownloadsRunner:
     def __init__(self, _repo):
         return None
@@ -214,6 +248,36 @@ def test_final_event_bridges_video_meta_download_page_url(monkeypatch) -> None:
             {
                 "url": "https://files.yonerai.com/s/share_abc",
                 "label": "clip.mp4",
+            }
+        ]
+
+    asyncio.run(_run())
+
+
+def test_final_event_ignores_malformed_download_urls(monkeypatch) -> None:
+    async def _run() -> None:
+        req = MessageRequest(
+            user_identity={"provider": "discord", "id": "u-malformed-downloads"},
+            content="please generate a file",
+            idempotency_key=f"malformed-downloads-{uuid.uuid4().hex[:6]}",
+            source="discord",
+            available_tools=[{"name": "dummy_tool", "description": "tool", "parameters": {"type": "object"}}],
+            route_hint={"route_score": 0.5, "difficulty_score": 0.5, "security_risk_score": 0.1},
+        )
+        events = await _run_main_process(
+            monkeypatch,
+            req,
+            run_id=f"run-malformed-downloads-{uuid.uuid4().hex[:8]}",
+            omni_engine=_ToolThenAnswerEngine(final_text="rendered answer"),
+            tool_runner_cls=_MalformedDownloadsRunner,
+        )
+        final = _event_data(events, "final")
+        assert final["output_text"] == "rendered answer"
+        assert final["downloads"] == [
+            {
+                "url": "https://files.yonerai.com/v1/files/file_safe/download",
+                "label": "safe.pdf",
+                "file_id": "file_safe",
             }
         ]
 
