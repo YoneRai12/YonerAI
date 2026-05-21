@@ -5,6 +5,7 @@ from typing import Literal
 
 
 YONERAI_DEMO_CONTRACT_VERSION = "yonerai-public-demo/v1"
+YONERAI_DEMO_SCHEMA_VERSION = "1.0"
 
 DemoSectionName = Literal[
     "public_core",
@@ -55,8 +56,11 @@ class YoneraiDemoSection:
 class YoneraiDemoResult:
     ok: bool
     contract: str
+    schema_version: str
     sections: tuple[YoneraiDemoSection, ...]
     limitations: tuple[str, ...]
+    cli_entrypoint: str = "yonerai demo"
+    quickstart_alias: str = "yonerai quickstart"
     credentials_required: bool = False
     network_required: bool = False
     oracle_required: bool = False
@@ -71,6 +75,9 @@ class YoneraiDemoResult:
         return {
             "ok": self.ok,
             "contract": self.contract,
+            "schema_version": self.schema_version,
+            "cli_entrypoint": self.cli_entrypoint,
+            "quickstart_alias": self.quickstart_alias,
             "credentials_required": self.credentials_required,
             "network_required": self.network_required,
             "oracle_required": self.oracle_required,
@@ -100,6 +107,7 @@ def build_demo_result(sections: tuple[YoneraiDemoSection, ...]) -> YoneraiDemoRe
     return YoneraiDemoResult(
         ok=all(section.status == "ok" for section in sections),
         contract=YONERAI_DEMO_CONTRACT_VERSION,
+        schema_version=YONERAI_DEMO_SCHEMA_VERSION,
         sections=sections,
         limitations=DEMO_LIMITATIONS,
     )
