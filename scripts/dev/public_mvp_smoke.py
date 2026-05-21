@@ -145,7 +145,7 @@ def _assert_differentiation_contract() -> dict[str, str]:
 
     docs_route = preview_route("summarize public docs", mode="official_managed_cloud")
     private_route = preview_route("read my local file", mode="official_hybrid_private")
-    local_dev = build_local_dev_control_plane_status()
+    local_dev = build_local_dev_control_plane_status(now=datetime(2026, 5, 21, 0, 5, tzinfo=timezone.utc))
     evolution = generate_evolution_proposal(
         SyntheticEvolutionEvent(
             event_type="bug_report",

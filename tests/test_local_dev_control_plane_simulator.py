@@ -5,6 +5,8 @@ from datetime import datetime, timezone
 import sys
 from pathlib import Path
 
+NOW = datetime(2026, 5, 21, 0, 5, tzinfo=timezone.utc)
+
 
 def _load_local_dev_module():
     repo_root = Path(__file__).resolve().parents[1]
@@ -20,7 +22,7 @@ def _load_local_dev_module():
 def test_local_dev_control_plane_reports_non_production_status() -> None:
     simulator = _load_local_dev_module()
 
-    status = simulator.build_local_dev_control_plane_status()
+    status = simulator.build_local_dev_control_plane_status(now=NOW)
 
     assert status.schema_version == simulator.LOCAL_DEV_CONTROL_PLANE_SCHEMA_VERSION
     assert status.profile == "local_dev_control_plane"
@@ -38,7 +40,7 @@ def test_local_dev_control_plane_reports_non_production_status() -> None:
 def test_local_dev_node_capabilities_are_declared_and_approval_gated() -> None:
     simulator = _load_local_dev_module()
 
-    status = simulator.build_local_dev_control_plane_status()
+    status = simulator.build_local_dev_control_plane_status(now=NOW)
 
     assert "private_files" in status.local_node.capabilities
     assert "dangerous_operations" in status.local_node.capabilities
@@ -74,6 +76,7 @@ def test_available_local_node_integrates_with_route_preview() -> None:
         "run a shell command",
         mode="official_hybrid_private",
         local_node_available=True,
+        now=NOW,
     )
 
     assert decision.route == "hybrid_coordination_preview"
@@ -180,3 +183,11 @@ def test_local_dev_fixture_trust_context_never_claims_production_trust() -> None
     assert context["signature_algorithm"] == "test-static-signature"
     assert context["registry_entry_exists"] is True
     assert context["verifier_class"] == "StaticSignatureVerifier"
+
+
+def test_local_dev_control_plane_uses_runtime_clock_by_default() -> None:
+    simulator = _load_local_dev_module()
+
+    assert simulator.build_local_dev_control_plane_status.__kwdefaults__["now"] is None
+    assert simulator.build_local_dev_enrolled_session_fixture.__kwdefaults__["now"] is None
+    assert simulator.evaluate_local_dev_session_binding.__kwdefaults__["now"] is None

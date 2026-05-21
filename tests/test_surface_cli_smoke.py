@@ -159,9 +159,24 @@ def test_cli_smoke_treats_system_exit_none_as_success(monkeypatch):
     class FakeSmoke:
         main = staticmethod(exit_none)
 
-    monkeypatch.setitem(sys.modules, "scripts.dev.public_mvp_smoke", FakeSmoke)
+    monkeypatch.setattr(cli, "_load_public_mvp_smoke_module", lambda: FakeSmoke)
 
     assert cli._run_public_mvp_smoke() == 0
+
+
+def test_cli_demo_treats_system_exit_none_as_success(monkeypatch):
+    cli = _load_cli_module()
+
+    def exit_none(argv=None):
+        del argv
+        raise SystemExit
+
+    class FakeDemo:
+        main = staticmethod(exit_none)
+
+    monkeypatch.setattr(cli, "_load_public_demo_module", lambda: FakeDemo)
+
+    assert cli._run_public_demo() == 0
 
 
 def test_cli_message_command_uses_public_message_contract(monkeypatch, capsys):
