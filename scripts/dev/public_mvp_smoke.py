@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import argparse
 from contextlib import redirect_stdout
+from dataclasses import replace
+from datetime import datetime, timezone
 import io
 import importlib
 import json
@@ -13,7 +15,7 @@ from typing import Any
 from fastapi.testclient import TestClient
 
 
-PUBLIC_MVP_SMOKE_CONTRACT = "public-mvp-smoke-0.2"
+PUBLIC_MVP_SMOKE_CONTRACT = "public-mvp-smoke-0.3"
 _PUBLIC_ENV_KEYS = (
     "ORA_ALLOW_MISSING_SECRETS",
     "ORA_BOT_DB",
@@ -173,6 +175,73 @@ def _assert_differentiation_contract() -> dict[str, str]:
     }
 
 
+def _assert_hybrid_trust_contract() -> dict[str, str]:
+    from ora_core.hybrid import local_node_manifest
+    from ora_core.hybrid.local_dev_control_plane import build_local_dev_control_plane_status
+    from ora_core.route_preview import preview_route
+
+    now = datetime(2026, 5, 21, 12, tzinfo=timezone.utc)
+    private_key_b64, public_key_b64 = local_node_manifest.generate_test_local_node_keypair()
+    manifest = local_node_manifest.build_test_local_node_manifest()
+    signed = local_node_manifest.sign_local_node_manifest(manifest, private_key_b64=private_key_b64)
+
+    verified_status = build_local_dev_control_plane_status(
+        signed_manifest=signed,
+        public_key_b64=public_key_b64,
+        now=now,
+    )
+    tampered_status = build_local_dev_control_plane_status(
+        signed_manifest=replace(
+            signed,
+            manifest=replace(
+                signed.manifest,
+                capabilities=signed.manifest.capabilities + ("unknown.future.capability",),
+            ),
+        ),
+        public_key_b64=public_key_b64,
+        now=now,
+    )
+
+    expired_private_key_b64, expired_public_key_b64 = local_node_manifest.generate_test_local_node_keypair()
+    expired_manifest = local_node_manifest.build_test_local_node_manifest(expires_at="2026-05-21T01:00:00Z")
+    expired_signed = local_node_manifest.sign_local_node_manifest(
+        expired_manifest,
+        private_key_b64=expired_private_key_b64,
+    )
+    expired_status = build_local_dev_control_plane_status(
+        signed_manifest=expired_signed,
+        public_key_b64=expired_public_key_b64,
+        now=now,
+    )
+    dangerous_route = preview_route(
+        "run a shell command",
+        mode="official_hybrid_private",
+        has_local_node=True,
+        local_node_verification_state=verified_status.local_node.verification_state,
+        local_node_capabilities=verified_status.local_node.capabilities,
+    )
+
+    assert verified_status.local_node.verification_state == "present_verified", "test manifest was not verified"
+    assert verified_status.local_node.signed_origin_verified is True, "signed origin was not verified"
+    assert verified_status.local_node.trusted is False, "test manifest claimed trust"
+    assert verified_status.production_trust_material is False, "test manifest claimed production trust material"
+    assert tampered_status.local_node.verification_state == "invalid_signature", "tamper was not rejected"
+    assert expired_status.local_node.verification_state == "expired", "expired manifest was not rejected"
+    assert dangerous_route.route == "hybrid_coordination", "dangerous verified route did not route through hybrid"
+    assert dangerous_route.approval_required is True, "dangerous verified route did not require approval"
+    assert dangerous_route.signed_origin_verified is True, "verified route did not report signed origin"
+
+    return {
+        "endpoint": "hybrid-trust-contract",
+        "status": "ok",
+        "local_node_signature_status": "test_manifest_verified",
+        "tamper_rejected": "true",
+        "expired_rejected": "true",
+        "dangerous_capability_still_gated": "true",
+        "production_trust_material": "false",
+    }
+
+
 def run_smoke() -> dict[str, Any]:
     previous_env = {key: os.environ.get(key) for key in _PUBLIC_ENV_KEYS}
     try:
@@ -229,6 +298,7 @@ def run_smoke() -> dict[str, Any]:
 
             checks.append(_assert_managed_download_contract())
             checks.append(_assert_differentiation_contract())
+            checks.append(_assert_hybrid_trust_contract())
 
         return {
             "ok": True,

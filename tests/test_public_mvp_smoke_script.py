@@ -32,15 +32,16 @@ def test_public_mvp_smoke_runs_without_credentials(monkeypatch) -> None:
         "/api/v1/agent/run",
         "managed-download-contract",
         "yonerai-differentiation-contract",
+        "hybrid-trust-contract",
     ]
-    managed_download_check = result["checks"][-2]
+    managed_download_check = result["checks"][-3]
     assert managed_download_check == {
         "endpoint": "managed-download-contract",
         "status": "ok",
         "accepted": "3",
         "rejected": "4",
     }
-    differentiation_check = result["checks"][-1]
+    differentiation_check = result["checks"][-2]
     assert differentiation_check == {
         "endpoint": "yonerai-differentiation-contract",
         "status": "ok",
@@ -48,6 +49,16 @@ def test_public_mvp_smoke_runs_without_credentials(monkeypatch) -> None:
         "route_preview": "cloud_only,local_node_required",
         "local_dev_control_plane": "simulator",
         "self_evolution": "proposal_only",
+    }
+    trust_check = result["checks"][-1]
+    assert trust_check == {
+        "endpoint": "hybrid-trust-contract",
+        "status": "ok",
+        "local_node_signature_status": "test_manifest_verified",
+        "tamper_rejected": "true",
+        "expired_rejected": "true",
+        "dangerous_capability_still_gated": "true",
+        "production_trust_material": "false",
     }
     assert "must-be-cleared-by-smoke" not in json.dumps(result)
 
@@ -100,6 +111,15 @@ def test_public_mvp_smoke_cli_json_output_is_deterministic(capsys) -> None:
             "self_evolution": "proposal_only",
             "status": "ok",
         },
+        {
+            "dangerous_capability_still_gated": "true",
+            "endpoint": "hybrid-trust-contract",
+            "expired_rejected": "true",
+            "local_node_signature_status": "test_manifest_verified",
+            "production_trust_material": "false",
+            "status": "ok",
+            "tamper_rejected": "true",
+        },
     ]
     assert "run_id" not in body
     assert "session_id" not in body
@@ -112,7 +132,7 @@ def test_public_mvp_smoke_cli_pretty_output_summarizes_boundaries(capsys) -> Non
     output = capsys.readouterr().out
     assert "YonerAI public MVP smoke" in output
     assert "Result: ok" in output
-    assert "Checks passed: 5" in output
+    assert "Checks passed: 6" in output
     assert "- credentials_required: false" in output
     assert "- external_provider_required: false" in output
     assert "- live_discord_required: false" in output
@@ -123,6 +143,7 @@ def test_public_mvp_smoke_cli_pretty_output_summarizes_boundaries(capsys) -> Non
     assert "/api/v1/agent/run | ok | mode=mock | provider=offline-mock" in output
     assert "managed-download-contract | ok" in output
     assert "yonerai-differentiation-contract | ok" in output
+    assert "hybrid-trust-contract | ok" in output
     assert "Traceback" not in output
 
 
