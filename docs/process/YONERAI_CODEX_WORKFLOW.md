@@ -87,6 +87,13 @@ For every PR:
 6. Rerun validation after fixes.
 7. Merge only when checks pass and no material review remains.
 
+Priority definitions:
+
+- P0: critical security/correctness issue; must block merge.
+- P1: merge-blocking bug, boundary violation, or missing required validation.
+- P2: maintainability or clarity issue; fix when low risk or document why deferred.
+- P3: style or optional polish; fix only when cheap and clearly useful.
+
 A quota warning from an automated reviewer is not a material review comment, but record it.
 
 ## 7. Stop Conditions

@@ -26,8 +26,8 @@
 
 ## Security / Boundary
 
-- [ ] `src/cogs/ora.py` status:
-- [ ] `reference_clawdbot` status:
+- [ ] `src/cogs/ora.py` status (unchanged or explicitly approved):
+- [ ] `reference_clawdbot` status (untouched):
 - [ ] No deploy or production operation
 - [ ] No production signing keys or production trust stores
 - [ ] No persistent memory added
