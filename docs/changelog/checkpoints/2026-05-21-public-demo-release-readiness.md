@@ -68,4 +68,19 @@ Final gate still must re-check current `main`, CI, release existence, same-day r
 
 ## Next action
 
-Merge this readiness PR if CI is clean and reviews have no material blockers. Then run the final release gate on current `main`; create `v0.1.0-alpha.1` only if the gate passes.
+Final release gate was run on `main` at `28416b048dc98604446d2689f1c9fc66657569b5`.
+
+Technical release criteria passed:
+
+- `v0.1.0-alpha.1` release and tag did not already exist.
+- `python scripts/verify_version.py --tag v0.1.0-alpha.1` passed.
+- targeted release/version/demo/CLI/smoke/security tests passed.
+- isolated venv `yonerai demo --json`, `yonerai demo --pretty`, and `yonerai quickstart --json` passed after the documented dependencies were installed.
+- `ruff`, targeted `compileall`, `git diff --check`, secret/local path scan, and mojibake/hidden Unicode scan passed.
+
+Release creation was blocked by the release-train instruction for this run, not by implementation readiness:
+
+- `v2026.5.21.5` was already published at `2026-05-21T08:21:07Z`.
+- The current release-train prompt explicitly set a one-GitHub-Release-today cap.
+
+No tag or GitHub Release was created for `v0.1.0-alpha.1` in this gate. The next action is to rerun the final release gate after that prompt-scoped cap no longer blocks release creation, verify that `v0.1.0-alpha.1` still does not exist, and then create the GitHub pre-release if all criteria still pass.
