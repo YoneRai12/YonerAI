@@ -76,6 +76,13 @@ from .local_node_action_envelope import (
     sign_local_node_action_envelope,
     verify_local_node_action_envelope,
 )
+from .session_ref import (
+    LOCAL_NODE_SESSION_REF_SCHEMA_VERSION,
+    LocalNodeSessionRef,
+    LocalNodeSessionRefValidation,
+    build_local_node_session_ref,
+    validate_local_node_session_ref,
+)
 from .policy import (
     DonationPolicyDecision,
     InMemoryNonceStore,
@@ -107,6 +114,7 @@ __all__ = [
     "LOCAL_NODE_MANIFEST_SIGNATURE_SCHEMA_VERSION",
     "LOCAL_NODE_ENROLLMENT_SCHEMA_VERSION",
     "LOCAL_NODE_ACTION_ENVELOPE_SCHEMA_VERSION",
+    "LOCAL_NODE_SESSION_REF_SCHEMA_VERSION",
     "LocalDevControlPlaneStatus",
     "LocalDevNodeStatus",
     "LocalDevSessionBindingDecision",
@@ -119,6 +127,8 @@ __all__ = [
     "LocalNodeIdentity",
     "LocalNodeManifestSignature",
     "LocalNodeManifestVerification",
+    "LocalNodeSessionRef",
+    "LocalNodeSessionRefValidation",
     "LocalNodeSessionCapabilityDecision",
     "MemoryCandidatePolicyDecision",
     "PairingChallenge",
@@ -135,6 +145,7 @@ __all__ = [
     "build_synthetic_discord_gateway_payload",
     "build_test_local_node_manifest",
     "build_unsigned_local_node_action_envelope",
+    "build_local_node_session_ref",
     "canonical_payload_hash",
     "consume_pairing_code",
     "create_pairing_challenge",
@@ -156,6 +167,7 @@ __all__ = [
     "validate_discord_gateway_envelope",
     "validate_discord_gateway_payload",
     "validate_hybrid_envelope",
+    "validate_local_node_session_ref",
     "verify_local_node_action_envelope",
     "verify_local_node_manifest",
 ]
