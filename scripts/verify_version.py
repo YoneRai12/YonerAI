@@ -4,8 +4,27 @@ import sys
 from pathlib import Path
 
 
-SEMVER_RE = re.compile(r"^\d+\.\d+\.\d+$")
+SEMVER_RE = re.compile(
+    r"^(?:0|[1-9]\d*)\."
+    r"(?:0|[1-9]\d*)\."
+    r"(?:0|[1-9]\d*)"
+    r"(?:-(?:0|[1-9]\d*|(?=[0-9A-Za-z-]*[A-Za-z-])[0-9A-Za-z-]+)"
+    r"(?:\.(?:0|[1-9]\d*|(?=[0-9A-Za-z-]*[A-Za-z-])[0-9A-Za-z-]+))*)?"
+    r"(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$"
+)
 DATEVER_RE = re.compile(r"^\d{4}\.(?:0?[1-9]|1[0-2])\.(?:0?[1-9]|[12]\d|3[01])$")
+
+
+def is_supported_version(version: str) -> bool:
+    return bool(DATEVER_RE.match(version) or SEMVER_RE.match(version))
+
+
+def version_kind(version: str) -> str:
+    if DATEVER_RE.match(version):
+        return "DateVer"
+    if SEMVER_RE.match(version):
+        return "SemVer"
+    return "Unsupported"
 
 
 def normalize_tag(tag: str) -> str:
@@ -15,6 +34,24 @@ def normalize_tag(tag: str) -> str:
     if tag.startswith("v"):
         tag = tag[1:]
     return tag
+
+
+def verify_version_value(version: str, tag: str = "") -> tuple[bool, str]:
+    version = version.strip()
+    if not is_supported_version(version):
+        return (
+            False,
+            f"[FAIL] VERSION '{version}' is not a supported version string "
+            "(expected X.Y.Z, X.Y.Z-prerelease, or YYYY.M.D).",
+        )
+
+    if tag:
+        tag_version = normalize_tag(tag)
+        if version != tag_version:
+            return False, f"[FAIL] VERSION mismatch. VERSION={version} tag={tag_version}"
+        return True, f"[OK] VERSION matches tag: {version}"
+
+    return True, f"[OK] VERSION is valid {version_kind(version)}: {version}"
 
 
 def main() -> int:
@@ -28,22 +65,9 @@ def main() -> int:
         print("[FAIL] VERSION file not found.")
         return 1
 
-    version = version_file.read_text(encoding="utf-8").strip()
-    if not (SEMVER_RE.match(version) or DATEVER_RE.match(version)):
-        print(f"[FAIL] VERSION '{version}' is not a supported version string (expected X.Y.Z or YYYY.M.D).")
-        return 1
-
-    if args.tag:
-        tag_version = normalize_tag(args.tag)
-        if version != tag_version:
-            print(f"[FAIL] VERSION mismatch. VERSION={version} tag={tag_version}")
-            return 1
-        print(f"[OK] VERSION matches tag: {version}")
-    else:
-        kind = "SemVer" if SEMVER_RE.match(version) else "DateVer"
-        print(f"[OK] VERSION is valid {kind}: {version}")
-
-    return 0
+    ok, message = verify_version_value(version_file.read_text(encoding="utf-8"), args.tag)
+    print(message)
+    return 0 if ok else 1
 
 
 if __name__ == "__main__":
