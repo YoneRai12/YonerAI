@@ -2,7 +2,7 @@
 
 YonerAI は、公式・ローカル・self-hosted の実行環境が変わっても、同じ体験と契約境界を保つための provider-independent AI execution foundation です。
 
-[English README](README.md) | [Current phase](docs/CURRENT_PHASE_CONTEXT.md) | [Contracts](docs/contracts) | [Historical checkpoint archive](docs/releases/v2026.5.21.5-implementation-continuation-checkpoint.md)
+[English README](README.md) | [Current phase](docs/CURRENT_PHASE_CONTEXT.md) | [Contracts](docs/contracts) | [Root file / PR traceability](docs/repo/FILE_PR_TRACEABILITY_MATRIX_CURRENT.md) | [Historical checkpoint archive](docs/releases/v2026.5.21.5-implementation-continuation-checkpoint.md)
 
 ## YonerAI とは
 
