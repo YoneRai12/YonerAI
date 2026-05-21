@@ -169,11 +169,24 @@ def _preview_route(args: argparse.Namespace) -> dict[str, Any]:
         raise CliError("route preview is unavailable.", exit_code=1) from exc
 
     prompt = _prompt_from_args(args.task)
+    local_node_state = args.local_node_state
+    has_local_node = args.has_local_node or local_node_state in {
+        "present_unverified",
+        "present_verified",
+        "expired",
+        "invalid_signature",
+        "wrong_audience",
+    }
+    if local_node_state == "missing":
+        has_local_node = False
+    local_node_capabilities = tuple(args.local_node_capability or ()) or None
     decision = preview_route(
         prompt,
         mode=args.mode,
         requested_capability=args.capability,
-        has_local_node=args.has_local_node,
+        has_local_node=has_local_node,
+        local_node_verification_state=local_node_state,
+        local_node_capabilities=local_node_capabilities,
         risk_hint=args.risk_hint,
     )
     return decision.to_public_dict()
@@ -222,6 +235,23 @@ def build_parser() -> argparse.ArgumentParser:
     route_preview.add_argument("--capability", help="Optional explicit capability name.")
     route_preview.add_argument("--risk-hint", help="Optional public-safe operation class hint.")
     route_preview.add_argument("--has-local-node", action="store_true", help="Preview as if a user Local Node is available.")
+    route_preview.add_argument(
+        "--local-node-state",
+        choices=[
+            "missing",
+            "present_unverified",
+            "present_verified",
+            "expired",
+            "invalid_signature",
+            "wrong_audience",
+        ],
+        help="Optional test-only Local Node verification state for route preview.",
+    )
+    route_preview.add_argument(
+        "--local-node-capability",
+        action="append",
+        help="Optional declared capability for a verified test Local Node manifest. Repeatable.",
+    )
 
     message = subcommands.add_parser("message", parents=[shared], help="Send a local public message smoke request.")
     message.add_argument("--mode", choices=["mock", "offline", "local"], default="mock")

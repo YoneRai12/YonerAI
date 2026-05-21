@@ -64,6 +64,7 @@ def test_missing_local_node_keeps_hybrid_private_work_gated() -> None:
     assert status.local_node.capabilities == ()
     assert decision.route == "local_node_required"
     assert decision.unavailable_reason == "local_node_missing"
+    assert decision.local_node_verification_state == "missing"
 
 
 def test_available_local_node_integrates_with_route_preview() -> None:
@@ -80,6 +81,8 @@ def test_available_local_node_integrates_with_route_preview() -> None:
     assert decision.local_node_required is True
     assert decision.approval_required is True
     assert decision.dangerous_operation is True
+    assert decision.local_node_verification_state == "present_verified"
+    assert decision.signed_origin_verified is True
 
 
 def test_unverified_local_node_denies_declared_private_capabilities() -> None:
@@ -99,6 +102,8 @@ def test_unverified_local_node_denies_declared_private_capabilities() -> None:
     assert status.local_node.requires_approval == ()
     assert "signed_manifest_not_verified" in status.local_node.verification_reasons
     assert decision.route == "local_node_required"
+    assert decision.unavailable_reason == "unverified_node_denied"
+    assert decision.local_node_verification_state == "present_unverified"
 
 
 def test_expired_manifest_is_rejected_by_local_dev_control_plane() -> None:

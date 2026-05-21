@@ -57,6 +57,7 @@ def test_hybrid_private_routes_private_file_work_to_local_node_requirement() -> 
     assert with_node.route == "hybrid_coordination"
     assert with_node.private_data_allowed is True
     assert with_node.approval_required is True
+    assert with_node.signed_origin_verified is False
 
 
 def test_shell_command_preview_requires_local_node_and_approval() -> None:
@@ -74,6 +75,80 @@ def test_shell_command_preview_requires_local_node_and_approval() -> None:
     assert decision.approval_required is True
     assert decision.dangerous_operation is True
     assert decision.cloud_allowed is False
+
+
+def test_hybrid_private_unverified_node_is_not_routed_to_private_work() -> None:
+    route_preview = _load_route_preview_module()
+
+    decision = route_preview.preview_route(
+        "read my local file",
+        mode="official_hybrid_private",
+        has_local_node=True,
+        local_node_verification_state="present_unverified",
+    )
+
+    assert decision.route == "local_node_required"
+    assert decision.unavailable_reason == "unverified_node_denied"
+    assert decision.local_node_verification_state == "present_unverified"
+    assert decision.signed_origin_verified is False
+    assert decision.local_node_capability_declared is False
+
+
+def test_hybrid_private_verified_node_routes_declared_capability() -> None:
+    route_preview = _load_route_preview_module()
+
+    decision = route_preview.preview_route(
+        "read my local file",
+        mode="official_hybrid_private",
+        has_local_node=True,
+        local_node_verification_state="present_verified",
+        local_node_capabilities=("private_files",),
+    )
+
+    assert decision.route == "hybrid_coordination"
+    assert decision.unavailable_reason is None
+    assert decision.local_node_verification_state == "present_verified"
+    assert decision.signed_origin_verified is True
+    assert decision.local_node_capability_declared is True
+    assert decision.approval_required is True
+
+
+def test_hybrid_private_verified_node_without_capability_is_disabled() -> None:
+    route_preview = _load_route_preview_module()
+
+    decision = route_preview.preview_route(
+        "read my local file",
+        mode="official_hybrid_private",
+        has_local_node=True,
+        local_node_verification_state="present_verified",
+        local_node_capabilities=("local_tools",),
+    )
+
+    assert decision.route == "disabled"
+    assert decision.disabled is True
+    assert decision.unavailable_reason == "local_node_capability_not_declared"
+    assert decision.signed_origin_verified is True
+    assert decision.local_node_capability_declared is False
+
+
+def test_invalid_local_node_states_are_gated() -> None:
+    route_preview = _load_route_preview_module()
+
+    cases = {
+        "expired": "expired_node_manifest",
+        "invalid_signature": "invalid_node_signature",
+        "wrong_audience": "wrong_audience_node_manifest",
+    }
+    for state, unavailable_reason in cases.items():
+        decision = route_preview.preview_route(
+            "run a shell command",
+            mode="official_hybrid_private",
+            has_local_node=True,
+            local_node_verification_state=state,
+        )
+        assert decision.route == "local_node_required"
+        assert decision.unavailable_reason == unavailable_reason
+        assert decision.signed_origin_verified is False
 
 
 def test_live_discord_and_deployment_are_disabled() -> None:
