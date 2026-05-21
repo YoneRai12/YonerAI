@@ -33,7 +33,8 @@ Good scope examples:
 - one Discord contract acceptance increment
 - one API/CLI/Web smoke improvement
 - one `src/cogs/ora.py` characterization or extraction step
-- one release checkpoint after implementation PRs merge
+- one changelog checkpoint under `docs/changelog/checkpoints/` after implementation PRs merge
+- one public release candidate only when the goal explicitly targets a runnable milestone
 
 Avoid loose backlog sweeps with no single stopping condition.
 
@@ -60,7 +61,8 @@ Standard lanes:
 - three-mode acceptance harness
 - dependency lane drain
 - root professionalization
-- release checkpoint
+- changelog checkpoint
+- public release candidate
 - docs/process governance
 
 ## 5. Implementation Preference
@@ -70,11 +72,13 @@ Prefer code/tests first where safe. Use docs-only work when it:
 - records necessary governance
 - unblocks implementation or review
 - explains a blocked security/private/runtime boundary
-- aligns a release/checkpoint after implementation PRs
+- aligns a changelog checkpoint after implementation PRs
 
 For stale PRs, inspect old intent, reproduce on current main, create a fresh narrow patch, then close the old PR only with replacement evidence.
 
 For refactors, add characterization tests before moving code.
+
+GitHub Releases are governed by `docs/process/YONERAI_RELEASE_GOVERNANCE.md`. Do not create GitHub Releases for Codex checkpoints, docs/process work, ledgers, root inventory, or PR-count reconciliation.
 
 ## 6. Review Loop
 

@@ -14,7 +14,8 @@ Use the smallest validation set that proves the touched lane, then expand when r
 | Dependency update | affected package tests; lockfile/package diff review | broader runtime smoke; advisory/changelog evidence |
 | Docs-only | `git diff --check`; changed-file scans | link check/manual render review when public presentation changes |
 | Root file move | reference scan for moved path; `git diff --check` | public/CLI smoke; docs update verification |
-| Release update | release note scan; future-date scan; `git diff --check` | `gh release list/view`; README/README_JP latest checkpoint verification |
+| Changelog checkpoint | checkpoint note scan; future-date scan; `git diff --check` | README/README_JP checkpoint link verification |
+| Public release candidate | public runnable smoke; CLI smoke when included; Web smoke when included; future-date scan; `git diff --check` | `gh release list/view` for existing release state only; package/archive verification |
 
 Always add:
 

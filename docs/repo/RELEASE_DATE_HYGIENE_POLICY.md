@@ -1,6 +1,10 @@
 # Release Date Hygiene Policy
 
-Status: public-safe release hygiene policy for YonerAI checkpoint naming. This policy does not delete, retag, or rewrite any existing release.
+Status: historical policy, superseded for future work by `docs/process/YONERAI_RELEASE_GOVERNANCE.md`. This policy does not delete, retag, or rewrite any existing release.
+
+## Superseded Direction
+
+The date-suffix checkpoint release practice is frozen for future routine Codex work. GitHub Releases are now reserved for runnable user-visible public milestones. Internal checkpoints should be written under `docs/changelog/checkpoints/`, not published as GitHub Releases.
 
 ## Purpose
 
@@ -8,34 +12,22 @@ YonerAI checkpoint labels should be useful to users reading the public GitHub su
 
 ## Date Source
 
-Before creating a checkpoint tag, GitHub Release, or markdown release note:
+Before creating any future runnable release candidate:
 
 - verify the local date and UTC date;
 - use the owner-intended current date when the owner explicitly states it;
 - treat future-dated labels as a release hygiene issue, not as the current public truth;
 - record any drift in the PR or release note.
 
-For this cleanup lane, the verified date is 2026-05-20.
+For the historical cleanup lane that created this file, the verified date was 2026-05-20.
 
 ## Version Format
 
-Use:
-
-- first checkpoint of the day: `vYYYY.M.D`
-- second checkpoint of the same day: `vYYYY.M.D.1`
-- third checkpoint of the same day: `vYYYY.M.D.2`
-- continue monotonically with the next unused suffix
-
-Determine the next suffix by checking both:
-
-- GitHub Releases and remote tags
-- `docs/releases/` markdown notes
-
-If markdown notes and GitHub Releases disagree, choose the next highest same-day suffix plus one. Do not backfill lower suffixes unless the owner explicitly approves.
+Do not use this historical date-suffix policy for new internal checkpoints. The next public GitHub Release should use semantic pre-release versioning such as `v0.1.0-alpha.1`, unless the owner explicitly overrides it for a runnable milestone.
 
 ## GitHub Releases
 
-GitHub Releases should follow the same date/suffix discipline as markdown notes. A markdown release note alone is not a visible GitHub Release.
+GitHub Releases should not be created for internal checkpoints, docs-only/process-only updates, ledgers, root inventory, or PR-count reconciliation. A markdown checkpoint note alone is enough for internal progress.
 
 Release titles must be product-facing:
 

@@ -107,8 +107,8 @@ Each lane must stay narrow, current-main based, and verifiable.
 
 ## Release Notes
 
-- Allowed: checkpoint after meaningful merged implementation/test work or necessary process/governance update.
-- Forbidden: future dates, delete/retag, release for every tiny PR, production claims.
-- Required validation: release note scan, `gh release list/view` if a release is created.
-- Can claim: checkpoint aligned.
+- Allowed: changelog checkpoint after meaningful merged implementation/test work, and GitHub Release only for a runnable public milestone.
+- Forbidden: GitHub Release for docs-only/process-only/checkpoint-only work, future dates, delete/retag, release for every tiny PR, production claims.
+- Required validation: changelog/release note scan, public runnable smoke for release candidates, `gh release list/view` only when inspecting existing releases.
+- Can claim: checkpoint recorded or release candidate prepared, depending on the lane.
 - Must not claim: product completion unless explicitly proven.

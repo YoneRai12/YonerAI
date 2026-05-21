@@ -2,7 +2,7 @@
 
 Provider-independent AI execution foundation for keeping one reliable AI experience across official, local, and self-hosted runtimes.
 
-[Japanese README](README_JP.md) | [Current phase](docs/CURRENT_PHASE_CONTEXT.md) | [Contracts](docs/contracts) | [Latest checkpoint](docs/releases/v2026.5.21.5-implementation-continuation-checkpoint.md)
+[Japanese README](README_JP.md) | [Current phase](docs/CURRENT_PHASE_CONTEXT.md) | [Contracts](docs/contracts) | [Latest checkpoint archive](docs/releases/v2026.5.21.5-implementation-continuation-checkpoint.md)
 
 ## What YonerAI Is
 
@@ -22,9 +22,11 @@ The active design anchor is v7.7:
 - contract-first public boundaries
 - public/private/control-plane separation by contract, not by leaking internal operations detail
 
-The current public checkpoint stream uses verified dates with same-day suffixes. `v2026.5.21.5` records the implementation continuation pass: layer upload hardening, the first behavior-preserving `src/cogs/ora.py` pure-helper extraction, ORA/YonerAI naming compatibility policy, and a three-mode docs-only capability acceptance harness extension. It is a checkpoint note and GitHub Release alignment target, not a production release.
+The latest historical checkpoint note is `v2026.5.21.5`, which records layer upload hardening, the first behavior-preserving `src/cogs/ora.py` pure-helper extraction, ORA/YonerAI naming compatibility policy, and a three-mode docs-only capability acceptance harness extension. It is a checkpoint archive note, not a production release.
 
-Older future-dated checkpoint labels can remain as historical artifacts, but they should not be used as the current public/latest checkpoint unless a current-date GitHub Release explicitly supersedes them.
+Future internal checkpoint logs belong under `docs/changelog/checkpoints/`, not GitHub Releases. GitHub Releases are frozen for checkpoint/docs/process work until a runnable public milestone, likely a semantic pre-release such as `v0.1.0-alpha.1`.
+
+Older date-suffix GitHub Releases remain historical artifacts. Do not delete, retag, or treat them as evidence of production readiness.
 
 This repository does not claim shipping completeness, production readiness, official cloud completion, live operations completion, or full product completion.
 
@@ -78,6 +80,7 @@ Useful starting points:
 
 - [Current phase context](docs/CURRENT_PHASE_CONTEXT.md)
 - [Codex / contributor workflow](docs/process/YONERAI_CODEX_WORKFLOW.md)
+- [Release governance](docs/process/YONERAI_RELEASE_GOVERNANCE.md)
 - [Current MVP Capability Matrix](docs/CURRENT_MVP_CAPABILITY_MATRIX.md)
 - [Public file index](docs/repo/PUBLIC_FILE_INDEX.md)
 - [Cross-repo same-experience matrix](docs/contracts/CROSS_REPO_SAME_EXPERIENCE_MATRIX_2026_05_20.md)
