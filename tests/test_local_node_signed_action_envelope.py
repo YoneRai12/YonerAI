@@ -177,6 +177,26 @@ def test_wrong_session_or_undeclared_capability_is_rejected() -> None:
     assert undeclared_result.execute_allowed is False
 
 
+def test_wrong_audience_is_rejected() -> None:
+    hybrid, public_key_b64, session, signed, expected_args_hash = _signed_action()
+    wrong_audience = replace(signed, audience="wrong-audience")
+
+    result = hybrid.verify_local_node_action_envelope(
+        wrong_audience,
+        session=session,
+        public_key_b64=public_key_b64,
+        expected_args_hash=expected_args_hash,
+        nonce_store=hybrid.InMemoryNonceStore(),
+        mode="official_hybrid_private",
+        now=NOW,
+    )
+
+    assert result.status == "session_mismatch"
+    assert result.reasons == ("action_audience_mismatch",)
+    assert result.signature_valid is False
+    assert result.execute_allowed is False
+
+
 def test_expired_envelope_and_dangerous_capability_are_gated() -> None:
     hybrid, public_key_b64, session, expired, expected_args_hash = _signed_action(
         expires_at="2026-05-21T00:01:00Z",

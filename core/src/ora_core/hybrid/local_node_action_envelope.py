@@ -179,6 +179,7 @@ def verify_local_node_action_envelope(
     expected_args_hash: str,
     nonce_store: InMemoryNonceStore,
     mode: ModeName,
+    expected_audience: str = DEFAULT_CONTROL_PLANE_AUDIENCE,
     now: datetime | None = None,
 ) -> LocalNodeActionVerification:
     current = now.astimezone(timezone.utc) if now else datetime.now(timezone.utc)
@@ -204,6 +205,8 @@ def verify_local_node_action_envelope(
         return _decision(status="session_mismatch", reasons=("action_session_or_node_mismatch",))
     if envelope.mode != mode or session.mode != mode:
         return _decision(status="disabled_by_mode", reasons=("action_mode_mismatch",), disabled_by_mode=True)
+    if envelope.audience != expected_audience:
+        return _decision(status="session_mismatch", reasons=("action_audience_mismatch",))
     if envelope.args_hash != expected_args_hash:
         return _decision(status="invalid_signature", reasons=("args_hash_mismatch",))
 

@@ -152,6 +152,27 @@ def test_hybrid_private_requires_enrolled_session_when_requested() -> None:
     assert pending_session.unavailable_reason == "pairing_pending"
 
 
+def test_hybrid_private_not_required_session_state_is_rejected_when_session_required() -> None:
+    route_preview = _load_route_preview_module()
+
+    decision = route_preview.preview_route(
+        "read my local file",
+        mode="official_hybrid_private",
+        has_local_node=True,
+        local_node_verification_state="present_verified",
+        local_node_capabilities=("private_files",),
+        require_enrolled_verified_session=True,
+        session_verification_state="not_required",
+    )
+
+    assert decision.route == "enrolled_verified_node_required"
+    assert decision.unavailable_reason == "local_node_session_required"
+    assert decision.session_required is True
+    assert decision.session_verification_state == "missing"
+    assert decision.session_verified is False
+    assert decision.session_gate_satisfied is False
+
+
 def test_hybrid_private_enrolled_verified_session_routes_declared_capability() -> None:
     route_preview = _load_route_preview_module()
 

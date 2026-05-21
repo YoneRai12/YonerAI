@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, replace
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Literal
 
 from ..route_preview import RoutePreviewDecision, preview_route
@@ -41,8 +41,6 @@ from .policy import InMemoryNonceStore
 
 LOCAL_DEV_CONTROL_PLANE_PROFILE = "local_dev_control_plane"
 LOCAL_DEV_CONTROL_PLANE_SCHEMA_VERSION = "local-dev-control-plane-simulator-0.1"
-LOCAL_DEV_CONTROL_PLANE_FIXED_NOW = datetime(2026, 5, 21, 12, tzinfo=timezone.utc)
-
 LocalNodeVerificationState = Literal[
     "missing",
     "present_unverified",
@@ -186,7 +184,7 @@ def build_local_dev_control_plane_status(
     signed_manifest: SignedLocalNodeManifest | None = None,
     public_key_b64: str | None = None,
     expected_audience: str = DEFAULT_CONTROL_PLANE_AUDIENCE,
-    now: datetime | None = LOCAL_DEV_CONTROL_PLANE_FIXED_NOW,
+    now: datetime | None = None,
     verify_test_manifest: bool = True,
 ) -> LocalDevControlPlaneStatus:
     disabled = _local_dev_disabled_capabilities()
@@ -301,10 +299,12 @@ def preview_route_with_local_dev_control_plane(
     local_node_available: bool = True,
     risk_hint: str | None = None,
     verify_test_manifest: bool = True,
+    now: datetime | None = None,
 ) -> RoutePreviewDecision:
     status = build_local_dev_control_plane_status(
         local_node_available=local_node_available,
         verify_test_manifest=verify_test_manifest,
+        now=now,
     )
     return preview_route(
         task_text,
@@ -322,7 +322,7 @@ def build_local_dev_enrolled_session_fixture(
     capability: str = "local_tools",
     verify_test_manifest: bool = True,
     pairing_code: str = "123456",
-    now: datetime | None = LOCAL_DEV_CONTROL_PLANE_FIXED_NOW,
+    now: datetime | None = None,
 ) -> tuple[LocalNodeEnrollmentSession | None, SignedLocalNodeManifest, str, str]:
     private_key_b64, public_key_b64 = generate_test_local_node_keypair()
     manifest = build_test_local_node_manifest(
@@ -364,7 +364,7 @@ def evaluate_local_dev_session_binding(
     signed_action_envelope: LocalNodeActionEnvelope | None = None,
     expected_args_hash: str | None = None,
     nonce_store: InMemoryNonceStore | None = None,
-    now: datetime | None = LOCAL_DEV_CONTROL_PLANE_FIXED_NOW,
+    now: datetime | None = None,
 ) -> LocalDevSessionBindingDecision:
     if not local_node_available:
         return _session_binding_decision(

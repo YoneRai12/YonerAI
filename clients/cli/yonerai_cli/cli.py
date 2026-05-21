@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import ipaddress
 import json
 import os
@@ -139,7 +140,7 @@ def _print_json(data: dict[str, Any]) -> None:
 def _run_public_mvp_smoke(*, json_output: bool = False, pretty: bool = False) -> int:
     try:
         _prepare_repo_import_path()
-        from scripts.dev import public_mvp_smoke
+        public_mvp_smoke = _load_public_mvp_smoke_module()
     except Exception as exc:
         raise CliError("public MVP smoke is unavailable.", exit_code=1) from exc
     try:
@@ -157,7 +158,7 @@ def _run_public_mvp_smoke(*, json_output: bool = False, pretty: bool = False) ->
 def _run_public_demo(*, json_output: bool = False, pretty: bool = False) -> int:
     try:
         _prepare_repo_import_path()
-        from scripts.dev import public_demo
+        public_demo = _load_public_demo_module()
     except Exception as exc:
         raise CliError("YonerAI public demo is unavailable.", exit_code=1) from exc
     try:
@@ -176,6 +177,25 @@ def _prepare_repo_import_path() -> None:
     text = str(repo_root)
     if text not in sys.path:
         sys.path.insert(0, text)
+
+
+def _load_repo_script_module(module_name: str, script_relative_path: str) -> Any:
+    repo_root = Path(__file__).resolve().parents[3]
+    script_path = repo_root / script_relative_path
+    spec = importlib.util.spec_from_file_location(module_name, script_path)
+    if spec is None or spec.loader is None:
+        raise CliError("public script module is unavailable.", exit_code=1)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _load_public_mvp_smoke_module() -> Any:
+    return _load_repo_script_module("yonerai_trusted_public_mvp_smoke", "scripts/dev/public_mvp_smoke.py")
+
+
+def _load_public_demo_module() -> Any:
+    return _load_repo_script_module("yonerai_trusted_public_demo", "scripts/dev/public_demo.py")
 
 
 def _prepare_core_import_path() -> None:

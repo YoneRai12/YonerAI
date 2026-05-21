@@ -73,7 +73,7 @@ def test_pairing_code_plaintext_is_not_retained() -> None:
 
     public_challenge = challenge.to_public_dict()
 
-    assert public_challenge["pairing_code_hash"].startswith("sha256:")
+    assert "pairing_code_hash" not in public_challenge
     assert PAIRING_CODE not in repr(challenge)
     assert PAIRING_CODE not in str(asdict(challenge))
     assert PAIRING_CODE not in str(public_challenge)

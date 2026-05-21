@@ -181,6 +181,8 @@ def _normalize_session_state(
     require_enrolled_verified_session: bool,
     session_verification_state: SessionVerificationState | None,
 ) -> SessionVerificationState:
+    if require_enrolled_verified_session and session_verification_state == "not_required":
+        return "missing"
     if not require_enrolled_verified_session and session_verification_state is None:
         return "not_required"
     return session_verification_state or "missing"
