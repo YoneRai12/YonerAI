@@ -15,7 +15,7 @@ from typing import Any
 from fastapi.testclient import TestClient
 
 
-PUBLIC_MVP_SMOKE_CONTRACT = "public-mvp-smoke-0.4"
+PUBLIC_MVP_SMOKE_CONTRACT = "public-mvp-smoke-0.5"
 _PUBLIC_ENV_KEYS = (
     "ORA_ALLOW_MISSING_SECRETS",
     "ORA_BOT_DB",
@@ -172,8 +172,42 @@ def _assert_differentiation_contract() -> dict[str, str]:
         "status": "ok",
         "modes": str(len(MODES)),
         "route_preview": f"{docs_route.route},{private_route.route}",
-        "local_dev_control_plane": "simulator",
+        "local_dev_control_plane": "non_production_simulator",
         "self_evolution": "proposal_only",
+    }
+
+
+def _assert_mode_boundary_contract() -> dict[str, str]:
+    from ora_core.three_mode import build_three_mode_capability_surface
+
+    surface = build_three_mode_capability_surface()
+    modes = surface["modes"]
+    managed = modes["official_managed_cloud"]
+    hybrid = modes["official_hybrid_private"]
+    self_host = modes["full_private_self_host"]
+
+    assert self_host["runtime_available_in_public_repo"] is True, "self-host public-local runtime was not marked available"
+    assert self_host["public_repo_support_status"] == "public_local_supported"
+    assert hybrid["runtime_available_in_public_repo"] is False, "hybrid claimed official runtime in public repo"
+    assert hybrid["public_repo_support_status"] == "local_node_contract_and_dev_simulator"
+    assert managed["runtime_available_in_public_repo"] is False, "managed cloud claimed public repo runtime"
+    assert managed["public_repo_support_status"] == "contract_only"
+    assert managed["implementation_owner"] == "official_private"
+    assert managed["external_official_service"] is True
+    assert managed["contract_only"] is True
+
+    return {
+        "endpoint": "mode-boundary-contract",
+        "status": "ok",
+        "self_host": "public_local_supported",
+        "hybrid_private": "local_node_contract_and_dev_simulator_supported",
+        "managed_cloud": "official_private_external_contract_only",
+        "official_cloud_runtime_included": "false",
+        "real_telemetry_included": "false",
+        "production_oracle_included": "false",
+        "production_trust_store_included": "false",
+        "hybrid_trust_contract": "test_only",
+        "local_dev_control_plane": "non_production_simulator",
     }
 
 
@@ -449,6 +483,7 @@ def run_smoke() -> dict[str, Any]:
 
             checks.append(_assert_managed_download_contract())
             checks.append(_assert_differentiation_contract())
+            checks.append(_assert_mode_boundary_contract())
             checks.append(_assert_hybrid_trust_contract())
             checks.append(_assert_enrolled_hybrid_slice_contract())
 

@@ -32,24 +32,39 @@ def test_public_mvp_smoke_runs_without_credentials(monkeypatch) -> None:
         "/api/v1/agent/run",
         "managed-download-contract",
         "yonerai-differentiation-contract",
+        "mode-boundary-contract",
         "hybrid-trust-contract",
         "enrolled-hybrid-slice-contract",
     ]
-    managed_download_check = result["checks"][-4]
+    managed_download_check = result["checks"][-5]
     assert managed_download_check == {
         "endpoint": "managed-download-contract",
         "status": "ok",
         "accepted": "3",
         "rejected": "4",
     }
-    differentiation_check = result["checks"][-3]
+    differentiation_check = result["checks"][-4]
     assert differentiation_check == {
         "endpoint": "yonerai-differentiation-contract",
         "status": "ok",
         "modes": "3",
         "route_preview": "managed_cloud_contract_only,local_node_required",
-        "local_dev_control_plane": "simulator",
+        "local_dev_control_plane": "non_production_simulator",
         "self_evolution": "proposal_only",
+    }
+    boundary_check = result["checks"][-3]
+    assert boundary_check == {
+        "endpoint": "mode-boundary-contract",
+        "status": "ok",
+        "self_host": "public_local_supported",
+        "hybrid_private": "local_node_contract_and_dev_simulator_supported",
+        "managed_cloud": "official_private_external_contract_only",
+        "official_cloud_runtime_included": "false",
+        "real_telemetry_included": "false",
+        "production_oracle_included": "false",
+        "production_trust_store_included": "false",
+        "hybrid_trust_contract": "test_only",
+        "local_dev_control_plane": "non_production_simulator",
     }
     trust_check = result["checks"][-2]
     assert trust_check == {
@@ -119,10 +134,23 @@ def test_public_mvp_smoke_cli_json_output_is_deterministic(capsys) -> None:
         },
         {
             "endpoint": "yonerai-differentiation-contract",
-            "local_dev_control_plane": "simulator",
+            "local_dev_control_plane": "non_production_simulator",
             "modes": "3",
             "route_preview": "managed_cloud_contract_only,local_node_required",
             "self_evolution": "proposal_only",
+            "status": "ok",
+        },
+        {
+            "endpoint": "mode-boundary-contract",
+            "hybrid_private": "local_node_contract_and_dev_simulator_supported",
+            "hybrid_trust_contract": "test_only",
+            "local_dev_control_plane": "non_production_simulator",
+            "managed_cloud": "official_private_external_contract_only",
+            "official_cloud_runtime_included": "false",
+            "production_oracle_included": "false",
+            "production_trust_store_included": "false",
+            "real_telemetry_included": "false",
+            "self_host": "public_local_supported",
             "status": "ok",
         },
         {
@@ -158,7 +186,7 @@ def test_public_mvp_smoke_cli_pretty_output_summarizes_boundaries(capsys) -> Non
     output = capsys.readouterr().out
     assert "YonerAI public MVP smoke" in output
     assert "Result: ok" in output
-    assert "Checks passed: 7" in output
+    assert "Checks passed: 8" in output
     assert "- credentials_required: false" in output
     assert "- external_provider_required: false" in output
     assert "- live_discord_required: false" in output
@@ -169,6 +197,7 @@ def test_public_mvp_smoke_cli_pretty_output_summarizes_boundaries(capsys) -> Non
     assert "/api/v1/agent/run | ok | mode=mock | provider=offline-mock" in output
     assert "managed-download-contract | ok" in output
     assert "yonerai-differentiation-contract | ok" in output
+    assert "mode-boundary-contract | ok" in output
     assert "hybrid-trust-contract | ok" in output
     assert "enrolled-hybrid-slice-contract | ok" in output
     assert "Traceback" not in output
