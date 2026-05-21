@@ -95,7 +95,7 @@ PR #195 and PR #203 current body scans found no four-question-mark mojibake sequ
 
 Decision: PR #216 landed the current-main v7.7-scoped replacements for the safe subset of the new security/runtime backlog. PRs #204, #208, #209, #210, #211, #212, and #213 were closed as superseded or duplicate with close comments citing #216, merge commit `f26211b89cfc30c182ea7d7c8e8435f8f67cd457`, and the relevant replacement tests.
 
-PRs #205, #206, and #207 remain open because they need a separate current-main security review and were not fixed by #216. Older security PRs #128, #133, #60, #131, #132, #135, and #129 also remain open because their risk is not safely replaced or disproven.
+A subset of security PRs (including #205, #206, and #207) remains open for follow-up security review. Additional issue-class details are intentionally tracked outside this public ledger.
 
 ## 2026-05-21 Current PR / Branch Reality Recheck
 
@@ -226,8 +226,8 @@ The following GitHub check rollups were read after the open PR list. A passing h
 
 ## Top 10 Next PR Decisions
 
-1. #206 / #207: local LLM public-mode auth and request-controlled loopback endpoint override; review together and replace with one current-main patch if still reproducible.
-2. #205: redact sensitive public ledger details if current maintained docs still expose too much implementation detail.
+1. #205 / #206 / #207: complete follow-up security review in a restricted lane and land a current-main-safe replacement if still reproducible.
+2. Remaining open security PRs: prioritize by verified exploitability and boundary impact, then land minimal scoped replacements.
 3. #128: dashboard path traversal; determine whether public/private boundary makes it public-safe or private-only.
 4. #133: embed image SSRF; re-evaluate against current media/tool boundary.
 5. #60: image crop/upscale SSRF; re-evaluate against current tools policy.

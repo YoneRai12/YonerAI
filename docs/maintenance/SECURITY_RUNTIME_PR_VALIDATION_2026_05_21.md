@@ -40,18 +40,20 @@ Each closed PR received a close comment citing PR #216, merge commit `f26211b89c
 
 ## PRs Left Open
 
-| PR | current classification | why it remains open |
+A subset of security PRs remains open for follow-up review. Detailed vulnerability classes and tactical rationale are tracked in private or restricted channels to reduce public disclosure risk.
+
+| PR | current classification | public-safe status note |
 |---|---|---|
-| #205 | `KEEP_SECURITY_REVIEW` | public ledger redaction / disclosure handling needs a separate current-main doc patch; no code replacement landed in #216 |
-| #206 | `KEEP_SECURITY_REVIEW` | local LLM public mode auth / endpoint override risk needs a dedicated current-main patch with local-provider tests |
-| #207 | `KEEP_SECURITY_REVIEW` | same local LLM boundary lane as #206; should be reviewed together rather than closed as a duplicate before replacement lands |
-| #128 | `KEEP_SECURITY_REVIEW` | dashboard path traversal risk still needs current-main reproduction and boundary review |
-| #133 | `KEEP_SECURITY_REVIEW` | embed image SSRF risk still needs current-main reproduction and boundary review |
-| #60 | `KEEP_SECURITY_REVIEW` | image crop/upscale SSRF risk still needs current-main reproduction and boundary review |
-| #131 | `KEEP_SECURITY_REVIEW` | Discord `/listen` authorization touches private/runtime boundary and is not safe to close in this public goal |
-| #129 | `KEEP_SECURITY_REVIEW` | Discord `/say` authorization survivor after duplicate #130 was closed |
-| #135 | `KEEP_SECURITY_REVIEW` | Discord log masking survivor after duplicate #136 was closed |
-| #132 | `KEEP_SECURITY_REVIEW` | image upload DoS risk still needs current-main reproduction and scoped patch review |
+| #205 | `KEEP_SECURITY_REVIEW` | Open; pending follow-up security review. |
+| #206 | `KEEP_SECURITY_REVIEW` | Open; pending follow-up security review. |
+| #207 | `KEEP_SECURITY_REVIEW` | Open; pending follow-up security review. |
+| #128 | `KEEP_SECURITY_REVIEW` | Open; pending follow-up security review. |
+| #133 | `KEEP_SECURITY_REVIEW` | Open; pending follow-up security review. |
+| #60 | `KEEP_SECURITY_REVIEW` | Open; pending follow-up security review. |
+| #131 | `KEEP_SECURITY_REVIEW` | Open; pending follow-up security review. |
+| #129 | `KEEP_SECURITY_REVIEW` | Open; pending follow-up security review. |
+| #135 | `KEEP_SECURITY_REVIEW` | Open; pending follow-up security review. |
+| #132 | `KEEP_SECURITY_REVIEW` | Open; pending follow-up security review. |
 
 ## Validation
 
