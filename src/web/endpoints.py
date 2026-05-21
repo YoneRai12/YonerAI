@@ -1841,16 +1841,49 @@ async def get_dashboard_users(response: Response, _: None = Depends(require_web_
         return {"ok": False, "error": str(e)}
 
 
+def _safe_dashboard_user_profile_path(users_dir: Path, filename: str) -> Path:
+    users_root = users_dir.resolve(strict=False)
+    candidate = (users_root / filename).resolve(strict=False)
+    if candidate == users_root or users_root not in candidate.parents:
+        raise ValueError("Invalid user profile path")
+    return candidate
+
+
+def _dashboard_user_profile_dirs(memory_dir: Path) -> list[Path]:
+    if memory_dir.name.lower() == "users":
+        return [memory_dir]
+    return [memory_dir / "users", memory_dir]
+
+
+def _parse_dashboard_user_profile_id(user_id: str) -> tuple[str, str | None]:
+    parts = user_id.split("_")
+    if len(parts) == 2:
+        uid, gid = parts
+    elif len(parts) == 3 and parts[2] in {"public", "private"}:
+        uid, gid = parts[0], parts[1]
+    elif len(parts) == 1:
+        uid, gid = parts[0], None
+    else:
+        raise ValueError("Invalid user profile id")
+    if not uid.isdigit() or (gid is not None and not gid.isdigit()):
+        raise ValueError("Invalid user profile id")
+    return uid, gid
+
+
 @router.get("/dashboard/users/{user_id}")
 async def get_user_details(user_id: str, _: None = Depends(require_web_api)):
     """Get full details for a specific user (traits, history, context). Supports dual profiles."""
     import json
-    from pathlib import Path
 
-    MEMORY_DIR = Path("L:/ORA_Memory/users")
-    parts = user_id.split("_")
-    uid = parts[0]
-    gid = parts[1] if len(parts) > 1 else None
+    import aiofiles  # type: ignore
+
+    from src.config import MEMORY_DIR
+
+    profile_dirs = _dashboard_user_profile_dirs(Path(MEMORY_DIR))
+    try:
+        uid, gid = _parse_dashboard_user_profile_id(user_id)
+    except ValueError:
+        return {"ok": False, "error": "Invalid user profile id"}
 
     specific_data = None
     general_data = None
@@ -1859,23 +1892,27 @@ async def get_user_details(user_id: str, _: None = Depends(require_web_api)):
         # 1. Try Specific Profile
         if gid:
             # FIX: Check public/private suffixes matching memory.py
-            path_spec = MEMORY_DIR / f"{uid}_{gid}_public.json"
-            if not path_spec.exists():
-                path_spec = MEMORY_DIR / f"{uid}_{gid}_private.json"
-
-            # Legacy fallback
-            if not path_spec.exists():
-                path_spec = MEMORY_DIR / f"{uid}_{gid}.json"
-
-            if path_spec.exists():
-                with open(path_spec, "r", encoding="utf-8") as f:
-                    specific_data = json.load(f)
+            for users_dir in profile_dirs:
+                for filename in (
+                    f"{uid}_{gid}_public.json",
+                    f"{uid}_{gid}_private.json",
+                    f"{uid}_{gid}.json",
+                ):
+                    path_spec = _safe_dashboard_user_profile_path(users_dir, filename)
+                    if path_spec.exists():
+                        async with aiofiles.open(path_spec, "r", encoding="utf-8") as f:
+                            specific_data = json.loads(await f.read())
+                        break
+                if specific_data is not None:
+                    break
 
         # 2. Try General Profile
-        path_gen = MEMORY_DIR / f"{uid}.json"
-        if path_gen.exists():
-            with open(path_gen, "r", encoding="utf-8") as f:
-                general_data = json.load(f)
+        for users_dir in profile_dirs:
+            path_gen = _safe_dashboard_user_profile_path(users_dir, f"{uid}.json")
+            if path_gen.exists():
+                async with aiofiles.open(path_gen, "r", encoding="utf-8") as f:
+                    general_data = json.loads(await f.read())
+                break
 
         if not specific_data and not general_data:
             return {"ok": False, "error": "User profile not found"}
