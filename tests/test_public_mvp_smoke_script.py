@@ -24,18 +24,30 @@ def test_public_mvp_smoke_runs_without_credentials(monkeypatch) -> None:
     assert result["credentials_required"] is False
     assert result["external_provider_required"] is False
     assert result["live_discord_required"] is False
+    assert result["production_deploy_required"] is False
+    assert result["persistent_memory_required"] is False
     assert [check["endpoint"] for check in result["checks"]] == [
         "/health",
         "/v1/public/messages",
         "/api/v1/agent/run",
         "managed-download-contract",
+        "yonerai-differentiation-contract",
     ]
-    managed_download_check = result["checks"][-1]
+    managed_download_check = result["checks"][-2]
     assert managed_download_check == {
         "endpoint": "managed-download-contract",
         "status": "ok",
         "accepted": "3",
         "rejected": "4",
+    }
+    differentiation_check = result["checks"][-1]
+    assert differentiation_check == {
+        "endpoint": "yonerai-differentiation-contract",
+        "status": "ok",
+        "modes": "3",
+        "route_preview": "cloud_only,local_node_required",
+        "local_dev_control_plane": "simulator",
+        "self_evolution": "proposal_only",
     }
     assert "must-be-cleared-by-smoke" not in json.dumps(result)
 
@@ -80,6 +92,14 @@ def test_public_mvp_smoke_cli_json_output_is_deterministic(capsys) -> None:
             "rejected": "4",
             "status": "ok",
         },
+        {
+            "endpoint": "yonerai-differentiation-contract",
+            "local_dev_control_plane": "simulator",
+            "modes": "3",
+            "route_preview": "cloud_only,local_node_required",
+            "self_evolution": "proposal_only",
+            "status": "ok",
+        },
     ]
     assert "run_id" not in body
     assert "session_id" not in body
@@ -92,14 +112,17 @@ def test_public_mvp_smoke_cli_pretty_output_summarizes_boundaries(capsys) -> Non
     output = capsys.readouterr().out
     assert "YonerAI public MVP smoke" in output
     assert "Result: ok" in output
-    assert "Checks passed: 4" in output
+    assert "Checks passed: 5" in output
     assert "- credentials_required: false" in output
     assert "- external_provider_required: false" in output
     assert "- live_discord_required: false" in output
+    assert "- production_deploy_required: false" in output
+    assert "- persistent_memory_required: false" in output
     assert "/health | ok" in output
     assert "/v1/public/messages | ok | mode=mock | provider=offline-mock" in output
     assert "/api/v1/agent/run | ok | mode=mock | provider=offline-mock" in output
     assert "managed-download-contract | ok" in output
+    assert "yonerai-differentiation-contract | ok" in output
     assert "Traceback" not in output
 
 
