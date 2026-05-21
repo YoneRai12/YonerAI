@@ -1,7 +1,11 @@
 import base64
+import asyncio
 import io
+import ipaddress
 import logging
+import socket
 import time
+import urllib.parse
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -15,6 +19,170 @@ logger = logging.getLogger(__name__)
 
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
 MAX_IMAGE_PIXELS = 20_000_000
+_MAX_EMBED_IMAGE_REDIRECTS = 3
+_BLOCKED_EMBED_IMAGE_HOSTS = {
+    "localhost",
+    "localhost.localdomain",
+    "metadata",
+    "metadata.google.internal",
+    "metadata.azure.internal",
+}
+_BLOCKED_EMBED_IMAGE_HOST_SUFFIXES = (".localhost", ".local", ".internal")
+_BLOCKED_EMBED_IMAGE_NETS = (
+    ipaddress.ip_network("0.0.0.0/8"),
+    ipaddress.ip_network("10.0.0.0/8"),
+    ipaddress.ip_network("100.64.0.0/10"),
+    ipaddress.ip_network("127.0.0.0/8"),
+    ipaddress.ip_network("169.254.0.0/16"),
+    ipaddress.ip_network("172.16.0.0/12"),
+    ipaddress.ip_network("192.168.0.0/16"),
+    ipaddress.ip_network("198.18.0.0/15"),
+    ipaddress.ip_network("::1/128"),
+    ipaddress.ip_network("fc00::/7"),
+    ipaddress.ip_network("fe80::/10"),
+)
+_BLOCKED_EMBED_IMAGE_METADATA_IPS = {
+    ipaddress.ip_address("169.254.169.254"),
+    ipaddress.ip_address("169.254.170.2"),
+    ipaddress.ip_address("100.100.100.200"),
+}
+
+
+def _normalize_embed_image_host(host: str) -> str:
+    return str(host or "").strip().lower().rstrip(".")
+
+
+def _is_blocked_embed_image_host(host: str) -> bool:
+    normalized = _normalize_embed_image_host(host)
+    if not normalized:
+        return True
+    if normalized in _BLOCKED_EMBED_IMAGE_HOSTS:
+        return True
+    return normalized.endswith(_BLOCKED_EMBED_IMAGE_HOST_SUFFIXES)
+
+
+def _parse_embed_image_ip_literal(host: str) -> ipaddress._BaseAddress | None:
+    try:
+        return ipaddress.ip_address(_normalize_embed_image_host(host))
+    except Exception:
+        return None
+
+
+def _is_blocked_embed_image_ip(ip_obj: ipaddress._BaseAddress) -> bool:
+    if ip_obj in _BLOCKED_EMBED_IMAGE_METADATA_IPS:
+        return True
+    if (
+        ip_obj.is_loopback
+        or ip_obj.is_private
+        or ip_obj.is_link_local
+        or ip_obj.is_multicast
+        or ip_obj.is_reserved
+        or ip_obj.is_unspecified
+    ):
+        return True
+    return any(ip_obj in net for net in _BLOCKED_EMBED_IMAGE_NETS)
+
+
+async def _resolve_embed_image_host_ips(host: str) -> set[str]:
+    ip_literal = _parse_embed_image_ip_literal(host)
+    if ip_literal is not None:
+        return {str(ip_literal)}
+
+    loop = asyncio.get_running_loop()
+    infos = await loop.getaddrinfo(_normalize_embed_image_host(host), None, type=socket.SOCK_STREAM)
+    ips: set[str] = set()
+    for info in infos:
+        sockaddr = info[4]
+        if isinstance(sockaddr, tuple) and sockaddr:
+            ips.add(str(sockaddr[0]))
+    if not ips:
+        raise ValueError("embed image host resolution failed")
+    return ips
+
+
+async def _assert_safe_embed_image_url(url: str) -> tuple[str, set[str]]:
+    parsed = urllib.parse.urlsplit(str(url or "").strip())
+    scheme = (parsed.scheme or "").lower()
+    if scheme not in {"http", "https"}:
+        raise ValueError("invalid embed image url")
+    if parsed.username or parsed.password:
+        raise ValueError("invalid embed image url")
+
+    host = _normalize_embed_image_host(parsed.hostname or "")
+    if _is_blocked_embed_image_host(host):
+        raise ValueError("embed image host not allowed")
+
+    ips = await _resolve_embed_image_host_ips(host)
+    for raw_ip in ips:
+        if _is_blocked_embed_image_ip(ipaddress.ip_address(raw_ip)):
+            raise ValueError("embed image host not allowed")
+
+    netloc = f"[{host}]" if ":" in host else host
+    if parsed.port is not None:
+        netloc = f"{host}:{parsed.port}"
+        if ":" in host:
+            netloc = f"[{host}]:{parsed.port}"
+    normalized = urllib.parse.urlunsplit((scheme, netloc, parsed.path or "/", parsed.query or "", ""))
+    return normalized, ips
+
+
+def _iter_embed_peer_ip_candidates(resp: aiohttp.ClientResponse):
+    try:
+        conn = getattr(resp, "connection", None)
+        transport = getattr(conn, "transport", None) if conn else None
+        peer = transport.get_extra_info("peername") if transport else None
+        if isinstance(peer, tuple) and peer:
+            yield str(peer[0])
+    except Exception:
+        return
+
+
+def _assert_embed_peer_ip_safe(resp: aiohttp.ClientResponse, resolved_ips: set[str]) -> None:
+    for raw_peer in _iter_embed_peer_ip_candidates(resp):
+        try:
+            ip_obj = ipaddress.ip_address(raw_peer)
+            if _is_blocked_embed_image_ip(ip_obj):
+                raise ValueError("embed image host not allowed")
+            if resolved_ips and str(ip_obj) not in resolved_ips:
+                raise ValueError("embed image host not allowed")
+        except ValueError:
+            raise
+        except Exception:
+            continue
+
+
+async def _download_safe_embed_image(url: str) -> bytes | None:
+    next_url, resolved_ips = await _assert_safe_embed_image_url(url)
+    timeout = aiohttp.ClientTimeout(total=5, connect=3)
+    headers = {
+        "User-Agent": "YonerAI embed vision",
+        "Accept": "image/*,*/*;q=0.8",
+    }
+    async with aiohttp.ClientSession(timeout=timeout, headers=headers) as session:
+        for _ in range(_MAX_EMBED_IMAGE_REDIRECTS + 1):
+            async with session.get(next_url, allow_redirects=False) as resp:
+                _assert_embed_peer_ip_safe(resp, resolved_ips)
+                if resp.status in {301, 302, 303, 307, 308}:
+                    location = resp.headers.get("Location")
+                    if not location:
+                        return None
+                    next_url, resolved_ips = await _assert_safe_embed_image_url(
+                        urllib.parse.urljoin(next_url, location)
+                    )
+                    continue
+                if resp.status != 200:
+                    return None
+                content_type = (resp.headers.get("Content-Type") or "").lower()
+                if content_type and not content_type.startswith("image/"):
+                    return None
+                content_length = resp.headers.get("Content-Length")
+                if content_length and content_length.isdigit() and int(content_length) > MAX_IMAGE_BYTES:
+                    return None
+                image_data = await resp.content.read(MAX_IMAGE_BYTES + 1)
+                if len(image_data) > MAX_IMAGE_BYTES:
+                    return None
+                return image_data
+    return None
 
 
 class VisionHandler:
@@ -119,19 +287,9 @@ class VisionHandler:
                 continue
 
             try:
-                # Download
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(image_url, timeout=5) as resp:
-                        if resp.status != 200:
-                            continue
-
-                        content_length = resp.headers.get("Content-Length")
-                        if content_length and content_length.isdigit() and int(content_length) > MAX_IMAGE_BYTES:
-                            continue
-
-                        image_data = await resp.content.read(MAX_IMAGE_BYTES + 1)
-                        if len(image_data) > MAX_IMAGE_BYTES:
-                            continue
+                image_data = await _download_safe_embed_image(image_url)
+                if not image_data:
+                    continue
 
                 # Optimize & Encode
                 b64_img = await self._optimize_and_encode(image_data)
@@ -141,7 +299,7 @@ class VisionHandler:
                     prompt_suffix += "\n\n[Embed Image]\n(Image loaded into LLM Vision Context)\n"
 
             except Exception as e:
-                logger.warning(f"Failed to process embed image {image_url}: {e}")
+                logger.warning("Failed to process embed image: %s", e)
 
         return prompt_suffix, image_payloads
 
