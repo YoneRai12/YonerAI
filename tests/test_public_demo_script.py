@@ -26,6 +26,9 @@ def test_public_demo_json_shape_and_boundaries(capsys) -> None:
     output = json.loads(capsys.readouterr().out)
     assert output["ok"] is True
     assert output["contract"] == "yonerai-public-demo/v1"
+    assert output["schema_version"] == "1.0"
+    assert output["cli_entrypoint"] == "yonerai demo"
+    assert output["quickstart_alias"] == "yonerai quickstart"
     assert [section["name"] for section in output["sections"]] == [
         "public_core",
         "mode_boundary",
@@ -54,6 +57,13 @@ def test_public_demo_pretty_output_contains_key_sections(capsys) -> None:
 
     output = capsys.readouterr().out
     assert "YonerAI public demo" in output
+    assert "YonerAI CLI:" in output
+    assert "command: yonerai demo --pretty" in output
+    assert "json: yonerai demo --json" in output
+    assert "quickstart_alias: yonerai quickstart" in output
+    assert "Schema: 1.0" in output
+    assert "Demo Experience:" in output
+    assert "Managed Cloud external contract-only" in output
     assert "public_core: ok" in output
     assert "mode_boundary: ok" in output
     assert "route_preview: ok" in output
@@ -63,6 +73,8 @@ def test_public_demo_pretty_output_contains_key_sections(capsys) -> None:
     assert "limitations: ok" in output
     assert "official_cloud_runtime_included: false" in output
     assert "deploy_required: false" in output
+    assert "managed_download_guard" in output
+    assert "github_write_allowed=false" in output
 
 
 def test_public_demo_uses_managed_download_guard(monkeypatch) -> None:

@@ -450,8 +450,19 @@ def format_pretty_demo(result: dict[str, object]) -> str:
     assert isinstance(sections, list)
     lines = [
         "YonerAI public demo",
+        "YonerAI CLI:",
+        "- command: yonerai demo --pretty",
+        "- json: yonerai demo --json",
+        "- quickstart_alias: yonerai quickstart",
         "Result: ok",
         f"Contract: {result['contract']}",
+        f"Schema: {result['schema_version']}",
+        "Demo Experience:",
+        "- Self-host local public MVP",
+        "- Hybrid Local Node contract/dev simulator",
+        "- Managed Cloud external contract-only",
+        "- Route preview, enrolled Local Node trust/session simulator, managed download guard",
+        "- Proposal-only self-evolution scorecard and approval draft",
         "Boundaries:",
         f"- credentials_required: {str(result['credentials_required']).lower()}",
         f"- network_required: {str(result['network_required']).lower()}",
@@ -473,9 +484,14 @@ def format_pretty_demo(result: dict[str, object]) -> str:
                 "route",
                 "provider",
                 "public_repo_support",
+                "memory_persisted",
                 "session_verified",
                 "approval_required",
+                "guard",
                 "proposal_only",
+                "mode_experience_gain",
+                "github_write_allowed",
+                "deploy_allowed",
             ):
                 if key in check:
                     detail.append(f"{key}={str(check[key]).lower()}")

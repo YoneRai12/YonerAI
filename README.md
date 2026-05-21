@@ -28,6 +28,10 @@ yonerai demo --json
 
 `yonerai quickstart` is an alias for the same demo.
 
+The JSON output uses the stable `yonerai-public-demo/v1` contract with
+`schema_version: "1.0"` so CI, docs, and release checks can assert the same
+public demo shape.
+
 The demo shows one visible vertical slice:
 
 - public Core health, offline mock message, and run contract

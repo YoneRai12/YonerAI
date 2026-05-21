@@ -128,6 +128,9 @@ def test_cli_demo_available_from_clients_cli_cwd() -> None:
     output = json.loads(result.stdout)
     assert output["ok"] is True
     assert output["contract"] == "yonerai-public-demo/v1"
+    assert output["schema_version"] == "1.0"
+    assert output["cli_entrypoint"] == "yonerai demo"
+    assert output["quickstart_alias"] == "yonerai quickstart"
     assert [section["name"] for section in output["sections"]] == [
         "public_core",
         "mode_boundary",

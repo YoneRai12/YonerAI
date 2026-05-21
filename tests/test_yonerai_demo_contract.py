@@ -32,6 +32,9 @@ def test_yonerai_demo_contract_shape_and_boundaries() -> None:
 
     assert result["ok"] is True
     assert result["contract"] == "yonerai-public-demo/v1"
+    assert result["schema_version"] == "1.0"
+    assert result["cli_entrypoint"] == "yonerai demo"
+    assert result["quickstart_alias"] == "yonerai quickstart"
     assert [section["name"] for section in result["sections"]] == [
         "public_core",
         "mode_boundary",

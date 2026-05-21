@@ -4,17 +4,17 @@ YonerAI は、公式・ローカル・self-hosted の実行環境が変わって
 
 [English README](README.md) | [Current phase](docs/CURRENT_PHASE_CONTEXT.md) | [Contracts](docs/contracts) | [Codex / contributor workflow](docs/process/YONERAI_CODEX_WORKFLOW.md) | [Release governance](docs/process/YONERAI_RELEASE_GOVERNANCE.md)
 
-この public repository は public contract surface を説明します。内部運用、credential、live route、host 固有の事実は公開しません。
+この public repository は public contract surface を説明します。内部運用詳細、credential、live route、host 固有の事実は公開しません。
 
 ## YonerAI とは
 
-YonerAI は単なる Discord bot でも、単なる model router でもありません。API、CLI、Web、Discord gateway、relay、native Japanese CLI、SNS distribution、self-evolution を別々の product lane として扱い、それぞれの risk profile と approval requirement を分けます。
+YonerAI は単なる Discord bot でも、単なる model router でもありません。API、CLI、Web、Discord gateway、relay、native Japanese CLI、SNS distribution、self-evolution は別々の product lane であり、それぞれ risk profile と approval requirement を持ちます。
 
-この public repo で見せる中心は、公開可能な core contract、self-host/local surface、Hybrid Local Node contract/dev simulator、そして proposal-only self-evolution です。
+この public repo で確認できる中核は、公開可能な core contract、Self-host/local surface、Hybrid Local Node contract/dev simulator、proposal-only self-evolution です。
 
 ## Quickstart: public demo
 
-clone 後に最短で現在の public-safe slice を見るには、credential-free の demo command を使います。Core API server の常駐起動、Discord token、Oracle access、provider API key、Google login、deployment、persistent memory は不要です。
+clone 後に現在の public-safe slice を見る最短手順は、credential-free の demo command です。Core API server の常駐起動、Discord token、Oracle access、provider API key、Google login、deployment、persistent memory は不要です。
 
 ```powershell
 python -m venv .venv
@@ -28,6 +28,8 @@ yonerai demo --json
 
 `yonerai quickstart` は `yonerai demo` の alias です。
 
+`yonerai demo --json` は stable contract `yonerai-public-demo/v1` と `schema_version: "1.0"` を出力します。`yonerai demo --pretty` は同じ内容を release check 用に読みやすく表示します。
+
 demo が表示するもの:
 
 - public Core health、offline mock message、run contract
@@ -38,11 +40,11 @@ demo が表示するもの:
 - synthetic event から作る proposal-only self-evolution scorecard と approval draft
 - explicit limitations: production Oracle、live Discord、persistent memory、Google login、official cloud runtime、provider live generation、deploy は含まれない
 
-## いま動くもの
+## 今動くもの
 
 現在の public MVP は、credential-free local Core API health smoke、offline/mock message contract、loopback-only local LLM conversation contract、public demo command です。完成済みの ChatGPT-like product ではありません。
 
-いま確認できること:
+今確認できること:
 
 - public repository を clone する
 - `yonerai demo --pretty` / `yonerai demo --json` を実行する
@@ -68,13 +70,13 @@ demo が表示するもの:
 
 ## 3 つの product mode
 
-YonerAI は同じ contract-first foundation を、次の 3 つの利用形態で扱う設計です。
+YonerAI は同じ contract-first foundation を次の 3 つの利用形態で扱う設計です。
 
 - Full Private Self-Host: public repo は local/self-hosted public MVP surface を持ち、operator が runtime boundary に責任を持ちます。
 - Official Hybrid Private: public repo は Local Node contract、signed-contract test、non-production local-dev simulator を持ちます。official cloud coordination は external/private です。
 - Official Managed Cloud: product mode として存在しますが、runtime と control plane は official/private infrastructure であり、この public repo には実装されず runnable として扱いません。
 
-これは repository map ではなく product mode の説明です。public docs は private operational detail ではなく、contract と user experience を説明します。
+これは repository map ではなく product mode の説明です。Public docs は private operational detail ではなく、contract と user experience を説明します。
 
 ## Public repo の境界
 
@@ -100,7 +102,7 @@ YonerAI は同じ contract-first foundation を、次の 3 つの利用形態で
 
 Cross-boundary interaction は API、event、file、auth claim、capability manifest、protocol、schema など明示的な contract 経由だけで行います。
 
-Raw chain-of-thought は public chat、API、SSE、log、documentation、trace surface に出しません。public trace で扱うのは safe summary、label、detail、すでに public-safe な source だけです。
+Raw chain-of-thought は public chat、API、SSE、log、documentation、trace surface に出しません。Public trace で扱うのは safe summary、label、detail、すでに public-safe な source だけです。
 
 ## Local development
 
@@ -128,33 +130,6 @@ $env:ORA_ALLOW_MISSING_SECRETS = "1"
 python -m ora_core.main
 ```
 
-CLI smoke against local Core:
+## Status
 
-```powershell
-yonerai health
-yonerai message --mode mock "hello"
-yonerai run --mode mock "hello"
-```
-
-Discord adapter、VPS、tunnel、official route、deployment flow はこの public runnable MVP の範囲外です。private/runtime/control-plane lane で扱います。
-
-## Claim guardrails
-
-いま claim できること:
-
-- public repo には credential-free public demo command がある
-- Self-host/local public MVP surface と Hybrid Local Node contract/dev simulator surface が見える
-- Official Managed Cloud は public repo では external contract-only として表示される
-- self-evolution は synthetic event から proposal-only scorecard / approval draft を作る
-
-claim してはいけないこと:
-
-- production-ready
-- official cloud complete / runnable in this repo
-- full hybrid complete
-- production trust complete
-- Discord restored
-- persistent memory complete
-- autonomous self-evolution deployment complete
-- `src/cogs/ora.py` solved
-- v7.8 started
+この README は public-facing な境界説明です。現在の public repo は Official Managed Cloud を runnable として提供しません。`src/cogs/ora.py` はまだ unresolved boundary residue であり、この demo によって解決済みとは主張しません。`reference_clawdbot` は public release train の対象外です。

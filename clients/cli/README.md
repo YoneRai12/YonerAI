@@ -20,6 +20,10 @@ runs in-process, and does not require a running Core API process, credentials,
 Oracle, live Discord, a provider API key, persistent memory, Google login, or
 deployment.
 
+`yonerai demo --json` emits the stable `yonerai-public-demo/v1` contract with
+`schema_version: "1.0"`. `yonerai demo --pretty` prints the same sections in a
+readable release-check format.
+
 It shows the public self-host local surface, Hybrid Local Node contract/dev
 simulator, Managed Cloud as external contract-only, route preview, enrolled
 Local Node trust/session simulation, the managed download guard, and
