@@ -3,6 +3,7 @@ import asyncio
 import time
 import os
 import json
+import posixpath
 import re
 import traceback
 from typing import Any
@@ -622,6 +623,17 @@ class MainProcess:
     ) -> dict[str, Any] | None:
         url_text = str(url or "").strip()
         if not url_text:
+            return None
+        parsed_url = urlparse(url_text)
+        path = posixpath.normpath(parsed_url.path or "/")
+        if parsed_url.scheme or parsed_url.netloc:
+            if parsed_url.scheme != "https":
+                return None
+            if (parsed_url.hostname or "").lower() != "files.yonerai.com":
+                return None
+        elif not path.startswith("/"):
+            return None
+        if not (path.startswith("/v1/files/") or path.startswith("/s/")):
             return None
         label_text = str(label or "ダウンロード").strip() or "ダウンロード"
         file_id_text = str(file_id or "").strip() or None
