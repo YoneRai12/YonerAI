@@ -343,6 +343,12 @@ def _managed_download_checks() -> tuple[dict[str, object], ...]:
 
 def _self_evolution_checks() -> tuple[dict[str, object], ...]:
     from ora_core.route_preview import preview_route
+    from ora_core.hybrid import (
+        FIXTURE_NOW,
+        build_memory_candidate_fixture,
+        evaluate_donation_policy,
+        evaluate_memory_candidate_policy,
+    )
     from src.self_evolution import SyntheticEvolutionEvent, generate_evolution_proposal
 
     route = preview_route(
@@ -368,6 +374,20 @@ def _self_evolution_checks() -> tuple[dict[str, object], ...]:
     assert proposal.scorecard.mode_experience_gain >= 1
     assert proposal.approval_draft.github_write_allowed is False
     assert proposal.approval_draft.deploy_allowed is False
+    memory_fixture = build_memory_candidate_fixture()
+    donation_policy = evaluate_donation_policy(
+        memory_fixture.envelope,
+        trust_registry=memory_fixture.trust_registry,
+        nonce_store=memory_fixture.nonce_store,
+        signature_verifier=memory_fixture.signature_verifier,
+        now=FIXTURE_NOW,
+    )
+    memory_policy = evaluate_memory_candidate_policy(memory_fixture.envelope)
+    assert donation_policy.action == "quarantine"
+    assert donation_policy.trusted is False
+    assert donation_policy.requires_approval is True
+    assert memory_policy.status == "quarantined"
+    assert memory_policy.memory_persisted is False
     return (
         {"name": "synthetic_event", "status": "ok", "event_type": proposal.event_type},
         {"name": "proposal_only_output", "status": "ok", "proposal_only": proposal.proposal_only},
@@ -377,6 +397,15 @@ def _self_evolution_checks() -> tuple[dict[str, object], ...]:
             "status": "ok",
             "github_write_allowed": proposal.approval_draft.github_write_allowed,
             "deploy_allowed": proposal.approval_draft.deploy_allowed,
+        },
+        {
+            "name": "memory_candidate_fixture_quarantined",
+            "status": "ok",
+            "donation_action": donation_policy.action,
+            "trusted": donation_policy.trusted,
+            "approval_required": donation_policy.requires_approval,
+            "memory_status": memory_policy.status,
+            "memory_persisted": memory_policy.memory_persisted,
         },
     )
 
@@ -492,6 +521,9 @@ def format_pretty_demo(result: dict[str, object]) -> str:
                 "mode_experience_gain",
                 "github_write_allowed",
                 "deploy_allowed",
+                "donation_action",
+                "trusted",
+                "memory_status",
             ):
                 if key in check:
                     detail.append(f"{key}={str(check[key]).lower()}")
