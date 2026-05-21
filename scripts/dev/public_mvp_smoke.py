@@ -26,6 +26,15 @@ _PUBLIC_ENV_KEYS = (
     "ORA_LOCAL_LLM_ENABLED",
     "ORA_LOCAL_LLM_PUBLIC_TOKEN",
 )
+_PUBLIC_CREDENTIAL_ENV_KEYS = (
+    "DISCORD_TOKEN",
+    "GOOGLE_API_KEY",
+    "OPENAI_API_KEY",
+    "ORA_CORE_API_TOKEN",
+    "ORA_LOCAL_LLM_BASE_URL",
+    "ORA_LOCAL_LLM_ENABLED",
+    "ORA_LOCAL_LLM_PUBLIC_TOKEN",
+)
 
 
 def _repo_root() -> Path:
@@ -45,7 +54,7 @@ def _prepare_public_env() -> None:
     os.environ["ORA_ALLOW_MISSING_SECRETS"] = "1"
     os.environ["ORA_BOT_DB"] = "sqlite+aiosqlite:///:memory:"
     os.environ["ORA_DOTENV_PATH"] = str(_repo_root() / ".codex-public-smoke-missing.env")
-    for key in _PUBLIC_ENV_KEYS[3:]:
+    for key in _PUBLIC_CREDENTIAL_ENV_KEYS:
         os.environ.pop(key, None)
 
 
