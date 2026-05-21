@@ -65,6 +65,21 @@ def test_cli_smoke_import_failure_is_public_safe(monkeypatch, capsys):
     assert "Traceback" not in captured.err
 
 
+def test_cli_smoke_treats_system_exit_none_as_success(monkeypatch):
+    cli = _load_cli_module()
+
+    def exit_none(json_output=False, pretty=False):
+        del json_output, pretty
+        raise SystemExit
+
+    class FakeSmoke:
+        main = staticmethod(exit_none)
+
+    monkeypatch.setitem(sys.modules, "scripts.dev.public_mvp_smoke", FakeSmoke)
+
+    assert cli._run_public_mvp_smoke() == 0
+
+
 def test_cli_message_command_uses_public_message_contract(monkeypatch, capsys):
     cli = _load_cli_module()
     calls = []

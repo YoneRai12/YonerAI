@@ -144,6 +144,8 @@ def _run_public_mvp_smoke(*, json_output: bool = False, pretty: bool = False) ->
         argv = ["--json"] if json_output else ["--pretty"] if pretty else []
         return public_mvp_smoke.main(argv)
     except SystemExit as exc:
+        if exc.code is None:
+            return 0
         code = exc.code if isinstance(exc.code, int) else 1
         return code
     except Exception as exc:
