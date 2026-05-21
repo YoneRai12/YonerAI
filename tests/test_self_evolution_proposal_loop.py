@@ -211,3 +211,97 @@ def test_privacy_sensitive_route_context_is_not_attached() -> None:
     assert proposal.auto_apply_allowed is False
     assert proposal.github_write_allowed is False
     assert proposal.deploy_allowed is False
+
+
+def test_failed_hybrid_route_produces_scorecard_mode_experience_gain() -> None:
+    proposal = generate_evolution_proposal(
+        SyntheticEvolutionEvent(
+            event_type="failed_step",
+            summary="Synthetic enrolled Local Node route was missing a session.",
+            severity=4,
+            confidence=0.85,
+        ),
+        route_trust_context={
+            "mode": "official_hybrid_private",
+            "route": "local_node_required",
+            "requested_capability": "private_files",
+            "local_node_verification_state": "missing",
+            "approval_required": True,
+            "local_node_required": True,
+            "signed_origin_verified": False,
+            "unavailable_reason": "local_node_missing",
+        },
+    )
+
+    assert proposal.scorecard.mode_experience_gain == 5
+    assert proposal.scorecard.user_impact == 4
+    assert proposal.approval_draft.proposal_only is True
+    assert proposal.approval_draft.github_write_allowed is False
+    assert proposal.approval_draft.deploy_allowed is False
+    assert "owner approval" in proposal.approval_draft.patch_plan
+
+
+def test_unverified_local_node_support_ticket_gets_approval_draft() -> None:
+    proposal = generate_evolution_proposal(
+        SyntheticEvolutionEvent(
+            event_type="support_ticket",
+            summary="Synthetic support ticket asks how to verify a Local Node.",
+            severity=3,
+            confidence=0.7,
+        ),
+        route_trust_context={
+            "mode": "official_hybrid_private",
+            "route": "local_node_required",
+            "requested_capability": "local_tools",
+            "local_node_verification_state": "present_unverified",
+            "approval_required": True,
+            "local_node_required": True,
+            "signed_origin_verified": False,
+            "unavailable_reason": "unverified_node_denied",
+        },
+    )
+
+    payload = proposal.to_public_dict()
+
+    assert proposal.category == "support_response"
+    assert proposal.scorecard.mode_experience_gain == 5
+    assert proposal.approval_draft.required_approver in {"maintainer", "owner"}
+    assert "support_response" in proposal.approval_draft.release_note_draft
+    assert payload["scorecard"]["provider_independence_gain"] >= 2
+    assert payload["approval_draft"]["proposal_only"] is True
+
+
+def test_high_risk_or_privacy_sensitive_scorecard_requires_owner_approval() -> None:
+    proposal = generate_evolution_proposal(
+        SyntheticEvolutionEvent(
+            event_type="bug_report",
+            summary="Synthetic privacy-sensitive report.",
+            severity=5,
+            confidence=0.9,
+            privacy_classification="privacy_sensitive",
+        )
+    )
+
+    assert proposal.scorecard.risk == 5
+    assert proposal.approval_draft.required_approver == "owner"
+    assert proposal.approval_draft.patch_plan.startswith("No patch plan")
+    assert proposal.approval_draft.deploy_allowed is False
+
+
+def test_scorecard_output_remains_text_only_proposal_only() -> None:
+    proposal = generate_evolution_proposal(
+        SyntheticEvolutionEvent(
+            event_type="bug_report",
+            summary="Synthetic route trust regression.",
+            severity=4,
+            confidence=0.75,
+        )
+    )
+    payload = proposal.to_public_dict()
+
+    assert payload["proposal_only"] is True
+    assert payload["approval_draft"]["github_write_allowed"] is False
+    assert payload["approval_draft"]["deploy_allowed"] is False
+    assert "auto_apply" not in payload["approval_draft"]
+    assert isinstance(payload["approval_draft"]["patch_plan"], str)
+    assert isinstance(payload["approval_draft"]["rollback_plan"], str)

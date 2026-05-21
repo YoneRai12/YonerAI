@@ -11,8 +11,10 @@ from .signals import SignalEvent, UnsafeSignalError, load_signal_fixture, normal
 from .context import SafeRouteTrustContext, normalize_route_trust_context
 from .loop import (
     SELF_EVOLUTION_LOOP_VERSION,
+    EvolutionApprovalDraft,
     EvolutionClassification,
     EvolutionProposal,
+    EvolutionProposalScorecard,
     SyntheticEvolutionEvent,
     classify_synthetic_event,
     generate_evolution_proposal,
@@ -21,7 +23,9 @@ from .loop import (
 __all__ = [
     "SELF_EVOLUTION_LOOP_VERSION",
     "EvolutionClassification",
+    "EvolutionApprovalDraft",
     "EvolutionProposal",
+    "EvolutionProposalScorecard",
     "ProposalPacket",
     "ScoreBreakdown",
     "SignalEvent",

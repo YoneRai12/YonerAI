@@ -65,14 +65,49 @@ class EvolutionProposal:
     required_approval_gate: str
     redacted_summary: str
     route_trust_context: SafeRouteTrustContext | None
+    scorecard: EvolutionProposalScorecard
+    approval_draft: EvolutionApprovalDraft
     non_actions: tuple[str, ...]
 
     def to_public_dict(self) -> dict[str, object]:
         payload = asdict(self)
         if self.route_trust_context is not None:
             payload["route_trust_context"] = self.route_trust_context.to_public_dict()
+        payload["scorecard"] = self.scorecard.to_public_dict()
+        payload["approval_draft"] = self.approval_draft.to_public_dict()
         payload["non_actions"] = list(self.non_actions)
         return payload
+
+
+@dataclass(frozen=True)
+class EvolutionProposalScorecard:
+    user_impact: int
+    frequency_hint: int
+    risk: int
+    implementation_cost: int
+    provider_independence_gain: int
+    mode_experience_gain: int
+    rollback_complexity: int
+    confidence: float
+
+    def to_public_dict(self) -> dict[str, object]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class EvolutionApprovalDraft:
+    required_approver: str
+    test_plan: str
+    patch_plan: str
+    rollback_plan: str
+    release_note_draft: str
+    go_to_market_note: str | None
+    proposal_only: bool
+    github_write_allowed: bool
+    deploy_allowed: bool
+
+    def to_public_dict(self) -> dict[str, object]:
+        return asdict(self)
 
 
 def classify_synthetic_event(event: SyntheticEvolutionEvent) -> EvolutionClassification:
@@ -171,6 +206,17 @@ def generate_evolution_proposal(
     rollback_plan = (
         "If owner review rejects this proposal, discard the proposal packet without branch, PR, merge, deploy, or release."
     )
+    scorecard = _build_scorecard(normalized_event, classification, safe_context)
+    approval_draft = _build_approval_draft(
+        event=normalized_event,
+        classification=classification,
+        summary=summary,
+        test_idea=test_idea,
+        patch_plan=patch_plan,
+        rollback_plan=rollback_plan,
+        scorecard=scorecard,
+        blocked=blocked,
+    )
     return EvolutionProposal(
         schema_version=SELF_EVOLUTION_LOOP_VERSION,
         event_type=normalized_event.event_type,
@@ -191,6 +237,8 @@ def generate_evolution_proposal(
         required_approval_gate=classification.approval_gate,
         redacted_summary=summary,
         route_trust_context=safe_context,
+        scorecard=scorecard,
+        approval_draft=approval_draft,
         non_actions=(
             "no_real_telemetry_collection",
             "no_raw_prompt_or_completion_ingestion",
@@ -221,3 +269,58 @@ def _context_note(context: SafeRouteTrustContext | None) -> str:
     if context.diagnosis == "hybrid_coordination_requires_owner_approval":
         return " Route/trust diagnosis: verified hybrid coordination still requires owner approval."
     return " Route/trust diagnosis: public-safe route context was recorded for owner review."
+
+
+def _build_scorecard(
+    event: SyntheticEvolutionEvent,
+    classification: EvolutionClassification,
+    context: SafeRouteTrustContext | None,
+) -> EvolutionProposalScorecard:
+    severity = _bounded_severity(event.severity)
+    hybrid_context = context is not None and context.mode == "official_hybrid_private"
+    route_blocked = context is not None and context.route in {"local_node_required", "disabled"}
+    return EvolutionProposalScorecard(
+        user_impact=severity,
+        frequency_hint=3 if event.event_type in {"failed_step", "bug_report", "support_ticket"} else 2,
+        risk=5 if classification.privacy_classification == "privacy_sensitive" else max(2, severity if route_blocked else severity - 1),
+        implementation_cost=3 if classification.category in {"bug_fix", "onboarding"} else 2,
+        provider_independence_gain=3 if event.event_type in {"failed_step", "bug_report"} else 2,
+        mode_experience_gain=5 if hybrid_context or route_blocked else 2,
+        rollback_complexity=2 if classification.category in {"support_response", "onboarding"} else 3,
+        confidence=classification.confidence,
+    )
+
+
+def _build_approval_draft(
+    *,
+    event: SyntheticEvolutionEvent,
+    classification: EvolutionClassification,
+    summary: str,
+    test_idea: str,
+    patch_plan: str,
+    rollback_plan: str,
+    scorecard: EvolutionProposalScorecard,
+    blocked: bool,
+) -> EvolutionApprovalDraft:
+    required_approver = "owner" if scorecard.risk >= 4 or blocked else "maintainer"
+    release_note = (
+        f"Proposal-only candidate for {classification.category}: {summary}"
+        if not blocked
+        else "No release note draft for rejected privacy-sensitive input."
+    )
+    go_to_market_note = (
+        "Highlight safer Hybrid Private onboarding after owner approval."
+        if event.event_type in {"failed_step", "support_ticket"} and not blocked
+        else None
+    )
+    return EvolutionApprovalDraft(
+        required_approver=required_approver,
+        test_plan=test_idea,
+        patch_plan=patch_plan,
+        rollback_plan=rollback_plan,
+        release_note_draft=release_note,
+        go_to_market_note=go_to_market_note,
+        proposal_only=True,
+        github_write_allowed=False,
+        deploy_allowed=False,
+    )
