@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from src.self_evolution import (
     SELF_EVOLUTION_LOOP_VERSION,
+    SafeRouteTrustContext,
     SyntheticEvolutionEvent,
     generate_evolution_proposal,
 )
@@ -113,3 +114,100 @@ def test_no_auto_apply_action_exists_in_public_output() -> None:
     assert payload["auto_apply_allowed"] is False
     assert payload["github_write_allowed"] is False
     assert payload["deploy_allowed"] is False
+
+
+def test_hybrid_missing_node_event_produces_route_trust_aware_proposal() -> None:
+    proposal = generate_evolution_proposal(
+        SyntheticEvolutionEvent(
+            event_type="failed_step",
+            summary="Synthetic hybrid private file step was gated.",
+            severity=4,
+            confidence=0.8,
+        ),
+        route_trust_context={
+            "mode": "official_hybrid_private",
+            "route": "local_node_required",
+            "requested_capability": "private_files",
+            "local_node_verification_state": "missing",
+            "approval_required": True,
+            "local_node_required": True,
+            "signed_origin_verified": False,
+            "trusted": True,
+            "production_trust_material": True,
+            "unavailable_reason": "local_node_missing",
+            "raw_prompt": "must not leak",
+            "signature": "must not leak",
+        },
+    )
+
+    payload = proposal.to_public_dict()
+    context = payload["route_trust_context"]
+
+    assert proposal.category == "onboarding"
+    assert "Local Node is missing" in proposal.reply_draft
+    assert context["diagnosis"] == "hybrid_local_node_missing"
+    assert context["trusted"] is False
+    assert context["production_trust_material"] is False
+    assert "raw_prompt" not in context
+    assert "signature" not in context
+    assert proposal.auto_apply_allowed is False
+    assert proposal.github_write_allowed is False
+    assert proposal.deploy_allowed is False
+
+
+def test_unverified_node_event_produces_verification_guidance() -> None:
+    proposal = generate_evolution_proposal(
+        SyntheticEvolutionEvent(
+            event_type="bug_report",
+            summary="Synthetic route preview allowed an unverified node.",
+            severity=5,
+            confidence=0.9,
+        ),
+        route_trust_context=SafeRouteTrustContext(
+            mode="official_hybrid_private",
+            route="local_node_required",
+            requested_capability="pc_operations",
+            local_node_verification_state="present_unverified",
+            approval_required=True,
+            local_node_required=True,
+            signed_origin_verified=False,
+            trusted=False,
+            production_trust_material=False,
+            unavailable_reason="unverified_node_denied",
+            diagnosis="hybrid_local_node_unverified",
+        ),
+    )
+
+    payload = proposal.to_public_dict()
+
+    assert proposal.category == "bug_fix"
+    assert "present but unverified" in proposal.issue_draft
+    assert payload["route_trust_context"]["diagnosis"] == "hybrid_local_node_unverified"
+    assert payload["route_trust_context"]["signed_origin_verified"] is False
+
+
+def test_privacy_sensitive_route_context_is_not_attached() -> None:
+    proposal = generate_evolution_proposal(
+        SyntheticEvolutionEvent(
+            event_type="bug_report",
+            summary="Synthetic privacy-sensitive hybrid failure.",
+            severity=5,
+            confidence=0.9,
+            privacy_classification="privacy_sensitive",
+        ),
+        route_trust_context={
+            "mode": "official_hybrid_private",
+            "route": "hybrid_coordination",
+            "requested_capability": "private_files",
+            "local_node_verification_state": "present_verified",
+        },
+    )
+
+    payload = proposal.to_public_dict()
+
+    assert proposal.category == "guardrail"
+    assert proposal.route_trust_context is None
+    assert payload["route_trust_context"] is None
+    assert proposal.auto_apply_allowed is False
+    assert proposal.github_write_allowed is False
+    assert proposal.deploy_allowed is False

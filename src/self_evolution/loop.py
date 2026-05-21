@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+from collections.abc import Mapping
 from typing import Literal
+
+from .context import SafeRouteTrustContext, normalize_route_trust_context
 
 
 SELF_EVOLUTION_LOOP_VERSION = "proposal-only-self-evolution-loop-0.1"
@@ -61,10 +64,13 @@ class EvolutionProposal:
     rollback_plan: str
     required_approval_gate: str
     redacted_summary: str
+    route_trust_context: SafeRouteTrustContext | None
     non_actions: tuple[str, ...]
 
     def to_public_dict(self) -> dict[str, object]:
         payload = asdict(self)
+        if self.route_trust_context is not None:
+            payload["route_trust_context"] = self.route_trust_context.to_public_dict()
         payload["non_actions"] = list(self.non_actions)
         return payload
 
@@ -124,7 +130,10 @@ def _redact_summary(summary: str, privacy_classification: PrivacyClassification)
     return cleaned[:180] or "Synthetic event summary unavailable."
 
 
-def generate_evolution_proposal(event: SyntheticEvolutionEvent) -> EvolutionProposal:
+def generate_evolution_proposal(
+    event: SyntheticEvolutionEvent,
+    route_trust_context: Mapping[str, object] | SafeRouteTrustContext | None = None,
+) -> EvolutionProposal:
     normalized_event = SyntheticEvolutionEvent(
         event_type=event.event_type,
         summary=event.summary,
@@ -135,13 +144,16 @@ def generate_evolution_proposal(event: SyntheticEvolutionEvent) -> EvolutionProp
     classification = classify_synthetic_event(normalized_event)
     summary = _redact_summary(normalized_event.summary, normalized_event.privacy_classification)
     blocked = not classification.accepted
+    safe_context = None if blocked or route_trust_context is None else normalize_route_trust_context(route_trust_context)
+    context_note = _context_note(safe_context)
     reply_draft = (
         "Thanks for the report. This synthetic fixture suggests a proposal should be reviewed by the owner."
+        f"{context_note}"
         if not blocked
         else "This event was rejected before proposal generation because it is privacy-sensitive."
     )
     issue_draft = (
-        f"[proposal-only] {classification.category}: {summary}"
+        f"[proposal-only] {classification.category}: {summary}{context_note}"
         if not blocked
         else "[rejected] privacy-sensitive event requires manual handling outside this simulator"
     )
@@ -152,6 +164,7 @@ def generate_evolution_proposal(event: SyntheticEvolutionEvent) -> EvolutionProp
     )
     patch_plan = (
         "Draft a narrow patch plan after owner approval; do not mutate code from this simulator."
+        f"{context_note}"
         if not blocked
         else "No patch plan generated for rejected privacy-sensitive input."
     )
@@ -177,6 +190,7 @@ def generate_evolution_proposal(event: SyntheticEvolutionEvent) -> EvolutionProp
         rollback_plan=rollback_plan,
         required_approval_gate=classification.approval_gate,
         redacted_summary=summary,
+        route_trust_context=safe_context,
         non_actions=(
             "no_real_telemetry_collection",
             "no_raw_prompt_or_completion_ingestion",
@@ -187,3 +201,23 @@ def generate_evolution_proposal(event: SyntheticEvolutionEvent) -> EvolutionProp
             "no_deploy",
         ),
     )
+
+
+def _context_note(context: SafeRouteTrustContext | None) -> str:
+    if context is None:
+        return ""
+    if context.diagnosis == "hybrid_local_node_missing":
+        return " Route/trust diagnosis: Local Node is missing, so private or local work remains gated."
+    if context.diagnosis == "hybrid_local_node_unverified":
+        return " Route/trust diagnosis: Local Node is present but unverified, so private or local work remains denied."
+    if context.diagnosis in {
+        "hybrid_local_node_expired",
+        "hybrid_local_node_invalid_signature",
+        "hybrid_local_node_wrong_audience",
+    }:
+        return " Route/trust diagnosis: Local Node manifest verification failed, so route preview must stay gated."
+    if context.diagnosis == "hybrid_capability_not_declared":
+        return " Route/trust diagnosis: verified Local Node did not declare the requested capability."
+    if context.diagnosis == "hybrid_coordination_requires_owner_approval":
+        return " Route/trust diagnosis: verified hybrid coordination still requires owner approval."
+    return " Route/trust diagnosis: public-safe route context was recorded for owner review."
