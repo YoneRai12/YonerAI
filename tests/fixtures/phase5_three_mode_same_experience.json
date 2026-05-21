@@ -22,6 +22,9 @@
         "tools.mcp.safe_subset",
         "native_japanese_cli.contract"
       ],
+      "expected_docs_only": [
+        "growth_sns.claim_guardrails"
+      ],
       "expected_disabled": [
         "tools.shell",
         "tools.mcp.dynamic_execution",
@@ -52,6 +55,9 @@
         "memory.candidate_quarantine",
         "tools.mcp.safe_subset",
         "native_japanese_cli.contract"
+      ],
+      "expected_docs_only": [
+        "growth_sns.claim_guardrails"
       ],
       "expected_disabled": [
         "tools.shell",
@@ -84,6 +90,9 @@
         "tools.mcp.safe_subset",
         "native_japanese_cli.contract"
       ],
+      "expected_docs_only": [
+        "growth_sns.claim_guardrails"
+      ],
       "expected_disabled": [
         "tools.shell",
         "tools.mcp.dynamic_execution",
@@ -106,6 +115,7 @@
     "web.safe_error_display",
     "local_llm.loopback_ollama",
     "local_llm.loopback_openai_compatible",
+    "growth_sns.claim_guardrails",
     "native_japanese_cli.contract"
   ],
   "forbidden_enabled_capabilities": [
