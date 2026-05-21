@@ -73,6 +73,19 @@ No root-visible file should be moved only for visual cleanup. The current safe n
 - `config.yaml`: add tested config-path fallback before move.
 - `main.py`: update Docker, compose, scripts, docs, and tests together before move.
 
+## Root Cleanup Recheck 2026-05-21
+
+This recheck did not move a root file. The evidence still blocks a one-file, shimless move:
+
+| candidate | blocking evidence | required safe lane |
+|---|---|---|
+| `start_all.bat` | Static references are sparse, but owner root double-click workflow is unknown and moving it changes `%~dp0` path assumptions. | Launcher migration pilot with owner workflow confirmation or a root compatibility shim. |
+| `start_vllm.bat` | `src/managers/resource_manager.py` resolves `start_vllm.bat` from the current root; setup and maintenance helpers also reference it. | Local model launcher migration with resource-manager tests. |
+| `start_windows.bat` | `scripts/setup_wizard.py` presents `.\\start_windows.bat` as the Windows launcher. | Setup wizard and Windows launcher migration. |
+| `start.sh` | `scripts/setup_wizard.py` presents `./start.sh` as the shell launcher. | Setup wizard and shell launcher migration. |
+| `config.yaml` | `src/config.py` and `src/cogs/mcp.py` read `config.yaml` from the current working directory. | Config loader fallback lane, then physical move. |
+| `main.py` | Docker, compose, `pyproject.toml`, scripts, and docs still reference `python main.py`. | Entrypoint migration covering Docker, compose, scripts, docs, and tests together. |
+
 ## Non-Claims
 
 This matrix does not claim production readiness, shipping completeness, official cloud completion, Discord restored, persistent memory complete, Google login complete, final Web UI complete, Tools/MCP complete, full hybrid completion, broad ORA rename completion, `src/cogs/ora.py` resolution, all security backlog resolution, all dependency backlog resolution, Pass 2 landing, or v7.8 start.
