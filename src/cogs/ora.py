@@ -62,6 +62,7 @@ from ..utils.user_prefs import UserPrefs
 from .handlers.chat_handler import ChatHandler
 from .handlers.mention_music_handler import handle_mention_music
 from .handlers.vision_handler import VisionHandler
+from .ora_pure_helpers import clean_content
 from .tools.tool_handler import ToolHandler
 
 logger = logging.getLogger(__name__)
@@ -1521,11 +1522,7 @@ class ORACog(commands.Cog):
 
     def _clean_content(self, text: str) -> str:
         """Remove internal tags like <|channel|>... from the text."""
-        import re
-
-        # Remove <|...|> tags
-        cleaned = re.sub(r"<\|.*?\|>", "", text)
-        return cleaned.strip()
+        return clean_content(text)
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message) -> None:

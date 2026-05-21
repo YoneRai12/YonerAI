@@ -4,6 +4,8 @@ import ast
 import logging
 from pathlib import Path
 
+from src.cogs.ora_pure_helpers import clean_content
+
 
 def _build_ora_helper_fixture():
     source_path = Path(__file__).resolve().parents[1] / "src" / "cogs" / "ora.py"
@@ -47,6 +49,7 @@ def _build_ora_helper_fixture():
     ast.fix_missing_locations(module)
 
     namespace: dict[str, object] = {}
+    namespace["clean_content"] = clean_content
     exec(compile(module, str(source_path), "exec"), namespace)
     return namespace["OraHelperFixture"]()
 
@@ -78,3 +81,6 @@ def test_ora_pure_content_cleaner_removes_internal_channel_tags() -> None:
     helpers = _build_ora_helper_fixture()
 
     assert helpers._clean_content("<|analysis|>hidden<|final|> visible ") == "hidden visible"
+    assert clean_content("<|analysis|>hidden<|final|> visible ") == helpers._clean_content(
+        "<|analysis|>hidden<|final|> visible "
+    )
