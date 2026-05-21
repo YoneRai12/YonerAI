@@ -5,6 +5,7 @@ import aiohttp
 import discord
 from discord import app_commands
 from discord.ext import commands
+from src.services.layer_upload_limits import is_layer_attachment_too_large
 
 from ..utils.comfy_client import ComfyWorkflow
 
@@ -191,6 +192,9 @@ class CreativeCog(commands.Cog):
         if not image.content_type.startswith("image/"):
             await interaction.response.send_message("❌ Image file required.", ephemeral=True)
             return
+        if is_layer_attachment_too_large(image):
+            await interaction.response.send_message("Image file is too large for layer decomposition.", ephemeral=True)
+            return
 
         await interaction.response.defer(thinking=True)
 
@@ -239,6 +243,9 @@ class CreativeCog(commands.Cog):
                         target_img = ref.attachments[0]
 
                 if target_img and target_img.content_type.startswith("image/"):
+                    if is_layer_attachment_too_large(target_img):
+                        await message.reply("Image file is too large for layer decomposition.")
+                        return
                     async with message.channel.typing():
                         # Reuse Logic (Refactor needed, but inline for now for speed)
                         async with aiohttp.ClientSession() as session:

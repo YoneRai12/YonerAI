@@ -13,11 +13,15 @@ import logging
 import time
 import zipfile
 
-import torch
 import uvicorn
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import Response
-from PIL import Image
+from src.services.layer_upload_limits import read_limited_upload, validate_layer_image
+
+try:
+    import torch
+except ModuleNotFoundError:  # pragma: no cover - exercised in lightweight test envs
+    torch = None
 
 # Setup Logging
 logging.basicConfig(level=logging.INFO)
@@ -36,7 +40,7 @@ app = FastAPI(title="ORA Layer Service", version="1.0", lifespan=lifespan)
 
 # Model Settings
 MODEL_ID = "Qwen/Qwen-Image-Layered"  # Hypothetical ID based on user request
-DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+DEVICE = "cuda" if torch is not None and torch.cuda.is_available() else "cpu"
 
 # Global Model State
 model = None
@@ -50,6 +54,10 @@ async def get_model():
 
     if model:
         return model, processor
+
+    if torch is None:
+        logger.error("PyTorch is not installed; layer model cannot load.")
+        return None, None
 
     logger.info(f"Lazy Loading Layer Service from {MODEL_ID}...")
     try:
@@ -77,7 +85,8 @@ async def garbage_collector():
             import gc
 
             gc.collect()
-            torch.cuda.empty_cache()
+            if torch is not None and torch.cuda.is_available():
+                torch.cuda.empty_cache()
             model = None
             processor = None
 
@@ -87,13 +96,11 @@ async def decompose(file: UploadFile = File(...)):
     """
     Decomposes an image into RGBA layers and returns a ZIP file.
     """
-    model, processor = await get_model()
-
     try:
         # Load Image
-
-        image_data = await file.read()
-        image = Image.open(io.BytesIO(image_data)).convert("RGB")
+        image_data = await read_limited_upload(file)
+        image = validate_layer_image(image_data)
+        model, processor = await get_model()
 
         layers = []
 
@@ -135,6 +142,8 @@ async def decompose(file: UploadFile = File(...)):
             headers={"Content-Disposition": "attachment; filename=layers.zip"},
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Decomposition Error: {e}")
         return {"error": str(e)}
