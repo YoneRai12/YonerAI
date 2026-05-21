@@ -106,16 +106,17 @@ def _assert_managed_download_contract() -> dict[str, str]:
         r"C:\private\file.txt",
     )
 
-    accepted = [
-        process._coerce_download_link(url=url, label="smoke artifact")
-        for url in safe_urls
-    ]
-    rejected = [
-        process._coerce_download_link(url=url, label="unsafe artifact")
-        for url in unsafe_urls
-    ]
-    assert all(item is not None for item in accepted), "managed download URL was rejected"
-    assert all(item is None for item in rejected), "unsafe download URL was accepted"
+    accepted: list[dict[str, Any] | None] = []
+    for url in safe_urls:
+        item = process._coerce_download_link(url=url, label="smoke artifact")
+        assert item is not None, f"managed download URL was rejected: {url}"
+        accepted.append(item)
+
+    rejected: list[dict[str, Any] | None] = []
+    for url in unsafe_urls:
+        item = process._coerce_download_link(url=url, label="unsafe artifact")
+        assert item is None, f"unsafe download URL was accepted: {url}"
+        rejected.append(item)
 
     return {
         "endpoint": "managed-download-contract",
