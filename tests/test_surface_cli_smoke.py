@@ -32,6 +32,54 @@ def test_cli_health_command_uses_loopback_core_api(monkeypatch, capsys):
     assert json.loads(capsys.readouterr().out)["ok"] is True
 
 
+def test_cli_smoke_command_runs_public_mvp_smoke(monkeypatch):
+    cli = _load_cli_module()
+    calls = []
+
+    def fake_public_smoke(json_output=False, pretty=False):
+        calls.append((json_output, pretty))
+        return 0
+
+    monkeypatch.setattr(cli, "_run_public_mvp_smoke", fake_public_smoke)
+
+    assert cli.main(["smoke", "--json"]) == 0
+
+    assert calls == [(True, False)]
+
+
+def test_cli_smoke_import_failure_is_public_safe(monkeypatch, capsys):
+    cli = _load_cli_module()
+    private_path = "C:" + "\\Users\\dev\\secret.txt"
+
+    def fail_import(*, json_output=False, pretty=False):
+        del json_output, pretty
+        raise cli.CliError("public MVP smoke is unavailable.", exit_code=1) from RuntimeError(private_path)
+
+    monkeypatch.setattr(cli, "_run_public_mvp_smoke", fail_import)
+
+    assert cli.main(["smoke", "--pretty"]) == 1
+
+    captured = capsys.readouterr()
+    assert "public MVP smoke is unavailable" in captured.err
+    assert private_path not in captured.err
+    assert "Traceback" not in captured.err
+
+
+def test_cli_smoke_treats_system_exit_none_as_success(monkeypatch):
+    cli = _load_cli_module()
+
+    def exit_none(json_output=False, pretty=False):
+        del json_output, pretty
+        raise SystemExit
+
+    class FakeSmoke:
+        main = staticmethod(exit_none)
+
+    monkeypatch.setitem(sys.modules, "scripts.dev.public_mvp_smoke", FakeSmoke)
+
+    assert cli._run_public_mvp_smoke() == 0
+
+
 def test_cli_message_command_uses_public_message_contract(monkeypatch, capsys):
     cli = _load_cli_module()
     calls = []
