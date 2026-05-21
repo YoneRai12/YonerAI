@@ -6,9 +6,9 @@ from typing import Literal
 from .three_mode import ModeName, get_mode_capability_profile
 
 
-ROUTE_PREVIEW_SCHEMA_VERSION = "three-mode-route-preview-0.1"
+ROUTE_PREVIEW_SCHEMA_VERSION = "three-mode-route-preview-0.2"
 
-RouteName = Literal["cloud_only", "local_node_required", "hybrid_coordination", "self_host_local", "disabled"]
+RouteName = Literal["cloud_only", "local_node_required", "session_required", "hybrid_coordination", "self_host_local", "disabled"]
 OperationClass = Literal["public_docs", "private_data", "pc_operation", "local_tool", "heavy_work", "dangerous", "discord_live", "deployment", "unknown"]
 LocalNodeVerificationState = Literal[
     "missing",
@@ -16,6 +16,17 @@ LocalNodeVerificationState = Literal[
     "present_verified",
     "expired",
     "invalid_signature",
+    "wrong_audience",
+]
+SessionVerificationState = Literal[
+    "not_required",
+    "missing",
+    "unenrolled",
+    "pairing_pending",
+    "enrolled_unverified",
+    "enrolled_verified",
+    "expired",
+    "revoked",
     "wrong_audience",
 ]
 
@@ -68,6 +79,11 @@ class RoutePreviewDecision:
     local_node_verification_state: LocalNodeVerificationState | None
     signed_origin_verified: bool
     local_node_capability_declared: bool | None
+    session_required: bool
+    session_verification_state: SessionVerificationState
+    session_enrolled: bool
+    session_verified: bool
+    session_gate_satisfied: bool
     non_claims: tuple[str, ...]
 
     def to_public_dict(self) -> dict[str, object]:
@@ -146,6 +162,40 @@ def _trust_state_unavailable_reason(state: LocalNodeVerificationState | None) ->
     return None
 
 
+def _normalize_session_state(
+    *,
+    require_enrolled_verified_session: bool,
+    session_verification_state: SessionVerificationState | None,
+) -> SessionVerificationState:
+    if not require_enrolled_verified_session and session_verification_state is None:
+        return "not_required"
+    return session_verification_state or "missing"
+
+
+def _session_unavailable_reason(state: SessionVerificationState) -> str | None:
+    if state == "not_required" or state == "enrolled_verified":
+        return None
+    if state == "missing":
+        return "local_node_session_required"
+    if state == "unenrolled":
+        return "local_node_enrollment_required"
+    if state == "pairing_pending":
+        return "pairing_pending"
+    if state == "enrolled_unverified":
+        return "session_not_verified"
+    if state == "expired":
+        return "session_expired"
+    if state == "revoked":
+        return "session_revoked"
+    if state == "wrong_audience":
+        return "session_wrong_audience"
+    return "local_node_session_required"
+
+
+def _session_enrolled(state: SessionVerificationState) -> bool:
+    return state in {"enrolled_unverified", "enrolled_verified", "expired", "revoked"}
+
+
 def preview_route(
     task_text: str,
     *,
@@ -154,6 +204,8 @@ def preview_route(
     has_local_node: bool = False,
     local_node_verification_state: LocalNodeVerificationState | None = None,
     local_node_capabilities: tuple[str, ...] | None = None,
+    require_enrolled_verified_session: bool = False,
+    session_verification_state: SessionVerificationState | None = None,
     risk_hint: str | None = None,
 ) -> RoutePreviewDecision:
     operation_class = _classify_operation(task_text, requested_capability, risk_hint)
@@ -173,6 +225,12 @@ def preview_route(
         local_node_verification_state=local_node_verification_state,
     )
     signed_origin_verified = node_state == "present_verified"
+    session_state = _normalize_session_state(
+        require_enrolled_verified_session=require_enrolled_verified_session,
+        session_verification_state=session_verification_state,
+    )
+    session_verified = session_state == "enrolled_verified"
+    session_gate_satisfied = not require_enrolled_verified_session or session_verified
 
     try:
         capability = profile.capability(capability_name)
@@ -194,6 +252,11 @@ def preview_route(
             local_node_verification_state=node_state,
             signed_origin_verified=signed_origin_verified,
             local_node_capability_declared=False,
+            session_required=require_enrolled_verified_session,
+            session_verification_state=session_state,
+            session_enrolled=_session_enrolled(session_state),
+            session_verified=session_verified,
+            session_gate_satisfied=session_gate_satisfied,
             non_claims=non_claims,
         )
 
@@ -215,6 +278,11 @@ def preview_route(
             local_node_verification_state=node_state,
             signed_origin_verified=signed_origin_verified,
             local_node_capability_declared=None,
+            session_required=require_enrolled_verified_session,
+            session_verification_state=session_state,
+            session_enrolled=_session_enrolled(session_state),
+            session_verified=session_verified,
+            session_gate_satisfied=session_gate_satisfied,
             non_claims=non_claims,
         )
 
@@ -232,6 +300,33 @@ def preview_route(
         "dangerous_operations",
     }:
         local_node_required = True
+
+    session_unavailable_reason = _session_unavailable_reason(session_state)
+    if local_node_required and require_enrolled_verified_session and session_unavailable_reason is not None:
+        return RoutePreviewDecision(
+            schema_version=ROUTE_PREVIEW_SCHEMA_VERSION,
+            mode=mode,
+            route="session_required",
+            reason=f"{capability.reason} Enrolled verified Local Node session is required before this preview can route local work.",
+            requested_capability=capability.name,
+            operation_class=operation_class,
+            approval_required=True,
+            local_node_required=True,
+            cloud_allowed=cloud_allowed,
+            private_data_allowed=False,
+            dangerous_operation=capability.dangerous_operation,
+            disabled=False,
+            unavailable_reason=session_unavailable_reason,
+            local_node_verification_state=node_state,
+            signed_origin_verified=signed_origin_verified,
+            local_node_capability_declared=False,
+            session_required=True,
+            session_verification_state=session_state,
+            session_enrolled=_session_enrolled(session_state),
+            session_verified=session_verified,
+            session_gate_satisfied=False,
+            non_claims=non_claims,
+        )
 
     trust_unavailable_reason = _trust_state_unavailable_reason(node_state)
     if local_node_required and trust_unavailable_reason is not None:
@@ -252,6 +347,11 @@ def preview_route(
             local_node_verification_state=node_state,
             signed_origin_verified=False,
             local_node_capability_declared=False,
+            session_required=require_enrolled_verified_session,
+            session_verification_state=session_state,
+            session_enrolled=_session_enrolled(session_state),
+            session_verified=session_verified,
+            session_gate_satisfied=session_gate_satisfied,
             non_claims=non_claims,
         )
 
@@ -276,6 +376,11 @@ def preview_route(
                 local_node_verification_state=node_state,
                 signed_origin_verified=True,
                 local_node_capability_declared=False,
+                session_required=require_enrolled_verified_session,
+                session_verification_state=session_state,
+                session_enrolled=_session_enrolled(session_state),
+                session_verified=session_verified,
+                session_gate_satisfied=session_gate_satisfied,
                 non_claims=non_claims,
             )
 
@@ -297,6 +402,11 @@ def preview_route(
             local_node_verification_state="missing",
             signed_origin_verified=False,
             local_node_capability_declared=False,
+            session_required=require_enrolled_verified_session,
+            session_verification_state=session_state,
+            session_enrolled=_session_enrolled(session_state),
+            session_verified=session_verified,
+            session_gate_satisfied=session_gate_satisfied,
             non_claims=non_claims,
         )
 
@@ -327,5 +437,10 @@ def preview_route(
         local_node_verification_state=node_state,
         signed_origin_verified=signed_origin_verified,
         local_node_capability_declared=capability_declared,
+        session_required=require_enrolled_verified_session,
+        session_verification_state=session_state,
+        session_enrolled=_session_enrolled(session_state),
+        session_verified=session_verified,
+        session_gate_satisfied=session_gate_satisfied,
         non_claims=non_claims,
     )

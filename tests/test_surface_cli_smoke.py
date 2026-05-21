@@ -216,6 +216,70 @@ def test_cli_route_preview_reports_verified_declared_capability(capsys):
     assert output["local_node_capability_declared"] is True
 
 
+def test_cli_route_preview_reports_missing_enrolled_session(capsys):
+    cli = _load_cli_module()
+
+    assert (
+        cli.main(
+            [
+                "route",
+                "preview",
+                "--mode",
+                "official_hybrid_private",
+                "--local-node-state",
+                "present_verified",
+                "--local-node-capability",
+                "private_files",
+                "--require-enrolled-verified-session",
+                "read",
+                "my",
+                "local",
+                "file",
+            ]
+        )
+        == 0
+    )
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["route"] == "session_required"
+    assert output["unavailable_reason"] == "local_node_session_required"
+    assert output["session_required"] is True
+    assert output["session_verified"] is False
+    assert "session_id" not in json.dumps(output).lower()
+
+
+def test_cli_route_preview_reports_enrolled_verified_session(capsys):
+    cli = _load_cli_module()
+
+    assert (
+        cli.main(
+            [
+                "route",
+                "preview",
+                "--mode",
+                "official_hybrid_private",
+                "--local-node-state",
+                "present_verified",
+                "--local-node-capability",
+                "private_files",
+                "--session-state",
+                "enrolled_verified",
+                "read",
+                "my",
+                "local",
+                "file",
+            ]
+        )
+        == 0
+    )
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["route"] == "hybrid_coordination"
+    assert output["session_required"] is True
+    assert output["session_verified"] is True
+    assert output["session_gate_satisfied"] is True
+
+
 def test_cli_rejects_remote_api_origin(capsys):
     cli = _load_cli_module()
 

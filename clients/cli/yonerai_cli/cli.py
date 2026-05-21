@@ -180,6 +180,7 @@ def _preview_route(args: argparse.Namespace) -> dict[str, Any]:
     if local_node_state == "missing":
         has_local_node = False
     local_node_capabilities = tuple(args.local_node_capability or ()) or None
+    require_session = args.require_enrolled_verified_session or args.session_state is not None
     decision = preview_route(
         prompt,
         mode=args.mode,
@@ -187,6 +188,8 @@ def _preview_route(args: argparse.Namespace) -> dict[str, Any]:
         has_local_node=has_local_node,
         local_node_verification_state=local_node_state,
         local_node_capabilities=local_node_capabilities,
+        require_enrolled_verified_session=require_session,
+        session_verification_state=args.session_state,
         risk_hint=args.risk_hint,
     )
     return decision.to_public_dict()
@@ -251,6 +254,25 @@ def build_parser() -> argparse.ArgumentParser:
         "--local-node-capability",
         action="append",
         help="Optional declared capability for a verified test Local Node manifest. Repeatable.",
+    )
+    route_preview.add_argument(
+        "--require-enrolled-verified-session",
+        action="store_true",
+        help="Require a public-safe enrolled verified Local Node session state for local work previews.",
+    )
+    route_preview.add_argument(
+        "--session-state",
+        choices=[
+            "missing",
+            "unenrolled",
+            "pairing_pending",
+            "enrolled_unverified",
+            "enrolled_verified",
+            "expired",
+            "revoked",
+            "wrong_audience",
+        ],
+        help="Optional public-safe Local Node enrollment/session state for route preview.",
     )
 
     message = subcommands.add_parser("message", parents=[shared], help="Send a local public message smoke request.")
