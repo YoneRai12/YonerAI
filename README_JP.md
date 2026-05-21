@@ -89,6 +89,7 @@ raw chain-of-thought は public chat、API、SSE、log、documentation、trace s
 主な入口:
 
 - [Current phase context](docs/CURRENT_PHASE_CONTEXT.md)
+- [Codex / contributor workflow](docs/process/YONERAI_CODEX_WORKFLOW.md)
 - [Current MVP Capability Matrix](docs/CURRENT_MVP_CAPABILITY_MATRIX.md)
 - [Public file index](docs/repo/PUBLIC_FILE_INDEX.md)
 - [Cross-repo same-experience matrix](docs/contracts/CROSS_REPO_SAME_EXPERIENCE_MATRIX_2026_05_20.md)

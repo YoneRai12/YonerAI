@@ -2,16 +2,18 @@
 
 - What changed:
 - Why it is needed:
-- Lane:
-  - [ ] API
-  - [ ] CLI
-  - [ ] Native Japanese CLI
-  - [ ] Web
-  - [ ] Growth/SNS
-  - [ ] Security/runtime
-  - [ ] Dependency
-  - [ ] Repository presentation/docs
-  - [ ] Other:
+
+## Lane
+
+- [ ] API
+- [ ] CLI
+- [ ] Native Japanese CLI
+- [ ] Web
+- [ ] Growth/SNS
+- [ ] Security/runtime
+- [ ] Dependency
+- [ ] Repository presentation/docs
+- [ ] Other:
 
 ## Validation
 
@@ -22,10 +24,10 @@
 - [ ] Changed-file local absolute path / username / hostname scan
 - [ ] Mojibake / hidden Unicode scan for public docs
 
-## Boundary Confirmations
+## Security / Boundary
 
-- [ ] `src/cogs/ora.py` unchanged, or explicitly approved in this PR
-- [ ] `reference_clawdbot` not initialized, repaired, removed, replaced, staged, or edited
+- [ ] `src/cogs/ora.py` status (unchanged or explicitly approved):
+- [ ] `reference_clawdbot` status (untouched):
 - [ ] No deploy or production operation
 - [ ] No production signing keys or production trust stores
 - [ ] No persistent memory added
@@ -43,3 +45,4 @@ This PR does not claim production readiness, shipping completeness, official-clo
 - Related issues / PRs:
 - Replacement evidence for any old PRs closed:
 - Release note / checkpoint, if applicable:
+- Release note needed: yes / no
