@@ -13,7 +13,7 @@ from typing import Any
 from fastapi.testclient import TestClient
 
 
-PUBLIC_MVP_SMOKE_CONTRACT = "public-mvp-smoke-0.1"
+PUBLIC_MVP_SMOKE_CONTRACT = "public-mvp-smoke-0.2"
 _PUBLIC_ENV_KEYS = (
     "ORA_ALLOW_MISSING_SECRETS",
     "ORA_BOT_DB",
@@ -126,6 +126,53 @@ def _assert_managed_download_contract() -> dict[str, str]:
     }
 
 
+def _assert_differentiation_contract() -> dict[str, str]:
+    from ora_core.hybrid.local_dev_control_plane import build_local_dev_control_plane_status
+    from ora_core.route_preview import preview_route
+    from ora_core.three_mode import MODES, build_three_mode_capability_surface
+    from src.self_evolution import SyntheticEvolutionEvent, generate_evolution_proposal
+
+    surface = build_three_mode_capability_surface()
+    modes = surface["modes"]
+    assert sorted(modes) == sorted(MODES), "three-mode surface did not include all modes"
+    for mode in MODES:
+        profile = modes[mode]
+        assert profile["same_user_experience"] is True, f"{mode} did not preserve same experience"
+        assert profile["production_deploy_enabled"] is False, f"{mode} enabled production deploy"
+        assert profile["persistent_memory_enabled"] is False, f"{mode} enabled persistent memory"
+
+    docs_route = preview_route("summarize public docs", mode="official_managed_cloud")
+    private_route = preview_route("read my local file", mode="official_hybrid_private")
+    local_dev = build_local_dev_control_plane_status()
+    evolution = generate_evolution_proposal(
+        SyntheticEvolutionEvent(
+            event_type="bug_report",
+            summary="Synthetic public smoke fixture proposes a safer route-preview regression test.",
+            severity=4,
+            confidence=0.8,
+        )
+    )
+
+    assert docs_route.route == "cloud_only", "public docs did not route to cloud-only preview"
+    assert private_route.route == "local_node_required", "private work did not require Local Node"
+    assert local_dev.profile == "local_dev_control_plane", "local-dev simulator profile mismatch"
+    assert local_dev.production_trust_material is False, "local-dev simulator claimed production trust material"
+    assert local_dev.official_private_control_plane_ready is False, "local-dev simulator claimed private control-plane ready"
+    assert evolution.proposal_only is True, "self-evolution proposal was not proposal-only"
+    assert evolution.auto_apply_allowed is False, "self-evolution allowed auto-apply"
+    assert evolution.github_write_allowed is False, "self-evolution allowed GitHub write"
+    assert evolution.deploy_allowed is False, "self-evolution allowed deploy"
+
+    return {
+        "endpoint": "yonerai-differentiation-contract",
+        "status": "ok",
+        "modes": str(len(MODES)),
+        "route_preview": f"{docs_route.route},{private_route.route}",
+        "local_dev_control_plane": "simulator",
+        "self_evolution": "proposal_only",
+    }
+
+
 def run_smoke() -> dict[str, Any]:
     previous_env = {key: os.environ.get(key) for key in _PUBLIC_ENV_KEYS}
     try:
@@ -181,6 +228,7 @@ def run_smoke() -> dict[str, Any]:
             )
 
             checks.append(_assert_managed_download_contract())
+            checks.append(_assert_differentiation_contract())
 
         return {
             "ok": True,
@@ -188,6 +236,8 @@ def run_smoke() -> dict[str, Any]:
             "credentials_required": False,
             "external_provider_required": False,
             "live_discord_required": False,
+            "production_deploy_required": False,
+            "persistent_memory_required": False,
             "checks": checks,
         }
     finally:
@@ -209,6 +259,8 @@ def _format_pretty_result(result: dict[str, Any]) -> str:
         f"- credentials_required: {str(result['credentials_required']).lower()}",
         f"- external_provider_required: {str(result['external_provider_required']).lower()}",
         f"- live_discord_required: {str(result['live_discord_required']).lower()}",
+        f"- production_deploy_required: {str(result['production_deploy_required']).lower()}",
+        f"- persistent_memory_required: {str(result['persistent_memory_required']).lower()}",
         "Checks:",
     ]
     for check in checks:
