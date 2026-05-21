@@ -139,9 +139,34 @@ def run_smoke() -> dict[str, Any]:
     }
 
 
+def _format_pretty_result(result: dict[str, Any]) -> str:
+    checks = result["checks"]
+    lines = [
+        "YonerAI public MVP smoke",
+        "Result: ok",
+        f"Contract: {result['contract']}",
+        f"Checks passed: {len(checks)}",
+        "Boundaries:",
+        f"- credentials_required: {str(result['credentials_required']).lower()}",
+        f"- external_provider_required: {str(result['external_provider_required']).lower()}",
+        f"- live_discord_required: {str(result['live_discord_required']).lower()}",
+        "Checks:",
+    ]
+    for check in checks:
+        details = [check["endpoint"], check["status"]]
+        if "mode" in check:
+            details.append(f"mode={check['mode']}")
+        if "provider" in check:
+            details.append(f"provider={check['provider']}")
+        lines.append(f"- {' | '.join(details)}")
+    return "\n".join(lines)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run the credential-free YonerAI public MVP smoke.")
-    parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    output = parser.add_mutually_exclusive_group()
+    output.add_argument("--json", action="store_true", help="Print compact machine-readable JSON.")
+    output.add_argument("--pretty", action="store_true", help="Print a detailed human-readable summary.")
     args = parser.parse_args(argv)
 
     try:
@@ -154,6 +179,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.json:
         print(json.dumps(result, ensure_ascii=False, sort_keys=True))
+    elif args.pretty:
+        print(_format_pretty_result(result))
     else:
         print("YonerAI public MVP smoke: ok")
         for check in result["checks"]:

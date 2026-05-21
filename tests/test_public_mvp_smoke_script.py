@@ -58,6 +58,23 @@ def test_public_mvp_smoke_cli_json_output_is_deterministic(capsys) -> None:
     assert "session_id" not in body
 
 
+def test_public_mvp_smoke_cli_pretty_output_summarizes_boundaries(capsys) -> None:
+    exit_code = public_mvp_smoke.main(["--pretty"])
+
+    assert exit_code == 0
+    output = capsys.readouterr().out
+    assert "YonerAI public MVP smoke" in output
+    assert "Result: ok" in output
+    assert "Checks passed: 3" in output
+    assert "- credentials_required: false" in output
+    assert "- external_provider_required: false" in output
+    assert "- live_discord_required: false" in output
+    assert "/health | ok" in output
+    assert "/v1/public/messages | ok | mode=mock | provider=offline-mock" in output
+    assert "/api/v1/agent/run | ok | mode=mock | provider=offline-mock" in output
+    assert "Traceback" not in output
+
+
 def test_public_mvp_smoke_cli_masks_unexpected_failures(monkeypatch, capsys) -> None:
     def fail_unexpectedly():
         raise RuntimeError("private runtime detail")
