@@ -98,6 +98,8 @@ def test_three_modes_keep_docs_only_capabilities_visible_but_non_executable() ->
             assert capability.execution == "docs_only", f"{mode_name}:{key}"
             assert capability.public_safe is True, f"{mode_name}:{key}"
             assert capability.user_visible is True, f"{mode_name}:{key}"
+            assert capability.memory_persisted is False, f"{mode_name}:{key}"
+            assert capability.requires_approval is False, f"{mode_name}:{key}"
             assert capability.executable_now is False, f"{mode_name}:{key}"
             assert capabilities.is_public_capability_enabled(key) is False, f"{mode_name}:{key}"
 
