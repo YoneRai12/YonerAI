@@ -12,6 +12,32 @@ It is not just a Discord bot and not just a model router. Discord, Web, relay, A
 
 This public README describes the public contract surface. It does not publish internal operations detail, credentials, live routes, or host-specific facts.
 
+## Quickstart: Public Demo
+
+After clone, the fastest public-safe way to see the current YonerAI slice is the credential-free demo command. It runs in-process and does not require a Core API server, Discord token, Oracle access, provider API key, Google login, deployment, or persistent memory.
+
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+python -m pip install -U pip
+python -m pip install -r core/requirements.txt httpx
+python -m pip install -e clients/cli
+yonerai demo --pretty
+yonerai demo --json
+```
+
+`yonerai quickstart` is an alias for the same demo.
+
+The demo shows one visible vertical slice:
+
+- public Core health, offline mock message, and run contract
+- public mode boundary: Self-host local surface, Hybrid Local Node contract/dev simulator, Managed Cloud external contract-only
+- route preview for public, private/local, and dangerous work
+- test-only Local Node signed manifest, enrollment/session, signed envelope, replay rejection, and approval gate
+- managed download guard accepting managed file URLs and rejecting arbitrary unsafe URLs
+- synthetic proposal-only self-evolution scorecard and approval draft
+- explicit limitations: no production Oracle, live Discord, persistent memory, Google login, official cloud runtime in this repo, provider live generation, or deploy
+
 ## Current Checkpoint
 
 The active design anchor is v7.7:
@@ -46,6 +72,7 @@ What works today:
 - send follow-up public messages with `session_id` / `conversation_id` and receive non-persistent turn metadata
 - call `POST /api/v1/agent/run` for a local in-memory run smoke contract and read `events_url` / `results_url`
 - install `clients/cli` locally and run `yonerai health`, `yonerai message --mode mock "hello"`, and `yonerai run --mode mock "hello"` against loopback Core
+- run `yonerai demo --pretty` or `yonerai demo --json` to see the public demo slice without credentials or a running Core API process
 - call `POST /v1/public/messages` with `mode: "local"` to reach a loopback-only local LLM runtime
 - choose `local_provider: "ollama"` or `local_provider: "openai_compatible_local"` for supported local server styles
 - open `clients/web` locally as a temporary Web Chat MVP / smoke-demo surface
