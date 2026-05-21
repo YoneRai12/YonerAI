@@ -130,6 +130,34 @@ def test_cli_run_command_uses_surface_api_run_contract(monkeypatch, capsys):
     assert output["memory_persisted"] is False
 
 
+def test_cli_route_preview_public_docs_is_preview_only(capsys):
+    cli = _load_cli_module()
+
+    assert cli.main(["route", "preview", "--mode", "official_managed_cloud", "summarize", "public", "docs"]) == 0
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["route"] == "cloud_only"
+    assert output["mode"] == "official_managed_cloud"
+    assert output["cloud_allowed"] is True
+    assert output["private_data_allowed"] is False
+    assert output["disabled"] is False
+    assert "preview_only_no_execution" in output["non_claims"]
+
+
+def test_cli_route_preview_private_file_in_hybrid_requires_local_node(capsys):
+    cli = _load_cli_module()
+
+    assert cli.main(["route", "preview", "--mode", "official_hybrid_private", "read", "my", "local", "file"]) == 0
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["route"] == "local_node_required"
+    assert output["requested_capability"] == "private_files"
+    assert output["approval_required"] is True
+    assert output["local_node_required"] is True
+    assert output["unavailable_reason"] == "local_node_missing"
+    assert "Traceback" not in json.dumps(output)
+
+
 def test_cli_rejects_remote_api_origin(capsys):
     cli = _load_cli_module()
 

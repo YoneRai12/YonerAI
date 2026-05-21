@@ -9,6 +9,7 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
+from pathlib import Path
 from typing import Any
 
 
@@ -152,6 +153,32 @@ def _run_public_mvp_smoke(*, json_output: bool = False, pretty: bool = False) ->
         raise CliError("public MVP smoke failed.", exit_code=1) from exc
 
 
+def _prepare_core_import_path() -> None:
+    repo_root = Path(__file__).resolve().parents[3]
+    core_src = repo_root / "core" / "src"
+    text = str(core_src)
+    if text not in sys.path:
+        sys.path.insert(0, text)
+
+
+def _preview_route(args: argparse.Namespace) -> dict[str, Any]:
+    try:
+        _prepare_core_import_path()
+        from ora_core.route_preview import preview_route
+    except Exception as exc:
+        raise CliError("route preview is unavailable.", exit_code=1) from exc
+
+    prompt = _prompt_from_args(args.task)
+    decision = preview_route(
+        prompt,
+        mode=args.mode,
+        requested_capability=args.capability,
+        has_local_node=args.has_local_node,
+        risk_hint=args.risk_hint,
+    )
+    return decision.to_public_dict()
+
+
 def _prompt_from_args(parts: list[str]) -> str:
     prompt = " ".join(parts).strip()
     if not prompt:
@@ -183,6 +210,19 @@ def build_parser() -> argparse.ArgumentParser:
     smoke_output.add_argument("--json", action="store_true", help="Print compact machine-readable JSON.")
     smoke_output.add_argument("--pretty", action="store_true", help="Print a detailed human-readable summary.")
 
+    route = subcommands.add_parser("route", help="Preview safe YonerAI task routing without executing it.")
+    route_subcommands = route.add_subparsers(dest="route_command", required=True)
+    route_preview = route_subcommands.add_parser("preview", help="Preview cloud/local/hybrid/disabled routing.")
+    route_preview.add_argument("task", nargs="+")
+    route_preview.add_argument(
+        "--mode",
+        choices=["official_managed_cloud", "official_hybrid_private", "full_private_self_host"],
+        default="official_managed_cloud",
+    )
+    route_preview.add_argument("--capability", help="Optional explicit capability name.")
+    route_preview.add_argument("--risk-hint", help="Optional public-safe operation class hint.")
+    route_preview.add_argument("--has-local-node", action="store_true", help="Preview as if a user Local Node is available.")
+
     message = subcommands.add_parser("message", parents=[shared], help="Send a local public message smoke request.")
     message.add_argument("--mode", choices=["mock", "offline", "local"], default="mock")
     message.add_argument("prompt", nargs="+")
@@ -203,6 +243,9 @@ def run(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "smoke":
         return _run_public_mvp_smoke(json_output=args.json, pretty=args.pretty)
+    if args.command == "route" and args.route_command == "preview":
+        _print_json(_preview_route(args))
+        return 0
     if args.command == "message":
         prompt = _prompt_from_args(args.prompt)
         _print_json(request_json("POST", args.api_origin, "/v1/public/messages", {"message": prompt, "mode": args.mode}))
