@@ -34,4 +34,4 @@ def is_mcp_tool_denied(
     low_remote = str(remote_tool_name or "").strip().lower()
     if not low_remote:
         return False
-    return any(str(pattern or "").strip().lower() in low_remote for pattern in deny_patterns if str(pattern or "").strip())
+    return any(pattern in low_remote for pattern in deny_patterns if pattern)
