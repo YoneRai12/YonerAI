@@ -36,6 +36,17 @@ jobs:
         run: |
           test -f "docs/releases/${ORA_VERSION}.md"
 
+      - name: Classify Release Channel
+        run: |
+          case "$ORA_VERSION" in
+            *-alpha|*-alpha.*|*-alpha+*|*-beta|*-beta.*|*-beta+*|*-rc|*-rc.*|*-rc+*)
+              echo "ORA_PRERELEASE=true" >> "$GITHUB_ENV"
+              ;;
+            *)
+              echo "ORA_PRERELEASE=false" >> "$GITHUB_ENV"
+              ;;
+          esac
+
       - name: Generate Release Archive
         run: |
           VERSION=$(cat VERSION | tr -d '[:space:]')
@@ -47,6 +58,7 @@ jobs:
           files: ${{ env.PRODUCT_NAME }}-*.zip
           # Publish automatically (no manual "Draft -> Publish" step in the GitHub UI).
           draft: false
+          prerelease: ${{ env.ORA_PRERELEASE }}
           name: ${{ env.PRODUCT_NAME }} ${{ env.ORA_VERSION }}
           body_path: docs/releases/${{ env.ORA_VERSION }}.md
           generate_release_notes: false
