@@ -14,6 +14,27 @@ from fastapi.testclient import TestClient
 
 
 PUBLIC_MVP_SMOKE_CONTRACT = "public-mvp-smoke-0.1"
+_PUBLIC_ENV_KEYS = (
+    "ORA_ALLOW_MISSING_SECRETS",
+    "ORA_BOT_DB",
+    "ORA_DOTENV_PATH",
+    "DISCORD_TOKEN",
+    "GOOGLE_API_KEY",
+    "OPENAI_API_KEY",
+    "ORA_CORE_API_TOKEN",
+    "ORA_LOCAL_LLM_BASE_URL",
+    "ORA_LOCAL_LLM_ENABLED",
+    "ORA_LOCAL_LLM_PUBLIC_TOKEN",
+)
+_PUBLIC_CREDENTIAL_ENV_KEYS = (
+    "DISCORD_TOKEN",
+    "GOOGLE_API_KEY",
+    "OPENAI_API_KEY",
+    "ORA_CORE_API_TOKEN",
+    "ORA_LOCAL_LLM_BASE_URL",
+    "ORA_LOCAL_LLM_ENABLED",
+    "ORA_LOCAL_LLM_PUBLIC_TOKEN",
+)
 
 
 def _repo_root() -> Path:
@@ -33,15 +54,7 @@ def _prepare_public_env() -> None:
     os.environ["ORA_ALLOW_MISSING_SECRETS"] = "1"
     os.environ["ORA_BOT_DB"] = "sqlite+aiosqlite:///:memory:"
     os.environ["ORA_DOTENV_PATH"] = str(_repo_root() / ".codex-public-smoke-missing.env")
-    for key in (
-        "DISCORD_TOKEN",
-        "GOOGLE_API_KEY",
-        "OPENAI_API_KEY",
-        "ORA_CORE_API_TOKEN",
-        "ORA_LOCAL_LLM_BASE_URL",
-        "ORA_LOCAL_LLM_ENABLED",
-        "ORA_LOCAL_LLM_PUBLIC_TOKEN",
-    ):
+    for key in _PUBLIC_CREDENTIAL_ENV_KEYS:
         os.environ.pop(key, None)
 
 
@@ -78,65 +91,73 @@ def _assert_json_response(response: Any, *, endpoint: str) -> dict[str, Any]:
 
 
 def run_smoke() -> dict[str, Any]:
-    app = _fresh_core_app()
-    checks: list[dict[str, str]] = []
+    previous_env = {key: os.environ.get(key) for key in _PUBLIC_ENV_KEYS}
+    try:
+        app = _fresh_core_app()
+        checks: list[dict[str, str]] = []
 
-    with TestClient(app, client=("127.0.0.1", 50000)) as client:
-        health = client.get("/health")
-        health_body = _assert_json_response(health, endpoint="/health")
-        assert health.status_code == 200, "/health did not return 200"
-        assert health_body.get("ok") is True, "/health ok flag was not true"
-        checks.append({"endpoint": "/health", "status": "ok"})
+        with TestClient(app, client=("127.0.0.1", 50000)) as client:
+            health = client.get("/health")
+            health_body = _assert_json_response(health, endpoint="/health")
+            assert health.status_code == 200, "/health did not return 200"
+            assert health_body.get("ok") is True, "/health ok flag was not true"
+            checks.append({"endpoint": "/health", "status": "ok"})
 
-        message = client.post(
-            "/v1/public/messages",
-            json={"message": "hello public MVP", "mode": "mock", "conversation_id": "public-mvp-smoke"},
-        )
-        message_body = _assert_json_response(message, endpoint="/v1/public/messages")
-        assert message.status_code == 200, "/v1/public/messages did not return 200"
-        assert message_body.get("ok") is True, "public message ok flag was not true"
-        assert message_body.get("mode") == "mock", "public message mode was not mock"
-        assert message_body.get("provider") == "offline-mock", "public message provider was not offline-mock"
-        assert message_body.get("memory_persisted") is False, "public message persisted memory"
-        assert message_body.get("requires_approval") is False, "public message unexpectedly required approval"
-        checks.append(
-            {
-                "endpoint": "/v1/public/messages",
-                "status": "ok",
-                "mode": "mock",
-                "provider": "offline-mock",
-            }
-        )
+            message = client.post(
+                "/v1/public/messages",
+                json={"message": "hello public MVP", "mode": "mock", "conversation_id": "public-mvp-smoke"},
+            )
+            message_body = _assert_json_response(message, endpoint="/v1/public/messages")
+            assert message.status_code == 200, "/v1/public/messages did not return 200"
+            assert message_body.get("ok") is True, "public message ok flag was not true"
+            assert message_body.get("mode") == "mock", "public message mode was not mock"
+            assert message_body.get("provider") == "offline-mock", "public message provider was not offline-mock"
+            assert message_body.get("memory_persisted") is False, "public message persisted memory"
+            assert message_body.get("requires_approval") is False, "public message unexpectedly required approval"
+            checks.append(
+                {
+                    "endpoint": "/v1/public/messages",
+                    "status": "ok",
+                    "mode": "mock",
+                    "provider": "offline-mock",
+                }
+            )
 
-        run = client.post(
-            "/api/v1/agent/run",
-            json={"prompt": "hello public MVP", "mode": "mock", "conversation_id": "public-mvp-smoke"},
-        )
-        run_body = _assert_json_response(run, endpoint="/api/v1/agent/run")
-        assert run.status_code == 200, "/api/v1/agent/run did not return 200"
-        assert run_body.get("ok") is True, "agent run ok flag was not true"
-        assert run_body.get("status") == "completed", "agent run did not complete in mock mode"
-        assert run_body.get("provider") == "offline-mock", "agent run provider was not offline-mock"
-        assert run_body.get("memory_persisted") is False, "agent run persisted memory"
-        assert str(run_body.get("events_url", "")).startswith("/api/v1/agent/runs/")
-        assert str(run_body.get("results_url", "")).startswith("/api/v1/agent/runs/")
-        checks.append(
-            {
-                "endpoint": "/api/v1/agent/run",
-                "status": "ok",
-                "mode": "mock",
-                "provider": "offline-mock",
-            }
-        )
+            run = client.post(
+                "/api/v1/agent/run",
+                json={"prompt": "hello public MVP", "mode": "mock", "conversation_id": "public-mvp-smoke"},
+            )
+            run_body = _assert_json_response(run, endpoint="/api/v1/agent/run")
+            assert run.status_code == 200, "/api/v1/agent/run did not return 200"
+            assert run_body.get("ok") is True, "agent run ok flag was not true"
+            assert run_body.get("status") == "completed", "agent run did not complete in mock mode"
+            assert run_body.get("provider") == "offline-mock", "agent run provider was not offline-mock"
+            assert run_body.get("memory_persisted") is False, "agent run persisted memory"
+            assert str(run_body.get("events_url", "")).startswith("/api/v1/agent/runs/")
+            assert str(run_body.get("results_url", "")).startswith("/api/v1/agent/runs/")
+            checks.append(
+                {
+                    "endpoint": "/api/v1/agent/run",
+                    "status": "ok",
+                    "mode": "mock",
+                    "provider": "offline-mock",
+                }
+            )
 
-    return {
-        "ok": True,
-        "contract": PUBLIC_MVP_SMOKE_CONTRACT,
-        "credentials_required": False,
-        "external_provider_required": False,
-        "live_discord_required": False,
-        "checks": checks,
-    }
+        return {
+            "ok": True,
+            "contract": PUBLIC_MVP_SMOKE_CONTRACT,
+            "credentials_required": False,
+            "external_provider_required": False,
+            "live_discord_required": False,
+            "checks": checks,
+        }
+    finally:
+        for key, value in previous_env.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
 
 
 def _format_pretty_result(result: dict[str, Any]) -> str:

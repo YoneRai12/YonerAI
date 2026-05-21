@@ -32,6 +32,19 @@ def test_public_mvp_smoke_runs_without_credentials(monkeypatch) -> None:
     assert "must-be-cleared-by-smoke" not in json.dumps(result)
 
 
+def test_public_mvp_smoke_restores_environment(monkeypatch) -> None:
+    monkeypatch.setenv("ORA_DOTENV_PATH", "original.env")
+    monkeypatch.setenv("ORA_ALLOW_MISSING_SECRETS", "0")
+    monkeypatch.setenv("OPENAI_API_KEY", "existing-test-key")
+
+    result = public_mvp_smoke.run_smoke()
+
+    assert result["ok"] is True
+    assert public_mvp_smoke.os.environ["ORA_DOTENV_PATH"] == "original.env"
+    assert public_mvp_smoke.os.environ["ORA_ALLOW_MISSING_SECRETS"] == "0"
+    assert public_mvp_smoke.os.environ["OPENAI_API_KEY"] == "existing-test-key"
+
+
 def test_public_mvp_smoke_cli_json_output_is_deterministic(capsys) -> None:
     exit_code = public_mvp_smoke.main(["--json"])
 
