@@ -50,6 +50,7 @@ def _signed_action(
     args_hash: str | None = None,
     nonce: str = "action-nonce",
     expires_at: str = "2026-05-21T00:10:00Z",
+    audience: str = "yonerai-official-control-plane",
 ):
     hybrid, private_key_b64, public_key_b64, session = _session_fixture()
     expected_args_hash = args_hash or hybrid.action_args_hash({"tool": "synthetic_inspection"})
@@ -62,6 +63,7 @@ def _signed_action(
         args_hash=expected_args_hash,
         expires_at=expires_at,
         nonce=nonce,
+        audience=audience,
     )
     signed = hybrid.sign_local_node_action_envelope(unsigned, private_key_b64=private_key_b64)
     return hybrid, public_key_b64, session, signed, expected_args_hash
@@ -228,4 +230,27 @@ def test_managed_cloud_private_local_action_is_disabled() -> None:
 
     assert result.status == "disabled_by_mode"
     assert result.disabled_by_mode is True
+    assert result.execute_allowed is False
+
+
+def test_wrong_audience_is_rejected() -> None:
+    hybrid, public_key_b64, session, signed, expected_args_hash = _signed_action(
+        audience="attacker-other-control-plane",
+        nonce="wrong-audience-nonce",
+    )
+
+    result = hybrid.verify_local_node_action_envelope(
+        signed,
+        session=session,
+        public_key_b64=public_key_b64,
+        expected_args_hash=expected_args_hash,
+        nonce_store=hybrid.InMemoryNonceStore(),
+        mode="official_hybrid_private",
+        expected_audience="yonerai-official-control-plane",
+        now=NOW,
+    )
+
+    assert result.status == "session_mismatch"
+    assert result.signature_valid is False
+    assert result.accepted_for_preview is False
     assert result.execute_allowed is False
