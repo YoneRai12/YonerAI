@@ -113,3 +113,20 @@ def test_public_api_cli_web_local_llm_surfaces_are_explicitly_listed() -> None:
     assert japanese_cli is not None
     assert japanese_cli.execution == "contract_only"
     assert capabilities.is_public_capability_enabled("native_japanese_cli.contract") is False
+
+
+def test_growth_sns_claim_guardrails_are_public_docs_only() -> None:
+    capabilities = _load_public_capabilities_module()
+    manifest = capabilities.build_public_capability_manifest()
+    capability = capabilities.get_public_capability("growth_sns.claim_guardrails")
+
+    assert capability is not None
+    assert capability.execution == "docs_only"
+    assert capability.surface == "growth_sns"
+    assert capability.public_safe is True
+    assert capability.user_visible is True
+    assert capability.memory_persisted is False
+    assert capability.requires_approval is False
+    assert capability.executable_now is False
+    assert capabilities.is_public_capability_enabled("growth_sns.claim_guardrails") is False
+    assert manifest["capabilities"]["growth_sns.claim_guardrails"]["execution"] == "docs_only"
