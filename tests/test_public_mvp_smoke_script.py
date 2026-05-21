@@ -28,7 +28,15 @@ def test_public_mvp_smoke_runs_without_credentials(monkeypatch) -> None:
         "/health",
         "/v1/public/messages",
         "/api/v1/agent/run",
+        "managed-download-contract",
     ]
+    managed_download_check = result["checks"][-1]
+    assert managed_download_check == {
+        "endpoint": "managed-download-contract",
+        "status": "ok",
+        "accepted": "3",
+        "rejected": "4",
+    }
     assert "must-be-cleared-by-smoke" not in json.dumps(result)
 
 
@@ -66,6 +74,12 @@ def test_public_mvp_smoke_cli_json_output_is_deterministic(capsys) -> None:
             "provider": "offline-mock",
             "status": "ok",
         },
+        {
+            "accepted": "3",
+            "endpoint": "managed-download-contract",
+            "rejected": "4",
+            "status": "ok",
+        },
     ]
     assert "run_id" not in body
     assert "session_id" not in body
@@ -78,13 +92,14 @@ def test_public_mvp_smoke_cli_pretty_output_summarizes_boundaries(capsys) -> Non
     output = capsys.readouterr().out
     assert "YonerAI public MVP smoke" in output
     assert "Result: ok" in output
-    assert "Checks passed: 3" in output
+    assert "Checks passed: 4" in output
     assert "- credentials_required: false" in output
     assert "- external_provider_required: false" in output
     assert "- live_discord_required: false" in output
     assert "/health | ok" in output
     assert "/v1/public/messages | ok | mode=mock | provider=offline-mock" in output
     assert "/api/v1/agent/run | ok | mode=mock | provider=offline-mock" in output
+    assert "managed-download-contract | ok" in output
     assert "Traceback" not in output
 
 
