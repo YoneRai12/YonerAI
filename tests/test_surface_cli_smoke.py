@@ -136,11 +136,16 @@ def test_cli_route_preview_public_docs_is_preview_only(capsys):
     assert cli.main(["route", "preview", "--mode", "official_managed_cloud", "summarize", "public", "docs"]) == 0
 
     output = json.loads(capsys.readouterr().out)
-    assert output["route"] == "cloud_only"
+    assert output["route"] == "managed_cloud_contract_only"
     assert output["mode"] == "official_managed_cloud"
-    assert output["cloud_allowed"] is True
+    assert output["cloud_allowed"] is False
+    assert output["runtime_available_in_public_repo"] is False
+    assert output["public_repo_support_status"] == "contract_only"
+    assert output["external_official_service_required"] is True
+    assert output["public_repo_execution_available"] is False
     assert output["private_data_allowed"] is False
     assert output["disabled"] is False
+    assert output["unavailable_reason"] == "official_managed_cloud_runtime_not_included_in_public_repo"
     assert "preview_only_no_execution" in output["non_claims"]
 
 
@@ -210,10 +215,11 @@ def test_cli_route_preview_reports_verified_declared_capability(capsys):
     )
 
     output = json.loads(capsys.readouterr().out)
-    assert output["route"] == "hybrid_coordination"
+    assert output["route"] == "hybrid_coordination_preview"
     assert output["local_node_verification_state"] == "present_verified"
     assert output["signed_origin_verified"] is True
     assert output["local_node_capability_declared"] is True
+    assert output["public_repo_execution_available"] is False
 
 
 def test_cli_route_preview_reports_missing_enrolled_session(capsys):
@@ -241,7 +247,7 @@ def test_cli_route_preview_reports_missing_enrolled_session(capsys):
     )
 
     output = json.loads(capsys.readouterr().out)
-    assert output["route"] == "session_required"
+    assert output["route"] == "enrolled_verified_node_required"
     assert output["unavailable_reason"] == "local_node_session_required"
     assert output["session_required"] is True
     assert output["session_verified"] is False
@@ -274,7 +280,7 @@ def test_cli_route_preview_reports_enrolled_verified_session(capsys):
     )
 
     output = json.loads(capsys.readouterr().out)
-    assert output["route"] == "hybrid_coordination"
+    assert output["route"] == "hybrid_coordination_preview"
     assert output["session_required"] is True
     assert output["session_verified"] is True
     assert output["session_gate_satisfied"] is True

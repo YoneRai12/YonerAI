@@ -47,7 +47,7 @@ def test_public_mvp_smoke_runs_without_credentials(monkeypatch) -> None:
         "endpoint": "yonerai-differentiation-contract",
         "status": "ok",
         "modes": "3",
-        "route_preview": "cloud_only,local_node_required",
+        "route_preview": "managed_cloud_contract_only,local_node_required",
         "local_dev_control_plane": "simulator",
         "self_evolution": "proposal_only",
     }
@@ -71,7 +71,7 @@ def test_public_mvp_smoke_runs_without_credentials(monkeypatch) -> None:
         "signed_envelope_verified": "true",
         "replay_rejected": "true",
         "dangerous_capability_approval_required": "true",
-        "route_preview_enrolled_hybrid": "hybrid_coordination",
+        "route_preview_enrolled_hybrid": "hybrid_coordination_preview",
         "self_evolution_scorecard_proposal_only": "true",
     }
     assert "must-be-cleared-by-smoke" not in json.dumps(result)
@@ -121,7 +121,7 @@ def test_public_mvp_smoke_cli_json_output_is_deterministic(capsys) -> None:
             "endpoint": "yonerai-differentiation-contract",
             "local_dev_control_plane": "simulator",
             "modes": "3",
-            "route_preview": "cloud_only,local_node_required",
+            "route_preview": "managed_cloud_contract_only,local_node_required",
             "self_evolution": "proposal_only",
             "status": "ok",
         },
@@ -140,7 +140,7 @@ def test_public_mvp_smoke_cli_json_output_is_deterministic(capsys) -> None:
             "enrollment_pairing_once": "true",
             "local_node_manifest_verified": "true",
             "replay_rejected": "true",
-            "route_preview_enrolled_hybrid": "hybrid_coordination",
+            "route_preview_enrolled_hybrid": "hybrid_coordination_preview",
             "self_evolution_scorecard_proposal_only": "true",
             "session_bound": "true",
             "signed_envelope_verified": "true",

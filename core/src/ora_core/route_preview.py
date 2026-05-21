@@ -6,9 +6,17 @@ from typing import Literal
 from .three_mode import ModeName, get_mode_capability_profile
 
 
-ROUTE_PREVIEW_SCHEMA_VERSION = "three-mode-route-preview-0.2"
+ROUTE_PREVIEW_SCHEMA_VERSION = "three-mode-route-preview-0.3"
 
-RouteName = Literal["cloud_only", "local_node_required", "session_required", "hybrid_coordination", "self_host_local", "disabled"]
+RouteName = Literal[
+    "managed_cloud_contract_only",
+    "external_official_service_required",
+    "local_node_required",
+    "enrolled_verified_node_required",
+    "hybrid_coordination_preview",
+    "self_host_local_preview",
+    "disabled",
+]
 OperationClass = Literal["public_docs", "private_data", "pc_operation", "local_tool", "heavy_work", "dangerous", "discord_live", "deployment", "unknown"]
 LocalNodeVerificationState = Literal[
     "missing",
@@ -75,6 +83,12 @@ class RoutePreviewDecision:
     private_data_allowed: bool
     dangerous_operation: bool
     disabled: bool
+    runtime_available_in_public_repo: bool
+    public_repo_support_status: str
+    implementation_owner: str
+    external_official_service_required: bool
+    contract_only: bool
+    public_repo_execution_available: bool
     unavailable_reason: str | None
     local_node_verification_state: LocalNodeVerificationState | None
     signed_origin_verified: bool
@@ -248,6 +262,12 @@ def preview_route(
             private_data_allowed=False,
             dangerous_operation=True,
             disabled=True,
+            runtime_available_in_public_repo=profile.runtime_available_in_public_repo,
+            public_repo_support_status=profile.public_repo_support_status,
+            implementation_owner=profile.implementation_owner,
+            external_official_service_required=profile.external_official_service,
+            contract_only=profile.contract_only,
+            public_repo_execution_available=False,
             unavailable_reason="unknown_capability",
             local_node_verification_state=node_state,
             signed_origin_verified=signed_origin_verified,
@@ -274,6 +294,12 @@ def preview_route(
             private_data_allowed=capability.private_data_allowed,
             dangerous_operation=capability.dangerous_operation,
             disabled=True,
+            runtime_available_in_public_repo=profile.runtime_available_in_public_repo,
+            public_repo_support_status=profile.public_repo_support_status,
+            implementation_owner=profile.implementation_owner,
+            external_official_service_required=profile.external_official_service,
+            contract_only=profile.contract_only,
+            public_repo_execution_available=False,
             unavailable_reason="capability_disabled",
             local_node_verification_state=node_state,
             signed_origin_verified=signed_origin_verified,
@@ -286,7 +312,7 @@ def preview_route(
             non_claims=non_claims,
         )
 
-    cloud_allowed = mode != "full_private_self_host" and capability.name in {
+    cloud_allowed = mode == "official_hybrid_private" and capability.name in {
         "public_ui_sync_support",
         "cloud_orchestration",
         "self_evolution_proposals",
@@ -301,12 +327,49 @@ def preview_route(
     }:
         local_node_required = True
 
+    if mode == "official_managed_cloud":
+        route: RouteName = "managed_cloud_contract_only"
+        unavailable_reason = (
+            profile.disabled_reason
+            or "official_managed_cloud_external_not_included"
+        )
+        return RoutePreviewDecision(
+            schema_version=ROUTE_PREVIEW_SCHEMA_VERSION,
+            mode=mode,
+            route=route,
+            reason=capability.reason,
+            requested_capability=capability.name,
+            operation_class=operation_class,
+            approval_required=True,
+            local_node_required=False,
+            cloud_allowed=False,
+            private_data_allowed=False,
+            dangerous_operation=capability.dangerous_operation,
+            disabled=False,
+            runtime_available_in_public_repo=profile.runtime_available_in_public_repo,
+            public_repo_support_status=profile.public_repo_support_status,
+            implementation_owner=profile.implementation_owner,
+            external_official_service_required=True,
+            contract_only=True,
+            public_repo_execution_available=False,
+            unavailable_reason=unavailable_reason,
+            local_node_verification_state=node_state,
+            signed_origin_verified=signed_origin_verified,
+            local_node_capability_declared=None,
+            session_required=require_enrolled_verified_session,
+            session_verification_state=session_state,
+            session_enrolled=_session_enrolled(session_state),
+            session_verified=session_verified,
+            session_gate_satisfied=session_gate_satisfied,
+            non_claims=non_claims + ("official_managed_cloud_runtime_not_in_public_repo",),
+        )
+
     session_unavailable_reason = _session_unavailable_reason(session_state)
     if local_node_required and require_enrolled_verified_session and session_unavailable_reason is not None:
         return RoutePreviewDecision(
             schema_version=ROUTE_PREVIEW_SCHEMA_VERSION,
             mode=mode,
-            route="session_required",
+            route="enrolled_verified_node_required",
             reason=f"{capability.reason} Enrolled verified Local Node session is required before this preview can route local work.",
             requested_capability=capability.name,
             operation_class=operation_class,
@@ -316,6 +379,12 @@ def preview_route(
             private_data_allowed=False,
             dangerous_operation=capability.dangerous_operation,
             disabled=False,
+            runtime_available_in_public_repo=profile.runtime_available_in_public_repo,
+            public_repo_support_status=profile.public_repo_support_status,
+            implementation_owner=profile.implementation_owner,
+            external_official_service_required=profile.external_official_service,
+            contract_only=profile.contract_only,
+            public_repo_execution_available=False,
             unavailable_reason=session_unavailable_reason,
             local_node_verification_state=node_state,
             signed_origin_verified=signed_origin_verified,
@@ -343,6 +412,12 @@ def preview_route(
             private_data_allowed=capability.private_data_allowed,
             dangerous_operation=capability.dangerous_operation,
             disabled=False,
+            runtime_available_in_public_repo=profile.runtime_available_in_public_repo,
+            public_repo_support_status=profile.public_repo_support_status,
+            implementation_owner=profile.implementation_owner,
+            external_official_service_required=profile.external_official_service,
+            contract_only=profile.contract_only,
+            public_repo_execution_available=False,
             unavailable_reason=trust_unavailable_reason,
             local_node_verification_state=node_state,
             signed_origin_verified=False,
@@ -372,6 +447,12 @@ def preview_route(
                 private_data_allowed=False,
                 dangerous_operation=capability.dangerous_operation,
                 disabled=True,
+                runtime_available_in_public_repo=profile.runtime_available_in_public_repo,
+                public_repo_support_status=profile.public_repo_support_status,
+                implementation_owner=profile.implementation_owner,
+                external_official_service_required=profile.external_official_service,
+                contract_only=profile.contract_only,
+                public_repo_execution_available=False,
                 unavailable_reason="local_node_capability_not_declared",
                 local_node_verification_state=node_state,
                 signed_origin_verified=True,
@@ -398,6 +479,12 @@ def preview_route(
             private_data_allowed=capability.private_data_allowed,
             dangerous_operation=capability.dangerous_operation,
             disabled=False,
+            runtime_available_in_public_repo=profile.runtime_available_in_public_repo,
+            public_repo_support_status=profile.public_repo_support_status,
+            implementation_owner=profile.implementation_owner,
+            external_official_service_required=profile.external_official_service,
+            contract_only=profile.contract_only,
+            public_repo_execution_available=False,
             unavailable_reason="local_node_missing",
             local_node_verification_state="missing",
             signed_origin_verified=False,
@@ -411,11 +498,11 @@ def preview_route(
         )
 
     if mode == "full_private_self_host":
-        route: RouteName = "self_host_local"
+        route = "self_host_local_preview"
     elif local_node_required:
-        route = "hybrid_coordination"
+        route = "hybrid_coordination_preview"
     elif cloud_allowed:
-        route = "cloud_only"
+        route = "external_official_service_required"
     else:
         route = "disabled"
 
@@ -433,6 +520,12 @@ def preview_route(
         private_data_allowed=capability.private_data_allowed,
         dangerous_operation=capability.dangerous_operation,
         disabled=disabled,
+        runtime_available_in_public_repo=profile.runtime_available_in_public_repo,
+        public_repo_support_status=profile.public_repo_support_status,
+        implementation_owner=profile.implementation_owner,
+        external_official_service_required=profile.external_official_service,
+        contract_only=profile.contract_only,
+        public_repo_execution_available=False,
         unavailable_reason="route_not_available" if disabled else None,
         local_node_verification_state=node_state,
         signed_origin_verified=signed_origin_verified,

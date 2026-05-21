@@ -15,17 +15,25 @@ def _load_route_preview_module():
     return route_preview
 
 
-def test_public_docs_route_to_cloud_only_in_managed_cloud() -> None:
+def test_public_docs_route_is_contract_only_in_managed_cloud() -> None:
     route_preview = _load_route_preview_module()
 
     decision = route_preview.preview_route("summarize public docs", mode="official_managed_cloud")
 
-    assert decision.route == "cloud_only"
-    assert decision.cloud_allowed is True
+    assert decision.route == "managed_cloud_contract_only"
+    assert decision.cloud_allowed is False
+    assert decision.runtime_available_in_public_repo is False
+    assert decision.public_repo_support_status == "contract_only"
+    assert decision.implementation_owner == "official_private"
+    assert decision.external_official_service_required is True
+    assert decision.contract_only is True
+    assert decision.public_repo_execution_available is False
+    assert decision.unavailable_reason == "official_managed_cloud_runtime_not_included_in_public_repo"
     assert decision.private_data_allowed is False
-    assert decision.approval_required is False
+    assert decision.approval_required is True
     assert decision.disabled is False
     assert "preview_only_no_execution" in decision.non_claims
+    assert "official_managed_cloud_runtime_not_in_public_repo" in decision.non_claims
 
 
 def test_managed_cloud_refuses_private_file_access() -> None:
@@ -54,10 +62,11 @@ def test_hybrid_private_routes_private_file_work_to_local_node_requirement() -> 
     assert missing_node.local_node_required is True
     assert missing_node.approval_required is True
     assert missing_node.unavailable_reason == "local_node_missing"
-    assert with_node.route == "hybrid_coordination"
+    assert with_node.route == "hybrid_coordination_preview"
     assert with_node.private_data_allowed is True
     assert with_node.approval_required is True
     assert with_node.signed_origin_verified is False
+    assert with_node.public_repo_execution_available is False
 
 
 def test_shell_command_preview_requires_local_node_and_approval() -> None:
@@ -69,7 +78,7 @@ def test_shell_command_preview_requires_local_node_and_approval() -> None:
         has_local_node=True,
     )
 
-    assert decision.route == "hybrid_coordination"
+    assert decision.route == "hybrid_coordination_preview"
     assert decision.requested_capability == "pc_operations"
     assert decision.local_node_required is True
     assert decision.approval_required is True
@@ -105,7 +114,7 @@ def test_hybrid_private_verified_node_routes_declared_capability() -> None:
         local_node_capabilities=("private_files",),
     )
 
-    assert decision.route == "hybrid_coordination"
+    assert decision.route == "hybrid_coordination_preview"
     assert decision.unavailable_reason is None
     assert decision.local_node_verification_state == "present_verified"
     assert decision.signed_origin_verified is True
@@ -134,12 +143,12 @@ def test_hybrid_private_requires_enrolled_session_when_requested() -> None:
         session_verification_state="pairing_pending",
     )
 
-    assert missing_session.route == "session_required"
+    assert missing_session.route == "enrolled_verified_node_required"
     assert missing_session.unavailable_reason == "local_node_session_required"
     assert missing_session.session_required is True
     assert missing_session.session_verification_state == "missing"
     assert missing_session.session_gate_satisfied is False
-    assert pending_session.route == "session_required"
+    assert pending_session.route == "enrolled_verified_node_required"
     assert pending_session.unavailable_reason == "pairing_pending"
 
 
@@ -156,7 +165,7 @@ def test_hybrid_private_enrolled_verified_session_routes_declared_capability() -
         session_verification_state="enrolled_verified",
     )
 
-    assert decision.route == "hybrid_coordination"
+    assert decision.route == "hybrid_coordination_preview"
     assert decision.unavailable_reason is None
     assert decision.session_required is True
     assert decision.session_enrolled is True
@@ -222,10 +231,13 @@ def test_self_host_routes_local_work_to_owner_responsibility() -> None:
 
     decision = route_preview.preview_route("run local heavy work", mode="full_private_self_host", has_local_node=True)
 
-    assert decision.route == "self_host_local"
+    assert decision.route == "self_host_local_preview"
     assert decision.cloud_allowed is False
     assert decision.approval_required is True
     assert decision.local_node_required is False
+    assert decision.runtime_available_in_public_repo is True
+    assert decision.public_repo_support_status == "public_local_supported"
+    assert decision.public_repo_execution_available is False
 
 
 def test_unknown_requested_capability_is_disabled() -> None:

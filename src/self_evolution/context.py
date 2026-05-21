@@ -5,7 +5,18 @@ from typing import Literal, Mapping
 
 
 RouteTrustMode = Literal["official_managed_cloud", "official_hybrid_private", "full_private_self_host"]
-RouteTrustRoute = Literal["cloud_only", "local_node_required", "hybrid_coordination", "self_host_local", "disabled"]
+RouteTrustRoute = Literal[
+    "managed_cloud_contract_only",
+    "external_official_service_required",
+    "local_node_required",
+    "enrolled_verified_node_required",
+    "hybrid_coordination_preview",
+    "self_host_local_preview",
+    "cloud_only",
+    "hybrid_coordination",
+    "self_host_local",
+    "disabled",
+]
 RouteTrustNodeState = Literal[
     "missing",
     "present_unverified",
@@ -17,7 +28,18 @@ RouteTrustNodeState = Literal[
 ]
 
 _ALLOWED_MODES = {"official_managed_cloud", "official_hybrid_private", "full_private_self_host"}
-_ALLOWED_ROUTES = {"cloud_only", "local_node_required", "hybrid_coordination", "self_host_local", "disabled"}
+_ALLOWED_ROUTES = {
+    "managed_cloud_contract_only",
+    "external_official_service_required",
+    "local_node_required",
+    "enrolled_verified_node_required",
+    "hybrid_coordination_preview",
+    "self_host_local_preview",
+    "cloud_only",
+    "hybrid_coordination",
+    "self_host_local",
+    "disabled",
+}
 _ALLOWED_NODE_STATES = {
     "missing",
     "present_unverified",
@@ -123,8 +145,14 @@ def _diagnosis(*, route: str, node_state: str, unavailable_reason: str | None) -
         return f"hybrid_local_node_{node_state}"
     if unavailable_reason == "local_node_capability_not_declared":
         return "hybrid_capability_not_declared"
-    if route == "hybrid_coordination":
+    if route in {"hybrid_coordination_preview", "hybrid_coordination"}:
         return "hybrid_coordination_requires_owner_approval"
+    if route == "managed_cloud_contract_only":
+        return "managed_cloud_contract_only_external"
+    if route == "external_official_service_required":
+        return "external_official_service_required"
+    if route == "self_host_local_preview" or route == "self_host_local":
+        return "self_host_owner_responsibility"
     if route == "disabled":
         return "route_disabled"
     return "route_context_recorded"
