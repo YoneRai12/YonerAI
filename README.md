@@ -60,15 +60,19 @@ See [Current MVP Capability Matrix](docs/CURRENT_MVP_CAPABILITY_MATRIX.md) for t
 
 YonerAI is designed around three high-level ways to use the same contract-first foundation:
 
-- Full Private Self-Host: the user controls the runtime boundary.
-- Official Hybrid Private: official governance and a local/private runtime can work together through explicit contracts.
-- Official Managed Cloud: the same experience can be offered as a managed surface when that lane is ready.
+- Full Private Self-Host: the public repository can support the local/self-hosted public MVP surface, with the operator responsible for the runtime boundary.
+- Official Hybrid Private: the public repository can support Local Node contracts, signed-contract tests, and a non-production local-dev simulator; official cloud coordination remains external/private.
+- Official Managed Cloud: a product mode whose runtime and control plane are official/private infrastructure, not implemented or runnable in this public repository.
 
 These are product modes, not a repository map. Public docs should describe the contract and user experience, not private operational detail.
 
 ## What Is Included In This Public Repo
 
 The public surface is for reviewable contracts, public-safe runtime abstractions, capability boundaries, connector patterns, client-facing documentation, and regression tests.
+
+This repository intentionally includes the Full Private Self-Host public/local surface and the Official Hybrid Private Local Node contract/dev-simulator surface. It does not include the Official Managed Cloud runtime, production Oracle/control plane, production trust store, production signing keys, live Discord gateway, Google login, persistent memory, deployment system, real official-cloud telemetry, or production self-evolution.
+
+Self-evolution code in this repository is synthetic and proposal-only. It may score and draft safe improvement proposals from synthetic events, but it does not observe real official-cloud user behavior, ingest support email, open issues or pull requests, merge, deploy, or apply patches.
 
 Private runtime behavior, operator-only workflows, live routes, deployment truth, raw production inventory, credentials, and host-specific control-plane details do not belong in public-facing documentation.
 
@@ -155,7 +159,11 @@ This public checkpoint does not include or claim:
 - git history rewrite
 - signed production release
 - deployment
-- official cloud runtime
+- Official Managed Cloud runtime or control plane
+- production Oracle
+- production trust store or production signing keys
+- real official-cloud telemetry or analytics
+- autonomous self-evolution deployment
 
 ## Local Development
 

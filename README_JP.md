@@ -4,6 +4,16 @@ YonerAI は、公式・ローカル・self-hosted の実行環境が変わって
 
 [English README](README.md) | [Current phase](docs/CURRENT_PHASE_CONTEXT.md) | [Contracts](docs/contracts) | [Root file / PR traceability](docs/repo/FILE_PR_TRACEABILITY_MATRIX_CURRENT.md) | [Historical checkpoint archive](docs/releases/v2026.5.21.5-implementation-continuation-checkpoint.md)
 
+## Public mode boundary
+
+この public repository で実装・実行対象として扱うのは、Full Private Self-Host の public/local MVP surface と、Official Hybrid Private の Local Node contract / signed-contract test / non-production local-dev simulator surface です。
+
+Official Managed Cloud は product mode ですが、その runtime / control plane / official telemetry / production Oracle は official/private infrastructure 側に属します。この public repository には Official Managed Cloud runtime は含まれず、runnable として扱いません。
+
+この repository の self-evolution は synthetic event を使う proposal-only simulator です。real official-cloud user behavior analytics、support email ingestion、auto issue creation、auto PR creation、auto merge、auto deploy、patch auto-apply は含みません。
+
+この repository は production Oracle、production trust store、production signing key、live Discord gateway、Google login、persistent memory、deployment system を意図的に含みません。
+
 ## YonerAI とは
 
 YonerAI は長く使う AI runtime foundation です。利用する model provider、UI surface、local runtime、self-hosted profile が変わっても、ユーザー体験と contract boundary を維持することを目的にしています。
