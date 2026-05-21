@@ -21,11 +21,18 @@ def test_failed_step_becomes_owner_reviewed_onboarding_proposal() -> None:
     assert proposal.schema_version == SELF_EVOLUTION_LOOP_VERSION
     assert proposal.category == "onboarding"
     assert proposal.proposal_only is True
+    assert proposal.official_cloud_observation == "simulated_only"
+    assert proposal.real_user_behavior_analytics is False
+    assert proposal.support_email_ingestion is False
     assert proposal.owner_approval_required is True
     assert proposal.auto_apply_allowed is False
+    assert proposal.auto_issue_creation is False
+    assert proposal.auto_pr_creation is False
+    assert proposal.auto_merge is False
     assert proposal.github_write_allowed is False
     assert proposal.deploy_allowed is False
     assert "public-safe regression fixture" in proposal.test_idea
+    assert "official_cloud_observation_simulated_only" in proposal.non_actions
 
 
 def test_bug_report_generates_issue_test_patch_and_rollback_drafts() -> None:
@@ -94,9 +101,16 @@ def test_privacy_sensitive_event_is_redacted_and_rejected_without_auto_actions()
     assert proposal.issue_draft.startswith("[rejected]")
     assert "rejected before proposal generation" in proposal.reply_draft
     assert proposal.auto_apply_allowed is False
+    assert proposal.official_cloud_observation == "simulated_only"
+    assert proposal.real_user_behavior_analytics is False
+    assert proposal.support_email_ingestion is False
+    assert proposal.auto_issue_creation is False
+    assert proposal.auto_pr_creation is False
+    assert proposal.auto_merge is False
     assert proposal.github_write_allowed is False
     assert proposal.deploy_allowed is False
     assert "no_raw_prompt_or_completion_ingestion" in proposal.non_actions
+    assert "no_real_user_behavior_analytics" in proposal.non_actions
 
 
 def test_no_auto_apply_action_exists_in_public_output() -> None:
@@ -112,6 +126,12 @@ def test_no_auto_apply_action_exists_in_public_output() -> None:
 
     assert "apply" not in payload
     assert payload["auto_apply_allowed"] is False
+    assert payload["official_cloud_observation"] == "simulated_only"
+    assert payload["real_user_behavior_analytics"] is False
+    assert payload["support_email_ingestion"] is False
+    assert payload["auto_issue_creation"] is False
+    assert payload["auto_pr_creation"] is False
+    assert payload["auto_merge"] is False
     assert payload["github_write_allowed"] is False
     assert payload["deploy_allowed"] is False
 
@@ -300,6 +320,12 @@ def test_scorecard_output_remains_text_only_proposal_only() -> None:
     payload = proposal.to_public_dict()
 
     assert payload["proposal_only"] is True
+    assert payload["official_cloud_observation"] == "simulated_only"
+    assert payload["real_user_behavior_analytics"] is False
+    assert payload["support_email_ingestion"] is False
+    assert payload["auto_issue_creation"] is False
+    assert payload["auto_pr_creation"] is False
+    assert payload["auto_merge"] is False
     assert payload["approval_draft"]["github_write_allowed"] is False
     assert payload["approval_draft"]["deploy_allowed"] is False
     assert "auto_apply" not in payload["approval_draft"]

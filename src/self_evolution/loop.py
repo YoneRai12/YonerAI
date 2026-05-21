@@ -53,8 +53,14 @@ class EvolutionProposal:
     confidence: float
     privacy_classification: PrivacyClassification
     proposal_only: bool
+    official_cloud_observation: str
+    real_user_behavior_analytics: bool
+    support_email_ingestion: bool
     owner_approval_required: bool
     auto_apply_allowed: bool
+    auto_issue_creation: bool
+    auto_pr_creation: bool
+    auto_merge: bool
     github_write_allowed: bool
     deploy_allowed: bool
     reply_draft: str
@@ -225,8 +231,14 @@ def generate_evolution_proposal(
         confidence=classification.confidence,
         privacy_classification=classification.privacy_classification,
         proposal_only=True,
+        official_cloud_observation="simulated_only",
+        real_user_behavior_analytics=False,
+        support_email_ingestion=False,
         owner_approval_required=True,
         auto_apply_allowed=False,
+        auto_issue_creation=False,
+        auto_pr_creation=False,
+        auto_merge=False,
         github_write_allowed=False,
         deploy_allowed=False,
         reply_draft=reply_draft,
@@ -241,6 +253,9 @@ def generate_evolution_proposal(
         approval_draft=approval_draft,
         non_actions=(
             "no_real_telemetry_collection",
+            "official_cloud_observation_simulated_only",
+            "no_real_user_behavior_analytics",
+            "no_support_email_ingestion",
             "no_raw_prompt_or_completion_ingestion",
             "no_code_mutation",
             "no_issue_creation",
