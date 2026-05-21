@@ -64,6 +64,20 @@ def test_enrolled_verified_session_binds_action_envelope_preview() -> None:
     assert decision.plaintext_pairing_code_stored is False
 
 
+def test_enrolled_verified_default_now_binds_session() -> None:
+    hybrid = _load_hybrid()
+
+    decision = hybrid.evaluate_local_dev_session_binding(
+        capability="local_tools",
+        enrollment_state="enrolled_verified",
+    )
+
+    assert decision.local_node_verification_state == "present_verified"
+    assert decision.enrollment_state == "enrolled_verified"
+    assert decision.session_bound is True
+    assert decision.local_work_allowed_for_preview is True
+
+
 def test_unverified_expired_or_revoked_session_denies_work() -> None:
     hybrid = _load_hybrid()
 

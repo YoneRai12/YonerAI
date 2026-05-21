@@ -41,7 +41,7 @@ from .policy import InMemoryNonceStore
 
 LOCAL_DEV_CONTROL_PLANE_PROFILE = "local_dev_control_plane"
 LOCAL_DEV_CONTROL_PLANE_SCHEMA_VERSION = "local-dev-control-plane-simulator-0.1"
-LOCAL_DEV_CONTROL_PLANE_FIXED_NOW = datetime(2026, 5, 21, 12, tzinfo=timezone.utc)
+LOCAL_DEV_CONTROL_PLANE_FIXED_NOW = datetime(2026, 5, 21, 0, 5, tzinfo=timezone.utc)
 
 LocalNodeVerificationState = Literal[
     "missing",
