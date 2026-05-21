@@ -40,6 +40,17 @@ def test_three_modes_share_the_same_public_capability_names() -> None:
     assert all(names == per_mode_names[0] for names in per_mode_names)
 
 
+def test_three_modes_share_identical_capability_categories() -> None:
+    fixture = _load_three_mode_fixture()
+    modes = fixture["modes"]
+    category_names = ("expected_available", "expected_gated", "expected_disabled")
+    baseline_mode = modes["full_private_self_host"]
+
+    for mode_name, mode in modes.items():
+        for category in category_names:
+            assert set(mode[category]) == set(baseline_mode[category]), f"{mode_name}:{category}"
+
+
 def test_three_modes_do_not_silently_enable_dangerous_capabilities() -> None:
     capabilities = _load_public_capabilities_module()
     fixture = _load_three_mode_fixture()

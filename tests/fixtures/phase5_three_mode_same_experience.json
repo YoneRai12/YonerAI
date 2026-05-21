@@ -18,7 +18,9 @@
       "expected_gated": [
         "hybrid.connector_fixture",
         "self_evolution.proposal_only",
-        "memory.candidate_quarantine"
+        "memory.candidate_quarantine",
+        "tools.mcp.safe_subset",
+        "native_japanese_cli.contract"
       ],
       "expected_disabled": [
         "tools.shell",
@@ -47,7 +49,9 @@
       "expected_gated": [
         "hybrid.connector_fixture",
         "self_evolution.proposal_only",
-        "memory.candidate_quarantine"
+        "memory.candidate_quarantine",
+        "tools.mcp.safe_subset",
+        "native_japanese_cli.contract"
       ],
       "expected_disabled": [
         "tools.shell",
@@ -76,7 +80,9 @@
       "expected_gated": [
         "hybrid.connector_fixture",
         "self_evolution.proposal_only",
-        "memory.candidate_quarantine"
+        "memory.candidate_quarantine",
+        "tools.mcp.safe_subset",
+        "native_japanese_cli.contract"
       ],
       "expected_disabled": [
         "tools.shell",
