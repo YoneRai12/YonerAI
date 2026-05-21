@@ -13,7 +13,6 @@ import logging
 import time
 import zipfile
 
-import uvicorn
 from fastapi import FastAPI, File, HTTPException, UploadFile, status
 from fastapi.responses import Response
 from src.services.layer_upload_limits import read_limited_upload, validate_layer_image
@@ -124,7 +123,10 @@ async def decompose(file: UploadFile = File(...)):
 
         else:
             # Failed to load model fallback
-            return {"error": "Model not loaded"}
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Layer model is not available.",
+            )
 
         # Create ZIP
         zip_buffer = io.BytesIO()
@@ -150,6 +152,8 @@ async def decompose(file: UploadFile = File(...)):
 
 
 if __name__ == "__main__":
+    import uvicorn
+
     try:
         from src.utils.logging_config import get_privacy_log_config
         log_config = get_privacy_log_config()

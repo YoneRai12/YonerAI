@@ -1,16 +1,15 @@
 import io
+import warnings
 
 from fastapi import HTTPException, UploadFile, status
 from PIL import Image, UnidentifiedImageError
-from PIL.Image import DecompressionBombError
+from PIL.Image import DecompressionBombError, DecompressionBombWarning
 
 MAX_UPLOAD_BYTES = 15 * 1024 * 1024
 MAX_IMAGE_WIDTH = 8192
 MAX_IMAGE_HEIGHT = 8192
 MAX_IMAGE_PIXELS = 40_000_000
 UPLOAD_READ_CHUNK_BYTES = 1024 * 1024
-
-Image.MAX_IMAGE_PIXELS = MAX_IMAGE_PIXELS
 
 
 def is_layer_attachment_too_large(attachment, max_bytes: int = MAX_UPLOAD_BYTES) -> bool:
@@ -56,18 +55,21 @@ def validate_layer_image(
 ) -> Image.Image:
     """Validate uploaded image bytes before layer decomposition work starts."""
     try:
-        with Image.open(io.BytesIO(image_data)) as probe:
-            width, height = probe.size
-            if width > max_width or height > max_height or width * height > max_pixels:
-                raise HTTPException(
-                    status_code=413,
-                    detail="Image dimensions exceed the configured layer service limit.",
-                )
-            probe.verify()
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", DecompressionBombWarning)
 
-        with Image.open(io.BytesIO(image_data)) as image:
-            return image.convert("RGB")
+            with Image.open(io.BytesIO(image_data)) as probe:
+                width, height = probe.size
+                if width > max_width or height > max_height or width * height > max_pixels:
+                    raise HTTPException(
+                        status_code=413,
+                        detail="Image dimensions exceed the configured layer service limit.",
+                    )
+                probe.verify()
+
+            with Image.open(io.BytesIO(image_data)) as image:
+                return image.convert("RGB")
     except HTTPException:
         raise
-    except (DecompressionBombError, UnidentifiedImageError, OSError) as exc:
+    except (DecompressionBombError, DecompressionBombWarning, UnidentifiedImageError, OSError) as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid image upload.") from exc

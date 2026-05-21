@@ -5,6 +5,7 @@ import pytest
 from fastapi import HTTPException, status
 from PIL import Image
 
+import src.services.layer_server as layer_server
 from src.services.layer_upload_limits import (
     is_layer_attachment_too_large,
     read_limited_upload,
@@ -76,3 +77,24 @@ def test_layer_attachment_size_gate_rejects_oversized_attachment():
         size = 11
 
     assert is_layer_attachment_too_large(Attachment(), max_bytes=10) is True
+
+
+def test_layer_endpoint_uses_non_success_status_when_model_unavailable(monkeypatch):
+    async def fake_read(_file):
+        return make_png()
+
+    def fake_validate(data):
+        assert data
+        return Image.new("RGB", (2, 2), color=(1, 2, 3))
+
+    async def fake_get_model():
+        return None, None
+
+    monkeypatch.setattr(layer_server, "read_limited_upload", fake_read)
+    monkeypatch.setattr(layer_server, "validate_layer_image", fake_validate)
+    monkeypatch.setattr(layer_server, "get_model", fake_get_model)
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(layer_server.decompose(AsyncUpload(make_png())))
+
+    assert exc_info.value.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
