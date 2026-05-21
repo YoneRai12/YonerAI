@@ -47,6 +47,12 @@ Avoid loose backlog sweeps with no single stopping condition.
 - Use `codex/<short-lane-name>` unless the user requests another branch name.
 - Push, PR, merge, tag, release, deploy, and migration actions require explicit authorization in the current user goal.
 
+## 3.1 Merge Subject Policy
+
+Squash merge subjects should be `type: concise summary (#PR)`, with the PR number at the end. If GitHub auto-generates a subject without the PR number, use `gh pr merge --squash --subject "... (#NNN)"` after the PR number exists.
+
+Do not rewrite old history to add PR numbers. Do not mass-touch files to change GitHub root "Last commit message" rows. That GitHub column reports the latest commit that touched each path; it is not a file description field.
+
 ## 4. Lane Types
 
 Standard lanes:

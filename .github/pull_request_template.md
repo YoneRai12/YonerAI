@@ -44,5 +44,6 @@ This PR does not claim production readiness, shipping completeness, official-clo
 
 - Related issues / PRs:
 - Replacement evidence for any old PRs closed:
+- Merge subject will include `(#PR)` at the end:
 - Release note / checkpoint, if applicable:
 - Release note needed: yes / no
