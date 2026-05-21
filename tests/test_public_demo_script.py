@@ -48,6 +48,15 @@ def test_public_demo_json_shape_and_boundaries(capsys) -> None:
     assert output["official_cloud_runtime_included"] is False
     assert output["production_trust_material"] is False
     assert "session_id" not in json.dumps(output).lower()
+    self_evolution = next(section for section in output["sections"] if section["name"] == "self_evolution")
+    memory_fixture = next(
+        check for check in self_evolution["checks"] if check["name"] == "memory_candidate_fixture_quarantined"
+    )
+    assert memory_fixture["donation_action"] == "quarantine"
+    assert memory_fixture["trusted"] is False
+    assert memory_fixture["approval_required"] is True
+    assert memory_fixture["memory_status"] == "quarantined"
+    assert memory_fixture["memory_persisted"] is False
 
 
 def test_public_demo_pretty_output_contains_key_sections(capsys) -> None:
@@ -75,6 +84,9 @@ def test_public_demo_pretty_output_contains_key_sections(capsys) -> None:
     assert "deploy_required: false" in output
     assert "managed_download_guard" in output
     assert "github_write_allowed=false" in output
+    assert "memory_candidate_fixture_quarantined" in output
+    assert "donation_action=quarantine" in output
+    assert "memory_status=quarantined" in output
 
 
 def test_public_demo_uses_managed_download_guard(monkeypatch) -> None:
