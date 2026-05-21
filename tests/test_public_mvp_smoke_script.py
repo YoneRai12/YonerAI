@@ -33,15 +33,16 @@ def test_public_mvp_smoke_runs_without_credentials(monkeypatch) -> None:
         "managed-download-contract",
         "yonerai-differentiation-contract",
         "hybrid-trust-contract",
+        "enrolled-hybrid-slice-contract",
     ]
-    managed_download_check = result["checks"][-3]
+    managed_download_check = result["checks"][-4]
     assert managed_download_check == {
         "endpoint": "managed-download-contract",
         "status": "ok",
         "accepted": "3",
         "rejected": "4",
     }
-    differentiation_check = result["checks"][-2]
+    differentiation_check = result["checks"][-3]
     assert differentiation_check == {
         "endpoint": "yonerai-differentiation-contract",
         "status": "ok",
@@ -50,7 +51,7 @@ def test_public_mvp_smoke_runs_without_credentials(monkeypatch) -> None:
         "local_dev_control_plane": "simulator",
         "self_evolution": "proposal_only",
     }
-    trust_check = result["checks"][-1]
+    trust_check = result["checks"][-2]
     assert trust_check == {
         "endpoint": "hybrid-trust-contract",
         "status": "ok",
@@ -59,6 +60,19 @@ def test_public_mvp_smoke_runs_without_credentials(monkeypatch) -> None:
         "expired_rejected": "true",
         "dangerous_capability_still_gated": "true",
         "production_trust_material": "false",
+    }
+    enrolled_check = result["checks"][-1]
+    assert enrolled_check == {
+        "endpoint": "enrolled-hybrid-slice-contract",
+        "status": "ok",
+        "local_node_manifest_verified": "true",
+        "enrollment_pairing_once": "true",
+        "session_bound": "true",
+        "signed_envelope_verified": "true",
+        "replay_rejected": "true",
+        "dangerous_capability_approval_required": "true",
+        "route_preview_enrolled_hybrid": "hybrid_coordination",
+        "self_evolution_scorecard_proposal_only": "true",
     }
     assert "must-be-cleared-by-smoke" not in json.dumps(result)
 
@@ -120,6 +134,18 @@ def test_public_mvp_smoke_cli_json_output_is_deterministic(capsys) -> None:
             "status": "ok",
             "tamper_rejected": "true",
         },
+        {
+            "dangerous_capability_approval_required": "true",
+            "endpoint": "enrolled-hybrid-slice-contract",
+            "enrollment_pairing_once": "true",
+            "local_node_manifest_verified": "true",
+            "replay_rejected": "true",
+            "route_preview_enrolled_hybrid": "hybrid_coordination",
+            "self_evolution_scorecard_proposal_only": "true",
+            "session_bound": "true",
+            "signed_envelope_verified": "true",
+            "status": "ok",
+        },
     ]
     assert "run_id" not in body
     assert "session_id" not in body
@@ -132,7 +158,7 @@ def test_public_mvp_smoke_cli_pretty_output_summarizes_boundaries(capsys) -> Non
     output = capsys.readouterr().out
     assert "YonerAI public MVP smoke" in output
     assert "Result: ok" in output
-    assert "Checks passed: 6" in output
+    assert "Checks passed: 7" in output
     assert "- credentials_required: false" in output
     assert "- external_provider_required: false" in output
     assert "- live_discord_required: false" in output
@@ -144,6 +170,7 @@ def test_public_mvp_smoke_cli_pretty_output_summarizes_boundaries(capsys) -> Non
     assert "managed-download-contract | ok" in output
     assert "yonerai-differentiation-contract | ok" in output
     assert "hybrid-trust-contract | ok" in output
+    assert "enrolled-hybrid-slice-contract | ok" in output
     assert "Traceback" not in output
 
 

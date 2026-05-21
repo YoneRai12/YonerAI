@@ -15,7 +15,7 @@ from typing import Any
 from fastapi.testclient import TestClient
 
 
-PUBLIC_MVP_SMOKE_CONTRACT = "public-mvp-smoke-0.3"
+PUBLIC_MVP_SMOKE_CONTRACT = "public-mvp-smoke-0.4"
 _PUBLIC_ENV_KEYS = (
     "ORA_ALLOW_MISSING_SECRETS",
     "ORA_BOT_DB",
@@ -242,6 +242,155 @@ def _assert_hybrid_trust_contract() -> dict[str, str]:
     }
 
 
+def _assert_enrolled_hybrid_slice_contract() -> dict[str, str]:
+    from ora_core.hybrid import (
+        InMemoryNonceStore,
+        LocalNodeEnrollmentRequest,
+        action_args_hash,
+        build_local_dev_enrolled_session_fixture,
+        build_unsigned_local_node_action_envelope,
+        consume_pairing_code,
+        create_pairing_challenge,
+        evaluate_local_dev_session_binding,
+        generate_test_local_node_keypair,
+        sign_local_node_manifest,
+        build_test_local_node_manifest,
+        sign_local_node_action_envelope,
+        verify_local_node_action_envelope,
+    )
+    from ora_core.route_preview import preview_route
+    from src.self_evolution import SyntheticEvolutionEvent, generate_evolution_proposal
+
+    now = datetime(2026, 5, 21, 0, 5, tzinfo=timezone.utc)
+    session, _signed_manifest, private_key_b64, public_key_b64 = build_local_dev_enrolled_session_fixture(
+        capability="local_tools",
+        now=now,
+    )
+    assert session is not None, "enrollment pairing did not produce a session"
+    pairing_private_key_b64, pairing_public_key_b64 = generate_test_local_node_keypair()
+    pairing_manifest = build_test_local_node_manifest(capabilities=("local_tools",))
+    pairing_signed = sign_local_node_manifest(pairing_manifest, private_key_b64=pairing_private_key_b64)
+    pairing_request = LocalNodeEnrollmentRequest(
+        node_id=pairing_manifest.identity.node_id,
+        key_id=pairing_signed.signature.key_id,
+        mode="official_hybrid_private",
+        requested_capabilities=pairing_manifest.capabilities,
+    )
+    pairing_challenge = create_pairing_challenge(pairing_request, pairing_code="123456")
+    pairing_once = consume_pairing_code(
+        pairing_challenge,
+        pairing_code="123456",
+        signed_manifest=pairing_signed,
+        public_key_b64=pairing_public_key_b64,
+        now=now,
+    )
+    pairing_reuse = consume_pairing_code(
+        pairing_once.challenge,
+        pairing_code="123456",
+        signed_manifest=pairing_signed,
+        public_key_b64=pairing_public_key_b64,
+        now=now,
+    )
+    args_hash = action_args_hash({"action": "synthetic_preview"})
+    unsigned = build_unsigned_local_node_action_envelope(
+        action_id="public-smoke-action",
+        node_id=session.enrolled_node_id,
+        session_id=session.session_id,
+        mode=session.mode,
+        capability="local_tools",
+        args_hash=args_hash,
+        nonce="public-smoke-action-nonce",
+    )
+    signed_action = sign_local_node_action_envelope(unsigned, private_key_b64=private_key_b64)
+    verified_action = verify_local_node_action_envelope(
+        signed_action,
+        session=session,
+        public_key_b64=public_key_b64,
+        expected_args_hash=args_hash,
+        nonce_store=InMemoryNonceStore(),
+        mode=session.mode,
+        now=now,
+    )
+    replay = verify_local_node_action_envelope(
+        signed_action,
+        session=session,
+        public_key_b64=public_key_b64,
+        expected_args_hash=args_hash,
+        nonce_store=InMemoryNonceStore(max_entries=1),
+        mode=session.mode,
+        now=now,
+    )
+    nonce_store = InMemoryNonceStore()
+    assert verify_local_node_action_envelope(
+        signed_action,
+        session=session,
+        public_key_b64=public_key_b64,
+        expected_args_hash=args_hash,
+        nonce_store=nonce_store,
+        mode=session.mode,
+        now=now,
+    ).signature_valid is True
+    replay_rejected = verify_local_node_action_envelope(
+        signed_action,
+        session=session,
+        public_key_b64=public_key_b64,
+        expected_args_hash=args_hash,
+        nonce_store=nonce_store,
+        mode=session.mode,
+        now=now,
+    )
+    dangerous = evaluate_local_dev_session_binding(
+        capability="dangerous_operations",
+        enrollment_state="enrolled_verified",
+        now=now,
+    )
+    route = preview_route(
+        "use local tool",
+        mode="official_hybrid_private",
+        requested_capability="local_tools",
+        has_local_node=True,
+        local_node_verification_state="present_verified",
+        local_node_capabilities=("local_tools",),
+        require_enrolled_verified_session=True,
+        session_verification_state="enrolled_verified",
+    )
+    proposal = generate_evolution_proposal(
+        SyntheticEvolutionEvent(
+            event_type="failed_step",
+            summary="Synthetic enrolled hybrid public smoke proposal.",
+            severity=4,
+            confidence=0.8,
+        ),
+        route_trust_context=route.to_public_dict(),
+    )
+
+    assert verified_action.status == "approval_required", "signed envelope did not require approval"
+    assert replay.status == "approval_required", "fresh nonce verification did not pass"
+    assert replay_rejected.status == "replayed_nonce", "replayed nonce was not rejected"
+    assert dangerous.action_envelope is not None, "dangerous binding did not include action decision"
+    assert dangerous.action_envelope.approval_required is True, "dangerous capability was not approval gated"
+    assert pairing_once.accepted is True, "pairing code was not accepted once"
+    assert pairing_reuse.accepted is False, "pairing code reuse was not rejected"
+    assert route.route == "hybrid_coordination", "enrolled hybrid route did not coordinate"
+    assert route.session_verified is True, "route did not report enrolled verified session"
+    assert proposal.proposal_only is True, "self-evolution proposal was not proposal-only"
+    assert proposal.approval_draft.github_write_allowed is False, "approval draft allowed GitHub write"
+    assert proposal.approval_draft.deploy_allowed is False, "approval draft allowed deploy"
+
+    return {
+        "endpoint": "enrolled-hybrid-slice-contract",
+        "status": "ok",
+        "local_node_manifest_verified": "true",
+        "enrollment_pairing_once": "true",
+        "session_bound": "true",
+        "signed_envelope_verified": "true",
+        "replay_rejected": "true",
+        "dangerous_capability_approval_required": "true",
+        "route_preview_enrolled_hybrid": route.route,
+        "self_evolution_scorecard_proposal_only": "true",
+    }
+
+
 def run_smoke() -> dict[str, Any]:
     previous_env = {key: os.environ.get(key) for key in _PUBLIC_ENV_KEYS}
     try:
@@ -299,6 +448,7 @@ def run_smoke() -> dict[str, Any]:
             checks.append(_assert_managed_download_contract())
             checks.append(_assert_differentiation_contract())
             checks.append(_assert_hybrid_trust_contract())
+            checks.append(_assert_enrolled_hybrid_slice_contract())
 
         return {
             "ok": True,
