@@ -84,3 +84,35 @@ Release creation was blocked by the release-train instruction for this run, not 
 - The current release-train prompt explicitly set a one-GitHub-Release-today cap.
 
 No tag or GitHub Release was created for `v0.1.0-alpha.1` in this gate. The next action is to rerun the final release gate after that prompt-scoped cap no longer blocks release creation, verify that `v0.1.0-alpha.1` still does not exist, and then create the GitHub pre-release if all criteria still pass.
+
+## Security intake rerun - 2026-05-21
+
+The alpha gate was rerun after PR #305 `fix: harden alpha security surfaces before release` was merged into `main` at `0bc1857e0a68ff5a6f64f9679b6f849a347141a9`.
+
+Security intake result:
+
+- Owner-created alpha-blocking PRs #297, #298, #300, and #290 were integrated by #305.
+- Owner-created PRs #301 and #302 were integrated with current-main fixes by #305.
+- Owner-created PR #299 was superseded by #305 because the current-main fix uses runtime clock defaults and explicit public fixture times.
+- Old PR #133 was closed as superseded by the merged embed URL SSRF guard from #296.
+- Open PRs #135, #128, #60, #205, and #241 remain deferred/post-alpha or docs-only follow-up items and are not alpha CLI demo blockers.
+
+Gate checks rerun:
+
+- `gh release view v0.1.0-alpha.1` returned `release not found`.
+- `VERSION` is `0.1.0-alpha.1`.
+- `python scripts/verify_version.py --tag v0.1.0-alpha.1` passed.
+- `yonerai demo --pretty` passed after installing the local CLI entry point from `clients/cli`.
+- `yonerai demo --json` passed.
+- `yonerai quickstart --json` passed.
+- `python scripts/dev/public_mvp_smoke.py --json` passed.
+- `python -m pytest tests/test_three_mode_route_preview.py tests/test_local_node_signed_action_envelope.py tests/test_local_node_enrollment_pairing.py tests/test_local_dev_control_plane_simulator.py tests/test_local_dev_control_plane_session_binding.py tests/test_final_downloads_bridge.py tests/test_surface_cli_smoke.py tests/test_public_demo_script.py tests/test_public_mvp_smoke_script.py tests/test_verify_version.py tests/test_release_workflow_prerelease.py tests/test_yonerai_demo_contract.py tests/test_vision_embed_url_security.py -q` passed.
+- `python -m ruff check ...` passed for the touched alpha security and demo files.
+- `python -m compileall -q ...` passed for release/demo/security surfaces and tests.
+- `git diff --check` passed.
+- Secret/local path scan found no secret values or local path leaks in release-critical output or changed security intake code. The only token-name hits are public demo environment-key denylist literals.
+- Mojibake/hidden Unicode scan passed.
+
+Release decision:
+
+`v0.1.0-alpha.1` is ready to publish as a GitHub pre-release if it still does not exist immediately before tag creation.
