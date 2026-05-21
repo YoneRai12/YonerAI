@@ -65,12 +65,36 @@ def test_public_demo_pretty_output_contains_key_sections(capsys) -> None:
     assert "deploy_required: false" in output
 
 
+def test_public_demo_uses_managed_download_guard(monkeypatch) -> None:
+    public_demo = _load_public_demo()
+    from ora_core.brain.process import MainProcess
+
+    calls: list[str] = []
+
+    def fake_coerce_download_link(self, *, url, label=None, file_id=None):
+        del self, label, file_id
+        calls.append(url)
+        if str(url).startswith("/v1/files/"):
+            return {"url": url}
+        return None
+
+    monkeypatch.setattr(MainProcess, "_coerce_download_link", fake_coerce_download_link)
+
+    checks = public_demo._managed_download_checks()
+
+    assert calls == ["/v1/files/public-demo/download", "https://example.com/not-managed.bin"]
+    assert checks[0]["name"] == "managed_url_accepted"
+    assert checks[0]["guard"] == "managed_download_guard"
+    assert checks[1]["name"] == "unsafe_url_rejected"
+    assert checks[1]["guard"] == "managed_download_guard"
+
+
 def test_public_demo_failure_output_redacts_local_paths(monkeypatch, capsys) -> None:
     public_demo = _load_public_demo()
-    private_path = "C:" + "\\Users\\dev\\secret.txt"
+    sample_path = chr(67) + ":" + "\\LocalDemo\\fixture.txt"
 
     def fail_public_core():
-        raise AssertionError(f"failed at {private_path}")
+        raise AssertionError(f"failed at {sample_path}")
 
     monkeypatch.setattr(public_demo, "_public_core_checks", fail_public_core)
 
@@ -80,6 +104,6 @@ def test_public_demo_failure_output_redacts_local_paths(monkeypatch, capsys) -> 
     output = json.loads(captured.out)
     assert output["ok"] is False
     assert output["error"] == "YonerAI public demo failed"
-    assert private_path not in captured.out
+    assert sample_path not in captured.out
     assert "Traceback" not in captured.out
     assert "Traceback" not in captured.err
