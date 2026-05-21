@@ -1,0 +1,36 @@
+{
+  "schema_version": "yonerai-installer-bootstrap-manifest/v1",
+  "product": "YonerAI",
+  "channel": "alpha",
+  "version": "0.1.0-alpha.1",
+  "published_at": "2026-05-21T20:59:37Z",
+  "production_ready": false,
+  "release": {
+    "tag": "v0.1.0-alpha.1",
+    "github_release_url": "https://github.com/YoneRai12/YonerAI/releases/tag/v0.1.0-alpha.1",
+    "manifest_status": "example_placeholder"
+  },
+  "minimum_requirements": {
+    "python": ">=3.11",
+    "windows": "10 or newer for future Windows bootstrapper",
+    "network_required": false
+  },
+  "artifacts": [
+    {
+      "id": "yonerai-0.1.0-alpha.1-source-archive",
+      "kind": "source_archive",
+      "target": "source-any",
+      "os": "any",
+      "arch": "any",
+      "url": "https://github.com/YoneRai12/YonerAI/releases/download/v0.1.0-alpha.1/YonerAI-0.1.0-alpha.1.zip",
+      "sha256": "6791362ed73fe6fb1818be2520c6b7161e28e09f106f737196b8139efab4778e",
+      "size_bytes": 8677894,
+      "signature": {
+        "status": "placeholder_non_production",
+        "algorithm": "none",
+        "key_id": "PLACEHOLDER_NON_PRODUCTION_KEY",
+        "signature": "PLACEHOLDER_NON_PRODUCTION_SIGNATURE"
+      }
+    }
+  ]
+}
