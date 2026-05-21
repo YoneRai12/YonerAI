@@ -2,6 +2,13 @@
 
 See also: `docs/RELEASE_NOTES.md` (curated summary, v5.0.0 -> current).
 
+## v0.1.0-alpha.1 (2026-05-21) - Public Demo Slice
+- Added semantic pre-release tooling and GitHub prerelease workflow support for the first public runnable demo milestone.
+- Polished `yonerai demo --pretty`, `yonerai demo --json`, and `yonerai quickstart` as the YonerAI CLI entry point.
+- Connected managed download guard and Hybrid memory quarantine fixture outputs to the deterministic demo.
+- Added embed image URL SSRF protection for Discord vision handling with regression tests.
+- Added release body and readiness evidence while preserving the public boundary: Official Managed Cloud remains external contract-only in this public repository.
+
 ## v2026.4.7 (2026-04-07) - Public Node Bootability Hardening
 - Removed `chromadb` from the default public-node install path so `pip install -r requirements.txt` no longer blocks initial setup on Windows when ChromaDB native extensions are unavailable.
 - Added `requirements-optional-memory.txt` for operators who explicitly want ChromaDB-backed `VectorMemory`.

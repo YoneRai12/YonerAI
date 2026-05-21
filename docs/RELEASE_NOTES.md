@@ -2,13 +2,17 @@
 
 This page is a public-safe index of current release notes and progress checkpoints.
 
-## Upcoming v0.1.0-alpha.1 Public Demo Slice
+## v0.1.0-alpha.1 Public Demo Slice
 
-- Planned GitHub Release target: `v0.1.0-alpha.1` only if the release gate passes.
+- GitHub pre-release target: `v0.1.0-alpha.1` only if the final release gate passes.
+- Public release body: `docs/releases/0.1.0-alpha.1.md`
 - YonerAI CLI: `yonerai demo --pretty`, `yonerai demo --json`, and `yonerai quickstart`.
 - Demo Experience: public Core health/mock/run contract, mode boundary, route preview, test-only Hybrid Local Node trust/session simulator, managed download guard, and proposal-only self-evolution.
+- Large-codebase connections: managed download guard and Hybrid memory quarantine fixture.
+- Security/runtime patch: embed image URL SSRF guard for Discord vision handling.
 - Boundary: Official Managed Cloud remains external contract-only in this public repo; no production Oracle, production trust store, live Discord, persistent memory, Google login, deploy, or external provider live generation is included.
-- Validation target: stable JSON contract `yonerai-public-demo/v1` with `schema_version: "1.0"`, public demo/CLI/public smoke tests, secret/local path scan, and mojibake/hidden Unicode scan.
+- Validation target: stable JSON contract `yonerai-public-demo/v1` with `schema_version: "1.0"`, public demo/CLI/public smoke tests, version/release workflow tests, SSRF regression tests, secret/local path scan, and mojibake/hidden Unicode scan.
+- Traceability: PRs #292, #293, #294, #295, and #296.
 
 ## v2026.5.21.5 Implementation Continuation Checkpoint
 
