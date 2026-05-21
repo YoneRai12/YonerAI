@@ -22,6 +22,7 @@
 - Prefer fresh current-main patches over merging stale PRs.
 - Never broad-refactor without characterization tests.
 - Keep PRs lane-scoped; do not mix unrelated lanes in one PR.
+- Do not push, create PRs, merge, tag, create releases, deploy, migrate, or broaden scope unless the current user goal explicitly authorizes that action.
 
 ## Required First Reads
 

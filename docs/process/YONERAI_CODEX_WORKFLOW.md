@@ -44,6 +44,7 @@ Avoid loose backlog sweeps with no single stopping condition.
 - Preserve/stash dirty state before switching, without adopting dirty runtime changes.
 - Do not adopt dirty `src/cogs/ora.py` content.
 - Use `codex/<short-lane-name>` unless the user requests another branch name.
+- Push, PR, merge, tag, release, deploy, and migration actions require explicit authorization in the current user goal.
 
 ## 4. Lane Types
 
@@ -77,7 +78,7 @@ For refactors, add characterization tests before moving code.
 
 ## 6. Review Loop
 
-For every PR:
+For delivery goals where the user explicitly authorizes PR work, use this loop for every PR:
 
 1. Create the PR with scope, validation, non-claims, and boundary confirmations.
 2. Read GitHub, Gemini, Codex, and human comments.
@@ -95,6 +96,8 @@ Priority definitions:
 - P3: style or optional polish; fix only when cheap and clearly useful.
 
 A quota warning from an automated reviewer is not a material review comment, but record it.
+
+For read-only, audit, planning, or investigation goals that do not authorize PR creation, stop with a report and do not push or open a PR.
 
 ## 7. Stop Conditions
 
