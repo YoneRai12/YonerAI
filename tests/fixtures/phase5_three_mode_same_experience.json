@@ -1,0 +1,114 @@
+{
+  "schema_version": "three-mode-experience-acceptance-0.1",
+  "modes": {
+    "full_private_self_host": {
+      "posture": "owner_policy_controls_local_capability",
+      "expected_available": [
+        "api.health",
+        "api.public_messages.mock_offline",
+        "api.agent_run.mock_offline",
+        "cli.health",
+        "cli.message_mock",
+        "cli.run_mock",
+        "web.temporary_chat_smoke",
+        "web.safe_error_display",
+        "local_llm.loopback_ollama",
+        "local_llm.loopback_openai_compatible"
+      ],
+      "expected_gated": [
+        "hybrid.connector_fixture",
+        "self_evolution.proposal_only",
+        "memory.candidate_quarantine"
+      ],
+      "expected_disabled": [
+        "tools.shell",
+        "tools.mcp.dynamic_execution",
+        "memory.persistent",
+        "private_runtime.inventory",
+        "control_plane.official_cloud_runtime",
+        "discord.gateway_complete",
+        "web.final_ui"
+      ]
+    },
+    "official_hybrid_private": {
+      "posture": "signed_connector_and_session_binding_required",
+      "expected_available": [
+        "api.health",
+        "api.public_messages.mock_offline",
+        "api.agent_run.mock_offline",
+        "cli.health",
+        "cli.message_mock",
+        "cli.run_mock",
+        "web.temporary_chat_smoke",
+        "web.safe_error_display",
+        "local_llm.loopback_ollama",
+        "local_llm.loopback_openai_compatible"
+      ],
+      "expected_gated": [
+        "hybrid.connector_fixture",
+        "self_evolution.proposal_only",
+        "memory.candidate_quarantine"
+      ],
+      "expected_disabled": [
+        "tools.shell",
+        "tools.mcp.dynamic_execution",
+        "memory.persistent",
+        "private_runtime.inventory",
+        "control_plane.official_cloud_runtime",
+        "discord.gateway_complete",
+        "web.final_ui"
+      ]
+    },
+    "official_managed_cloud": {
+      "posture": "dangerous_local_and_system_capabilities_disabled",
+      "expected_available": [
+        "api.health",
+        "api.public_messages.mock_offline",
+        "api.agent_run.mock_offline",
+        "cli.health",
+        "cli.message_mock",
+        "cli.run_mock",
+        "web.temporary_chat_smoke",
+        "web.safe_error_display",
+        "local_llm.loopback_ollama",
+        "local_llm.loopback_openai_compatible"
+      ],
+      "expected_gated": [
+        "hybrid.connector_fixture",
+        "self_evolution.proposal_only",
+        "memory.candidate_quarantine"
+      ],
+      "expected_disabled": [
+        "tools.shell",
+        "tools.mcp.dynamic_execution",
+        "memory.persistent",
+        "private_runtime.inventory",
+        "control_plane.official_cloud_runtime",
+        "discord.gateway_complete",
+        "web.final_ui"
+      ]
+    }
+  },
+  "required_common_public_names": [
+    "api.health",
+    "api.public_messages.mock_offline",
+    "api.agent_run.mock_offline",
+    "cli.health",
+    "cli.message_mock",
+    "cli.run_mock",
+    "web.temporary_chat_smoke",
+    "web.safe_error_display",
+    "local_llm.loopback_ollama",
+    "local_llm.loopback_openai_compatible",
+    "native_japanese_cli.contract"
+  ],
+  "forbidden_enabled_capabilities": [
+    "tools.shell",
+    "tools.mcp.dynamic_execution",
+    "memory.persistent",
+    "private_runtime.inventory",
+    "control_plane.official_cloud_runtime",
+    "discord.gateway_complete",
+    "web.final_ui"
+  ]
+}
