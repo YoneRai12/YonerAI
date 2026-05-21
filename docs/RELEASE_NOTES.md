@@ -2,6 +2,14 @@
 
 This page is a public-safe index of current release notes and progress checkpoints.
 
+## v2026.5.21.5 Implementation Continuation Checkpoint
+
+- Public checkpoint note: `docs/releases/v2026.5.21.5-implementation-continuation-checkpoint.md`
+- GitHub Release target: `v2026.5.21.5` after this alignment PR lands and the release is created.
+- Scope: layer image upload security/runtime hardening, first behavior-preserving `src/cogs/ora.py` pure-helper extraction, ORA/YonerAI naming compatibility policy, and three-mode docs-only capability acceptance harness extension.
+- Status: implementation continuation checkpoint, not production, not deploy, not Discord restoration, not `src/cogs/ora.py` resolution, not broad ORA rename, and not a v7.8 start.
+- Still open: remaining security/runtime PRs, dependency PR lane decisions, root launcher/config migration, live/private Discord gateway implementation, README_JP broader mojibake restoration, and future `src/cogs/ora.py` extraction.
+
 ## v2026.5.21.4 Implementation Guardrail Compression Checkpoint
 
 - Public checkpoint note: `docs/releases/v2026.5.21.4-implementation-guardrail-compression-checkpoint.md`
