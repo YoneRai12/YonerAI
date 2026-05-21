@@ -86,6 +86,46 @@ class _VideoMetaRunner:
         }
 
 
+class _ExternalDownloadsRunner:
+    def __init__(self, _repo):
+        return None
+
+    async def run_tool(
+        self,
+        tool_call_id: str,
+        run_id: str,
+        user_id: str,
+        tool_name: str,
+        args: dict,
+        client_type: str,
+        request_meta: dict | None = None,
+        effective_route: dict | None = None,
+    ) -> dict:
+        del tool_call_id, run_id, user_id, tool_name, args, client_type, request_meta, effective_route
+        return {
+            "status": "completed",
+            "artifact_ref": "https://external.example/artifacts/raw.bin",
+            "result": {
+                "ok": True,
+                "downloads": [
+                    {"url": "https://external.example/downloads/report.pdf", "label": "external report"},
+                    {"url": "http://files.yonerai.com/v1/files/insecure/download", "label": "insecure"},
+                    {"url": "https://files.yonerai.com/not-managed/file", "label": "wrong path"},
+                    {"url": "/s/local_share", "label": "local share"},
+                    {
+                        "url": "https://files.yonerai.com/v1/files/file_managed/download",
+                        "label": "managed.pdf",
+                        "file_id": "file_managed",
+                    },
+                ],
+                "video_meta": {
+                    "download_page_url": "https://video.example/raw",
+                    "filename": "external.mp4",
+                },
+            },
+        }
+
+
 def test_final_event_with_explicit_downloads_includes_metadata(monkeypatch) -> None:
     async def _run() -> None:
         req = MessageRequest(
@@ -110,6 +150,39 @@ def test_final_event_with_explicit_downloads_includes_metadata(monkeypatch) -> N
                 "url": "https://files.yonerai.com/v1/files/file_123/download",
                 "label": "report.pdf",
                 "file_id": "file_123",
+            }
+        ]
+
+    asyncio.run(_run())
+
+
+def test_final_event_filters_arbitrary_external_download_urls(monkeypatch) -> None:
+    async def _run() -> None:
+        req = MessageRequest(
+            user_identity={"provider": "discord", "id": "u-external-downloads"},
+            content="please generate a file",
+            idempotency_key=f"external-downloads-{uuid.uuid4().hex[:6]}",
+            source="discord",
+            available_tools=[{"name": "dummy_tool", "description": "tool", "parameters": {"type": "object"}}],
+            route_hint={"route_score": 0.5, "difficulty_score": 0.5, "security_risk_score": 0.1},
+        )
+        events = await _run_main_process(
+            monkeypatch,
+            req,
+            run_id=f"run-external-downloads-{uuid.uuid4().hex[:8]}",
+            omni_engine=_ToolThenAnswerEngine(final_text="rendered answer"),
+            tool_runner_cls=_ExternalDownloadsRunner,
+        )
+        final = _event_data(events, "final")
+        assert final["downloads"] == [
+            {
+                "url": "/s/local_share",
+                "label": "local share",
+            },
+            {
+                "url": "https://files.yonerai.com/v1/files/file_managed/download",
+                "label": "managed.pdf",
+                "file_id": "file_managed",
             }
         ]
 
