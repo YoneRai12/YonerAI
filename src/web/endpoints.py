@@ -1855,6 +1855,21 @@ def _dashboard_user_profile_dirs(memory_dir: Path) -> list[Path]:
     return [memory_dir / "users", memory_dir]
 
 
+def _parse_dashboard_user_profile_id(user_id: str) -> tuple[str, str | None]:
+    parts = user_id.split("_")
+    if len(parts) == 2:
+        uid, gid = parts
+    elif len(parts) == 3 and parts[2] in {"public", "private"}:
+        uid, gid = parts[0], parts[1]
+    elif len(parts) == 1:
+        uid, gid = parts[0], None
+    else:
+        raise ValueError("Invalid user profile id")
+    if not uid.isdigit() or (gid is not None and not gid.isdigit()):
+        raise ValueError("Invalid user profile id")
+    return uid, gid
+
+
 @router.get("/dashboard/users/{user_id}")
 async def get_user_details(user_id: str, _: None = Depends(require_web_api)):
     """Get full details for a specific user (traits, history, context). Supports dual profiles."""
@@ -1863,11 +1878,9 @@ async def get_user_details(user_id: str, _: None = Depends(require_web_api)):
     from src.config import MEMORY_DIR
 
     profile_dirs = _dashboard_user_profile_dirs(Path(MEMORY_DIR))
-    parts = user_id.split("_")
-    uid = parts[0]
-    gid = parts[1] if len(parts) > 1 else None
-
-    if len(parts) > 2 or not uid.isdigit() or (gid is not None and not gid.isdigit()):
+    try:
+        uid, gid = _parse_dashboard_user_profile_id(user_id)
+    except ValueError:
         return {"ok": False, "error": "Invalid user profile id"}
 
     specific_data = None
