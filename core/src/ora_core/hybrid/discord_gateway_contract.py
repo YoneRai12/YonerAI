@@ -10,6 +10,26 @@ DISCORD_GATEWAY_PREFLIGHT_CONTRACT_VERSION = "discord-hybrid-signed-contract-pre
 DISCORD_GATEWAY_MODES = frozenset({"official_hybrid_private", "full_private_self_host"})
 DISCORD_TERMINAL_EVENTS = frozenset({"final", "controlled_error"})
 DISCORD_REQUIRED_EVENTS = frozenset({"mention_received", "bootstrap_status_embed", "progress_edit_sent"})
+DISCORD_PUBLIC_SAFE_FORBIDDEN_KEYS = frozenset(
+    {
+        "raw_prompt",
+        "raw_completion",
+        "chain_of_thought",
+        "discord_token",
+        "bot_token",
+        "private_runtime_inventory",
+        "break_glass",
+        "control_plane_routes",
+        "local_absolute_path",
+    }
+)
+DISCORD_PUBLIC_SAFE_FORBIDDEN_VALUE_MARKERS = (
+    "C:" + "\\Users\\",
+    "/" + "home/",
+    "/" + "Users/",
+    "-----BEGIN ",
+    "DISCORD_BOT_TOKEN",
+)
 
 
 @dataclass(frozen=True)
@@ -28,6 +48,11 @@ def build_synthetic_discord_gateway_payload(
         "gateway_mode": "official_hybrid_private",
         "production_reply_source": "private_gateway",
         "public_python_bot_role": "legacy_public_residue_not_responder",
+        "responder_policy": {
+            "canonical_responder": "private_gateway",
+            "private_gateway_responder": True,
+            "public_python_bot_responder": False,
+        },
         "node_identity": {"node_id": node_id, "mode": "official_hybrid_private"},
         "message_ref": {
             "guild_ref": "guild-fixture",
@@ -42,13 +67,24 @@ def build_synthetic_discord_gateway_payload(
         "synthetic_fixture": True,
         "events": [
             {"event": "mention_received", "sequence": 1},
-            {"event": "bootstrap_status_embed", "sequence": 2},
-            {"event": "progress_edit_sent", "sequence": 3, "status": "queued"},
-            {"event": "progress_edit_sent", "sequence": 4, "status": "running"},
+            {"event": "bootstrap_status_embed", "sequence": 2, "status_message_ref": "status-message-fixture"},
+            {
+                "event": "progress_edit_sent",
+                "sequence": 3,
+                "status": "queued",
+                "status_message_ref": "status-message-fixture",
+            },
+            {
+                "event": "progress_edit_sent",
+                "sequence": 4,
+                "status": "running",
+                "status_message_ref": "status-message-fixture",
+            },
             {
                 "event": "final",
                 "sequence": 5,
                 "output_text": final_text,
+                "status_message_ref": "status-message-fixture",
                 "downloads": [{"file_ref": "fileref:fixture-discord-result", "label": "result.txt"}],
             },
         ],
@@ -66,16 +102,20 @@ def validate_discord_gateway_payload(payload: Mapping[str, Any]) -> DiscordGatew
         errors.append("private_gateway_required")
     if payload.get("public_python_bot_role") in {"responder", "production_responder"}:
         errors.append("public_python_bot_must_not_respond")
+    _validate_responder_policy(payload.get("responder_policy"), errors)
     if payload.get("live_discord") is not False:
         errors.append("live_discord_not_allowed")
     if payload.get("credentials_required") is not False:
         errors.append("live_credentials_not_allowed")
     if payload.get("synthetic_fixture") is not True:
         errors.append("synthetic_fixture_required")
+    _validate_public_safe_payload(payload, errors)
 
     node_identity = payload.get("node_identity")
     if not isinstance(node_identity, Mapping) or not str(node_identity.get("node_id") or "").strip():
         errors.append("node_identity_required")
+    elif node_identity.get("mode") != payload.get("gateway_mode"):
+        errors.append("node_identity_mode_must_match_gateway_mode")
 
     message_ref = payload.get("message_ref")
     if not isinstance(message_ref, Mapping):
@@ -104,15 +144,32 @@ def validate_discord_gateway_payload(payload: Mapping[str, Any]) -> DiscordGatew
         return _decision(errors)
 
     event_names: list[str] = []
+    sequences: list[int] = []
     terminal_count = 0
+    terminal_index = -1
+    status_message_ref = ""
     for event in events:
         if not isinstance(event, Mapping):
             errors.append("event_object_required")
             continue
         event_name = str(event.get("event") or "")
         event_names.append(event_name)
+        sequence = event.get("sequence")
+        if not isinstance(sequence, int):
+            errors.append("event_sequence_required")
+        else:
+            sequences.append(sequence)
+        if event_name == "bootstrap_status_embed":
+            status_message_ref = str(event.get("status_message_ref") or "")
+            if not status_message_ref:
+                errors.append("status_message_ref_required")
+        if event_name == "progress_edit_sent" and not str(event.get("status_message_ref") or "").strip():
+            errors.append("progress_status_message_ref_required")
         if event_name in DISCORD_TERMINAL_EVENTS:
             terminal_count += 1
+            terminal_index = len(event_names) - 1
+            if status_message_ref and event.get("status_message_ref") != status_message_ref:
+                errors.append("terminal_status_message_ref_must_match")
             if event_name == "final" and not str(event.get("output_text") or "").strip():
                 errors.append("final_output_text_required")
             if event_name == "controlled_error" and not str(event.get("safe_message") or "").strip():
@@ -131,6 +188,14 @@ def validate_discord_gateway_payload(payload: Mapping[str, Any]) -> DiscordGatew
         errors.append("required_event_missing")
     if terminal_count != 1:
         errors.append("terminal_event_must_be_exactly_once")
+    if sequences != sorted(sequences) or len(sequences) != len(set(sequences)):
+        errors.append("event_sequence_must_be_strictly_increasing")
+    if terminal_index != -1 and terminal_index != len(event_names) - 1:
+        errors.append("terminal_event_must_be_last")
+    if "progress_edit_sent" in event_names and terminal_index != -1:
+        first_progress_index = event_names.index("progress_edit_sent")
+        if first_progress_index > terminal_index:
+            errors.append("progress_edit_must_precede_terminal")
 
     return _decision(errors)
 
@@ -147,3 +212,34 @@ def validate_discord_gateway_envelope(envelope: HybridSignedEnvelope) -> Discord
 def _decision(errors: list[str]) -> DiscordGatewayContractDecision:
     unique_errors = tuple(dict.fromkeys(errors))
     return DiscordGatewayContractDecision(ok=not unique_errors, errors=unique_errors)
+
+
+def _validate_responder_policy(value: object, errors: list[str]) -> None:
+    if not isinstance(value, Mapping):
+        errors.append("responder_policy_required")
+        return
+    if value.get("canonical_responder") != "private_gateway":
+        errors.append("private_gateway_required")
+    if value.get("private_gateway_responder") is not True:
+        errors.append("private_gateway_responder_required")
+    if value.get("public_python_bot_responder") is not False:
+        errors.append("public_python_bot_must_not_respond")
+
+
+def _validate_public_safe_payload(value: object, errors: list[str]) -> None:
+    if isinstance(value, Mapping):
+        for key, nested in value.items():
+            normalized_key = str(key).lower()
+            if normalized_key in DISCORD_PUBLIC_SAFE_FORBIDDEN_KEYS:
+                errors.append("public_safe_payload_forbidden_key")
+            _validate_public_safe_payload(nested, errors)
+        return
+    if isinstance(value, list):
+        for nested in value:
+            _validate_public_safe_payload(nested, errors)
+        return
+    if isinstance(value, str):
+        if value.startswith(("sk-", "AKIA", "ASIA")):
+            errors.append("public_safe_payload_secret_marker")
+        if any(marker in value for marker in DISCORD_PUBLIC_SAFE_FORBIDDEN_VALUE_MARKERS):
+            errors.append("public_safe_payload_private_marker")
