@@ -1875,6 +1875,8 @@ async def get_user_details(user_id: str, _: None = Depends(require_web_api)):
     """Get full details for a specific user (traits, history, context). Supports dual profiles."""
     import json
 
+    import aiofiles  # type: ignore
+
     from src.config import MEMORY_DIR
 
     profile_dirs = _dashboard_user_profile_dirs(Path(MEMORY_DIR))
@@ -1898,8 +1900,8 @@ async def get_user_details(user_id: str, _: None = Depends(require_web_api)):
                 ):
                     path_spec = _safe_dashboard_user_profile_path(users_dir, filename)
                     if path_spec.exists():
-                        with open(path_spec, "r", encoding="utf-8") as f:
-                            specific_data = json.load(f)
+                        async with aiofiles.open(path_spec, "r", encoding="utf-8") as f:
+                            specific_data = json.loads(await f.read())
                         break
                 if specific_data is not None:
                     break
@@ -1908,8 +1910,8 @@ async def get_user_details(user_id: str, _: None = Depends(require_web_api)):
         for users_dir in profile_dirs:
             path_gen = _safe_dashboard_user_profile_path(users_dir, f"{uid}.json")
             if path_gen.exists():
-                with open(path_gen, "r", encoding="utf-8") as f:
-                    general_data = json.load(f)
+                async with aiofiles.open(path_gen, "r", encoding="utf-8") as f:
+                    general_data = json.loads(await f.read())
                 break
 
         if not specific_data and not general_data:
