@@ -10,6 +10,14 @@ ROUTE_PREVIEW_SCHEMA_VERSION = "three-mode-route-preview-0.1"
 
 RouteName = Literal["cloud_only", "local_node_required", "hybrid_coordination", "self_host_local", "disabled"]
 OperationClass = Literal["public_docs", "private_data", "pc_operation", "local_tool", "heavy_work", "dangerous", "discord_live", "deployment", "unknown"]
+LocalNodeVerificationState = Literal[
+    "missing",
+    "present_unverified",
+    "present_verified",
+    "expired",
+    "invalid_signature",
+    "wrong_audience",
+]
 
 _CAPABILITY_ALIASES = {
     "public_docs": "public_ui_sync_support",
@@ -57,6 +65,9 @@ class RoutePreviewDecision:
     dangerous_operation: bool
     disabled: bool
     unavailable_reason: str | None
+    local_node_verification_state: LocalNodeVerificationState | None
+    signed_origin_verified: bool
+    local_node_capability_declared: bool | None
     non_claims: tuple[str, ...]
 
     def to_public_dict(self) -> dict[str, object]:
@@ -109,12 +120,40 @@ def _capability_for_operation(operation_class: OperationClass, requested_capabil
     return "unknown"
 
 
+def _normalize_local_node_state(
+    *,
+    has_local_node: bool,
+    local_node_verification_state: LocalNodeVerificationState | None,
+) -> LocalNodeVerificationState | None:
+    if local_node_verification_state is not None:
+        return local_node_verification_state
+    if not has_local_node:
+        return "missing"
+    return None
+
+
+def _trust_state_unavailable_reason(state: LocalNodeVerificationState | None) -> str | None:
+    if state == "missing":
+        return "local_node_missing"
+    if state == "present_unverified":
+        return "unverified_node_denied"
+    if state == "expired":
+        return "expired_node_manifest"
+    if state == "invalid_signature":
+        return "invalid_node_signature"
+    if state == "wrong_audience":
+        return "wrong_audience_node_manifest"
+    return None
+
+
 def preview_route(
     task_text: str,
     *,
     mode: ModeName,
     requested_capability: str | None = None,
     has_local_node: bool = False,
+    local_node_verification_state: LocalNodeVerificationState | None = None,
+    local_node_capabilities: tuple[str, ...] | None = None,
     risk_hint: str | None = None,
 ) -> RoutePreviewDecision:
     operation_class = _classify_operation(task_text, requested_capability, risk_hint)
@@ -127,6 +166,13 @@ def preview_route(
         "no_live_discord",
         "no_production_route",
     )
+    if mode == "full_private_self_host":
+        non_claims = non_claims + ("self_host_owner_responsibility",)
+    node_state = _normalize_local_node_state(
+        has_local_node=has_local_node,
+        local_node_verification_state=local_node_verification_state,
+    )
+    signed_origin_verified = node_state == "present_verified"
 
     try:
         capability = profile.capability(capability_name)
@@ -145,6 +191,9 @@ def preview_route(
             dangerous_operation=True,
             disabled=True,
             unavailable_reason="unknown_capability",
+            local_node_verification_state=node_state,
+            signed_origin_verified=signed_origin_verified,
+            local_node_capability_declared=False,
             non_claims=non_claims,
         )
 
@@ -163,6 +212,9 @@ def preview_route(
             dangerous_operation=capability.dangerous_operation,
             disabled=True,
             unavailable_reason="capability_disabled",
+            local_node_verification_state=node_state,
+            signed_origin_verified=signed_origin_verified,
+            local_node_capability_declared=None,
             non_claims=non_claims,
         )
 
@@ -181,7 +233,53 @@ def preview_route(
     }:
         local_node_required = True
 
-    if local_node_required and not has_local_node:
+    trust_unavailable_reason = _trust_state_unavailable_reason(node_state)
+    if local_node_required and trust_unavailable_reason is not None:
+        return RoutePreviewDecision(
+            schema_version=ROUTE_PREVIEW_SCHEMA_VERSION,
+            mode=mode,
+            route="local_node_required",
+            reason=f"{capability.reason} Local Node verification state prevents this preview from routing to local work.",
+            requested_capability=capability.name,
+            operation_class=operation_class,
+            approval_required=True,
+            local_node_required=True,
+            cloud_allowed=cloud_allowed,
+            private_data_allowed=capability.private_data_allowed,
+            dangerous_operation=capability.dangerous_operation,
+            disabled=False,
+            unavailable_reason=trust_unavailable_reason,
+            local_node_verification_state=node_state,
+            signed_origin_verified=False,
+            local_node_capability_declared=False,
+            non_claims=non_claims,
+        )
+
+    capability_declared = None
+    if local_node_required and node_state == "present_verified" and local_node_capabilities is not None:
+        capability_declared = capability.name in local_node_capabilities
+        if not capability_declared:
+            return RoutePreviewDecision(
+                schema_version=ROUTE_PREVIEW_SCHEMA_VERSION,
+                mode=mode,
+                route="disabled",
+                reason=f"{capability.reason} Verified Local Node manifest did not declare this capability.",
+                requested_capability=capability.name,
+                operation_class=operation_class,
+                approval_required=True,
+                local_node_required=True,
+                cloud_allowed=cloud_allowed,
+                private_data_allowed=False,
+                dangerous_operation=capability.dangerous_operation,
+                disabled=True,
+                unavailable_reason="local_node_capability_not_declared",
+                local_node_verification_state=node_state,
+                signed_origin_verified=True,
+                local_node_capability_declared=False,
+                non_claims=non_claims,
+            )
+
+    if local_node_required and not has_local_node and node_state is None:
         return RoutePreviewDecision(
             schema_version=ROUTE_PREVIEW_SCHEMA_VERSION,
             mode=mode,
@@ -196,6 +294,9 @@ def preview_route(
             dangerous_operation=capability.dangerous_operation,
             disabled=False,
             unavailable_reason="local_node_missing",
+            local_node_verification_state="missing",
+            signed_origin_verified=False,
+            local_node_capability_declared=False,
             non_claims=non_claims,
         )
 
@@ -223,5 +324,8 @@ def preview_route(
         dangerous_operation=capability.dangerous_operation,
         disabled=disabled,
         unavailable_reason="route_not_available" if disabled else None,
+        local_node_verification_state=node_state,
+        signed_origin_verified=signed_origin_verified,
+        local_node_capability_declared=capability_declared,
         non_claims=non_claims,
     )

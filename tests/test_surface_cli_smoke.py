@@ -158,6 +158,64 @@ def test_cli_route_preview_private_file_in_hybrid_requires_local_node(capsys):
     assert "Traceback" not in json.dumps(output)
 
 
+def test_cli_route_preview_reports_unverified_local_node(capsys):
+    cli = _load_cli_module()
+
+    assert (
+        cli.main(
+            [
+                "route",
+                "preview",
+                "--mode",
+                "official_hybrid_private",
+                "--local-node-state",
+                "present_unverified",
+                "read",
+                "my",
+                "local",
+                "file",
+            ]
+        )
+        == 0
+    )
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["route"] == "local_node_required"
+    assert output["local_node_verification_state"] == "present_unverified"
+    assert output["unavailable_reason"] == "unverified_node_denied"
+    assert output["signed_origin_verified"] is False
+
+
+def test_cli_route_preview_reports_verified_declared_capability(capsys):
+    cli = _load_cli_module()
+
+    assert (
+        cli.main(
+            [
+                "route",
+                "preview",
+                "--mode",
+                "official_hybrid_private",
+                "--local-node-state",
+                "present_verified",
+                "--local-node-capability",
+                "private_files",
+                "read",
+                "my",
+                "local",
+                "file",
+            ]
+        )
+        == 0
+    )
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["route"] == "hybrid_coordination"
+    assert output["local_node_verification_state"] == "present_verified"
+    assert output["signed_origin_verified"] is True
+    assert output["local_node_capability_declared"] is True
+
+
 def test_cli_rejects_remote_api_origin(capsys):
     cli = _load_cli_module()
 

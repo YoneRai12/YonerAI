@@ -243,6 +243,8 @@ def preview_route_with_local_dev_control_plane(
         task_text,
         mode=mode,
         requested_capability=requested_capability,
-        has_local_node=status.local_node.verification_state == "present_verified",
+        has_local_node=status.local_node.available,
+        local_node_verification_state=status.local_node.verification_state,
+        local_node_capabilities=status.local_node.capabilities,
         risk_hint=risk_hint,
     )
