@@ -3,6 +3,7 @@ import asyncio
 import time
 import os
 import json
+import posixpath
 import re
 import traceback
 from typing import Any
@@ -624,11 +625,11 @@ class MainProcess:
         if not url_text:
             return None
         parsed_url = urlparse(url_text)
-        path = parsed_url.path.rstrip("/")
+        path = posixpath.normpath(parsed_url.path or "/")
         if parsed_url.scheme or parsed_url.netloc:
             if parsed_url.scheme != "https":
                 return None
-            if parsed_url.netloc.lower() != "files.yonerai.com":
+            if (parsed_url.hostname or "").lower() != "files.yonerai.com":
                 return None
         elif not path.startswith("/"):
             return None

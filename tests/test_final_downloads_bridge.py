@@ -111,6 +111,8 @@ class _ExternalDownloadsRunner:
                     {"url": "https://external.example/downloads/report.pdf", "label": "external report"},
                     {"url": "http://files.yonerai.com/v1/files/insecure/download", "label": "insecure"},
                     {"url": "https://files.yonerai.com/not-managed/file", "label": "wrong path"},
+                    {"url": "https://files.yonerai.com/v1/files/../admin", "label": "traversal"},
+                    {"url": "/v1/files/../admin", "label": "local traversal"},
                     {"url": "/s/local_share", "label": "local share"},
                     {
                         "url": "https://files.yonerai.com/v1/files/file_managed/download",
