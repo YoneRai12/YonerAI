@@ -2,13 +2,13 @@
 
 YonerAI は、公式・ローカル・self-hosted の実行環境が変わっても、同じ体験と契約境界を保つための provider-independent AI execution foundation です。
 
-[English README](README.md) | [Current phase](docs/CURRENT_PHASE_CONTEXT.md) | [Contracts](docs/contracts) | [Latest checkpoint](docs/releases/v2026.5.21.5-implementation-continuation-checkpoint.md)
+[English README](README.md) | [Current phase](docs/CURRENT_PHASE_CONTEXT.md) | [Contracts](docs/contracts) | [Historical checkpoint archive](docs/releases/v2026.5.21.5-implementation-continuation-checkpoint.md)
 
 ## YonerAI とは
 
-YonerAI は長く使う AI runtime foundation です。目的は、利用する model provider、UI surface、local runtime、self-hosted profile が変わっても、ユーザー体験と contract boundary を維持することです。
+YonerAI は長く使う AI runtime foundation です。利用する model provider、UI surface、local runtime、self-hosted profile が変わっても、ユーザー体験と contract boundary を維持することを目的にしています。
 
-これは単なる Discord bot でも、単なる model router でもありません。Discord、Web、relay、API、CLI、native Japanese CLI、SNS distribution、self-evolution は、それぞれ risk profile と approval requirement が違う別 lane です。
+これは単なる Discord bot でも、単なる model router でもありません。Discord、Web、relay、API、CLI、native Japanese CLI、SNS distribution、self-evolution は、それぞれ risk profile と approval requirement が異なる別 lane です。
 
 この README は public contract surface を説明します。内部運用、credential、live route、host-specific fact は公開しません。
 
@@ -22,9 +22,11 @@ YonerAI は長く使う AI runtime foundation です。目的は、利用する 
 - contract-first な public boundary
 - private / control-plane の詳細を漏らさず、contract で public と分ける方針
 
-現在の public checkpoint stream は、検証済みの日付と同日 suffix を使います。`v2026.5.21.5` は、implementation continuation pass として、layer upload hardening、最初の behavior-preserving `src/cogs/ora.py` pure-helper extraction、ORA/YonerAI naming compatibility policy、three-mode docs-only capability acceptance harness extension を記録します。production release ではありません。
+最新の historical checkpoint note は `v2026.5.21.5` です。layer upload hardening、最初の behavior-preserving `src/cogs/ora.py` pure-helper extraction、ORA/YonerAI naming compatibility policy、three-mode docs-only capability acceptance harness extension を記録しています。これは checkpoint archive note であり、production release ではありません。
 
-過去に作られた未来日付の checkpoint label は historical artifact として残る場合がありますが、current-date GitHub Release が明示的に supersede するまでは、現在の public/latest checkpoint として扱いません。
+今後の internal checkpoint log は `docs/changelog/checkpoints/` に置きます。checkpoint、docs、process work のための GitHub Release は停止しており、次の GitHub Release は runnable public milestone まで作りません。
+
+過去の date-suffix GitHub Release は historical artifact として残します。削除、retag、production readiness の根拠化はしません。
 
 この repository は shipping completeness、production readiness、official cloud completion、live operations completion、full product completion を主張しません。
 
@@ -41,7 +43,7 @@ Pass 2 は stopped / not landed のままです。`src/cogs/ora.py` は private/
 - local Core API を起動する
 - `GET /health` を呼び、`{"ok": true}` を受け取る
 - `POST /v1/public/messages` で deterministic offline mock reply を受け取る
-- `session_id` / `conversation_id` で一時的な conversation session metadata を返し、次の request に渡せる
+- `session_id` / `conversation_id` で一時的な conversation session metadata を返し、次の request に渡す
 - `POST /api/v1/agent/run` で local in-memory run smoke contract を確認し、`events_url` / `results_url` を受け取る
 - `POST /v1/public/messages` に `mode: "local"` を指定して、loopback-only local LLM runtime に接続する
 - `local_provider: "ollama"` または `local_provider: "openai_compatible_local"` を選ぶ
@@ -74,7 +76,7 @@ YonerAI は、同じ contract-first foundation を次の 3 つの使い方で扱
 - Official Hybrid Private: official governance と local/private runtime が明示的な contract で連携する形態。
 - Official Managed Cloud: その lane が準備できたとき、同じ体験を managed surface として提供する形態。
 
-これは product mode の説明であり、repository map ではありません。public docs では private operational detail ではなく、contract と user experience を説明します。
+これは product mode の説明であり、repository map ではありません。Public docs では private operational detail ではなく、contract と user experience を説明します。
 
 ## この public repo に含まれるもの
 
@@ -84,12 +86,13 @@ private runtime behavior、operator-only workflow、live route、deployment trut
 
 境界をまたぐ連携は、API、event、file、auth claim、capability manifest、protocol、schema などの明示的な contract 経由で行います。
 
-raw chain-of-thought は public chat、API、SSE、log、documentation、trace surface に出しません。public trace で扱うのは safe summary、label、detail、すでに public-safe な source だけです。
+raw chain-of-thought は public chat、API、SSE、log、documentation、trace surface に出しません。Public trace で扱うのは safe summary、label、detail、すでに public-safe な source だけです。
 
 主な入口:
 
 - [Current phase context](docs/CURRENT_PHASE_CONTEXT.md)
 - [Codex / contributor workflow](docs/process/YONERAI_CODEX_WORKFLOW.md)
+- [Release governance](docs/process/YONERAI_RELEASE_GOVERNANCE.md)
 - [Current MVP Capability Matrix](docs/CURRENT_MVP_CAPABILITY_MATRIX.md)
 - [Public file index](docs/repo/PUBLIC_FILE_INDEX.md)
 - [Cross-repo same-experience matrix](docs/contracts/CROSS_REPO_SAME_EXPERIENCE_MATRIX_2026_05_20.md)
@@ -110,23 +113,13 @@ raw chain-of-thought は public chat、API、SSE、log、documentation、trace s
 - [v2026.5.21.3 Clean continuation security and Discord preflight checkpoint note](docs/releases/v2026.5.21.3-clean-continuation-security-discord-preflight-checkpoint.md)
 - [v2026.5.21.2 Final public presentation checkpoint note](docs/releases/v2026.5.21.2-final-public-presentation-checkpoint.md)
 - [v2026.5.21.1 Public repository hardening checkpoint note](docs/releases/v2026.5.21.1-public-repository-hardening-checkpoint.md)
-- [v2026.5.20.14 Tools/MCP safe subset contract checkpoint note](docs/releases/v2026.5.20.14-tools-mcp-safe-subset-contract-checkpoint.md)
-- [v2026.5.20.13 Capability / Extension Boundary checkpoint note](docs/releases/v2026.5.20.13-capability-extension-boundary-checkpoint.md)
-- [v2026.5.20.12 Local LLM error reporting hardening checkpoint note](docs/releases/v2026.5.20.12-local-llm-error-reporting-hardening-checkpoint.md)
-- [v2026.5.20.11 Growth/SNS claim guardrails checkpoint note](docs/releases/v2026.5.20.11-growth-sns-claim-guardrails-checkpoint.md)
-- [v2026.5.20.10 Web surface capability manifest checkpoint note](docs/releases/v2026.5.20.10-web-surface-capability-manifest-checkpoint.md)
-- [v2026.5.20.9 Native Japanese CLI contract checkpoint note](docs/releases/v2026.5.20.9-native-japanese-cli-contract-checkpoint.md)
-- [v2026.5.20.8 Surface CLI smoke checkpoint note](docs/releases/v2026.5.20.8-surface-cli-smoke-checkpoint.md)
-- [v2026.5.20.7 Surface API run contract checkpoint note](docs/releases/v2026.5.20.7-surface-api-run-contract-checkpoint.md)
-- [v2026.5.20.6 Hybrid envelope policy semantics checkpoint note](docs/releases/v2026.5.20.6-hybrid-envelope-policy-semantics-checkpoint.md)
 - [Surface/repo strategy checkpoint](docs/strategy/SURFACE_REPO_STRATEGY_2026_05_20.md)
 - [Open PR triage checkpoint](docs/maintenance/OPEN_PR_TRIAGE_2026_05_20.md)
 - [Root surface policy](docs/repo/ROOT_SURFACE_POLICY.md)
 - [Release date hygiene policy](docs/repo/RELEASE_DATE_HYGIENE_POLICY.md)
 - [Public presentation policy](docs/repo/PUBLIC_PRESENTATION_POLICY.md)
 - [Zero-trust practicality matrix](docs/security/ZERO_TRUST_PRACTICALITY_MATRIX.md)
-- [v2026.5.20.1 Official Cloud Control Plane MVP planning checkpoint](docs/releases/v2026.5.20.1-official-cloud-control-plane-mvp-planning-checkpoint.md)
-- Security and backlog triage docs under `docs/security/` and `docs/maintenance/`
+- [Release notes index](docs/RELEASE_NOTES.md)
 - [Latest traceability matrix](docs/TRACEABILITY_MATRIX_0_19.md)
 
 ## Product surface lane
@@ -137,7 +130,7 @@ YonerAI では次の lane を分けて扱います。
 - CLI: command authority
 - native Japanese CLI: 曖昧命令の確認と説明責任を持つ別 UX lane
 - Web: product surface
-- SNS: distribution lane。Core blocker ではありません
+- SNS: distribution lane。core blocker ではありません
 - self-evolution: product intelligence と proposal scoring。未承認の code mutation ではありません
 - private runtime / control plane: execution authority、supervision、operator-only behavior
 
@@ -169,7 +162,7 @@ YonerAI では次の lane を分けて扱います。
 
 ### 検証済み public runnable MVP path
 
-現在の public runnable checkpoint は、local Core API smoke path、credential-free mock/offline message contract、optional loopback-only local LLM mode、temporary Web Chat MVP です。Discord credential、cloud model provider API key、private repository、VPS access、deployment、release tag は不要です。
+現在の public runnable MVP path は、local Core API smoke path、credential-free mock/offline message contract、optional loopback-only local LLM mode、temporary Web Chat MVP です。Discord credential、cloud model provider API key、private repository、VPS access、deployment、release tag は不要です。
 
 ```powershell
 python -m venv .venv
@@ -180,6 +173,7 @@ $env:PYTHONPATH = "$PWD;$PWD\core\src"
 $env:ORA_ALLOW_MISSING_SECRETS = "1"
 python scripts/init_core_db.py
 pytest tests/test_public_runnable_smoke.py tests/test_runtime_env_loader.py -q
+python scripts/dev/public_mvp_smoke.py
 ```
 
 次に local Core API を起動し、別 shell から health を確認します。
@@ -247,7 +241,7 @@ yonerai message --mode mock "hello"
 yonerai run --mode mock "hello"
 ```
 
-この CLI は default で `http://127.0.0.1:8001` を使い、remote API origin を拒否します。deploy、shell execution、persistent memory、Google login、external provider live generation、production packaging は追加しません。
+この CLI は default で `http://127.0.0.1:8001` を使い、remote API origin を拒否します。Deploy、shell execution、persistent memory、Google login、external provider live generation、production packaging は追加しません。
 
 ### Temporary Web Chat MVP
 
@@ -261,9 +255,9 @@ npm run dev
 
 `http://127.0.0.1:3000` を開き、短い message を送ってください。画面は `/api/public/messages` に POST し、local rewrite で `/v1/public/messages` に接続します。
 
-この画面では、mock/offline、local Ollama、OpenAI-compatible local を選べます。任意の provider URL 入力は持たせていません。local provider base URL は Core API 側の loopback validation に残します。
+この画面では、mock/offline、local Ollama、OpenAI-compatible local を選べます。任意の provider URL 入力は持たせていません。Local provider base URL は Core API 側の loopback validation に残します。
 
-Core API port `8001` が別の local process で使われている場合は、現在の Core API を別の loopback port で起動し、`npm run dev` の前に `YONERAI_CORE_API_ORIGIN` を設定します。この rewrite origin も loopback-only で、remote host は拒否します。
+Core API port `8001` が別の local process で使われている場合は、Core API を別の loopback port で起動し、`npm run dev` の前に `YONERAI_CORE_API_ORIGIN` を設定します。この rewrite origin も loopback-only で、remote host は拒否します。
 
 これは temporary smoke/demo surface であり、final product UI foundation ではありません。
 
@@ -280,11 +274,11 @@ commit してはいけないもの:
 - private renderer truth や host-specific operational exactness
 - public docs 内の local absolute path や user-machine path
 
-必要な情報が public-safe でない場合は、実体ではなく placeholder、contract、public-safe summary、TODO を置きます。
+必要な情報が public-safe ではない場合は、実体ではなく placeholder、contract、public-safe summary、TODO を置きます。
 
 ## Checks
 
-変更した領域に応じた check を実行してください。docs-only hygiene の最小確認は次です。
+変更した領域に応じた check を実行してください。Docs-only hygiene の最小確認は次です。
 
 ```powershell
 git diff --check
@@ -295,6 +289,7 @@ public runnable MVP の検証済み最小 check は次です。
 
 ```powershell
 git diff --check
+pytest tests/test_public_mvp_smoke_script.py -q
 pytest tests/test_public_runnable_smoke.py tests/test_runtime_env_loader.py -q
 pytest tests/test_distribution_node_mvp.py -q
 pytest tests/test_public_core_message_mvp.py tests/test_ora_import_map.py -q
@@ -303,6 +298,11 @@ cd clients\web; npm ci; npm run lint; npm run build; npm audit --omit=dev
 
 ## Release notes
 
+- [v2026.5.21.5 Implementation continuation checkpoint](docs/releases/v2026.5.21.5-implementation-continuation-checkpoint.md)
+- [v2026.5.21.4 Implementation guardrail compression checkpoint](docs/releases/v2026.5.21.4-implementation-guardrail-compression-checkpoint.md)
+- [v2026.5.21.3 Clean continuation security and Discord preflight checkpoint](docs/releases/v2026.5.21.3-clean-continuation-security-discord-preflight-checkpoint.md)
+- [v2026.5.21.2 Final public presentation checkpoint](docs/releases/v2026.5.21.2-final-public-presentation-checkpoint.md)
+- [v2026.5.21.1 Public repository hardening checkpoint](docs/releases/v2026.5.21.1-public-repository-hardening-checkpoint.md)
 - [v2026.5.20.6 Hybrid envelope policy semantics checkpoint](docs/releases/v2026.5.20.6-hybrid-envelope-policy-semantics-checkpoint.md)
 - [v2026.5.20.5 Public surface and release hygiene checkpoint](docs/releases/v2026.5.20.5-public-surface-release-hygiene-checkpoint.md)
 - [v2026.5.20.4 Hybrid Connector Fixture and Memory Policy checkpoint](docs/releases/v2026.5.20.4-hybrid-connector-fixture-memory-policy-checkpoint.md)

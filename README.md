@@ -163,7 +163,7 @@ Use the smallest profile that matches the area you are reviewing.
 
 ### Verified public runnable MVP path
 
-The current public runnable checkpoint is the local Core API smoke path plus credential-free mock/offline messaging and an optional loopback-only local LLM mode. It does not require Discord credentials, a cloud model provider API key, a private repository, VPS access, deployment, or a release tag.
+The current public runnable MVP path is the local Core API smoke path plus credential-free mock/offline messaging and an optional loopback-only local LLM mode. It does not require Discord credentials, a cloud model provider API key, a private repository, VPS access, deployment, or a release tag.
 
 ```powershell
 python -m venv .venv
