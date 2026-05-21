@@ -14,6 +14,7 @@ After installation, the local command is:
 
 ```bash
 yonerai health
+yonerai smoke --pretty
 yonerai message --mode mock "hello"
 yonerai run --mode mock "hello"
 ```
@@ -24,8 +25,9 @@ Without installing, run from `clients/cli`:
 python -m yonerai_cli health
 ```
 
-Run these commands against a local Core API process. The default origin is
-`http://127.0.0.1:8001`.
+`yonerai smoke` runs the in-process public MVP smoke and does not require a local
+Core API process. The other commands run against a local Core API process. The
+default origin is `http://127.0.0.1:8001`.
 
 ## Boundary
 

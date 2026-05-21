@@ -135,6 +135,23 @@ def _print_json(data: dict[str, Any]) -> None:
     print(json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True))
 
 
+def _run_public_mvp_smoke(*, json_output: bool = False, pretty: bool = False) -> int:
+    try:
+        from scripts.dev import public_mvp_smoke
+    except Exception as exc:
+        raise CliError("public MVP smoke is unavailable.", exit_code=1) from exc
+    try:
+        argv = ["--json"] if json_output else ["--pretty"] if pretty else []
+        return public_mvp_smoke.main(argv)
+    except SystemExit as exc:
+        if exc.code is None:
+            return 0
+        code = exc.code if isinstance(exc.code, int) else 1
+        return code
+    except Exception as exc:
+        raise CliError("public MVP smoke failed.", exit_code=1) from exc
+
+
 def _prompt_from_args(parts: list[str]) -> str:
     prompt = " ".join(parts).strip()
     if not prompt:
@@ -161,6 +178,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     subcommands.add_parser("health", parents=[shared], help="Check the local Core API health endpoint.")
 
+    smoke = subcommands.add_parser("smoke", help="Run the credential-free in-process public MVP smoke.")
+    smoke_output = smoke.add_mutually_exclusive_group()
+    smoke_output.add_argument("--json", action="store_true", help="Print compact machine-readable JSON.")
+    smoke_output.add_argument("--pretty", action="store_true", help="Print a detailed human-readable summary.")
+
     message = subcommands.add_parser("message", parents=[shared], help="Send a local public message smoke request.")
     message.add_argument("--mode", choices=["mock", "offline", "local"], default="mock")
     message.add_argument("prompt", nargs="+")
@@ -179,6 +201,8 @@ def run(argv: list[str] | None = None) -> int:
     if args.command == "health":
         _print_json(request_json("GET", args.api_origin, "/health"))
         return 0
+    if args.command == "smoke":
+        return _run_public_mvp_smoke(json_output=args.json, pretty=args.pretty)
     if args.command == "message":
         prompt = _prompt_from_args(args.prompt)
         _print_json(request_json("POST", args.api_origin, "/v1/public/messages", {"message": prompt, "mode": args.mode}))
