@@ -4,10 +4,16 @@ from dataclasses import asdict, dataclass
 from typing import Literal
 
 
-THREE_MODE_CAPABILITY_SURFACE_VERSION = "three-mode-capability-surface-0.1"
+THREE_MODE_CAPABILITY_SURFACE_VERSION = "three-mode-capability-surface-0.2"
 
 ModeName = Literal["official_managed_cloud", "official_hybrid_private", "full_private_self_host"]
 CapabilityStatus = Literal["available", "gated", "disabled"]
+PublicRepoSupportStatus = Literal[
+    "contract_only",
+    "local_node_contract_and_dev_simulator",
+    "public_local_supported",
+]
+ImplementationOwner = Literal["official_private", "public_contract_plus_private_coordination", "self_host_operator"]
 
 MODES: tuple[ModeName, ...] = (
     "official_managed_cloud",
@@ -49,6 +55,12 @@ class ModeCapability:
 class ModeCapabilityProfile:
     mode: ModeName
     posture: str
+    public_repo_support_status: PublicRepoSupportStatus
+    runtime_available_in_public_repo: bool
+    implementation_owner: ImplementationOwner
+    external_official_service: bool
+    contract_only: bool
+    disabled_reason: str | None
     same_user_experience: bool
     production_deploy_enabled: bool
     persistent_memory_enabled: bool
@@ -64,6 +76,12 @@ class ModeCapabilityProfile:
         return {
             "mode": self.mode,
             "posture": self.posture,
+            "public_repo_support_status": self.public_repo_support_status,
+            "runtime_available_in_public_repo": self.runtime_available_in_public_repo,
+            "implementation_owner": self.implementation_owner,
+            "external_official_service": self.external_official_service,
+            "contract_only": self.contract_only,
+            "disabled_reason": self.disabled_reason,
             "same_user_experience": self.same_user_experience,
             "production_deploy_enabled": self.production_deploy_enabled,
             "persistent_memory_enabled": self.persistent_memory_enabled,
@@ -97,27 +115,33 @@ def _capability(
 def _official_managed_cloud_profile() -> ModeCapabilityProfile:
     return ModeCapabilityProfile(
         mode="official_managed_cloud",
-        posture="cloud_public_surface_without_private_machine_access",
+        posture="official_private_external_contract_only",
+        public_repo_support_status="contract_only",
+        runtime_available_in_public_repo=False,
+        implementation_owner="official_private",
+        external_official_service=True,
+        contract_only=True,
+        disabled_reason="official_managed_cloud_runtime_not_included_in_public_repo",
         same_user_experience=True,
         production_deploy_enabled=False,
         persistent_memory_enabled=False,
         capabilities=(
             _capability(
                 "public_ui_sync_support",
-                "available",
-                "Official cloud may host public-safe UI, sync, support, and product intelligence surfaces.",
+                "gated",
+                "Official Managed Cloud is an external/private product mode; this public repo provides contract compatibility only.",
                 public_safe=True,
             ),
             _capability(
                 "cloud_orchestration",
-                "available",
-                "Public-safe orchestration is allowed for non-private tasks.",
+                "gated",
+                "Official cloud orchestration is external/private and is not runnable from this public repository.",
                 public_safe=True,
             ),
             _capability(
                 "local_node",
                 "disabled",
-                "Managed cloud does not assume a user Local Node in the public MVP.",
+                "Managed cloud runtime is not included in this public repository; Local Node work belongs to Hybrid Private or Self-Host surfaces.",
                 public_safe=True,
             ),
             _capability(
@@ -143,8 +167,8 @@ def _official_managed_cloud_profile() -> ModeCapabilityProfile:
             ),
             _capability(
                 "heavy_work",
-                "gated",
-                "Heavy work is visible as a capability but requires an explicit safe execution lane.",
+                "disabled",
+                "Managed cloud heavy-work execution is not included in this public repository.",
                 public_safe=True,
                 requires_approval=True,
             ),
@@ -159,7 +183,7 @@ def _official_managed_cloud_profile() -> ModeCapabilityProfile:
             _capability(
                 "self_evolution_proposals",
                 "gated",
-                "Official cloud may generate proposal-only improvement drafts from synthetic public-safe signals.",
+                "Only the synthetic proposal-only simulator is public here; real official-cloud observation is external/private.",
                 public_safe=True,
                 requires_approval=True,
             ),
@@ -187,21 +211,29 @@ def _official_hybrid_private_profile() -> ModeCapabilityProfile:
     return ModeCapabilityProfile(
         mode="official_hybrid_private",
         posture="official_cloud_coordination_with_local_node_gates",
+        public_repo_support_status="local_node_contract_and_dev_simulator",
+        runtime_available_in_public_repo=False,
+        implementation_owner="public_contract_plus_private_coordination",
+        external_official_service=True,
+        contract_only=False,
+        disabled_reason="official_cloud_coordination_is_external_private_public_repo_includes_local_node_contracts_and_dev_simulator",
         same_user_experience=True,
         production_deploy_enabled=False,
         persistent_memory_enabled=False,
         capabilities=(
             _capability(
                 "public_ui_sync_support",
-                "available",
-                "The same public-safe user surface is coordinated by official cloud.",
+                "gated",
+                "The public repo exposes Local Node contracts and dev-simulator compatibility; official cloud UI/sync/support remains external/private.",
                 public_safe=True,
+                requires_approval=True,
             ),
             _capability(
                 "cloud_orchestration",
-                "available",
-                "Official cloud may coordinate tasks without receiving private payloads.",
+                "gated",
+                "Hybrid coordination is previewed through contracts; official cloud orchestration remains external/private.",
                 public_safe=True,
+                requires_approval=True,
             ),
             _capability(
                 "local_node",
@@ -285,6 +317,12 @@ def _full_private_self_host_profile() -> ModeCapabilityProfile:
     return ModeCapabilityProfile(
         mode="full_private_self_host",
         posture="operator_owned_local_stack_with_explicit_responsibility",
+        public_repo_support_status="public_local_supported",
+        runtime_available_in_public_repo=True,
+        implementation_owner="self_host_operator",
+        external_official_service=False,
+        contract_only=False,
+        disabled_reason=None,
         same_user_experience=True,
         production_deploy_enabled=False,
         persistent_memory_enabled=False,
