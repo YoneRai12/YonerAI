@@ -138,6 +138,7 @@ def _print_json(data: dict[str, Any]) -> None:
 
 def _run_public_mvp_smoke(*, json_output: bool = False, pretty: bool = False) -> int:
     try:
+        _prepare_repo_import_path()
         from scripts.dev import public_mvp_smoke
     except Exception as exc:
         raise CliError("public MVP smoke is unavailable.", exit_code=1) from exc
@@ -151,6 +152,30 @@ def _run_public_mvp_smoke(*, json_output: bool = False, pretty: bool = False) ->
         return code
     except Exception as exc:
         raise CliError("public MVP smoke failed.", exit_code=1) from exc
+
+
+def _run_public_demo(*, json_output: bool = False, pretty: bool = False) -> int:
+    try:
+        _prepare_repo_import_path()
+        from scripts.dev import public_demo
+    except Exception as exc:
+        raise CliError("YonerAI public demo is unavailable.", exit_code=1) from exc
+    try:
+        argv = ["--json"] if json_output else ["--pretty"] if pretty else ["--pretty"]
+        return public_demo.main(argv)
+    except SystemExit as exc:
+        if exc.code is None:
+            return 0
+        return exc.code if isinstance(exc.code, int) else 1
+    except Exception as exc:
+        raise CliError("YonerAI public demo failed.", exit_code=1) from exc
+
+
+def _prepare_repo_import_path() -> None:
+    repo_root = Path(__file__).resolve().parents[3]
+    text = str(repo_root)
+    if text not in sys.path:
+        sys.path.insert(0, text)
 
 
 def _prepare_core_import_path() -> None:
@@ -226,6 +251,15 @@ def build_parser() -> argparse.ArgumentParser:
     smoke_output.add_argument("--json", action="store_true", help="Print compact machine-readable JSON.")
     smoke_output.add_argument("--pretty", action="store_true", help="Print a detailed human-readable summary.")
 
+    demo = subcommands.add_parser(
+        "demo",
+        aliases=["quickstart"],
+        help="Run a credential-free public YonerAI demo after clone.",
+    )
+    demo_output = demo.add_mutually_exclusive_group()
+    demo_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
+    demo_output.add_argument("--pretty", action="store_true", help="Print a readable sectioned demo summary.")
+
     route = subcommands.add_parser("route", help="Preview safe YonerAI task routing without executing it.")
     route_subcommands = route.add_subparsers(dest="route_command", required=True)
     route_preview = route_subcommands.add_parser("preview", help="Preview cloud/local/hybrid/disabled routing.")
@@ -295,6 +329,8 @@ def run(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "smoke":
         return _run_public_mvp_smoke(json_output=args.json, pretty=args.pretty)
+    if args.command in {"demo", "quickstart"}:
+        return _run_public_demo(json_output=args.json, pretty=args.pretty)
     if args.command == "route" and args.route_command == "preview":
         _print_json(_preview_route(args))
         return 0

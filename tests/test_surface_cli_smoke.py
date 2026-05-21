@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
 import sys
 import urllib.error
-from pathlib import Path
 from io import BytesIO
+from pathlib import Path
 
 
 def _load_cli_module():
@@ -63,6 +65,85 @@ def test_cli_smoke_import_failure_is_public_safe(monkeypatch, capsys):
     assert "public MVP smoke is unavailable" in captured.err
     assert private_path not in captured.err
     assert "Traceback" not in captured.err
+
+
+def test_cli_demo_command_runs_public_demo_pretty_by_default(monkeypatch):
+    cli = _load_cli_module()
+    calls = []
+
+    def fake_public_demo(json_output=False, pretty=False):
+        calls.append((json_output, pretty))
+        return 0
+
+    monkeypatch.setattr(cli, "_run_public_demo", fake_public_demo)
+
+    assert cli.main(["demo"]) == 0
+
+    assert calls == [(False, False)]
+
+
+def test_cli_quickstart_alias_runs_public_demo_pretty_by_default(monkeypatch):
+    cli = _load_cli_module()
+    calls = []
+
+    def fake_public_demo(json_output=False, pretty=False):
+        calls.append((json_output, pretty))
+        return 0
+
+    monkeypatch.setattr(cli, "_run_public_demo", fake_public_demo)
+
+    assert cli.main(["quickstart"]) == 0
+
+    assert calls == [(False, False)]
+
+
+def test_cli_demo_json_flag_dispatches_to_public_demo_json(monkeypatch):
+    cli = _load_cli_module()
+    calls = []
+
+    def fake_public_demo(json_output=False, pretty=False):
+        calls.append((json_output, pretty))
+        return 0
+
+    monkeypatch.setattr(cli, "_run_public_demo", fake_public_demo)
+
+    assert cli.main(["demo", "--json"]) == 0
+
+    assert calls == [(True, False)]
+
+
+def test_cli_demo_available_from_clients_cli_cwd() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    cli_cwd = repo_root / "clients" / "cli"
+    result = subprocess.run(
+        [sys.executable, "-m", "yonerai_cli", "demo", "--json"],
+        cwd=cli_cwd,
+        env={**os.environ, "PYTHONPATH": str(cli_cwd)},
+        text=True,
+        capture_output=True,
+        timeout=30,
+    )
+
+    assert result.returncode == 0, result.stderr
+    output = json.loads(result.stdout)
+    assert output["ok"] is True
+    assert output["contract"] == "yonerai-public-demo/v1"
+    assert [section["name"] for section in output["sections"]] == [
+        "public_core",
+        "mode_boundary",
+        "route_preview",
+        "hybrid_trust",
+        "managed_download",
+        "self_evolution",
+        "limitations",
+    ]
+    assert output["official_cloud_runtime_included"] is False
+    assert output["oracle_required"] is False
+    assert output["live_discord_required"] is False
+    assert output["persistent_memory_required"] is False
+    assert "Traceback" not in result.stderr
+    assert "session_id" not in result.stdout.lower()
+    assert "C:\\Users" not in result.stdout
 
 
 def test_cli_smoke_treats_system_exit_none_as_success(monkeypatch):
