@@ -78,4 +78,3 @@ def test_ora_pure_content_cleaner_removes_internal_channel_tags() -> None:
     helpers = _build_ora_helper_fixture()
 
     assert helpers._clean_content("<|analysis|>hidden<|final|> visible ") == "hidden visible"
-
