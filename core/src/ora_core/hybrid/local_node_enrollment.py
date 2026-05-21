@@ -79,7 +79,9 @@ class PairingChallenge:
     schema_version: str = LOCAL_NODE_ENROLLMENT_SCHEMA_VERSION
 
     def to_public_dict(self) -> dict[str, object]:
-        return asdict(self)
+        payload = asdict(self)
+        payload.pop("pairing_code_hash", None)
+        return payload
 
 
 @dataclass(frozen=True)
