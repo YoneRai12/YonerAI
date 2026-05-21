@@ -28,7 +28,7 @@ except ModuleNotFoundError as exc:
         raise
     playwright = None
     Browser = BrowserContext = Frame = Page = Playwright = Any
-    PlaywrightTimeoutError = TimeoutError
+    PlaywrightTimeoutError = asyncio.TimeoutError
     async_playwright = None
     PLAYWRIGHT_IMPORT_ERROR = exc
 else:
