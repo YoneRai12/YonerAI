@@ -14,7 +14,7 @@ import time
 import zipfile
 
 import uvicorn
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, HTTPException, UploadFile, status
 from fastapi.responses import Response
 from src.services.layer_upload_limits import read_limited_upload, validate_layer_image
 
@@ -146,7 +146,7 @@ async def decompose(file: UploadFile = File(...)):
         raise
     except Exception as e:
         logger.error(f"Decomposition Error: {e}")
-        return {"error": str(e)}
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)) from e
 
 
 if __name__ == "__main__":
