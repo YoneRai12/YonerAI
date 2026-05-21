@@ -35,10 +35,16 @@ def test_official_managed_cloud_cannot_access_private_or_pc_capabilities() -> No
     profile = three_mode.get_mode_capability_profile("official_managed_cloud")
 
     assert profile.same_user_experience is True
+    assert profile.runtime_available_in_public_repo is False
+    assert profile.public_repo_support_status == "contract_only"
+    assert profile.implementation_owner == "official_private"
+    assert profile.external_official_service is True
+    assert profile.contract_only is True
+    assert profile.disabled_reason == "official_managed_cloud_runtime_not_included_in_public_repo"
     assert profile.production_deploy_enabled is False
     assert profile.persistent_memory_enabled is False
-    assert profile.capability("public_ui_sync_support").status == "available"
-    assert profile.capability("cloud_orchestration").status == "available"
+    assert profile.capability("public_ui_sync_support").status == "gated"
+    assert profile.capability("cloud_orchestration").status == "gated"
     assert profile.capability("private_files").status == "disabled"
     assert profile.capability("private_files").private_data_allowed is False
     assert profile.capability("pc_operations").status == "disabled"
@@ -50,6 +56,14 @@ def test_hybrid_private_requires_local_node_for_private_heavy_and_dangerous_work
     three_mode = _load_three_mode_module()
     profile = three_mode.get_mode_capability_profile("official_hybrid_private")
 
+    assert profile.runtime_available_in_public_repo is False
+    assert profile.public_repo_support_status == "local_node_contract_and_dev_simulator"
+    assert profile.implementation_owner == "public_contract_plus_private_coordination"
+    assert profile.external_official_service is True
+    assert profile.contract_only is False
+    assert "local_node_contracts_and_dev_simulator" in str(profile.disabled_reason)
+    assert profile.capability("public_ui_sync_support").status == "gated"
+    assert profile.capability("cloud_orchestration").status == "gated"
     for name in ("local_node", "private_files", "pc_operations", "local_tools", "heavy_work", "dangerous_operations"):
         capability = profile.capability(name)
         assert capability.status == "gated"
@@ -64,6 +78,12 @@ def test_full_private_self_host_is_broader_but_still_owner_gated() -> None:
     three_mode = _load_three_mode_module()
     profile = three_mode.get_mode_capability_profile("full_private_self_host")
 
+    assert profile.runtime_available_in_public_repo is True
+    assert profile.public_repo_support_status == "public_local_supported"
+    assert profile.implementation_owner == "self_host_operator"
+    assert profile.external_official_service is False
+    assert profile.contract_only is False
+    assert profile.disabled_reason is None
     assert profile.capability("local_node").status == "available"
     assert profile.capability("cloud_orchestration").status == "disabled"
     for name in ("private_files", "pc_operations", "local_tools", "heavy_work", "dangerous_operations"):
