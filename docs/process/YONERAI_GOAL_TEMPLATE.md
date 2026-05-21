@@ -7,7 +7,7 @@ Use this file to replace huge repeated prompts with short `/goal` prompts that r
 ```text
 /goal Complete <one durable objective> for YonerAI v7.7.
 Read first: AGENTS.md and docs/process/YONERAI_CODEX_WORKFLOW.md.
-Lane: <security/runtime | API | CLI | Web | Discord contract | ora extraction | release | process>.
+Lane: <security/runtime | API | CLI | Web | Discord contract | ora extraction | changelog checkpoint | public release candidate | process>.
 Verify current main, latest release, open PRs, and relevant lane docs before editing.
 Forbidden: secrets, live Discord, deploy, production signing/trust stores, persistent memory, Google login, production DB, reference_clawdbot, broad ORA rename, v7.8 claims.
 Validation: use docs/process/YONERAI_VALIDATION_MATRIX.md for touched paths.
@@ -61,16 +61,29 @@ Rules:
 - record synthetic vs live evidence gap
 ```
 
-## E. Release Checkpoint Template
+## E. Changelog Checkpoint Template
 
 ```text
-Objective: publish a release checkpoint after meaningful implementation/test PRs.
+Objective: record a checkpoint after meaningful implementation/test PRs.
 Rules:
-- use current verified date
-- same-day suffix: vYYYY.M.D, vYYYY.M.D.1, vYYYY.M.D.2, ...
+- write markdown under docs/changelog/checkpoints/
+- do not create a GitHub Release
+- do not create a tag
+- do not use the checkpoint as a production or shipping claim
+- body sections: Summary, Implemented, Security and boundary, Tests, Not included, Still open, Traceability
+- state clearly: not production, not full product, not Discord restored, not src/cogs/ora.py solved, not v7.8
+```
+
+## F. Public Release Candidate Template
+
+```text
+Objective: prepare a runnable public release candidate.
+Rules:
+- use semantic pre-release versioning such as v0.1.0-alpha.1 unless owner explicitly overrides
 - no future dates
 - no delete/retag
 - product-facing title
-- body sections: Summary, Implemented, Security and boundary, Tests, Not included, Still open, Traceability
+- release body sections: Summary, Runnable changes, Install / run instructions, Validation, Known limitations, Not included, Traceability
+- require public runnable smoke, CLI smoke when CLI is included, Web smoke when Web is included
 - state clearly: not production, not full product, not Discord restored, not src/cogs/ora.py solved, not v7.8
 ```

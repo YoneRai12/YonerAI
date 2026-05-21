@@ -23,6 +23,7 @@
 - Never broad-refactor without characterization tests.
 - Keep PRs lane-scoped; do not mix unrelated lanes in one PR.
 - Do not push, create PRs, merge, tag, create releases, deploy, migrate, or broaden scope unless the current user goal explicitly authorizes that action.
+- Do not create GitHub Releases or tags for internal checkpoints, docs-only/process-only PRs, ledgers, root inventory, or PR-count reconciliation. Use `docs/changelog/checkpoints/` for checkpoint logs.
 
 ## Required First Reads
 
@@ -31,6 +32,7 @@ Before scoped work, read:
 - `docs/process/YONERAI_CODEX_WORKFLOW.md`
 - `docs/process/YONERAI_GOAL_TEMPLATE.md`
 - `docs/process/YONERAI_LANE_RULES.md`
+- `docs/process/YONERAI_RELEASE_GOVERNANCE.md` for release or checkpoint work
 - relevant lane docs under `docs/contracts/`, `docs/architecture/`, `docs/design/`, `docs/roadmap/`, or `docs/maintenance/`
 
 ## Validation Baseline

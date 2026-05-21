@@ -55,3 +55,5 @@ Document and switch to an independent lane when:
 - treating safety as a reason to never touch `src/cogs/ora.py`
 - manipulating GitHub root last-commit messages by mass-touching files
 - adding claims because a plan exists rather than because code/tests landed
+- creating GitHub Releases for internal checkpoints, docs-only/process-only work, ledgers, root inventory, or PR-count reconciliation
+- continuing date-suffix checkpoint releases when no runnable public milestone is being shipped
