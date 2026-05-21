@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
 from typing import Literal
 
@@ -20,6 +20,23 @@ from .local_node_manifest import (
     sign_local_node_manifest,
     verify_local_node_manifest,
 )
+from .local_node_action_envelope import (
+    LocalNodeActionEnvelope,
+    LocalNodeActionVerification,
+    action_args_hash,
+    build_unsigned_local_node_action_envelope,
+    sign_local_node_action_envelope,
+    verify_local_node_action_envelope,
+)
+from .local_node_enrollment import (
+    LocalNodeEnrollmentSession,
+    LocalNodeSessionCapabilityDecision,
+    consume_pairing_code,
+    create_pairing_challenge,
+    evaluate_enrollment_session_capability,
+    LocalNodeEnrollmentRequest,
+)
+from .policy import InMemoryNonceStore
 
 
 LOCAL_DEV_CONTROL_PLANE_PROFILE = "local_dev_control_plane"
@@ -33,6 +50,14 @@ LocalNodeVerificationState = Literal[
     "expired",
     "invalid_signature",
     "wrong_audience",
+]
+EnrollmentBindingState = Literal[
+    "missing_enrollment",
+    "pairing_pending",
+    "enrolled_verified",
+    "enrolled_unverified",
+    "expired",
+    "revoked",
 ]
 
 
@@ -82,6 +107,48 @@ class LocalDevControlPlaneStatus:
             "local_node": self.local_node.to_public_dict(),
             "production_trust_material": self.production_trust_material,
             "network_required": self.network_required,
+        }
+
+
+@dataclass(frozen=True)
+class LocalDevSessionBindingDecision:
+    schema_version: str
+    profile: str
+    non_production: bool
+    local_node_verification_state: LocalNodeVerificationState
+    enrollment_state: EnrollmentBindingState
+    session_bound: bool
+    local_work_allowed_for_preview: bool
+    approval_required: bool
+    capability: str
+    capability_decision: LocalNodeSessionCapabilityDecision | None
+    action_envelope: LocalNodeActionVerification | None
+    production_trust_material: bool
+    network_required: bool
+    raw_args_stored: bool
+    plaintext_pairing_code_stored: bool
+    reasons: tuple[str, ...]
+
+    def to_public_dict(self) -> dict[str, object]:
+        return {
+            "schema_version": self.schema_version,
+            "profile": self.profile,
+            "non_production": self.non_production,
+            "local_node_verification_state": self.local_node_verification_state,
+            "enrollment_state": self.enrollment_state,
+            "session_bound": self.session_bound,
+            "local_work_allowed_for_preview": self.local_work_allowed_for_preview,
+            "approval_required": self.approval_required,
+            "capability": self.capability,
+            "capability_decision": (
+                self.capability_decision.to_public_dict() if self.capability_decision else None
+            ),
+            "action_envelope": self.action_envelope.to_public_dict() if self.action_envelope else None,
+            "production_trust_material": self.production_trust_material,
+            "network_required": self.network_required,
+            "raw_args_stored": self.raw_args_stored,
+            "plaintext_pairing_code_stored": self.plaintext_pairing_code_stored,
+            "reasons": list(self.reasons),
         }
 
 
@@ -247,4 +314,172 @@ def preview_route_with_local_dev_control_plane(
         local_node_verification_state=status.local_node.verification_state,
         local_node_capabilities=status.local_node.capabilities,
         risk_hint=risk_hint,
+    )
+
+
+def build_local_dev_enrolled_session_fixture(
+    *,
+    capability: str = "local_tools",
+    verify_test_manifest: bool = True,
+    pairing_code: str = "123456",
+    now: datetime | None = LOCAL_DEV_CONTROL_PLANE_FIXED_NOW,
+) -> tuple[LocalNodeEnrollmentSession | None, SignedLocalNodeManifest, str, str]:
+    private_key_b64, public_key_b64 = generate_test_local_node_keypair()
+    manifest = build_test_local_node_manifest(
+        node_id=FIXTURE_ISSUER_NODE_ID,
+        issuer=LOCAL_DEV_CONTROL_PLANE_PROFILE,
+        capabilities=(capability, "dangerous_operations"),
+    )
+    signed = sign_local_node_manifest(manifest, private_key_b64=private_key_b64)
+    if not verify_test_manifest:
+        signed = replace(
+            signed,
+            manifest=replace(
+                signed.manifest,
+                capabilities=signed.manifest.capabilities + ("unknown.future.capability",),
+            ),
+        )
+    request = LocalNodeEnrollmentRequest(
+        node_id=manifest.identity.node_id,
+        key_id=signed.signature.key_id,
+        mode="official_hybrid_private",
+        requested_capabilities=manifest.capabilities,
+    )
+    challenge = create_pairing_challenge(request, pairing_code=pairing_code)
+    pairing = consume_pairing_code(
+        challenge,
+        pairing_code=pairing_code,
+        signed_manifest=signed,
+        public_key_b64=public_key_b64,
+        now=now,
+    )
+    return pairing.session, signed, private_key_b64, public_key_b64
+
+
+def evaluate_local_dev_session_binding(
+    *,
+    capability: str = "local_tools",
+    local_node_available: bool = True,
+    enrollment_state: EnrollmentBindingState = "enrolled_verified",
+    signed_action_envelope: LocalNodeActionEnvelope | None = None,
+    expected_args_hash: str | None = None,
+    nonce_store: InMemoryNonceStore | None = None,
+    now: datetime | None = LOCAL_DEV_CONTROL_PLANE_FIXED_NOW,
+) -> LocalDevSessionBindingDecision:
+    if not local_node_available:
+        return _session_binding_decision(
+            local_node_verification_state="missing",
+            enrollment_state="missing_enrollment",
+            capability=capability,
+            reasons=("local_node_missing",),
+        )
+    if enrollment_state == "missing_enrollment":
+        return _session_binding_decision(
+            local_node_verification_state="present_verified",
+            enrollment_state=enrollment_state,
+            capability=capability,
+            reasons=("local_node_enrollment_required",),
+        )
+    if enrollment_state == "pairing_pending":
+        return _session_binding_decision(
+            local_node_verification_state="present_verified",
+            enrollment_state=enrollment_state,
+            capability=capability,
+            reasons=("pairing_pending",),
+        )
+
+    verify_manifest = enrollment_state != "enrolled_unverified"
+    session, _signed, private_key_b64, public_key_b64 = build_local_dev_enrolled_session_fixture(
+        capability=capability,
+        verify_test_manifest=verify_manifest,
+        now=now,
+    )
+    if session is None:
+        return _session_binding_decision(
+            local_node_verification_state="present_unverified",
+            enrollment_state="enrolled_unverified",
+            capability=capability,
+            reasons=("enrollment_without_verified_manifest",),
+        )
+    if enrollment_state == "revoked":
+        from .local_node_enrollment import revoke_enrollment_session
+
+        session = revoke_enrollment_session(session)
+    if enrollment_state == "expired":
+        session = replace(session, session_expires_at="2026-05-21T00:01:00Z")
+
+    capability_decision = evaluate_enrollment_session_capability(session, capability, now=now)
+    if signed_action_envelope is None:
+        if not capability_decision.allowed:
+            return _session_binding_decision(
+                local_node_verification_state="present_verified",
+                enrollment_state=enrollment_state,
+                capability=capability,
+                capability_decision=capability_decision,
+                reasons=capability_decision.reasons,
+            )
+        args_hash = expected_args_hash or action_args_hash({"action": "synthetic_preview"})
+        unsigned = build_unsigned_local_node_action_envelope(
+            action_id="local-dev-action",
+            node_id=session.enrolled_node_id,
+            session_id=session.session_id,
+            mode=session.mode,
+            capability=capability,
+            args_hash=args_hash,
+        )
+        signed_action_envelope = sign_local_node_action_envelope(unsigned, private_key_b64=private_key_b64)
+        expected_args_hash = args_hash
+
+    action_decision = verify_local_node_action_envelope(
+        signed_action_envelope,
+        session=session,
+        public_key_b64=public_key_b64,
+        expected_args_hash=expected_args_hash or signed_action_envelope.args_hash,
+        nonce_store=nonce_store or InMemoryNonceStore(),
+        mode=session.mode,
+        now=now,
+    )
+    local_work_allowed = action_decision.accepted_for_preview and action_decision.session_bound
+    return _session_binding_decision(
+        local_node_verification_state="present_verified" if session.signed_origin_verified else "present_unverified",
+        enrollment_state=enrollment_state,
+        session_bound=action_decision.session_bound,
+        local_work_allowed_for_preview=local_work_allowed,
+        approval_required=action_decision.approval_required,
+        capability=capability,
+        capability_decision=capability_decision,
+        action_envelope=action_decision,
+        reasons=action_decision.reasons,
+    )
+
+
+def _session_binding_decision(
+    *,
+    local_node_verification_state: LocalNodeVerificationState,
+    enrollment_state: EnrollmentBindingState,
+    capability: str,
+    reasons: tuple[str, ...],
+    session_bound: bool = False,
+    local_work_allowed_for_preview: bool = False,
+    approval_required: bool = True,
+    capability_decision: LocalNodeSessionCapabilityDecision | None = None,
+    action_envelope: LocalNodeActionVerification | None = None,
+) -> LocalDevSessionBindingDecision:
+    return LocalDevSessionBindingDecision(
+        schema_version=LOCAL_DEV_CONTROL_PLANE_SCHEMA_VERSION,
+        profile=LOCAL_DEV_CONTROL_PLANE_PROFILE,
+        non_production=True,
+        local_node_verification_state=local_node_verification_state,
+        enrollment_state=enrollment_state,
+        session_bound=session_bound,
+        local_work_allowed_for_preview=local_work_allowed_for_preview,
+        approval_required=approval_required,
+        capability=capability,
+        capability_decision=capability_decision,
+        action_envelope=action_envelope,
+        production_trust_material=False,
+        network_required=False,
+        raw_args_stored=False,
+        plaintext_pairing_code_stored=False,
+        reasons=reasons,
     )
