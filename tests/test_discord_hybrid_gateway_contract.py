@@ -54,6 +54,11 @@ def test_signed_discord_gateway_fixture_is_valid_but_quarantined() -> None:
 def test_discord_gateway_contract_denies_duplicate_terminal_and_public_responder() -> None:
     payload = build_synthetic_discord_gateway_payload(node_id=FIXTURE_ISSUER_NODE_ID)
     payload["public_python_bot_role"] = "production_responder"
+    payload["responder_policy"] = {
+        "canonical_responder": "public_python_bot",
+        "private_gateway_responder": False,
+        "public_python_bot_responder": True,
+    }
     payload["events"] = [
         *payload["events"],
         {"event": "final", "sequence": 6, "output_text": "duplicate"},
@@ -63,6 +68,8 @@ def test_discord_gateway_contract_denies_duplicate_terminal_and_public_responder
 
     assert decision.ok is False
     assert "public_python_bot_must_not_respond" in decision.errors
+    assert "private_gateway_required" in decision.errors
+    assert "private_gateway_responder_required" in decision.errors
     assert "terminal_event_must_be_exactly_once" in decision.errors
 
 
@@ -82,6 +89,75 @@ def test_discord_gateway_contract_denies_live_credentials_and_external_downloads
     assert "external_url_direct_download_not_allowed" in decision.errors
     assert "external_download_url_not_allowed" in decision.errors
     assert "download_file_ref_required" in decision.errors
+
+
+def test_discord_gateway_contract_accepts_controlled_error_as_terminal() -> None:
+    payload = build_synthetic_discord_gateway_payload(node_id=FIXTURE_ISSUER_NODE_ID)
+    payload["events"][-1] = {
+        "event": "controlled_error",
+        "sequence": 5,
+        "safe_message": "The synthetic gateway returned a controlled error.",
+        "status_message_ref": "status-message-fixture",
+    }
+
+    decision = validate_discord_gateway_payload(payload)
+
+    assert decision.ok is True
+    assert decision.errors == ()
+
+
+def test_discord_gateway_contract_requires_ordered_same_message_edit_flow() -> None:
+    payload = build_synthetic_discord_gateway_payload(node_id=FIXTURE_ISSUER_NODE_ID)
+    payload["events"] = [
+        {"event": "mention_received", "sequence": 1},
+        {
+            "event": "progress_edit_sent",
+            "sequence": 4,
+            "status": "running",
+            "status_message_ref": "different-status-message",
+        },
+        {
+            "event": "final",
+            "sequence": 3,
+            "output_text": "done",
+            "status_message_ref": "status-message-fixture",
+        },
+        {"event": "bootstrap_status_embed", "sequence": 2, "status_message_ref": "status-message-fixture"},
+    ]
+
+    decision = validate_discord_gateway_payload(payload)
+
+    assert decision.ok is False
+    assert "event_sequence_must_be_strictly_increasing" in decision.errors
+    assert "terminal_event_must_be_last" in decision.errors
+    assert "progress_edit_must_precede_terminal" not in decision.errors
+
+
+def test_discord_gateway_contract_rejects_public_unsafe_payload_fields() -> None:
+    payload = build_synthetic_discord_gateway_payload(node_id=FIXTURE_ISSUER_NODE_ID)
+    payload["raw_prompt"] = "do not publish raw prompts"
+    payload["diagnostics"] = {
+        "chain_of_thought": "private reasoning must not be exposed",
+        "path": "C:" + "\\Users\\Example\\private-runtime.txt",
+        "token": "sk-" + "testmarkerthatshouldnotbeaccepted",
+    }
+
+    decision = validate_discord_gateway_payload(payload)
+
+    assert decision.ok is False
+    assert "public_safe_payload_forbidden_key" in decision.errors
+    assert "public_safe_payload_private_marker" in decision.errors
+    assert "public_safe_payload_secret_marker" in decision.errors
+
+
+def test_discord_gateway_node_mode_must_match_gateway_mode() -> None:
+    payload = build_synthetic_discord_gateway_payload(node_id=FIXTURE_ISSUER_NODE_ID)
+    payload["node_identity"] = {"node_id": FIXTURE_ISSUER_NODE_ID, "mode": "full_private_self_host"}
+
+    decision = validate_discord_gateway_payload(payload)
+
+    assert decision.ok is False
+    assert "node_identity_mode_must_match_gateway_mode" in decision.errors
 
 
 def test_discord_gateway_contract_requires_reply_chain_and_progress_flow() -> None:
