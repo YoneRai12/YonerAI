@@ -20,8 +20,9 @@ Any future ORA-to-YonerAI runtime migration must include:
 1. Import compatibility tests for old and new module paths.
 2. Environment variable alias tests for existing `ORA_*` keys and new names, if added.
 3. Public capability and API contract tests proving user-visible names remain stable.
-4. Release notes that explain compatibility, deprecation timing, and rollback expectations.
-5. A small PR scope that changes one namespace surface at a time.
+4. Persisted state and configuration compatibility tests for any saved profile, cache, or user-managed config that stores ORA names.
+5. Release notes that explain compatibility, deprecation timing, and rollback expectations.
+6. A small PR scope that changes one namespace surface at a time.
 
 ## Not Current Priority
 
