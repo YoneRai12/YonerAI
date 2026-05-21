@@ -174,6 +174,7 @@ $env:PYTHONPATH = "$PWD;$PWD\core\src"
 $env:ORA_ALLOW_MISSING_SECRETS = "1"
 python scripts/init_core_db.py
 pytest tests/test_public_runnable_smoke.py tests/test_runtime_env_loader.py -q
+python scripts/dev/public_mvp_smoke.py
 ```
 
 Then start the local Core API and check health from another shell:
@@ -345,6 +346,7 @@ For the public runnable MVP, the verified minimum checks are:
 
 ```powershell
 git diff --check
+pytest tests/test_public_mvp_smoke_script.py -q
 pytest tests/test_public_runnable_smoke.py tests/test_runtime_env_loader.py -q
 pytest tests/test_distribution_node_mvp.py -q
 pytest tests/test_public_core_message_mvp.py tests/test_ora_import_map.py -q
