@@ -146,9 +146,10 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         result = run_smoke()
-    except AssertionError as exc:
-        failure = {"ok": False, "contract": PUBLIC_MVP_SMOKE_CONTRACT, "error": str(exc)}
-        print(json.dumps(failure, ensure_ascii=False, sort_keys=True) if args.json else f"FAIL: {exc}")
+    except Exception as exc:
+        public_error = str(exc) if isinstance(exc, AssertionError) else "public MVP smoke failed"
+        failure = {"ok": False, "contract": PUBLIC_MVP_SMOKE_CONTRACT, "error": public_error}
+        print(json.dumps(failure, ensure_ascii=False, sort_keys=True) if args.json else f"FAIL: {public_error}")
         return 1
 
     if args.json:

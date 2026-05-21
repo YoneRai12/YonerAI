@@ -56,3 +56,20 @@ def test_public_mvp_smoke_cli_json_output_is_deterministic(capsys) -> None:
     ]
     assert "run_id" not in body
     assert "session_id" not in body
+
+
+def test_public_mvp_smoke_cli_masks_unexpected_failures(monkeypatch, capsys) -> None:
+    def fail_unexpectedly():
+        raise RuntimeError("private runtime detail")
+
+    monkeypatch.setattr(public_mvp_smoke, "run_smoke", fail_unexpectedly)
+
+    exit_code = public_mvp_smoke.main(["--json"])
+
+    assert exit_code == 1
+    body = json.loads(capsys.readouterr().out)
+    assert body == {
+        "ok": False,
+        "contract": public_mvp_smoke.PUBLIC_MVP_SMOKE_CONTRACT,
+        "error": "public MVP smoke failed",
+    }
