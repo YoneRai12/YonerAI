@@ -1,0 +1,148 @@
+from __future__ import annotations
+
+import json
+import re
+from copy import deepcopy
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[1]
+SCHEMA_PATH = ROOT / "releases" / "manifest.schema.json"
+EXAMPLE_PATH = ROOT / "releases" / "manifest.example.json"
+
+
+def _load_manifest() -> dict[str, object]:
+    return json.loads(EXAMPLE_PATH.read_text(encoding="utf-8"))
+
+
+def _load_schema() -> dict[str, object]:
+    return json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+
+
+def _enum(schema: dict[str, object], *path: str) -> set[str]:
+    current: object = schema
+    for key in path:
+        assert isinstance(current, dict)
+        current = current[key]
+    assert isinstance(current, list)
+    return set(str(item) for item in current)
+
+
+def _pattern(schema: dict[str, object], *path: str) -> re.Pattern[str]:
+    current: object = schema
+    for key in path:
+        assert isinstance(current, dict)
+        current = current[key]
+    assert isinstance(current, str)
+    return re.compile(current)
+
+
+def _validate_manifest_contract(manifest: dict[str, object]) -> None:
+    schema = _load_schema()
+    required = set(schema["required"])
+    missing = sorted(required - set(manifest))
+    assert not missing, f"missing top-level fields: {missing}"
+
+    assert manifest["schema_version"] == schema["properties"]["schema_version"]["const"]
+    assert manifest["product"] == "YonerAI"
+    assert manifest["channel"] in _enum(schema, "properties", "channel", "enum")
+    assert _pattern(schema, "properties", "version", "pattern").match(str(manifest["version"]))
+    assert isinstance(manifest["production_ready"], bool)
+
+    release = manifest["release"]
+    assert isinstance(release, dict)
+    assert release["manifest_status"] in _enum(schema, "properties", "release", "properties", "manifest_status", "enum")
+    assert _pattern(schema, "properties", "release", "properties", "tag", "pattern").match(str(release["tag"]))
+
+    minimum = manifest["minimum_requirements"]
+    assert isinstance(minimum, dict)
+    assert isinstance(minimum["network_required"], bool)
+
+    artifacts = manifest["artifacts"]
+    assert isinstance(artifacts, list) and artifacts
+    artifact_schema = schema["properties"]["artifacts"]["items"]
+    assert isinstance(artifact_schema, dict)
+    artifact_required = set(artifact_schema["required"])
+    for artifact in artifacts:
+        assert isinstance(artifact, dict)
+        missing_artifact_fields = sorted(artifact_required - set(artifact))
+        assert not missing_artifact_fields, f"missing artifact fields: {missing_artifact_fields}"
+        assert artifact["kind"] in _enum(artifact_schema, "properties", "kind", "enum")
+        assert artifact["target"] in _enum(artifact_schema, "properties", "target", "enum")
+        assert artifact["os"] in _enum(artifact_schema, "properties", "os", "enum")
+        assert artifact["arch"] in _enum(artifact_schema, "properties", "arch", "enum")
+        assert _pattern(artifact_schema, "properties", "url", "pattern").match(str(artifact["url"]))
+        assert _pattern(artifact_schema, "properties", "sha256", "pattern").match(str(artifact["sha256"]))
+        assert isinstance(artifact["size_bytes"], int) and artifact["size_bytes"] > 0
+
+        signature = artifact["signature"]
+        assert isinstance(signature, dict)
+        assert signature["status"] in _enum(artifact_schema, "properties", "signature", "properties", "status", "enum")
+        if signature["status"] == "placeholder_non_production":
+            assert manifest["production_ready"] is False
+            assert signature["algorithm"] == "none"
+
+
+def test_example_manifest_validates_against_schema_contract() -> None:
+    _validate_manifest_contract(_load_manifest())
+
+
+def test_missing_sha256_is_rejected() -> None:
+    manifest = _load_manifest()
+    artifact = deepcopy(manifest["artifacts"][0])
+    assert isinstance(artifact, dict)
+    artifact.pop("sha256")
+    manifest["artifacts"] = [artifact]
+
+    try:
+        _validate_manifest_contract(manifest)
+    except AssertionError as exc:
+        assert "missing artifact fields" in str(exc)
+    else:
+        raise AssertionError("missing sha256 was accepted")
+
+
+def test_invalid_channel_is_rejected() -> None:
+    manifest = _load_manifest()
+    manifest["channel"] = "production"
+
+    try:
+        _validate_manifest_contract(manifest)
+    except AssertionError:
+        return
+    raise AssertionError("invalid channel was accepted")
+
+
+def test_invalid_artifact_target_is_rejected() -> None:
+    manifest = _load_manifest()
+    artifact = deepcopy(manifest["artifacts"][0])
+    assert isinstance(artifact, dict)
+    artifact["target"] = "oracle-prod"
+    manifest["artifacts"] = [artifact]
+
+    try:
+        _validate_manifest_contract(manifest)
+    except AssertionError:
+        return
+    raise AssertionError("invalid artifact target was accepted")
+
+
+def test_placeholder_signature_requires_non_production_manifest() -> None:
+    manifest = _load_manifest()
+    manifest["production_ready"] = True
+
+    try:
+        _validate_manifest_contract(manifest)
+    except AssertionError:
+        return
+    raise AssertionError("production manifest accepted placeholder signature")
+
+
+def test_installer_foundation_adds_no_network_executing_script() -> None:
+    docs = (ROOT / "docs" / "tasks" / "installer-distribution.md").read_text(encoding="utf-8")
+    lower_docs = docs.lower()
+
+    assert "install/windows.ps1" in docs
+    assert "no `irm ... | iex`" in lower_docs
+    assert "download-and-execute" in lower_docs
+    assert not (ROOT / "install" / "windows.ps1").exists()

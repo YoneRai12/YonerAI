@@ -1,0 +1,151 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/YoneRai12/YonerAI/releases/manifest.schema.json",
+  "title": "YonerAI installer bootstrap release manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "product",
+    "channel",
+    "version",
+    "published_at",
+    "production_ready",
+    "release",
+    "minimum_requirements",
+    "artifacts"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "yonerai-installer-bootstrap-manifest/v1"
+    },
+    "product": {
+      "const": "YonerAI"
+    },
+    "channel": {
+      "enum": ["alpha", "beta", "rc", "stable"]
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$"
+    },
+    "published_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "production_ready": {
+      "type": "boolean"
+    },
+    "release": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tag", "github_release_url", "manifest_status"],
+      "properties": {
+        "tag": {
+          "type": "string",
+          "pattern": "^v[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$"
+        },
+        "github_release_url": {
+          "type": "string",
+          "pattern": "^https://github\\.com/YoneRai12/YonerAI/releases/tag/v"
+        },
+        "manifest_status": {
+          "enum": ["example_placeholder", "unsigned_example", "signed"]
+        }
+      }
+    },
+    "minimum_requirements": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["python", "windows", "network_required"],
+      "properties": {
+        "python": {
+          "type": "string"
+        },
+        "windows": {
+          "type": "string"
+        },
+        "network_required": {
+          "type": "boolean"
+        }
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "kind",
+          "target",
+          "os",
+          "arch",
+          "url",
+          "sha256",
+          "size_bytes",
+          "signature"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9._-]*$"
+          },
+          "kind": {
+            "enum": ["source_archive", "windows_zip", "cli_package", "manifest"]
+          },
+          "target": {
+            "enum": [
+              "source-any",
+              "windows-x64",
+              "windows-arm64",
+              "linux-x64",
+              "linux-arm64",
+              "macos-x64",
+              "macos-arm64",
+              "universal-any"
+            ]
+          },
+          "os": {
+            "enum": ["windows", "linux", "macos", "any"]
+          },
+          "arch": {
+            "enum": ["x64", "arm64", "universal", "any"]
+          },
+          "url": {
+            "type": "string",
+            "pattern": "^(https://github\\.com/YoneRai12/YonerAI/releases/download/|https://example\\.invalid/)"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "signature": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["status", "algorithm", "key_id", "signature"],
+            "properties": {
+              "status": {
+                "enum": ["signed", "placeholder_non_production"]
+              },
+              "algorithm": {
+                "enum": ["ed25519", "none"]
+              },
+              "key_id": {
+                "type": "string"
+              },
+              "signature": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
