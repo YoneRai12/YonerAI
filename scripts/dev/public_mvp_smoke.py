@@ -90,6 +90,41 @@ def _assert_json_response(response: Any, *, endpoint: str) -> dict[str, Any]:
     return body
 
 
+def _assert_managed_download_contract() -> dict[str, str]:
+    from ora_core.brain.process import MainProcess
+
+    process = object.__new__(MainProcess)
+    safe_urls = (
+        "/v1/files/file_public_smoke/download",
+        "/s/share_public_smoke",
+        "https://files.yonerai.com/v1/files/file_public_smoke/download",
+    )
+    unsafe_urls = (
+        "https://example.com/file.bin",
+        "http://files.yonerai.com/v1/files/file_public_smoke/download",
+        "/v1/files/../admin",
+        r"C:\private\file.txt",
+    )
+
+    accepted = [
+        process._coerce_download_link(url=url, label="smoke artifact")
+        for url in safe_urls
+    ]
+    rejected = [
+        process._coerce_download_link(url=url, label="unsafe artifact")
+        for url in unsafe_urls
+    ]
+    assert all(item is not None for item in accepted), "managed download URL was rejected"
+    assert all(item is None for item in rejected), "unsafe download URL was accepted"
+
+    return {
+        "endpoint": "managed-download-contract",
+        "status": "ok",
+        "accepted": str(len(accepted)),
+        "rejected": str(len(rejected)),
+    }
+
+
 def run_smoke() -> dict[str, Any]:
     previous_env = {key: os.environ.get(key) for key in _PUBLIC_ENV_KEYS}
     try:
@@ -143,6 +178,8 @@ def run_smoke() -> dict[str, Any]:
                     "provider": "offline-mock",
                 }
             )
+
+            checks.append(_assert_managed_download_contract())
 
         return {
             "ok": True,
