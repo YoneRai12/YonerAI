@@ -28,7 +28,7 @@ _PUBLIC_ENV_KEYS = (
     "ORA_LOCAL_LLM_PUBLIC_TOKEN",
 )
 _PRIVATE_MARKERS = (
-    re.compile(r"[A-Za-z]:[\\/]+Users[\\/]+", re.IGNORECASE),
+    re.compile(r"[A-Za-z]:[\\/]+[^\s\"'<>|]+", re.IGNORECASE),
     re.compile(r"(?:^|[\s\"'=])/(root|etc|home|users|var|tmp)/", re.IGNORECASE),
     re.compile(
         r"(api[_-]?key|access[_-]?token|refresh[_-]?token|discord[_-]?token|private[_-]?key|client[_-]?secret|google[_-]?client[_-]?secret|authorization)",
@@ -312,9 +312,32 @@ def _hybrid_trust_checks() -> tuple[dict[str, object], ...]:
 
 
 def _managed_download_checks() -> tuple[dict[str, object], ...]:
+    from ora_core.brain.process import MainProcess
+
+    process = object.__new__(MainProcess)
+    managed_download = process._coerce_download_link(
+        url="/v1/files/public-demo/download",
+        label="public demo artifact",
+    )
+    unsafe_download = process._coerce_download_link(
+        url="https://example.com/not-managed.bin",
+        label="unsafe artifact",
+    )
+    assert managed_download is not None
+    assert unsafe_download is None
     return (
-        {"name": "managed_url_accepted", "status": "ok", "accepted": True},
-        {"name": "unsafe_url_rejected", "status": "ok", "rejected": True},
+        {
+            "name": "managed_url_accepted",
+            "status": "ok",
+            "accepted": True,
+            "guard": "managed_download_guard",
+        },
+        {
+            "name": "unsafe_url_rejected",
+            "status": "ok",
+            "rejected": True,
+            "guard": "managed_download_guard",
+        },
     )
 
 
