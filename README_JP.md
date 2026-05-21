@@ -2,7 +2,7 @@
 
 YonerAI は、公式・ローカル・self-hosted の実行環境が変わっても、同じ体験と契約境界を保つための provider-independent AI execution foundation です。
 
-[English README](README.md) | [Current phase](docs/CURRENT_PHASE_CONTEXT.md) | [Contracts](docs/contracts) | [Latest checkpoint](docs/releases/v2026.5.21.3-clean-continuation-security-discord-preflight-checkpoint.md)
+[English README](README.md) | [Current phase](docs/CURRENT_PHASE_CONTEXT.md) | [Contracts](docs/contracts) | [Latest checkpoint](docs/releases/v2026.5.21.4-implementation-guardrail-compression-checkpoint.md)
 
 ## YonerAI とは
 
@@ -22,7 +22,7 @@ YonerAI は長く使う AI runtime foundation です。目的は、利用する 
 - contract-first な public boundary
 - private / control-plane の詳細を漏らさず、contract で public と分ける方針
 
-現在の public checkpoint stream は、検証済みの日付と同日 suffix を使います。`v2026.5.21.3` は、dirty worktree rescue、`/listen` security/runtime boundary patch、Discord Hybrid/Self-Host signed-contract preflight を記録する clean-continuation checkpoint note / GitHub Release alignment target です。production release ではありません。
+現在の public checkpoint stream は、検証済みの日付と同日 suffix を使います。`v2026.5.21.4` は、implementation-first guardrail compression pass として、`/say` security/runtime patch、Discord contract acceptance tests、three-mode capability harness、`src/cogs/ora.py` extraction planning、ORA pure-helper contract tests を記録します。production release ではありません。
 
 過去に作られた未来日付の checkpoint label は historical artifact として残る場合がありますが、current-date GitHub Release が明示的に supersede するまでは、現在の public/latest checkpoint として扱いません。
 
@@ -104,6 +104,7 @@ raw chain-of-thought は public chat、API、SSE、log、documentation、trace s
 - [Growth/SNS claim guardrails](docs/growth/CLAIM_GUARDRAILS_2026_05_20.md)
 - [Growth/SNS demo plan](docs/growth/DEMO_PLAN_2026_05_20.md)
 - [Growth/SNS FAQ](docs/growth/FAQ_2026_05_20.md)
+- [v2026.5.21.4 Implementation guardrail compression checkpoint note](docs/releases/v2026.5.21.4-implementation-guardrail-compression-checkpoint.md)
 - [v2026.5.21.3 Clean continuation security and Discord preflight checkpoint note](docs/releases/v2026.5.21.3-clean-continuation-security-discord-preflight-checkpoint.md)
 - [v2026.5.21.2 Final public presentation checkpoint note](docs/releases/v2026.5.21.2-final-public-presentation-checkpoint.md)
 - [v2026.5.21.1 Public repository hardening checkpoint note](docs/releases/v2026.5.21.1-public-repository-hardening-checkpoint.md)
