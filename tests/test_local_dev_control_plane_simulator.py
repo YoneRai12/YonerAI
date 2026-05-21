@@ -76,7 +76,7 @@ def test_available_local_node_integrates_with_route_preview() -> None:
         local_node_available=True,
     )
 
-    assert decision.route == "hybrid_coordination"
+    assert decision.route == "hybrid_coordination_preview"
     assert decision.requested_capability == "pc_operations"
     assert decision.local_node_required is True
     assert decision.approval_required is True

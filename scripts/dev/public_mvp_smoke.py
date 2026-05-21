@@ -155,7 +155,9 @@ def _assert_differentiation_contract() -> dict[str, str]:
         )
     )
 
-    assert docs_route.route == "cloud_only", "public docs did not route to cloud-only preview"
+    assert docs_route.route == "managed_cloud_contract_only", "public docs did not report managed-cloud contract-only preview"
+    assert docs_route.runtime_available_in_public_repo is False, "managed cloud claimed public repo runtime"
+    assert docs_route.public_repo_execution_available is False, "managed cloud claimed public repo execution"
     assert private_route.route == "local_node_required", "private work did not require Local Node"
     assert local_dev.profile == "local_dev_control_plane", "local-dev simulator profile mismatch"
     assert local_dev.production_trust_material is False, "local-dev simulator claimed production trust material"
@@ -227,7 +229,7 @@ def _assert_hybrid_trust_contract() -> dict[str, str]:
     assert verified_status.production_trust_material is False, "test manifest claimed production trust material"
     assert tampered_status.local_node.verification_state == "invalid_signature", "tamper was not rejected"
     assert expired_status.local_node.verification_state == "expired", "expired manifest was not rejected"
-    assert dangerous_route.route == "hybrid_coordination", "dangerous verified route did not route through hybrid"
+    assert dangerous_route.route == "hybrid_coordination_preview", "dangerous verified route did not route through hybrid preview"
     assert dangerous_route.approval_required is True, "dangerous verified route did not require approval"
     assert dangerous_route.signed_origin_verified is True, "verified route did not report signed origin"
 
@@ -371,7 +373,7 @@ def _assert_enrolled_hybrid_slice_contract() -> dict[str, str]:
     assert dangerous.action_envelope.approval_required is True, "dangerous capability was not approval gated"
     assert pairing_once.accepted is True, "pairing code was not accepted once"
     assert pairing_reuse.accepted is False, "pairing code reuse was not rejected"
-    assert route.route == "hybrid_coordination", "enrolled hybrid route did not coordinate"
+    assert route.route == "hybrid_coordination_preview", "enrolled hybrid route did not coordinate"
     assert route.session_verified is True, "route did not report enrolled verified session"
     assert proposal.proposal_only is True, "self-evolution proposal was not proposal-only"
     assert proposal.approval_draft.github_write_allowed is False, "approval draft allowed GitHub write"
