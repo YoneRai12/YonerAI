@@ -5,7 +5,8 @@ This page is a public-safe index of current release notes and progress checkpoin
 ## v0.1.0-alpha.2 Capability Slice
 
 - GitHub pre-release: `v0.1.0-alpha.2`.
-- Release title: `2026.05.22 — YonerAI v0.1.0-alpha.2 Capability Slice`.
+- Release title: `YonerAI v0.1.0-alpha.2 Capability Slice`.
+- Release date: `2026-05-22`.
 - Public release body: `docs/releases/0.1.0-alpha.2.md`
 - What users can try now: `yonerai demo`, `yonerai doctor`, `yonerai status`, `yonerai ask --provider mock`, workspace-scoped `yonerai ask --file ... --workspace ...`, `yonerai plan`, `yonerai search mock`, `yonerai ops plan`, explicit local `yonerai memory`, `yonerai discord synthetic`, `yonerai manifest verify`, `yonerai install plan --manifest releases/manifest.example.json`, and `yonerai install plan-windows`.
 - Capability slice: opt-in provider adapters, loopback-only local LLM, workspace file summarize, mock search, SafeShell planning, explicit local memory, synthetic Discord gateway, official status contracts, installer dry-run planning, run ledger/history, and deterministic demo integration.

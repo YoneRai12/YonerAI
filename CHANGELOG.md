@@ -4,10 +4,9 @@ See also: `docs/RELEASE_NOTES.md` (curated summary, v5.0.0 -> current).
 
 ## v0.1.0-alpha.2 (2026-05-22) - Capability Slice
 - Corrected the existing `v0.1.0-alpha.2` release note into operation-manual
-  style with the date-stamped title
-  `2026.05.22 — YonerAI v0.1.0-alpha.2 Capability Slice`, command-by-command
-  run guidance, explicit non-actions, immutable tag traceability, and
-  post-tag correction traceability.
+  style with command-by-command run guidance, explicit non-actions, immutable
+  tag traceability, post-tag correction traceability, and a shorter GitHub
+  Release title to avoid duplicate/overlapping URL preview text.
 - Added opt-in external provider adapters for OpenAI-compatible, Anthropic, and Gemini paths while keeping default tests mock-only.
 - Connected loopback-only local LLM behavior, mock provider execution, run ledger/history, workspace file summarization, mock search, SafeShell diagnostic planning, explicit local memory, synthetic Discord gateway fixtures, official status contracts, and installer dry-run planning into the CLI/demo surface.
 - Expanded `yonerai demo`, `yonerai ask`, `yonerai plan`, `yonerai search`, `yonerai ops`, `yonerai memory`, `yonerai discord synthetic`, `yonerai status`, `yonerai manifest verify`, `yonerai install plan`, and `yonerai install plan-windows` as the public alpha capability slice.
