@@ -232,6 +232,25 @@ def test_cli_manifest_verify_rejects_remote_manifest_without_fetch(monkeypatch, 
     assert "remote URLs are not fetched" in captured.err
 
 
+def test_cli_manifest_verify_rejects_empty_artifact_path(capsys):
+    cli = _load_cli_module()
+
+    exit_code = cli.main(
+        [
+            "manifest",
+            "verify",
+            "releases/manifest.example.json",
+            "--artifact",
+            "yonerai-0.1.0-alpha.1-source-archive=   ",
+            "--json",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 2
+    assert "artifact path must not be empty" in captured.err
+
+
 def test_cli_manifest_verify_rejects_missing_sha256(tmp_path, capsys):
     cli = _load_cli_module()
     manifest = json.loads((Path(__file__).resolve().parents[1] / "releases" / "manifest.example.json").read_text())

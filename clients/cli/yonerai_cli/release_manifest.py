@@ -183,8 +183,11 @@ def parse_artifact_args(values: list[str] | None) -> dict[str, str]:
             raise ManifestError("artifact mapping must use ARTIFACT_ID=LOCAL_FILE.")
         artifact_id, local_file = value.split("=", 1)
         artifact_id = artifact_id.strip()
+        local_file = local_file.strip()
         if not ID_RE.match(artifact_id):
             raise ManifestError("artifact id is invalid.")
+        if not local_file:
+            raise ManifestError("artifact path must not be empty.")
         if _looks_like_url(local_file):
             raise ManifestError("artifact path must be a local file; remote URLs are not fetched.")
         result[artifact_id] = local_file
@@ -264,12 +267,10 @@ def _verify_artifacts(artifacts: list[object], artifact_paths: dict[str, str]) -
         expected_sha = str(artifact.get("sha256", ""))
         expected_size = artifact.get("size_bytes") if isinstance(artifact.get("size_bytes"), int) else None
         try:
-            data = Path(local_path).read_bytes()
+            actual_sha, actual_size = _hash_file(Path(local_path))
         except OSError:
             checks.append(ArtifactCheck(artifact_id, "failed", expected_sha, expected_size_bytes=expected_size, reason="artifact_file_unreadable"))
             continue
-        actual_sha = hashlib.sha256(data).hexdigest()
-        actual_size = len(data)
         if actual_sha != expected_sha:
             checks.append(
                 ArtifactCheck(
@@ -307,6 +308,16 @@ def _verify_artifacts(artifacts: list[object], artifact_paths: dict[str, str]) -
             )
         )
     return checks
+
+
+def _hash_file(path: Path) -> tuple[str, int]:
+    digest = hashlib.sha256()
+    size = 0
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+            size += len(chunk)
+    return digest.hexdigest(), size
 
 
 def _signature_state(artifacts: list[object]) -> str:
