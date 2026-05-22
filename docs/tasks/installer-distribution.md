@@ -119,16 +119,17 @@ optional local artifact SHA256/size mappings. It rejects remote manifest URLs an
 does not download, execute, install, or mutate anything.
 
 Pretty output reports contract validity, install readiness, artifact count,
-SHA256/signature status, placeholder warnings, and the fact that no
-network/download/install action was performed. `--lang ja` changes only
-human-readable output.
+SHA256/signature status, placeholder warnings, optional non-production/test
+trust fixture checks, and the fact that no network/download/install action was
+performed. `--lang ja` changes only human-readable output.
 
 The alpha example manifest is expected to be contract-valid but not install-ready
 because it uses `placeholder_non_production` signature material. Public alpha
-verification may add deterministic non-production/test trust fixtures, but it
-must not treat them as production trust. A production-capable installer in a
-future private/official lane must require signed manifests and fail closed when
-the production signature is not verified against the official trust source.
+verification supports deterministic non-production/test trust fixtures with
+`--test-trust-fixture`, but it must not treat them as production trust. A
+production-capable installer in a future private/official lane must require
+signed manifests and fail closed when the production signature is not verified
+against the official trust source.
 
 ## Implementation order
 
@@ -138,7 +139,8 @@ the production signature is not verified against the official trust source.
 4. Add `yonerai status`, Japanese pretty output, and manifest pretty output. Done for CLI experience diagnostics.
 5. Add dry-run installer planning with no download, execution, PATH mutation, or install mutation. Done for `yonerai install plan` and the Windows-specific `yonerai install plan-windows` alias.
 6. Add public alpha signed-manifest verification against an explicit
-   non-production/test trust fixture only.
+   non-production/test trust fixture only. Done for local test-fixture
+   verification.
 7. Add `yonerai update plan` and manifest-to-release-asset consistency checks
    without live network use by default. Done for local-manifest update planning;
    manifest-to-release-asset consistency checks remain a separate public task.
@@ -154,12 +156,13 @@ the production signature is not verified against the official trust source.
 
 The dry-run Windows installer planner and release artifact naming validation now
 exist, `yonerai install plan` consumes a local manifest without installing
-anything, and `yonerai update plan` compares local `VERSION` with a local
-manifest without mutating the machine. The next safe milestone is
-manifest-to-release-asset consistency checks and non-production/test signature
-verification. These steps must avoid remote code execution, PATH mutation,
-auto-download, npm publishing, winget publishing, production signing key
-generation, and production trust store creation.
+anything, `yonerai update plan` compares local `VERSION` with a local manifest
+without mutating the machine, and `yonerai manifest verify` can verify signed
+test manifests against an explicit non-production trust fixture. The next safe
+milestone is manifest-to-release-asset consistency checks. These steps must
+avoid remote code execution, PATH mutation, auto-download, npm publishing,
+winget publishing, production signing key generation, and production trust
+store creation.
 
 ## Issue #313 tracking state
 
@@ -179,11 +182,12 @@ Completed or substantially completed:
 - Windows dry-run planning foundation: PR #320, `yonerai install plan-windows`.
 - Local install dry-run planning: PR #336, `yonerai install plan`.
 - Local update dry-run planning: PR #341, `yonerai update plan`.
+- Local non-production/test signed manifest verification:
+  `yonerai manifest verify <path> --test-trust-fixture <fixture>`.
 - Release artifact naming validation foundation: PR #326.
 
 Remaining tasks are tracked directly in #313:
 
-- Signed manifest verification against an explicit non-production/test trust source first.
 - PowerShell dry-run installer skeleton that validates local inputs and prints planned actions only.
 - Safe install, rollback, update, and uninstall docs.
 - Manifest-to-release-asset hash and naming validation.
