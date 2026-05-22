@@ -118,17 +118,19 @@ verified.
 ## Next safe milestone
 
 The dry-run Windows installer planner and release artifact naming validation now
-exist. The next safe milestone is manifest-to-release-asset consistency checks,
-followed by install/update dry-run commands that still consume local manifests
-only. These steps must avoid remote code execution, PATH mutation, auto-download,
-npm publishing, winget publishing, production signing key generation, and
-production trust store creation.
+exist, and `yonerai install plan` consumes a local manifest without installing
+anything. The next safe milestone is `yonerai update plan` and
+manifest-to-release-asset consistency checks. These steps must avoid remote code
+execution, PATH mutation, auto-download, npm publishing, winget publishing,
+production signing key generation, and production trust store creation.
 
 ## Issue #313 tracking state
 
 Issue #313 remains open as the parent installer bootstrap tracking issue.
 The original manifest-first definition is partly complete, but installer
-implementation work remains and is now represented by linked child issues.
+implementation work remains. On 2026-05-22, child issues #328 through #334 were
+closed as noisy duplicate trackers and consolidated back into #313. They remain
+historical references only; active tracking is now on #313.
 
 Completed or substantially completed:
 
@@ -138,21 +140,21 @@ Completed or substantially completed:
 - Doctor diagnostics: PR #309 and PR #311, `yonerai doctor`.
 - Installer distribution foundation doc: PR #307.
 - Windows dry-run planning foundation: PR #320, `yonerai install plan-windows`.
-- Unified local install dry-run planning: current lane, `yonerai install plan`.
+- Local install dry-run planning: PR #336, `yonerai install plan`.
 - Release artifact naming validation foundation: PR #326.
 
-Remaining child issues:
+Remaining tasks are tracked directly in #313:
 
-- #328 `feat: implement signed manifest verification`.
-- #329 `feat: add yonerai install/update dry-run commands` (partially complete after `yonerai install plan`; `yonerai update plan` remains).
-- #330 `feat: add PowerShell dry-run installer skeleton`.
-- #331 `docs: define safe install and uninstall flow`.
-- #332 `feat: validate release artifact hashes and naming`.
-- #333 `docs: define installer signing and key rotation lifecycle`.
-- #334 `docs: prepare install.yonerai.com onboarding page`.
+- Signed manifest verification against an explicit non-production/test trust source first.
+- `yonerai update plan` for local-manifest update planning without mutation.
+- PowerShell dry-run installer skeleton that validates local inputs and prints planned actions only.
+- Safe install, rollback, update, and uninstall docs.
+- Manifest-to-release-asset hash and naming validation.
+- Installer signing and key-rotation lifecycle documentation.
+- Future install.yonerai.com / yonerai.com/install onboarding copy that does not present remote execution as ready-to-run behavior.
 
-The parent issue should stay open until the child issues are complete or the
-owner explicitly approves closing it as a pure index. See
+The parent issue should stay open until the checklist in #313 is complete or
+the owner explicitly approves a different tracking model. See
 `docs/changelog/checkpoints/issue-313-installer-triage.md` and
 `docs/changelog/checkpoints/issue-313-installer-tracking.md`.
 
