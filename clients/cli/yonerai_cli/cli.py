@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from yonerai_cli import __version__
+from yonerai_cli.output import CliRow, CliSection, ColorMode, render_report
 from yonerai_cli.release_manifest import (
     ManifestError,
     format_manifest_verify_pretty,
@@ -35,6 +36,8 @@ PRIVATE_MARKERS = (
     re.compile(r"sk-[A-Za-z0-9_-]{10,}"),
     re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
 )
+LANG_CHOICES = ("en", "ja")
+COLOR_CHOICES = ("auto", "never", "always")
 
 
 class CliError(Exception):
@@ -146,30 +149,38 @@ def _print_json(data: dict[str, Any]) -> None:
     print(json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True))
 
 
-def _build_doctor_report() -> dict[str, Any]:
+def _build_doctor_report(*, command: str = "yonerai doctor") -> dict[str, Any]:
     manifest_path = _repo_root() / "releases" / "manifest.example.json"
     manifest_report: dict[str, Any]
     try:
         manifest_report = verify_manifest(load_manifest_file(str(manifest_path)))
     except ManifestError as exc:
         manifest_report = {"ok": False, "errors": [str(exc)]}
+    python_supported = sys.version_info >= (3, 11)
+    manifest_contract_valid = bool(manifest_report.get("contract_valid", manifest_report.get("ok")))
+    system_checks = {
+        "redaction_self_check": _run_redaction_self_check(),
+        "mcp_deny_policy": _run_mcp_deny_policy_self_check(),
+    }
+    checks_ok = all(bool(check.get("ok")) for check in system_checks.values())
     return {
-        "ok": bool(manifest_report.get("contract_valid", manifest_report.get("ok"))),
-        "command": "yonerai doctor",
+        "ok": manifest_contract_valid and python_supported and checks_ok,
+        "command": command,
         "schema_version": "yonerai-doctor/v1",
         "python": {
             "version": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
-            "supported": sys.version_info >= (3, 11),
+            "supported": python_supported,
         },
         "cli": {
             "import_ok": True,
             "package_version": __version__,
+            "repo_version": _read_repo_version(),
             "demo_command_available": True,
             "quickstart_alias_available": True,
         },
         "manifest": {
             "example_present": manifest_path.exists(),
-            "contract_valid": bool(manifest_report.get("contract_valid", manifest_report.get("ok"))),
+            "contract_valid": manifest_contract_valid,
             "install_ready": bool(manifest_report.get("install_ready", False)),
             "signature_state": manifest_report.get("signature_state"),
             "non_production_reason": manifest_report.get("non_production_reason"),
@@ -188,30 +199,274 @@ def _build_doctor_report() -> dict[str, Any]:
             "oracle_required": False,
             "deploy_required": False,
         },
+        "system_checks": system_checks,
         "errors": manifest_report.get("errors", []),
     }
 
 
-def _print_doctor_pretty(report: dict[str, Any]) -> None:
-    print("YonerAI doctor")
-    print(f"- ok: {_bool_text(report['ok'])}")
-    python_report = report["python"]
-    print(f"- python: {python_report['version']} supported={_bool_text(python_report['supported'])}")
-    cli_report = report["cli"]
-    print(f"- cli_import: {_bool_text(cli_report['import_ok'])}")
-    print(f"- package_version: {cli_report['package_version']}")
-    manifest_report = report["manifest"]
-    print(f"- manifest_example_valid: {_bool_text(manifest_report['contract_valid'])}")
-    print(f"- manifest_install_ready: {_bool_text(manifest_report['install_ready'])}")
-    print(f"- signature_state: {manifest_report['signature_state']}")
-    print(f"- credentials_required_for_demo: {_bool_text(report['credentials']['required_for_demo'])}")
-    print("Boundaries:")
-    for key, value in report["boundaries"].items():
-        print(f"- {key}: {_bool_text(value)}")
+def _run_redaction_self_check() -> dict[str, Any]:
+    try:
+        _prepare_repo_import_path()
+        from src.utils.redaction import redact_text
+    except Exception:
+        return {
+            "ok": False,
+            "status": "fail",
+            "network_required": False,
+            "private_runtime_required": False,
+            "reason": "redaction utility unavailable",
+        }
+
+    openai_sample = "sk-" + ("A" * 24)
+    webhook_sample = "https://discord.com/api/" + "webhooks/123456789012345678/" + ("B" * 40)
+    query_sample = "https://example.invalid/callback?code=" + ("C" * 24)
+    redacted = redact_text(f"{openai_sample} {webhook_sample} {query_sample}")
+    ok = (
+        "sk-" not in redacted
+        and "discord.com/api/webhooks" not in redacted
+        and "code=" not in redacted
+        and "[REDACTED]" in redacted
+    )
+    return {
+        "ok": ok,
+        "status": "ok" if ok else "fail",
+        "network_required": False,
+        "private_runtime_required": False,
+        "reason": None if ok else "redaction self-check did not mask all samples",
+    }
+
+
+def _read_repo_version() -> str | None:
+    try:
+        version = (_repo_root() / "VERSION").read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+    return version or None
+
+
+def _run_mcp_deny_policy_self_check() -> dict[str, Any]:
+    try:
+        _prepare_repo_import_path()
+        from src.cogs.mcp_policy import is_mcp_tool_denied
+    except Exception:
+        return {
+            "ok": False,
+            "status": "fail",
+            "network_required": False,
+            "live_runtime_required": False,
+            "reason": "MCP deny policy utility unavailable",
+        }
+
+    patterns = ["delete", "deploy", "shell", "run"]
+    dangerous_names_denied = all(
+        is_mcp_tool_denied(name, patterns)
+        for name in ("delete_file", "deploy_release", "run_shell")
+    )
+    safe_name_allowed = not is_mcp_tool_denied("generate_artwork", patterns)
+    ok = dangerous_names_denied and safe_name_allowed
+    return {
+        "ok": ok,
+        "status": "ok" if ok else "fail",
+        "network_required": False,
+        "live_runtime_required": False,
+        "dangerous_names_denied": dangerous_names_denied,
+        "safe_name_allowed": safe_name_allowed,
+        "reason": None if ok else "MCP deny policy fixture failed",
+    }
+
+
+def _print_doctor_pretty(report: dict[str, Any], *, lang: str = "en", color: ColorMode = "auto") -> None:
+    print(_format_doctor_pretty(report, lang=lang, color=color))
+
+
+def _format_doctor_pretty(report: dict[str, Any], *, lang: str = "en", color: ColorMode = "auto") -> str:
+    if lang == "ja":
+        title = "YonerAI 診断"
+        sections = _doctor_sections_ja(report)
+    else:
+        title = "YonerAI doctor"
+        sections = _doctor_sections_en(report)
     if report["errors"]:
-        print("Errors:")
-        for error in report["errors"]:
-            print(f"- {error}")
+        error_title = "エラー" if lang == "ja" else "Errors"
+        sections = (*sections, CliSection(error_title, tuple(CliRow("error", error, "fail") for error in report["errors"])))
+    return render_report(title, sections, color=color)
+
+
+def _print_status_pretty(report: dict[str, Any], *, lang: str = "en", color: ColorMode = "auto") -> None:
+    print(_format_status_pretty(report, lang=lang, color=color))
+
+
+def _format_status_pretty(report: dict[str, Any], *, lang: str = "en", color: ColorMode = "auto") -> str:
+    manifest = report["manifest"]
+    boundaries = report["boundaries"]
+    if lang == "ja":
+        sections = (
+            CliSection(
+                "公開デモ",
+                (
+                    CliRow("デモ", "利用可能", "ok"),
+                    CliRow("Quickstart", "利用可能", "ok"),
+                    CliRow("認証情報", "不要", "ok"),
+                ),
+            ),
+            CliSection(
+                "配布準備",
+                (
+                    CliRow("マニフェスト", "有効" if manifest["contract_valid"] else "無効", "ok" if manifest["contract_valid"] else "fail"),
+                    CliRow("インストール準備", "完了" if manifest["install_ready"] else "未完了", "ok" if manifest["install_ready"] else "warn"),
+                    CliRow("ネットワークインストーラー", "未実装", "ok"),
+                ),
+            ),
+            CliSection(
+                "境界",
+                (
+                    CliRow("Official Managed Cloud", "外部/契約のみ", "ok"),
+                    CliRow("Live Discord", "不要", "ok"),
+                    CliRow("永続メモリ", "不要", "ok" if not boundaries["persistent_memory_required"] else "fail"),
+                ),
+            ),
+        )
+        return render_report("YonerAI 状態", sections, color=color)
+
+    sections = (
+        CliSection(
+            "Public demo",
+            (
+                CliRow("demo", "available", "ok"),
+                CliRow("quickstart", "available", "ok"),
+                CliRow("credentials", "not required", "ok"),
+            ),
+        ),
+        CliSection(
+            "Distribution readiness",
+            (
+                CliRow("manifest", "valid" if manifest["contract_valid"] else "invalid", "ok" if manifest["contract_valid"] else "fail"),
+                CliRow("install_ready", manifest["install_ready"], "ok" if manifest["install_ready"] else "warn"),
+                CliRow("network_installer", "not implemented", "ok"),
+            ),
+        ),
+        CliSection(
+            "Boundaries",
+            (
+                CliRow("official_cloud", "external/contract-only", "ok"),
+                CliRow("live_discord", "not required", "ok"),
+                CliRow("persistent_memory", "not required", "ok" if not boundaries["persistent_memory_required"] else "fail"),
+            ),
+        ),
+    )
+    return render_report("YonerAI status", sections, color=color)
+
+
+def _doctor_sections_en(report: dict[str, Any]) -> tuple[CliSection, ...]:
+    python_report = report["python"]
+    cli_report = report["cli"]
+    manifest_report = report["manifest"]
+    boundaries = report["boundaries"]
+    redaction_check = report["system_checks"]["redaction_self_check"]
+    mcp_check = report["system_checks"]["mcp_deny_policy"]
+    return (
+        CliSection(
+            "Setup",
+            (
+                CliRow("overall", "ready for public demo" if report["ok"] else "needs attention", "ok" if report["ok"] else "fail"),
+                CliRow("python", python_report["version"], "ok" if python_report["supported"] else "fail"),
+                CliRow("cli_import", cli_report["import_ok"], "ok" if cli_report["import_ok"] else "fail"),
+                CliRow("package_version", cli_report["package_version"], "ok"),
+                CliRow("repo_version", cli_report["repo_version"] or "unknown", "ok" if cli_report["repo_version"] else "warn"),
+                CliRow("demo", "available" if cli_report["demo_command_available"] else "missing", "ok" if cli_report["demo_command_available"] else "fail"),
+                CliRow(
+                    "quickstart",
+                    "available" if cli_report["quickstart_alias_available"] else "missing",
+                    "ok" if cli_report["quickstart_alias_available"] else "fail",
+                ),
+            ),
+        ),
+        CliSection(
+            "Manifest",
+            (
+                CliRow("manifest_example_valid", manifest_report["contract_valid"], "ok" if manifest_report["contract_valid"] else "fail"),
+                CliRow("manifest_install_ready", manifest_report["install_ready"], "ok" if manifest_report["install_ready"] else "warn"),
+                CliRow("signature_state", manifest_report["signature_state"], "ok" if manifest_report["signature_state"] == "signed" else "warn"),
+                CliRow("non_production_reason", manifest_report["non_production_reason"] or "none", "warn" if manifest_report["non_production_reason"] else "ok"),
+            ),
+        ),
+        CliSection(
+            "Diagnostics",
+            (
+                CliRow("redaction_self_check", redaction_check["status"], "ok" if redaction_check["ok"] else "fail"),
+                CliRow("mcp_deny_policy", mcp_check["status"], "ok" if mcp_check["ok"] else "fail"),
+            ),
+        ),
+        CliSection(
+            "Boundaries",
+            (
+                CliRow("network_required", boundaries["network_required"], "fail" if boundaries["network_required"] else "ok"),
+                CliRow("credentials_required_for_demo", report["credentials"]["required_for_demo"], "fail" if report["credentials"]["required_for_demo"] else "ok"),
+                CliRow("official_cloud_runtime", "external/contract-only", "ok"),
+                CliRow("live_discord", "not required", "ok" if not boundaries["live_discord_required"] else "fail"),
+                CliRow("network_installer", "not implemented", "ok"),
+                CliRow("production_features", "not included", "ok"),
+                CliRow("install_mutation", boundaries["install_mutation"], "fail" if boundaries["install_mutation"] else "ok"),
+                CliRow("path_mutation", boundaries["path_mutation"], "fail" if boundaries["path_mutation"] else "ok"),
+            ),
+        ),
+    )
+
+
+def _doctor_sections_ja(report: dict[str, Any]) -> tuple[CliSection, ...]:
+    python_report = report["python"]
+    cli_report = report["cli"]
+    manifest_report = report["manifest"]
+    boundaries = report["boundaries"]
+    redaction_check = report["system_checks"]["redaction_self_check"]
+    mcp_check = report["system_checks"]["mcp_deny_policy"]
+    return (
+        CliSection(
+            "セットアップ",
+            (
+                CliRow("全体", "公開デモ実行可能" if report["ok"] else "確認が必要", "ok" if report["ok"] else "fail"),
+                CliRow("Python", python_report["version"], "ok" if python_report["supported"] else "fail"),
+                CliRow("CLI import", "成功" if cli_report["import_ok"] else "失敗", "ok" if cli_report["import_ok"] else "fail"),
+                CliRow("CLI package", cli_report["package_version"], "ok"),
+                CliRow("Repo version", cli_report["repo_version"] or "unknown", "ok" if cli_report["repo_version"] else "warn"),
+                CliRow("デモ", "利用可能" if cli_report["demo_command_available"] else "未検出", "ok" if cli_report["demo_command_available"] else "fail"),
+                CliRow(
+                    "Quickstart",
+                    "利用可能" if cli_report["quickstart_alias_available"] else "未検出",
+                    "ok" if cli_report["quickstart_alias_available"] else "fail",
+                ),
+            ),
+        ),
+        CliSection(
+            "マニフェスト",
+            (
+                CliRow("マニフェスト", "有効" if manifest_report["contract_valid"] else "無効", "ok" if manifest_report["contract_valid"] else "fail"),
+                CliRow("インストール準備", "完了" if manifest_report["install_ready"] else "未完了", "ok" if manifest_report["install_ready"] else "warn"),
+                CliRow("署名状態", manifest_report["signature_state"], "ok" if manifest_report["signature_state"] == "signed" else "warn"),
+                CliRow("非本番理由", manifest_report["non_production_reason"] or "なし", "warn" if manifest_report["non_production_reason"] else "ok"),
+            ),
+        ),
+        CliSection(
+            "診断",
+            (
+                CliRow("Redaction self-check", "成功" if redaction_check["ok"] else "失敗", "ok" if redaction_check["ok"] else "fail"),
+                CliRow("MCP deny policy", "成功" if mcp_check["ok"] else "失敗", "ok" if mcp_check["ok"] else "fail"),
+            ),
+        ),
+        CliSection(
+            "境界",
+            (
+                CliRow("ネットワーク", "不要" if not boundaries["network_required"] else "必要", "ok" if not boundaries["network_required"] else "fail"),
+                CliRow("認証情報", "不要" if not report["credentials"]["required_for_demo"] else "必要", "ok" if not report["credentials"]["required_for_demo"] else "fail"),
+                CliRow("Official Managed Cloud", "外部/契約のみ", "ok"),
+                CliRow("Live Discord", "不要" if not boundaries["live_discord_required"] else "必要", "ok" if not boundaries["live_discord_required"] else "fail"),
+                CliRow("ネットワークインストーラー", "未実装", "ok"),
+                CliRow("本番機能", "含まれません", "ok"),
+                CliRow("インストール変更", "なし" if not boundaries["install_mutation"] else "あり", "ok" if not boundaries["install_mutation"] else "fail"),
+                CliRow("PATH変更", "なし" if not boundaries["path_mutation"] else "あり", "ok" if not boundaries["path_mutation"] else "fail"),
+            ),
+        ),
+    )
 
 
 def _bool_text(value: object) -> str:
@@ -366,6 +621,15 @@ def build_parser() -> argparse.ArgumentParser:
     doctor_output = doctor.add_mutually_exclusive_group()
     doctor_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
     doctor_output.add_argument("--pretty", action="store_true", help="Print a readable diagnostic summary.")
+    doctor.add_argument("--lang", choices=LANG_CHOICES, default="en", help="Pretty output language. Default: en.")
+    doctor.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
+
+    status = subcommands.add_parser("status", help="Print offline public demo and installer readiness status.")
+    status_output = status.add_mutually_exclusive_group()
+    status_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
+    status_output.add_argument("--pretty", action="store_true", help="Print a readable status summary.")
+    status.add_argument("--lang", choices=LANG_CHOICES, default="en", help="Pretty output language. Default: en.")
+    status.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
 
     manifest = subcommands.add_parser("manifest", help="Validate local YonerAI release manifests without installing.")
     manifest_subcommands = manifest.add_subparsers(dest="manifest_command", required=True)
@@ -380,6 +644,8 @@ def build_parser() -> argparse.ArgumentParser:
     manifest_output = manifest_verify.add_mutually_exclusive_group()
     manifest_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
     manifest_output.add_argument("--pretty", action="store_true", help="Print a readable verification summary.")
+    manifest_verify.add_argument("--lang", choices=LANG_CHOICES, default="en", help="Pretty output language. Default: en.")
+    manifest_verify.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
 
     route = subcommands.add_parser("route", help="Preview safe YonerAI task routing without executing it.")
     route_subcommands = route.add_subparsers(dest="route_command", required=True)
@@ -457,7 +723,14 @@ def run(argv: list[str] | None = None) -> int:
         if args.json:
             _print_json(report)
         else:
-            _print_doctor_pretty(report)
+            _print_doctor_pretty(report, lang=args.lang, color=args.color)
+        return 0 if report["ok"] else 1
+    if args.command == "status":
+        report = _build_doctor_report(command="yonerai status")
+        if args.json:
+            _print_json(report)
+        else:
+            _print_status_pretty(report, lang=args.lang, color=args.color)
         return 0 if report["ok"] else 1
     if args.command == "manifest" and args.manifest_command == "verify":
         try:
@@ -472,7 +745,7 @@ def run(argv: list[str] | None = None) -> int:
         if args.json:
             _print_json(report)
         else:
-            print(format_manifest_verify_pretty(report))
+            print(format_manifest_verify_pretty(report, lang=args.lang, color=args.color))
         return 0 if report["ok"] else 1
     if args.command == "route" and args.route_command == "preview":
         _print_json(_preview_route(args))
@@ -490,8 +763,20 @@ def run(argv: list[str] | None = None) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    _configure_stdio()
     try:
         return run(argv)
     except CliError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return exc.exit_code
+
+
+def _configure_stdio() -> None:
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if not callable(reconfigure):
+            continue
+        try:
+            reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            continue

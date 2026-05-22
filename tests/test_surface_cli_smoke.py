@@ -172,6 +172,10 @@ def test_cli_doctor_reports_offline_status_without_network(monkeypatch, capsys):
     assert output["boundaries"]["official_cloud_runtime_included"] is False
     assert output["manifest"]["contract_valid"] is True
     assert output["manifest"]["install_ready"] is False
+    assert output["cli"]["repo_version"] == "0.1.0-alpha.1"
+    assert output["system_checks"]["redaction_self_check"]["ok"] is True
+    assert output["system_checks"]["mcp_deny_policy"]["ok"] is True
+    assert output["system_checks"]["mcp_deny_policy"]["network_required"] is False
 
 
 def test_cli_doctor_redacts_token_presence(monkeypatch, capsys):
@@ -202,6 +206,70 @@ def test_cli_doctor_does_not_execute_demo_or_mutate_path(monkeypatch, capsys):
     output = capsys.readouterr().out
     assert "YonerAI doctor" in output
     assert "manifest_example_valid: true" in output
+    assert "\033[" not in output
+
+
+def test_cli_doctor_pretty_supports_japanese_without_json_key_translation(capsys):
+    cli = _load_cli_module()
+
+    assert cli.main(["doctor", "--pretty", "--lang", "ja", "--color", "never"]) == 0
+
+    output = capsys.readouterr().out
+    assert "YonerAI 診断" in output
+    assert "デモ" in output
+    assert "利用可能" in output
+    assert "Official Managed Cloud" in output
+    assert "外部/契約のみ" in output
+    assert "ネットワークインストーラー" in output
+    assert "未実装" in output
+    assert "本番機能" in output
+    assert "含まれません" in output
+    assert "manifest_example_valid" not in output
+    assert "\033[" not in output
+
+
+def test_cli_doctor_json_remains_english_keyed_with_lang_ja(capsys):
+    cli = _load_cli_module()
+
+    assert cli.main(["doctor", "--json", "--lang", "ja"]) == 0
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["command"] == "yonerai doctor"
+    assert output["manifest"]["contract_valid"] is True
+    assert "system_checks" in output
+    assert "マニフェスト" not in json.dumps(output, ensure_ascii=False)
+
+
+def test_cli_status_reports_public_demo_and_installer_readiness(capsys):
+    cli = _load_cli_module()
+
+    assert cli.main(["status", "--pretty", "--lang", "ja", "--color", "never"]) == 0
+
+    output = capsys.readouterr().out
+    assert "YonerAI 状態" in output
+    assert "公開デモ" in output
+    assert "配布準備" in output
+    assert "インストール準備" in output
+    assert "未完了" in output
+    assert "Live Discord" in output
+    assert "不要" in output
+    assert "\033[" not in output
+
+
+def test_cli_status_json_is_doctor_schema_without_network(monkeypatch, capsys):
+    cli = _load_cli_module()
+
+    def fail_urlopen(*_args: Any, **_kwargs: Any):
+        raise AssertionError("status must not open network")
+
+    monkeypatch.setattr(cli.urllib.request, "urlopen", fail_urlopen)
+
+    assert cli.main(["status", "--json"]) == 0
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["command"] == "yonerai status"
+    assert output["schema_version"] == "yonerai-doctor/v1"
+    assert output["boundaries"]["network_required"] is False
 
 
 def test_cli_manifest_verify_accepts_example_as_contract_not_install_ready(capsys):
@@ -215,6 +283,37 @@ def test_cli_manifest_verify_accepts_example_as_contract_not_install_ready(capsy
     assert output["signature_state"] == "placeholder_non_production"
     assert output["signature_verified"] is False
     assert output["non_production_reason"] == "signature_not_production_verified"
+
+
+def test_cli_manifest_verify_pretty_reports_human_readable_boundary(capsys):
+    cli = _load_cli_module()
+
+    assert cli.main(["manifest", "verify", "releases/manifest.example.json", "--pretty", "--color", "never"]) == 0
+
+    output = capsys.readouterr().out
+    assert "YonerAI manifest verification" in output
+    assert "contract_valid" in output
+    assert "install_ready" in output
+    assert "artifact_count" in output
+    assert "signature_state" in output
+    assert "download_performed: false" in output
+    assert "install_performed" in output
+    assert "\033[" not in output
+
+
+def test_cli_manifest_verify_pretty_supports_japanese(capsys):
+    cli = _load_cli_module()
+
+    assert cli.main(["manifest", "verify", "releases/manifest.example.json", "--pretty", "--lang", "ja", "--color", "never"]) == 0
+
+    output = capsys.readouterr().out
+    assert "YonerAI マニフェスト検証" in output
+    assert "契約" in output
+    assert "インストール準備" in output
+    assert "未完了" in output
+    assert "署名状態" in output
+    assert "ダウンロード" in output
+    assert "実行しません" in output
 
 
 def test_cli_manifest_verify_rejects_remote_manifest_without_fetch(monkeypatch, capsys):

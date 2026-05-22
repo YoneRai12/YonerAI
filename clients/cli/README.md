@@ -42,8 +42,14 @@ yonerai demo --pretty
 yonerai health
 yonerai smoke --pretty
 yonerai doctor
+yonerai doctor --pretty
+yonerai doctor --pretty --lang ja
 yonerai doctor --json
+yonerai status --pretty
+yonerai status --pretty --lang ja
 yonerai manifest verify releases/manifest.example.json
+yonerai manifest verify releases/manifest.example.json --pretty
+yonerai manifest verify releases/manifest.example.json --pretty --lang ja
 yonerai manifest verify releases/manifest.example.json --json
 yonerai message --mode mock "hello"
 yonerai run --mode mock "hello"
@@ -55,22 +61,32 @@ Without installing, run from `clients/cli`:
 python -m yonerai_cli health
 ```
 
-`yonerai demo` and `yonerai smoke` run in-process and do not require a local Core
-API process. The other commands run against a local Core API process. The default
-origin is `http://127.0.0.1:8001`.
+`yonerai demo`, `yonerai smoke`, `yonerai doctor`, `yonerai status`, and
+`yonerai manifest verify` run locally and do not require a local Core API
+process. `health`, `message`, and `run` run against a local Core API process.
+The default origin is `http://127.0.0.1:8001`.
 
 `yonerai doctor` is an offline, non-mutating diagnostic command. It checks the
 Python version, CLI import, demo command availability, credential-free demo
-boundary, and the local release manifest example. It does not run the demo,
-modify PATH, install packages, download remote code, or connect to live services.
-If `ORA_CORE_API_TOKEN` is present, doctor reports only `present_redacted`.
+boundary, local release manifest example, redaction utility self-check, and MCP
+deny-policy self-check. It does not run the demo, modify PATH, install packages,
+download remote code, or connect to live services. If `ORA_CORE_API_TOKEN` is
+present, doctor reports only `present_redacted`.
+
+`yonerai status` reuses the same offline diagnostics and prints a shorter public
+demo / installer-readiness summary. `--lang ja` is available for `doctor`,
+`status`, and `manifest verify` pretty output. JSON output remains English-keyed
+for stable tests and automation. Pretty commands also accept
+`--color auto|never|always`; JSON output never includes terminal color codes.
 
 `yonerai manifest verify <path>` validates a local release manifest file. Remote
 manifest URLs are rejected, no artifact is downloaded, and no installer is run.
 The example manifest is contract-valid but not install-ready because it still
 uses a non-production signature placeholder. Optional
 `--artifact ARTIFACT_ID=LOCAL_FILE` mappings verify local SHA256 and size only;
-output reports artifact ids, not local file paths.
+output reports artifact ids, not local file paths. Pretty output reports
+contract validity, install readiness, artifact count, SHA256/signature status,
+and that no network/download/install action was performed.
 
 ## Boundary
 

@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from yonerai_cli.output import CliRow, CliSection, ColorMode, render_report
+
 
 SCHEMA_VERSION = "yonerai-installer-bootstrap-manifest/v1"
 SEMVER_RE = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$")
@@ -194,31 +196,110 @@ def parse_artifact_args(values: list[str] | None) -> dict[str, str]:
     return result
 
 
-def format_manifest_verify_pretty(report: dict[str, Any]) -> str:
-    lines = [
-        "YonerAI manifest verification",
-        f"- contract_valid: {_bool_text(report['contract_valid'])}",
-        f"- install_ready: {_bool_text(report['install_ready'])}",
-        f"- product: {report.get('product')}",
-        f"- version: {report.get('version')}",
-        f"- channel: {report.get('channel')}",
-        f"- release_tag: {report.get('release_tag')}",
-        f"- signature_state: {report.get('signature_state')}",
-        f"- network_required: {_bool_text(report.get('network_required'))}",
-    ]
-    if report.get("non_production_reason"):
-        lines.append(f"- non_production_reason: {report['non_production_reason']}")
-    if report.get("artifact_checks"):
-        lines.append("Artifact checks:")
-        for check in report["artifact_checks"]:
-            line = f"- {check['artifact_id']}: {check['status']}"
-            if check.get("reason"):
-                line += f" ({check['reason']})"
-            lines.append(line)
+def format_manifest_verify_pretty(
+    report: dict[str, Any],
+    *,
+    lang: str = "en",
+    color: ColorMode = "auto",
+) -> str:
+    if lang == "ja":
+        sections = _manifest_sections_ja(report)
+        title = "YonerAI マニフェスト検証"
+    else:
+        sections = _manifest_sections_en(report)
+        title = "YonerAI manifest verification"
     if report.get("errors"):
-        lines.append("Errors:")
-        lines.extend(f"- {error}" for error in report["errors"])
-    return "\n".join(lines)
+        error_title = "エラー" if lang == "ja" else "Errors"
+        sections = (*sections, CliSection(error_title, tuple(CliRow("error", error, "fail") for error in report["errors"])))
+    return render_report(title, sections, color=color)
+
+
+def _manifest_sections_en(report: dict[str, Any]) -> tuple[CliSection, ...]:
+    artifact_checks = tuple(
+        CliRow(
+            str(check["artifact_id"]),
+            check["status"],
+            "ok" if check["status"] == "verified" else "fail",
+            note=check.get("reason"),
+        )
+        for check in report.get("artifact_checks", [])
+    )
+    return (
+        CliSection(
+            "Contract",
+            (
+                CliRow("contract_valid", report["contract_valid"], "ok" if report["contract_valid"] else "fail"),
+                CliRow("install_ready", report["install_ready"], "ok" if report["install_ready"] else "warn"),
+                CliRow("product", report.get("product"), "ok"),
+                CliRow("version", report.get("version"), "ok"),
+                CliRow("channel", report.get("channel"), "ok" if report.get("channel") in CHANNELS else "fail"),
+                CliRow("release_tag", report.get("release_tag"), "ok"),
+                CliRow("artifact_count", report.get("artifact_count"), "ok" if report.get("artifact_count") else "fail"),
+            ),
+        ),
+        CliSection(
+            "Security",
+            (
+                CliRow("sha256_present", bool(report.get("artifact_count")), "ok" if report.get("artifact_count") else "fail"),
+                CliRow("signature_state", report.get("signature_state"), "ok" if report.get("signature_state") == "signed" else "warn"),
+                CliRow("signature_verified", report.get("signature_verified"), "ok" if report.get("signature_verified") else "warn"),
+                CliRow("non_production_reason", report.get("non_production_reason") or "none", "warn" if report.get("non_production_reason") else "ok"),
+            ),
+        ),
+        CliSection(
+            "Execution boundary",
+            (
+                CliRow("network_required", report.get("network_required"), "fail" if report.get("network_required") else "ok"),
+                CliRow("download_performed", False, "ok"),
+                CliRow("install_performed", False, "ok"),
+            ),
+        ),
+        CliSection("Artifact checks", artifact_checks),
+    )
+
+
+def _manifest_sections_ja(report: dict[str, Any]) -> tuple[CliSection, ...]:
+    artifact_checks = tuple(
+        CliRow(
+            str(check["artifact_id"]),
+            "検証済み" if check["status"] == "verified" else "失敗",
+            "ok" if check["status"] == "verified" else "fail",
+            note=check.get("reason"),
+        )
+        for check in report.get("artifact_checks", [])
+    )
+    return (
+        CliSection(
+            "契約",
+            (
+                CliRow("契約", "有効" if report["contract_valid"] else "無効", "ok" if report["contract_valid"] else "fail"),
+                CliRow("インストール準備", "完了" if report["install_ready"] else "未完了", "ok" if report["install_ready"] else "warn"),
+                CliRow("プロダクト", report.get("product"), "ok"),
+                CliRow("バージョン", report.get("version"), "ok"),
+                CliRow("チャンネル", report.get("channel"), "ok" if report.get("channel") in CHANNELS else "fail"),
+                CliRow("リリースタグ", report.get("release_tag"), "ok"),
+                CliRow("成果物数", report.get("artifact_count"), "ok" if report.get("artifact_count") else "fail"),
+            ),
+        ),
+        CliSection(
+            "セキュリティ",
+            (
+                CliRow("SHA256", "あり" if report.get("artifact_count") else "なし", "ok" if report.get("artifact_count") else "fail"),
+                CliRow("署名状態", report.get("signature_state"), "ok" if report.get("signature_state") == "signed" else "warn"),
+                CliRow("署名検証", "済み" if report.get("signature_verified") else "未検証", "ok" if report.get("signature_verified") else "warn"),
+                CliRow("非本番理由", report.get("non_production_reason") or "なし", "warn" if report.get("non_production_reason") else "ok"),
+            ),
+        ),
+        CliSection(
+            "実行境界",
+            (
+                CliRow("ネットワーク", "不要" if not report.get("network_required") else "必要", "ok" if not report.get("network_required") else "fail"),
+                CliRow("ダウンロード", "実行しません", "ok"),
+                CliRow("インストール", "実行しません", "ok"),
+            ),
+        ),
+        CliSection("成果物チェック", artifact_checks),
+    )
 
 
 def _validate_artifact(artifact: object, index: int, production_ready: bool, errors: list[str]) -> None:
