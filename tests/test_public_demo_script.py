@@ -61,18 +61,38 @@ def test_public_demo_json_shape_and_boundaries(capsys) -> None:
     assert memory_fixture["memory_persisted"] is False
     provider_planner = next(section for section in output["sections"] if section["name"] == "provider_planner")
     registry = next(check for check in provider_planner["checks"] if check["name"] == "provider_registry")
+    external = next(check for check in provider_planner["checks"] if check["name"] == "external_provider_availability")
+    search = next(check for check in provider_planner["checks"] if check["name"] == "mock_web_search")
     dangerous = next(check for check in provider_planner["checks"] if check["name"] == "dangerous_shell_plan")
     download = next(check for check in provider_planner["checks"] if check["name"] == "download_guard_plan")
     assert registry["provider"] == "mock"
     assert registry["live_call_performed"] is False
+    assert external["live_call_performed"] is False
+    assert search["network_performed"] is False
     assert dangerous["approval_required"] is True
     assert download["network_performed"] is False
     execution_spine = next(section for section in output["sections"] if section["name"] == "execution_spine")
     mock_execution = next(check for check in execution_spine["checks"] if check["name"] == "mock_provider_execution")
     tool_boundaries = next(check for check in execution_spine["checks"] if check["name"] == "search_tool_boundaries")
+    memory = next(check for check in execution_spine["checks"] if check["name"] == "local_memory_opt_in")
     assert mock_execution["run_status"] == "completed"
     assert mock_execution["raw_prompt_persisted"] is False
     assert tool_boundaries["live_tool_execution"] is False
+    assert memory["cloud_synced"] is False
+    assert memory["raw_prompt_persisted"] is False
+    hybrid_trust = next(section for section in output["sections"] if section["name"] == "hybrid_trust")
+    discord = next(check for check in hybrid_trust["checks"] if check["name"] == "synthetic_discord_gateway")
+    assert discord["live_discord"] is False
+    assert discord["token_required"] is False
+    assert discord["final_once"] is True
+    managed = next(section for section in output["sections"] if section["name"] == "managed_download")
+    official_status = next(check for check in managed["checks"] if check["name"] == "official_status_contract")
+    installer = next(check for check in managed["checks"] if check["name"] == "windows_install_dry_run")
+    assert official_status["official_cloud_runtime_included"] is False
+    assert official_status["oracle_control_plane_production_ready"] is False
+    assert installer["dry_run"] is True
+    assert installer["install_performed"] is False
+    assert installer["path_mutation"] is False
 
 
 def test_public_demo_pretty_output_contains_key_sections(capsys) -> None:
@@ -110,6 +130,14 @@ def test_public_demo_pretty_output_contains_key_sections(capsys) -> None:
     assert "memory_candidate_fixture_quarantined" in output
     assert "donation_action=quarantine" in output
     assert "memory_status=quarantined" in output
+    assert "external_provider_availability" in output
+    assert "mock_web_search" in output
+    assert "local_memory_opt_in" in output
+    assert "synthetic_discord_gateway" in output
+    assert "live_discord=false" in output
+    assert "official_status_contract" in output
+    assert "windows_install_dry_run" in output
+    assert "dry_run=true" in output
 
 
 def test_public_demo_uses_managed_download_guard(monkeypatch) -> None:
