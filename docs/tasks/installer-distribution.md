@@ -126,16 +126,34 @@ production trust store creation.
 
 ## Issue #313 tracking state
 
-Issue #313 remains open as the installer bootstrap tracking issue. Completed
-items are manifest schema/example, local manifest verification, `yonerai
-doctor`, release artifact naming policy, and `yonerai install plan-windows`.
-Remaining items are the safe PowerShell installer skeleton, production signed
-manifest verification, unified install/update dry-run commands, manifest-to-
-release-asset consistency validation, rollback/uninstall docs, and future public
-install-page docs.
+Issue #313 remains open as the parent installer bootstrap tracking issue.
+The original manifest-first definition is partly complete, but installer
+implementation work remains and is now represented by linked child issues.
 
-See `docs/changelog/checkpoints/issue-313-installer-triage.md` for the
-2026-05-22 triage decision.
+Completed or substantially completed:
+
+- Manifest schema: PR #307, `releases/manifest.schema.json`.
+- Manifest example: PR #307, `releases/manifest.example.json`.
+- Local manifest verification: PR #309, `yonerai manifest verify`.
+- Doctor diagnostics: PR #309 and PR #311, `yonerai doctor`.
+- Installer distribution foundation doc: PR #307.
+- Windows dry-run planning foundation: PR #320, `yonerai install plan-windows`.
+- Release artifact naming validation foundation: PR #326.
+
+Remaining child issues:
+
+- #328 `feat: implement signed manifest verification`.
+- #329 `feat: add yonerai install/update dry-run commands`.
+- #330 `feat: add PowerShell dry-run installer skeleton`.
+- #331 `docs: define safe install and uninstall flow`.
+- #332 `feat: validate release artifact hashes and naming`.
+- #333 `docs: define installer signing and key rotation lifecycle`.
+- #334 `docs: prepare install.yonerai.com onboarding page`.
+
+The parent issue should stay open until the child issues are complete or the
+owner explicitly approves closing it as a pure index. See
+`docs/changelog/checkpoints/issue-313-installer-triage.md` and
+`docs/changelog/checkpoints/issue-313-installer-tracking.md`.
 
 ## Acceptance criteria
 
