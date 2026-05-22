@@ -3,7 +3,9 @@ from __future__ import annotations
 import os
 from typing import Iterable, Mapping
 
+from .anthropic import AnthropicProviderAdapter
 from .contracts import ProviderAdapter, ProviderCapabilities, ProviderStatus, UnavailableProviderAdapter
+from .gemini import GeminiProviderAdapter
 from .local import LocalLLMProviderAdapter
 from .mock import MockProviderAdapter
 from .openai_compatible import OpenAICompatibleProviderAdapter
@@ -54,15 +56,7 @@ def build_default_provider_registry(env: Mapping[str, str | None] | None = None)
             MockProviderAdapter(),
             OpenAICompatibleProviderAdapter(source),
             LocalLLMProviderAdapter(source),
-            UnavailableProviderAdapter(
-                "anthropic",
-                capabilities=ProviderCapabilities(chat=True, structured_output=True, external_provider=True, cloud=True),
-                reason="anthropic_provider_contract_only",
-            ),
-            UnavailableProviderAdapter(
-                "gemini",
-                capabilities=ProviderCapabilities(chat=True, structured_output=True, vision=True, external_provider=True, cloud=True),
-                reason="gemini_provider_contract_only",
-            ),
+            AnthropicProviderAdapter(source),
+            GeminiProviderAdapter(source),
         )
     )

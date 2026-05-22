@@ -1,5 +1,6 @@
 """Provider adapters for public-safe Core API paths."""
 
+from .anthropic import AnthropicProviderAdapter
 from .contracts import (
     ProviderAdapter,
     ProviderCapabilities,
@@ -8,12 +9,15 @@ from .contracts import (
     ProviderResponse,
     ProviderStatus,
 )
+from .gemini import GeminiProviderAdapter
 from .local import LocalLLMProviderAdapter
 from .mock import MockProviderAdapter
 from .openai_compatible import OpenAICompatibleProviderAdapter
 from .registry import ProviderRegistry, build_default_provider_registry
 
 __all__ = [
+    "AnthropicProviderAdapter",
+    "GeminiProviderAdapter",
     "MockProviderAdapter",
     "LocalLLMProviderAdapter",
     "OpenAICompatibleProviderAdapter",

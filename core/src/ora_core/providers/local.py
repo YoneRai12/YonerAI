@@ -96,11 +96,12 @@ class LocalLLMProviderAdapter:
                 safe_context={"configured": status.configured},
             ) from exc
         assert self._config is not None
+        model = None if request.model == "local-node-required" else request.model
         try:
             reply = local_llm.generate_local_llm_reply(
                 message=request.prompt,
                 conversation_id=request.metadata.get("run_id", "yonerai-cli"),
-                model=request.model,
+                model=model,
                 config=self._config,
                 client=self._client,
             )

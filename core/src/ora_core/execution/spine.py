@@ -97,10 +97,12 @@ def execute_task(
             error={"code": "provider_unavailable", "message": provider_status.reason or "provider unavailable"},
         )
 
-    allow_live_call = bool(live and adapter.provider_id in {"local", "openai-compatible"})
-    if adapter.provider_id == "openai-compatible" and not live:
-        ledger.append_event(run.run_id, "execution_blocked", "blocked", "openai_compatible_requires_live")
-        run = ledger.fail_run(run.run_id, error_summary="openai_compatible_requires_explicit_live", blocked=True)
+    live_capable_providers = {"local", "openai-compatible", "anthropic", "gemini"}
+    allow_live_call = bool(live and adapter.provider_id in live_capable_providers)
+    if adapter.provider_id in {"openai-compatible", "anthropic", "gemini"} and not live:
+        label = adapter.provider_id.replace("-", " ").title()
+        ledger.append_event(run.run_id, "execution_blocked", "blocked", f"{adapter.provider_id}_requires_live")
+        run = ledger.fail_run(run.run_id, error_summary=f"{adapter.provider_id}_requires_explicit_live", blocked=True)
         return ExecutionResult(
             ok=False,
             run=run.to_public_dict(),
@@ -108,7 +110,7 @@ def execute_task(
             response=None,
             boundary_checks=boundary_checks,
             live_call_performed=False,
-            error={"code": "live_required", "message": "OpenAI-compatible execution requires --live and env opt-in."},
+            error={"code": "live_required", "message": f"{label} execution requires --live and env opt-in."},
         )
 
     try:

@@ -106,6 +106,12 @@ def _model_for(provider_id: str, tier: ModelTier) -> str:
     for candidate in candidates:
         if provider_id == "openai-compatible" and candidate.provider == "openai":
             return candidate.model_id
-        if provider_id in {"anthropic", "gemini"} and candidate.provider in {provider_id, "google"}:
+        if provider_id == "anthropic" and candidate.provider == "anthropic":
             return candidate.model_id
+        if provider_id == "gemini" and candidate.provider in {"gemini", "google"}:
+            return candidate.model_id
+    if provider_id == "anthropic":
+        return "claude-opus-4-1"
+    if provider_id == "gemini":
+        return "gemini-3.1-flash"
     return candidates[0].model_id if candidates else "model-unavailable"
