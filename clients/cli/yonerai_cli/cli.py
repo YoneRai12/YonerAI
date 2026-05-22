@@ -38,6 +38,15 @@ PRIVATE_MARKERS = (
 )
 LANG_CHOICES = ("en", "ja")
 COLOR_CHOICES = ("auto", "never", "always")
+PLAN_PROVIDER_CHOICES = ("auto", "mock", "openai-compatible", "local", "anthropic", "gemini")
+PLAN_MODE_CHOICES = (
+    "managed-contract",
+    "hybrid",
+    "self-host",
+    "official_managed_cloud",
+    "official_hybrid_private",
+    "full_private_self_host",
+)
 
 
 class CliError(Exception):
@@ -577,6 +586,90 @@ def _preview_route(args: argparse.Namespace) -> dict[str, Any]:
     return decision.to_public_dict()
 
 
+def _build_execution_plan_report(args: argparse.Namespace, *, command: str, dry_run: bool) -> dict[str, Any]:
+    try:
+        _prepare_repo_import_path()
+        _prepare_core_import_path()
+        from ora_core.planning import build_execution_plan
+    except Exception as exc:
+        raise CliError("execution plan preview is unavailable.", exit_code=1) from exc
+
+    prompt = _prompt_from_args(args.task)
+    try:
+        plan = build_execution_plan(
+            prompt,
+            command=command,
+            mode=args.mode,
+            provider=args.provider,
+            dry_run=dry_run,
+        )
+    except ValueError as exc:
+        raise CliError(str(exc), exit_code=2) from exc
+    return plan.to_public_dict()
+
+
+def _print_execution_plan_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -> None:
+    print(_format_execution_plan_pretty(report, color=color))
+
+
+def _format_execution_plan_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -> str:
+    classification = report["classification"]
+    provider = report["provider"]
+    route = report["route"]
+    model = report["model"]
+    approval = report["approval"]
+    side_effects = report["side_effects"]
+    safety = report["safety_checks"]
+    disabled_reasons = report.get("disabled_reasons") or []
+    sections = (
+        CliSection(
+            "Task",
+            (
+                CliRow("command", report["command"], "ok"),
+                CliRow("category", classification["category"], "ok"),
+                CliRow("risk", classification["risk"], "warn" if classification["risk"] != "safe_public" else "ok"),
+                CliRow("complexity", classification["complexity"], "ok"),
+                CliRow("execution_surface", report["estimated_execution_surface"], "warn" if approval["required"] else "ok"),
+            ),
+        ),
+        CliSection(
+            "Route and provider",
+            (
+                CliRow("route", route["route"], "warn" if route.get("unavailable_reason") else "ok"),
+                CliRow("mode", route["mode"], "ok"),
+                CliRow("provider", provider["provider_id"], "ok" if provider["provider_available"] else "warn"),
+                CliRow("provider_available", provider["provider_available"], "ok" if provider["provider_available"] else "warn"),
+                CliRow("model_tier", model["tier"], "ok"),
+                CliRow("model", model["model_id"], "ok"),
+            ),
+        ),
+        CliSection(
+            "Approval and disabled reasons",
+            (
+                CliRow("approval_required", approval["required"], "warn" if approval["required"] else "ok"),
+                CliRow("disabled_reasons", ", ".join(disabled_reasons) if disabled_reasons else "none", "warn" if disabled_reasons else "ok"),
+            ),
+        ),
+        CliSection(
+            "Safety checks",
+            (
+                CliRow("mcp_deny_policy", safety["mcp_deny_policy"]["status"], "ok" if safety["mcp_deny_policy"]["ok"] else "fail"),
+                CliRow(
+                    "managed_download_guard",
+                    safety["managed_download_guard"]["status"],
+                    "ok" if safety["managed_download_guard"]["ok"] else "fail",
+                ),
+                CliRow("provider_call", side_effects["provider_call"], "fail" if side_effects["provider_call"] else "ok"),
+                CliRow("network_call", side_effects["network_call"], "fail" if side_effects["network_call"] else "ok"),
+                CliRow("shell", side_effects["shell"], "fail" if side_effects["shell"] else "ok"),
+                CliRow("file_access", side_effects["file_access"], "fail" if side_effects["file_access"] else "ok"),
+                CliRow("deploy", side_effects["deploy"], "fail" if side_effects["deploy"] else "ok"),
+            ),
+        ),
+    )
+    return render_report("YonerAI execution plan", sections, color=color)
+
+
 def _prompt_from_args(parts: list[str]) -> str:
     prompt = " ".join(parts).strip()
     if not prompt:
@@ -696,6 +789,25 @@ def build_parser() -> argparse.ArgumentParser:
         help="Optional public-safe Local Node enrollment/session state for route preview.",
     )
 
+    plan = subcommands.add_parser("plan", help="Preview classification, route, provider, and approval without executing.")
+    plan.add_argument("task", nargs="+")
+    plan_output = plan.add_mutually_exclusive_group()
+    plan_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
+    plan_output.add_argument("--pretty", action="store_true", help="Print a readable execution plan summary.")
+    plan.add_argument("--provider", choices=PLAN_PROVIDER_CHOICES, default="auto", help="Provider preference. Default: auto.")
+    plan.add_argument("--mode", choices=PLAN_MODE_CHOICES, default="managed-contract", help="Planning mode. Default: managed-contract.")
+    plan.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
+
+    ask = subcommands.add_parser("ask", help="Preview a YonerAI answer path. Live execution is not enabled.")
+    ask.add_argument("task", nargs="+")
+    ask.add_argument("--dry-run", action="store_true", help="Required. Preview only; no provider call is made.")
+    ask_output = ask.add_mutually_exclusive_group()
+    ask_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
+    ask_output.add_argument("--pretty", action="store_true", help="Print a readable dry-run plan summary.")
+    ask.add_argument("--provider", choices=PLAN_PROVIDER_CHOICES, default="auto", help="Provider preference. Default: auto.")
+    ask.add_argument("--mode", choices=PLAN_MODE_CHOICES, default="managed-contract", help="Planning mode. Default: managed-contract.")
+    ask.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
+
     message = subcommands.add_parser("message", parents=[shared], help="Send a local public message smoke request.")
     message.add_argument("--mode", choices=["mock", "offline", "local"], default="mock")
     message.add_argument("prompt", nargs="+")
@@ -749,6 +861,22 @@ def run(argv: list[str] | None = None) -> int:
         return 0 if report["ok"] else 1
     if args.command == "route" and args.route_command == "preview":
         _print_json(_preview_route(args))
+        return 0
+    if args.command == "plan":
+        report = _build_execution_plan_report(args, command="yonerai plan", dry_run=True)
+        if args.json:
+            _print_json(report)
+        else:
+            _print_execution_plan_pretty(report, color=args.color)
+        return 0
+    if args.command == "ask":
+        if not args.dry_run:
+            raise CliError("yonerai ask requires --dry-run; live provider execution is not implemented.", exit_code=2)
+        report = _build_execution_plan_report(args, command="yonerai ask --dry-run", dry_run=True)
+        if args.json:
+            _print_json(report)
+        else:
+            _print_execution_plan_pretty(report, color=args.color)
         return 0
     if args.command == "message":
         prompt = _prompt_from_args(args.prompt)

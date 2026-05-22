@@ -33,6 +33,7 @@ def test_public_demo_json_shape_and_boundaries(capsys) -> None:
         "public_core",
         "mode_boundary",
         "route_preview",
+        "provider_planner",
         "hybrid_trust",
         "managed_download",
         "self_evolution",
@@ -57,6 +58,14 @@ def test_public_demo_json_shape_and_boundaries(capsys) -> None:
     assert memory_fixture["approval_required"] is True
     assert memory_fixture["memory_status"] == "quarantined"
     assert memory_fixture["memory_persisted"] is False
+    provider_planner = next(section for section in output["sections"] if section["name"] == "provider_planner")
+    registry = next(check for check in provider_planner["checks"] if check["name"] == "provider_registry")
+    dangerous = next(check for check in provider_planner["checks"] if check["name"] == "dangerous_shell_plan")
+    download = next(check for check in provider_planner["checks"] if check["name"] == "download_guard_plan")
+    assert registry["provider"] == "mock"
+    assert registry["live_call_performed"] is False
+    assert dangerous["approval_required"] is True
+    assert download["network_performed"] is False
 
 
 def test_public_demo_pretty_output_contains_key_sections(capsys) -> None:
@@ -76,6 +85,7 @@ def test_public_demo_pretty_output_contains_key_sections(capsys) -> None:
     assert "public_core: ok" in output
     assert "mode_boundary: ok" in output
     assert "route_preview: ok" in output
+    assert "provider_planner: ok" in output
     assert "hybrid_trust: ok" in output
     assert "managed_download: ok" in output
     assert "self_evolution: ok" in output
@@ -83,6 +93,9 @@ def test_public_demo_pretty_output_contains_key_sections(capsys) -> None:
     assert "official_cloud_runtime_included: false" in output
     assert "deploy_required: false" in output
     assert "managed_download_guard" in output
+    assert "mock_provider_response" in output
+    assert "task_category=summarize_public" in output
+    assert "live_call_performed=false" in output
     assert "github_write_allowed=false" in output
     assert "memory_candidate_fixture_quarantined" in output
     assert "donation_action=quarantine" in output

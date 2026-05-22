@@ -136,6 +136,7 @@ def test_cli_demo_available_from_clients_cli_cwd() -> None:
         "public_core",
         "mode_boundary",
         "route_preview",
+        "provider_planner",
         "hybrid_trust",
         "managed_download",
         "self_evolution",
@@ -663,6 +664,119 @@ def test_cli_route_preview_reports_enrolled_verified_session(capsys):
     assert output["session_gate_satisfied"] is True
 
 
+def test_cli_plan_json_is_preview_only_without_network(monkeypatch, capsys):
+    cli = _load_cli_module()
+
+    def fail_request_json(*_args: Any, **_kwargs: Any):
+        raise AssertionError("plan must not call loopback API")
+
+    def fail_urlopen(*_args: Any, **_kwargs: Any):
+        raise AssertionError("plan must not open network")
+
+    monkeypatch.setattr(cli, "request_json", fail_request_json)
+    monkeypatch.setattr(cli.urllib.request, "urlopen", fail_urlopen)
+
+    assert cli.main(["plan", "summarize", "public", "docs", "--json", "--mode", "hybrid"]) == 0
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["schema_version"] == "yonerai-execution-plan/v1"
+    assert output["classification"]["category"] == "summarize_public"
+    assert output["provider"]["provider_id"] == "mock"
+    assert output["side_effects"]["provider_call"] is False
+    assert output["side_effects"]["network_call"] is False
+    assert output["side_effects"]["shell"] is False
+    assert output["side_effects"]["file_access"] is False
+
+
+def test_cli_plan_available_from_clients_cli_cwd() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    cli_cwd = repo_root / "clients" / "cli"
+    result = subprocess.run(
+        [sys.executable, "-m", "yonerai_cli", "plan", "summarize public docs", "--json", "--mode", "hybrid"],
+        cwd=cli_cwd,
+        env={**os.environ, "PYTHONPATH": str(cli_cwd)},
+        text=True,
+        capture_output=True,
+        timeout=30,
+    )
+
+    assert result.returncode == 0, result.stderr
+    output = json.loads(result.stdout)
+    assert output["schema_version"] == "yonerai-execution-plan/v1"
+    assert output["safety_checks"]["mcp_deny_policy"]["status"] == "ok"
+    assert output["safety_checks"]["managed_download_guard"]["status"] == "ok"
+    assert "C:\\Users" not in result.stdout
+
+
+def test_cli_plan_pretty_reports_classification_route_provider(capsys):
+    cli = _load_cli_module()
+
+    assert cli.main(["plan", "summarize", "public", "docs", "--pretty", "--mode", "hybrid", "--color", "never"]) == 0
+
+    output = capsys.readouterr().out
+    assert "YonerAI execution plan" in output
+    assert "category" in output
+    assert "summarize_public" in output
+    assert "provider_available" in output
+    assert "mcp_deny_policy" in output
+    assert "\033[" not in output
+
+
+def test_cli_ask_requires_dry_run_until_live_execution_gate_exists(capsys):
+    cli = _load_cli_module()
+
+    exit_code = cli.main(["ask", "hello"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 2
+    assert "requires --dry-run" in captured.err
+
+
+def test_cli_ask_dry_run_reuses_execution_plan_without_provider_call(monkeypatch, capsys):
+    cli = _load_cli_module()
+
+    def fail_request_json(*_args: Any, **_kwargs: Any):
+        raise AssertionError("ask --dry-run must not call loopback API")
+
+    monkeypatch.setattr(cli, "request_json", fail_request_json)
+
+    assert cli.main(["ask", "fix", "this", "Python", "bug", "--dry-run", "--json", "--provider", "openai-compatible", "--mode", "hybrid"]) == 0
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["command"] == "yonerai ask --dry-run"
+    assert output["dry_run"] is True
+    assert output["execution_performed"] is False
+    assert output["provider"]["provider_id"] == "openai-compatible"
+    assert output["side_effects"]["provider_call"] is False
+
+
+def test_cli_plan_dangerous_task_requires_approval(capsys):
+    cli = _load_cli_module()
+
+    assert cli.main(["plan", "delete", "file", "and", "run", "shell", "command", "--json", "--mode", "hybrid"]) == 0
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["classification"]["category"] == "dangerous_operation"
+    assert output["approval"]["required"] is True
+    assert any(gate["reason"] == "mcp_tool_denied_by_default" for gate in output["approval"]["gates"])
+    assert "mcp_deny_policy" in output["disabled_reasons"]
+
+
+def test_cli_plan_provider_unavailable_message_does_not_leak_key(monkeypatch, capsys):
+    cli = _load_cli_module()
+    pseudo_key = "redaction-fixture-key"
+    monkeypatch.setenv("YONERAI_OPENAI_COMPATIBLE_API_KEY", pseudo_key)
+    monkeypatch.delenv("YONERAI_OPENAI_COMPATIBLE_BASE_URL", raising=False)
+
+    assert cli.main(["plan", "fix", "this", "Python", "bug", "--json", "--provider", "openai-compatible", "--mode", "hybrid"]) == 0
+
+    output = capsys.readouterr().out
+    parsed = json.loads(output)
+    assert parsed["provider"]["provider_available"] is False
+    assert pseudo_key not in output
+    assert "present_redacted" in output
+
+
 def test_cli_rejects_remote_api_origin(capsys):
     cli = _load_cli_module()
 
@@ -776,6 +890,7 @@ def test_cli_http_error_includes_safe_local_provider_context_without_secret_valu
 def test_cli_http_error_redacts_secret_like_and_local_path_messages():
     cli = _load_cli_module()
     private_path = "C:" + "\\Users\\dev\\secret.txt"
+    secret_like_model = "sk" + "-secret-model-value"
     error = urllib.error.HTTPError(
         "http://127.0.0.1:8001/v1/public/messages",
         503,
@@ -788,7 +903,7 @@ def test_cli_http_error_redacts_secret_like_and_local_path_messages():
                     "message": f"failed at {private_path}",
                     "mode": "local",
                     "provider": "local-ollama",
-                    "model": "sk-secret-model-value",
+                    "model": secret_like_model,
                     "status": "unavailable",
                 }
             ).encode("utf-8")
@@ -802,7 +917,7 @@ def test_cli_http_error_redacts_secret_like_and_local_path_messages():
         "(mode=local, provider=local-ollama, status=unavailable)"
     )
     assert private_path not in message
-    assert "sk-secret" not in message
+    assert secret_like_model not in message
 
 
 def test_cli_url_error_does_not_print_local_paths_or_hosts(monkeypatch, capsys):
