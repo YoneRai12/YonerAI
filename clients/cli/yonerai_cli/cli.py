@@ -674,12 +674,36 @@ def _execute_ask_report(args: argparse.Namespace) -> dict[str, Any]:
     try:
         _prepare_repo_import_path()
         _prepare_core_import_path()
+        from ora_core.execution.workspace_files import WorkspaceFileError, build_workspace_file_prompt, read_workspace_text_file
         from ora_core.execution.ledger import build_run_ledger_from_env
         from ora_core.execution.spine import execute_task
     except Exception as exc:
         raise CliError("execution spine is unavailable.", exit_code=1) from exc
 
     prompt = _prompt_from_args(args.task)
+    file_context = None
+    if args.file:
+        if not args.workspace:
+            raise CliError("--workspace is required when --file is used.", exit_code=2)
+        try:
+            file_context = read_workspace_text_file(
+                args.file,
+                workspace=args.workspace,
+                max_bytes=args.file_max_bytes,
+            )
+        except WorkspaceFileError as exc:
+            return {
+                "schema_version": "yonerai-execution-result/v1",
+                "ok": False,
+                "run": None,
+                "plan": None,
+                "response": None,
+                "boundary_checks": {},
+                "live_call_performed": False,
+                "file_context": None,
+                "error": exc.to_public_dict(),
+            }
+        prompt = build_workspace_file_prompt(prompt, file_context)
     try:
         result = execute_task(
             prompt,
@@ -690,7 +714,10 @@ def _execute_ask_report(args: argparse.Namespace) -> dict[str, Any]:
         )
     except ValueError as exc:
         raise CliError(str(exc), exit_code=2) from exc
-    return result.to_public_dict()
+    report = result.to_public_dict()
+    if file_context is not None:
+        report["file_context"] = file_context.to_public_dict()
+    return report
 
 
 def _print_execution_result_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -> None:
@@ -698,6 +725,13 @@ def _print_execution_result_pretty(report: dict[str, Any], *, color: ColorMode =
 
 
 def _format_execution_result_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -> str:
+    if report.get("run") is None or report.get("plan") is None:
+        error = report.get("error") or {}
+        return render_report(
+            "YonerAI ask",
+            (CliSection("Error", (CliRow(str(error.get("code") or "error"), error.get("message") or "request failed", "fail"),)),),
+            color=color,
+        )
     run = report["run"]
     plan = report["plan"]
     response = report.get("response") or {}
@@ -945,6 +979,9 @@ def build_parser() -> argparse.ArgumentParser:
     ask.add_argument("--dry-run", action="store_true", help="Preview only; no provider call is made.")
     ask.add_argument("--live", action="store_true", help="Allow explicitly gated local or external live provider execution.")
     ask.add_argument("--ledger-path", help="Optional redacted JSONL run ledger path. Disabled by default.")
+    ask.add_argument("--file", help="Optional workspace-local UTF-8 text file to summarize or use as ask context.")
+    ask.add_argument("--workspace", help="Required workspace root when --file is used.")
+    ask.add_argument("--file-max-bytes", type=int, default=65536, help="Maximum file bytes to read. Default: 65536.")
     ask_output = ask.add_mutually_exclusive_group()
     ask_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
     ask_output.add_argument("--pretty", action="store_true", help="Print a readable execution summary.")
