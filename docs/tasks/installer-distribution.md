@@ -140,7 +140,8 @@ the production signature is not verified against the official trust source.
 6. Add public alpha signed-manifest verification against an explicit
    non-production/test trust fixture only.
 7. Add `yonerai update plan` and manifest-to-release-asset consistency checks
-   without live network use by default.
+   without live network use by default. Done for local-manifest update planning;
+   manifest-to-release-asset consistency checks remain a separate public task.
 8. Add PowerShell dry-run bootstrap skeleton only after local verification,
    rollback planning, logs, and safe mode are specified.
 9. Future private/official lane: connect release workflow to a signing service,
@@ -152,11 +153,13 @@ the production signature is not verified against the official trust source.
 ## Next safe milestone
 
 The dry-run Windows installer planner and release artifact naming validation now
-exist, and `yonerai install plan` consumes a local manifest without installing
-anything. The next safe milestone is `yonerai update plan` and
-manifest-to-release-asset consistency checks. These steps must avoid remote code
-execution, PATH mutation, auto-download, npm publishing, winget publishing,
-production signing key generation, and production trust store creation.
+exist, `yonerai install plan` consumes a local manifest without installing
+anything, and `yonerai update plan` compares local `VERSION` with a local
+manifest without mutating the machine. The next safe milestone is
+manifest-to-release-asset consistency checks and non-production/test signature
+verification. These steps must avoid remote code execution, PATH mutation,
+auto-download, npm publishing, winget publishing, production signing key
+generation, and production trust store creation.
 
 ## Issue #313 tracking state
 
@@ -175,12 +178,12 @@ Completed or substantially completed:
 - Installer distribution foundation doc: PR #307.
 - Windows dry-run planning foundation: PR #320, `yonerai install plan-windows`.
 - Local install dry-run planning: PR #336, `yonerai install plan`.
+- Local update dry-run planning: PR #341, `yonerai update plan`.
 - Release artifact naming validation foundation: PR #326.
 
 Remaining tasks are tracked directly in #313:
 
 - Signed manifest verification against an explicit non-production/test trust source first.
-- `yonerai update plan` for local-manifest update planning without mutation.
 - PowerShell dry-run installer skeleton that validates local inputs and prints planned actions only.
 - Safe install, rollback, update, and uninstall docs.
 - Manifest-to-release-asset hash and naming validation.
