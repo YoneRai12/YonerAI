@@ -1,6 +1,6 @@
 # YonerAI
 
-YonerAI は、公式・ローカル・self-hosted の実行環境が変わっても、同じ利用体験と同じ契約境界を保つための provider-independent AI execution foundation です。
+YonerAI は、公式・ローカル・self-hosted の実行環境が変わっても、同じ利用体験と同じ境界契約を保つための provider-independent AI execution foundation です。
 
 [English README](README.md) | [Current phase](docs/CURRENT_PHASE_CONTEXT.md) | [Contracts](docs/contracts) | [Codex / contributor workflow](docs/process/YONERAI_CODEX_WORKFLOW.md) | [Release governance](docs/process/YONERAI_RELEASE_GOVERNANCE.md)
 
@@ -8,13 +8,13 @@ YonerAI は、公式・ローカル・self-hosted の実行環境が変わって
 
 ## YonerAI とは
 
-YonerAI は単なる Discord bot でも、単なる model router でもありません。API、CLI、Web、Discord gateway、relay、native Japanese CLI、SNS distribution、self-evolution は別々の product lane であり、それぞれ risk profile と approval requirement を持ちます。
+YonerAI は単なる Discord bot でも、単なる model router でもありません。API、CLI、Web、Discord gateway、relay、native Japanese CLI、SNS distribution、self-evolution は、それぞれ別の product lane であり、risk profile と approval requirement も異なります。
 
-この public repo で確認できる中核は、公開可能な core contract、Self-host/local surface、Hybrid Local Node contract/dev simulator、proposal-only self-evolution です。
+この public repo で確認できる中核は、公開可能な core contract、self-host/local surface、Hybrid Local Node contract/dev simulator、proposal-only self-evolution です。
 
 ## Quickstart: public demo
 
-clone 後に現在の public-safe slice を見る最短手順は、credential-free の demo command です。Core API server の常駐起動、Discord token、Oracle access、provider API key、Google login、deployment、persistent memory は不要です。
+clone 後に現在の public-safe slice を見る最短手順は、credential-free の demo command です。Core API server の常時起動、Discord token、Oracle access、provider API key、Google login、deployment、persistent memory は不要です。
 
 ```powershell
 python -m venv .venv
@@ -24,7 +24,6 @@ python -m pip install -r core/requirements.txt httpx
 python -m pip install -e clients/cli
 yonerai demo --pretty
 yonerai demo --json
-yonerai doctor --pretty
 yonerai doctor --pretty --lang ja
 yonerai status --pretty --lang ja
 yonerai manifest verify releases/manifest.example.json --pretty --lang ja
@@ -32,31 +31,54 @@ yonerai manifest verify releases/manifest.example.json --pretty --lang ja
 
 `yonerai quickstart` は `yonerai demo` の alias です。
 
-`yonerai demo --json` は stable contract `yonerai-public-demo/v1` と `schema_version: "1.0"` を出力します。`yonerai demo --pretty` は同じ内容を release check 用に読みやすく表示します。
+`yonerai demo --json` は stable contract `yonerai-public-demo/v1` と `schema_version: "1.0"` を出力します。`yonerai demo --pretty` は同じ内容を release check 向けに読みやすく表示します。
 
-### CLI 診断
+## v0.1.0-alpha.2 で今試せること
 
-`yonerai doctor` と `yonerai status` はオフラインで動く、非破壊の診断コマンドです。公開デモの実行可否、Python/CLI の状態、マニフェスト例、redaction self-check、MCP deny-policy self-check を確認します。デモ実行、PATH 変更、インストール、リモートコードのダウンロード、live service 接続は行いません。
+v0.1.0-alpha.2 は local public alpha slice です。完成品の YonerAI ではありません。provider credential、Discord token、production service、live network call なしで、次を試せます。
 
-`--lang ja` は人間向け pretty 出力だけを日本語化します。`--json` のキーは CI / 自動テスト向けに英語のまま安定させます。
+- Mock provider execution: `yonerai ask "summarize public docs" --provider mock --json`
+- Run ID: mock `ask` は public-safe な `run_id` を返します。
+- Workspace file summary: `yonerai ask "summarize this file" --file <path> --workspace <dir> --provider mock --json`
+- Mock search: `yonerai search mock "YonerAI alpha2" --json`
+- SafeShell plan: `yonerai ops plan git-status --json`
+- Local memory: `yonerai memory add "local note" --store <local.jsonl> --confirm-local --json`
+- Synthetic Discord boundary: `yonerai discord synthetic "hello" --json`
+- Status fixture: `yonerai status --source fixture --json`
+- Installer dry-run planning: `yonerai install plan-windows --json`
+- Local manifest verify: `yonerai manifest verify releases/manifest.example.json --json`
 
-`yonerai manifest verify releases/manifest.example.json --pretty --lang ja` はローカルの release manifest を検証するだけです。artifact のダウンロード、installer 実行、PATH 変更、winget/npm publish は行いません。現時点の example manifest は contract-valid ですが、non-production signature placeholder を使うため install-ready ではありません。
+External provider adapter と local LLM execution はありますが、明示 opt-in が必要です。External provider は `--live` と provider-specific environment flag が必要です。Local LLM endpoint は loopback-only で、remote URL は拒否します。
 
-demo が表示するもの:
+alpha2 で claim してはいけないもの:
 
-- public Core health、offline mock message、run contract
-- mode boundary: Self-host local surface、Hybrid Local Node contract/dev simulator、Managed Cloud external contract-only
-- public / private-local / dangerous work の route preview
-- test-only Local Node signed manifest、enrollment/session、signed envelope、replay rejection、approval gate
-- managed download guard による managed file URL の accept と unsafe URL の reject
-- synthetic event から作る proposal-only self-evolution scorecard と approval draft
-- explicit limitations: production Oracle、live Discord、persistent memory、Google login、official cloud runtime、provider live generation、deploy は含まれない
+- production-ready YonerAI runtime
+- Official Managed Cloud runtime
+- production Oracle control-plane implementation
+- live Discord restoration
+- live web search by default
+- arbitrary shell execution
+- arbitrary local file access
+- installer-ready distribution
+- npm / winget distribution
+- production signing key / production trust store
+- Google login / production DB / telemetry ingestion
+- complete persistent memory
+- `src/cogs/ora.py` solved
+
+## CLI 診断
+
+`yonerai doctor` と `yonerai status` はオフラインで動く non-mutating diagnostic command です。公開デモの実行可否、Python/CLI の状態、manifest 例、redaction self-check、MCP deny-policy self-check を確認します。デモ実行、PATH 変更、インストール、リモートコードのダウンロード、live service 接続は行いません。
+
+`--lang ja` は human-readable な pretty output だけを日本語化します。`--json` のキーは CI / 自動テスト向けに英語のまま安定させます。
+
+`yonerai manifest verify releases/manifest.example.json --pretty --lang ja` はローカルの release manifest を検証するだけです。Artifact のダウンロード、installer 実行、PATH 変更、winget/npm publish は行いません。現在の example manifest は contract-valid ですが、non-production signature placeholder を使うため install-ready ではありません。
 
 ## 今動くもの
 
 現在の public MVP は、credential-free local Core API health smoke、offline/mock message contract、loopback-only local LLM conversation contract、public demo command です。完成済みの ChatGPT-like product ではありません。
 
-今確認できること:
+確認できること:
 
 - public repository を clone する
 - `yonerai demo --pretty` / `yonerai demo --json` を実行する
@@ -76,7 +98,7 @@ demo が表示するもの:
 - Google login
 - persistent natural memory / cross-device history
 - real official-cloud telemetry / analytics
-- external provider live generation
+- external provider live generation by default
 - deployment system
 - production readiness / full product completion
 
@@ -85,7 +107,7 @@ demo が表示するもの:
 YonerAI は同じ contract-first foundation を次の 3 つの利用形態で扱う設計です。
 
 - Full Private Self-Host: public repo は local/self-hosted public MVP surface を持ち、operator が runtime boundary に責任を持ちます。
-- Official Hybrid Private: public repo は Local Node contract、signed-contract test、non-production local-dev simulator を持ちます。official cloud coordination は external/private です。
+- Official Hybrid Private: public repo は Local Node contract、signed-contract test、non-production local-dev simulator を持ちます。Official cloud coordination は external/private です。
 - Official Managed Cloud: product mode として存在しますが、runtime と control plane は official/private infrastructure であり、この public repo には実装されず runnable として扱いません。
 
 これは repository map ではなく product mode の説明です。Public docs は private operational detail ではなく、contract と user experience を説明します。
@@ -112,7 +134,7 @@ YonerAI は同じ contract-first foundation を次の 3 つの利用形態で扱
 - live Discord token or connection
 - Google login / persistent memory / deploy
 
-Cross-boundary interaction は API、event、file、auth claim、capability manifest、protocol、schema など明示的な contract 経由だけで行います。
+Cross-boundary interaction は API、event、file、auth claim、capability manifest、protocol、schema など、明示的な contract 経由だけで行います。
 
 Raw chain-of-thought は public chat、API、SSE、log、documentation、trace surface に出しません。Public trace で扱うのは safe summary、label、detail、すでに public-safe な source だけです。
 

@@ -29,6 +29,33 @@ simulator, Managed Cloud as external contract-only, route preview, enrolled
 Local Node trust/session simulation, the managed download guard, and
 proposal-only self-evolution.
 
+## What You Can Try In v0.1.0-alpha.2
+
+v0.1.0-alpha.2 is a local public alpha slice. It is not a finished product, a
+production installer, or a live Discord/Official Managed Cloud release.
+
+Credential-free commands:
+
+- `yonerai ask "summarize public docs" --provider mock --json`
+- `yonerai ask "summarize this file" --file <path> --workspace <dir> --provider mock --json`
+- `yonerai search mock "YonerAI alpha2" --json`
+- `yonerai ops plan git-status --json`
+- `yonerai memory add "local note" --store <local.jsonl> --confirm-local --json`
+- `yonerai discord synthetic "hello" --json`
+- `yonerai status --source fixture --json`
+- `yonerai manifest verify releases/manifest.example.json --json`
+- `yonerai install plan-windows --json`
+
+Mock `ask` returns a public-safe `run_id`. Workspace file summary reads only an
+explicit file under an explicit workspace. Local memory writes only when a store
+path and `--confirm-local` are provided.
+
+Not included: production readiness, live Discord restoration, live web search by
+default, arbitrary shell execution, arbitrary file access, installer-ready
+distribution, npm/winget packages, production signing/trust material, Google
+login, production DB behavior, complete persistent memory, or a claim that
+`src/cogs/ora.py` is solved.
+
 ## Install For Local Testing
 
 ```bash
