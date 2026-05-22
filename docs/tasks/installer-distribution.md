@@ -1,7 +1,8 @@
 # YonerAI installer distribution foundation
 
 Status: foundation plan with local manifest verification, doctor/status
-diagnostics, and human-readable Japanese-capable CLI output.
+diagnostics, dry-run Windows install planning, and human-readable
+Japanese-capable CLI output.
 No network-executing installer is included here.
 
 ## Purpose
@@ -114,10 +115,24 @@ verified.
 
 ## Next safe milestone
 
-The next safe milestone is a local dry-run installer planner that consumes a
-verified local manifest and prints planned actions. It must still avoid remote
-code execution, PATH mutation, auto-download, npm publishing, winget publishing,
-production signing key generation, and production trust store creation.
+The dry-run Windows installer planner now exists. The next safe milestone is
+release artifact naming validation and manifest-to-asset consistency checks,
+followed by install/update dry-run commands that still consume local manifests
+only. These steps must avoid remote code execution, PATH mutation,
+auto-download, npm publishing, winget publishing, production signing key
+generation, and production trust store creation.
+
+## Issue #313 tracking state
+
+Issue #313 remains open as the installer bootstrap tracking issue. Completed
+items are manifest schema/example, local manifest verification, `yonerai
+doctor`, release artifact naming policy, and `yonerai install plan-windows`.
+Remaining items are the safe PowerShell installer skeleton, production signed
+manifest verification, unified install/update dry-run commands, release asset
+validation, rollback/uninstall docs, and future public install-page docs.
+
+See `docs/changelog/checkpoints/issue-313-installer-triage.md` for the
+2026-05-22 triage decision.
 
 ## Acceptance criteria
 
