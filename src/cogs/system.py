@@ -9,6 +9,8 @@ import discord
 from discord import app_commands
 from discord.ext import commands, tasks
 
+from src.utils.redaction import redact_text
+
 # Audio control
 try:
     from comtypes import CLSCTX_ALL
@@ -31,6 +33,7 @@ ALLOWED_APPS = {
 }
 
 MAX_VOLUME = 40
+LOG_FORWARD_MAX_CHARS = 900
 
 
 class SystemCog(commands.Cog):
@@ -41,6 +44,7 @@ class SystemCog(commands.Cog):
         # Batch Notification State
         self.log_buffer = []  # List of buffered records
         self.last_log_flush_time = 0
+        self._log_forward_public_channel_warned = False
         
         if AUDIO_AVAILABLE:
             try:
@@ -73,6 +77,42 @@ class SystemCog(commands.Cog):
     def cog_unload(self):
         self.sync_discord_state.cancel()
         self.log_forwarder.cancel()
+
+    @staticmethod
+    def _sanitize_forwarded_log_text(value: object) -> str:
+        text = redact_text(str(value or ""))
+        text = " ".join(text.split())
+        if not text:
+            return "[redacted-empty-log]"
+        if len(text) > LOG_FORWARD_MAX_CHARS:
+            return text[: LOG_FORWARD_MAX_CHARS - 3] + "..."
+        return text
+
+    @staticmethod
+    def _is_private_log_channel(channel: object) -> bool:
+        guild = getattr(channel, "guild", None)
+        default_role = getattr(guild, "default_role", None)
+        if guild is None or default_role is None:
+            return True
+        permissions_for = getattr(channel, "permissions_for", None)
+        if not callable(permissions_for):
+            return False
+        permissions = permissions_for(default_role)
+        can_read = bool(getattr(permissions, "read_messages", False) or getattr(permissions, "view_channel", False))
+        return not can_read
+
+    @staticmethod
+    def _drain_log_queue(queue: object) -> int:
+        drained = 0
+        get_nowait = getattr(queue, "get_nowait", None)
+        if not callable(get_nowait):
+            return drained
+        while True:
+            try:
+                get_nowait()
+                drained += 1
+            except Exception:
+                return drained
 
     @tasks.loop(seconds=5)
     async def sync_discord_state(self):
@@ -162,6 +202,15 @@ class SystemCog(commands.Cog):
         channel = self.bot.get_channel(channel_id)
         if not channel:
             return
+        if not self._is_private_log_channel(channel):
+            if not self._log_forward_public_channel_warned:
+                logger.warning(
+                    "Discord log forwarding disabled because the configured channel is readable by @everyone."
+                )
+                self._log_forward_public_channel_warned = True
+            self._drain_log_queue(queue)
+            self.log_buffer.clear()
+            return
 
         # 1. Consume Queue
         while not queue.empty():
@@ -171,7 +220,8 @@ class SystemCog(commands.Cog):
                 # URGENT: Errors sent immediately
                 if record.levelno >= logging.ERROR:
                     timestamp = discord.utils.utcnow().strftime("%H:%M:%S")
-                    msg = record.message.replace("Vision API Error", "❌ Vision APIエラー").replace("Failed to load", "🛑 読込失敗")
+                    msg = self._sanitize_forwarded_log_text(record.getMessage())
+                    msg = msg.replace("Vision API Error", "❌ Vision APIエラー").replace("Failed to load", "🛑 読込失敗")
                     embed = discord.Embed(
                         title="🚨 緊急システム通知", 
                         description=f"`{timestamp}` 🛑 **[{record.name}]** {msg}", 
@@ -183,7 +233,7 @@ class SystemCog(commands.Cog):
 
                 # NORMAL: Buffer Info/Warning
                 try:
-                    msg = record.message
+                    msg = self._sanitize_forwarded_log_text(record.getMessage())
                     if "We are being rate limited" in msg or "429" in msg:
                         continue
                     
