@@ -930,6 +930,20 @@ def _build_install_report(args: argparse.Namespace) -> dict[str, Any]:
         raise CliError(str(exc), exit_code=2) from exc
 
 
+def _build_update_report(args: argparse.Namespace) -> dict[str, Any]:
+    try:
+        from yonerai_cli.install_planner import build_update_plan, build_update_plan_from_default
+    except Exception as exc:
+        raise CliError("Update planner is unavailable.", exit_code=1) from exc
+    current_version = _read_repo_version() or __version__
+    try:
+        if args.manifest:
+            return build_update_plan(args.manifest, current_version=current_version)
+        return build_update_plan_from_default(_repo_root(), current_version=current_version)
+    except ManifestError as exc:
+        raise CliError(str(exc), exit_code=2) from exc
+
+
 def _print_install_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -> None:
     manifest = report["manifest"]
     non_actions = report["non_actions"]
@@ -979,6 +993,82 @@ def _print_install_pretty(report: dict[str, Any], *, color: ColorMode = "auto") 
     if errors:
         sections = (*sections, CliSection("Errors", errors))
     print(render_report("YonerAI install plan", sections, color=color))
+
+
+def _update_version_comparison_level(report: dict[str, Any]) -> str:
+    comparison = report["version_comparison"]
+    if comparison == "target_older":
+        return "warn"
+    if comparison == "unknown":
+        return "fail"
+    return "ok" if report["ok"] else "warn"
+
+
+def _print_update_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -> None:
+    manifest = report["manifest"]
+    signature = report["signature_status"]
+    non_actions = report["non_actions"]
+    selected = report["selected_artifact"] or {}
+    errors = tuple(CliRow("error", error, "fail") for error in manifest["errors"])
+    warnings = tuple(CliRow("warning", warning, "warn") for warning in report["warnings"])
+    sections = (
+        CliSection(
+            "Dry-run update plan",
+            (
+                CliRow("dry_run", report["dry_run"], "ok" if report["dry_run"] else "fail"),
+                CliRow("current_version", report["current_version"], "ok"),
+                CliRow("target_version", report["target_version"], "ok" if report["target_version"] else "fail"),
+                CliRow("update_available", report["update_available"], "warn" if report["update_available"] else "ok"),
+                CliRow("version_comparison", report["version_comparison"], _update_version_comparison_level(report)),
+                CliRow("rollback_plan_available", report["rollback_plan_available"], "ok" if report["rollback_plan_available"] else "warn"),
+            ),
+        ),
+        CliSection(
+            "Manifest",
+            (
+                CliRow("contract_valid", manifest["contract_valid"], "ok" if manifest["contract_valid"] else "fail"),
+                CliRow("install_ready", manifest["install_ready"], "ok" if manifest["install_ready"] else "warn"),
+                CliRow("artifact_count", manifest["artifact_count"], "ok" if manifest["artifact_count"] else "fail"),
+                CliRow("selected_artifact", selected.get("artifact_id", "none"), "ok" if selected else "fail"),
+                CliRow("sha256_present", report["sha256_present"], "ok" if report["sha256_present"] else "fail"),
+            ),
+        ),
+        CliSection(
+            "Signature",
+            (
+                CliRow("signature_state", signature["state"], "ok" if signature["state"] == "signed" else "warn"),
+                CliRow("signature_verified", signature["verified"], "ok" if signature["verified"] else "warn"),
+                CliRow(
+                    "placeholder_non_production",
+                    signature["placeholder_non_production"],
+                    "warn" if signature["placeholder_non_production"] else "ok",
+                ),
+                CliRow(
+                    "verification_required_before_real_update",
+                    signature["verification_required_before_real_update"],
+                    "warn" if signature["verification_required_before_real_update"] else "ok",
+                ),
+            ),
+        ),
+        CliSection(
+            "Non-actions",
+            tuple(CliRow(name, value, "ok" if value else "fail") for name, value in non_actions.items()),
+        ),
+        CliSection(
+            "Execution boundary",
+            (
+                CliRow("download_performed", report["download_performed"], "fail" if report["download_performed"] else "ok"),
+                CliRow("install_performed", report["install_performed"], "fail" if report["install_performed"] else "ok"),
+                CliRow("path_mutation", report["path_mutation"], "fail" if report["path_mutation"] else "ok"),
+                CliRow("remote_code_executed", report["remote_code_executed"], "fail" if report["remote_code_executed"] else "ok"),
+            ),
+        ),
+    )
+    if warnings:
+        sections = (*sections, CliSection("Warnings", warnings))
+    if errors:
+        sections = (*sections, CliSection("Errors", errors))
+    print(render_report("YonerAI update plan", sections, color=color))
 
 
 def _build_ops_plan_report(args: argparse.Namespace) -> dict[str, Any]:
@@ -1279,6 +1369,15 @@ def build_parser() -> argparse.ArgumentParser:
     install_plan_windows_output.add_argument("--pretty", action="store_true", help="Print a readable installer plan.")
     install_plan_windows.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
 
+    update = subcommands.add_parser("update", help="Plan update actions without downloading or installing.")
+    update_subcommands = update.add_subparsers(dest="update_command", required=True)
+    update_plan = update_subcommands.add_parser("plan", help="Build a local manifest update dry-run plan.")
+    update_plan.add_argument("--manifest", help="Local release manifest JSON path. Defaults to releases/manifest.example.json.")
+    update_plan_output = update_plan.add_mutually_exclusive_group()
+    update_plan_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
+    update_plan_output.add_argument("--pretty", action="store_true", help="Print a readable update plan.")
+    update_plan.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
+
     ops = subcommands.add_parser("ops", help="Plan safe diagnostic operations without arbitrary shell execution.")
     ops_subcommands = ops.add_subparsers(dest="ops_command", required=True)
     ops_plan = ops_subcommands.add_parser("plan", help="Preview a SafeShell diagnostic operation.")
@@ -1439,6 +1538,13 @@ def run(argv: list[str] | None = None) -> int:
             _print_json(report)
         else:
             _print_install_pretty(report, color=args.color)
+        return 0 if report["ok"] else 1
+    if args.command == "update" and args.update_command == "plan":
+        report = _build_update_report(args)
+        if args.json:
+            _print_json(report)
+        else:
+            _print_update_pretty(report, color=args.color)
         return 0 if report["ok"] else 1
     if args.command == "ops" and args.ops_command == "plan":
         report = _build_ops_plan_report(args)
