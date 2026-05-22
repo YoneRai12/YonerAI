@@ -388,7 +388,7 @@ def test_cli_manifest_verify_rejects_require_signed_placeholder(capsys):
     output = json.loads(capsys.readouterr().out)
     assert exit_code == 1
     assert output["contract_valid"] is False
-    assert "manifest is not fully signed." in output["errors"]
+    assert "cryptographic signature verification is unavailable" in output["errors"][0]
 
 
 def test_cli_manifest_verify_hashes_supplied_artifact_without_printing_path(tmp_path, capsys):

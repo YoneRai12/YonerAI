@@ -81,13 +81,14 @@ def verify_manifest(
     errors.extend(check.reason for check in artifact_checks if check.status == "failed" and check.reason)
 
     signature_state = _signature_state(artifact_list)
-    if require_signed and signature_state != "signed":
-        errors.append("manifest is not fully signed.")
+    signature_verified = False
+    if require_signed:
+        errors.append("require_signed is not supported: cryptographic signature verification is unavailable.")
 
     contract_valid = not errors
     install_ready = (
         contract_valid
-        and signature_state == "signed"
+        and signature_verified
         and artifact_checks != []
         and all(check.status == "verified" for check in artifact_checks)
     )
@@ -103,7 +104,7 @@ def verify_manifest(
         "manifest_status": _release_value(manifest, "manifest_status"),
         "production_ready": manifest.get("production_ready"),
         "signature_state": signature_state,
-        "signature_verified": signature_state == "signed",
+        "signature_verified": signature_verified,
         "network_required": _minimum_value(manifest, "network_required"),
         "artifact_count": len(artifact_list),
         "artifact_checks": [
@@ -332,6 +333,10 @@ def _validate_artifact(artifact: object, index: int, production_ready: bool, err
     _expect(algorithm in SIGNATURE_ALGORITHMS, f"artifact {index} signature algorithm is invalid.", errors)
     _expect(isinstance(signature.get("key_id"), str), f"artifact {index} signature key_id is invalid.", errors)
     _expect(isinstance(signature.get("signature"), str), f"artifact {index} signature value is invalid.", errors)
+    if status == "signed":
+        _expect(algorithm == "ed25519", f"artifact {index} signed signature must use algorithm ed25519.", errors)
+        _expect(bool(str(signature.get("key_id")).strip()), f"artifact {index} signed signature key_id must not be empty.", errors)
+        _expect(bool(str(signature.get("signature")).strip()), f"artifact {index} signed signature value must not be empty.", errors)
     if status == "placeholder_non_production":
         _expect(not production_ready, f"artifact {index} placeholder signature requires non-production manifest.", errors)
         _expect(algorithm == "none", f"artifact {index} placeholder signature must use algorithm none.", errors)

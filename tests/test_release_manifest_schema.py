@@ -153,6 +153,30 @@ def test_placeholder_signature_requires_non_production_manifest() -> None:
     raise AssertionError("production manifest accepted placeholder signature")
 
 
+def test_signed_signature_requires_ed25519_and_non_empty_fields() -> None:
+    manifest = _load_manifest()
+    artifact = deepcopy(manifest["artifacts"][0])
+    assert isinstance(artifact, dict)
+    signature = artifact["signature"]
+    assert isinstance(signature, dict)
+    signature["status"] = "signed"
+    signature["algorithm"] = "none"
+    signature["key_id"] = ""
+    signature["signature"] = ""
+    manifest["artifacts"] = [artifact]
+
+    import sys
+
+    cli_src = ROOT / "clients" / "cli"
+    if str(cli_src) not in sys.path:
+        sys.path.insert(0, str(cli_src))
+    from yonerai_cli.release_manifest import verify_manifest
+
+    report = verify_manifest(manifest)
+    assert report["contract_valid"] is False
+    assert any("signed signature must use algorithm ed25519" in error for error in report["errors"])
+
+
 def test_installer_foundation_adds_no_network_executing_script() -> None:
     docs = (ROOT / "docs" / "tasks" / "installer-distribution.md").read_text(encoding="utf-8")
     lower_docs = docs.lower()
