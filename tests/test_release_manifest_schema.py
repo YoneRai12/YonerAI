@@ -102,6 +102,89 @@ def test_cli_manifest_validator_accepts_example_contract() -> None:
     assert report["signature_state"] == "placeholder_non_production"
 
 
+def test_release_artifact_filename_policy_accepts_example_archive() -> None:
+    import sys
+
+    cli_src = ROOT / "clients" / "cli"
+    if str(cli_src) not in sys.path:
+        sys.path.insert(0, str(cli_src))
+    from yonerai_cli.release_manifest import expected_artifact_filename, verify_manifest
+
+    manifest = _load_manifest()
+    artifact = manifest["artifacts"][0]
+    assert isinstance(artifact, dict)
+
+    assert expected_artifact_filename(artifact, str(manifest["version"])) == "YonerAI-0.1.0-alpha.1.zip"
+    assert verify_manifest(manifest)["contract_valid"] is True
+
+
+def test_release_artifact_filename_policy_rejects_mutable_source_name() -> None:
+    import sys
+
+    cli_src = ROOT / "clients" / "cli"
+    if str(cli_src) not in sys.path:
+        sys.path.insert(0, str(cli_src))
+    from yonerai_cli.release_manifest import verify_manifest
+
+    manifest = _load_manifest()
+    artifact = deepcopy(manifest["artifacts"][0])
+    assert isinstance(artifact, dict)
+    artifact["url"] = "https://github.com/YoneRai12/YonerAI/releases/download/v0.1.0-alpha.1/YonerAI-latest.zip"
+    manifest["artifacts"] = [artifact]
+
+    report = verify_manifest(manifest)
+
+    assert report["contract_valid"] is False
+    assert "artifact 0 filename must be YonerAI-0.1.0-alpha.1.zip." in report["errors"]
+
+
+def test_release_artifact_filename_policy_accepts_manifest_asset_name() -> None:
+    import sys
+
+    cli_src = ROOT / "clients" / "cli"
+    if str(cli_src) not in sys.path:
+        sys.path.insert(0, str(cli_src))
+    from yonerai_cli.release_manifest import verify_manifest
+
+    manifest = _load_manifest()
+    artifact = deepcopy(manifest["artifacts"][0])
+    assert isinstance(artifact, dict)
+    artifact.update(
+        {
+            "id": "yonerai-0.1.0-alpha.1-manifest",
+            "kind": "manifest",
+            "target": "universal-any",
+            "os": "any",
+            "arch": "universal",
+            "url": "https://github.com/YoneRai12/YonerAI/releases/download/v0.1.0-alpha.1/YonerAI-0.1.0-alpha.1-manifest.json",
+        }
+    )
+    manifest["artifacts"] = [artifact]
+
+    report = verify_manifest(manifest)
+
+    assert report["contract_valid"] is True
+    assert report["install_ready"] is False
+    assert report["signature_state"] == "placeholder_non_production"
+
+
+def test_empty_artifact_list_is_rejected_by_cli_validator() -> None:
+    import sys
+
+    cli_src = ROOT / "clients" / "cli"
+    if str(cli_src) not in sys.path:
+        sys.path.insert(0, str(cli_src))
+    from yonerai_cli.release_manifest import verify_manifest
+
+    manifest = _load_manifest()
+    manifest["artifacts"] = []
+
+    report = verify_manifest(manifest)
+
+    assert report["contract_valid"] is False
+    assert "artifacts must be a non-empty array." in report["errors"]
+
+
 def test_missing_sha256_is_rejected() -> None:
     manifest = _load_manifest()
     artifact = deepcopy(manifest["artifacts"][0])

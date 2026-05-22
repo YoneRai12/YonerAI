@@ -56,7 +56,9 @@ The existing `core/src/ora_core/distribution/release.py` sidecar models remain t
 
 ## Artifact naming policy
 
-Release artifacts should use stable, versioned names:
+Release artifacts should use stable, versioned names. The local manifest
+validator enforces the known alpha naming policy for source archives, future
+Windows x64 archives, and future manifest assets.
 
 - `YonerAI-<version>.zip` for the current public release archive.
 - `YonerAI-<version>-windows-x64.zip` for a future Windows artifact.
@@ -115,12 +117,12 @@ verified.
 
 ## Next safe milestone
 
-The dry-run Windows installer planner now exists. The next safe milestone is
-release artifact naming validation and manifest-to-asset consistency checks,
+The dry-run Windows installer planner and release artifact naming validation now
+exist. The next safe milestone is manifest-to-release-asset consistency checks,
 followed by install/update dry-run commands that still consume local manifests
-only. These steps must avoid remote code execution, PATH mutation,
-auto-download, npm publishing, winget publishing, production signing key
-generation, and production trust store creation.
+only. These steps must avoid remote code execution, PATH mutation, auto-download,
+npm publishing, winget publishing, production signing key generation, and
+production trust store creation.
 
 ## Issue #313 tracking state
 
@@ -128,8 +130,9 @@ Issue #313 remains open as the installer bootstrap tracking issue. Completed
 items are manifest schema/example, local manifest verification, `yonerai
 doctor`, release artifact naming policy, and `yonerai install plan-windows`.
 Remaining items are the safe PowerShell installer skeleton, production signed
-manifest verification, unified install/update dry-run commands, release asset
-validation, rollback/uninstall docs, and future public install-page docs.
+manifest verification, unified install/update dry-run commands, manifest-to-
+release-asset consistency validation, rollback/uninstall docs, and future public
+install-page docs.
 
 See `docs/changelog/checkpoints/issue-313-installer-triage.md` for the
 2026-05-22 triage decision.

@@ -6,6 +6,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from yonerai_cli.output import CliRow, CliSection, ColorMode, render_report
 
@@ -20,6 +21,11 @@ ID_RE = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
 CHANNELS = {"alpha", "beta", "rc", "stable"}
 MANIFEST_STATUSES = {"example_placeholder", "unsigned_example", "signed"}
 ARTIFACT_KINDS = {"source_archive", "windows_zip", "cli_package", "manifest"}
+ARTIFACT_FILENAME_PATTERNS = {
+    ("source_archive", "source-any"): "YonerAI-{version}.zip",
+    ("windows_zip", "windows-x64"): "YonerAI-{version}-windows-x64.zip",
+    ("manifest", "universal-any"): "YonerAI-{version}-manifest.json",
+}
 ARTIFACT_TARGETS = {
     "source-any",
     "windows-x64",
@@ -174,7 +180,7 @@ def validate_manifest_contract(manifest: dict[str, Any]) -> list[str]:
         errors.append("artifacts must be a non-empty array.")
     else:
         for index, artifact in enumerate(artifacts):
-            _validate_artifact(artifact, index, bool(manifest.get("production_ready")), errors)
+            _validate_artifact(artifact, index, bool(manifest.get("production_ready")), manifest.get("version"), errors)
     return errors
 
 
@@ -302,7 +308,7 @@ def _manifest_sections_ja(report: dict[str, Any]) -> tuple[CliSection, ...]:
     )
 
 
-def _validate_artifact(artifact: object, index: int, production_ready: bool, errors: list[str]) -> None:
+def _validate_artifact(artifact: object, index: int, production_ready: bool, version: object, errors: list[str]) -> None:
     if not isinstance(artifact, dict):
         errors.append(f"artifact {index} must be an object.")
         return
@@ -314,6 +320,7 @@ def _validate_artifact(artifact: object, index: int, production_ready: bool, err
     _expect(artifact.get("os") in ARTIFACT_OSES, f"artifact {index} os is invalid.", errors)
     _expect(artifact.get("arch") in ARTIFACT_ARCHES, f"artifact {index} arch is invalid.", errors)
     _expect(isinstance(artifact.get("url"), str) and URL_RE.match(artifact["url"]), f"artifact {index} url is invalid.", errors)
+    _validate_artifact_filename(artifact, index, version, errors)
     _expect(
         isinstance(artifact.get("sha256"), str) and SHA256_RE.match(artifact["sha256"]),
         f"artifact {index} sha256 is invalid.",
@@ -335,6 +342,24 @@ def _validate_artifact(artifact: object, index: int, production_ready: bool, err
     if status == "placeholder_non_production":
         _expect(not production_ready, f"artifact {index} placeholder signature requires non-production manifest.", errors)
         _expect(algorithm == "none", f"artifact {index} placeholder signature must use algorithm none.", errors)
+
+
+def expected_artifact_filename(artifact: dict[str, Any], version: str) -> str | None:
+    pattern = ARTIFACT_FILENAME_PATTERNS.get((str(artifact.get("kind")), str(artifact.get("target"))))
+    return pattern.format(version=version) if pattern else None
+
+
+def _validate_artifact_filename(artifact: dict[str, Any], index: int, version: object, errors: list[str]) -> None:
+    if not isinstance(version, str):
+        return
+    expected = expected_artifact_filename(artifact, version)
+    if expected is None:
+        return
+    url = artifact.get("url")
+    if not isinstance(url, str):
+        return
+    actual = Path(urlparse(url).path).name
+    _expect(actual == expected, f"artifact {index} filename must be {expected}.", errors)
 
 
 def _verify_artifacts(artifacts: list[object], artifact_paths: dict[str, str]) -> list[ArtifactCheck]:
