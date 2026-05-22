@@ -32,7 +32,7 @@ yonerai plan "summarize public docs" --json
 yonerai ask "summarize public docs" --provider mock --json
 yonerai search mock "YonerAI alpha2" --json
 yonerai ops plan git-status --json
-yonerai install plan-windows --json
+yonerai install plan --manifest releases/manifest.example.json --json
 ```
 
 ## What you can try in v0.1.0-alpha.2
@@ -49,7 +49,7 @@ production services, or live network calls:
 - Local memory: `yonerai memory add "local note" --store <local.jsonl> --confirm-local --json`
 - Synthetic Discord boundary: `yonerai discord synthetic "hello" --json`
 - Status fixture: `yonerai status --source fixture --json`
-- Installer dry-run planning: `yonerai install plan-windows --json`
+- Installer dry-run planning: `yonerai install plan --manifest releases/manifest.example.json --json`
 
 External provider adapters and local LLM execution exist behind explicit opt-in
 gates. External providers require `--live` and provider-specific environment
@@ -132,7 +132,8 @@ What works today:
 - run `yonerai memory add/list/delete/export --store <local.jsonl>` for explicit opt-in local-only memory records
 - run `yonerai discord synthetic "message"` for synthetic Discord gateway boundary checks
 - run `yonerai status --source fixture` for official/status contract fixtures with no production service call
-- run `yonerai install plan-windows` for Windows installer dry-run planning
+- run `yonerai install plan --manifest releases/manifest.example.json` for safe local installer dry-run planning
+- run `yonerai install plan-windows` as the Windows-specific dry-run planning alias
 - call `POST /v1/public/messages` with `mode: "local"` to reach a loopback-only local LLM runtime
 - choose `local_provider: "ollama"` or `local_provider: "openai_compatible_local"` for supported local server styles
 - open `clients/web` locally as a temporary Web Chat MVP / smoke-demo surface
