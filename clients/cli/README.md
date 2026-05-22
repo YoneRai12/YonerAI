@@ -41,6 +41,10 @@ After installation, the local command is:
 yonerai demo --pretty
 yonerai health
 yonerai smoke --pretty
+yonerai doctor
+yonerai doctor --json
+yonerai manifest verify releases/manifest.example.json
+yonerai manifest verify releases/manifest.example.json --json
 yonerai message --mode mock "hello"
 yonerai run --mode mock "hello"
 ```
@@ -55,6 +59,19 @@ python -m yonerai_cli health
 API process. The other commands run against a local Core API process. The default
 origin is `http://127.0.0.1:8001`.
 
+`yonerai doctor` is an offline, non-mutating diagnostic command. It checks the
+Python version, CLI import, demo command availability, credential-free demo
+boundary, and the local release manifest example. It does not run the demo,
+modify PATH, install packages, download remote code, or connect to live services.
+If `ORA_CORE_API_TOKEN` is present, doctor reports only `present_redacted`.
+
+`yonerai manifest verify <path>` validates a local release manifest file. Remote
+manifest URLs are rejected, no artifact is downloaded, and no installer is run.
+The example manifest is contract-valid but not install-ready because it still
+uses a non-production signature placeholder. Optional
+`--artifact ARTIFACT_ID=LOCAL_FILE` mappings verify local SHA256 and size only;
+output reports artifact ids, not local file paths.
+
 ## Boundary
 
 - The CLI only accepts loopback API origins.
@@ -62,4 +79,5 @@ origin is `http://127.0.0.1:8001`.
 - It does not store memory.
 - It does not run shell commands.
 - It does not deploy anything.
+- Manifest verification is local-file validation only, not installation.
 - If `ORA_CORE_API_TOKEN` is set, it is sent as `X-ORA-Core-Token` and is never printed.

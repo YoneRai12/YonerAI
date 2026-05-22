@@ -13,6 +13,15 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
+from yonerai_cli import __version__
+from yonerai_cli.release_manifest import (
+    ManifestError,
+    format_manifest_verify_pretty,
+    load_manifest_file,
+    parse_artifact_args,
+    verify_manifest,
+)
+
 
 DEFAULT_API_ORIGIN = "http://127.0.0.1:8001"
 TOKEN_ENV = "ORA_CORE_API_TOKEN"
@@ -137,6 +146,78 @@ def _print_json(data: dict[str, Any]) -> None:
     print(json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True))
 
 
+def _build_doctor_report() -> dict[str, Any]:
+    manifest_path = _repo_root() / "releases" / "manifest.example.json"
+    manifest_report: dict[str, Any]
+    try:
+        manifest_report = verify_manifest(load_manifest_file(str(manifest_path)))
+    except ManifestError as exc:
+        manifest_report = {"ok": False, "errors": [str(exc)]}
+    return {
+        "ok": bool(manifest_report.get("contract_valid", manifest_report.get("ok"))),
+        "command": "yonerai doctor",
+        "schema_version": "yonerai-doctor/v1",
+        "python": {
+            "version": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
+            "supported": sys.version_info >= (3, 11),
+        },
+        "cli": {
+            "import_ok": True,
+            "package_version": __version__,
+            "demo_command_available": True,
+            "quickstart_alias_available": True,
+        },
+        "manifest": {
+            "example_present": manifest_path.exists(),
+            "contract_valid": bool(manifest_report.get("contract_valid", manifest_report.get("ok"))),
+            "install_ready": bool(manifest_report.get("install_ready", False)),
+            "signature_state": manifest_report.get("signature_state"),
+            "non_production_reason": manifest_report.get("non_production_reason"),
+        },
+        "credentials": {
+            TOKEN_ENV: "present_redacted" if os.getenv(TOKEN_ENV) else "absent",
+            "required_for_demo": False,
+        },
+        "boundaries": {
+            "network_required": False,
+            "install_mutation": False,
+            "path_mutation": False,
+            "official_cloud_runtime_included": False,
+            "live_discord_required": False,
+            "persistent_memory_required": False,
+            "oracle_required": False,
+            "deploy_required": False,
+        },
+        "errors": manifest_report.get("errors", []),
+    }
+
+
+def _print_doctor_pretty(report: dict[str, Any]) -> None:
+    print("YonerAI doctor")
+    print(f"- ok: {_bool_text(report['ok'])}")
+    python_report = report["python"]
+    print(f"- python: {python_report['version']} supported={_bool_text(python_report['supported'])}")
+    cli_report = report["cli"]
+    print(f"- cli_import: {_bool_text(cli_report['import_ok'])}")
+    print(f"- package_version: {cli_report['package_version']}")
+    manifest_report = report["manifest"]
+    print(f"- manifest_example_valid: {_bool_text(manifest_report['contract_valid'])}")
+    print(f"- manifest_install_ready: {_bool_text(manifest_report['install_ready'])}")
+    print(f"- signature_state: {manifest_report['signature_state']}")
+    print(f"- credentials_required_for_demo: {_bool_text(report['credentials']['required_for_demo'])}")
+    print("Boundaries:")
+    for key, value in report["boundaries"].items():
+        print(f"- {key}: {_bool_text(value)}")
+    if report["errors"]:
+        print("Errors:")
+        for error in report["errors"]:
+            print(f"- {error}")
+
+
+def _bool_text(value: object) -> str:
+    return "true" if value is True else "false" if value is False else str(value)
+
+
 def _run_public_mvp_smoke(*, json_output: bool = False, pretty: bool = False) -> int:
     try:
         _prepare_repo_import_path()
@@ -173,15 +254,13 @@ def _run_public_demo(*, json_output: bool = False, pretty: bool = False) -> int:
 
 
 def _prepare_repo_import_path() -> None:
-    repo_root = Path(__file__).resolve().parents[3]
-    text = str(repo_root)
+    text = str(_repo_root())
     if text not in sys.path:
         sys.path.insert(0, text)
 
 
 def _load_repo_script_module(module_name: str, script_relative_path: str) -> Any:
-    repo_root = Path(__file__).resolve().parents[3]
-    script_path = repo_root / script_relative_path
+    script_path = _repo_root() / script_relative_path
     spec = importlib.util.spec_from_file_location(module_name, script_path)
     if spec is None or spec.loader is None:
         raise CliError("public script module is unavailable.", exit_code=1)
@@ -199,11 +278,14 @@ def _load_public_demo_module() -> Any:
 
 
 def _prepare_core_import_path() -> None:
-    repo_root = Path(__file__).resolve().parents[3]
-    core_src = repo_root / "core" / "src"
+    core_src = _repo_root() / "core" / "src"
     text = str(core_src)
     if text not in sys.path:
         sys.path.insert(0, text)
+
+
+def _repo_root() -> Path:
+    return Path(__file__).resolve().parents[3]
 
 
 def _preview_route(args: argparse.Namespace) -> dict[str, Any]:
@@ -280,6 +362,25 @@ def build_parser() -> argparse.ArgumentParser:
     demo_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
     demo_output.add_argument("--pretty", action="store_true", help="Print a readable sectioned demo summary.")
 
+    doctor = subcommands.add_parser("doctor", help="Run offline, non-mutating setup diagnostics.")
+    doctor_output = doctor.add_mutually_exclusive_group()
+    doctor_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
+    doctor_output.add_argument("--pretty", action="store_true", help="Print a readable diagnostic summary.")
+
+    manifest = subcommands.add_parser("manifest", help="Validate local YonerAI release manifests without installing.")
+    manifest_subcommands = manifest.add_subparsers(dest="manifest_command", required=True)
+    manifest_verify = manifest_subcommands.add_parser("verify", help="Validate a local release manifest file.")
+    manifest_verify.add_argument("manifest_path", help="Local manifest JSON path. Remote URLs are rejected.")
+    manifest_verify.add_argument(
+        "--artifact",
+        action="append",
+        help="Optional ARTIFACT_ID=LOCAL_FILE mapping for local SHA256/size verification. Repeatable.",
+    )
+    manifest_verify.add_argument("--require-signed", action="store_true", help="Reject manifests without production signatures.")
+    manifest_output = manifest_verify.add_mutually_exclusive_group()
+    manifest_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
+    manifest_output.add_argument("--pretty", action="store_true", help="Print a readable verification summary.")
+
     route = subcommands.add_parser("route", help="Preview safe YonerAI task routing without executing it.")
     route_subcommands = route.add_subparsers(dest="route_command", required=True)
     route_preview = route_subcommands.add_parser("preview", help="Preview cloud/local/hybrid/disabled routing.")
@@ -351,6 +452,28 @@ def run(argv: list[str] | None = None) -> int:
         return _run_public_mvp_smoke(json_output=args.json, pretty=args.pretty)
     if args.command in {"demo", "quickstart"}:
         return _run_public_demo(json_output=args.json, pretty=args.pretty)
+    if args.command == "doctor":
+        report = _build_doctor_report()
+        if args.json:
+            _print_json(report)
+        else:
+            _print_doctor_pretty(report)
+        return 0 if report["ok"] else 1
+    if args.command == "manifest" and args.manifest_command == "verify":
+        try:
+            artifacts = parse_artifact_args(args.artifact)
+            report = verify_manifest(
+                load_manifest_file(args.manifest_path),
+                artifact_paths=artifacts,
+                require_signed=args.require_signed,
+            )
+        except ManifestError as exc:
+            raise CliError(str(exc), exit_code=2) from exc
+        if args.json:
+            _print_json(report)
+        else:
+            print(format_manifest_verify_pretty(report))
+        return 0 if report["ok"] else 1
     if args.command == "route" and args.route_command == "preview":
         _print_json(_preview_route(args))
         return 0

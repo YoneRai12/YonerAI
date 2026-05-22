@@ -7,6 +7,7 @@ import sys
 import urllib.error
 from io import BytesIO
 from pathlib import Path
+from typing import Any
 
 
 def _load_cli_module():
@@ -147,6 +148,184 @@ def test_cli_demo_available_from_clients_cli_cwd() -> None:
     assert "Traceback" not in result.stderr
     assert "session_id" not in result.stdout.lower()
     assert "C:\\Users" not in result.stdout
+
+
+def test_cli_doctor_reports_offline_status_without_network(monkeypatch, capsys):
+    cli = _load_cli_module()
+
+    def fail_request_json(*_args: Any, **_kwargs: Any):
+        raise AssertionError("doctor must not call loopback API")
+
+    def fail_urlopen(*_args: Any, **_kwargs: Any):
+        raise AssertionError("doctor must not open network")
+
+    monkeypatch.setattr(cli, "request_json", fail_request_json)
+    monkeypatch.setattr(cli.urllib.request, "urlopen", fail_urlopen)
+
+    assert cli.main(["doctor", "--json"]) == 0
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["schema_version"] == "yonerai-doctor/v1"
+    assert output["ok"] is True
+    assert output["boundaries"]["network_required"] is False
+    assert output["boundaries"]["install_mutation"] is False
+    assert output["boundaries"]["official_cloud_runtime_included"] is False
+    assert output["manifest"]["contract_valid"] is True
+    assert output["manifest"]["install_ready"] is False
+
+
+def test_cli_doctor_redacts_token_presence(monkeypatch, capsys):
+    cli = _load_cli_module()
+    monkeypatch.setenv(cli.TOKEN_ENV, "super-secret-token")
+
+    assert cli.main(["doctor", "--json"]) == 0
+
+    captured = capsys.readouterr()
+    output = json.loads(captured.out)
+    assert output["credentials"][cli.TOKEN_ENV] == "present_redacted"
+    assert "super-secret-token" not in captured.out
+    assert "Traceback" not in captured.err
+
+
+def test_cli_doctor_does_not_execute_demo_or_mutate_path(monkeypatch, capsys):
+    cli = _load_cli_module()
+    original_path = os.environ.get("PATH", "")
+
+    def fail_demo(*_args: Any, **_kwargs: Any):
+        raise AssertionError("doctor must not execute demo")
+
+    monkeypatch.setattr(cli, "_run_public_demo", fail_demo)
+
+    assert cli.main(["doctor", "--pretty"]) == 0
+
+    assert os.environ.get("PATH", "") == original_path
+    output = capsys.readouterr().out
+    assert "YonerAI doctor" in output
+    assert "manifest_example_valid: true" in output
+
+
+def test_cli_manifest_verify_accepts_example_as_contract_not_install_ready(capsys):
+    cli = _load_cli_module()
+
+    assert cli.main(["manifest", "verify", "releases/manifest.example.json", "--json"]) == 0
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["contract_valid"] is True
+    assert output["install_ready"] is False
+    assert output["signature_state"] == "placeholder_non_production"
+    assert output["signature_verified"] is False
+    assert output["non_production_reason"] == "signature_not_production_verified"
+
+
+def test_cli_manifest_verify_rejects_remote_manifest_without_fetch(monkeypatch, capsys):
+    cli = _load_cli_module()
+
+    def fail_urlopen(*_args: Any, **_kwargs: Any):
+        raise AssertionError("manifest verify must not fetch remote manifests")
+
+    monkeypatch.setattr(cli.urllib.request, "urlopen", fail_urlopen)
+
+    exit_code = cli.main(["manifest", "verify", "https://example.invalid/manifest.json", "--json"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 2
+    assert "remote URLs are not fetched" in captured.err
+
+
+def test_cli_manifest_verify_rejects_empty_artifact_path(capsys):
+    cli = _load_cli_module()
+
+    exit_code = cli.main(
+        [
+            "manifest",
+            "verify",
+            "releases/manifest.example.json",
+            "--artifact",
+            "yonerai-0.1.0-alpha.1-source-archive=   ",
+            "--json",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 2
+    assert "artifact path must not be empty" in captured.err
+
+
+def test_cli_manifest_verify_rejects_missing_sha256(tmp_path, capsys):
+    cli = _load_cli_module()
+    manifest = json.loads((Path(__file__).resolve().parents[1] / "releases" / "manifest.example.json").read_text())
+    manifest["artifacts"][0].pop("sha256")
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    exit_code = cli.main(["manifest", "verify", str(manifest_path), "--json"])
+
+    output = json.loads(capsys.readouterr().out)
+    assert exit_code == 1
+    assert output["contract_valid"] is False
+    assert any("sha256" in error for error in output["errors"])
+
+
+def test_cli_manifest_verify_rejects_unknown_fields(tmp_path, capsys):
+    cli = _load_cli_module()
+    manifest = json.loads((Path(__file__).resolve().parents[1] / "releases" / "manifest.example.json").read_text())
+    manifest["private_runtime_inventory"] = "not allowed"
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    exit_code = cli.main(["manifest", "verify", str(manifest_path), "--json"])
+
+    output = json.loads(capsys.readouterr().out)
+    assert exit_code == 1
+    assert any("unknown fields" in error for error in output["errors"])
+    assert "private_runtime_inventory" in json.dumps(output)
+
+
+def test_cli_manifest_verify_rejects_require_signed_placeholder(capsys):
+    cli = _load_cli_module()
+
+    exit_code = cli.main(["manifest", "verify", "releases/manifest.example.json", "--require-signed", "--json"])
+
+    output = json.loads(capsys.readouterr().out)
+    assert exit_code == 1
+    assert output["contract_valid"] is False
+    assert "manifest is not fully signed." in output["errors"]
+
+
+def test_cli_manifest_verify_hashes_supplied_artifact_without_printing_path(tmp_path, capsys):
+    cli = _load_cli_module()
+    artifact = tmp_path / "artifact.zip"
+    artifact.write_bytes(b"local artifact")
+    digest = __import__("hashlib").sha256(b"local artifact").hexdigest()
+    manifest = json.loads((Path(__file__).resolve().parents[1] / "releases" / "manifest.example.json").read_text())
+    manifest["artifacts"][0]["sha256"] = digest
+    manifest["artifacts"][0]["size_bytes"] = len(b"local artifact")
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    artifact_arg = f"{manifest['artifacts'][0]['id']}={artifact}"
+
+    assert cli.main(["manifest", "verify", str(manifest_path), "--artifact", artifact_arg, "--json"]) == 0
+
+    captured = capsys.readouterr()
+    output = json.loads(captured.out)
+    assert output["artifact_checks"][0]["status"] == "verified"
+    assert str(tmp_path) not in captured.out
+    assert str(tmp_path) not in captured.err
+
+
+def test_cli_manifest_verify_fails_digest_mismatch_closed(tmp_path, capsys):
+    cli = _load_cli_module()
+    artifact = tmp_path / "artifact.zip"
+    artifact.write_bytes(b"wrong artifact")
+    manifest_path = Path(__file__).resolve().parents[1] / "releases" / "manifest.example.json"
+    artifact_id = json.loads(manifest_path.read_text(encoding="utf-8"))["artifacts"][0]["id"]
+
+    exit_code = cli.main(["manifest", "verify", str(manifest_path), "--artifact", f"{artifact_id}={artifact}", "--json"])
+
+    output = json.loads(capsys.readouterr().out)
+    assert exit_code == 1
+    assert output["artifact_checks"][0]["status"] == "failed"
+    assert output["artifact_checks"][0]["reason"] == "sha256_mismatch"
 
 
 def test_cli_smoke_treats_system_exit_none_as_success(monkeypatch):
