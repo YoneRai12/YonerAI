@@ -813,6 +813,71 @@ def _build_runs_report(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
+def _build_search_report(args: argparse.Namespace) -> dict[str, Any]:
+    try:
+        _prepare_core_import_path()
+        from ora_core.search import MockSearchAdapter, SearchRequest
+    except Exception as exc:
+        raise CliError("search adapter is unavailable.", exit_code=1) from exc
+    if args.search_mode != "mock":
+        return {
+            "schema_version": "yonerai-search/v1",
+            "ok": False,
+            "adapter": args.search_mode,
+            "execution_performed": False,
+            "network_performed": False,
+            "error": {"code": "search_live_disabled", "message": "live search is not implemented in this public alpha slice"},
+            "results": [],
+        }
+    query = _prompt_from_args(args.query)
+    results = [result.to_public_dict() for result in MockSearchAdapter().search(SearchRequest(query=query))]
+    return {
+        "schema_version": "yonerai-search/v1",
+        "ok": True,
+        "adapter": "mock",
+        "execution_performed": False,
+        "network_performed": False,
+        "query": query,
+        "results": results,
+    }
+
+
+def _print_search_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -> None:
+    if not report["ok"]:
+        print(render_report("YonerAI search", (CliSection("Error", (CliRow("error", report["error"]["message"], "fail"),)),), color=color))
+        return
+    rows = tuple(CliRow(result["title"], result["snippet"], "ok") for result in report["results"])
+    print(render_report("YonerAI search", (CliSection("Mock results", rows),), color=color))
+
+
+def _build_ops_plan_report(args: argparse.Namespace) -> dict[str, Any]:
+    try:
+        _prepare_core_import_path()
+        from ora_core.ops import plan_operation
+    except Exception as exc:
+        raise CliError("SafeShell planner is unavailable.", exit_code=1) from exc
+    plan = plan_operation(args.operation)
+    return {
+        "schema_version": "yonerai-ops-plan/v1",
+        "ok": plan.status == "planned",
+        "plan": plan.to_public_dict(),
+        "shell_executed": False,
+        "mutation_performed": False,
+    }
+
+
+def _print_ops_plan_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -> None:
+    plan = report["plan"]
+    rows = (
+        CliRow("operation", plan["operation_id"], "ok" if report["ok"] else "fail"),
+        CliRow("status", plan["status"], "ok" if report["ok"] else "fail"),
+        CliRow("command_preview", " ".join(plan["command_preview"]) if plan["command_preview"] else "none", "ok" if report["ok"] else "warn"),
+        CliRow("approval_required", plan["approval_required"], "warn" if plan["approval_required"] else "ok"),
+        CliRow("shell_executed", report["shell_executed"], "fail" if report["shell_executed"] else "ok"),
+    )
+    print(render_report("YonerAI ops plan", (CliSection("SafeShell", rows),), color=color))
+
+
 def _print_runs_list_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -> None:
     rows = tuple(
         CliRow(
@@ -989,6 +1054,23 @@ def build_parser() -> argparse.ArgumentParser:
     ask.add_argument("--mode", choices=PLAN_MODE_CHOICES, default="self-host", help="Execution planning mode. Default: self-host.")
     ask.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
 
+    search = subcommands.add_parser("search", help="Run deterministic mock search or report live search as disabled.")
+    search.add_argument("search_mode", choices=("mock", "live"), help="Search mode. Default-safe mode is mock.")
+    search.add_argument("query", nargs="+")
+    search_output = search.add_mutually_exclusive_group()
+    search_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
+    search_output.add_argument("--pretty", action="store_true", help="Print a readable search fixture summary.")
+    search.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
+
+    ops = subcommands.add_parser("ops", help="Plan safe diagnostic operations without arbitrary shell execution.")
+    ops_subcommands = ops.add_subparsers(dest="ops_command", required=True)
+    ops_plan = ops_subcommands.add_parser("plan", help="Preview a SafeShell diagnostic operation.")
+    ops_plan.add_argument("operation", choices=("python-version", "git-status", "node-version"))
+    ops_plan_output = ops_plan.add_mutually_exclusive_group()
+    ops_plan_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
+    ops_plan_output.add_argument("--pretty", action="store_true", help="Print a readable operation plan.")
+    ops_plan.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
+
     runs = subcommands.add_parser("runs", help="Inspect opt-in redacted local run ledger history.")
     runs_subcommands = runs.add_subparsers(dest="runs_command", required=True)
     runs_list = runs_subcommands.add_parser("list", help="List recent runs from an opt-in ledger.")
@@ -1088,6 +1170,20 @@ def run(argv: list[str] | None = None) -> int:
             _print_run_show_pretty(report, color=args.color)
         else:
             _print_runs_list_pretty(report, color=args.color)
+        return 0 if report["ok"] else 1
+    if args.command == "search":
+        report = _build_search_report(args)
+        if args.json:
+            _print_json(report)
+        else:
+            _print_search_pretty(report, color=args.color)
+        return 0 if report["ok"] else 1
+    if args.command == "ops" and args.ops_command == "plan":
+        report = _build_ops_plan_report(args)
+        if args.json:
+            _print_json(report)
+        else:
+            _print_ops_plan_pretty(report, color=args.color)
         return 0 if report["ok"] else 1
     if args.command == "message":
         prompt = _prompt_from_args(args.prompt)
