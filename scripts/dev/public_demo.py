@@ -297,6 +297,68 @@ def _provider_planner_checks() -> tuple[dict[str, object], ...]:
     )
 
 
+def _execution_spine_checks() -> tuple[dict[str, object], ...]:
+    from ora_core.execution import InMemoryRunLedger, execute_task
+    from ora_core.providers import build_default_provider_registry
+
+    ledger = InMemoryRunLedger()
+    mock_result = execute_task(
+        "summarize public docs",
+        mode="self-host",
+        provider="mock",
+        ledger=ledger,
+    ).to_public_dict()
+    dangerous_result = execute_task(
+        "delete file and run shell command",
+        mode="hybrid",
+        provider="mock",
+        ledger=ledger,
+    ).to_public_dict()
+    registry_statuses = {status["provider_id"]: status for status in build_default_provider_registry().list_statuses()}
+
+    assert mock_result["ok"] is True
+    assert mock_result["response"]["provider"] == "mock"
+    assert mock_result["run"]["status"] == "completed"
+    assert mock_result["run"]["persistence"]["raw_prompt_persisted"] is False
+    assert dangerous_result["ok"] is False
+    assert dangerous_result["run"]["status"] == "blocked"
+    assert dangerous_result["error"]["code"] == "approval_required"
+    return (
+        {
+            "name": "mock_provider_execution",
+            "status": "ok",
+            "provider": mock_result["response"]["provider"],
+            "run_id": mock_result["run"]["run_id"],
+            "run_status": mock_result["run"]["status"],
+            "live_call_performed": mock_result["live_call_performed"],
+            "raw_prompt_persisted": mock_result["run"]["persistence"]["raw_prompt_persisted"],
+        },
+        {
+            "name": "dangerous_task_blocked",
+            "status": "ok",
+            "run_status": dangerous_result["run"]["status"],
+            "approval_required": dangerous_result["run"]["approval_required"],
+            "error": dangerous_result["error"]["code"],
+        },
+        {
+            "name": "local_provider_registry",
+            "status": "ok",
+            "provider": "local",
+            "configured": registry_statuses["local"]["configured"],
+            "available": registry_statuses["local"]["available"],
+            "loopback_only": True,
+        },
+        {
+            "name": "search_tool_boundaries",
+            "status": "ok",
+            "web_search": mock_result["boundary_checks"]["web_search"]["status"],
+            "tool_boundary": mock_result["boundary_checks"]["tool_boundary"]["status"],
+            "live_tool_execution": False,
+            "network_performed": False,
+        },
+    )
+
+
 def _hybrid_trust_checks() -> tuple[dict[str, object], ...]:
     from ora_core.hybrid import (
         InMemoryNonceStore,
@@ -529,6 +591,11 @@ def run_demo() -> dict[str, object]:
                 checks=_provider_planner_checks(),
             ),
             build_demo_section(
+                "execution_spine",
+                summary="Mock provider execution, redacted run ledger, local provider registry, and disabled search/tool boundaries.",
+                checks=_execution_spine_checks(),
+            ),
+            build_demo_section(
                 "hybrid_trust",
                 summary="Test-only Local Node manifest, enrollment/session, signed action, replay denial, and approval gate.",
                 checks=_hybrid_trust_checks(),
@@ -582,7 +649,7 @@ def format_pretty_demo(result: dict[str, object]) -> str:
         "- Self-host local public MVP",
         "- Hybrid Local Node contract/dev simulator",
         "- Managed Cloud external contract-only",
-        "- Route preview, provider planning, enrolled Local Node trust/session simulator, managed download guard",
+        "- Route preview, provider planning, execution spine, enrolled Local Node trust/session simulator, managed download guard",
         "- Proposal-only self-evolution scorecard and approval draft",
         "Boundaries:",
         f"- credentials_required: {str(result['credentials_required']).lower()}",
@@ -620,6 +687,13 @@ def format_pretty_demo(result: dict[str, object]) -> str:
                 "disabled_reason",
                 "live_call_performed",
                 "execution_performed",
+                "run_id",
+                "run_status",
+                "raw_prompt_persisted",
+                "loopback_only",
+                "web_search",
+                "tool_boundary",
+                "live_tool_execution",
                 "network_performed",
                 "download_performed",
                 "proposal_only",

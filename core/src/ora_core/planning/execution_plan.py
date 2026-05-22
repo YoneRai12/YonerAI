@@ -80,6 +80,11 @@ class ExecutionPlan:
             "estimated_execution_surface": self.estimated_execution_surface,
             "steps": [step.to_public_dict() for step in self.steps],
             "safety_checks": self.safety_checks,
+            "boundary_adapters": {
+                key: value
+                for key, value in self.safety_checks.items()
+                if key in {"web_search", "tool_boundary"}
+            },
             "provider_registry": list(self.provider_registry),
             "large_codebase_connections": [
                 {
@@ -155,9 +160,12 @@ def build_execution_plan(
         provider_preference=provider,
         registry=registry,
     )
+    from ora_core.execution.boundaries import build_boundary_checks_for_task
+
     safety_checks = {
         "mcp_deny_policy": _mcp_deny_policy_check(classification),
         "managed_download_guard": _managed_download_guard_check(task),
+        **build_boundary_checks_for_task(classification),
     }
     disabled_reasons = _disabled_reasons(route, provider_selection, safety_checks)
     approval_gates = _approval_gates(route, provider_selection, safety_checks)
@@ -165,7 +173,7 @@ def build_execution_plan(
         PlanStep("classify_task", "ok", False, classification.category),
         PlanStep("select_provider_model", "ok", False, f"{provider_selection.provider_id}/{provider_selection.model_tier}"),
         PlanStep("preview_route", "ok", False, str(route.get("route"))),
-        PlanStep("safety_policy_checks", "ok", False, "mcp_deny_policy, managed_download_guard"),
+        PlanStep("safety_policy_checks", "ok", False, "mcp_deny_policy, managed_download_guard, search/tool boundary"),
     )
     return ExecutionPlan(
         ok=classification.risk != "unsupported",
@@ -207,6 +215,8 @@ def normalize_plan_mode(mode: str | None) -> PlanMode:
 
 
 def _route_capability(classification: TaskClassification) -> str:
+    if classification.category in {"simple_chat", "summarize_public"}:
+        return "public_docs"
     if classification.category == "local_private_file":
         return "private_files"
     if classification.category == "pc_operation":
@@ -313,6 +323,10 @@ def _disabled_reasons(
         reasons.append("mcp_deny_policy")
     if safety_checks["managed_download_guard"].get("approval_reason"):
         reasons.append("managed_download_guard")
+    for key in ("web_search", "tool_boundary"):
+        reason = safety_checks.get(key, {}).get("reason")
+        if reason and reason not in {"not_requested", "no_tool_requested"}:
+            reasons.append(str(reason))
     return reasons
 
 

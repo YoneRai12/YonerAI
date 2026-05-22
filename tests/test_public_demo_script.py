@@ -34,6 +34,7 @@ def test_public_demo_json_shape_and_boundaries(capsys) -> None:
         "mode_boundary",
         "route_preview",
         "provider_planner",
+        "execution_spine",
         "hybrid_trust",
         "managed_download",
         "self_evolution",
@@ -66,6 +67,12 @@ def test_public_demo_json_shape_and_boundaries(capsys) -> None:
     assert registry["live_call_performed"] is False
     assert dangerous["approval_required"] is True
     assert download["network_performed"] is False
+    execution_spine = next(section for section in output["sections"] if section["name"] == "execution_spine")
+    mock_execution = next(check for check in execution_spine["checks"] if check["name"] == "mock_provider_execution")
+    tool_boundaries = next(check for check in execution_spine["checks"] if check["name"] == "search_tool_boundaries")
+    assert mock_execution["run_status"] == "completed"
+    assert mock_execution["raw_prompt_persisted"] is False
+    assert tool_boundaries["live_tool_execution"] is False
 
 
 def test_public_demo_pretty_output_contains_key_sections(capsys) -> None:
@@ -86,6 +93,7 @@ def test_public_demo_pretty_output_contains_key_sections(capsys) -> None:
     assert "mode_boundary: ok" in output
     assert "route_preview: ok" in output
     assert "provider_planner: ok" in output
+    assert "execution_spine: ok" in output
     assert "hybrid_trust: ok" in output
     assert "managed_download: ok" in output
     assert "self_evolution: ok" in output
@@ -96,6 +104,8 @@ def test_public_demo_pretty_output_contains_key_sections(capsys) -> None:
     assert "mock_provider_response" in output
     assert "task_category=summarize_public" in output
     assert "live_call_performed=false" in output
+    assert "mock_provider_execution" in output
+    assert "raw_prompt_persisted=false" in output
     assert "github_write_allowed=false" in output
     assert "memory_candidate_fixture_quarantined" in output
     assert "donation_action=quarantine" in output

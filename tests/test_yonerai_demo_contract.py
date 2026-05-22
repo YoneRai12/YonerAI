@@ -40,6 +40,7 @@ def test_yonerai_demo_contract_shape_and_boundaries() -> None:
         "mode_boundary",
         "route_preview",
         "provider_planner",
+        "execution_spine",
         "hybrid_trust",
         "managed_download",
         "self_evolution",

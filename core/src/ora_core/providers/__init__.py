@@ -8,12 +8,14 @@ from .contracts import (
     ProviderResponse,
     ProviderStatus,
 )
+from .local import LocalLLMProviderAdapter
 from .mock import MockProviderAdapter
 from .openai_compatible import OpenAICompatibleProviderAdapter
 from .registry import ProviderRegistry, build_default_provider_registry
 
 __all__ = [
     "MockProviderAdapter",
+    "LocalLLMProviderAdapter",
     "OpenAICompatibleProviderAdapter",
     "ProviderAdapter",
     "ProviderCapabilities",

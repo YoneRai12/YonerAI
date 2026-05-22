@@ -4,6 +4,7 @@ import os
 from typing import Iterable, Mapping
 
 from .contracts import ProviderAdapter, ProviderCapabilities, ProviderStatus, UnavailableProviderAdapter
+from .local import LocalLLMProviderAdapter
 from .mock import MockProviderAdapter
 from .openai_compatible import OpenAICompatibleProviderAdapter
 
@@ -52,7 +53,7 @@ def build_default_provider_registry(env: Mapping[str, str | None] | None = None)
         (
             MockProviderAdapter(),
             OpenAICompatibleProviderAdapter(source),
-            _local_contract_adapter(source),
+            LocalLLMProviderAdapter(source),
             UnavailableProviderAdapter(
                 "anthropic",
                 capabilities=ProviderCapabilities(chat=True, structured_output=True, external_provider=True, cloud=True),
@@ -64,19 +65,4 @@ def build_default_provider_registry(env: Mapping[str, str | None] | None = None)
                 reason="gemini_provider_contract_only",
             ),
         )
-    )
-
-
-def _local_contract_adapter(env: Mapping[str, str | None]) -> UnavailableProviderAdapter:
-    enabled = str(env.get("ORA_LOCAL_LLM_ENABLED") or "").strip().lower() in {"1", "true", "yes", "on"}
-    model_present = bool(str(env.get("ORA_LOCAL_LLM_MODEL") or "").strip())
-    return UnavailableProviderAdapter(
-        "local",
-        capabilities=ProviderCapabilities(chat=True, structured_output=False, local_only=True),
-        configured=enabled or model_present,
-        reason="local_provider_requires_public_api_loopback_gate" if enabled else "local_provider_not_configured",
-        env_status={
-            "ORA_LOCAL_LLM_ENABLED": "present_redacted" if enabled else "absent",
-            "ORA_LOCAL_LLM_MODEL": "present_redacted" if model_present else "absent",
-        },
     )
