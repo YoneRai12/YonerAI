@@ -87,6 +87,21 @@ def test_example_manifest_validates_against_schema_contract() -> None:
     _validate_manifest_contract(_load_manifest())
 
 
+def test_cli_manifest_validator_accepts_example_contract() -> None:
+    import sys
+
+    cli_src = ROOT / "clients" / "cli"
+    if str(cli_src) not in sys.path:
+        sys.path.insert(0, str(cli_src))
+    from yonerai_cli.release_manifest import load_manifest_file, verify_manifest
+
+    report = verify_manifest(load_manifest_file(str(EXAMPLE_PATH)))
+
+    assert report["contract_valid"] is True
+    assert report["install_ready"] is False
+    assert report["signature_state"] == "placeholder_non_production"
+
+
 def test_missing_sha256_is_rejected() -> None:
     manifest = _load_manifest()
     artifact = deepcopy(manifest["artifacts"][0])

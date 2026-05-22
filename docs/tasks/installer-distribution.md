@@ -1,6 +1,7 @@
 # YonerAI installer distribution foundation
 
-Status: foundation plan. No network-executing installer is included here.
+Status: foundation plan with local manifest verification and doctor diagnostics.
+No network-executing installer is included here.
 
 ## Purpose
 
@@ -63,26 +64,47 @@ Do not publish unversioned mutable installer artifacts as the primary install ta
 
 ## Doctor plan
 
-A future `yonerai doctor` command should be non-mutating and offline by default. It should check:
+`yonerai doctor` is the first non-mutating diagnostic command. It is offline by
+default and checks:
 
 - Python version compatibility.
 - CLI import and command availability.
-- `yonerai demo --json` availability.
+- `yonerai demo` / `yonerai quickstart` command availability.
 - installed package version display.
-- whether credentials are absent or ignored for public demo flows.
-- manifest verification readiness when a manifest path is provided.
+- whether credentials are absent or redacted for public demo flows.
+- local manifest example verification readiness.
 
 It must not modify PATH, download remote code, install packages, create credentials, deploy, or connect to live services.
 
+## Manifest verify plan
+
+`yonerai manifest verify <path>` is local-file validation only. It checks the
+manifest contract, channel, version, target, SHA256 format, signature state, and
+optional local artifact SHA256/size mappings. It rejects remote manifest URLs and
+does not download, execute, install, or mutate anything.
+
+The alpha example manifest is expected to be contract-valid but not install-ready
+because it uses `placeholder_non_production` signature material. A production
+installer must require signed manifests and fail closed when the signature is not
+verified.
+
 ## Implementation order
 
-1. Land manifest schema, example, and validation tests.
-2. Add a manifest reader/verifier that validates local files only.
-3. Connect release workflow to publish a signed manifest artifact.
-4. Add `yonerai doctor` as non-mutating validation.
-5. Add dry-run installer planning.
-6. Add PowerShell installer only after signature verification, rollback, logs, and safe mode are proven.
-7. Add npm and winget bootstrap entry points that read the same manifest.
+1. Land manifest schema, example, and validation tests. Done for the alpha foundation.
+2. Add a manifest reader/verifier that validates local files only. Done for local contract verification.
+3. Add `yonerai doctor` as non-mutating validation. Done for local alpha diagnostics.
+4. Add dry-run installer planning with no download, execution, PATH mutation, or install mutation.
+5. Connect release workflow to publish a signed manifest artifact.
+6. Add signature verification against an explicit production trust source.
+7. Add PowerShell bootstrap skeleton only after signature verification, rollback, logs, and safe mode are proven.
+8. Add npm and winget bootstrap entry points that read the same manifest.
+
+## Next safe milestone
+
+The next safe milestone is a local dry-run installer planner that consumes a
+verified local manifest and prints planned actions. It must still avoid remote
+code execution, PATH mutation, auto-download, npm publishing, winget publishing,
+production signing key generation, and production trust store creation.
 
 ## Acceptance criteria
 
