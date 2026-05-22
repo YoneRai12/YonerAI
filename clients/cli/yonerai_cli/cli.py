@@ -878,6 +878,67 @@ def _print_ops_plan_pretty(report: dict[str, Any], *, color: ColorMode = "auto")
     print(render_report("YonerAI ops plan", (CliSection("SafeShell", rows),), color=color))
 
 
+def _build_memory_report(args: argparse.Namespace) -> dict[str, Any]:
+    try:
+        _prepare_core_import_path()
+        from ora_core.memory import LocalMemoryStore
+    except Exception as exc:
+        raise CliError("local memory store is unavailable.", exit_code=1) from exc
+    if not args.store:
+        raise CliError("--store is required for explicit local memory v0.1.", exit_code=2)
+    store = LocalMemoryStore(args.store)
+    if args.memory_command == "add":
+        if not args.confirm_local:
+            raise CliError("memory add requires --confirm-local.", exit_code=2)
+        record = store.add(_prompt_from_args(args.text), tags=tuple(args.tag or ()))
+        return {
+            "schema_version": "yonerai-local-memory-cli/v0.1",
+            "ok": True,
+            "operation": "add",
+            "record": record.to_public_dict(),
+            "cloud_synced": False,
+            "raw_prompt_persisted": False,
+        }
+    if args.memory_command == "list":
+        records = [record.to_public_dict() for record in store.list()]
+        return {
+            "schema_version": "yonerai-local-memory-cli/v0.1",
+            "ok": True,
+            "operation": "list",
+            "records": records,
+            "count": len(records),
+            "cloud_synced": False,
+        }
+    if args.memory_command == "delete":
+        deleted = store.delete(args.memory_id)
+        return {
+            "schema_version": "yonerai-local-memory-cli/v0.1",
+            "ok": deleted,
+            "operation": "delete",
+            "memory_id": args.memory_id,
+            "deleted": deleted,
+            "cloud_synced": False,
+        }
+    if args.memory_command == "export":
+        return store.export() | {"operation": "export"}
+    raise CliError("unknown memory command", exit_code=2)
+
+
+def _print_memory_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -> None:
+    if report.get("operation") == "list":
+        rows = tuple(CliRow(record["memory_id"], record["text"], "ok") for record in report["records"]) or (
+            CliRow("records", "none", "warn"),
+        )
+        print(render_report("YonerAI local memory", (CliSection("Records", rows),), color=color))
+        return
+    rows = (
+        CliRow("operation", report.get("operation", "unknown"), "ok" if report.get("ok") else "fail"),
+        CliRow("ok", report.get("ok"), "ok" if report.get("ok") else "fail"),
+        CliRow("cloud_synced", report.get("cloud_synced", False), "fail" if report.get("cloud_synced") else "ok"),
+    )
+    print(render_report("YonerAI local memory", (CliSection("Local-only", rows),), color=color))
+
+
 def _print_runs_list_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -> None:
     rows = tuple(
         CliRow(
@@ -1071,6 +1132,37 @@ def build_parser() -> argparse.ArgumentParser:
     ops_plan_output.add_argument("--pretty", action="store_true", help="Print a readable operation plan.")
     ops_plan.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
 
+    memory = subcommands.add_parser("memory", help="Manage explicit opt-in local memory v0.1 records.")
+    memory_subcommands = memory.add_subparsers(dest="memory_command", required=True)
+    memory_add = memory_subcommands.add_parser("add", help="Add a redacted local-only memory record.")
+    memory_add.add_argument("text", nargs="+")
+    memory_add.add_argument("--store", required=True, help="Local JSONL memory store path.")
+    memory_add.add_argument("--confirm-local", action="store_true", help="Confirm this is explicit local-only memory.")
+    memory_add.add_argument("--tag", action="append", help="Optional simple tag. Repeatable.")
+    memory_add_output = memory_add.add_mutually_exclusive_group()
+    memory_add_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
+    memory_add_output.add_argument("--pretty", action="store_true", help="Print a readable memory summary.")
+    memory_add.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
+    memory_list = memory_subcommands.add_parser("list", help="List redacted local-only memory records.")
+    memory_list.add_argument("--store", required=True, help="Local JSONL memory store path.")
+    memory_list_output = memory_list.add_mutually_exclusive_group()
+    memory_list_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
+    memory_list_output.add_argument("--pretty", action="store_true", help="Print a readable memory list.")
+    memory_list.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
+    memory_delete = memory_subcommands.add_parser("delete", help="Delete one local-only memory record.")
+    memory_delete.add_argument("memory_id")
+    memory_delete.add_argument("--store", required=True, help="Local JSONL memory store path.")
+    memory_delete_output = memory_delete.add_mutually_exclusive_group()
+    memory_delete_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
+    memory_delete_output.add_argument("--pretty", action="store_true", help="Print a readable memory summary.")
+    memory_delete.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
+    memory_export = memory_subcommands.add_parser("export", help="Export redacted local-only memory records.")
+    memory_export.add_argument("--store", required=True, help="Local JSONL memory store path.")
+    memory_export_output = memory_export.add_mutually_exclusive_group()
+    memory_export_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
+    memory_export_output.add_argument("--pretty", action="store_true", help="Print a readable memory summary.")
+    memory_export.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
+
     runs = subcommands.add_parser("runs", help="Inspect opt-in redacted local run ledger history.")
     runs_subcommands = runs.add_subparsers(dest="runs_command", required=True)
     runs_list = runs_subcommands.add_parser("list", help="List recent runs from an opt-in ledger.")
@@ -1184,6 +1276,13 @@ def run(argv: list[str] | None = None) -> int:
             _print_json(report)
         else:
             _print_ops_plan_pretty(report, color=args.color)
+        return 0 if report["ok"] else 1
+    if args.command == "memory":
+        report = _build_memory_report(args)
+        if args.json:
+            _print_json(report)
+        else:
+            _print_memory_pretty(report, color=args.color)
         return 0 if report["ok"] else 1
     if args.command == "message":
         prompt = _prompt_from_args(args.prompt)
