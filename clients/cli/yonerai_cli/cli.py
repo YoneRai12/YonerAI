@@ -670,6 +670,148 @@ def _format_execution_plan_pretty(report: dict[str, Any], *, color: ColorMode = 
     return render_report("YonerAI execution plan", sections, color=color)
 
 
+def _execute_ask_report(args: argparse.Namespace) -> dict[str, Any]:
+    try:
+        _prepare_repo_import_path()
+        _prepare_core_import_path()
+        from ora_core.execution.ledger import build_run_ledger_from_env
+        from ora_core.execution.spine import execute_task
+    except Exception as exc:
+        raise CliError("execution spine is unavailable.", exit_code=1) from exc
+
+    prompt = _prompt_from_args(args.task)
+    try:
+        result = execute_task(
+            prompt,
+            mode=args.mode,
+            provider=args.provider,
+            live=args.live,
+            ledger=build_run_ledger_from_env(args.ledger_path),
+        )
+    except ValueError as exc:
+        raise CliError(str(exc), exit_code=2) from exc
+    return result.to_public_dict()
+
+
+def _print_execution_result_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -> None:
+    print(_format_execution_result_pretty(report, color=color))
+
+
+def _format_execution_result_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -> str:
+    run = report["run"]
+    plan = report["plan"]
+    response = report.get("response") or {}
+    error = report.get("error") or {}
+    boundary = report.get("boundary_checks") or {}
+    provider = plan["provider"]
+    sections = (
+        CliSection(
+            "Run",
+            (
+                CliRow("run_id", run["run_id"], "ok"),
+                CliRow("status", run["status"], "ok" if run["status"] == "completed" else "warn"),
+                CliRow("category", plan["classification"]["category"], "ok"),
+                CliRow("approval_required", run["approval_required"], "warn" if run["approval_required"] else "ok"),
+            ),
+        ),
+        CliSection(
+            "Provider",
+            (
+                CliRow("provider", provider["provider_id"], "ok" if provider["provider_available"] else "warn"),
+                CliRow("model", response.get("model") or plan["model"]["model_id"], "ok"),
+                CliRow("live_call_performed", report["live_call_performed"], "warn" if report["live_call_performed"] else "ok"),
+            ),
+        ),
+        CliSection(
+            "Answer",
+            (
+                CliRow("ok", report["ok"], "ok" if report["ok"] else "warn"),
+                CliRow("output", response.get("output_text") or error.get("message") or "none", "ok" if report["ok"] else "warn"),
+            ),
+        ),
+        CliSection(
+            "Boundaries",
+            (
+                CliRow("web_search", boundary.get("web_search", {}).get("status", "unknown"), "ok"),
+                CliRow("tool_boundary", boundary.get("tool_boundary", {}).get("status", "unknown"), "ok"),
+                CliRow("shell", plan["side_effects"]["shell"], "fail" if plan["side_effects"]["shell"] else "ok"),
+                CliRow("file_access", plan["side_effects"]["file_access"], "fail" if plan["side_effects"]["file_access"] else "ok"),
+                CliRow("memory_persisted", run["persistence"]["memory_persisted"], "fail" if run["persistence"]["memory_persisted"] else "ok"),
+            ),
+        ),
+    )
+    return render_report("YonerAI ask", sections, color=color)
+
+
+def _build_runs_report(args: argparse.Namespace) -> dict[str, Any]:
+    try:
+        _prepare_repo_import_path()
+        _prepare_core_import_path()
+        from ora_core.execution.ledger import build_run_ledger_from_env
+    except Exception as exc:
+        raise CliError("run ledger is unavailable.", exit_code=1) from exc
+
+    ledger = build_run_ledger_from_env(args.ledger_path)
+    if args.runs_command == "list":
+        runs = [run.to_public_dict() for run in ledger.list_runs(limit=args.limit)]
+        return {
+            "schema_version": "yonerai-runs-list/v1",
+            "ok": True,
+            "runs": runs,
+            "count": len(runs),
+            "raw_prompt_persisted": False,
+            "raw_completion_persisted": False,
+        }
+    run = ledger.get_run(args.run_id)
+    if run is None:
+        return {
+            "schema_version": "yonerai-runs-show/v1",
+            "ok": False,
+            "error": {"code": "unknown_run", "message": "run_id was not found in the selected local ledger"},
+            "run": None,
+        }
+    return {
+        "schema_version": "yonerai-runs-show/v1",
+        "ok": True,
+        "run": run.to_public_dict(),
+        "raw_prompt_persisted": False,
+        "raw_completion_persisted": False,
+    }
+
+
+def _print_runs_list_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -> None:
+    rows = tuple(
+        CliRow(
+            str(run["run_id"]),
+            f"{run['status']} {run['provider_decision'].get('provider_id', 'unknown')} {run['task_summary']}",
+            "ok" if run["status"] == "completed" else "warn",
+        )
+        for run in report["runs"]
+    ) or (CliRow("runs", "none in selected local ledger", "warn"),)
+    print(render_report("YonerAI runs", (CliSection("Recent", rows),), color=color))
+
+
+def _print_run_show_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -> None:
+    if not report["ok"]:
+        print(render_report("YonerAI run", (CliSection("Error", (CliRow("error", report["error"]["message"], "fail"),)),), color=color))
+        return
+    run = report["run"]
+    events = tuple(CliRow(event["name"], f"{event['status']} {event['summary']}", "ok" if event["status"] == "ok" else "warn") for event in run["events"])
+    sections = (
+        CliSection(
+            "Run",
+            (
+                CliRow("run_id", run["run_id"], "ok"),
+                CliRow("status", run["status"], "ok" if run["status"] == "completed" else "warn"),
+                CliRow("task_summary", run["task_summary"], "ok"),
+                CliRow("provider", run["provider_decision"].get("provider_id", "unknown"), "ok"),
+            ),
+        ),
+        CliSection("Events", events or (CliRow("events", "none", "warn"),)),
+    )
+    print(render_report("YonerAI run", sections, color=color))
+
+
 def _prompt_from_args(parts: list[str]) -> str:
     prompt = " ".join(parts).strip()
     if not prompt:
@@ -798,15 +940,34 @@ def build_parser() -> argparse.ArgumentParser:
     plan.add_argument("--mode", choices=PLAN_MODE_CHOICES, default="managed-contract", help="Planning mode. Default: managed-contract.")
     plan.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
 
-    ask = subcommands.add_parser("ask", help="Preview a YonerAI answer path. Live execution is not enabled.")
+    ask = subcommands.add_parser("ask", help="Execute a safe YonerAI ask path or preview it with --dry-run.")
     ask.add_argument("task", nargs="+")
-    ask.add_argument("--dry-run", action="store_true", help="Required. Preview only; no provider call is made.")
+    ask.add_argument("--dry-run", action="store_true", help="Preview only; no provider call is made.")
+    ask.add_argument("--live", action="store_true", help="Allow explicitly gated local/OpenAI-compatible live provider execution.")
+    ask.add_argument("--ledger-path", help="Optional redacted JSONL run ledger path. Disabled by default.")
     ask_output = ask.add_mutually_exclusive_group()
     ask_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
-    ask_output.add_argument("--pretty", action="store_true", help="Print a readable dry-run plan summary.")
+    ask_output.add_argument("--pretty", action="store_true", help="Print a readable execution summary.")
     ask.add_argument("--provider", choices=PLAN_PROVIDER_CHOICES, default="auto", help="Provider preference. Default: auto.")
-    ask.add_argument("--mode", choices=PLAN_MODE_CHOICES, default="managed-contract", help="Planning mode. Default: managed-contract.")
+    ask.add_argument("--mode", choices=PLAN_MODE_CHOICES, default="self-host", help="Execution planning mode. Default: self-host.")
     ask.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
+
+    runs = subcommands.add_parser("runs", help="Inspect opt-in redacted local run ledger history.")
+    runs_subcommands = runs.add_subparsers(dest="runs_command", required=True)
+    runs_list = runs_subcommands.add_parser("list", help="List recent runs from an opt-in ledger.")
+    runs_list.add_argument("--ledger-path", help="Optional redacted JSONL run ledger path. Defaults to YONERAI_RUN_LEDGER_PATH.")
+    runs_list.add_argument("--limit", type=int, default=20, help="Maximum runs to show. Default: 20.")
+    runs_list_output = runs_list.add_mutually_exclusive_group()
+    runs_list_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
+    runs_list_output.add_argument("--pretty", action="store_true", help="Print a readable run list.")
+    runs_list.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
+    runs_show = runs_subcommands.add_parser("show", help="Show one run from an opt-in ledger.")
+    runs_show.add_argument("run_id")
+    runs_show.add_argument("--ledger-path", help="Optional redacted JSONL run ledger path. Defaults to YONERAI_RUN_LEDGER_PATH.")
+    runs_show_output = runs_show.add_mutually_exclusive_group()
+    runs_show_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
+    runs_show_output.add_argument("--pretty", action="store_true", help="Print a readable run summary.")
+    runs_show.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
 
     message = subcommands.add_parser("message", parents=[shared], help="Send a local public message smoke request.")
     message.add_argument("--mode", choices=["mock", "offline", "local"], default="mock")
@@ -870,14 +1031,27 @@ def run(argv: list[str] | None = None) -> int:
             _print_execution_plan_pretty(report, color=args.color)
         return 0
     if args.command == "ask":
-        if not args.dry_run:
-            raise CliError("yonerai ask requires --dry-run; live provider execution is not implemented.", exit_code=2)
-        report = _build_execution_plan_report(args, command="yonerai ask --dry-run", dry_run=True)
+        if args.dry_run:
+            report = _build_execution_plan_report(args, command="yonerai ask --dry-run", dry_run=True)
+        else:
+            report = _execute_ask_report(args)
         if args.json:
             _print_json(report)
         else:
-            _print_execution_plan_pretty(report, color=args.color)
-        return 0
+            if args.dry_run:
+                _print_execution_plan_pretty(report, color=args.color)
+            else:
+                _print_execution_result_pretty(report, color=args.color)
+        return 0 if args.dry_run or report["ok"] else 1
+    if args.command == "runs":
+        report = _build_runs_report(args)
+        if args.json:
+            _print_json(report)
+        elif args.runs_command == "show":
+            _print_run_show_pretty(report, color=args.color)
+        else:
+            _print_runs_list_pretty(report, color=args.color)
+        return 0 if report["ok"] else 1
     if args.command == "message":
         prompt = _prompt_from_args(args.prompt)
         _print_json(request_json("POST", args.api_origin, "/v1/public/messages", {"message": prompt, "mode": args.mode}))

@@ -137,6 +137,7 @@ def test_cli_demo_available_from_clients_cli_cwd() -> None:
         "mode_boundary",
         "route_preview",
         "provider_planner",
+        "execution_spine",
         "hybrid_trust",
         "managed_download",
         "self_evolution",
@@ -722,14 +723,19 @@ def test_cli_plan_pretty_reports_classification_route_provider(capsys):
     assert "\033[" not in output
 
 
-def test_cli_ask_requires_dry_run_until_live_execution_gate_exists(capsys):
+def test_cli_ask_executes_mock_provider_by_default(capsys):
     cli = _load_cli_module()
 
-    exit_code = cli.main(["ask", "hello"])
+    exit_code = cli.main(["ask", "hello", "--json"])
 
     captured = capsys.readouterr()
-    assert exit_code == 2
-    assert "requires --dry-run" in captured.err
+    assert exit_code == 0
+    output = json.loads(captured.out)
+    assert output["schema_version"] == "yonerai-execution-result/v1"
+    assert output["ok"] is True
+    assert output["run"]["run_id"].startswith("run_")
+    assert output["response"]["provider"] == "mock"
+    assert output["live_call_performed"] is False
 
 
 def test_cli_ask_dry_run_reuses_execution_plan_without_provider_call(monkeypatch, capsys):
@@ -748,6 +754,39 @@ def test_cli_ask_dry_run_reuses_execution_plan_without_provider_call(monkeypatch
     assert output["execution_performed"] is False
     assert output["provider"]["provider_id"] == "openai-compatible"
     assert output["side_effects"]["provider_call"] is False
+
+
+def test_cli_ask_blocks_dangerous_actual_execution(capsys):
+    cli = _load_cli_module()
+
+    exit_code = cli.main(["ask", "delete", "file", "and", "run", "shell", "command", "--json", "--mode", "hybrid"])
+
+    output = json.loads(capsys.readouterr().out)
+    assert exit_code == 1
+    assert output["ok"] is False
+    assert output["run"]["status"] == "blocked"
+    assert output["error"]["code"] == "approval_required"
+    assert output["plan"]["side_effects"]["shell"] is False
+
+
+def test_cli_runs_list_and_show_use_opt_in_redacted_ledger(tmp_path, capsys):
+    cli = _load_cli_module()
+    ledger = tmp_path / "runs.jsonl"
+
+    assert cli.main(["ask", "summarize", "public", "docs", "--json", "--ledger-path", str(ledger)]) == 0
+    ask_output = json.loads(capsys.readouterr().out)
+    run_id = ask_output["run"]["run_id"]
+
+    assert cli.main(["runs", "list", "--json", "--ledger-path", str(ledger)]) == 0
+    list_output = json.loads(capsys.readouterr().out)
+    assert list_output["count"] == 1
+    assert list_output["runs"][0]["run_id"] == run_id
+    assert list_output["raw_prompt_persisted"] is False
+
+    assert cli.main(["runs", "show", run_id, "--json", "--ledger-path", str(ledger)]) == 0
+    show_output = json.loads(capsys.readouterr().out)
+    assert show_output["run"]["run_id"] == run_id
+    assert show_output["run"]["status"] == "completed"
 
 
 def test_cli_plan_dangerous_task_requires_approval(capsys):
