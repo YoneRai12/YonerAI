@@ -51,6 +51,15 @@ yonerai manifest verify releases/manifest.example.json
 yonerai manifest verify releases/manifest.example.json --pretty
 yonerai manifest verify releases/manifest.example.json --pretty --lang ja
 yonerai manifest verify releases/manifest.example.json --json
+yonerai plan "summarize public docs" --json
+yonerai ask "summarize public docs" --provider mock --json
+yonerai ask "summarize this file" --file notes.txt --workspace . --provider mock --json
+yonerai search mock "YonerAI alpha2" --json
+yonerai ops plan git-status --json
+yonerai memory add "local note" --store .yonerai-memory.jsonl --confirm-local --json
+yonerai discord synthetic "hello" --json
+yonerai status --source fixture --json
+yonerai install plan-windows --json
 yonerai message --mode mock "hello"
 yonerai run --mode mock "hello"
 ```
@@ -61,8 +70,10 @@ Without installing, run from `clients/cli`:
 python -m yonerai_cli health
 ```
 
-`yonerai demo`, `yonerai smoke`, `yonerai doctor`, `yonerai status`, and
-`yonerai manifest verify` run locally and do not require a local Core API
+`yonerai demo`, `yonerai smoke`, `yonerai doctor`, `yonerai status`,
+`yonerai manifest verify`, `yonerai plan`, mock `yonerai ask`, mock
+`yonerai search`, `yonerai ops plan`, `yonerai discord synthetic`, and
+`yonerai install plan-windows` run locally and do not require a local Core API
 process. `health`, `message`, and `run` run against a local Core API process.
 The default origin is `http://127.0.0.1:8001`.
 
@@ -91,9 +102,11 @@ and that no network/download/install action was performed.
 ## Boundary
 
 - The CLI only accepts loopback API origins.
-- It does not call external providers directly.
-- It does not store memory.
-- It does not run shell commands.
+- External provider execution requires explicit provider selection, `--live`, and provider-specific env opt-in; default CLI/demo/tests do not call live providers.
+- Local LLM execution is loopback-only.
+- Workspace file summarization requires explicit `--file` and `--workspace`.
+- Local memory requires explicit `--store` and `--confirm-local`; it is local-only and redacted.
+- SafeShell is plan-only for a small diagnostic allowlist; it is not arbitrary shell execution.
 - It does not deploy anything.
 - Manifest verification is local-file validation only, not installation.
 - If `ORA_CORE_API_TOKEN` is set, it is sent as `X-ORA-Core-Token` and is never printed.

@@ -2,9 +2,18 @@
 
 This page is a public-safe index of current release notes and progress checkpoints.
 
+## v0.1.0-alpha.2 Capability Slice
+
+- GitHub pre-release target: `v0.1.0-alpha.2` after the final release gate passes.
+- Public release body: `docs/releases/0.1.0-alpha.2.md`
+- YonerAI CLI: `yonerai demo`, `yonerai ask`, `yonerai plan`, `yonerai search`, `yonerai ops`, `yonerai memory`, `yonerai discord synthetic`, `yonerai status`, `yonerai manifest verify`, and `yonerai install plan-windows`.
+- Capability slice: opt-in provider adapters, loopback-only local LLM, workspace file summarize, mock search, SafeShell planning, explicit local memory, synthetic Discord gateway, official status contracts, installer dry-run planning, run ledger/history, and deterministic demo integration.
+- Boundary: no default live provider calls, no live Discord, no arbitrary shell, no arbitrary local file access, no production Oracle/control-plane implementation, no production signing keys, no production trust stores, no Google login, no production DB behavior, and no Official Managed Cloud runtime in this public repo.
+- Traceability: PRs #315, #316, #317, #318, #319, #320, #321, #322, and #323.
+
 ## v0.1.0-alpha.1 Public Demo Slice
 
-- GitHub pre-release target: `v0.1.0-alpha.1` only if the final release gate passes.
+- GitHub pre-release target: `v0.1.0-alpha.1`.
 - Public release body: `docs/releases/0.1.0-alpha.1.md`
 - YonerAI CLI: `yonerai demo --pretty`, `yonerai demo --json`, and `yonerai quickstart`.
 - Demo Experience: public Core health/mock/run contract, mode boundary, route preview, test-only Hybrid Local Node trust/session simulator, managed download guard, and proposal-only self-evolution.
