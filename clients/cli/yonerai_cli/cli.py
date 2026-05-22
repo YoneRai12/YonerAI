@@ -213,6 +213,18 @@ def _build_doctor_report(*, command: str = "yonerai doctor") -> dict[str, Any]:
     }
 
 
+def _build_status_report(*, source: str = "local") -> dict[str, Any]:
+    report = _build_doctor_report(command="yonerai status")
+    try:
+        _prepare_core_import_path()
+        from ora_core.status_contract import build_official_status_contract
+    except Exception as exc:
+        raise CliError("official status contract fixture is unavailable.", exit_code=1) from exc
+    report["status_source"] = source
+    report["official_status"] = build_official_status_contract(source=source)
+    return report
+
+
 def _run_redaction_self_check() -> dict[str, Any]:
     try:
         _prepare_repo_import_path()
@@ -363,6 +375,29 @@ def _format_status_pretty(report: dict[str, Any], *, lang: str = "en", color: Co
             ),
         ),
     )
+    official_status = report.get("official_status")
+    if isinstance(official_status, dict):
+        components = official_status.get("components") if isinstance(official_status.get("components"), list) else []
+        component_rows = tuple(
+            CliRow(
+                str(component.get("component")),
+                str(component.get("status")),
+                "ok" if component.get("network_required") is False else "warn",
+                note=component.get("degraded_reason"),
+            )
+            for component in components
+            if isinstance(component, dict)
+        )
+        sections = (
+            *sections,
+            CliSection(
+                "Official status contract",
+                component_rows
+                or (
+                    CliRow("components", "none", "warn"),
+                ),
+            ),
+        )
     return render_report("YonerAI status", sections, color=color)
 
 
@@ -850,6 +885,57 @@ def _print_search_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -
     print(render_report("YonerAI search", (CliSection("Mock results", rows),), color=color))
 
 
+def _build_discord_report(args: argparse.Namespace) -> dict[str, Any]:
+    try:
+        _prepare_core_import_path()
+        from ora_core.discord_gateway import SyntheticDiscordGatewayAdapter
+    except Exception as exc:
+        raise CliError("Discord gateway adapter is unavailable.", exit_code=1) from exc
+    prompt = _prompt_from_args(args.message)
+    result = SyntheticDiscordGatewayAdapter().handle_mention(prompt)
+    return result.to_public_dict()
+
+
+def _print_discord_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -> None:
+    rows = (
+        CliRow("adapter", report["adapter"], "ok" if report["ok"] else "fail"),
+        CliRow("synthetic", report["synthetic"], "ok" if report["synthetic"] else "fail"),
+        CliRow("live_discord", report["live_discord"], "fail" if report["live_discord"] else "ok"),
+        CliRow("token_required", report["token_required"], "fail" if report["token_required"] else "ok"),
+        CliRow("final_once", report["final_once"], "ok" if report["final_once"] else "fail"),
+        CliRow("progress_events", report["progress_events"], "ok"),
+    )
+    print(render_report("YonerAI Discord gateway", (CliSection("Synthetic adapter", rows),), color=color))
+
+
+def _build_install_report(args: argparse.Namespace) -> dict[str, Any]:
+    try:
+        from yonerai_cli.install_planner import build_windows_install_plan, build_windows_install_plan_from_default
+    except Exception as exc:
+        raise CliError("Windows install planner is unavailable.", exit_code=1) from exc
+    try:
+        if args.manifest:
+            return build_windows_install_plan(args.manifest)
+        return build_windows_install_plan_from_default(_repo_root())
+    except ManifestError as exc:
+        raise CliError(str(exc), exit_code=2) from exc
+
+
+def _print_install_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -> None:
+    manifest = report["manifest"]
+    rows = (
+        CliRow("dry_run", report["dry_run"], "ok" if report["dry_run"] else "fail"),
+        CliRow("manifest_contract_valid", manifest["contract_valid"], "ok" if manifest["contract_valid"] else "fail"),
+        CliRow("install_ready", manifest["install_ready"], "ok" if manifest["install_ready"] else "warn"),
+        CliRow("signature_state", manifest["signature_state"], "ok" if manifest["signature_state"] == "signed" else "warn"),
+        CliRow("download_performed", report["download_performed"], "fail" if report["download_performed"] else "ok"),
+        CliRow("install_performed", report["install_performed"], "fail" if report["install_performed"] else "ok"),
+        CliRow("path_mutation", report["path_mutation"], "fail" if report["path_mutation"] else "ok"),
+        CliRow("remote_code_executed", report["remote_code_executed"], "fail" if report["remote_code_executed"] else "ok"),
+    )
+    print(render_report("YonerAI install plan", (CliSection("Windows dry-run", rows),), color=color))
+
+
 def _build_ops_plan_report(args: argparse.Namespace) -> dict[str, Any]:
     try:
         _prepare_core_import_path()
@@ -1023,6 +1109,7 @@ def build_parser() -> argparse.ArgumentParser:
     status_output = status.add_mutually_exclusive_group()
     status_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
     status_output.add_argument("--pretty", action="store_true", help="Print a readable status summary.")
+    status.add_argument("--source", choices=("local", "fixture"), default="local", help="Status source. Default: local.")
     status.add_argument("--lang", choices=LANG_CHOICES, default="en", help="Pretty output language. Default: en.")
     status.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
 
@@ -1123,6 +1210,24 @@ def build_parser() -> argparse.ArgumentParser:
     search_output.add_argument("--pretty", action="store_true", help="Print a readable search fixture summary.")
     search.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
 
+    discord = subcommands.add_parser("discord", help="Inspect public-safe Discord gateway adapter boundaries.")
+    discord_subcommands = discord.add_subparsers(dest="discord_command", required=True)
+    discord_synthetic = discord_subcommands.add_parser("synthetic", help="Run a synthetic Discord mention fixture.")
+    discord_synthetic.add_argument("message", nargs="+")
+    discord_synthetic_output = discord_synthetic.add_mutually_exclusive_group()
+    discord_synthetic_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
+    discord_synthetic_output.add_argument("--pretty", action="store_true", help="Print a readable Discord adapter summary.")
+    discord_synthetic.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
+
+    install = subcommands.add_parser("install", help="Plan installer actions without downloading or installing.")
+    install_subcommands = install.add_subparsers(dest="install_command", required=True)
+    install_plan_windows = install_subcommands.add_parser("plan-windows", help="Build a Windows installer dry-run plan.")
+    install_plan_windows.add_argument("--manifest", help="Local release manifest JSON path. Defaults to releases/manifest.example.json.")
+    install_plan_windows_output = install_plan_windows.add_mutually_exclusive_group()
+    install_plan_windows_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
+    install_plan_windows_output.add_argument("--pretty", action="store_true", help="Print a readable installer plan.")
+    install_plan_windows.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
+
     ops = subcommands.add_parser("ops", help="Plan safe diagnostic operations without arbitrary shell execution.")
     ops_subcommands = ops.add_subparsers(dest="ops_command", required=True)
     ops_plan = ops_subcommands.add_parser("plan", help="Preview a SafeShell diagnostic operation.")
@@ -1210,7 +1315,7 @@ def run(argv: list[str] | None = None) -> int:
             _print_doctor_pretty(report, lang=args.lang, color=args.color)
         return 0 if report["ok"] else 1
     if args.command == "status":
-        report = _build_doctor_report(command="yonerai status")
+        report = _build_status_report(source=args.source)
         if args.json:
             _print_json(report)
         else:
@@ -1269,6 +1374,20 @@ def run(argv: list[str] | None = None) -> int:
             _print_json(report)
         else:
             _print_search_pretty(report, color=args.color)
+        return 0 if report["ok"] else 1
+    if args.command == "discord" and args.discord_command == "synthetic":
+        report = _build_discord_report(args)
+        if args.json:
+            _print_json(report)
+        else:
+            _print_discord_pretty(report, color=args.color)
+        return 0 if report["ok"] else 1
+    if args.command == "install" and args.install_command == "plan-windows":
+        report = _build_install_report(args)
+        if args.json:
+            _print_json(report)
+        else:
+            _print_install_pretty(report, color=args.color)
         return 0 if report["ok"] else 1
     if args.command == "ops" and args.ops_command == "plan":
         report = _build_ops_plan_report(args)
