@@ -19,6 +19,7 @@ from yonerai_cli.release_manifest import (
     ManifestError,
     format_manifest_verify_pretty,
     load_manifest_file,
+    load_test_trust_fixture,
     parse_artifact_args,
     verify_manifest,
 )
@@ -1257,7 +1258,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="append",
         help="Optional ARTIFACT_ID=LOCAL_FILE mapping for local SHA256/size verification. Repeatable.",
     )
-    manifest_verify.add_argument("--require-signed", action="store_true", help="Reject manifests without production signatures.")
+    manifest_verify.add_argument(
+        "--test-trust-fixture",
+        help="Local non-production test trust fixture for signed manifest verification. Remote URLs are rejected.",
+    )
+    manifest_verify.add_argument("--require-signed", action="store_true", help="Reject manifests without verified signatures.")
     manifest_output = manifest_verify.add_mutually_exclusive_group()
     manifest_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
     manifest_output.add_argument("--pretty", action="store_true", help="Print a readable verification summary.")
@@ -1474,10 +1479,12 @@ def run(argv: list[str] | None = None) -> int:
     if args.command == "manifest" and args.manifest_command == "verify":
         try:
             artifacts = parse_artifact_args(args.artifact)
+            test_trust_fixture = load_test_trust_fixture(args.test_trust_fixture) if args.test_trust_fixture else None
             report = verify_manifest(
                 load_manifest_file(args.manifest_path),
                 artifact_paths=artifacts,
                 require_signed=args.require_signed,
+                test_trust_fixture=test_trust_fixture,
             )
         except ManifestError as exc:
             raise CliError(str(exc), exit_code=2) from exc

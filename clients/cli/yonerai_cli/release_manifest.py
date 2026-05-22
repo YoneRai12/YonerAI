@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import re
@@ -12,6 +13,8 @@ from yonerai_cli.output import CliRow, CliSection, ColorMode, render_report
 
 
 SCHEMA_VERSION = "yonerai-installer-bootstrap-manifest/v1"
+TEST_TRUST_FIXTURE_SCHEMA_VERSION = "yonerai-nonproduction-test-trust-fixture/v1"
+ARTIFACT_SIGNATURE_PAYLOAD_SCHEMA_VERSION = "yonerai-installer-artifact-signature/v1"
 SEMVER_CORE_RE_TEXT = r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)"
 SEMVER_PRERELEASE_IDENTIFIER_RE_TEXT = r"(?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)"
 SEMVER_RE_TEXT = (
@@ -47,6 +50,7 @@ ARTIFACT_OSES = {"windows", "linux", "macos", "any"}
 ARTIFACT_ARCHES = {"x64", "arm64", "universal", "any"}
 SIGNATURE_STATUSES = {"signed", "placeholder_non_production"}
 SIGNATURE_ALGORITHMS = {"ed25519", "none"}
+TEST_TRUST_KEY_SCOPES = {"non-production-test"}
 
 
 class ManifestError(ValueError):
@@ -67,6 +71,8 @@ class ArtifactCheck:
 def load_manifest_file(path_text: str) -> dict[str, Any]:
     if _looks_like_url(path_text):
         raise ManifestError("manifest path must be a local file; remote URLs are not fetched.")
+    if _looks_like_remote_path(path_text):
+        raise ManifestError("manifest path must be a local file; remote paths are not fetched.")
     path = Path(path_text)
     try:
         raw = path.read_text(encoding="utf-8")
@@ -81,29 +87,59 @@ def load_manifest_file(path_text: str) -> dict[str, Any]:
     return manifest
 
 
+def load_test_trust_fixture(path_text: str) -> dict[str, Any]:
+    if _looks_like_url(path_text):
+        raise ManifestError("test trust fixture must be a local file; remote URLs are not fetched.")
+    if _looks_like_remote_path(path_text):
+        raise ManifestError("test trust fixture must be a local file; remote paths are not fetched.")
+    path = Path(path_text)
+    try:
+        raw = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise ManifestError("test trust fixture could not be read.") from exc
+    try:
+        fixture = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise ManifestError("test trust fixture is not valid JSON.") from exc
+    if not isinstance(fixture, dict):
+        raise ManifestError("test trust fixture JSON must be an object.")
+    return fixture
+
+
 def verify_manifest(
     manifest: dict[str, Any],
     *,
     artifact_paths: dict[str, str] | None = None,
     require_signed: bool = False,
+    test_trust_fixture: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     errors = validate_manifest_contract(manifest)
+    trust_errors = validate_test_trust_fixture(test_trust_fixture) if test_trust_fixture is not None else []
+    errors.extend(trust_errors)
     artifacts = manifest.get("artifacts") if isinstance(manifest, dict) else None
     artifact_list = artifacts if isinstance(artifacts, list) else []
     artifact_checks = _verify_artifacts(artifact_list, artifact_paths or {})
     errors.extend(check.reason for check in artifact_checks if check.status == "failed" and check.reason)
 
     signature_state = _signature_state(artifact_list)
+    signature_checks = _verify_artifact_signatures(manifest, artifact_list, test_trust_fixture) if not trust_errors else []
+    errors.extend(
+        check["reason"]
+        for check in signature_checks
+        if check["status"] == "failed" and isinstance(check.get("reason"), str)
+    )
+    signature_verified = (
+        signature_state == "signed"
+        and bool(signature_checks)
+        and all(check["status"] == "verified" for check in signature_checks)
+    )
     if require_signed and signature_state != "signed":
         errors.append("manifest is not fully signed.")
+    if require_signed and signature_state == "signed" and not signature_verified:
+        errors.append("manifest signature is not verified.")
 
     contract_valid = not errors
-    install_ready = (
-        contract_valid
-        and signature_state == "signed"
-        and artifact_checks != []
-        and all(check.status == "verified" for check in artifact_checks)
-    )
+    install_ready = False
     return {
         "ok": contract_valid,
         "contract_valid": contract_valid,
@@ -116,7 +152,11 @@ def verify_manifest(
         "manifest_status": _release_value(manifest, "manifest_status"),
         "production_ready": manifest.get("production_ready"),
         "signature_state": signature_state,
-        "signature_verified": signature_state == "signed",
+        "signature_verified": signature_verified,
+        "test_signature_verified": signature_verified,
+        "production_signature_verified": False,
+        "test_trust_fixture_used": test_trust_fixture is not None,
+        "production_trust_material": False,
         "network_required": _minimum_value(manifest, "network_required"),
         "artifact_count": len(artifact_list),
         "artifact_checks": [
@@ -131,9 +171,53 @@ def verify_manifest(
             }
             for check in artifact_checks
         ],
+        "signature_checks": signature_checks,
         "errors": errors,
-        "non_production_reason": None if signature_state == "signed" else "signature_not_production_verified",
+        "non_production_reason": _non_production_reason(
+            signature_state=signature_state,
+            signature_verified=signature_verified,
+            test_trust_fixture_used=test_trust_fixture is not None,
+        ),
     }
+
+
+def validate_test_trust_fixture(fixture: dict[str, Any] | None) -> list[str]:
+    if fixture is None:
+        return []
+    errors: list[str] = []
+    allowed_top = {"schema_version", "fixture_only", "production_trust", "keys"}
+    _check_keys(fixture, allowed_top, allowed_top, "test trust fixture", errors)
+    _expect(
+        fixture.get("schema_version") == TEST_TRUST_FIXTURE_SCHEMA_VERSION,
+        "test trust fixture schema_version is invalid.",
+        errors,
+    )
+    _expect(fixture.get("fixture_only") is True, "test trust fixture must be fixture_only.", errors)
+    _expect(fixture.get("production_trust") is False, "test trust fixture must not contain production trust.", errors)
+    keys = fixture.get("keys")
+    if not isinstance(keys, list) or not keys:
+        errors.append("test trust fixture keys must be a non-empty array.")
+        return errors
+    for index, key in enumerate(keys):
+        if not isinstance(key, dict):
+            errors.append(f"test trust fixture key {index} must be an object.")
+            continue
+        allowed_key = {"key_id", "algorithm", "public_key_b64", "scope"}
+        _check_keys(key, allowed_key, allowed_key, f"test trust fixture key {index}", errors)
+        _expect(isinstance(key.get("key_id"), str) and bool(key["key_id"]), f"test trust fixture key {index} key_id is invalid.", errors)
+        _expect(key.get("algorithm") == "ed25519", f"test trust fixture key {index} algorithm is invalid.", errors)
+        _expect(key.get("scope") in TEST_TRUST_KEY_SCOPES, f"test trust fixture key {index} scope is invalid.", errors)
+        public_key_b64 = key.get("public_key_b64")
+        if not isinstance(public_key_b64, str):
+            errors.append(f"test trust fixture key {index} public_key_b64 is invalid.")
+            continue
+        try:
+            raw = base64.b64decode(public_key_b64.encode("ascii"), validate=True)
+        except Exception:
+            errors.append(f"test trust fixture key {index} public_key_b64 is invalid.")
+            continue
+        _expect(len(raw) == 32, f"test trust fixture key {index} public key length is invalid.", errors)
+    return errors
 
 
 def validate_manifest_contract(manifest: dict[str, Any]) -> list[str]:
@@ -205,6 +289,8 @@ def parse_artifact_args(values: list[str] | None) -> dict[str, str]:
             raise ManifestError("artifact path must not be empty.")
         if _looks_like_url(local_file):
             raise ManifestError("artifact path must be a local file; remote URLs are not fetched.")
+        if _looks_like_remote_path(local_file):
+            raise ManifestError("artifact path must be a local file; remote paths are not fetched.")
         result[artifact_id] = local_file
     return result
 
@@ -216,7 +302,11 @@ def format_manifest_verify_pretty(
     color: ColorMode = "auto",
 ) -> str:
     if lang == "ja":
-        sections = _manifest_sections_ja(report)
+        sections = (
+            *_manifest_sections_ja(report),
+            _manifest_trust_fixture_section(report),
+            CliSection("Signature checks", _signature_check_rows(report)),
+        )
         title = "YonerAI マニフェスト検証"
     else:
         sections = _manifest_sections_en(report)
@@ -237,6 +327,7 @@ def _manifest_sections_en(report: dict[str, Any]) -> tuple[CliSection, ...]:
         )
         for check in report.get("artifact_checks", [])
     )
+    signature_checks = _signature_check_rows(report)
     return (
         CliSection(
             "Contract",
@@ -256,6 +347,8 @@ def _manifest_sections_en(report: dict[str, Any]) -> tuple[CliSection, ...]:
                 CliRow("sha256_present", bool(report.get("artifact_count")), "ok" if report.get("artifact_count") else "fail"),
                 CliRow("signature_state", report.get("signature_state"), "ok" if report.get("signature_state") == "signed" else "warn"),
                 CliRow("signature_verified", report.get("signature_verified"), "ok" if report.get("signature_verified") else "warn"),
+                CliRow("test_trust_fixture_used", report.get("test_trust_fixture_used"), "warn" if report.get("test_trust_fixture_used") else "ok"),
+                CliRow("production_trust_material", report.get("production_trust_material"), "fail" if report.get("production_trust_material") else "ok"),
                 CliRow("non_production_reason", report.get("non_production_reason") or "none", "warn" if report.get("non_production_reason") else "ok"),
             ),
         ),
@@ -268,6 +361,29 @@ def _manifest_sections_en(report: dict[str, Any]) -> tuple[CliSection, ...]:
             ),
         ),
         CliSection("Artifact checks", artifact_checks),
+        CliSection("Signature checks", signature_checks),
+    )
+
+
+def _signature_check_rows(report: dict[str, Any]) -> tuple[CliRow, ...]:
+    return tuple(
+        CliRow(
+            str(check["artifact_id"]),
+            check["status"],
+            "ok" if check["status"] == "verified" else "warn" if check["status"] == "skipped" else "fail",
+            note=check.get("reason"),
+        )
+        for check in report.get("signature_checks", [])
+    )
+
+
+def _manifest_trust_fixture_section(report: dict[str, Any]) -> CliSection:
+    return CliSection(
+        "Trust fixture",
+        (
+            CliRow("test_trust_fixture_used", _bool_text(report.get("test_trust_fixture_used")), "warn" if report.get("test_trust_fixture_used") else "ok"),
+            CliRow("production_trust_material", _bool_text(report.get("production_trust_material")), "fail" if report.get("production_trust_material") else "ok"),
+        ),
     )
 
 
@@ -423,6 +539,117 @@ def _verify_artifacts(artifacts: list[object], artifact_paths: dict[str, str]) -
     return checks
 
 
+def _verify_artifact_signatures(
+    manifest: dict[str, Any],
+    artifacts: list[object],
+    fixture: dict[str, Any] | None,
+) -> list[dict[str, Any]]:
+    checks: list[dict[str, Any]] = []
+    trust_keys = _test_trust_keys(fixture)
+    for artifact in artifacts:
+        if not isinstance(artifact, dict):
+            continue
+        artifact_id = str(artifact.get("id") or "unknown")
+        signature = artifact.get("signature")
+        if not isinstance(signature, dict):
+            checks.append(_signature_check(artifact_id, "failed", reason="signature_metadata_missing", trust_source=None))
+            continue
+        status = signature.get("status")
+        if status == "placeholder_non_production":
+            checks.append(_signature_check(artifact_id, "skipped", reason="placeholder_non_production", trust_source=None))
+            continue
+        if status != "signed":
+            checks.append(_signature_check(artifact_id, "failed", reason="signature_status_invalid", trust_source=None))
+            continue
+        key_id = signature.get("key_id")
+        algorithm = signature.get("algorithm")
+        if fixture is None:
+            checks.append(_signature_check(artifact_id, "skipped", key_id=key_id, algorithm=algorithm, reason="test_trust_fixture_required", trust_source=None))
+            continue
+        key = trust_keys.get((str(key_id), str(algorithm)))
+        if key is None:
+            checks.append(_signature_check(artifact_id, "failed", key_id=key_id, algorithm=algorithm, reason="test_trust_key_not_found"))
+            continue
+        if not _verify_ed25519_signature(manifest, artifact, signature, key):
+            checks.append(_signature_check(artifact_id, "failed", key_id=key_id, algorithm=algorithm, reason="signature_invalid"))
+            continue
+        checks.append(_signature_check(artifact_id, "verified", key_id=key_id, algorithm=algorithm, reason=None))
+    return checks
+
+
+def _test_trust_keys(fixture: dict[str, Any] | None) -> dict[tuple[str, str], dict[str, Any]]:
+    if not isinstance(fixture, dict):
+        return {}
+    keys = fixture.get("keys")
+    if not isinstance(keys, list):
+        return {}
+    result: dict[tuple[str, str], dict[str, Any]] = {}
+    for key in keys:
+        if not isinstance(key, dict):
+            continue
+        key_id = key.get("key_id")
+        algorithm = key.get("algorithm")
+        if isinstance(key_id, str) and isinstance(algorithm, str):
+            result[(key_id, algorithm)] = key
+    return result
+
+
+def _signature_check(
+    artifact_id: str,
+    status: str,
+    *,
+    key_id: object = None,
+    algorithm: object = None,
+    reason: str | None,
+    trust_source: str | None = "non-production-test-fixture",
+) -> dict[str, Any]:
+    return {
+        "artifact_id": artifact_id,
+        "status": status,
+        "key_id": key_id if isinstance(key_id, str) else None,
+        "algorithm": algorithm if isinstance(algorithm, str) else None,
+        "trust_source": trust_source,
+        "production_trust": False,
+        "reason": reason,
+    }
+
+
+def _verify_ed25519_signature(
+    manifest: dict[str, Any],
+    artifact: dict[str, Any],
+    signature: dict[str, Any],
+    key: dict[str, Any],
+) -> bool:
+    try:
+        from cryptography.exceptions import InvalidSignature
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+    except Exception:
+        return False
+    try:
+        public_key_raw = base64.b64decode(str(key["public_key_b64"]).encode("ascii"), validate=True)
+        signature_raw = base64.b64decode(str(signature["signature"]).encode("ascii"), validate=True)
+        public_key = Ed25519PublicKey.from_public_bytes(public_key_raw)
+        public_key.verify(signature_raw, _canonical_json(_artifact_signature_payload(manifest, artifact)))
+        return True
+    except (InvalidSignature, KeyError, TypeError, ValueError):
+        return False
+
+
+def _artifact_signature_payload(manifest: dict[str, Any], artifact: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "schema_version": ARTIFACT_SIGNATURE_PAYLOAD_SCHEMA_VERSION,
+        "product": manifest.get("product"),
+        "channel": manifest.get("channel"),
+        "version": manifest.get("version"),
+        "release_tag": _release_value(manifest, "tag"),
+        "artifact": {key: value for key, value in artifact.items() if key != "signature"},
+    }
+
+
+def _canonical_json(payload: object) -> bytes:
+    return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+
+
 def _hash_file(path: Path) -> tuple[str, int]:
     digest = hashlib.sha256()
     size = 0
@@ -453,6 +680,19 @@ def _signature_state(artifacts: list[object]) -> str:
     return "invalid"
 
 
+def _non_production_reason(
+    *,
+    signature_state: str,
+    signature_verified: bool,
+    test_trust_fixture_used: bool,
+) -> str | None:
+    if signature_verified and test_trust_fixture_used:
+        return "test_trust_fixture_not_production"
+    if signature_state == "signed":
+        return "signature_not_verified"
+    return "signature_not_production_verified"
+
+
 def _check_keys(value: dict[str, Any], required: set[str], allowed: set[str], name: str, errors: list[str]) -> None:
     missing = sorted(required - set(value))
     extra = sorted(set(value) - allowed)
@@ -470,6 +710,11 @@ def _expect(condition: object, message: str, errors: list[str]) -> None:
 def _looks_like_url(value: str) -> bool:
     lowered = value.strip().lower()
     return lowered.startswith(("http://", "https://"))
+
+
+def _looks_like_remote_path(value: str) -> bool:
+    normalized = value.strip().replace("/", "\\")
+    return normalized.startswith("\\\\")
 
 
 def _release_value(manifest: dict[str, Any], key: str) -> Any:

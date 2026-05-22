@@ -1,0 +1,13 @@
+{
+  "schema_version": "yonerai-nonproduction-test-trust-fixture/v1",
+  "fixture_only": true,
+  "production_trust": false,
+  "keys": [
+    {
+      "key_id": "test-non-production-ed25519-2026-05-23",
+      "algorithm": "ed25519",
+      "public_key_b64": "ny0hszjyJrXRLaq+ZS2IEes50R+62WwSZK4e1gZcuDY=",
+      "scope": "non-production-test"
+    }
+  ]
+}
