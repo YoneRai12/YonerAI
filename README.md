@@ -28,6 +28,11 @@ yonerai doctor --pretty
 yonerai doctor --pretty --lang ja
 yonerai status --pretty
 yonerai manifest verify releases/manifest.example.json --pretty
+yonerai plan "summarize public docs" --json
+yonerai ask "summarize public docs" --provider mock --json
+yonerai search mock "YonerAI alpha2" --json
+yonerai ops plan git-status --json
+yonerai install plan-windows --json
 ```
 
 `yonerai quickstart` is an alias for the same demo.
@@ -53,7 +58,8 @@ The demo shows one visible vertical slice:
 - test-only Local Node signed manifest, enrollment/session, signed envelope, replay rejection, and approval gate
 - managed download guard accepting managed file URLs and rejecting arbitrary unsafe URLs
 - synthetic proposal-only self-evolution scorecard and approval draft
-- explicit limitations: no production Oracle, live Discord, persistent memory, Google login, official cloud runtime in this repo, provider live generation, or deploy
+- alpha2 capability boundaries for opt-in providers, loopback local LLM, workspace file summarize, mock search, SafeShell planning, explicit local memory, synthetic Discord, status contracts, and installer dry-run planning
+- explicit limitations: no production Oracle, live Discord restoration, default/cloud memory, Google login, official cloud runtime in this repo, default live provider generation, arbitrary shell, arbitrary file access, or deploy
 
 ## Current Checkpoint
 
@@ -65,9 +71,9 @@ The active design anchor is v7.7:
 - contract-first public boundaries
 - public/private/control-plane separation by contract, not by leaking internal operations detail
 
-The latest historical checkpoint note is `v2026.5.21.5`, which records layer upload hardening, the first behavior-preserving `src/cogs/ora.py` pure-helper extraction, ORA/YonerAI naming compatibility policy, and a three-mode docs-only capability acceptance harness extension. It is a checkpoint archive note, not a production release.
+The latest runnable semantic pre-release note is `docs/releases/0.1.0-alpha.2.md`. The latest historical checkpoint note is `v2026.5.21.5`, which records layer upload hardening, the first behavior-preserving `src/cogs/ora.py` pure-helper extraction, ORA/YonerAI naming compatibility policy, and a three-mode docs-only capability acceptance harness extension. The alpha2 note is a public alpha capability slice; the checkpoint archive note is not a production release.
 
-Future internal checkpoint logs belong under `docs/changelog/checkpoints/`, not GitHub Releases. GitHub Releases are frozen for checkpoint/docs/process work until a runnable public milestone, likely a semantic pre-release such as `v0.1.0-alpha.1`.
+Future internal checkpoint logs belong under `docs/changelog/checkpoints/`, not GitHub Releases. GitHub Releases are reserved for runnable public milestones such as semantic pre-releases.
 
 Older date-suffix GitHub Releases remain historical artifacts. Do not delete, retag, or treat them as evidence of production readiness.
 
@@ -92,13 +98,21 @@ What works today:
 - run `yonerai demo --pretty` or `yonerai demo --json` to see the public demo slice without credentials or a running Core API process
 - run `yonerai doctor --pretty`, `yonerai doctor --pretty --lang ja`, and `yonerai status --pretty` for offline public-demo diagnostics
 - run `yonerai manifest verify releases/manifest.example.json --pretty` for local manifest contract verification without downloading or installing anything
+- run `yonerai plan "task"` and `yonerai ask "task" --provider mock` for public-safe planning and mock provider execution
+- run `yonerai ask "summarize this file" --file <path> --workspace <dir> --provider mock` for explicit workspace-only text file summarization
+- run `yonerai search mock "query"` for deterministic mock search fixtures
+- run `yonerai ops plan git-status` for SafeShell diagnostic planning without arbitrary shell execution
+- run `yonerai memory add/list/delete/export --store <local.jsonl>` for explicit opt-in local-only memory records
+- run `yonerai discord synthetic "message"` for synthetic Discord gateway boundary checks
+- run `yonerai status --source fixture` for official/status contract fixtures with no production service call
+- run `yonerai install plan-windows` for Windows installer dry-run planning
 - call `POST /v1/public/messages` with `mode: "local"` to reach a loopback-only local LLM runtime
 - choose `local_provider: "ollama"` or `local_provider: "openai_compatible_local"` for supported local server styles
 - open `clients/web` locally as a temporary Web Chat MVP / smoke-demo surface
 - from `clients/web`, send `mock` / `offline` messages through that endpoint
 - from `clients/web`, select local Ollama or OpenAI-compatible local mode when the Core API and local model server are already running on loopback
 
-Not included yet: final Web product UI, Google login, conversation history sync, persistent natural memory, web search, Discord chat, external provider live generation, official cloud, deployment, or full product completion. The public session scaffold is in-memory metadata only; it is not persistent memory or cross-device history.
+Not included yet: final Web product UI, Google login, conversation history sync, complete persistent natural memory, live web search, live Discord chat restoration, default live external provider generation, official cloud runtime, deployment, arbitrary shell execution, arbitrary local file access, installer-ready distribution, or full product completion. The public session scaffold is in-memory metadata only; explicit local memory v0.1 is local-only and opt-in, not cloud memory or cross-device history.
 
 See [Current MVP Capability Matrix](docs/CURRENT_MVP_CAPABILITY_MATRIX.md) for the user-facing capability table.
 
