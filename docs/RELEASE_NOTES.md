@@ -4,12 +4,15 @@ This page is a public-safe index of current release notes and progress checkpoin
 
 ## v0.1.0-alpha.2 Capability Slice
 
-- GitHub pre-release target: `v0.1.0-alpha.2` after the final release gate passes.
+- GitHub pre-release: `v0.1.0-alpha.2`.
+- Release title: `2026.05.22 — YonerAI v0.1.0-alpha.2 Capability Slice`.
 - Public release body: `docs/releases/0.1.0-alpha.2.md`
-- YonerAI CLI: `yonerai demo`, `yonerai ask`, `yonerai plan`, `yonerai search`, `yonerai ops`, `yonerai memory`, `yonerai discord synthetic`, `yonerai status`, `yonerai manifest verify`, and `yonerai install plan-windows`.
+- What users can try now: `yonerai demo`, `yonerai doctor`, `yonerai status`, `yonerai ask --provider mock`, workspace-scoped `yonerai ask --file ... --workspace ...`, `yonerai plan`, `yonerai search mock`, `yonerai ops plan`, explicit local `yonerai memory`, `yonerai discord synthetic`, `yonerai manifest verify`, and `yonerai install plan-windows`.
 - Capability slice: opt-in provider adapters, loopback-only local LLM, workspace file summarize, mock search, SafeShell planning, explicit local memory, synthetic Discord gateway, official status contracts, installer dry-run planning, run ledger/history, and deterministic demo integration.
 - Boundary: no default live provider calls, no live Discord, no arbitrary shell, no arbitrary local file access, no production Oracle/control-plane implementation, no production signing keys, no production trust stores, no Google login, no production DB behavior, and no Official Managed Cloud runtime in this public repo.
-- Traceability: PRs #315, #316, #317, #318, #319, #320, #321, #322, and #323.
+- Primary traceability range: `v0.1.0-alpha.1..v0.1.0-alpha.2`, 16 PRs.
+- Primary traceability PRs: #307, #308, #309, #310, #311, #312, #314, #315, #316, #317, #318, #319, #320, #321, #322, and #323.
+- External/date-checkpoint comparison range: `v2026.5.21.5..v0.1.0-alpha.2`, 68 PRs.
 
 ## v0.1.0-alpha.1 Public Demo Slice
 

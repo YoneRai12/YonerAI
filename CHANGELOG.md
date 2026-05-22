@@ -3,6 +3,10 @@
 See also: `docs/RELEASE_NOTES.md` (curated summary, v5.0.0 -> current).
 
 ## v0.1.0-alpha.2 (2026-05-22) - Capability Slice
+- Corrected the existing `v0.1.0-alpha.2` release title/body guidance to the
+  date-stamped title `2026.05.22 — YonerAI v0.1.0-alpha.2 Capability Slice`,
+  a plain-language "what you can actually do now" section, and full
+  `v0.1.0-alpha.1..v0.1.0-alpha.2` traceability.
 - Added opt-in external provider adapters for OpenAI-compatible, Anthropic, and Gemini paths while keeping default tests mock-only.
 - Connected loopback-only local LLM behavior, mock provider execution, run ledger/history, workspace file summarization, mock search, SafeShell diagnostic planning, explicit local memory, synthetic Discord gateway fixtures, official status contracts, and installer dry-run planning into the CLI/demo surface.
 - Expanded `yonerai demo`, `yonerai ask`, `yonerai plan`, `yonerai search`, `yonerai ops`, `yonerai memory`, `yonerai discord synthetic`, `yonerai status`, and `yonerai install plan-windows` as the public alpha capability slice.
