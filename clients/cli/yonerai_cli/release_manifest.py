@@ -12,8 +12,15 @@ from yonerai_cli.output import CliRow, CliSection, ColorMode, render_report
 
 
 SCHEMA_VERSION = "yonerai-installer-bootstrap-manifest/v1"
-SEMVER_RE = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$")
-TAG_RE = re.compile(r"^v[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$")
+SEMVER_CORE_RE_TEXT = r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)"
+SEMVER_PRERELEASE_IDENTIFIER_RE_TEXT = r"(?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)"
+SEMVER_RE_TEXT = (
+    rf"{SEMVER_CORE_RE_TEXT}"
+    rf"(?:-({SEMVER_PRERELEASE_IDENTIFIER_RE_TEXT}(?:\.{SEMVER_PRERELEASE_IDENTIFIER_RE_TEXT})*))?"
+    r"(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?"
+)
+SEMVER_RE = re.compile(rf"^{SEMVER_RE_TEXT}$")
+TAG_RE = re.compile(rf"^v{SEMVER_RE_TEXT}$")
 URL_RE = re.compile(r"^(https://github\.com/YoneRai12/YonerAI/releases/download/|https://example\.invalid/)")
 SHA256_RE = re.compile(r"^[a-f0-9]{64}$")
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9._-]*$")

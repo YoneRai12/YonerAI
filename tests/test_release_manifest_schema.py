@@ -87,6 +87,42 @@ def test_example_manifest_validates_against_schema_contract() -> None:
     _validate_manifest_contract(_load_manifest())
 
 
+def test_semver_patterns_reject_malformed_numeric_identifiers() -> None:
+    schema = _load_schema()
+    version_pattern = _pattern(schema, "properties", "version", "pattern")
+    tag_pattern = _pattern(schema, "properties", "release", "properties", "tag", "pattern")
+
+    assert version_pattern.match("1.0.0-alpha.1")
+    assert tag_pattern.match("v1.0.0-alpha.1")
+    assert not version_pattern.match("01.2.3")
+    assert not tag_pattern.match("v01.2.3")
+    assert not version_pattern.match("1.0.0-alpha.01")
+    assert not tag_pattern.match("v1.0.0-alpha.01")
+    assert not version_pattern.match("1.0.0-alpha..1")
+    assert not tag_pattern.match("v1.0.0-alpha..1")
+
+
+def test_cli_manifest_validator_rejects_malformed_semver() -> None:
+    import sys
+
+    cli_src = ROOT / "clients" / "cli"
+    if str(cli_src) not in sys.path:
+        sys.path.insert(0, str(cli_src))
+    from yonerai_cli.release_manifest import verify_manifest
+
+    manifest = _load_manifest()
+    manifest["version"] = "01.2.3"
+    release = manifest["release"]
+    assert isinstance(release, dict)
+    release["tag"] = "v01.2.3"
+
+    report = verify_manifest(manifest)
+
+    assert report["contract_valid"] is False
+    assert "version is invalid." in report["errors"]
+    assert "release tag is invalid." in report["errors"]
+
+
 def test_cli_manifest_validator_accepts_example_contract() -> None:
     import sys
 
