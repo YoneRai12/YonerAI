@@ -3,14 +3,16 @@
 See also: `docs/RELEASE_NOTES.md` (curated summary, v5.0.0 -> current).
 
 ## v0.1.0-alpha.2 (2026-05-22) - Capability Slice
-- Corrected the existing `v0.1.0-alpha.2` release title/body guidance to the
-  date-stamped title `2026.05.22 — YonerAI v0.1.0-alpha.2 Capability Slice`,
-  a plain-language "what you can actually do now" section, and full
-  `v0.1.0-alpha.1..v0.1.0-alpha.2` traceability.
+- Corrected the existing `v0.1.0-alpha.2` release note into operation-manual
+  style with the date-stamped title
+  `2026.05.22 — YonerAI v0.1.0-alpha.2 Capability Slice`, command-by-command
+  run guidance, explicit non-actions, immutable tag traceability, and
+  post-tag correction traceability.
 - Added opt-in external provider adapters for OpenAI-compatible, Anthropic, and Gemini paths while keeping default tests mock-only.
 - Connected loopback-only local LLM behavior, mock provider execution, run ledger/history, workspace file summarization, mock search, SafeShell diagnostic planning, explicit local memory, synthetic Discord gateway fixtures, official status contracts, and installer dry-run planning into the CLI/demo surface.
-- Expanded `yonerai demo`, `yonerai ask`, `yonerai plan`, `yonerai search`, `yonerai ops`, `yonerai memory`, `yonerai discord synthetic`, `yonerai status`, and `yonerai install plan-windows` as the public alpha capability slice.
+- Expanded `yonerai demo`, `yonerai ask`, `yonerai plan`, `yonerai search`, `yonerai ops`, `yonerai memory`, `yonerai discord synthetic`, `yonerai status`, `yonerai manifest verify`, `yonerai install plan`, and `yonerai install plan-windows` as the public alpha capability slice.
 - Reduced stale runtime PR debt after the alpha2 implementation and recorded release-gate evidence.
+- Converted Issue #313 into the parent installer/bootstrap tracker and linked child issues #328 through #334 for remaining installer work.
 - Preserved hard boundaries: no default live provider calls, no live Discord, no arbitrary shell, no arbitrary file read, no production Oracle/control-plane implementation, no production installer, no production signing keys, and no Official Managed Cloud runtime in the public repo.
 
 ## v0.1.0-alpha.1 (2026-05-21) - Public Demo Slice
@@ -100,7 +102,7 @@ See also: `docs/RELEASE_NOTES.md` (curated summary, v5.0.0 -> current).
 - Quick tunnels (trycloudflare) are blocked by default unless `ORA_TUNNELS_ALLOW_QUICK=1`.
 
 ## v5.1.10 (2026-02-06) - Portable Logging Paths
-- Logging now writes to `config.log_dir` (env-driven) instead of hardcoding `L:\\ORA_Logs`.
+- Logging now writes to `config.log_dir` (env-driven) instead of a legacy host-specific absolute log path.
 - Guild chat logs and LocalLogReader now follow the same portable log directory.
 
 ## v5.1.9 (2026-02-06) - Discord Embed Safety + Release Bump

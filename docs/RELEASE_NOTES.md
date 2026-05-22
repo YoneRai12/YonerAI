@@ -7,12 +7,14 @@ This page is a public-safe index of current release notes and progress checkpoin
 - GitHub pre-release: `v0.1.0-alpha.2`.
 - Release title: `2026.05.22 — YonerAI v0.1.0-alpha.2 Capability Slice`.
 - Public release body: `docs/releases/0.1.0-alpha.2.md`
-- What users can try now: `yonerai demo`, `yonerai doctor`, `yonerai status`, `yonerai ask --provider mock`, workspace-scoped `yonerai ask --file ... --workspace ...`, `yonerai plan`, `yonerai search mock`, `yonerai ops plan`, explicit local `yonerai memory`, `yonerai discord synthetic`, `yonerai manifest verify`, and `yonerai install plan-windows`.
+- What users can try now: `yonerai demo`, `yonerai doctor`, `yonerai status`, `yonerai ask --provider mock`, workspace-scoped `yonerai ask --file ... --workspace ...`, `yonerai plan`, `yonerai search mock`, `yonerai ops plan`, explicit local `yonerai memory`, `yonerai discord synthetic`, `yonerai manifest verify`, `yonerai install plan --manifest releases/manifest.example.json`, and `yonerai install plan-windows`.
 - Capability slice: opt-in provider adapters, loopback-only local LLM, workspace file summarize, mock search, SafeShell planning, explicit local memory, synthetic Discord gateway, official status contracts, installer dry-run planning, run ledger/history, and deterministic demo integration.
 - Boundary: no default live provider calls, no live Discord, no arbitrary shell, no arbitrary local file access, no production Oracle/control-plane implementation, no production signing keys, no production trust stores, no Google login, no production DB behavior, and no Official Managed Cloud runtime in this public repo.
 - Primary traceability range: `v0.1.0-alpha.1..v0.1.0-alpha.2`, 16 PRs.
 - Primary traceability PRs: #307, #308, #309, #310, #311, #312, #314, #315, #316, #317, #318, #319, #320, #321, #322, and #323.
 - External/date-checkpoint comparison range: `v2026.5.21.5..v0.1.0-alpha.2`, 68 PRs.
+- Post-tag correction and installer-continuation PRs: #324, #325, #326, #327, #335, #336, and #337.
+- Note: the tag was not moved. Post-tag PRs describe current `main` continuation and corrected release guidance.
 
 ## v0.1.0-alpha.1 Public Demo Slice
 
