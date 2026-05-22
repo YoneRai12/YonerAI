@@ -1,6 +1,7 @@
 # YonerAI installer distribution foundation
 
-Status: foundation plan with local manifest verification and doctor diagnostics.
+Status: foundation plan with local manifest verification, doctor/status
+diagnostics, and human-readable Japanese-capable CLI output.
 No network-executing installer is included here.
 
 ## Purpose
@@ -73,8 +74,14 @@ default and checks:
 - installed package version display.
 - whether credentials are absent or redacted for public demo flows.
 - local manifest example verification readiness.
+- public-safe redaction self-check.
+- Tools/MCP deny-policy self-check.
+- English and Japanese human-readable output with stable English-keyed JSON.
 
 It must not modify PATH, download remote code, install packages, create credentials, deploy, or connect to live services.
+
+`yonerai status` is the shorter public demo / installer-readiness view over the
+same offline checks. It is not an installer and does not mutate the machine.
 
 ## Manifest verify plan
 
@@ -82,6 +89,11 @@ It must not modify PATH, download remote code, install packages, create credenti
 manifest contract, channel, version, target, SHA256 format, signature state, and
 optional local artifact SHA256/size mappings. It rejects remote manifest URLs and
 does not download, execute, install, or mutate anything.
+
+Pretty output reports contract validity, install readiness, artifact count,
+SHA256/signature status, placeholder warnings, and the fact that no
+network/download/install action was performed. `--lang ja` changes only
+human-readable output.
 
 The alpha example manifest is expected to be contract-valid but not install-ready
 because it uses `placeholder_non_production` signature material. A production
@@ -93,11 +105,12 @@ verified.
 1. Land manifest schema, example, and validation tests. Done for the alpha foundation.
 2. Add a manifest reader/verifier that validates local files only. Done for local contract verification.
 3. Add `yonerai doctor` as non-mutating validation. Done for local alpha diagnostics.
-4. Add dry-run installer planning with no download, execution, PATH mutation, or install mutation.
-5. Connect release workflow to publish a signed manifest artifact.
-6. Add signature verification against an explicit production trust source.
-7. Add PowerShell bootstrap skeleton only after signature verification, rollback, logs, and safe mode are proven.
-8. Add npm and winget bootstrap entry points that read the same manifest.
+4. Add `yonerai status`, Japanese pretty output, and manifest pretty output. Done for CLI experience diagnostics.
+5. Add dry-run installer planning with no download, execution, PATH mutation, or install mutation.
+6. Connect release workflow to publish a signed manifest artifact.
+7. Add signature verification against an explicit production trust source.
+8. Add PowerShell bootstrap skeleton only after signature verification, rollback, logs, and safe mode are proven.
+9. Add npm and winget bootstrap entry points that read the same manifest.
 
 ## Next safe milestone
 
@@ -115,3 +128,5 @@ production signing key generation, and production trust store creation.
 - Placeholder signature is allowed only when the manifest is explicitly non-production.
 - Tests perform no network calls.
 - No executable remote installer code is added.
+- Root README, Japanese README, and CLI README document the same public-safe CLI
+  diagnostic surface.

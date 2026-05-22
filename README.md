@@ -24,6 +24,10 @@ python -m pip install -r core/requirements.txt httpx
 python -m pip install -e clients/cli
 yonerai demo --pretty
 yonerai demo --json
+yonerai doctor --pretty
+yonerai doctor --pretty --lang ja
+yonerai status --pretty
+yonerai manifest verify releases/manifest.example.json --pretty
 ```
 
 `yonerai quickstart` is an alias for the same demo.
@@ -31,6 +35,15 @@ yonerai demo --json
 The JSON output uses the stable `yonerai-public-demo/v1` contract with
 `schema_version: "1.0"` so CI, docs, and release checks can assert the same
 public demo shape.
+
+`yonerai doctor` and `yonerai status` are offline, non-mutating diagnostics for
+the public demo and installer-readiness surface. `--lang ja` changes only the
+human-readable output; JSON remains English-keyed and stable for tests and CI.
+Pretty diagnostics also support `--color auto|never|always`; JSON output never
+includes terminal color codes.
+`yonerai manifest verify <path>` validates a local release manifest only. It
+does not download artifacts, execute installers, mutate PATH, or connect to live
+services.
 
 The demo shows one visible vertical slice:
 
@@ -77,6 +90,8 @@ What works today:
 - call `POST /api/v1/agent/run` for a local in-memory run smoke contract and read `events_url` / `results_url`
 - install `clients/cli` locally and run `yonerai health`, `yonerai message --mode mock "hello"`, and `yonerai run --mode mock "hello"` against loopback Core
 - run `yonerai demo --pretty` or `yonerai demo --json` to see the public demo slice without credentials or a running Core API process
+- run `yonerai doctor --pretty`, `yonerai doctor --pretty --lang ja`, and `yonerai status --pretty` for offline public-demo diagnostics
+- run `yonerai manifest verify releases/manifest.example.json --pretty` for local manifest contract verification without downloading or installing anything
 - call `POST /v1/public/messages` with `mode: "local"` to reach a loopback-only local LLM runtime
 - choose `local_provider: "ollama"` or `local_provider: "openai_compatible_local"` for supported local server styles
 - open `clients/web` locally as a temporary Web Chat MVP / smoke-demo surface
@@ -310,12 +325,19 @@ To try the temporary local CLI smoke surface, install the CLI package locally an
 
 ```powershell
 python -m pip install -e clients/cli
+yonerai demo --pretty
+yonerai doctor --pretty
+yonerai doctor --pretty --lang ja
+yonerai status --pretty
+yonerai manifest verify releases/manifest.example.json --pretty
 yonerai health
 yonerai message --mode mock "hello"
 yonerai run --mode mock "hello"
 ```
 
 The CLI defaults to `http://127.0.0.1:8001`, rejects remote API origins, and does not add deploy, shell execution, persistent memory, Google login, external provider live generation, or production packaging.
+The demo, doctor, status, and manifest verification paths are offline/local-only
+and do not require a running Core API process.
 
 To try the temporary Web Chat MVP, keep the Core API running on port `8001`, then start the web client from another shell:
 

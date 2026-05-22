@@ -24,11 +24,23 @@ python -m pip install -r core/requirements.txt httpx
 python -m pip install -e clients/cli
 yonerai demo --pretty
 yonerai demo --json
+yonerai doctor --pretty
+yonerai doctor --pretty --lang ja
+yonerai status --pretty --lang ja
+yonerai manifest verify releases/manifest.example.json --pretty --lang ja
 ```
 
 `yonerai quickstart` は `yonerai demo` の alias です。
 
 `yonerai demo --json` は stable contract `yonerai-public-demo/v1` と `schema_version: "1.0"` を出力します。`yonerai demo --pretty` は同じ内容を release check 用に読みやすく表示します。
+
+### CLI 診断
+
+`yonerai doctor` と `yonerai status` はオフラインで動く、非破壊の診断コマンドです。公開デモの実行可否、Python/CLI の状態、マニフェスト例、redaction self-check、MCP deny-policy self-check を確認します。デモ実行、PATH 変更、インストール、リモートコードのダウンロード、live service 接続は行いません。
+
+`--lang ja` は人間向け pretty 出力だけを日本語化します。`--json` のキーは CI / 自動テスト向けに英語のまま安定させます。
+
+`yonerai manifest verify releases/manifest.example.json --pretty --lang ja` はローカルの release manifest を検証するだけです。artifact のダウンロード、installer 実行、PATH 変更、winget/npm publish は行いません。現時点の example manifest は contract-valid ですが、non-production signature placeholder を使うため install-ready ではありません。
 
 demo が表示するもの:
 
