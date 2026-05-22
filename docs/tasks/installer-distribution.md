@@ -1,7 +1,7 @@
 # YonerAI installer distribution foundation
 
 Status: foundation plan with local manifest verification, doctor/status
-diagnostics, dry-run Windows install planning, and human-readable
+diagnostics, dry-run install planning, and human-readable
 Japanese-capable CLI output.
 No network-executing installer is included here.
 
@@ -109,7 +109,7 @@ verified.
 2. Add a manifest reader/verifier that validates local files only. Done for local contract verification.
 3. Add `yonerai doctor` as non-mutating validation. Done for local alpha diagnostics.
 4. Add `yonerai status`, Japanese pretty output, and manifest pretty output. Done for CLI experience diagnostics.
-5. Add dry-run installer planning with no download, execution, PATH mutation, or install mutation.
+5. Add dry-run installer planning with no download, execution, PATH mutation, or install mutation. Done for `yonerai install plan` and the Windows-specific `yonerai install plan-windows` alias.
 6. Connect release workflow to publish a signed manifest artifact.
 7. Add signature verification against an explicit production trust source.
 8. Add PowerShell bootstrap skeleton only after signature verification, rollback, logs, and safe mode are proven.
@@ -138,12 +138,13 @@ Completed or substantially completed:
 - Doctor diagnostics: PR #309 and PR #311, `yonerai doctor`.
 - Installer distribution foundation doc: PR #307.
 - Windows dry-run planning foundation: PR #320, `yonerai install plan-windows`.
+- Unified local install dry-run planning: current lane, `yonerai install plan`.
 - Release artifact naming validation foundation: PR #326.
 
 Remaining child issues:
 
 - #328 `feat: implement signed manifest verification`.
-- #329 `feat: add yonerai install/update dry-run commands`.
+- #329 `feat: add yonerai install/update dry-run commands` (partially complete after `yonerai install plan`; `yonerai update plan` remains).
 - #330 `feat: add PowerShell dry-run installer skeleton`.
 - #331 `docs: define safe install and uninstall flow`.
 - #332 `feat: validate release artifact hashes and naming`.

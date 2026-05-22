@@ -44,7 +44,7 @@ Credential-free commands:
 - `yonerai discord synthetic "hello" --json`
 - `yonerai status --source fixture --json`
 - `yonerai manifest verify releases/manifest.example.json --json`
-- `yonerai install plan-windows --json`
+- `yonerai install plan --manifest releases/manifest.example.json --json`
 
 Mock `ask` returns a public-safe `run_id`. Workspace file summary reads only an
 explicit file under an explicit workspace. Local memory writes only when a store
@@ -86,6 +86,7 @@ yonerai ops plan git-status --json
 yonerai memory add "local note" --store .yonerai-memory.jsonl --confirm-local --json
 yonerai discord synthetic "hello" --json
 yonerai status --source fixture --json
+yonerai install plan --manifest releases/manifest.example.json --json
 yonerai install plan-windows --json
 yonerai message --mode mock "hello"
 yonerai run --mode mock "hello"
@@ -100,9 +101,10 @@ python -m yonerai_cli health
 `yonerai demo`, `yonerai smoke`, `yonerai doctor`, `yonerai status`,
 `yonerai manifest verify`, `yonerai plan`, mock `yonerai ask`, mock
 `yonerai search`, `yonerai ops plan`, `yonerai discord synthetic`, and
-`yonerai install plan-windows` run locally and do not require a local Core API
-process. `health`, `message`, and `run` run against a local Core API process.
-The default origin is `http://127.0.0.1:8001`.
+`yonerai install plan` run locally and do not require a local Core API process.
+`yonerai install plan-windows` remains a Windows-specific dry-run alias.
+`health`, `message`, and `run` run against a local Core API process. The
+default origin is `http://127.0.0.1:8001`.
 
 `yonerai doctor` is an offline, non-mutating diagnostic command. It checks the
 Python version, CLI import, demo command availability, credential-free demo
@@ -125,6 +127,12 @@ uses a non-production signature placeholder. Optional
 output reports artifact ids, not local file paths. Pretty output reports
 contract validity, install readiness, artifact count, SHA256/signature status,
 and that no network/download/install action was performed.
+
+`yonerai install plan --manifest releases/manifest.example.json` reads a local
+manifest, validates the same contract, prints planned installer steps and
+rollback placeholders, and explicitly reports non-actions: no download, no
+execution, no PATH mutation, no package install, no registry modification, no
+service install, and no remote script execution. It does not install anything.
 
 ## Boundary
 

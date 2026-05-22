@@ -910,10 +910,19 @@ def _print_discord_pretty(report: dict[str, Any], *, color: ColorMode = "auto") 
 
 def _build_install_report(args: argparse.Namespace) -> dict[str, Any]:
     try:
-        from yonerai_cli.install_planner import build_windows_install_plan, build_windows_install_plan_from_default
+        from yonerai_cli.install_planner import (
+            build_install_plan,
+            build_install_plan_from_default,
+            build_windows_install_plan,
+            build_windows_install_plan_from_default,
+        )
     except Exception as exc:
-        raise CliError("Windows install planner is unavailable.", exit_code=1) from exc
+        raise CliError("Install planner is unavailable.", exit_code=1) from exc
     try:
+        if args.install_command == "plan":
+            if args.manifest:
+                return build_install_plan(args.manifest)
+            return build_install_plan_from_default(_repo_root())
         if args.manifest:
             return build_windows_install_plan(args.manifest)
         return build_windows_install_plan_from_default(_repo_root())
@@ -923,17 +932,53 @@ def _build_install_report(args: argparse.Namespace) -> dict[str, Any]:
 
 def _print_install_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -> None:
     manifest = report["manifest"]
-    rows = (
-        CliRow("dry_run", report["dry_run"], "ok" if report["dry_run"] else "fail"),
-        CliRow("manifest_contract_valid", manifest["contract_valid"], "ok" if manifest["contract_valid"] else "fail"),
-        CliRow("install_ready", manifest["install_ready"], "ok" if manifest["install_ready"] else "warn"),
-        CliRow("signature_state", manifest["signature_state"], "ok" if manifest["signature_state"] == "signed" else "warn"),
-        CliRow("download_performed", report["download_performed"], "fail" if report["download_performed"] else "ok"),
-        CliRow("install_performed", report["install_performed"], "fail" if report["install_performed"] else "ok"),
-        CliRow("path_mutation", report["path_mutation"], "fail" if report["path_mutation"] else "ok"),
-        CliRow("remote_code_executed", report["remote_code_executed"], "fail" if report["remote_code_executed"] else "ok"),
+    non_actions = report["non_actions"]
+    errors = tuple(CliRow("error", error, "fail") for error in manifest["errors"])
+    sections = (
+        CliSection(
+            "Dry-run plan",
+            (
+                CliRow("dry_run", report["dry_run"], "ok" if report["dry_run"] else "fail"),
+                CliRow("target_category", report["target_category"], "ok"),
+                CliRow("manifest_contract_valid", manifest["contract_valid"], "ok" if manifest["contract_valid"] else "fail"),
+                CliRow("install_ready", manifest["install_ready"], "ok" if manifest["install_ready"] else "warn"),
+                CliRow("artifact_count", manifest["artifact_count"], "ok" if manifest["artifact_count"] else "fail"),
+            ),
+        ),
+        CliSection(
+            "Signature",
+            (
+                CliRow("signature_state", manifest["signature_state"], "ok" if manifest["signature_state"] == "signed" else "warn"),
+                CliRow("signature_verified", manifest["signature_verified"], "ok" if manifest["signature_verified"] else "warn"),
+                CliRow(
+                    "placeholder_non_production",
+                    manifest["placeholder_non_production"],
+                    "warn" if manifest["placeholder_non_production"] else "ok",
+                ),
+                CliRow(
+                    "verification_required_before_real_install",
+                    manifest["verification_required_before_real_install"],
+                    "warn" if manifest["verification_required_before_real_install"] else "ok",
+                ),
+            ),
+        ),
+        CliSection(
+            "Non-actions",
+            tuple(CliRow(name, value, "ok" if value else "fail") for name, value in non_actions.items()),
+        ),
+        CliSection(
+            "Execution boundary",
+            (
+                CliRow("download_performed", report["download_performed"], "fail" if report["download_performed"] else "ok"),
+                CliRow("install_performed", report["install_performed"], "fail" if report["install_performed"] else "ok"),
+                CliRow("path_mutation", report["path_mutation"], "fail" if report["path_mutation"] else "ok"),
+                CliRow("remote_code_executed", report["remote_code_executed"], "fail" if report["remote_code_executed"] else "ok"),
+            ),
+        ),
     )
-    print(render_report("YonerAI install plan", (CliSection("Windows dry-run", rows),), color=color))
+    if errors:
+        sections = (*sections, CliSection("Errors", errors))
+    print(render_report("YonerAI install plan", sections, color=color))
 
 
 def _build_ops_plan_report(args: argparse.Namespace) -> dict[str, Any]:
@@ -1221,6 +1266,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     install = subcommands.add_parser("install", help="Plan installer actions without downloading or installing.")
     install_subcommands = install.add_subparsers(dest="install_command", required=True)
+    install_plan = install_subcommands.add_parser("plan", help="Build a local manifest install dry-run plan.")
+    install_plan.add_argument("--manifest", help="Local release manifest JSON path. Defaults to releases/manifest.example.json.")
+    install_plan_output = install_plan.add_mutually_exclusive_group()
+    install_plan_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
+    install_plan_output.add_argument("--pretty", action="store_true", help="Print a readable installer plan.")
+    install_plan.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
     install_plan_windows = install_subcommands.add_parser("plan-windows", help="Build a Windows installer dry-run plan.")
     install_plan_windows.add_argument("--manifest", help="Local release manifest JSON path. Defaults to releases/manifest.example.json.")
     install_plan_windows_output = install_plan_windows.add_mutually_exclusive_group()
@@ -1382,7 +1433,7 @@ def run(argv: list[str] | None = None) -> int:
         else:
             _print_discord_pretty(report, color=args.color)
         return 0 if report["ok"] else 1
-    if args.command == "install" and args.install_command == "plan-windows":
+    if args.command == "install" and args.install_command in {"plan", "plan-windows"}:
         report = _build_install_report(args)
         if args.json:
             _print_json(report)
