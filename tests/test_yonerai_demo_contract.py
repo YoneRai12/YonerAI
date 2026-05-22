@@ -59,8 +59,11 @@ def test_yonerai_demo_contract_shape_and_boundaries() -> None:
         "no_production_oracle",
         "no_live_discord",
         "no_persistent_memory",
+        "local_memory_opt_in_only",
         "no_google_login",
         "no_official_cloud_runtime_in_public_repo",
+        "no_live_provider_by_default",
+        "installer_dry_run_only",
         "proposal_only_self_evolution",
     }
 

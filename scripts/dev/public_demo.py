@@ -55,7 +55,8 @@ def _repo_root() -> Path:
 def _prepare_import_path() -> None:
     root = _repo_root()
     core_src = root / "core" / "src"
-    for path in (root, core_src):
+    cli_src = root / "clients" / "cli"
+    for path in (root, core_src, cli_src):
         text = str(path)
         if text not in sys.path:
             sys.path.insert(0, text)
@@ -214,10 +215,12 @@ def _provider_planner_checks() -> tuple[dict[str, object], ...]:
     from ora_core.planning import build_execution_plan
     from ora_core.planning.execution_plan import preview_mock_provider_response
     from ora_core.providers import build_default_provider_registry
+    from ora_core.search import MockSearchAdapter, SearchRequest
 
     registry = build_default_provider_registry()
     statuses = {status["provider_id"]: status for status in registry.list_statuses()}
     mock_response = preview_mock_provider_response("hello YonerAI provider planner demo")
+    search_results = MockSearchAdapter().search(SearchRequest(query="YonerAI alpha2 capability slice"))
     public_plan = build_execution_plan("summarize public docs", mode="hybrid").to_public_dict()
     coding_plan = build_execution_plan("fix this Python test", mode="hybrid", provider="openai-compatible").to_public_dict()
     private_plan = build_execution_plan("read my local file", mode="hybrid").to_public_dict()
@@ -226,7 +229,9 @@ def _provider_planner_checks() -> tuple[dict[str, object], ...]:
 
     assert statuses["mock"]["available"] is True
     assert statuses["openai-compatible"]["available"] is False
+    assert "anthropic" in statuses and "gemini" in statuses
     assert mock_response["provider"] == "mock"
+    assert search_results and search_results[0].source == "mock"
     assert public_plan["classification"]["category"] == "summarize_public"
     assert public_plan["side_effects"]["provider_call"] is False
     assert coding_plan["classification"]["category"] == "coding"
@@ -241,6 +246,14 @@ def _provider_planner_checks() -> tuple[dict[str, object], ...]:
             "provider_status": "available",
             "external_provider_configured": statuses["openai-compatible"]["configured"],
             "external_provider_available": statuses["openai-compatible"]["available"],
+            "live_call_performed": False,
+        },
+        {
+            "name": "external_provider_availability",
+            "status": "ok",
+            "openai_compatible": statuses["openai-compatible"]["available"],
+            "anthropic": statuses["anthropic"]["available"],
+            "gemini": statuses["gemini"]["available"],
             "live_call_performed": False,
         },
         {
@@ -294,12 +307,21 @@ def _provider_planner_checks() -> tuple[dict[str, object], ...]:
             "download_performed": download_plan["safety_checks"]["managed_download_guard"]["download_performed"],
             "execution_performed": download_plan["execution_performed"],
         },
+        {
+            "name": "mock_web_search",
+            "status": "ok",
+            "adapter": "mock",
+            "result_count": len(search_results),
+            "network_performed": False,
+        },
     )
 
 
 def _execution_spine_checks() -> tuple[dict[str, object], ...]:
     from ora_core.execution import InMemoryRunLedger, execute_task
+    from ora_core.memory import LocalMemoryStore
     from ora_core.providers import build_default_provider_registry
+    import tempfile
 
     ledger = InMemoryRunLedger()
     mock_result = execute_task(
@@ -323,6 +345,11 @@ def _execution_spine_checks() -> tuple[dict[str, object], ...]:
     assert dangerous_result["ok"] is False
     assert dangerous_result["run"]["status"] == "blocked"
     assert dangerous_result["error"]["code"] == "approval_required"
+    with tempfile.TemporaryDirectory(prefix="yonerai-demo-memory-") as temp_dir:
+        memory_store = LocalMemoryStore(Path(temp_dir) / "memory.jsonl")
+        memory_record = memory_store.add("demo memory sk-" + ("A" * 24), tags=("alpha2",))
+        memory_count = len(memory_store.list())
+    assert "sk-" not in memory_record.text
     return (
         {
             "name": "mock_provider_execution",
@@ -355,6 +382,13 @@ def _execution_spine_checks() -> tuple[dict[str, object], ...]:
             "tool_boundary": mock_result["boundary_checks"]["tool_boundary"]["status"],
             "live_tool_execution": False,
             "network_performed": False,
+        },
+        {
+            "name": "local_memory_opt_in",
+            "status": "ok",
+            "cloud_synced": False,
+            "raw_prompt_persisted": False,
+            "record_count": memory_count,
         },
     )
 
@@ -447,21 +481,36 @@ def _hybrid_trust_checks() -> tuple[dict[str, object], ...]:
         public_key_b64=manifest_public_key_b64,
         now=now,
     )
+    from ora_core.discord_gateway import SyntheticDiscordGatewayAdapter
+
+    discord = SyntheticDiscordGatewayAdapter().handle_mention("hello from demo").to_public_dict()
     assert trust_status.local_node.verification_state == "present_verified"
     assert pairing_once.accepted is True and pairing_reuse.accepted is False
     assert verified_action.status == "approval_required"
     assert replay.status == "replayed_nonce"
     assert dangerous.action_envelope is not None and dangerous.action_envelope.approval_required is True
+    assert discord["live_discord"] is False
+    assert discord["final_once"] is True
     return (
         {"name": "signed_manifest_verified", "status": "ok", "verified": True},
         {"name": "enrollment_session_available", "status": "ok", "session_bound": True},
         {"name": "tamper_replay_rejected", "status": "ok", "replay_rejected": True},
         {"name": "dangerous_operation_approval_required", "status": "ok", "approval_required": True},
+        {
+            "name": "synthetic_discord_gateway",
+            "status": "ok",
+            "synthetic": discord["synthetic"],
+            "live_discord": discord["live_discord"],
+            "final_once": discord["final_once"],
+            "token_required": discord["token_required"],
+        },
     )
 
 
 def _managed_download_checks() -> tuple[dict[str, object], ...]:
     from ora_core.brain.process import MainProcess
+    from ora_core.status_contract import build_official_status_contract
+    from yonerai_cli.install_planner import build_windows_install_plan_from_default
 
     process = object.__new__(MainProcess)
     managed_download = process._coerce_download_link(
@@ -472,8 +521,12 @@ def _managed_download_checks() -> tuple[dict[str, object], ...]:
         url="https://example.com/not-managed.bin",
         label="unsafe artifact",
     )
+    status_contract = build_official_status_contract(source="fixture")
+    install_plan = build_windows_install_plan_from_default(_repo_root())
     assert managed_download is not None
     assert unsafe_download is None
+    assert status_contract["production_service_called"] is False
+    assert install_plan["download_performed"] is False
     return (
         {
             "name": "managed_url_accepted",
@@ -486,6 +539,21 @@ def _managed_download_checks() -> tuple[dict[str, object], ...]:
             "status": "ok",
             "rejected": True,
             "guard": "managed_download_guard",
+        },
+        {
+            "name": "official_status_contract",
+            "status": "ok",
+            "official_cloud_runtime_included": status_contract["official_cloud_runtime_included"],
+            "oracle_control_plane_production_ready": status_contract["oracle_control_plane_production_ready"],
+            "network_performed": status_contract["production_service_called"],
+        },
+        {
+            "name": "windows_install_dry_run",
+            "status": "ok",
+            "dry_run": install_plan["dry_run"],
+            "download_performed": install_plan["download_performed"],
+            "install_performed": install_plan["install_performed"],
+            "path_mutation": install_plan["path_mutation"],
         },
     )
 
@@ -616,12 +684,15 @@ def run_demo() -> dict[str, object]:
                 checks=_limitation_checks((
                     "no_production_oracle",
                     "no_live_discord",
-                    "no_persistent_memory",
-                    "no_google_login",
-                    "no_official_cloud_runtime_in_public_repo",
-                    "proposal_only_self_evolution",
-                    "no_deploy",
-                )),
+                "no_persistent_memory",
+                "local_memory_opt_in_only",
+                "no_google_login",
+                "no_official_cloud_runtime_in_public_repo",
+                "no_live_provider_by_default",
+                "installer_dry_run_only",
+                "proposal_only_self_evolution",
+                "no_deploy",
+            )),
             ),
         )
         return build_demo_result(sections).to_public_dict()
@@ -703,6 +774,22 @@ def format_pretty_demo(result: dict[str, object]) -> str:
                 "donation_action",
                 "trusted",
                 "memory_status",
+                "openai_compatible",
+                "anthropic",
+                "gemini",
+                "adapter",
+                "result_count",
+                "record_count",
+                "cloud_synced",
+                "synthetic",
+                "live_discord",
+                "final_once",
+                "token_required",
+                "official_cloud_runtime_included",
+                "oracle_control_plane_production_ready",
+                "dry_run",
+                "install_performed",
+                "path_mutation",
             ):
                 if key in check:
                     detail.append(f"{key}={str(check[key]).lower()}")
