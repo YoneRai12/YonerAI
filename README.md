@@ -35,6 +35,33 @@ yonerai ops plan git-status --json
 yonerai install plan-windows --json
 ```
 
+## What you can try in v0.1.0-alpha.2
+
+v0.1.0-alpha.2 is a local public alpha slice, not a finished YonerAI product.
+You can try these surfaces without provider credentials, Discord tokens,
+production services, or live network calls:
+
+- Mock provider execution: `yonerai ask "summarize public docs" --provider mock --json`
+- Run trace preview/history surface: mock `ask` returns a public-safe `run_id`.
+- Workspace file summary: `yonerai ask "summarize this file" --file <path> --workspace <dir> --provider mock --json`
+- Mock search: `yonerai search mock "YonerAI alpha2" --json`
+- SafeShell plan: `yonerai ops plan git-status --json`
+- Local memory: `yonerai memory add "local note" --store <local.jsonl> --confirm-local --json`
+- Synthetic Discord boundary: `yonerai discord synthetic "hello" --json`
+- Status fixture: `yonerai status --source fixture --json`
+- Installer dry-run planning: `yonerai install plan-windows --json`
+
+External provider adapters and local LLM execution exist behind explicit opt-in
+gates. External providers require `--live` and provider-specific environment
+flags; local LLM endpoints must be loopback-only.
+
+Not included in alpha2: production readiness, Official Managed Cloud runtime,
+production Oracle control-plane behavior, live Discord restoration, live web
+search by default, arbitrary shell execution, arbitrary file access,
+installer-ready distribution, npm/winget packages, production signing/trust
+material, Google login, production DB behavior, complete persistent memory, or a
+claim that `src/cogs/ora.py` is solved.
+
 `yonerai quickstart` is an alias for the same demo.
 
 The JSON output uses the stable `yonerai-public-demo/v1` contract with
