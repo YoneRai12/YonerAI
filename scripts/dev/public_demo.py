@@ -210,6 +210,93 @@ def _route_preview_checks() -> tuple[dict[str, object], ...]:
     )
 
 
+def _provider_planner_checks() -> tuple[dict[str, object], ...]:
+    from ora_core.planning import build_execution_plan
+    from ora_core.planning.execution_plan import preview_mock_provider_response
+    from ora_core.providers import build_default_provider_registry
+
+    registry = build_default_provider_registry()
+    statuses = {status["provider_id"]: status for status in registry.list_statuses()}
+    mock_response = preview_mock_provider_response("hello YonerAI provider planner demo")
+    public_plan = build_execution_plan("summarize public docs", mode="hybrid").to_public_dict()
+    coding_plan = build_execution_plan("fix this Python test", mode="hybrid", provider="openai-compatible").to_public_dict()
+    private_plan = build_execution_plan("read my local file", mode="hybrid").to_public_dict()
+    dangerous_plan = build_execution_plan("delete file and run shell command", mode="hybrid").to_public_dict()
+    download_plan = build_execution_plan("download https://example.com/not-managed.bin", mode="hybrid").to_public_dict()
+
+    assert statuses["mock"]["available"] is True
+    assert statuses["openai-compatible"]["available"] is False
+    assert mock_response["provider"] == "mock"
+    assert public_plan["classification"]["category"] == "summarize_public"
+    assert public_plan["side_effects"]["provider_call"] is False
+    assert coding_plan["classification"]["category"] == "coding"
+    assert private_plan["provider"]["local_node_required"] is True
+    assert dangerous_plan["approval"]["required"] is True
+    assert download_plan["safety_checks"]["managed_download_guard"]["network_performed"] is False
+    return (
+        {
+            "name": "provider_registry",
+            "status": "ok",
+            "provider": "mock",
+            "provider_status": "available",
+            "external_provider_configured": statuses["openai-compatible"]["configured"],
+            "external_provider_available": statuses["openai-compatible"]["available"],
+            "live_call_performed": False,
+        },
+        {
+            "name": "mock_provider_response",
+            "status": "ok",
+            "provider": mock_response["provider"],
+            "model": mock_response["model"],
+            "deterministic": mock_response["deterministic"],
+            "live_call_performed": False,
+        },
+        {
+            "name": "public_summarize_plan",
+            "status": "ok",
+            "task_category": public_plan["classification"]["category"],
+            "risk": public_plan["risk"],
+            "provider": public_plan["provider"]["provider_id"],
+            "model_tier": public_plan["model"]["tier"],
+            "execution_surface": public_plan["estimated_execution_surface"],
+            "execution_performed": public_plan["execution_performed"],
+        },
+        {
+            "name": "coding_plan",
+            "status": "ok",
+            "task_category": coding_plan["classification"]["category"],
+            "model_tier": coding_plan["model"]["tier"],
+            "provider": coding_plan["provider"]["provider_id"],
+            "provider_status": "available" if coding_plan["provider"]["provider_available"] else "unavailable",
+            "disabled_reason": ",".join(coding_plan["disabled_reasons"]),
+        },
+        {
+            "name": "private_file_plan",
+            "status": "ok",
+            "task_category": private_plan["classification"]["category"],
+            "local_node_required": private_plan["provider"]["local_node_required"],
+            "approval_required": private_plan["approval"]["required"],
+            "execution_surface": private_plan["estimated_execution_surface"],
+        },
+        {
+            "name": "dangerous_shell_plan",
+            "status": "ok",
+            "task_category": dangerous_plan["classification"]["category"],
+            "approval_required": dangerous_plan["approval"]["required"],
+            "guard": "mcp_deny_policy",
+            "execution_performed": dangerous_plan["execution_performed"],
+        },
+        {
+            "name": "download_guard_plan",
+            "status": "ok",
+            "guard": "managed_download_guard",
+            "network_performed": download_plan["safety_checks"]["managed_download_guard"]["network_performed"],
+            "download_performed": download_plan["safety_checks"]["managed_download_guard"]["download_performed"],
+            "execution_performed": download_plan["execution_performed"],
+        },
+    )
+
+
 def _hybrid_trust_checks() -> tuple[dict[str, object], ...]:
     from ora_core.hybrid import (
         InMemoryNonceStore,
@@ -437,6 +524,11 @@ def run_demo() -> dict[str, object]:
                 checks=_route_preview_checks(),
             ),
             build_demo_section(
+                "provider_planner",
+                summary="Provider registry, mock provider, task classification, model selection, and execution-plan preview.",
+                checks=_provider_planner_checks(),
+            ),
+            build_demo_section(
                 "hybrid_trust",
                 summary="Test-only Local Node manifest, enrollment/session, signed action, replay denial, and approval gate.",
                 checks=_hybrid_trust_checks(),
@@ -490,7 +582,7 @@ def format_pretty_demo(result: dict[str, object]) -> str:
         "- Self-host local public MVP",
         "- Hybrid Local Node contract/dev simulator",
         "- Managed Cloud external contract-only",
-        "- Route preview, enrolled Local Node trust/session simulator, managed download guard",
+        "- Route preview, provider planning, enrolled Local Node trust/session simulator, managed download guard",
         "- Proposal-only self-evolution scorecard and approval draft",
         "Boundaries:",
         f"- credentials_required: {str(result['credentials_required']).lower()}",
@@ -517,6 +609,19 @@ def format_pretty_demo(result: dict[str, object]) -> str:
                 "session_verified",
                 "approval_required",
                 "guard",
+                "task_category",
+                "risk",
+                "model",
+                "model_tier",
+                "execution_surface",
+                "provider_status",
+                "external_provider_configured",
+                "external_provider_available",
+                "disabled_reason",
+                "live_call_performed",
+                "execution_performed",
+                "network_performed",
+                "download_performed",
                 "proposal_only",
                 "mode_experience_gain",
                 "github_write_allowed",

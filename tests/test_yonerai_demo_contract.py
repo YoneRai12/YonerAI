@@ -39,6 +39,7 @@ def test_yonerai_demo_contract_shape_and_boundaries() -> None:
         "public_core",
         "mode_boundary",
         "route_preview",
+        "provider_planner",
         "hybrid_trust",
         "managed_download",
         "self_evolution",
