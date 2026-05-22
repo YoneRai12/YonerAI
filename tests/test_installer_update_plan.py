@@ -157,7 +157,44 @@ def test_cli_update_plan_rejects_empty_prerelease_identifier(tmp_path, capsys) -
     assert exit_code == 1
     assert output["ok"] is False
     assert output["version_comparison"] == "unknown"
+    assert any("version is invalid" in error for error in output["manifest"]["errors"])
     assert any("version comparison could not be completed" in warning for warning in output["warnings"])
+
+
+def test_cli_update_plan_rejects_core_leading_zero_version(tmp_path, capsys) -> None:
+    _prepare_paths()
+    from yonerai_cli import cli
+
+    manifest = _example_manifest()
+    _set_manifest_version(manifest, "01.2.3")
+    manifest_path = _write_manifest(tmp_path, manifest)
+
+    exit_code = cli.main(["update", "plan", "--manifest", str(manifest_path), "--json"])
+
+    output = json.loads(capsys.readouterr().out)
+    assert exit_code == 1
+    assert output["ok"] is False
+    assert output["version_comparison"] == "unknown"
+    assert any("version is invalid" in error for error in output["manifest"]["errors"])
+    assert any("release tag is invalid" in error for error in output["manifest"]["errors"])
+
+
+def test_cli_update_plan_rejects_prerelease_numeric_leading_zero(tmp_path, capsys) -> None:
+    _prepare_paths()
+    from yonerai_cli import cli
+
+    manifest = _example_manifest()
+    _set_manifest_version(manifest, "1.0.0-alpha.01")
+    manifest_path = _write_manifest(tmp_path, manifest)
+
+    exit_code = cli.main(["update", "plan", "--manifest", str(manifest_path), "--json"])
+
+    output = json.loads(capsys.readouterr().out)
+    assert exit_code == 1
+    assert output["ok"] is False
+    assert output["version_comparison"] == "unknown"
+    assert any("version is invalid" in error for error in output["manifest"]["errors"])
+    assert any("release tag is invalid" in error for error in output["manifest"]["errors"])
 
 
 def test_cli_update_plan_json_is_stable_and_network_free(monkeypatch, capsys) -> None:

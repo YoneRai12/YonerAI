@@ -7,6 +7,7 @@ from urllib.parse import urlparse
 
 from yonerai_cli.release_manifest import (
     ManifestError,
+    SEMVER_RE,
     expected_artifact_filename,
     load_manifest_file,
     verify_manifest,
@@ -17,11 +18,6 @@ INSTALL_PLAN_SCHEMA_VERSION = "yonerai-install-plan/v0.1"
 WINDOWS_INSTALL_PLAN_SCHEMA_VERSION = "yonerai-windows-install-plan/v0.1"
 UPDATE_PLAN_SCHEMA_VERSION = "yonerai-update-plan/v0.1"
 SHA256_RE = re.compile(r"^[a-f0-9]{64}$")
-SEMVER_PARSE_RE = re.compile(
-    r"^([0-9]+)\.([0-9]+)\.([0-9]+)"
-    r"(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?"
-    r"(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$"
-)
 
 
 def build_install_plan(manifest_path: str, *, target_category: str = "windows-user") -> dict[str, Any]:
@@ -268,7 +264,7 @@ def _compare_versions(current_version: str | None, target_version: str | None) -
 def _version_key(version: str | None) -> tuple[int, int, int, tuple[tuple[int, int | str], ...]] | None:
     if not isinstance(version, str):
         return None
-    match = SEMVER_PARSE_RE.match(version)
+    match = SEMVER_RE.match(version)
     if match is None:
         return None
     major, minor, patch = (int(match.group(index)) for index in (1, 2, 3))
