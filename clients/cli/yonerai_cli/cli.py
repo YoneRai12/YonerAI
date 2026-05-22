@@ -943,7 +943,7 @@ def build_parser() -> argparse.ArgumentParser:
     ask = subcommands.add_parser("ask", help="Execute a safe YonerAI ask path or preview it with --dry-run.")
     ask.add_argument("task", nargs="+")
     ask.add_argument("--dry-run", action="store_true", help="Preview only; no provider call is made.")
-    ask.add_argument("--live", action="store_true", help="Allow explicitly gated local/OpenAI-compatible live provider execution.")
+    ask.add_argument("--live", action="store_true", help="Allow explicitly gated local or external live provider execution.")
     ask.add_argument("--ledger-path", help="Optional redacted JSONL run ledger path. Disabled by default.")
     ask_output = ask.add_mutually_exclusive_group()
     ask_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
