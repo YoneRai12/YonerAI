@@ -123,6 +123,28 @@ def test_cli_manifest_validator_rejects_malformed_semver() -> None:
     assert "release tag is invalid." in report["errors"]
 
 
+def test_cli_manifest_validator_rejects_overlong_semver() -> None:
+    import sys
+
+    cli_src = ROOT / "clients" / "cli"
+    if str(cli_src) not in sys.path:
+        sys.path.insert(0, str(cli_src))
+    from yonerai_cli.release_manifest import verify_manifest
+
+    manifest = _load_manifest()
+    overlong_version = "1.0.0-" + ("a" * 300)
+    manifest["version"] = overlong_version
+    release = manifest["release"]
+    assert isinstance(release, dict)
+    release["tag"] = f"v{overlong_version}"
+
+    report = verify_manifest(manifest)
+
+    assert report["contract_valid"] is False
+    assert "version is invalid." in report["errors"]
+    assert "release tag is invalid." in report["errors"]
+
+
 def test_cli_manifest_validator_accepts_example_contract() -> None:
     import sys
 

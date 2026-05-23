@@ -16,7 +16,7 @@ SCHEMA_VERSION = "yonerai-installer-bootstrap-manifest/v1"
 TEST_TRUST_FIXTURE_SCHEMA_VERSION = "yonerai-nonproduction-test-trust-fixture/v1"
 ARTIFACT_SIGNATURE_PAYLOAD_SCHEMA_VERSION = "yonerai-installer-artifact-signature/v1"
 SEMVER_CORE_RE_TEXT = r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)"
-SEMVER_PRERELEASE_IDENTIFIER_RE_TEXT = r"(?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)"
+SEMVER_PRERELEASE_IDENTIFIER_RE_TEXT = r"(?:0|[1-9][0-9]*|(?=[0-9A-Za-z-]*[A-Za-z-])[0-9A-Za-z-]+)"
 SEMVER_RE_TEXT = (
     rf"{SEMVER_CORE_RE_TEXT}"
     rf"(?:-({SEMVER_PRERELEASE_IDENTIFIER_RE_TEXT}(?:\.{SEMVER_PRERELEASE_IDENTIFIER_RE_TEXT})*))?"
@@ -24,6 +24,7 @@ SEMVER_RE_TEXT = (
 )
 SEMVER_RE = re.compile(rf"^{SEMVER_RE_TEXT}$")
 TAG_RE = re.compile(rf"^v{SEMVER_RE_TEXT}$")
+MAX_SEMVER_TEXT_LENGTH = 256
 URL_RE = re.compile(r"^(https://github\.com/YoneRai12/YonerAI/releases/download/|https://example\.invalid/)")
 SHA256_RE = re.compile(r"^[a-f0-9]{64}$")
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
@@ -237,7 +238,7 @@ def validate_manifest_contract(manifest: dict[str, Any]) -> list[str]:
     _expect(manifest.get("schema_version") == SCHEMA_VERSION, "schema_version is invalid.", errors)
     _expect(manifest.get("product") == "YonerAI", "product must be YonerAI.", errors)
     _expect(manifest.get("channel") in CHANNELS, "channel is invalid.", errors)
-    _expect(isinstance(manifest.get("version"), str) and SEMVER_RE.match(manifest["version"]), "version is invalid.", errors)
+    _expect(_is_valid_semver(manifest.get("version")), "version is invalid.", errors)
     _expect(isinstance(manifest.get("published_at"), str), "published_at is required.", errors)
     _expect(isinstance(manifest.get("production_ready"), bool), "production_ready must be boolean.", errors)
 
@@ -247,7 +248,7 @@ def validate_manifest_contract(manifest: dict[str, Any]) -> list[str]:
     else:
         allowed = {"tag", "github_release_url", "manifest_status"}
         _check_keys(release, allowed, allowed, "release", errors)
-        _expect(isinstance(release.get("tag"), str) and TAG_RE.match(release["tag"]), "release tag is invalid.", errors)
+        _expect(_is_valid_semver_tag(release.get("tag")), "release tag is invalid.", errors)
         _expect(
             isinstance(release.get("github_release_url"), str)
             and release["github_release_url"].startswith("https://github.com/YoneRai12/YonerAI/releases/tag/v"),
@@ -705,6 +706,14 @@ def _check_keys(value: dict[str, Any], required: set[str], allowed: set[str], na
 def _expect(condition: object, message: str, errors: list[str]) -> None:
     if not condition:
         errors.append(message)
+
+
+def _is_valid_semver(value: object) -> bool:
+    return isinstance(value, str) and len(value) <= MAX_SEMVER_TEXT_LENGTH and SEMVER_RE.match(value) is not None
+
+
+def _is_valid_semver_tag(value: object) -> bool:
+    return isinstance(value, str) and len(value) <= MAX_SEMVER_TEXT_LENGTH + 1 and TAG_RE.match(value) is not None
 
 
 def _looks_like_url(value: str) -> bool:
