@@ -41,6 +41,19 @@ def test_run_ledger_redacts_task_and_records_events() -> None:
     assert completed.to_public_dict()["persistence"]["raw_prompt_persisted"] is False
 
 
+
+
+def test_safe_summary_redacts_labeled_secret_values() -> None:
+    _prepare_paths()
+    from ora_core.execution.ledger import safe_summary
+
+    summarized = safe_summary("api_key=ABCDEF authorization Bearer SECRET access_token:TOKEN123")
+
+    assert "ABCDEF" not in summarized
+    assert "SECRET" not in summarized
+    assert "TOKEN123" not in summarized
+    assert summarized.count("[secret_redacted]") >= 3
+
 def test_execute_task_mock_provider_records_completed_run() -> None:
     _prepare_paths()
     from ora_core.execution import InMemoryRunLedger, execute_task

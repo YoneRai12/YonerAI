@@ -274,3 +274,22 @@ def test_update_plan_module_invocation_from_clients_cli_cwd() -> None:
     assert output["remote_code_executed"] is False
     assert ("C:" + "\\Users") not in result.stdout
     assert "Traceback" not in result.stderr
+
+def test_cli_update_plan_handles_oversized_numeric_version_component(tmp_path, capsys) -> None:
+    _prepare_paths()
+    from yonerai_cli import cli
+
+    manifest = _example_manifest()
+    huge_major = "9" * 5000
+    _set_manifest_version(manifest, f"{huge_major}.0.0")
+    manifest_path = _write_manifest(tmp_path, manifest)
+
+    exit_code = cli.main(["update", "plan", "--manifest", str(manifest_path), "--json"])
+
+    captured = capsys.readouterr()
+    output = json.loads(captured.out)
+    assert exit_code == 1
+    assert output["ok"] is False
+    assert output["version_comparison"] == "unknown"
+    assert any("version comparison could not be completed" in warning for warning in output["warnings"])
+    assert "Traceback" not in captured.err

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+from importlib.util import module_from_spec, spec_from_file_location
+from pathlib import Path
 
 
 @dataclass(frozen=True)
@@ -59,7 +61,14 @@ def _normalize_operation(operation: str) -> str:
 
 def _mcp_policy_summary(operation: str) -> dict[str, object]:
     try:
-        from src.cogs.mcp_policy import is_mcp_tool_denied, load_mcp_deny_patterns
+        policy_path = _trusted_repo_root() / "src" / "cogs" / "mcp_policy.py"
+        spec = spec_from_file_location("yonerai_trusted_mcp_policy", policy_path)
+        if spec is None or spec.loader is None:
+            raise ImportError("trusted mcp policy is unavailable")
+        module = module_from_spec(spec)
+        spec.loader.exec_module(module)
+        load_mcp_deny_patterns = module.load_mcp_deny_patterns
+        is_mcp_tool_denied = module.is_mcp_tool_denied
 
         patterns = load_mcp_deny_patterns()
         denied = is_mcp_tool_denied(operation, patterns)
@@ -72,3 +81,7 @@ def _mcp_policy_summary(operation: str) -> dict[str, object]:
         "denied": denied,
         "execution_performed": False,
     }
+
+
+def _trusted_repo_root() -> Path:
+    return Path(__file__).resolve().parents[4]

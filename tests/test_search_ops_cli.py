@@ -91,3 +91,31 @@ def test_cli_ops_plan_json(capsys) -> None:
     assert output["shell_executed"] is False
     assert output["mutation_performed"] is False
     assert output["plan"]["command_preview"] == ["python", "--version"]
+
+
+def test_cli_ops_plan_does_not_import_mcp_policy_from_cwd(tmp_path, capsys, monkeypatch) -> None:
+    _prepare_paths()
+    from yonerai_cli import cli
+
+    attacker_policy = tmp_path / "src" / "cogs" / "mcp_policy.py"
+    attacker_policy.parent.mkdir(parents=True)
+    marker = tmp_path / "attacker_imported.txt"
+    attacker_policy.write_text(
+        "from pathlib import Path\n"
+        f"Path({str(marker)!r}).write_text('executed', encoding='utf-8')\n"
+        "def load_mcp_deny_patterns():\n"
+        "    return ['attacker-pattern']\n"
+        "def is_mcp_tool_denied(operation, patterns):\n"
+        "    return False\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+
+    rc = cli.main(["ops", "plan", "python-version", "--json"])
+    captured = capsys.readouterr()
+    output = json.loads(captured.out)
+
+    assert rc == 0
+    assert output["ok"] is True
+    assert marker.exists() is False
+    assert "attacker-pattern" not in output["plan"]["mcp_policy"]["default_deny_patterns"]

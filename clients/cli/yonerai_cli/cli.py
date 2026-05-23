@@ -717,6 +717,7 @@ def _execute_ask_report(args: argparse.Namespace) -> dict[str, Any]:
         raise CliError("execution spine is unavailable.", exit_code=1) from exc
 
     prompt = _prompt_from_args(args.task)
+    provider_prompt = prompt
     file_context = None
     if args.file:
         if not args.workspace:
@@ -739,10 +740,11 @@ def _execute_ask_report(args: argparse.Namespace) -> dict[str, Any]:
                 "file_context": None,
                 "error": exc.to_public_dict(),
             }
-        prompt = build_workspace_file_prompt(prompt, file_context)
+        provider_prompt = build_workspace_file_prompt(prompt, file_context)
     try:
         result = execute_task(
             prompt,
+            provider_prompt=provider_prompt,
             mode=args.mode,
             provider=args.provider,
             live=args.live,
@@ -1102,6 +1104,7 @@ def _print_ops_plan_pretty(report: dict[str, Any], *, color: ColorMode = "auto")
 
 def _build_memory_report(args: argparse.Namespace) -> dict[str, Any]:
     try:
+        _prepare_repo_import_path()
         _prepare_core_import_path()
         from ora_core.memory import LocalMemoryStore
     except Exception as exc:
