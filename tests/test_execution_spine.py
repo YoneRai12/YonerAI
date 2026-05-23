@@ -54,6 +54,27 @@ def test_safe_summary_redacts_labeled_secret_values() -> None:
     assert "TOKEN123" not in summarized
     assert summarized.count("[secret_redacted]") >= 3
 
+
+def test_legacy_ora_clean_content_characterization_strips_channel_tags() -> None:
+    _prepare_paths()
+    from src.cogs.ora_pure_helpers import clean_content
+
+    assert clean_content("<|final|>visible reply<|end|>") == "visible reply"
+
+
+def test_safe_summary_uses_legacy_ora_content_cleaner() -> None:
+    _prepare_paths()
+    from ora_core.execution import legacy_text_normalizer_status
+    from ora_core.execution.ledger import safe_summary
+
+    summary = safe_summary("<|final|>visible reply")
+    status = legacy_text_normalizer_status()
+
+    assert summary == "visible reply"
+    assert status["execution_spine_connected"] is True
+    assert status["source"] == "src/cogs/ora_pure_helpers.py"
+
+
 def test_execute_task_mock_provider_records_completed_run() -> None:
     _prepare_paths()
     from ora_core.execution import InMemoryRunLedger, execute_task
@@ -112,6 +133,68 @@ def test_local_provider_registry_uses_loopback_adapter_and_rejects_remote() -> N
     assert adapter.status().available is True
     assert response.provider == "local"
     assert response.output_text == "loopback reply"
+
+
+def test_execute_task_local_provider_live_uses_loopback_adapter_and_ledger() -> None:
+    _prepare_paths()
+    from ora_core.execution import InMemoryRunLedger, execute_task
+    from ora_core.providers.local import LocalLLMProviderAdapter
+    from ora_core.providers.registry import ProviderRegistry
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"message": {"role": "assistant", "content": "<|final|>local reply"}})
+
+    adapter = LocalLLMProviderAdapter(
+        {
+            "ORA_LOCAL_LLM_ENABLED": "1",
+            "ORA_LOCAL_LLM_BASE_URL": "http://127.0.0.1:11434",
+            "ORA_LOCAL_LLM_MODEL": "local-test",
+        },
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+    ledger = InMemoryRunLedger()
+    result = execute_task(
+        "summarize public docs",
+        mode="self-host",
+        provider="local",
+        live=True,
+        ledger=ledger,
+        registry=ProviderRegistry((adapter,)),
+    ).to_public_dict()
+
+    assert result["ok"] is True
+    assert result["response"]["provider"] == "local"
+    assert result["response"]["output_text"] == "local reply"
+    assert result["live_call_performed"] is True
+    assert result["run"]["status"] == "completed"
+    assert "<|final|>" not in result["run"]["result_summary"]
+
+
+def test_execute_task_local_provider_requires_explicit_live() -> None:
+    _prepare_paths()
+    from ora_core.execution import execute_task
+    from ora_core.providers.local import LocalLLMProviderAdapter
+    from ora_core.providers.registry import ProviderRegistry
+
+    adapter = LocalLLMProviderAdapter(
+        {
+            "ORA_LOCAL_LLM_ENABLED": "1",
+            "ORA_LOCAL_LLM_BASE_URL": "http://127.0.0.1:11434",
+            "ORA_LOCAL_LLM_MODEL": "local-test",
+        },
+        client=httpx.Client(transport=httpx.MockTransport(lambda _request: httpx.Response(500))),
+    )
+    result = execute_task(
+        "summarize public docs",
+        mode="self-host",
+        provider="local",
+        live=False,
+        registry=ProviderRegistry((adapter,)),
+    ).to_public_dict()
+
+    assert result["ok"] is False
+    assert result["error"]["code"] == "local_live_call_disabled"
+    assert result["live_call_performed"] is False
 
 
 def test_openai_compatible_live_requires_live_flag_and_env(monkeypatch) -> None:

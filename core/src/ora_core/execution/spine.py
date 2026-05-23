@@ -8,6 +8,7 @@ from ora_core.providers.registry import ProviderRegistry
 
 from .boundaries import build_boundary_checks_for_task
 from .ledger import RunLedger, build_run_ledger_from_env, safe_summary
+from .legacy_text import normalize_legacy_generated_text
 
 
 EXECUTION_RESULT_SCHEMA_VERSION = "yonerai-execution-result/v1"
@@ -121,7 +122,7 @@ def execute_task(
             model=plan.provider_selection.model_id,
             metadata={"run_id": run.run_id},
         )
-        provider_response = adapter.generate(request, allow_live_call=allow_live_call)
+        provider_response = _normalize_provider_response(adapter.generate(request, allow_live_call=allow_live_call))
     except ProviderError as exc:
         ledger.append_event(run.run_id, "provider_error", "failed", exc.message)
         run = ledger.fail_run(run.run_id, error_summary=exc.message)
@@ -150,3 +151,16 @@ def execute_task(
 
 def _response_summary(response: ProviderResponse) -> str:
     return safe_summary(f"{response.provider}/{response.model}: {response.output_text}", max_chars=500)
+
+
+def _normalize_provider_response(response: ProviderResponse) -> ProviderResponse:
+    cleaned = normalize_legacy_generated_text(response.output_text)
+    if cleaned == response.output_text:
+        return response
+    return ProviderResponse(
+        provider=response.provider,
+        model=response.model,
+        output_text=cleaned,
+        deterministic=response.deterministic,
+        finish_reason=response.finish_reason,
+    )

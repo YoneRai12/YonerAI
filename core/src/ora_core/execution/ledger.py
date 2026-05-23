@@ -273,6 +273,12 @@ def safe_summary(value: object, *, max_chars: int = 500) -> str:
     if not text:
         return ""
     try:
+        from .legacy_text import normalize_legacy_generated_text
+
+        text = normalize_legacy_generated_text(text)
+    except Exception:
+        pass
+    try:
         from src.utils.redaction import redact_text
 
         text = redact_text(text)

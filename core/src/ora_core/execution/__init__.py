@@ -11,6 +11,7 @@ from .ledger import (
     InMemoryRunLedger,
     build_run_ledger_from_env,
 )
+from .legacy_text import legacy_text_normalizer_status, normalize_legacy_generated_text
 
 
 def execute_task(*args, **kwargs):
@@ -38,4 +39,6 @@ __all__ = [
     "build_boundary_checks_for_task",
     "build_run_ledger_from_env",
     "execute_task",
+    "legacy_text_normalizer_status",
+    "normalize_legacy_generated_text",
 ]

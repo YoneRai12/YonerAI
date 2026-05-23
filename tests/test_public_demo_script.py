@@ -73,10 +73,13 @@ def test_public_demo_json_shape_and_boundaries(capsys) -> None:
     assert download["network_performed"] is False
     execution_spine = next(section for section in output["sections"] if section["name"] == "execution_spine")
     mock_execution = next(check for check in execution_spine["checks"] if check["name"] == "mock_provider_execution")
+    legacy = next(check for check in execution_spine["checks"] if check["name"] == "legacy_ora_text_normalizer")
     tool_boundaries = next(check for check in execution_spine["checks"] if check["name"] == "search_tool_boundaries")
     memory = next(check for check in execution_spine["checks"] if check["name"] == "local_memory_opt_in")
     assert mock_execution["run_status"] == "completed"
     assert mock_execution["raw_prompt_persisted"] is False
+    assert legacy["execution_spine_connected"] is True
+    assert legacy["broad_ora_refactor"] is False
     assert tool_boundaries["live_tool_execution"] is False
     assert memory["cloud_synced"] is False
     assert memory["raw_prompt_persisted"] is False
@@ -125,6 +128,7 @@ def test_public_demo_pretty_output_contains_key_sections(capsys) -> None:
     assert "task_category=summarize_public" in output
     assert "live_call_performed=false" in output
     assert "mock_provider_execution" in output
+    assert "legacy_ora_text_normalizer" in output
     assert "raw_prompt_persisted=false" in output
     assert "github_write_allowed=false" in output
     assert "memory_candidate_fixture_quarantined" in output

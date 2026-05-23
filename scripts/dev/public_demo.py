@@ -320,7 +320,12 @@ def _provider_planner_checks() -> tuple[dict[str, object], ...]:
 
 
 def _execution_spine_checks() -> tuple[dict[str, object], ...]:
-    from ora_core.execution import InMemoryRunLedger, execute_task
+    from ora_core.execution import (
+        InMemoryRunLedger,
+        execute_task,
+        legacy_text_normalizer_status,
+        normalize_legacy_generated_text,
+    )
     from ora_core.memory import LocalMemoryStore
     from ora_core.providers import build_default_provider_registry
     import tempfile
@@ -339,6 +344,8 @@ def _execution_spine_checks() -> tuple[dict[str, object], ...]:
         ledger=ledger,
     ).to_public_dict()
     registry_statuses = {status["provider_id"]: status for status in build_default_provider_registry().list_statuses()}
+    legacy_status = legacy_text_normalizer_status()
+    cleaned_legacy_text = normalize_legacy_generated_text("<|final|>demo")
 
     assert mock_result["ok"] is True
     assert mock_result["response"]["provider"] == "mock"
@@ -347,6 +354,8 @@ def _execution_spine_checks() -> tuple[dict[str, object], ...]:
     assert dangerous_result["ok"] is False
     assert dangerous_result["run"]["status"] == "blocked"
     assert dangerous_result["error"]["code"] == "approval_required"
+    assert legacy_status["execution_spine_connected"] is True
+    assert cleaned_legacy_text == "demo"
     with tempfile.TemporaryDirectory(prefix="yonerai-demo-memory-") as temp_dir:
         memory_store = LocalMemoryStore(Path(temp_dir) / "memory.jsonl")
         memory_record = memory_store.add("demo memory sk-" + ("A" * 24), tags=("alpha2",))
@@ -376,6 +385,13 @@ def _execution_spine_checks() -> tuple[dict[str, object], ...]:
             "configured": registry_statuses["local"]["configured"],
             "available": registry_statuses["local"]["available"],
             "loopback_only": True,
+        },
+        {
+            "name": "legacy_ora_text_normalizer",
+            "status": "ok",
+            "source": legacy_status["source"],
+            "execution_spine_connected": legacy_status["execution_spine_connected"],
+            "broad_ora_refactor": legacy_status["broad_ora_refactor"],
         },
         {
             "name": "search_tool_boundaries",
