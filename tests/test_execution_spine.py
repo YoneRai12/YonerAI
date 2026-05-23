@@ -75,6 +75,15 @@ def test_safe_summary_uses_legacy_ora_content_cleaner() -> None:
     assert status["source"] == "src/cogs/ora_pure_helpers.py"
 
 
+def test_legacy_text_normalizer_preserves_embedded_generic_token_text() -> None:
+    _prepare_paths()
+    from ora_core.execution import normalize_legacy_generated_text
+
+    text = "Document the literal token <|example|> without changing it."
+
+    assert normalize_legacy_generated_text(text) == text
+
+
 def test_legacy_text_cleaner_import_is_cached(monkeypatch) -> None:
     _prepare_paths()
     import builtins

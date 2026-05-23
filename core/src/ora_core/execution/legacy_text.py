@@ -1,11 +1,26 @@
 from __future__ import annotations
 
+import re
 from typing import Callable
 
 
 LEGACY_TEXT_NORMALIZER_SOURCE = "src/cogs/ora_pure_helpers.py"
 _CACHE_MISSING = object()
 _LEGACY_CLEANER_CACHE: Callable[[str], str] | None | object = _CACHE_MISSING
+_KNOWN_LEGACY_TAGS = (
+    "analysis",
+    "assistant",
+    "commentary",
+    "end",
+    "final",
+    "system",
+    "tool",
+    "user",
+)
+_LEGACY_BOUNDARY_TAG_PATTERN = re.compile(
+    rf"^\s*<\|({'|'.join(_KNOWN_LEGACY_TAGS)})\|>|<\|end\|>\s*$",
+    re.IGNORECASE,
+)
 
 
 def normalize_legacy_generated_text(text: object) -> str:
@@ -13,6 +28,8 @@ def normalize_legacy_generated_text(text: object) -> str:
     raw = str(text or "").strip()
     if not raw:
         return ""
+    if _LEGACY_BOUNDARY_TAG_PATTERN.search(raw) is None:
+        return raw
     cleaner = _load_legacy_cleaner()
     if cleaner is None:
         return raw
