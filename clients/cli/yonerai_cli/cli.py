@@ -717,6 +717,7 @@ def _execute_ask_report(args: argparse.Namespace) -> dict[str, Any]:
         raise CliError("execution spine is unavailable.", exit_code=1) from exc
 
     prompt = _prompt_from_args(args.task)
+    ledger_status = _ledger_status(args.ledger_path)
     provider_prompt = prompt
     file_context = None
     if args.file:
@@ -737,6 +738,7 @@ def _execute_ask_report(args: argparse.Namespace) -> dict[str, Any]:
                 "response": None,
                 "boundary_checks": {},
                 "live_call_performed": False,
+                "ledger": ledger_status,
                 "file_context": None,
                 "error": exc.to_public_dict(),
             }
@@ -753,6 +755,7 @@ def _execute_ask_report(args: argparse.Namespace) -> dict[str, Any]:
     except ValueError as exc:
         raise CliError(str(exc), exit_code=2) from exc
     report = result.to_public_dict()
+    report["ledger"] = ledger_status
     if file_context is not None:
         report["file_context"] = file_context.to_public_dict()
     return report
@@ -775,6 +778,8 @@ def _format_execution_result_pretty(report: dict[str, Any], *, color: ColorMode 
     response = report.get("response") or {}
     error = report.get("error") or {}
     boundary = report.get("boundary_checks") or {}
+    ledger = report.get("ledger") or {}
+    file_backed = ledger.get("file_backed", "unknown")
     provider = plan["provider"]
     sections = (
         CliSection(
@@ -784,6 +789,7 @@ def _format_execution_result_pretty(report: dict[str, Any], *, color: ColorMode 
                 CliRow("status", run["status"], "ok" if run["status"] == "completed" else "warn"),
                 CliRow("category", plan["classification"]["category"], "ok"),
                 CliRow("approval_required", run["approval_required"], "warn" if run["approval_required"] else "ok"),
+                CliRow("file_backed", file_backed, _optional_bool_status(file_backed)),
             ),
         ),
         CliSection(
@@ -824,11 +830,13 @@ def _build_runs_report(args: argparse.Namespace) -> dict[str, Any]:
         raise CliError("run ledger is unavailable.", exit_code=1) from exc
 
     ledger = build_run_ledger_from_env(args.ledger_path)
+    ledger_status = _ledger_status(args.ledger_path)
     if args.runs_command == "list":
         runs = [run.to_public_dict() for run in ledger.list_runs(limit=args.limit)]
         return {
             "schema_version": "yonerai-runs-list/v1",
             "ok": True,
+            "ledger": ledger_status,
             "runs": runs,
             "count": len(runs),
             "raw_prompt_persisted": False,
@@ -839,16 +847,38 @@ def _build_runs_report(args: argparse.Namespace) -> dict[str, Any]:
         return {
             "schema_version": "yonerai-runs-show/v1",
             "ok": False,
+            "ledger": ledger_status,
             "error": {"code": "unknown_run", "message": "run_id was not found in the selected local ledger"},
             "run": None,
         }
     return {
         "schema_version": "yonerai-runs-show/v1",
         "ok": True,
+        "ledger": ledger_status,
         "run": run.to_public_dict(),
         "raw_prompt_persisted": False,
         "raw_completion_persisted": False,
     }
+
+
+def _ledger_status(ledger_path: str | None) -> dict[str, object]:
+    configured = bool((ledger_path or os.getenv("YONERAI_RUN_LEDGER_PATH") or "").strip())
+    return {
+        "enabled": configured,
+        "file_backed": configured,
+        "local_only": True,
+        "path_persisted_in_output": False,
+        "raw_prompt_persisted": False,
+        "raw_completion_persisted": False,
+    }
+
+
+def _optional_bool_status(value: object) -> str:
+    if value is True:
+        return "ok"
+    if value is False:
+        return "warn"
+    return "fail"
 
 
 def _build_search_report(args: argparse.Namespace) -> dict[str, Any]:
@@ -1165,6 +1195,8 @@ def _print_memory_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -
 
 
 def _print_runs_list_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -> None:
+    ledger = report.get("ledger") or {}
+    file_backed = ledger.get("file_backed", "unknown")
     rows = tuple(
         CliRow(
             str(run["run_id"]),
@@ -1173,7 +1205,27 @@ def _print_runs_list_pretty(report: dict[str, Any], *, color: ColorMode = "auto"
         )
         for run in report["runs"]
     ) or (CliRow("runs", "none in selected local ledger", "warn"),)
-    print(render_report("YonerAI runs", (CliSection("Recent", rows),), color=color))
+    print(
+        render_report(
+            "YonerAI runs",
+            (
+                CliSection(
+                    "Ledger",
+                    (
+                        CliRow("file_backed", file_backed, _optional_bool_status(file_backed)),
+                        CliRow("local_only", ledger.get("local_only", True), "ok"),
+                        CliRow(
+                            "path_persisted_in_output",
+                            ledger.get("path_persisted_in_output", False),
+                            "fail" if ledger.get("path_persisted_in_output") else "ok",
+                        ),
+                    ),
+                ),
+                CliSection("Recent", rows),
+            ),
+            color=color,
+        )
+    )
 
 
 def _print_run_show_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -> None:
@@ -1181,8 +1233,18 @@ def _print_run_show_pretty(report: dict[str, Any], *, color: ColorMode = "auto")
         print(render_report("YonerAI run", (CliSection("Error", (CliRow("error", report["error"]["message"], "fail"),)),), color=color))
         return
     run = report["run"]
+    ledger = report.get("ledger") or {}
+    file_backed = ledger.get("file_backed", "unknown")
     events = tuple(CliRow(event["name"], f"{event['status']} {event['summary']}", "ok" if event["status"] == "ok" else "warn") for event in run["events"])
     sections = (
+        CliSection(
+            "Ledger",
+            (
+                CliRow("file_backed", file_backed, _optional_bool_status(file_backed)),
+                CliRow("local_only", ledger.get("local_only", True), "ok"),
+                CliRow("raw_prompt_persisted", ledger.get("raw_prompt_persisted", False), "fail" if ledger.get("raw_prompt_persisted") else "ok"),
+            ),
+        ),
         CliSection(
             "Run",
             (
@@ -1334,7 +1396,7 @@ def build_parser() -> argparse.ArgumentParser:
     ask.add_argument("task", nargs="+")
     ask.add_argument("--dry-run", action="store_true", help="Preview only; no provider call is made.")
     ask.add_argument("--live", action="store_true", help="Allow explicitly gated local or external live provider execution.")
-    ask.add_argument("--ledger-path", help="Optional redacted JSONL run ledger path. Disabled by default.")
+    ask.add_argument("--ledger-path", "--ledger", dest="ledger_path", help="Optional redacted JSONL run ledger path. Disabled by default.")
     ask.add_argument("--file", help="Optional workspace-local UTF-8 text file to summarize or use as ask context.")
     ask.add_argument("--workspace", help="Required workspace root when --file is used.")
     ask.add_argument("--file-max-bytes", type=int, default=65536, help="Maximum file bytes to read. Default: 65536.")
@@ -1429,7 +1491,7 @@ def build_parser() -> argparse.ArgumentParser:
     runs = subcommands.add_parser("runs", help="Inspect opt-in redacted local run ledger history.")
     runs_subcommands = runs.add_subparsers(dest="runs_command", required=True)
     runs_list = runs_subcommands.add_parser("list", help="List recent runs from an opt-in ledger.")
-    runs_list.add_argument("--ledger-path", help="Optional redacted JSONL run ledger path. Defaults to YONERAI_RUN_LEDGER_PATH.")
+    runs_list.add_argument("--ledger-path", "--ledger", dest="ledger_path", help="Optional redacted JSONL run ledger path. Defaults to YONERAI_RUN_LEDGER_PATH.")
     runs_list.add_argument("--limit", type=int, default=20, help="Maximum runs to show. Default: 20.")
     runs_list_output = runs_list.add_mutually_exclusive_group()
     runs_list_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
@@ -1437,7 +1499,7 @@ def build_parser() -> argparse.ArgumentParser:
     runs_list.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
     runs_show = runs_subcommands.add_parser("show", help="Show one run from an opt-in ledger.")
     runs_show.add_argument("run_id")
-    runs_show.add_argument("--ledger-path", help="Optional redacted JSONL run ledger path. Defaults to YONERAI_RUN_LEDGER_PATH.")
+    runs_show.add_argument("--ledger-path", "--ledger", dest="ledger_path", help="Optional redacted JSONL run ledger path. Defaults to YONERAI_RUN_LEDGER_PATH.")
     runs_show_output = runs_show.add_mutually_exclusive_group()
     runs_show_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
     runs_show_output.add_argument("--pretty", action="store_true", help="Print a readable run summary.")

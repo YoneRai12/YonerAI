@@ -99,6 +99,12 @@ class ExecutionPlan:
                     "execution": False,
                     "status": self.safety_checks["managed_download_guard"]["status"],
                 },
+                {
+                    "name": "legacy_ora_text_normalizer",
+                    "source": "src/cogs/ora_pure_helpers.py",
+                    "execution": False,
+                    "status": self.safety_checks["legacy_ora_text_normalizer"]["status"],
+                },
             ],
             "side_effects": {
                 "provider_call": False,
@@ -165,6 +171,7 @@ def build_execution_plan(
     safety_checks = {
         "mcp_deny_policy": _mcp_deny_policy_check(classification),
         "managed_download_guard": _managed_download_guard_check(task),
+        "legacy_ora_text_normalizer": _legacy_ora_text_normalizer_check(),
         **build_boundary_checks_for_task(classification),
     }
     disabled_reasons = _disabled_reasons(route, provider_selection, safety_checks)
@@ -308,6 +315,21 @@ def _managed_download_guard_check(task: str) -> dict[str, object]:
         "relevant_to_task": relevant,
         "approval_reason": "external_download_not_permitted" if relevant and unsafe is None and urls else None,
     }
+
+
+def _legacy_ora_text_normalizer_check() -> dict[str, object]:
+    try:
+        from ora_core.execution import legacy_text_normalizer_status
+    except Exception:
+        return {
+            "name": "legacy_ora_text_normalizer",
+            "source": "src/cogs/ora_pure_helpers.py",
+            "status": "unavailable",
+            "available": False,
+            "execution_spine_connected": False,
+            "broad_ora_refactor": False,
+        }
+    return legacy_text_normalizer_status()
 
 
 def _disabled_reasons(

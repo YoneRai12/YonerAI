@@ -738,6 +738,52 @@ def test_cli_ask_executes_mock_provider_by_default(capsys):
     assert output["live_call_performed"] is False
 
 
+def test_cli_ask_pretty_reports_ledger_file_backed_label(tmp_path, capsys):
+    cli = _load_cli_module()
+    ledger = tmp_path / "runs.jsonl"
+
+    assert cli.main(["ask", "hello", "--pretty", "--color", "never", "--ledger", str(ledger)]) == 0
+
+    output = capsys.readouterr().out
+    assert "file_backed" in output
+    assert "ledger_file_backed" not in output
+    assert "true" in output.lower()
+    assert "\033[" not in output
+
+
+def test_cli_ask_executes_local_provider_with_live_opt_in(monkeypatch, capsys):
+    cli = _load_cli_module()
+    repo_root = Path(__file__).resolve().parents[1]
+    core_src = repo_root / "core" / "src"
+    for path in (repo_root, core_src):
+        text = str(path)
+        if text not in sys.path:
+            sys.path.insert(0, text)
+    from ora_core.providers import local_llm
+
+    monkeypatch.setenv("ORA_LOCAL_LLM_ENABLED", "1")
+    monkeypatch.setenv("ORA_LOCAL_LLM_BASE_URL", "http://127.0.0.1:11434")
+    monkeypatch.setenv("ORA_LOCAL_LLM_MODEL", "local-test")
+
+    def fake_generate_local_llm_reply(**kwargs: Any) -> local_llm.LocalLLMReply:
+        assert kwargs["config"].base_url == "http://127.0.0.1:11434"
+        return local_llm.LocalLLMReply(reply="<|final|>local cli reply", provider="local-ollama", model="local-test")
+
+    monkeypatch.setattr(local_llm, "generate_local_llm_reply", fake_generate_local_llm_reply)
+
+    exit_code = cli.main(["ask", "summarize", "public", "docs", "--provider", "local", "--live", "--json"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    output = json.loads(captured.out)
+    assert output["ok"] is True
+    assert output["response"]["provider"] == "local"
+    assert output["response"]["output_text"] == "local cli reply"
+    assert output["live_call_performed"] is True
+    assert output["ledger"]["local_only"] is True
+    assert output["ledger"]["path_persisted_in_output"] is False
+
+
 def test_cli_ask_dry_run_reuses_execution_plan_without_provider_call(monkeypatch, capsys):
     cli = _load_cli_module()
 
@@ -773,20 +819,24 @@ def test_cli_runs_list_and_show_use_opt_in_redacted_ledger(tmp_path, capsys):
     cli = _load_cli_module()
     ledger = tmp_path / "runs.jsonl"
 
-    assert cli.main(["ask", "summarize", "public", "docs", "--json", "--ledger-path", str(ledger)]) == 0
+    assert cli.main(["ask", "summarize", "public", "docs", "--json", "--ledger", str(ledger)]) == 0
     ask_output = json.loads(capsys.readouterr().out)
     run_id = ask_output["run"]["run_id"]
+    assert ask_output["ledger"]["file_backed"] is True
+    assert str(ledger) not in json.dumps(ask_output)
 
-    assert cli.main(["runs", "list", "--json", "--ledger-path", str(ledger)]) == 0
+    assert cli.main(["runs", "list", "--json", "--ledger", str(ledger)]) == 0
     list_output = json.loads(capsys.readouterr().out)
     assert list_output["count"] == 1
     assert list_output["runs"][0]["run_id"] == run_id
+    assert list_output["ledger"]["path_persisted_in_output"] is False
     assert list_output["raw_prompt_persisted"] is False
 
-    assert cli.main(["runs", "show", run_id, "--json", "--ledger-path", str(ledger)]) == 0
+    assert cli.main(["runs", "show", run_id, "--json", "--ledger", str(ledger)]) == 0
     show_output = json.loads(capsys.readouterr().out)
     assert show_output["run"]["run_id"] == run_id
     assert show_output["run"]["status"] == "completed"
+    assert show_output["ledger"]["local_only"] is True
 
 
 def test_cli_plan_dangerous_task_requires_approval(capsys):
