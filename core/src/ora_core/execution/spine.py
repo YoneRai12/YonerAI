@@ -39,6 +39,7 @@ class ExecutionResult:
 def execute_task(
     task_text: str,
     *,
+    provider_prompt: str | None = None,
     mode: str = "self-host",
     provider: str = "auto",
     live: bool = False,
@@ -47,6 +48,7 @@ def execute_task(
 ) -> ExecutionResult:
     ledger = ledger or build_run_ledger_from_env()
     registry = registry or build_default_provider_registry()
+    provider_prompt = provider_prompt if provider_prompt is not None else task_text
     plan = build_execution_plan(
         task_text,
         command="yonerai ask",
@@ -115,7 +117,7 @@ def execute_task(
 
     try:
         request = ProviderRequest(
-            prompt=task_text,
+            prompt=provider_prompt,
             model=plan.provider_selection.model_id,
             metadata={"run_id": run.run_id},
         )

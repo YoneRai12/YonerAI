@@ -109,6 +109,8 @@ def test_cli_ask_file_summary_uses_mock_provider_without_raw_file_in_metadata(tm
     assert output["file_context"]["file_name"] == "summary.txt"
     assert output["file_context"]["raw_content_persisted"] is False
     assert "public alpha2 notes" not in json.dumps(output["file_context"])
+    assert "public alpha2 notes" not in json.dumps(output["plan"])
+    assert "public alpha2 notes" not in json.dumps(output["run"])
     assert str(tmp_path) not in captured.out
 
 

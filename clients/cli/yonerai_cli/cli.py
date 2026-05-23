@@ -596,6 +596,8 @@ def _preview_route(args: argparse.Namespace) -> dict[str, Any]:
         raise CliError("route preview is unavailable.", exit_code=1) from exc
 
     prompt = _prompt_from_args(args.task)
+    provider_prompt = prompt
+    provider_prompt = prompt
     local_node_state = args.local_node_state
     has_local_node = args.has_local_node or local_node_state in {
         "present_unverified",
@@ -739,10 +741,11 @@ def _execute_ask_report(args: argparse.Namespace) -> dict[str, Any]:
                 "file_context": None,
                 "error": exc.to_public_dict(),
             }
-        prompt = build_workspace_file_prompt(prompt, file_context)
+        provider_prompt = build_workspace_file_prompt(prompt, file_context)
     try:
         result = execute_task(
             prompt,
+            provider_prompt=provider_prompt,
             mode=args.mode,
             provider=args.provider,
             live=args.live,
