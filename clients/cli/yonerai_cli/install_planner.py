@@ -267,7 +267,10 @@ def _version_key(version: str | None) -> tuple[int, int, int, tuple[tuple[int, i
     match = SEMVER_RE.match(version)
     if match is None:
         return None
-    major, minor, patch = (int(match.group(index)) for index in (1, 2, 3))
+    try:
+        major, minor, patch = (int(match.group(index)) for index in (1, 2, 3))
+    except ValueError:
+        return None
     prerelease = match.group(4)
     if prerelease is None:
         return major, minor, patch, ((2, ""),)
@@ -276,7 +279,10 @@ def _version_key(version: str | None) -> tuple[int, int, int, tuple[tuple[int, i
 
 def _prerelease_token(token: str) -> tuple[int, int | str]:
     if token.isdigit():
-        return 0, int(token)
+        try:
+            return 0, int(token)
+        except ValueError:
+            return 1, token
     return 1, token
 
 
