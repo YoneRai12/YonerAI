@@ -1332,7 +1332,7 @@ def build_parser() -> argparse.ArgumentParser:
     ask.add_argument("--dry-run", action="store_true", help="Preview only; no provider call is made.")
     ask.add_argument("--live", action="store_true", help="Allow explicitly gated local or external live provider execution.")
     ask.add_argument("--ledger-path", help="Optional redacted JSONL run ledger path. Disabled by default.")
-    ask.add_argument("--file", help="Optional workspace-local UTF-8 text file to summarize or use as ask context.")
+    ask.add_argument("--file", help="Optional workspace-local UTF-8 text file to pass through the access guard as ask context.")
     ask.add_argument("--workspace", help="Required workspace root when --file is used.")
     ask.add_argument("--file-max-bytes", type=int, default=65536, help="Maximum file bytes to read. Default: 65536.")
     ask_output = ask.add_mutually_exclusive_group()

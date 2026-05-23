@@ -6,6 +6,8 @@ from pathlib import Path
 
 DEFAULT_MAX_FILE_BYTES = 64 * 1024
 MAX_PROMPT_CHARS = 6000
+WORKSPACE_FILE_ACCESS_CAPABILITY = "workspace_file_access"
+WORKSPACE_FILE_ACCESS_COMPAT_ALIASES = ("file_summary",)
 TEXT_EXTENSIONS = {
     ".cfg",
     ".csv",
@@ -46,6 +48,7 @@ class WorkspaceFileContext:
     def to_public_dict(self) -> dict[str, object]:
         payload = asdict(self)
         payload.pop("preview_text", None)
+        payload["capability"] = WORKSPACE_FILE_ACCESS_CAPABILITY
         payload["raw_content_persisted"] = False
         return payload
 
@@ -77,11 +80,11 @@ def read_workspace_text_file(
     if size <= 0:
         raise WorkspaceFileError("empty_file", "file is empty.")
     if size > max_bytes:
-        raise WorkspaceFileError("file_too_large", "file exceeds the configured summarize limit.")
+        raise WorkspaceFileError("file_too_large", "file exceeds the configured workspace file access limit.")
     suffix = resolved_target.suffix.lower()
     data = resolved_target.read_bytes()
     if _looks_binary(data, suffix=suffix):
-        raise WorkspaceFileError("binary_file_rejected", "binary files are not supported by the workspace summarize capability.")
+        raise WorkspaceFileError("binary_file_rejected", "binary files are not supported by the workspace file access guard.")
     try:
         text = data.decode("utf-8")
     except UnicodeDecodeError as exc:
@@ -103,7 +106,9 @@ def read_workspace_text_file(
 def build_workspace_file_prompt(task_text: str, context: WorkspaceFileContext) -> str:
     return (
         f"{task_text}\n\n"
-        "Workspace file context follows. Do not infer local absolute paths or private runtime details.\n"
+        "Workspace file access guard context follows. This is one explicitly selected UTF-8 text file, "
+        "not PDF/image parsing, folder crawling, arbitrary filesystem access, or a completed summarizer. "
+        "Do not infer local absolute paths or private runtime details.\n"
         f"file_name: {context.file_name}\n"
         f"extension: {context.extension or 'none'}\n"
         f"size_bytes: {context.size_bytes}\n"

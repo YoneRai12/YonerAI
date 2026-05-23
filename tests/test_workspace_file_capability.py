@@ -17,7 +17,11 @@ def _prepare_paths() -> None:
 
 def test_workspace_file_context_reads_utf8_text(tmp_path: Path) -> None:
     _prepare_paths()
-    from ora_core.execution.workspace_files import read_workspace_text_file
+    from ora_core.execution.workspace_files import (
+        WORKSPACE_FILE_ACCESS_CAPABILITY,
+        WORKSPACE_FILE_ACCESS_COMPAT_ALIASES,
+        read_workspace_text_file,
+    )
 
     workspace = tmp_path / "workspace"
     workspace.mkdir()
@@ -28,9 +32,11 @@ def test_workspace_file_context_reads_utf8_text(tmp_path: Path) -> None:
     public = context.to_public_dict()
 
     assert context.preview_text == "# Title public notes"
+    assert public["capability"] == WORKSPACE_FILE_ACCESS_CAPABILITY
     assert public["file_name"] == "note.md"
     assert public["raw_content_persisted"] is False
     assert "preview_text" not in public
+    assert WORKSPACE_FILE_ACCESS_COMPAT_ALIASES == ("file_summary",)
 
 
 def test_workspace_file_rejects_outside_traversal_and_hidden(tmp_path: Path) -> None:
@@ -76,7 +82,9 @@ def test_workspace_file_rejects_large_and_binary(tmp_path: Path) -> None:
             raise AssertionError("workspace file policy should reject unsafe file")
 
 
-def test_cli_ask_file_summary_uses_mock_provider_without_raw_file_in_metadata(tmp_path: Path, capsys) -> None:
+def test_cli_ask_workspace_file_access_guard_uses_mock_provider_without_raw_file_in_metadata(
+    tmp_path: Path, capsys
+) -> None:
     _prepare_paths()
     from yonerai_cli import cli
 
@@ -88,8 +96,8 @@ def test_cli_ask_file_summary_uses_mock_provider_without_raw_file_in_metadata(tm
     rc = cli.main(
         [
             "ask",
-            "summarize",
-            "this",
+            "inspect",
+            "selected",
             "file",
             "--file",
             "summary.txt",
@@ -106,6 +114,7 @@ def test_cli_ask_file_summary_uses_mock_provider_without_raw_file_in_metadata(tm
     assert rc == 0
     assert output["ok"] is True
     assert output["response"]["provider"] == "mock"
+    assert output["file_context"]["capability"] == "workspace_file_access"
     assert output["file_context"]["file_name"] == "summary.txt"
     assert output["file_context"]["raw_content_persisted"] is False
     assert "public alpha2 notes" not in json.dumps(output["file_context"])
@@ -116,7 +125,7 @@ def test_cli_ask_file_rejects_without_workspace(capsys) -> None:
     _prepare_paths()
     from yonerai_cli import cli
 
-    rc = cli.main(["ask", "summarize", "file", "--file", "note.txt", "--provider", "mock", "--json"])
+    rc = cli.main(["ask", "inspect", "file", "--file", "note.txt", "--provider", "mock", "--json"])
     captured = capsys.readouterr()
 
     assert rc == 2
@@ -133,7 +142,7 @@ def test_cli_ask_file_error_json_does_not_leak_absolute_path(tmp_path: Path, cap
     rc = cli.main(
         [
             "ask",
-            "summarize",
+            "inspect",
             "file",
             "--file",
             "../missing.txt",

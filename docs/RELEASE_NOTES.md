@@ -9,7 +9,7 @@ This page is a public-safe index of current release notes and progress checkpoin
 - Release date: `2026-05-22`.
 - Public release body: `docs/releases/0.1.0-alpha.2.md`
 - What users can try now: `yonerai demo`, `yonerai doctor`, `yonerai status`, `yonerai ask --provider mock`, workspace-scoped `yonerai ask --file ... --workspace ...`, `yonerai plan`, `yonerai search mock`, `yonerai ops plan`, explicit local `yonerai memory`, `yonerai discord synthetic`, `yonerai manifest verify`, `yonerai install plan --manifest releases/manifest.example.json`, and `yonerai install plan-windows`.
-- Capability slice: opt-in provider adapters, loopback-only local LLM, workspace file summarize, mock search, SafeShell planning, explicit local memory, synthetic Discord gateway, official status contracts, installer dry-run planning, run ledger/history, and deterministic demo integration.
+- Capability slice: opt-in provider adapters, loopback-only local LLM, Workspace File Access Guard, mock search, SafeShell planning, explicit local memory, synthetic Discord gateway, official status contracts, installer dry-run planning, run ledger/history, and deterministic demo integration.
 - Boundary: no default live provider calls, no live Discord, no arbitrary shell, no arbitrary local file access, no production Oracle/control-plane implementation, no production signing keys, no production trust stores, no Google login, no production DB behavior, and no Official Managed Cloud runtime in this public repo.
 - Primary traceability range: `v0.1.0-alpha.1..v0.1.0-alpha.2`, 16 PRs.
 - Primary traceability PRs: #307, #308, #309, #310, #311, #312, #314, #315, #316, #317, #318, #319, #320, #321, #322, and #323.

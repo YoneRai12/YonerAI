@@ -39,7 +39,8 @@ v0.1.0-alpha.2 は local public alpha slice です。完成品の YonerAI では
 
 - Mock provider execution: `yonerai ask "summarize public docs" --provider mock --json`
 - Run ID: mock `ask` は public-safe な `run_id` を返します。
-- Workspace file summary: `yonerai ask "summarize this file" --file <path> --workspace <dir> --provider mock --json`
+- ワークスペース内ファイルアクセス制御: `yonerai ask "inspect this file" --file <path> --workspace <dir> --provider mock --json`
+  - 現状は明示指定した UTF-8 テキストファイルを workspace 境界内で読むだけです。PDF/画像解析、フォルダ巡回、任意ファイルアクセス、実 LLM ファイル要約は未実装です。
 - Mock search: `yonerai search mock "YonerAI alpha2" --json`
 - SafeShell plan: `yonerai ops plan git-status --json`
 - Local memory: `yonerai memory add "local note" --store <local.jsonl> --confirm-local --json`

@@ -37,7 +37,7 @@ production installer, or a live Discord/Official Managed Cloud release.
 Credential-free commands:
 
 - `yonerai ask "summarize public docs" --provider mock --json`
-- `yonerai ask "summarize this file" --file <path> --workspace <dir> --provider mock --json`
+- `yonerai ask "inspect this file" --file <path> --workspace <dir> --provider mock --json`
 - `yonerai search mock "YonerAI alpha2" --json`
 - `yonerai ops plan git-status --json`
 - `yonerai memory add "local note" --store <local.jsonl> --confirm-local --json`
@@ -46,9 +46,11 @@ Credential-free commands:
 - `yonerai manifest verify releases/manifest.example.json --json`
 - `yonerai install plan --manifest releases/manifest.example.json --json`
 
-Mock `ask` returns a public-safe `run_id`. Workspace file summary reads only an
-explicit file under an explicit workspace. Local memory writes only when a store
-path and `--confirm-local` are provided.
+Mock `ask` returns a public-safe `run_id`. The Workspace File Access Guard reads
+only an explicit UTF-8 text file under an explicit workspace and rejects
+outside/path traversal access. It does not parse PDFs/images, crawl folders,
+allow arbitrary file access, or provide real LLM file summarization. Local
+memory writes only when a store path and `--confirm-local` are provided.
 
 Not included: production readiness, live Discord restoration, live web search by
 default, arbitrary shell execution, arbitrary file access, installer-ready
@@ -80,7 +82,7 @@ yonerai manifest verify releases/manifest.example.json --pretty --lang ja
 yonerai manifest verify releases/manifest.example.json --json
 yonerai plan "summarize public docs" --json
 yonerai ask "summarize public docs" --provider mock --json
-yonerai ask "summarize this file" --file notes.txt --workspace . --provider mock --json
+yonerai ask "inspect this file" --file notes.txt --workspace . --provider mock --json
 yonerai search mock "YonerAI alpha2" --json
 yonerai ops plan git-status --json
 yonerai memory add "local note" --store .yonerai-memory.jsonl --confirm-local --json
@@ -139,7 +141,7 @@ service install, and no remote script execution. It does not install anything.
 - The CLI only accepts loopback API origins.
 - External provider execution requires explicit provider selection, `--live`, and provider-specific env opt-in; default CLI/demo/tests do not call live providers.
 - Local LLM execution is loopback-only.
-- Workspace file summarization requires explicit `--file` and `--workspace`.
+- Workspace File Access Guard requires explicit `--file` and `--workspace`; it reads only the selected UTF-8 text file inside that workspace and rejects outside/path traversal access.
 - Local memory requires explicit `--store` and `--confirm-local`; it is local-only and redacted.
 - SafeShell is plan-only for a small diagnostic allowlist; it is not arbitrary shell execution.
 - It does not deploy anything.
