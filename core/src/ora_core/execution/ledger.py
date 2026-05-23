@@ -24,9 +24,11 @@ _SECRET_PATTERNS = (
     re.compile(r"sk-[A-Za-z0-9_-]{10,}"),
     re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
     re.compile(
-        r"(api[_-]?key|access[_-]?token|refresh[_-]?token|discord[_-]?token|private[_-]?key|client[_-]?secret|authorization)",
+        r"(?:api[_-]?key|access[_-]?token|refresh[_-]?token|discord[_-]?token|private[_-]?key|client[_-]?secret)\s*(?:=|:)\s*[^\s,;]+",
         re.IGNORECASE,
     ),
+    re.compile(r"authorization\s*:\s*bearer\s+[^\s,;]+", re.IGNORECASE),
+    re.compile(r"authorization\s+bearer\s+[^\s,;]+", re.IGNORECASE),
 )
 
 
