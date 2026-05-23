@@ -1102,6 +1102,7 @@ def _print_ops_plan_pretty(report: dict[str, Any], *, color: ColorMode = "auto")
 
 def _build_memory_report(args: argparse.Namespace) -> dict[str, Any]:
     try:
+        _prepare_repo_import_path()
         _prepare_core_import_path()
         from ora_core.memory import LocalMemoryStore
     except Exception as exc:
