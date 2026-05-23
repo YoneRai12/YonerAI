@@ -738,6 +738,19 @@ def test_cli_ask_executes_mock_provider_by_default(capsys):
     assert output["live_call_performed"] is False
 
 
+def test_cli_ask_pretty_reports_ledger_file_backed_label(tmp_path, capsys):
+    cli = _load_cli_module()
+    ledger = tmp_path / "runs.jsonl"
+
+    assert cli.main(["ask", "hello", "--pretty", "--color", "never", "--ledger", str(ledger)]) == 0
+
+    output = capsys.readouterr().out
+    assert "file_backed" in output
+    assert "ledger_file_backed" not in output
+    assert "true" in output.lower()
+    assert "\033[" not in output
+
+
 def test_cli_ask_executes_local_provider_with_live_opt_in(monkeypatch, capsys):
     cli = _load_cli_module()
     repo_root = Path(__file__).resolve().parents[1]

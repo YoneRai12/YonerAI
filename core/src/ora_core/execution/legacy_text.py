@@ -4,6 +4,8 @@ from typing import Callable
 
 
 LEGACY_TEXT_NORMALIZER_SOURCE = "src/cogs/ora_pure_helpers.py"
+_CACHE_MISSING = object()
+_LEGACY_CLEANER_CACHE: Callable[[str], str] | None | object = _CACHE_MISSING
 
 
 def normalize_legacy_generated_text(text: object) -> str:
@@ -36,8 +38,15 @@ def legacy_text_normalizer_status() -> dict[str, object]:
 
 
 def _load_legacy_cleaner() -> Callable[[str], str] | None:
+    global _LEGACY_CLEANER_CACHE
+    cached = _LEGACY_CLEANER_CACHE
+    if cached is not _CACHE_MISSING:
+        return cached if callable(cached) else None
     try:
         from src.cogs.ora_pure_helpers import clean_content
     except Exception:
+        _LEGACY_CLEANER_CACHE = None
         return None
-    return clean_content
+    else:
+        _LEGACY_CLEANER_CACHE = clean_content
+        return clean_content

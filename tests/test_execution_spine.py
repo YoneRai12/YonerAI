@@ -75,6 +75,29 @@ def test_safe_summary_uses_legacy_ora_content_cleaner() -> None:
     assert status["source"] == "src/cogs/ora_pure_helpers.py"
 
 
+def test_legacy_text_cleaner_import_is_cached(monkeypatch) -> None:
+    _prepare_paths()
+    import builtins
+
+    from ora_core.execution import legacy_text
+
+    legacy_text._LEGACY_CLEANER_CACHE = legacy_text._CACHE_MISSING
+    original_import = builtins.__import__
+    calls = 0
+
+    def counting_import(name, *args, **kwargs):
+        nonlocal calls
+        if name == "src.cogs.ora_pure_helpers":
+            calls += 1
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", counting_import)
+
+    assert legacy_text._load_legacy_cleaner() is not None
+    assert legacy_text._load_legacy_cleaner() is not None
+    assert calls == 1
+
+
 def test_execute_task_mock_provider_records_completed_run() -> None:
     _prepare_paths()
     from ora_core.execution import InMemoryRunLedger, execute_task

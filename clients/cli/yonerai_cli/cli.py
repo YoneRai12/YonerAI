@@ -779,6 +779,7 @@ def _format_execution_result_pretty(report: dict[str, Any], *, color: ColorMode 
     error = report.get("error") or {}
     boundary = report.get("boundary_checks") or {}
     ledger = report.get("ledger") or {}
+    file_backed = ledger.get("file_backed", "unknown")
     provider = plan["provider"]
     sections = (
         CliSection(
@@ -788,7 +789,7 @@ def _format_execution_result_pretty(report: dict[str, Any], *, color: ColorMode 
                 CliRow("status", run["status"], "ok" if run["status"] == "completed" else "warn"),
                 CliRow("category", plan["classification"]["category"], "ok"),
                 CliRow("approval_required", run["approval_required"], "warn" if run["approval_required"] else "ok"),
-                CliRow("ledger_file_backed", ledger.get("file_backed", False), "ok" if ledger.get("file_backed") else "warn"),
+                CliRow("file_backed", file_backed, _optional_bool_status(file_backed)),
             ),
         ),
         CliSection(
@@ -870,6 +871,14 @@ def _ledger_status(ledger_path: str | None) -> dict[str, object]:
         "raw_prompt_persisted": False,
         "raw_completion_persisted": False,
     }
+
+
+def _optional_bool_status(value: object) -> str:
+    if value is True:
+        return "ok"
+    if value is False:
+        return "warn"
+    return "fail"
 
 
 def _build_search_report(args: argparse.Namespace) -> dict[str, Any]:
@@ -1187,6 +1196,7 @@ def _print_memory_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -
 
 def _print_runs_list_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -> None:
     ledger = report.get("ledger") or {}
+    file_backed = ledger.get("file_backed", "unknown")
     rows = tuple(
         CliRow(
             str(run["run_id"]),
@@ -1202,7 +1212,7 @@ def _print_runs_list_pretty(report: dict[str, Any], *, color: ColorMode = "auto"
                 CliSection(
                     "Ledger",
                     (
-                        CliRow("file_backed", ledger.get("file_backed", False), "ok" if ledger.get("file_backed") else "warn"),
+                        CliRow("file_backed", file_backed, _optional_bool_status(file_backed)),
                         CliRow("local_only", ledger.get("local_only", True), "ok"),
                         CliRow(
                             "path_persisted_in_output",
@@ -1224,12 +1234,13 @@ def _print_run_show_pretty(report: dict[str, Any], *, color: ColorMode = "auto")
         return
     run = report["run"]
     ledger = report.get("ledger") or {}
+    file_backed = ledger.get("file_backed", "unknown")
     events = tuple(CliRow(event["name"], f"{event['status']} {event['summary']}", "ok" if event["status"] == "ok" else "warn") for event in run["events"])
     sections = (
         CliSection(
             "Ledger",
             (
-                CliRow("file_backed", ledger.get("file_backed", False), "ok" if ledger.get("file_backed") else "warn"),
+                CliRow("file_backed", file_backed, _optional_bool_status(file_backed)),
                 CliRow("local_only", ledger.get("local_only", True), "ok"),
                 CliRow("raw_prompt_persisted", ledger.get("raw_prompt_persisted", False), "fail" if ledger.get("raw_prompt_persisted") else "ok"),
             ),
