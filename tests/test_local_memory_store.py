@@ -99,3 +99,21 @@ def test_cli_memory_export_is_local_only(tmp_path: Path, capsys) -> None:
     assert output["operation"] == "export"
     assert output["cloud_synced"] is False
     assert output["count"] == 1
+
+def test_cli_memory_add_uses_repo_redactor_outside_repo_root(tmp_path: Path, capsys, monkeypatch) -> None:
+    _prepare_paths()
+    from yonerai_cli import cli
+
+    monkeypatch.chdir(tmp_path)
+    store = tmp_path / "memory.jsonl"
+    text = (
+        "callback https://example.test/cb?access_token=LEAKED_QUERY_TOKEN "
+        "and webhook https://discord.com/api/webhooks/123456789012345678/AbCdEfGhIjKlMnOpQrStUvWxYz-12345"
+    )
+    rc = cli.main(["memory", "add", text, "--store", str(store), "--confirm-local", "--json"])
+    output = json.loads(capsys.readouterr().out)
+
+    assert rc == 0
+    assert output["raw_prompt_persisted"] is False
+    assert "LEAKED_QUERY_TOKEN" not in output["record"]["text"]
+    assert "discord.com/api/webhooks" not in output["record"]["text"]

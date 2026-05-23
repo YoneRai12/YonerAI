@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from typing import Literal
 
-from ora_core.models import get_model_registry
 from ora_core.providers.registry import ProviderRegistry, build_default_provider_registry, normalize_provider_id
 
 from .task_classifier import TaskClassification
@@ -100,6 +99,8 @@ def _model_for(provider_id: str, tier: ModelTier) -> str:
         return "disabled"
     registry_tier = {"fast": "instant", "balanced": "balanced", "strong": "pro"}.get(tier, "balanced")
     try:
+        from ora_core.models import get_model_registry
+
         candidates = get_model_registry(strict=False).resolve_candidates(tier=registry_tier)
     except Exception:
         return "model-registry-unavailable"
