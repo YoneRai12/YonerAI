@@ -166,6 +166,19 @@ def _build_doctor_report(*, command: str = "yonerai doctor") -> dict[str, Any]:
         manifest_report = verify_manifest(load_manifest_file(str(manifest_path)))
     except ManifestError as exc:
         manifest_report = {"ok": False, "errors": [str(exc)]}
+    try:
+        _prepare_core_import_path()
+        from ora_core.providers import build_provider_setup_report
+
+        provider_setup = build_provider_setup_report()
+    except ImportError:
+        provider_setup = {
+            "schema_version": "yonerai-provider-setup/v1",
+            "network_probe_performed": False,
+            "live_call_performed": False,
+            "providers": [],
+            "error": "provider_setup_unavailable",
+        }
     python_supported = sys.version_info >= (3, 11)
     manifest_contract_valid = bool(manifest_report.get("contract_valid", manifest_report.get("ok")))
     system_checks = {
@@ -209,6 +222,7 @@ def _build_doctor_report(*, command: str = "yonerai doctor") -> dict[str, Any]:
             "oracle_required": False,
             "deploy_required": False,
         },
+        "providers": provider_setup,
         "system_checks": system_checks,
         "errors": manifest_report.get("errors", []),
     }
@@ -409,6 +423,7 @@ def _doctor_sections_en(report: dict[str, Any]) -> tuple[CliSection, ...]:
     boundaries = report["boundaries"]
     redaction_check = report["system_checks"]["redaction_self_check"]
     mcp_check = report["system_checks"]["mcp_deny_policy"]
+    provider_rows = _provider_setup_rows(report, lang="en")
     return (
         CliSection(
             "Setup",
@@ -442,6 +457,7 @@ def _doctor_sections_en(report: dict[str, Any]) -> tuple[CliSection, ...]:
                 CliRow("mcp_deny_policy", mcp_check["status"], "ok" if mcp_check["ok"] else "fail"),
             ),
         ),
+        CliSection("Provider runtime", provider_rows),
         CliSection(
             "Boundaries",
             (
@@ -465,6 +481,7 @@ def _doctor_sections_ja(report: dict[str, Any]) -> tuple[CliSection, ...]:
     boundaries = report["boundaries"]
     redaction_check = report["system_checks"]["redaction_self_check"]
     mcp_check = report["system_checks"]["mcp_deny_policy"]
+    provider_rows = _provider_setup_rows(report, lang="ja")
     return (
         CliSection(
             "セットアップ",
@@ -498,6 +515,7 @@ def _doctor_sections_ja(report: dict[str, Any]) -> tuple[CliSection, ...]:
                 CliRow("MCP deny policy", "成功" if mcp_check["ok"] else "失敗", "ok" if mcp_check["ok"] else "fail"),
             ),
         ),
+        CliSection("プロバイダー実行環境", provider_rows),
         CliSection(
             "境界",
             (
@@ -512,6 +530,32 @@ def _doctor_sections_ja(report: dict[str, Any]) -> tuple[CliSection, ...]:
             ),
         ),
     )
+
+def _provider_setup_rows(report: dict[str, Any], *, lang: str = "en") -> tuple[CliRow, ...]:
+    provider_setup = report.get("providers") if isinstance(report.get("providers"), dict) else {}
+    providers = provider_setup.get("providers") if isinstance(provider_setup, dict) else []
+    rows: list[CliRow] = []
+    for provider in providers if isinstance(providers, list) else []:
+        if not isinstance(provider, dict):
+            continue
+        provider_id = str(provider.get("provider_id") or "unknown")
+        blockers = provider.get("setup_blockers")
+        blocker_text = ", ".join(str(blocker) for blocker in blockers) if isinstance(blockers, list) else ""
+        value = str(provider.get("setup_status") or "unknown")
+        if blocker_text:
+            value = f"{value}; {blocker_text}"
+        rows.append(CliRow(provider_id, value, _provider_setup_level(str(provider.get("setup_status") or "unknown"))))
+    fallback_name = "プロバイダー" if lang == "ja" else "providers"
+    fallback_value = "利用不可" if lang == "ja" else "unavailable"
+    return tuple(rows) or (CliRow(fallback_name, fallback_value, "warn"),)
+
+
+def _provider_setup_level(setup_status: str) -> str:
+    if setup_status in {"ready", "live_ready"}:
+        return "ok"
+    if setup_status in {"disabled", "live_opt_in_required", "missing_configuration"}:
+        return "warn"
+    return "fail"
 
 
 def _bool_text(value: object) -> str:
