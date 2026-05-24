@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import builtins
 import json
 import os
 import subprocess
@@ -473,6 +474,20 @@ def test_cli_node_status_reports_hybrid_wire_fixture(capsys):
     assert output["network_required"] is False
 
 
+def test_cli_node_status_pretty_reports_hybrid_wire_fixture(capsys):
+    cli = _load_cli_module()
+
+    assert cli.main(["node", "status", "--pretty", "--color", "never"]) == 0
+
+    output = capsys.readouterr().out
+    assert "YonerAI Local Node status" in output
+    assert "Hybrid Wire Contract" in output
+    assert "workspace_file_access" in output
+    assert "dangerous_operation" in output
+    assert "no official cloud runtime" in output
+    assert "\033[" not in output
+
+
 def test_cli_node_pair_is_dry_run_only(capsys):
     cli = _load_cli_module()
 
@@ -487,6 +502,21 @@ def test_cli_node_pair_is_dry_run_only(capsys):
 
     assert cli.main(["node", "pair", "--json"]) == 2
     assert "dry-run only" in capsys.readouterr().err
+
+
+def test_cli_node_pair_pretty_reports_non_actions(capsys):
+    cli = _load_cli_module()
+
+    assert cli.main(["node", "pair", "--dry-run", "--pretty", "--color", "never"]) == 0
+
+    output = capsys.readouterr().out
+    assert "YonerAI Local Node pairing preview" in output
+    assert "OfficialOrchestrationStubRequest" in output
+    assert "execute_allowed" in output
+    assert "false" in output
+    assert "[WARN] state" in output
+    assert "no network call" in output
+    assert "\033[" not in output
 
 
 def test_cli_route_preview_uses_hybrid_wire_node_state_when_requested(capsys):
@@ -560,11 +590,38 @@ def test_cli_doctor_reports_offline_status_without_network(monkeypatch, capsys):
     assert e2e["local_llm"] == "loopback_mock_http_server_tested"
     assert e2e["run_ledger"] == "redacted_success_and_error_paths_tested"
     assert e2e["external_network_call_performed"] is False
+    hybrid_wire = output["hybrid_wire_contract"]
+    assert hybrid_wire["ok"] is True
+    assert hybrid_wire["test_fixture_only"] is True
+    assert hybrid_wire["network_required"] is False
+    assert len(hybrid_wire["trust_states"]) >= 7
+    assert "yonerai node status --pretty" in hybrid_wire["cli_commands"]
     providers = {provider["provider_id"]: provider for provider in output["providers"]["providers"]}
     assert providers["mock"]["setup_status"] == "ready"
     assert providers["local"]["loopback_only"] is True
     assert "set ORA_LOCAL_LLM_ENABLED=1" in providers["local"]["setup_blockers"]
     assert "set YONERAI_OPENAI_COMPATIBLE_BASE_URL" in providers["openai-compatible"]["setup_blockers"]
+
+
+def test_cli_doctor_keeps_provider_diagnostics_if_hybrid_wire_import_fails(monkeypatch, capsys):
+    cli = _load_cli_module()
+    real_import = builtins.__import__
+
+    def guarded_import(name: str, *args: Any, **kwargs: Any):
+        if name == "ora_core.hybrid.wire_contract":
+            raise ImportError("test hybrid import unavailable")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", guarded_import)
+
+    assert cli.main(["doctor", "--json"]) == 1
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["providers"]["schema_version"] == "yonerai-provider-setup/v1"
+    assert output["providers"]["network_probe_performed"] is False
+    assert "providers" in output["providers"]
+    assert output["hybrid_wire_contract"]["ok"] is False
+    assert output["hybrid_wire_contract"]["error"] == "hybrid_wire_contract_unavailable"
 
 
 def test_cli_doctor_redacts_token_presence(monkeypatch, capsys):
@@ -614,6 +671,8 @@ def test_cli_doctor_does_not_execute_demo_or_mutate_path(monkeypatch, capsys):
     output = capsys.readouterr().out
     assert "YonerAI doctor" in output
     assert "manifest_example_valid: true" in output
+    assert "Hybrid Wire Contract" in output
+    assert "trust_states" in output
     assert "Provider runtime" in output
     assert "Provider runtime E2E fixtures" in output
     assert "local_mock_http_server_tested" in output
@@ -644,6 +703,7 @@ def test_cli_doctor_pretty_supports_japanese_without_json_key_translation(monkey
     assert "未実装" in output
     assert "本番機能" in output
     assert "含まれません" in output
+    assert "Hybrid Wire Contract" in output
     assert "プロバイダー実行環境" in output
     assert "プロバイダー実行環境 E2E フィクスチャ" in output
     assert "状態" in output

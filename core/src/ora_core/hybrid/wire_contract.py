@@ -29,6 +29,15 @@ TrustSessionState = Literal[
     "capability_not_declared",
     "approval_required",
 ]
+HYBRID_WIRE_REQUIRED_TRUST_STATES: tuple[TrustSessionState, ...] = (
+    "missing_node",
+    "unverified_node",
+    "verified_test_node",
+    "expired_session",
+    "revoked_session",
+    "capability_not_declared",
+    "approval_required",
+)
 
 _ROUTE_CAPABILITY_ALIASES: dict[str, str] = {
     "local_model": "local_tools",
@@ -447,6 +456,114 @@ def build_pairing_dry_run_report() -> dict[str, object]:
         "pairing_performed": False,
         "official_orchestration_stub_request": request.to_public_dict(),
         "trust_decision": decision.to_public_dict(),
+        "actions_not_performed": _wire_non_actions(),
+    }
+
+
+def build_hybrid_wire_conformance_report() -> dict[str, object]:
+    manifest = build_local_node_capability_manifest()
+    active_session = build_local_node_session_ref()
+    trust_cases = (
+        (
+            "missing_node",
+            evaluate_wire_request(
+                manifest=None,
+                session_ref=active_session,
+                requested_capability="workspace_file_access",
+            ),
+        ),
+        (
+            "unverified_node",
+            evaluate_wire_request(
+                manifest=build_local_node_capability_manifest(signed_origin_verified=False),
+                session_ref=active_session,
+                requested_capability="workspace_file_access",
+            ),
+        ),
+        (
+            "verified_test_node",
+            evaluate_wire_request(
+                manifest=manifest,
+                session_ref=active_session,
+                requested_capability="mock_search",
+            ),
+        ),
+        (
+            "expired_session",
+            evaluate_wire_request(
+                manifest=manifest,
+                session_ref=build_local_node_session_ref(state="expired"),
+                requested_capability="workspace_file_access",
+            ),
+        ),
+        (
+            "revoked_session",
+            evaluate_wire_request(
+                manifest=manifest,
+                session_ref=build_local_node_session_ref(state="revoked"),
+                requested_capability="workspace_file_access",
+            ),
+        ),
+        (
+            "capability_not_declared",
+            evaluate_wire_request(
+                manifest=manifest,
+                session_ref=active_session,
+                requested_capability="unknown_future_capability",
+            ),
+        ),
+        (
+            "approval_required",
+            evaluate_wire_request(
+                manifest=manifest,
+                session_ref=active_session,
+                requested_capability="dangerous_operation",
+            ),
+        ),
+    )
+    expected_states = HYBRID_WIRE_REQUIRED_TRUST_STATES
+    observed_states = tuple(decision.state for _label, decision in trust_cases)
+    return {
+        "schema_version": HYBRID_WIRE_CONTRACT_VERSION,
+        "ok": expected_states == observed_states,
+        "test_fixture_only": True,
+        "local_node_fixture_available": True,
+        "route_preview_fixture_supported": True,
+        "production_trust_material": False,
+        "official_cloud_runtime_implemented": False,
+        "production_oracle_used": False,
+        "network_required": False,
+        "required_trust_states": list(HYBRID_WIRE_REQUIRED_TRUST_STATES),
+        "required_trust_state_count": len(HYBRID_WIRE_REQUIRED_TRUST_STATES),
+        "schemas": [
+            "LocalNodeHello",
+            "LocalNodeHeartbeat",
+            "LocalNodeCapabilityManifest",
+            "LocalNodeSessionRef",
+            "LocalNodeRunEnvelope",
+            "LocalNodeRunResult",
+            "LocalNodeError",
+            "OfficialOrchestrationStubRequest",
+        ],
+        "capabilities": [capability.name for capability in manifest.capabilities],
+        "trust_states": [
+            {
+                "name": label,
+                "observed_state": decision.state,
+                "execute_allowed": decision.execute_allowed,
+                "allowed_for_preview": decision.allowed_for_preview,
+                "approval_required": decision.approval_required,
+                "reasons": list(decision.reasons),
+            }
+            for label, decision in trust_cases
+        ],
+        "cli_commands": [
+            "yonerai node status --json",
+            "yonerai node status --pretty",
+            "yonerai node pair --dry-run --json",
+            "yonerai node pair --dry-run --pretty",
+            "yonerai route preview <task> --use-local-node-fixture",
+        ],
         "actions_not_performed": _wire_non_actions(),
     }
 

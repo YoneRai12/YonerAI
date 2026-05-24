@@ -531,6 +531,7 @@ def _hybrid_trust_checks() -> tuple[dict[str, object], ...]:
         LocalNodeEnrollmentRequest,
         action_args_hash,
         build_local_dev_enrolled_session_fixture,
+        build_hybrid_wire_conformance_report,
         build_test_local_node_manifest,
         build_unsigned_local_node_action_envelope,
         consume_pairing_code,
@@ -616,7 +617,9 @@ def _hybrid_trust_checks() -> tuple[dict[str, object], ...]:
     from ora_core.discord_gateway import SyntheticDiscordGatewayAdapter
 
     discord = SyntheticDiscordGatewayAdapter().handle_mention("hello from demo").to_public_dict()
+    wire_conformance = build_hybrid_wire_conformance_report()
     assert trust_status.local_node.verification_state == "present_verified"
+    assert wire_conformance["ok"] is True
     assert pairing_once.accepted is True and pairing_reuse.accepted is False
     assert verified_action.status == "approval_required"
     assert replay.status == "replayed_nonce"
@@ -624,6 +627,15 @@ def _hybrid_trust_checks() -> tuple[dict[str, object], ...]:
     assert discord["live_discord"] is False
     assert discord["final_once"] is True
     return (
+        {
+            "name": "hybrid_wire_contract_conformance",
+            "status": "ok",
+            "schema_version": wire_conformance["schema_version"],
+            "trust_state_count": len(wire_conformance["trust_states"]),
+            "route_preview_fixture_supported": wire_conformance["route_preview_fixture_supported"],
+            "official_cloud_runtime_implemented": wire_conformance["official_cloud_runtime_implemented"],
+            "network_required": wire_conformance["network_required"],
+        },
         {"name": "signed_manifest_verified", "status": "ok", "verified": True},
         {"name": "enrollment_session_available", "status": "ok", "session_bound": True},
         {"name": "tamper_replay_rejected", "status": "ok", "replay_rejected": True},
@@ -932,6 +944,9 @@ def format_pretty_demo(result: dict[str, object]) -> str:
                 "live_discord",
                 "final_once",
                 "token_required",
+                "schema_version",
+                "trust_state_count",
+                "route_preview_fixture_supported",
                 "official_cloud_runtime_included",
                 "oracle_control_plane_production_ready",
                 "dry_run",

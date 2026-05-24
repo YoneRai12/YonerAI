@@ -166,8 +166,8 @@ def _build_doctor_report(*, command: str = "yonerai doctor") -> dict[str, Any]:
         manifest_report = verify_manifest(load_manifest_file(str(manifest_path)))
     except ManifestError as exc:
         manifest_report = {"ok": False, "errors": [str(exc)]}
+    _prepare_core_import_path()
     try:
-        _prepare_core_import_path()
         from ora_core.providers import build_provider_setup_report
 
         provider_setup = build_provider_setup_report()
@@ -179,6 +179,20 @@ def _build_doctor_report(*, command: str = "yonerai doctor") -> dict[str, Any]:
             "providers": [],
             "error": "provider_setup_unavailable",
         }
+    try:
+        from ora_core.hybrid.wire_contract import build_hybrid_wire_conformance_report
+
+        hybrid_wire_contract = build_hybrid_wire_conformance_report()
+    except ImportError:
+        hybrid_wire_contract = {
+            "schema_version": "yonerai-hybrid-wire-contract/v0.1",
+            "ok": False,
+            "error": "hybrid_wire_contract_unavailable",
+            "network_required": False,
+            "official_cloud_runtime_implemented": False,
+            "production_oracle_used": False,
+            "production_trust_material": False,
+        }
     python_supported = sys.version_info >= (3, 11)
     manifest_contract_valid = bool(manifest_report.get("contract_valid", manifest_report.get("ok")))
     system_checks = {
@@ -186,8 +200,9 @@ def _build_doctor_report(*, command: str = "yonerai doctor") -> dict[str, Any]:
         "mcp_deny_policy": _run_mcp_deny_policy_self_check(),
     }
     checks_ok = all(bool(check.get("ok")) for check in system_checks.values())
+    hybrid_wire_ok = bool(hybrid_wire_contract.get("ok"))
     return {
-        "ok": manifest_contract_valid and python_supported and checks_ok,
+        "ok": manifest_contract_valid and python_supported and checks_ok and hybrid_wire_ok,
         "command": command,
         "schema_version": "yonerai-doctor/v1",
         "python": {
@@ -223,6 +238,7 @@ def _build_doctor_report(*, command: str = "yonerai doctor") -> dict[str, Any]:
             "deploy_required": False,
         },
         "providers": provider_setup,
+        "hybrid_wire_contract": hybrid_wire_contract,
         "provider_runtime_e2e_fixtures": _provider_runtime_e2e_fixture_report(),
         "system_checks": system_checks,
         "errors": manifest_report.get("errors", []),
@@ -457,6 +473,7 @@ def _doctor_sections_en(report: dict[str, Any]) -> tuple[CliSection, ...]:
     mcp_check = report["system_checks"]["mcp_deny_policy"]
     provider_rows = _provider_setup_rows(report, lang="en")
     provider_e2e_rows = _provider_runtime_e2e_rows(report, lang="en")
+    hybrid_wire_rows = _hybrid_wire_contract_rows(report, lang="en")
     return (
         CliSection(
             "Setup",
@@ -490,6 +507,7 @@ def _doctor_sections_en(report: dict[str, Any]) -> tuple[CliSection, ...]:
                 CliRow("mcp_deny_policy", mcp_check["status"], "ok" if mcp_check["ok"] else "fail"),
             ),
         ),
+        CliSection("Hybrid Wire Contract", hybrid_wire_rows),
         CliSection("Provider runtime", provider_rows),
         CliSection("Provider runtime E2E fixtures", provider_e2e_rows),
         CliSection(
@@ -517,6 +535,7 @@ def _doctor_sections_ja(report: dict[str, Any]) -> tuple[CliSection, ...]:
     mcp_check = report["system_checks"]["mcp_deny_policy"]
     provider_rows = _provider_setup_rows(report, lang="ja")
     provider_e2e_rows = _provider_runtime_e2e_rows(report, lang="ja")
+    hybrid_wire_rows = _hybrid_wire_contract_rows(report, lang="ja")
     return (
         CliSection(
             "セットアップ",
@@ -550,6 +569,7 @@ def _doctor_sections_ja(report: dict[str, Any]) -> tuple[CliSection, ...]:
                 CliRow("MCP deny policy", "成功" if mcp_check["ok"] else "失敗", "ok" if mcp_check["ok"] else "fail"),
             ),
         ),
+        CliSection("Hybrid Wire Contract", hybrid_wire_rows),
         CliSection("プロバイダー実行環境", provider_rows),
         CliSection("プロバイダー実行環境 E2E フィクスチャ", provider_e2e_rows),
         CliSection(
@@ -566,6 +586,52 @@ def _doctor_sections_ja(report: dict[str, Any]) -> tuple[CliSection, ...]:
             ),
         ),
     )
+
+
+def _hybrid_wire_contract_rows(report: dict[str, Any], *, lang: str = "en") -> tuple[CliRow, ...]:
+    hybrid = report.get("hybrid_wire_contract")
+    if not isinstance(hybrid, dict):
+        unavailable = "利用不可" if lang == "ja" else "unavailable"
+        return (CliRow("status", unavailable, "warn"),)
+    trust_states = hybrid.get("trust_states")
+    trust_state_count = len(trust_states) if isinstance(trust_states, list) else 0
+    required_count = _hybrid_required_trust_state_count(hybrid)
+    capabilities = hybrid.get("capabilities")
+    capability_count = len(capabilities) if isinstance(capabilities, list) else 0
+    status_ok = "正常" if lang == "ja" else "ok"
+    status_fail = "失敗" if lang == "ja" else "fail"
+    not_implemented = "未実装" if lang == "ja" else "not implemented"
+    implemented = "実装済み" if lang == "ja" else "implemented"
+    return (
+        CliRow("status", status_ok if hybrid.get("ok") else status_fail, "ok" if hybrid.get("ok") else "fail"),
+        CliRow("schema", hybrid.get("schema_version", "unknown"), "ok"),
+        CliRow("test_fixture_only", hybrid.get("test_fixture_only"), "ok" if hybrid.get("test_fixture_only") else "warn"),
+        CliRow("capabilities", capability_count, "ok" if capability_count else "warn"),
+        CliRow("trust_states", trust_state_count, "ok" if trust_state_count >= required_count else "warn"),
+        CliRow(
+            "route_preview_fixture",
+            hybrid.get("route_preview_fixture_supported"),
+            "ok" if hybrid.get("route_preview_fixture_supported") else "warn",
+        ),
+        CliRow("network_required", hybrid.get("network_required"), "fail" if hybrid.get("network_required") else "ok"),
+        CliRow(
+            "official_cloud_runtime",
+            not_implemented if not hybrid.get("official_cloud_runtime_implemented") else implemented,
+            "ok" if not hybrid.get("official_cloud_runtime_implemented") else "fail",
+        ),
+    )
+
+
+def _hybrid_required_trust_state_count(hybrid: dict[str, Any]) -> int:
+    required_count = hybrid.get("required_trust_state_count")
+    if isinstance(required_count, int) and required_count > 0:
+        return required_count
+    required_states = hybrid.get("required_trust_states")
+    if isinstance(required_states, list) and required_states:
+        return len(required_states)
+    trust_states = hybrid.get("trust_states")
+    return len(trust_states) if isinstance(trust_states, list) else 1
+
 
 def _provider_setup_rows(report: dict[str, Any], *, lang: str = "en") -> tuple[CliRow, ...]:
     provider_setup = report.get("providers") if isinstance(report.get("providers"), dict) else {}
@@ -773,6 +839,115 @@ def _build_node_pair_report(args: argparse.Namespace) -> dict[str, Any]:
     except Exception as exc:
         raise CliError("Hybrid Wire Local Node pairing dry-run is unavailable.", exit_code=1) from exc
     return build_pairing_dry_run_report()
+
+
+def _print_node_status_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -> None:
+    print(_format_node_status_pretty(report, color=color))
+
+
+def _format_node_status_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -> str:
+    local_node_value = report.get("local_node") or {}
+    local_node = local_node_value if isinstance(local_node_value, dict) else {}
+    manifest_value = local_node.get("capability_manifest") or {}
+    manifest = manifest_value if isinstance(manifest_value, dict) else {}
+    capabilities_value = manifest.get("capabilities") or []
+    capabilities = capabilities_value if isinstance(capabilities_value, list) else []
+    capability_rows = tuple(
+        CliRow(
+            str(capability.get("name")),
+            "enabled" if capability.get("enabled") else "disabled",
+            "ok" if capability.get("enabled") else "warn",
+            note="approval required" if capability.get("approval_required") else None,
+        )
+        for capability in capabilities
+        if isinstance(capability, dict)
+    )
+    sections = (
+        CliSection(
+            "Hybrid Wire Contract",
+            (
+                CliRow("schema", report.get("schema_version"), "ok"),
+                CliRow("trust_state", local_node.get("trust_state"), "ok"),
+                CliRow("loopback_only", local_node.get("loopback_only"), "ok"),
+                CliRow("non_production", local_node.get("non_production"), "ok"),
+            ),
+        ),
+        CliSection(
+            "Local Node fixture",
+            (
+                CliRow("available", local_node.get("available"), "ok" if local_node.get("available") else "warn"),
+                CliRow("production_trust_material", local_node.get("production_trust_material"), "fail" if local_node.get("production_trust_material") else "ok"),
+                CliRow("network_required", report.get("network_required"), "fail" if report.get("network_required") else "ok"),
+                CliRow(
+                    "official_cloud_runtime",
+                    "not implemented" if not report.get("official_cloud_runtime_implemented") else "implemented",
+                    "ok" if not report.get("official_cloud_runtime_implemented") else "fail",
+                ),
+            ),
+        ),
+        CliSection("Capabilities", capability_rows),
+        CliSection(
+            "Non-actions",
+            tuple(CliRow("boundary", action, "ok") for action in report.get("actions_not_performed", ())),
+        ),
+    )
+    return render_report("YonerAI Local Node status", sections, color=color)
+
+
+def _print_node_pair_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -> None:
+    print(_format_node_pair_pretty(report, color=color))
+
+
+def _format_node_pair_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -> str:
+    request = report.get("official_orchestration_stub_request")
+    if not isinstance(request, dict):
+        request = {}
+    decision = report.get("trust_decision")
+    if not isinstance(decision, dict):
+        decision = {}
+    sections = (
+        CliSection(
+            "Pairing dry-run",
+            (
+                CliRow("schema", report.get("schema_version"), "ok"),
+                CliRow("dry_run", report.get("dry_run"), "ok" if report.get("dry_run") else "fail"),
+                CliRow("pairing_performed", report.get("pairing_performed"), "fail" if report.get("pairing_performed") else "ok"),
+                CliRow("request_schema", request.get("schema_name"), "ok"),
+            ),
+        ),
+        CliSection(
+            "Trust decision",
+            (
+                CliRow("state", decision.get("state"), _trust_decision_status(decision)),
+                CliRow("requested_capability", decision.get("requested_capability"), "ok"),
+                CliRow("execute_allowed", decision.get("execute_allowed"), "fail" if decision.get("execute_allowed") else "ok"),
+                CliRow("approval_required", decision.get("approval_required"), "warn" if decision.get("approval_required") else "ok"),
+            ),
+        ),
+        CliSection(
+            "Non-actions",
+            tuple(CliRow("boundary", action, "ok") for action in report.get("actions_not_performed", ())),
+        ),
+    )
+    return render_report("YonerAI Local Node pairing preview", sections, color=color)
+
+
+def _trust_decision_status(decision: dict[str, Any]) -> str:
+    state = decision.get("state")
+    if decision.get("execute_allowed"):
+        return "fail"
+    if state == "verified_test_node":
+        return "ok"
+    if state in {
+        "approval_required",
+        "capability_not_declared",
+        "expired_session",
+        "missing_node",
+        "revoked_session",
+        "unverified_node",
+    }:
+        return "warn"
+    return "fail"
 
 
 def _build_execution_plan_report(args: argparse.Namespace, *, command: str, dry_run: bool) -> dict[str, Any]:
@@ -1689,10 +1864,16 @@ def build_parser() -> argparse.ArgumentParser:
     node = subcommands.add_parser("node", help="Inspect public-safe Hybrid Wire Local Node fixtures.")
     node_subcommands = node.add_subparsers(dest="node_command", required=True)
     node_status = node_subcommands.add_parser("status", help="Show public-safe Local Node fixture status.")
-    node_status.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
+    node_status_output = node_status.add_mutually_exclusive_group()
+    node_status_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
+    node_status_output.add_argument("--pretty", action="store_true", help="Print a readable Local Node status.")
+    node_status.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
     node_pair = node_subcommands.add_parser("pair", help="Preview Local Node pairing without performing it.")
     node_pair.add_argument("--dry-run", action="store_true", help="Required; do not pair or contact any service.")
-    node_pair.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
+    node_pair_output = node_pair.add_mutually_exclusive_group()
+    node_pair_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
+    node_pair_output.add_argument("--pretty", action="store_true", help="Print a readable Local Node pairing preview.")
+    node_pair.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
 
     plan = subcommands.add_parser("plan", help="Preview classification, route, provider, and approval without executing.")
     plan.add_argument("task", nargs="+")
@@ -1882,10 +2063,18 @@ def run(argv: list[str] | None = None) -> int:
         _print_json(_preview_route(args))
         return 0
     if args.command == "node" and args.node_command == "status":
-        _print_json(_build_node_status_report())
+        report = _build_node_status_report()
+        if args.pretty:
+            _print_node_status_pretty(report, color=args.color)
+        else:
+            _print_json(report)
         return 0
     if args.command == "node" and args.node_command == "pair":
-        _print_json(_build_node_pair_report(args))
+        report = _build_node_pair_report(args)
+        if args.pretty:
+            _print_node_pair_pretty(report, color=args.color)
+        else:
+            _print_json(report)
         return 0
     if args.command == "plan":
         report = _build_execution_plan_report(args, command="yonerai plan", dry_run=True)

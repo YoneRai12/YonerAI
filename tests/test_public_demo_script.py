@@ -115,7 +115,15 @@ def test_public_demo_json_shape_and_boundaries(capsys) -> None:
     assert memory["cloud_synced"] is False
     assert memory["raw_prompt_persisted"] is False
     hybrid_trust = next(section for section in output["sections"] if section["name"] == "hybrid_trust")
+    wire_conformance = next(
+        check for check in hybrid_trust["checks"] if check["name"] == "hybrid_wire_contract_conformance"
+    )
     discord = next(check for check in hybrid_trust["checks"] if check["name"] == "synthetic_discord_gateway")
+    assert wire_conformance["schema_version"] == "yonerai-hybrid-wire-contract/v0.1"
+    assert wire_conformance["trust_state_count"] >= 7
+    assert wire_conformance["route_preview_fixture_supported"] is True
+    assert wire_conformance["official_cloud_runtime_implemented"] is False
+    assert wire_conformance["network_required"] is False
     assert discord["live_discord"] is False
     assert discord["token_required"] is False
     assert discord["final_once"] is True
@@ -172,6 +180,8 @@ def test_public_demo_pretty_output_contains_key_sections(capsys) -> None:
     assert "loopback_mock_http_server_tested" in output
     assert "local_loopback_only=true" in output
     assert "openai_compatible_live_ready=false" in output
+    assert "hybrid_wire_contract_conformance" in output
+    assert "trust_state_count=7" in output
     assert "mock_web_search" in output
     assert "live_search_boundary" in output
     assert "reason=live_search_not_implemented" in output
