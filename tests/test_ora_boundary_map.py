@@ -95,6 +95,8 @@ def test_ora_boundary_map_pins_extraction_candidates_and_risks() -> None:
     assert "discord" in by_qualname["ORACog.on_message"]["side_effects"]
     assert by_qualname["ORACog._detect_spam"]["target_module"] == "src/cogs/ora_pure_helpers.py"
     assert by_qualname["ORACog._strip_route_json"]["side_effects"] == []
+    assert by_qualname["ORACog.get_context_tools"]["target_module"] == "src/cogs/ora_tool_schema_helpers.py"
+    assert by_qualname["ORACog.get_context_tools"]["extraction_candidate"] is False
     assert blocks["ORACog._send_large_message.large_message_chunking"]["extraction_candidate"] is False
     assert (
         blocks["ORACog._send_large_message.large_message_chunking"]["target_module"]
@@ -118,4 +120,5 @@ def test_ora_boundary_markdown_records_top_responsibilities_and_nonclaims() -> N
     assert "Text cleanup and route/tool JSON recovery" in text
     assert "`ORACog._extract_json_objects` -> `src/cogs/ora_pure_helpers.py`" in text
     assert "`ORACog._perform_guardrail_check.guardrail_response_interpretation`" in text
+    assert "`src/cogs/ora_tool_schema_helpers.py`" in text
     assert "reference_clawdbot" not in text
