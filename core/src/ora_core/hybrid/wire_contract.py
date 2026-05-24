@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from typing import Any, Literal, Mapping
@@ -37,6 +38,20 @@ _ROUTE_CAPABILITY_ALIASES: dict[str, str] = {
     "ledger": "local_tools",
     "dangerous_operation": "dangerous_operations",
 }
+_FORBIDDEN_WIRE_KEYS = {
+    "raw_prompt",
+    "prompt",
+    "provider_key",
+    "api_key",
+    "secret",
+    "access_token",
+    "token",
+    "password",
+    "auth",
+    "authorization",
+}
+_SECRET_LIKE_RE = re.compile(r"\b(?:api|private)[\s_-]*key\b|sk-[a-z0-9_-]+", re.IGNORECASE)
+_LOCAL_PATH_MARKERS = ("c:\\users\\", "c:/users/", "/users/", "/home/", "/root/")
 
 
 @dataclass(frozen=True)
@@ -459,7 +474,9 @@ def evaluate_wire_request(
     if session_ref.state != "active":
         return _wire_decision("expired_session", capability, ("local_node_session_not_active",))
 
-    declared = {item.name: item for item in manifest.capabilities}
+    declared, duplicates = _declared_capabilities(manifest)
+    if duplicates:
+        return _wire_decision("unverified_node", capability, ("duplicate_capability_declared",))
     item = declared.get(capability)
     if item is None:
         return _wire_decision("capability_not_declared", capability, ("capability_not_declared",))
@@ -547,30 +564,56 @@ def _wire_non_actions() -> list[str]:
 
 def _wire_summary(value: object, *, max_chars: int = 240) -> str:
     summary = safe_summary(value, max_chars=max_chars)
-    return summary.replace("api key", "[credential_redacted]").replace("API key", "[credential_redacted]")
+    return _SECRET_LIKE_RE.sub("[credential_redacted]", summary)
 
 
 def assert_public_safe_wire_payload(payload: Mapping[str, Any]) -> tuple[str, ...]:
     violations: list[str] = []
-    _collect_wire_payload_violations(payload, violations=violations)
+    _collect_wire_payload_violations(payload, violations=violations, visited=set())
     return tuple(violations)
 
 
-def _collect_wire_payload_violations(value: object, *, violations: list[str]) -> None:
+def _declared_capabilities(
+    manifest: LocalNodeCapabilityManifest,
+) -> tuple[dict[str, LocalNodeCapability], tuple[str, ...]]:
+    declared: dict[str, LocalNodeCapability] = {}
+    duplicates: list[str] = []
+    for item in manifest.capabilities:
+        if item.name in declared:
+            duplicates.append(item.name)
+            continue
+        declared[item.name] = item
+    return declared, tuple(duplicates)
+
+
+def _collect_wire_payload_violations(
+    value: object,
+    *,
+    violations: list[str],
+    visited: set[int],
+) -> None:
     if isinstance(value, Mapping):
+        value_id = id(value)
+        if value_id in visited:
+            return
+        visited.add(value_id)
         for key, child in value.items():
-            normalized_key = str(key).strip().lower()
-            if normalized_key in {"raw_prompt", "prompt", "provider_key", "api_key", "secret", "access_token"}:
+            normalized_key = str(key).strip().lower().replace("-", "_").replace(" ", "_")
+            if normalized_key in _FORBIDDEN_WIRE_KEYS:
                 violations.append(f"forbidden_key:{normalized_key}")
-            _collect_wire_payload_violations(child, violations=violations)
+            _collect_wire_payload_violations(child, violations=violations, visited=visited)
         return
     if isinstance(value, (list, tuple)):
+        value_id = id(value)
+        if value_id in visited:
+            return
+        visited.add(value_id)
         for item in value:
-            _collect_wire_payload_violations(item, violations=violations)
+            _collect_wire_payload_violations(item, violations=violations, visited=visited)
         return
     if isinstance(value, str):
         lowered = value.lower()
-        if "c:\\users\\" in lowered or "/users/" in lowered:
+        if any(marker in lowered for marker in _LOCAL_PATH_MARKERS):
             violations.append("forbidden_value:local_path")
-        if "sk-" in lowered or "api key" in lowered or "private key" in lowered:
+        if _SECRET_LIKE_RE.search(value):
             violations.append("forbidden_value:secret_like")

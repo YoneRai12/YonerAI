@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 
@@ -124,8 +125,22 @@ def test_trust_session_rules_cover_required_denials_and_verified_test_node() -> 
     assert "dangerous_operation_disabled_in_public_repo" in dangerous.reasons
 
 
+def test_duplicate_manifest_capabilities_are_rejected_deterministically() -> None:
+    manifest = build_local_node_capability_manifest()
+    duplicate_manifest = replace(manifest, capabilities=manifest.capabilities + (manifest.capabilities[0],))
+    decision = evaluate_wire_request(
+        manifest=duplicate_manifest,
+        session_ref=build_local_node_session_ref(),
+        requested_capability="local_model",
+    )
+
+    assert decision.state == "unverified_node"
+    assert decision.execute_allowed is False
+    assert "duplicate_capability_declared" in decision.reasons
+
+
 def test_wire_payloads_do_not_include_raw_prompt_secret_or_local_path() -> None:
-    prompt = "read C:\\Users\\Example\\secret.txt with sk-test-placeholder and api key"
+    prompt = "read C:\\Users\\Example\\secret.txt with sk-test-placeholder and API_Key"
     envelope = build_run_envelope(capability="workspace_file_access", prompt=prompt)
     result = build_run_result(run_id=envelope.run_id, result="done from C:\\Users\\Example\\secret.txt")
 
@@ -143,7 +158,26 @@ def test_wire_payloads_do_not_include_raw_prompt_secret_or_local_path() -> None:
     serialized = f"{envelope_payload} {result_payload}".lower()
     assert "c:\\users\\example" not in serialized
     assert "sk-test-placeholder" not in serialized
-    assert "api key" not in serialized
+    assert "api_key" not in serialized
+
+
+def test_public_safe_payload_checks_sensitive_keys_linux_paths_and_cycles() -> None:
+    cyclic_list: list[object] = []
+    payload: dict[str, object] = {
+        "token": "redacted-but-forbidden-key",
+        "authorization": "redacted-but-forbidden-key",
+        "linux_path": "/home/example/.config/secret.txt",
+        "secret_value": "private-key-placeholder",
+        "loop": cyclic_list,
+    }
+    cyclic_list.append(payload)
+
+    violations = assert_public_safe_wire_payload(payload)
+
+    assert "forbidden_key:token" in violations
+    assert "forbidden_key:authorization" in violations
+    assert "forbidden_value:local_path" in violations
+    assert "forbidden_value:secret_like" in violations
 
 
 def test_route_preview_inputs_from_node_status_are_safe_fixture_only() -> None:
