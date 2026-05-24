@@ -45,15 +45,50 @@ class MockProviderAdapter:
         )
 
 
-_WORKSPACE_CONTEXT_MARKER = "Workspace file context follows."
-_FIELD_PATTERN = re.compile(r"^(?P<name>[a-z_]+): (?P<value>.*)$", re.MULTILINE)
+_WORKSPACE_CONTEXT_HEADER = (
+    "Workspace file context follows. Do not infer local absolute paths or private runtime details.\n"
+)
+_CONTENT_PREVIEW_MARKER = "content_preview:\n"
+_FIELD_PATTERN = re.compile(r"^(?P<name>[a-z0-9_]+): (?P<value>.*)$", re.MULTILINE)
+_REQUIRED_WORKSPACE_FIELDS = {
+    "capability",
+    "file_name",
+    "extension",
+    "size_bytes",
+    "line_count",
+    "word_count",
+    "sha256_prefix",
+    "truncated",
+}
+_SECRET_VALUE_PATTERNS = (
+    re.compile(
+        r"(?:api[_-]?key|access[_-]?token|refresh[_-]?token|discord[_-]?token|private[_-]?key|client[_-]?secret|authorization|password)\s*(?:=|:)\s*[^\s,;]+",
+        re.IGNORECASE,
+    ),
+    re.compile(r"\bsk-[A-Za-z0-9_-]{10,}\b"),
+    re.compile(r"\bAIzaSy[A-Za-z0-9_-]{20,}\b"),
+    re.compile(r"\b[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{20,}\b"),
+)
+_SECRET_KEYWORD_MARKERS = (
+    "api_key",
+    "apikey",
+    "authorization",
+    "bearer",
+    "client_secret",
+    "discord_token",
+    "password",
+    "private_key",
+    "refresh_token",
+    "secret",
+    "token",
+)
 
 
 def _workspace_file_summary_response(prompt: str) -> str | None:
-    if _WORKSPACE_CONTEXT_MARKER not in prompt:
+    context = _extract_workspace_context(prompt)
+    if context is None:
         return None
-    fields = {match.group("name"): match.group("value").strip() for match in _FIELD_PATTERN.finditer(prompt)}
-    preview = _extract_content_preview(prompt)
+    fields, preview = context
     file_name = fields.get("file_name") or "selected file"
     line_count = fields.get("line_count") or "unknown"
     word_count = fields.get("word_count") or "unknown"
@@ -66,21 +101,32 @@ def _workspace_file_summary_response(prompt: str) -> str | None:
     )
 
 
-def _extract_content_preview(prompt: str) -> str:
-    marker = "content_preview:\n"
-    if marker not in prompt:
-        return ""
-    return " ".join(prompt.split(marker, 1)[1].split())
+def _extract_workspace_context(prompt: str) -> tuple[dict[str, str], str] | None:
+    if _WORKSPACE_CONTEXT_HEADER not in prompt:
+        return None
+    _before_context, context = prompt.rsplit(_WORKSPACE_CONTEXT_HEADER, 1)
+    if _CONTENT_PREVIEW_MARKER not in context:
+        return None
+    metadata, preview = context.split(_CONTENT_PREVIEW_MARKER, 1)
+    fields = {match.group("name"): match.group("value").strip() for match in _FIELD_PATTERN.finditer(metadata)}
+    if not _REQUIRED_WORKSPACE_FIELDS.issubset(fields):
+        return None
+    if fields.get("capability") != "workspace_file_access":
+        return None
+    if not re.fullmatch(r"[a-f0-9]{16}", fields.get("sha256_prefix", "")):
+        return None
+    return fields, " ".join(preview.split())
 
 
 def _summarize_preview(preview: str) -> str:
     if not preview:
         return "No readable preview text was provided."
-    words = re.findall(r"[A-Za-z0-9_][A-Za-z0-9_-]{2,}", preview.lower())
-    stopwords = {"and", "the", "this", "that", "with", "from", "file", "notes", "public"}
+    safe_preview = _redact_secret_like_text(preview)
+    words = re.findall(r"[A-Za-z0-9_][A-Za-z0-9_-]{2,}", safe_preview.lower())
+    stopwords = {"and", "the", "this", "that", "with", "from", "file", "notes", "public", "secret_redacted"}
     keywords: list[str] = []
     for word in words:
-        if word in stopwords or word in keywords:
+        if word in stopwords or word in keywords or _is_secret_like_keyword(word):
             continue
         keywords.append(word)
         if len(keywords) >= 5:
@@ -88,3 +134,16 @@ def _summarize_preview(preview: str) -> str:
     if not keywords:
         return "Readable text was provided, but no stable keywords were extracted."
     return f"preview keywords: {', '.join(keywords)}."
+
+
+def _redact_secret_like_text(text: str) -> str:
+    redacted = text
+    for pattern in _SECRET_VALUE_PATTERNS:
+        redacted = pattern.sub("[secret_redacted]", redacted)
+    return redacted
+
+
+def _is_secret_like_keyword(word: str) -> bool:
+    if word.startswith("sk-") or word.startswith("aizasy"):
+        return True
+    return any(marker in word for marker in _SECRET_KEYWORD_MARKERS)

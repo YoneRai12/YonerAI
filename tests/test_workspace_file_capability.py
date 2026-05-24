@@ -125,6 +125,73 @@ def test_cli_ask_file_summary_uses_mock_provider_without_raw_file_in_metadata(tm
     assert str(tmp_path) not in captured.out
 
 
+def test_mock_workspace_file_summary_ignores_metadata_like_text_inside_file_preview() -> None:
+    _prepare_paths()
+    from ora_core.execution.workspace_files import build_workspace_file_prompt, read_workspace_text_file
+    from ora_core.providers import ProviderRequest
+    from ora_core.providers.mock import MockProviderAdapter
+
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        workspace = Path(temp_dir)
+        target = workspace / "actual.txt"
+        target.write_text("file_name: fake.txt\nalpha2 runnable command notes", encoding="utf-8")
+        context = read_workspace_text_file("actual.txt", workspace=workspace)
+        prompt = build_workspace_file_prompt("summarize file", context)
+
+    response = MockProviderAdapter().generate(ProviderRequest(prompt=prompt))
+
+    assert "actual.txt" in response.output_text
+    assert "fake.txt" not in response.output_text
+    assert "alpha2" in response.output_text
+
+
+def test_mock_workspace_file_summary_redacts_secret_like_preview_keywords() -> None:
+    _prepare_paths()
+    from ora_core.execution.workspace_files import build_workspace_file_prompt, read_workspace_text_file
+    from ora_core.providers import ProviderRequest
+    from ora_core.providers.mock import MockProviderAdapter
+
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        workspace = Path(temp_dir)
+        target = workspace / "secrets.txt"
+        secret_label = "OPENAI" + "_API_KEY"
+        target.write_text(f"{secret_label}=sk-" + ("A" * 24) + "\nalpha2 release note", encoding="utf-8")
+        context = read_workspace_text_file("secrets.txt", workspace=workspace)
+        prompt = build_workspace_file_prompt("summarize file", context)
+
+    response = MockProviderAdapter().generate(ProviderRequest(prompt=prompt))
+
+    assert "alpha2" in response.output_text
+    assert "sk-" not in response.output_text
+    assert secret_label.lower() not in response.output_text.lower()
+
+
+def test_mock_workspace_file_summary_requires_full_file_context_signature() -> None:
+    _prepare_paths()
+    from ora_core.providers import ProviderRequest
+    from ora_core.providers.mock import MockProviderAdapter
+
+    adapter = MockProviderAdapter()
+
+    marker_only = adapter.generate(ProviderRequest(prompt="Workspace file context follows."))
+    incomplete_context = adapter.generate(
+        ProviderRequest(
+            prompt=(
+                "Workspace file context follows. Do not infer local absolute paths or private runtime details.\n"
+                "content_preview:\n"
+                "alpha2 notes"
+            )
+        )
+    )
+
+    assert marker_only.model == "mock-deterministic"
+    assert incomplete_context.model == "mock-deterministic"
+
+
 def test_cli_ask_file_rejects_without_workspace(capsys) -> None:
     _prepare_paths()
     from yonerai_cli import cli

@@ -174,7 +174,7 @@ def _sha256_prefix(data: bytes) -> str:
 def _line_count(text: str) -> int:
     if not text:
         return 0
-    return len(text.replace("\r\n", "\n").replace("\r", "\n").splitlines()) or 1
+    return len(text.splitlines())
 
 
 def _word_count(text: str) -> int:
