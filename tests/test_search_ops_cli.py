@@ -49,8 +49,44 @@ def test_cli_search_live_is_disabled_by_default(capsys) -> None:
 
     assert rc == 1
     assert output["ok"] is False
+    assert output["query"] == "YonerAI"
     assert output["network_performed"] is False
+    assert output["live_boundary"]["status"] == "disabled"
+    assert output["live_boundary"]["reason"] == "live_search_not_implemented"
+    assert "no network request was performed" in output["live_boundary"]["message"]
+    assert output["live_boundary"]["requires_explicit_live_provider"] is True
+    assert "no network request" in output["live_boundary"]["actions_not_performed"]
     assert output["error"]["code"] == "search_live_disabled"
+
+
+def test_cli_search_live_whitespace_query_still_returns_boundary_json(capsys) -> None:
+    _prepare_paths()
+    from yonerai_cli import cli
+
+    rc = cli.main(["search", "live", "   ", "--json"])
+    captured = capsys.readouterr()
+    output = json.loads(captured.out)
+
+    assert rc == 1
+    assert output["ok"] is False
+    assert output["query"] == ""
+    assert output["network_performed"] is False
+    assert output["live_boundary"]["reason"] == "live_search_not_implemented"
+    assert captured.err == ""
+
+
+def test_cli_search_live_pretty_reports_no_network_boundary(capsys) -> None:
+    _prepare_paths()
+    from yonerai_cli import cli
+
+    rc = cli.main(["search", "live", "YonerAI", "--pretty", "--color", "never"])
+    captured = capsys.readouterr()
+
+    assert rc == 1
+    assert "Live search boundary" in captured.out
+    assert "live_search_not_implemented" in captured.out
+    assert "Live search is disabled" in captured.out
+    assert "no network request" in captured.out
 
 
 def test_safeshell_plans_allowlisted_diagnostic_without_execution() -> None:
