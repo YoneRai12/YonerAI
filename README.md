@@ -22,6 +22,8 @@ python -m venv .venv
 python -m pip install -U pip
 python -m pip install -r core/requirements.txt httpx
 python -m pip install -e clients/cli
+yonerai start --lang ja
+yonerai start --json
 yonerai demo --pretty
 yonerai demo --json
 yonerai doctor --pretty
@@ -35,6 +37,63 @@ yonerai ops plan git-status --json
 yonerai install plan --manifest releases/manifest.example.json --json
 ```
 
+## First 5 minutes
+
+`yonerai start` is the guided path for a first local run. It is written for
+people who want to know what to run next, not for people already familiar with
+the internals.
+
+```powershell
+yonerai start --lang ja
+yonerai demo --pretty
+yonerai doctor --pretty --lang ja
+yonerai ask "hello" --provider mock --json
+```
+
+If you already have a local LLM server on loopback, for example Ollama on
+`127.0.0.1:11434` or an LM Studio / OpenAI-compatible server on
+`127.0.0.1:1234`, `yonerai start` checks only local metadata endpoints. It does
+not send a prompt to the model. After you intentionally enable local execution,
+you can try:
+
+```powershell
+$env:ORA_LOCAL_LLM_ENABLED = "1"
+$env:ORA_LOCAL_LLM_PROVIDER = "ollama"
+$env:ORA_LOCAL_LLM_BASE_URL = "http://127.0.0.1:11434"
+$env:ORA_LOCAL_LLM_MODEL = "llama3.2"
+yonerai ask "hello" --provider local --live --json
+```
+
+For LM Studio or another OpenAI-compatible local server, keep the endpoint on
+loopback and use:
+
+```powershell
+$env:ORA_LOCAL_LLM_ENABLED = "1"
+$env:ORA_LOCAL_LLM_PROVIDER = "openai_compatible_local"
+$env:ORA_LOCAL_LLM_BASE_URL = "http://127.0.0.1:1234/v1"
+$env:ORA_LOCAL_LLM_MODEL = "local-model"
+yonerai ask "hello" --provider local --live --json
+```
+
+What this first path explains:
+
+- `yonerai demo --pretty` shows the current alpha slice without credentials.
+- `yonerai doctor --pretty --lang ja` checks local setup without installing or
+  mutating PATH.
+- Local LLM detection is loopback-only and metadata-only.
+- Mock `ask` returns a public-safe `run_id`.
+- `--ledger <local.jsonl>` is optional and writes redacted local-only run
+  history.
+- Workspace file support is a Workspace File Access Guard: it reads only an
+  explicitly selected UTF-8 text file inside an explicit workspace allowlist.
+
+Still not included: production readiness, Official Managed Cloud runtime,
+production Oracle, live Discord restoration, arbitrary shell execution,
+arbitrary local file access, folder crawling, PDF/image parsing, automatic file
+summarization, production installer, npm/winget distribution, Google login,
+production DB behavior, complete persistent memory, or a solved
+`src/cogs/ora.py`.
+
 ## What you can try in v0.1.0-alpha.2
 
 v0.1.0-alpha.2 is a local public alpha slice, not a finished YonerAI product.
@@ -43,7 +102,7 @@ production services, or live network calls:
 
 - Mock provider execution: `yonerai ask "summarize public docs" --provider mock --json`
 - Run trace preview/history surface: mock `ask` returns a public-safe `run_id`.
-- Workspace file summary: `yonerai ask "summarize this file" --file <path> --workspace <dir> --provider mock --json`
+- Workspace File Access Guard: `yonerai ask "use this selected file" --file <path> --workspace <dir> --provider mock --json`
 - Mock search: `yonerai search mock "YonerAI alpha2" --json`
 - SafeShell plan: `yonerai ops plan git-status --json`
 - Local memory: `yonerai memory add "local note" --store <local.jsonl> --confirm-local --json`
@@ -85,7 +144,7 @@ The demo shows one visible vertical slice:
 - test-only Local Node signed manifest, enrollment/session, signed envelope, replay rejection, and approval gate
 - managed download guard accepting managed file URLs and rejecting arbitrary unsafe URLs
 - synthetic proposal-only self-evolution scorecard and approval draft
-- alpha2 capability boundaries for opt-in providers, loopback local LLM, workspace file summarize, mock search, SafeShell planning, explicit local memory, synthetic Discord, status contracts, and installer dry-run planning
+- alpha2 capability boundaries for opt-in providers, loopback local LLM, Workspace File Access Guard, mock search, SafeShell planning, explicit local memory, synthetic Discord, status contracts, and installer dry-run planning
 - explicit limitations: no production Oracle, live Discord restoration, default/cloud memory, Google login, official cloud runtime in this repo, default live provider generation, arbitrary shell, arbitrary file access, or deploy
 
 ## Current Checkpoint
@@ -126,7 +185,7 @@ What works today:
 - run `yonerai doctor --pretty`, `yonerai doctor --pretty --lang ja`, and `yonerai status --pretty` for offline public-demo diagnostics
 - run `yonerai manifest verify releases/manifest.example.json --pretty` for local manifest contract verification without downloading or installing anything
 - run `yonerai plan "task"` and `yonerai ask "task" --provider mock` for public-safe planning and mock provider execution
-- run `yonerai ask "summarize this file" --file <path> --workspace <dir> --provider mock` for explicit workspace-only text file summarization
+- run `yonerai ask "use this selected file" --file <path> --workspace <dir> --provider mock` for explicit workspace-only text file access guard behavior
 - run `yonerai search mock "query"` for deterministic mock search fixtures
 - run `yonerai ops plan git-status` for SafeShell diagnostic planning without arbitrary shell execution
 - run `yonerai memory add/list/delete/export --store <local.jsonl>` for explicit opt-in local-only memory records
