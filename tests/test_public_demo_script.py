@@ -169,6 +169,19 @@ def test_public_demo_pretty_output_contains_key_sections(capsys) -> None:
     assert "dry_run=true" in output
 
 
+def test_public_demo_run_event_lookup_handles_missing_event() -> None:
+    public_demo = _load_public_demo()
+
+    assert public_demo._find_run_event(None, "workspace_file_access") is None
+    assert public_demo._find_run_event([], "workspace_file_access") is None
+    assert public_demo._find_run_event({"events": [{"name": "other", "status": "ok"}]}, "workspace_file_access") is None
+    assert public_demo._find_run_event({"events": "not-a-list"}, "workspace_file_access") is None
+    assert public_demo._find_run_event({"events": [{"name": "workspace_file_access", "status": "ok"}]}, "workspace_file_access") == {
+        "name": "workspace_file_access",
+        "status": "ok",
+    }
+
+
 def test_public_demo_uses_managed_download_guard(monkeypatch) -> None:
     public_demo = _load_public_demo()
     from ora_core.brain.process import MainProcess

@@ -99,6 +99,18 @@ def _assert_json_response(response: Any, *, endpoint: str) -> dict[str, Any]:
     return body
 
 
+def _find_run_event(run: object, event_name: str) -> dict[str, Any] | None:
+    if not isinstance(run, dict):
+        return None
+    events = run.get("events", ())
+    if not isinstance(events, list):
+        return None
+    for event in events:
+        if isinstance(event, dict) and event.get("name") == event_name:
+            return event
+    return None
+
+
 def _public_core_checks() -> tuple[dict[str, object], ...]:
     app = _fresh_core_app()
     with TestClient(app, client=("127.0.0.1", 50000)) as client:
@@ -390,14 +402,13 @@ def _execution_spine_checks() -> tuple[dict[str, object], ...]:
             context_events=(build_workspace_file_access_event(file_context),),
         ).to_public_dict()
         persisted_file_run = FileRunLedger(temp_root / "runs.jsonl").get_run(str(file_result["run"]["run_id"]))
-        workspace_event = next(
-            event for event in file_result["run"]["events"] if event["name"] == "workspace_file_access"
-        )
+        workspace_event = _find_run_event(file_result["run"], "workspace_file_access")
         ledger_text = (temp_root / "runs.jsonl").read_text(encoding="utf-8")
     assert file_result["ok"] is True
     assert file_result["response"]["model"] == "mock-workspace-file-summary"
     assert file_result["run"]["status"] == "completed"
-    assert persisted_file_run is not None
+    assert persisted_file_run is not None, "workspace file run was not persisted"
+    assert workspace_event is not None, "workspace file access event missing from demo run"
     assert workspace_event["status"] == "ok"
     assert "raw_content_persisted=false" in workspace_event["summary"]
     assert "public alpha2 notes" not in json.dumps(file_result)
