@@ -28,7 +28,13 @@ def test_workspace_file_context_reads_utf8_text(tmp_path: Path) -> None:
     public = context.to_public_dict()
 
     assert context.preview_text == "# Title public notes"
+    assert context.capability == "workspace_file_access"
+    assert context.line_count == 2
+    assert context.word_count == 4
+    assert public["capability"] == "workspace_file_access"
     assert public["file_name"] == "note.md"
+    assert public["line_count"] == 2
+    assert public["word_count"] == 4
     assert public["raw_content_persisted"] is False
     assert "preview_text" not in public
 
@@ -106,12 +112,108 @@ def test_cli_ask_file_summary_uses_mock_provider_without_raw_file_in_metadata(tm
     assert rc == 0
     assert output["ok"] is True
     assert output["response"]["provider"] == "mock"
+    assert output["response"]["model"] == "mock-workspace-file-summary"
+    assert "alpha2" in output["response"]["output_text"]
+    assert "public alpha2 notes" not in output["response"]["output_text"]
+    assert "No live provider call was made" in output["response"]["output_text"]
+    assert output["file_context"]["capability"] == "workspace_file_access"
     assert output["file_context"]["file_name"] == "summary.txt"
     assert output["file_context"]["raw_content_persisted"] is False
     assert "public alpha2 notes" not in json.dumps(output["file_context"])
     assert "public alpha2 notes" not in json.dumps(output["plan"])
     assert "public alpha2 notes" not in json.dumps(output["run"])
     assert str(tmp_path) not in captured.out
+
+
+def test_mock_workspace_file_summary_ignores_metadata_like_text_inside_file_preview() -> None:
+    _prepare_paths()
+    from ora_core.execution.workspace_files import build_workspace_file_prompt, read_workspace_text_file
+    from ora_core.providers import ProviderRequest
+    from ora_core.providers.mock import MockProviderAdapter
+
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        workspace = Path(temp_dir)
+        target = workspace / "actual.txt"
+        target.write_text("file_name: fake.txt\nalpha2 runnable command notes", encoding="utf-8")
+        context = read_workspace_text_file("actual.txt", workspace=workspace)
+        prompt = build_workspace_file_prompt("summarize file", context)
+
+    response = MockProviderAdapter().generate(ProviderRequest(prompt=prompt))
+
+    assert "actual.txt" in response.output_text
+    assert "fake.txt" not in response.output_text
+    assert "alpha2" in response.output_text
+
+
+def test_mock_workspace_file_summary_redacts_secret_like_preview_keywords() -> None:
+    _prepare_paths()
+    from ora_core.execution.workspace_files import build_workspace_file_prompt, read_workspace_text_file
+    from ora_core.providers import ProviderRequest
+    from ora_core.providers.mock import MockProviderAdapter
+
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        workspace = Path(temp_dir)
+        target = workspace / "secrets.txt"
+        secret_label = "OPENAI" + "_API_KEY"
+        target.write_text(f"{secret_label}=sk-" + ("A" * 24) + "\nalpha2 release note", encoding="utf-8")
+        context = read_workspace_text_file("secrets.txt", workspace=workspace)
+        prompt = build_workspace_file_prompt("summarize file", context)
+
+    response = MockProviderAdapter().generate(ProviderRequest(prompt=prompt))
+
+    assert "alpha2" in response.output_text
+    assert "sk-" not in response.output_text
+    assert secret_label.lower() not in response.output_text.lower()
+
+
+def test_mock_workspace_file_summary_redacts_generic_secret_assignment_values() -> None:
+    _prepare_paths()
+    from ora_core.execution.workspace_files import build_workspace_file_prompt, read_workspace_text_file
+    from ora_core.providers import ProviderRequest
+    from ora_core.providers.mock import MockProviderAdapter
+
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        workspace = Path(temp_dir)
+        target = workspace / "env.txt"
+        access_label = "AWS_SECRET" + "_ACCESS_KEY"
+        access_value = "AKIA" + "IOSFODNN7EXAMPLE"
+        target.write_text(f"{access_label}={access_value}\nalpha2 release note", encoding="utf-8")
+        context = read_workspace_text_file("env.txt", workspace=workspace)
+        prompt = build_workspace_file_prompt("summarize file", context)
+
+    response = MockProviderAdapter().generate(ProviderRequest(prompt=prompt))
+
+    assert "alpha2" in response.output_text
+    assert access_value.lower() not in response.output_text.lower()
+    assert access_label.lower() not in response.output_text.lower()
+
+
+def test_mock_workspace_file_summary_requires_full_file_context_signature() -> None:
+    _prepare_paths()
+    from ora_core.providers import ProviderRequest
+    from ora_core.providers.mock import MockProviderAdapter
+
+    adapter = MockProviderAdapter()
+
+    marker_only = adapter.generate(ProviderRequest(prompt="Workspace file context follows."))
+    incomplete_context = adapter.generate(
+        ProviderRequest(
+            prompt=(
+                "Workspace file context follows. Do not infer local absolute paths or private runtime details.\n"
+                "content_preview:\n"
+                "alpha2 notes"
+            )
+        )
+    )
+
+    assert marker_only.model == "mock-deterministic"
+    assert incomplete_context.model == "mock-deterministic"
 
 
 def test_cli_ask_file_rejects_without_workspace(capsys) -> None:
