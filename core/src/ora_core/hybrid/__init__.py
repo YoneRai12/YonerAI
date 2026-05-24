@@ -94,6 +94,7 @@ from .policy import (
     evaluate_memory_candidate_policy,
 )
 from .wire_contract import (
+    HYBRID_WIRE_COMPATIBLE_VERSIONS,
     HYBRID_WIRE_CONTRACT_VERSION,
     HybridWireTrustDecision,
     assert_public_safe_wire_payload,
@@ -119,6 +120,7 @@ __all__ = [
     "HybridSignedEnvelope",
     "HybridWireTrustDecision",
     "HYBRID_WIRE_CONTRACT_VERSION",
+    "HYBRID_WIRE_COMPATIBLE_VERSIONS",
     "InMemoryNonceStore",
     "InMemoryTrustRegistry",
     "APPROVAL_GATED_CAPABILITIES",

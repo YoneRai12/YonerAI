@@ -11,6 +11,7 @@ if str(core_src) not in sys.path:
     sys.path.insert(0, str(core_src))
 
 from ora_core.hybrid.wire_contract import (  # noqa: E402
+    HYBRID_WIRE_COMPATIBLE_VERSIONS,
     HYBRID_WIRE_CONTRACT_VERSION,
     assert_public_safe_wire_payload,
     build_hybrid_wire_conformance_report,
@@ -35,10 +36,26 @@ def test_local_node_fixture_conforms_to_hybrid_wire_contract() -> None:
     names = {capability["name"]: capability for capability in manifest["capabilities"]}
 
     assert report["schema_version"] == HYBRID_WIRE_CONTRACT_VERSION
+    assert report["compatible_versions"] == list(HYBRID_WIRE_COMPATIBLE_VERSIONS)
     assert local_node["hello"]["schema_name"] == "LocalNodeHello"
     assert local_node["heartbeat"]["schema_name"] == "LocalNodeHeartbeat"
     assert manifest["schema_name"] == "LocalNodeCapabilityManifest"
     assert session_ref["schema_name"] == "LocalNodeSessionRef"
+    assert local_node["lease_id"] == session_ref["lease_id"]
+    assert local_node["session_token_hash_only"] is True
+    assert local_node["message_body_persisted"] is False
+    assert local_node["audit_event_schema"] == "hybrid-wire-audit/v0.3"
+    assert local_node["hello"]["lease_required"] is True
+    assert local_node["hello"]["audit_log_required"] is True
+    assert local_node["heartbeat"]["lease_id"] == session_ref["lease_id"]
+    assert local_node["heartbeat"]["message_body_persisted"] is False
+    assert manifest["lease_policy"] == "required_per_session"
+    assert manifest["message_body_persistence"] == "forbidden"
+    assert session_ref["bearer_token_included"] is False
+    assert session_ref["bearer_token_hash_only"] is True
+    assert session_ref["token_hash_algorithm"] == "sha256"
+    assert session_ref["token_hash"].startswith("sha256:")
+    assert session_ref["message_body_persisted"] is False
     assert set(names) == {
         "local_model",
         "workspace_file_access",
@@ -66,6 +83,9 @@ def test_official_cloud_stub_request_conforms_without_implementing_cloud_runtime
     assert request.production_oracle_used is False
     assert request.network_required is False
     assert report["pairing_performed"] is False
+    assert report["session_token_plaintext_included"] is False
+    assert report["session_token_hash_only"] is True
+    assert report["message_body_persisted"] is False
     assert report["trust_decision"]["execute_allowed"] is False
 
 
@@ -76,6 +96,8 @@ def test_local_node_error_is_public_safe_wire_schema() -> None:
     assert payload["schema_name"] == "LocalNodeError"
     assert payload["public_safe"] is True
     assert payload["raw_exception_included"] is False
+    assert payload["status"] == "error"
+    assert str(payload["audit_event_id"]).startswith("audit-error-")
     assert assert_public_safe_wire_payload(payload) == ()
     assert "C:\\Users\\Example" not in str(payload)
 
@@ -94,6 +116,20 @@ def test_trust_session_rules_cover_required_denials_and_verified_test_node() -> 
         session_ref=session,
         requested_capability="workspace_file_access",
     ).state == "unverified_node"
+    unverified_session = evaluate_wire_request(
+        manifest=manifest,
+        session_ref=build_local_node_session_ref(signed_origin_verified=False),
+        requested_capability="workspace_file_access",
+    )
+    assert unverified_session.state == "unverified_node"
+    assert "local_node_session_not_verified" in unverified_session.reasons
+    mismatched_session = evaluate_wire_request(
+        manifest=manifest,
+        session_ref=replace(session, manifest_id="different-manifest"),
+        requested_capability="workspace_file_access",
+    )
+    assert mismatched_session.state == "unverified_node"
+    assert "local_node_session_manifest_mismatch" in mismatched_session.reasons
     assert evaluate_wire_request(
         manifest=manifest,
         session_ref=build_local_node_session_ref(state="expired"),
@@ -135,6 +171,10 @@ def test_hybrid_wire_conformance_report_covers_required_states() -> None:
     assert report["production_trust_material"] is False
     assert report["official_cloud_runtime_implemented"] is False
     assert report["network_required"] is False
+    assert report["lease_required"] is True
+    assert report["session_token_hash_only"] is True
+    assert report["message_body_persisted"] is False
+    assert report["audit_event_schema"] == "hybrid-wire-audit/v0.3"
     assert report["required_trust_state_count"] == len(report["required_trust_states"])
     assert set(states) == {
         "missing_node",
@@ -177,7 +217,12 @@ def test_wire_payloads_do_not_include_raw_prompt_secret_or_local_path() -> None:
     assert envelope_payload["raw_prompt_included"] is False
     assert envelope_payload["provider_key_included"] is False
     assert envelope_payload["local_path_included"] is False
+    assert envelope_payload["lease_id"] == envelope_payload["session_ref"]["lease_id"]
+    assert envelope_payload["audit_summary"] == "metadata_only_no_message_body"
+    assert envelope_payload["message_body_persisted"] is False
     assert result_payload["raw_result_included"] is False
+    assert result_payload["audit_event_id"] == f"audit-{envelope.run_id}"
+    assert result_payload["message_body_persisted"] is False
     assert assert_public_safe_wire_payload(envelope_payload) == ()
     assert assert_public_safe_wire_payload(result_payload) == ()
     serialized = f"{envelope_payload} {result_payload}".lower()

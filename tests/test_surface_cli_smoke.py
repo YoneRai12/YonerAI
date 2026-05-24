@@ -465,9 +465,13 @@ def test_cli_node_status_reports_hybrid_wire_fixture(capsys):
     local_node = output["local_node"]
     manifest = local_node["capability_manifest"]
     capability_names = {capability["name"] for capability in manifest["capabilities"]}
-    assert output["schema_version"] == "yonerai-hybrid-wire-contract/v0.1"
+    assert output["schema_version"] == "yonerai-hybrid-wire-contract/v0.3"
+    assert "yonerai-hybrid-wire-contract/v0.1" in output["compatible_versions"]
     assert local_node["trust_state"] == "verified_test_node"
     assert local_node["loopback_only"] is True
+    assert local_node["session_token_hash_only"] is True
+    assert local_node["message_body_persisted"] is False
+    assert local_node["audit_event_schema"] == "hybrid-wire-audit/v0.3"
     assert capability_names >= {"local_model", "workspace_file_access", "mock_search", "tool_boundary", "ledger"}
     assert output["official_cloud_runtime_implemented"] is False
     assert output["production_oracle_used"] is False
@@ -494,9 +498,12 @@ def test_cli_node_pair_is_dry_run_only(capsys):
     assert cli.main(["node", "pair", "--dry-run", "--json"]) == 0
     output = json.loads(capsys.readouterr().out)
 
-    assert output["schema_version"] == "yonerai-hybrid-wire-contract/v0.1"
+    assert output["schema_version"] == "yonerai-hybrid-wire-contract/v0.3"
     assert output["dry_run"] is True
     assert output["pairing_performed"] is False
+    assert output["session_token_plaintext_included"] is False
+    assert output["session_token_hash_only"] is True
+    assert output["message_body_persisted"] is False
     assert output["official_orchestration_stub_request"]["schema_name"] == "OfficialOrchestrationStubRequest"
     assert output["trust_decision"]["execute_allowed"] is False
 

@@ -119,7 +119,10 @@ def test_public_demo_json_shape_and_boundaries(capsys) -> None:
         check for check in hybrid_trust["checks"] if check["name"] == "hybrid_wire_contract_conformance"
     )
     discord = next(check for check in hybrid_trust["checks"] if check["name"] == "synthetic_discord_gateway")
-    assert wire_conformance["schema_version"] == "yonerai-hybrid-wire-contract/v0.1"
+    assert wire_conformance["schema_version"] == "yonerai-hybrid-wire-contract/v0.3"
+    assert wire_conformance["session_token_hash_only"] is True
+    assert wire_conformance["message_body_persisted"] is False
+    assert wire_conformance["audit_event_schema"] == "hybrid-wire-audit/v0.3"
     assert wire_conformance["trust_state_count"] >= 7
     assert wire_conformance["route_preview_fixture_supported"] is True
     assert wire_conformance["official_cloud_runtime_implemented"] is False
