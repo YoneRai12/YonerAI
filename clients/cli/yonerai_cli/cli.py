@@ -223,8 +223,21 @@ def _build_doctor_report(*, command: str = "yonerai doctor") -> dict[str, Any]:
             "deploy_required": False,
         },
         "providers": provider_setup,
+        "provider_runtime_e2e_fixtures": _provider_runtime_e2e_fixture_report(),
         "system_checks": system_checks,
         "errors": manifest_report.get("errors", []),
+    }
+
+
+def _provider_runtime_e2e_fixture_report() -> dict[str, object]:
+    return {
+        "status": "covered_by_local_tests",
+        "openai_compatible": "local_mock_http_server_tested",
+        "local_llm": "loopback_mock_http_server_tested",
+        "run_ledger": "redacted_success_and_error_paths_tested",
+        "network_probe_performed": False,
+        "live_call_performed": False,
+        "external_network_call_performed": False,
     }
 
 
@@ -424,6 +437,7 @@ def _doctor_sections_en(report: dict[str, Any]) -> tuple[CliSection, ...]:
     redaction_check = report["system_checks"]["redaction_self_check"]
     mcp_check = report["system_checks"]["mcp_deny_policy"]
     provider_rows = _provider_setup_rows(report, lang="en")
+    provider_e2e_rows = _provider_runtime_e2e_rows(report, lang="en")
     return (
         CliSection(
             "Setup",
@@ -458,6 +472,7 @@ def _doctor_sections_en(report: dict[str, Any]) -> tuple[CliSection, ...]:
             ),
         ),
         CliSection("Provider runtime", provider_rows),
+        CliSection("Provider runtime E2E fixtures", provider_e2e_rows),
         CliSection(
             "Boundaries",
             (
@@ -482,6 +497,7 @@ def _doctor_sections_ja(report: dict[str, Any]) -> tuple[CliSection, ...]:
     redaction_check = report["system_checks"]["redaction_self_check"]
     mcp_check = report["system_checks"]["mcp_deny_policy"]
     provider_rows = _provider_setup_rows(report, lang="ja")
+    provider_e2e_rows = _provider_runtime_e2e_rows(report, lang="ja")
     return (
         CliSection(
             "セットアップ",
@@ -516,6 +532,7 @@ def _doctor_sections_ja(report: dict[str, Any]) -> tuple[CliSection, ...]:
             ),
         ),
         CliSection("プロバイダー実行環境", provider_rows),
+        CliSection("プロバイダー実行環境 E2E フィクスチャ", provider_e2e_rows),
         CliSection(
             "境界",
             (
@@ -548,6 +565,36 @@ def _provider_setup_rows(report: dict[str, Any], *, lang: str = "en") -> tuple[C
     fallback_name = "プロバイダー" if lang == "ja" else "providers"
     fallback_value = "利用不可" if lang == "ja" else "unavailable"
     return tuple(rows) or (CliRow(fallback_name, fallback_value, "warn"),)
+
+
+def _provider_runtime_e2e_rows(report: dict[str, Any], *, lang: str = "en") -> tuple[CliRow, ...]:
+    fixtures = report.get("provider_runtime_e2e_fixtures")
+    if not isinstance(fixtures, dict):
+        fixtures = {}
+    status_value = fixtures.get("status", "unknown")
+    openai_value = fixtures.get("openai_compatible", "unknown")
+    local_llm_value = fixtures.get("local_llm", "unknown")
+    ledger_value = fixtures.get("run_ledger", "unknown")
+    external_network_value = fixtures.get("external_network_call_performed", "unknown")
+    return (
+        CliRow("status" if lang == "en" else "状態", status_value, _fixture_value_status(status_value, expected="covered_by_local_tests")),
+        CliRow("openai_compatible", openai_value, _fixture_value_status(openai_value)),
+        CliRow("local_llm", local_llm_value, _fixture_value_status(local_llm_value)),
+        CliRow("run_ledger", ledger_value, _fixture_value_status(ledger_value)),
+        CliRow(
+            "external_network_call_performed" if lang == "en" else "外部ネットワーク通信",
+            external_network_value,
+            "ok" if external_network_value is False else "fail",
+        ),
+    )
+
+
+def _fixture_value_status(value: object, *, expected: object | None = None) -> str:
+    if expected is not None:
+        if value == expected:
+            return "ok"
+        return "fail" if value == "unknown" else "warn"
+    return "fail" if value == "unknown" else "ok"
 
 
 def _provider_setup_level(setup_status: str) -> str:

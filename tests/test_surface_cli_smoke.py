@@ -187,6 +187,12 @@ def test_cli_doctor_reports_offline_status_without_network(monkeypatch, capsys):
     assert output["system_checks"]["mcp_deny_policy"]["ok"] is True
     assert output["system_checks"]["mcp_deny_policy"]["network_required"] is False
     assert output["providers"]["network_probe_performed"] is False
+    e2e = output["provider_runtime_e2e_fixtures"]
+    assert e2e["status"] == "covered_by_local_tests"
+    assert e2e["openai_compatible"] == "local_mock_http_server_tested"
+    assert e2e["local_llm"] == "loopback_mock_http_server_tested"
+    assert e2e["run_ledger"] == "redacted_success_and_error_paths_tested"
+    assert e2e["external_network_call_performed"] is False
     providers = {provider["provider_id"]: provider for provider in output["providers"]["providers"]}
     assert providers["mock"]["setup_status"] == "ready"
     assert providers["local"]["loopback_only"] is True
@@ -242,6 +248,9 @@ def test_cli_doctor_does_not_execute_demo_or_mutate_path(monkeypatch, capsys):
     assert "YonerAI doctor" in output
     assert "manifest_example_valid: true" in output
     assert "Provider runtime" in output
+    assert "Provider runtime E2E fixtures" in output
+    assert "local_mock_http_server_tested" in output
+    assert "loopback_mock_http_server_tested" in output
     assert "\033[" not in output
 
 
@@ -269,6 +278,9 @@ def test_cli_doctor_pretty_supports_japanese_without_json_key_translation(monkey
     assert "本番機能" in output
     assert "含まれません" in output
     assert "プロバイダー実行環境" in output
+    assert "プロバイダー実行環境 E2E フィクスチャ" in output
+    assert "状態" in output
+    assert "local_mock_http_server_tested" in output
     assert "openai-compatible" in output
     assert "set YONERAI_OPENAI_COMPATIBLE_BASE_URL" in output
     assert "manifest_example_valid" not in output
