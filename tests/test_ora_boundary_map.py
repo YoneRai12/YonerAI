@@ -87,6 +87,8 @@ def test_ora_boundary_map_pins_extraction_candidates_and_risks() -> None:
         "ORACog._extract_json_objects",
         "ORACog._clean_content",
         "ORACog._strip_route_json",
+        "ORACog._send_large_message.large_message_chunking",
+        "ORACog._perform_guardrail_check.guardrail_response_interpretation",
     ]
     assert by_qualname["ORACog.on_message"]["safety_risk"] == "high"
     assert "discord" in by_qualname["ORACog.on_message"]["side_effects"]
@@ -98,7 +100,9 @@ def test_ora_boundary_markdown_records_top_responsibilities_and_nonclaims() -> N
     text = MARKDOWN_MAP_PATH.read_text(encoding="utf-8")
 
     assert "## Top Responsibilities" in text
+    assert "## Internal Block Map" in text
     assert "Discord command facade" in text
     assert "Text cleanup and route/tool JSON recovery" in text
     assert "`ORACog._extract_json_objects` -> `src/cogs/ora_pure_helpers.py`" in text
+    assert "`ORACog._perform_guardrail_check.guardrail_response_interpretation`" in text
     assert "reference_clawdbot" not in text

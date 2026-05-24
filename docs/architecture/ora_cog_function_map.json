@@ -2827,7 +2827,43 @@
     "ORACog._is_input_spam",
     "ORACog._extract_json_objects",
     "ORACog._clean_content",
-    "ORACog._strip_route_json"
+    "ORACog._strip_route_json",
+    "ORACog._send_large_message.large_message_chunking",
+    "ORACog._perform_guardrail_check.guardrail_response_interpretation"
+  ],
+  "internal_blocks": [
+    {
+      "extraction_candidate": true,
+      "line_range": {
+        "end": 1364,
+        "start": 1354
+      },
+      "parent": "ORACog._send_large_message",
+      "qualname": "ORACog._send_large_message.large_message_chunking",
+      "required_tests": [
+        "characterization parity before wrapper extraction"
+      ],
+      "responsibility": "Split a Discord-bound response into 1900-character chunks while keeping the first chunk tied to the reply.",
+      "safety_risk": "low",
+      "side_effects": [],
+      "target_module": "src/cogs/ora_message_format_helpers.py"
+    },
+    {
+      "extraction_candidate": true,
+      "line_range": {
+        "end": 1429,
+        "start": 1418
+      },
+      "parent": "ORACog._perform_guardrail_check",
+      "qualname": "ORACog._perform_guardrail_check.guardrail_response_interpretation",
+      "required_tests": [
+        "characterization parity before wrapper extraction"
+      ],
+      "responsibility": "Interpret a guardrail model response by preferring recovered JSON and falling back to a conservative safe=false keyword check.",
+      "safety_risk": "low",
+      "side_effects": [],
+      "target_module": "src/cogs/ora_guardrail_helpers.py"
+    }
   ],
   "risk_counts": {
     "high": 16,
