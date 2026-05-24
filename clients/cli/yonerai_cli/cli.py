@@ -241,7 +241,7 @@ def _provider_runtime_e2e_fixture_report() -> dict[str, object]:
     }
 
 
-def _build_start_report() -> dict[str, Any]:
+def _build_start_report(*, guided: bool = False) -> dict[str, Any]:
     _prepare_core_import_path()
     from yonerai_cli.first_run import build_first_run_report
 
@@ -250,6 +250,7 @@ def _build_start_report() -> dict[str, Any]:
         provider_setup=doctor_report.get("providers"),
         repo_version=doctor_report.get("cli", {}).get("repo_version"),
         env=os.environ,
+        guided=guided,
     )
 
 
@@ -1546,6 +1547,7 @@ def build_parser() -> argparse.ArgumentParser:
     demo_output.add_argument("--pretty", action="store_true", help="Print a readable sectioned demo summary.")
 
     start = subcommands.add_parser("start", help="Guide the first local YonerAI run for non-engineers.")
+    start.add_argument("--guided", action="store_true", help="Show copyable next actions for the first five minutes.")
     start_output = start.add_mutually_exclusive_group()
     start_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
     start_output.add_argument("--pretty", action="store_true", help="Print a readable first-run guide.")
@@ -1783,7 +1785,7 @@ def run(argv: list[str] | None = None) -> int:
     if args.command in {"demo", "quickstart"}:
         return _run_public_demo(json_output=args.json, pretty=args.pretty)
     if args.command == "start":
-        report = _build_start_report()
+        report = _build_start_report(guided=args.guided)
         if args.json:
             _print_json(report)
         else:

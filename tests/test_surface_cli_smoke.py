@@ -203,6 +203,8 @@ def test_cli_start_json_reports_first_run_without_external_calls(monkeypatch, ca
     output = json.loads(captured.out)
     assert output["schema_version"] == "yonerai-first-run/v1"
     assert output["command"] == "yonerai start"
+    assert output["guided"] is False
+    assert output["guided_actions"] == []
     assert output["network_scope"] == "loopback_only"
     assert output["live_provider_call_performed"] is False
     assert output["local_llm_generation_performed"] is False
@@ -216,6 +218,88 @@ def test_cli_start_json_reports_first_run_without_external_calls(monkeypatch, ca
     assert "Traceback" not in captured.err
     local_path_marker = "C:" + "\\Users"
     assert local_path_marker not in captured.out
+
+
+def test_cli_start_guided_json_includes_workspace_and_ledger_actions(monkeypatch, capsys, tmp_path):
+    cli = _load_cli_module()
+    from yonerai_cli import first_run
+
+    for key in (
+        "ORA_LOCAL_LLM_ENABLED",
+        "ORA_LOCAL_LLM_PROVIDER",
+        "ORA_LOCAL_LLM_BASE_URL",
+        "YONERAI_OPENAI_COMPATIBLE_BASE_URL",
+        "YONERAI_OPENAI_COMPATIBLE_API_KEY",
+        "YONERAI_OPENAI_COMPATIBLE_LIVE",
+    ):
+        monkeypatch.delenv(key, raising=False)
+    monkeypatch.chdir(tmp_path)
+
+    def unavailable(*_args: Any, **_kwargs: Any):
+        raise urllib.error.URLError("connection refused")
+
+    monkeypatch.setattr(first_run.urllib.request, "urlopen", unavailable)
+
+    assert cli.main(["start", "--guided", "--json"]) == 0
+
+    captured = capsys.readouterr()
+    output = json.loads(captured.out)
+    actions = {action["id"]: action for action in output["guided_actions"]}
+    assert output["guided"] is True
+    assert {"mock_first_run", "local_llm_optional", "workspace_file_access_sample", "run_ledger_sample"} <= set(actions)
+    assert actions["workspace_file_access_sample"]["commands"] == [
+        'yonerai ask "use this selected sample file" --file sample.txt '
+        "--workspace .yonerai-sample-workspace --provider mock --json"
+    ]
+    assert actions["workspace_file_access_sample"]["sample_workspace"] == ".yonerai-sample-workspace"
+    assert actions["workspace_file_access_sample"]["sample_file"] == "sample.txt"
+    assert "Create a UTF-8 sample.txt" in actions["workspace_file_access_sample"]["manual_setup"]
+    assert "PDF/image parsing" in actions["workspace_file_access_sample"]["does_not"]
+    assert actions["run_ledger_sample"]["commands"] == [
+        'yonerai ask "hello" --provider mock --json --ledger .yonerai-runs.jsonl',
+        "yonerai runs list --ledger .yonerai-runs.jsonl --json",
+        "yonerai runs show <run_id> --ledger .yonerai-runs.jsonl --json",
+    ]
+    assert "no file read" in output["actions_not_performed"]
+    assert "no file write" in output["actions_not_performed"]
+    assert "no sample file creation" in output["actions_not_performed"]
+    assert not (tmp_path / ".yonerai-sample-workspace").exists()
+    assert not (tmp_path / ".yonerai-runs.jsonl").exists()
+    local_path_marker = "C:" + "\\Users"
+    assert local_path_marker not in captured.out
+    secret_marker = "sk" + "-"
+    assert secret_marker not in captured.out.lower()
+    assert "api_key" not in captured.out.lower()
+
+
+def test_cli_start_guided_pretty_supports_clean_japanese(monkeypatch, capsys):
+    cli = _load_cli_module()
+    from yonerai_cli import first_run
+
+    def unavailable(*_args: Any, **_kwargs: Any):
+        raise urllib.error.URLError("connection refused")
+
+    monkeypatch.setattr(first_run.urllib.request, "urlopen", unavailable)
+
+    assert cli.main(["start", "--guided", "--pretty", "--lang", "ja", "--color", "never"]) == 0
+
+    output = capsys.readouterr().out
+    assert "YonerAI はじめての起動" in output
+    assert "次にやること" in output
+    assert "mock で試す" in output
+    assert "ワークスペース例" in output
+    assert "ledger 例" in output
+    assert 'yonerai ask "hello" --provider mock --json' in output
+    assert ".yonerai-sample-workspace" in output
+    assert ".yonerai-runs.jsonl" in output
+    assert "New-Item" not in output
+    assert "Set-Content" not in output
+    assert "PDF/画像解析" in output
+    assert "\u7e5d" not in output
+    assert "\u7e3a" not in output
+    assert "\u8b5b" not in output
+    assert "\ufffd" not in output
+    assert "\033[" not in output
 
 
 def test_cli_start_pretty_supports_clean_japanese(monkeypatch, capsys):
@@ -237,7 +321,7 @@ def test_cli_start_pretty_supports_clean_japanese(monkeypatch, capsys):
     assert "ワークスペース内ファイルアクセス制御" in output
     assert "yonerai doctor --pretty --lang ja" in output
     assert "まだ使えないもの" in output
-    assert "繝" not in output
+    assert "\u7e5d" not in output
     assert "\033[" not in output
 
 
@@ -278,6 +362,49 @@ def test_cli_start_detects_loopback_ollama_mock_server(monkeypatch, capsys):
     assert output["recommended_first_ask"]["provider"] == "mock"
 
 
+def test_cli_start_guided_detects_loopback_and_prints_local_llm_next_steps(monkeypatch, capsys):
+    cli = _load_cli_module()
+    from yonerai_cli import first_run
+
+    server, thread = _start_loopback_probe_server()
+    try:
+        port = server.server_address[1]
+        base_url = f"http://127.0.0.1:{port}"
+        monkeypatch.setattr(
+            first_run,
+            "DEFAULT_LOCAL_LLM_CANDIDATES",
+            (
+                first_run.LocalLLMProbeCandidate(
+                    provider="ollama",
+                    label="Ollama",
+                    base_url=base_url,
+                    probe_path="api/tags",
+                ),
+            ),
+        )
+
+        assert cli.main(["start", "--guided", "--json"]) == 0
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+    output = json.loads(capsys.readouterr().out)
+    local_action = next(action for action in output["guided_actions"] if action["id"] == "local_llm_optional")
+    assert output["local_llm"]["status"] == "detected"
+    assert output["local_llm"]["setup_base_url"] == base_url
+    assert local_action["status"] == "detected"
+    assert local_action["requires_live"] is True
+    assert local_action["env_vars"] == {
+        "ORA_LOCAL_LLM_ENABLED": "1",
+        "ORA_LOCAL_LLM_PROVIDER": "ollama",
+        "ORA_LOCAL_LLM_BASE_URL": base_url,
+        "ORA_LOCAL_LLM_MODEL": "llama3.2",
+    }
+    assert local_action["commands"] == ['yonerai ask "hello" --provider local --live --json']
+    assert output["local_llm_generation_performed"] is False
+
+
 def test_cli_start_rejects_non_loopback_local_llm_config_without_probe(monkeypatch, capsys):
     cli = _load_cli_module()
     from yonerai_cli import first_run
@@ -299,6 +426,31 @@ def test_cli_start_rejects_non_loopback_local_llm_config_without_probe(monkeypat
     assert output["local_llm"]["rejected_non_loopback"] is True
     assert output["local_llm"]["probe_performed"] is False
     assert output["provider_setup"]["local"]["plain_state"] == "blocked_by_loopback_policy"
+    assert "example.com" not in captured.out
+    assert "Traceback" not in captured.err
+
+
+def test_cli_start_guided_rejects_non_loopback_without_leaking_url(monkeypatch, capsys):
+    cli = _load_cli_module()
+    from yonerai_cli import first_run
+
+    monkeypatch.setenv("ORA_LOCAL_LLM_PROVIDER", "openai_compatible_local")
+    monkeypatch.setenv("ORA_LOCAL_LLM_BASE_URL", "https://example.com/v1")
+
+    def fail_probe(*_args: Any, **_kwargs: Any):
+        raise AssertionError("guided start must not probe non-loopback local LLM URLs")
+
+    monkeypatch.setattr(first_run.urllib.request, "urlopen", fail_probe)
+
+    assert cli.main(["start", "--guided", "--json"]) == 0
+
+    captured = capsys.readouterr()
+    output = json.loads(captured.out)
+    local_action = next(action for action in output["guided_actions"] if action["id"] == "local_llm_optional")
+    assert output["local_llm"]["status"] == "blocked"
+    assert output["local_llm"]["probe_performed"] is False
+    assert local_action["status"] == "blocked"
+    assert local_action["commands"] == []
     assert "example.com" not in captured.out
     assert "Traceback" not in captured.err
 
