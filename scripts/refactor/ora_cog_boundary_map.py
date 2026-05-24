@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import hashlib
 import json
 from dataclasses import dataclass
 from pathlib import Path
@@ -589,6 +590,7 @@ def build_ora_cog_function_map(repo_root: str | Path = ".", target: str | Path =
         "schema_version": SCHEMA_VERSION,
         "target": _relative(target_path, root),
         "source_lines": len(source.splitlines()),
+        "source_sha256": hashlib.sha256(source.encode("utf-8")).hexdigest(),
         "definition_count": len(definitions_payload),
         "risk_counts": risk_counts,
         "side_effect_counts": dict(sorted(side_effect_counts.items())),
@@ -608,6 +610,7 @@ def render_markdown(payload: dict[str, Any]) -> str:
         "",
         f"- Target: `{payload['target']}`",
         f"- Source lines: `{payload['source_lines']}`",
+        f"- Source SHA-256: `{payload['source_sha256']}`",
         f"- Definitions mapped: `{payload['definition_count']}`",
         f"- Risk counts: `{json.dumps(payload['risk_counts'], sort_keys=True)}`",
         f"- Side-effect counts: `{json.dumps(payload['side_effect_counts'], sort_keys=True)}`",
@@ -681,8 +684,27 @@ def render_markdown(payload: dict[str, Any]) -> str:
             )
             + " |"
         )
-    lines.extend(["", "## Call Graph Notes", ""])
+    lines.extend(["", "## Interface Map", ""])
+    lines.append("| Lines | Qualname | Inputs | Outputs | Callers | Local callees |")
+    lines.append("| --- | --- | --- | --- | --- | --- |")
     known_qualnames = {item["qualname"] for item in payload["definitions"]}
+    for item in payload["definitions"]:
+        local_callees = [callee for callee in item["callees"] if callee in known_qualnames]
+        lines.append(
+            "| "
+            + " | ".join(
+                [
+                    f"{item['line_range']['start']}-{item['line_range']['end']}",
+                    f"`{item['qualname']}`",
+                    _md_cell(", ".join(item["inputs"]) or "none"),
+                    _md_cell(item["outputs"]),
+                    _md_cell(", ".join(f"`{caller}`" for caller in item["callers"]) or "none"),
+                    _md_cell(", ".join(f"`{callee}`" for callee in sorted(local_callees)) or "none"),
+                ]
+            )
+            + " |"
+        )
+    lines.extend(["", "## Call Graph Notes", ""])
     for item in payload["definitions"]:
         callers = item["callers"]
         callees = [callee for callee in item["callees"] if callee in known_qualnames]
