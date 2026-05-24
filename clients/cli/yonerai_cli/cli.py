@@ -841,6 +841,15 @@ def _build_node_pair_report(args: argparse.Namespace) -> dict[str, Any]:
     return build_pairing_dry_run_report()
 
 
+def _build_relay_status_report() -> dict[str, Any]:
+    try:
+        _prepare_core_import_path()
+        from ora_core.hybrid.relay_status import build_relay_status_report
+    except Exception as exc:
+        raise CliError("Hybrid Relay local-dev status is unavailable.", exit_code=1) from exc
+    return build_relay_status_report(os.environ)
+
+
 def _print_node_status_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -> None:
     print(_format_node_status_pretty(report, color=color))
 
@@ -930,6 +939,74 @@ def _format_node_pair_pretty(report: dict[str, Any], *, color: ColorMode = "auto
         ),
     )
     return render_report("YonerAI Local Node pairing preview", sections, color=color)
+
+
+def _print_relay_status_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -> None:
+    print(_format_relay_status_pretty(report, color=color))
+
+
+def _format_relay_status_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -> str:
+    relay_value = report.get("relay") or {}
+    relay = relay_value if isinstance(relay_value, dict) else {}
+    connector_value = report.get("node_connector") or {}
+    connector = connector_value if isinstance(connector_value, dict) else {}
+    limits_value = report.get("limits") or {}
+    limits = limits_value if isinstance(limits_value, dict) else {}
+    sections = (
+        CliSection(
+            "Local-dev relay",
+            (
+                CliRow("schema", report.get("schema_version"), "ok"),
+                CliRow("mode", report.get("mode"), "ok"),
+                CliRow("host", relay.get("host"), "ok" if relay.get("loopback_only") else "fail"),
+                CliRow("port", relay.get("port"), "ok"),
+                CliRow("loopback_only", relay.get("loopback_only"), "ok" if relay.get("loopback_only") else "fail"),
+                CliRow(
+                    "public_exposure_requested",
+                    relay.get("public_exposure_requested"),
+                    "fail" if relay.get("public_exposure_requested") else "ok",
+                ),
+                CliRow("public_exposure_allowed", relay.get("public_exposure_allowed"), "fail" if relay.get("public_exposure_allowed") else "ok"),
+            ),
+        ),
+        CliSection(
+            "Runtime boundary",
+            (
+                CliRow("process_started", relay.get("process_started"), "fail" if relay.get("process_started") else "ok"),
+                CliRow("health_probe_performed", relay.get("health_probe_performed"), "fail" if relay.get("health_probe_performed") else "ok"),
+                CliRow("quick_tunnel_enabled", relay.get("quick_tunnel_enabled"), "fail" if relay.get("quick_tunnel_enabled") else "ok"),
+                CliRow("message_body_persisted", relay.get("message_body_persisted"), "fail" if relay.get("message_body_persisted") else "ok"),
+                CliRow("pairing_code_storage", relay.get("pairing_code_storage"), "ok"),
+                CliRow("session_token_storage", relay.get("session_token_storage"), "ok"),
+            ),
+        ),
+        CliSection(
+            "Node connector",
+            (
+                CliRow(
+                    "relay_url_category",
+                    connector.get("relay_url_category"),
+                    "ok" if connector.get("relay_url_category") in {"loopback", "auto_unresolved_no_probe"} else "fail",
+                ),
+                CliRow(
+                    "node_api_base_url_category",
+                    connector.get("node_api_base_url_category"),
+                    "ok" if connector.get("node_api_base_url_category") == "loopback" else "fail",
+                ),
+                CliRow("connector_started", connector.get("connector_started"), "fail" if connector.get("connector_started") else "ok"),
+                CliRow("pairing_code_printed", connector.get("pairing_code_printed"), "fail" if connector.get("pairing_code_printed") else "ok"),
+            ),
+        ),
+        CliSection(
+            "Limits",
+            tuple(CliRow(key, value, "ok") for key, value in limits.items()),
+        ),
+        CliSection(
+            "Non-actions",
+            tuple(CliRow("boundary", action, "ok") for action in report.get("actions_not_performed", ())),
+        ),
+    )
+    return render_report("YonerAI Relay local-dev status", sections, color=color)
 
 
 def _trust_decision_status(decision: dict[str, Any]) -> str:
@@ -1875,6 +1952,14 @@ def build_parser() -> argparse.ArgumentParser:
     node_pair_output.add_argument("--pretty", action="store_true", help="Print a readable Local Node pairing preview.")
     node_pair.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
 
+    relay = subcommands.add_parser("relay", help="Inspect public-safe Hybrid Relay local-dev fixtures.")
+    relay_subcommands = relay.add_subparsers(dest="relay_command", required=True)
+    relay_status = relay_subcommands.add_parser("status", help="Show local-dev Relay fixture status without starting it.")
+    relay_status_output = relay_status.add_mutually_exclusive_group()
+    relay_status_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
+    relay_status_output.add_argument("--pretty", action="store_true", help="Print a readable Relay local-dev status.")
+    relay_status.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
+
     plan = subcommands.add_parser("plan", help="Preview classification, route, provider, and approval without executing.")
     plan.add_argument("task", nargs="+")
     plan_output = plan.add_mutually_exclusive_group()
@@ -2076,6 +2161,13 @@ def run(argv: list[str] | None = None) -> int:
         else:
             _print_json(report)
         return 0
+    if args.command == "relay" and args.relay_command == "status":
+        report = _build_relay_status_report()
+        if args.pretty:
+            _print_relay_status_pretty(report, color=args.color)
+        else:
+            _print_json(report)
+        return 0 if report["ok"] else 1
     if args.command == "plan":
         report = _build_execution_plan_report(args, command="yonerai plan", dry_run=True)
         if args.json:

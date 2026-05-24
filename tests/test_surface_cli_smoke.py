@@ -526,6 +526,84 @@ def test_cli_node_pair_pretty_reports_non_actions(capsys):
     assert "\033[" not in output
 
 
+def test_cli_relay_status_reports_local_dev_fixture(monkeypatch, capsys):
+    cli = _load_cli_module()
+    for name in (
+        "ORA_RELAY_HOST",
+        "ORA_RELAY_PORT",
+        "ORA_RELAY_URL",
+        "ORA_NODE_API_BASE_URL",
+        "ORA_RELAY_EXPOSE_MODE",
+    ):
+        monkeypatch.delenv(name, raising=False)
+
+    assert cli.main(["relay", "status", "--json"]) == 0
+
+    output = json.loads(capsys.readouterr().out)
+    relay = output["relay"]
+    node_connector = output["node_connector"]
+    assert output["schema_version"] == "yonerai-relay-status/v0.1"
+    assert output["mode"] == "local_dev_fixture"
+    assert relay["host"] == "127.0.0.1"
+    assert relay["loopback_only"] is True
+    assert relay["process_started"] is False
+    assert relay["health_probe_performed"] is False
+    assert relay["quick_tunnel_enabled"] is False
+    assert relay["public_exposure_allowed"] is False
+    assert relay["message_body_persisted"] is False
+    assert relay["pairing_code_storage"] == "hash_only"
+    assert relay["session_token_storage"] == "hash_only"
+    assert node_connector["connector_started"] is False
+    assert "no network probe" in output["actions_not_performed"]
+    assert "token=" not in json.dumps(output).lower()
+    assert "pairing_code=" not in json.dumps(output).lower()
+
+
+def test_cli_relay_status_pretty_reports_non_actions(monkeypatch, capsys):
+    cli = _load_cli_module()
+    monkeypatch.delenv("ORA_RELAY_EXPOSE_MODE", raising=False)
+
+    assert cli.main(["relay", "status", "--pretty", "--color", "never"]) == 0
+
+    output = capsys.readouterr().out
+    assert "YonerAI Relay local-dev status" in output
+    assert "Local-dev relay" in output
+    assert "no relay process start" in output
+    assert "no public tunnel" in output
+    assert "hash_only" in output
+    assert "\033[" not in output
+
+
+def test_cli_relay_status_pretty_flags_public_exposure_request(monkeypatch, capsys):
+    cli = _load_cli_module()
+    monkeypatch.setenv("ORA_RELAY_EXPOSE_MODE", "cloudflared_quick")
+
+    assert cli.main(["relay", "status", "--pretty", "--color", "never"]) == 1
+
+    output = capsys.readouterr().out
+    assert "[FAIL] public_exposure_requested: true" in output
+    assert "[OK] public_exposure_allowed" in output
+    assert "false" in output
+
+
+def test_cli_relay_status_blocks_non_loopback_without_leaking_config(monkeypatch, capsys):
+    cli = _load_cli_module()
+    monkeypatch.setenv("ORA_RELAY_HOST", "0.0.0.0")
+    monkeypatch.setenv("ORA_RELAY_URL", "wss://relay.example.invalid")
+    monkeypatch.setenv("ORA_NODE_API_BASE_URL", "https://node.example.invalid")
+
+    assert cli.main(["relay", "status", "--json"]) == 1
+
+    output = json.loads(capsys.readouterr().out)
+    serialized = json.dumps(output)
+    assert output["ok"] is False
+    assert output["relay"]["host"] == "non_loopback_redacted"
+    assert output["relay"]["configured_url_category"] == "non_loopback_blocked"
+    assert output["node_connector"]["node_api_base_url_category"] == "non_loopback_blocked"
+    assert "relay.example.invalid" not in serialized
+    assert "node.example.invalid" not in serialized
+
+
 def test_cli_route_preview_uses_hybrid_wire_node_state_when_requested(capsys):
     cli = _load_cli_module()
 

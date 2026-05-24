@@ -108,6 +108,10 @@ from .wire_contract import (
     route_preview_inputs_from_node_status,
     wire_capability_to_route_capability,
 )
+from .relay_status import (
+    RELAY_STATUS_SCHEMA_VERSION,
+    build_relay_status_report,
+)
 
 __all__ = [
     "DonationPolicyDecision",
@@ -121,6 +125,7 @@ __all__ = [
     "HybridWireTrustDecision",
     "HYBRID_WIRE_CONTRACT_VERSION",
     "HYBRID_WIRE_COMPATIBLE_VERSIONS",
+    "RELAY_STATUS_SCHEMA_VERSION",
     "InMemoryNonceStore",
     "InMemoryTrustRegistry",
     "APPROVAL_GATED_CAPABILITIES",
@@ -165,6 +170,7 @@ __all__ = [
     "build_pairing_dry_run_report",
     "build_run_envelope",
     "build_run_result",
+    "build_relay_status_report",
     "build_self_evolution_signal_fixture",
     "build_synthetic_discord_gateway_payload",
     "build_test_local_node_manifest",
