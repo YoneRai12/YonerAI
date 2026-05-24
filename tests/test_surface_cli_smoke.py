@@ -455,6 +455,70 @@ def test_cli_start_guided_rejects_non_loopback_without_leaking_url(monkeypatch, 
     assert "Traceback" not in captured.err
 
 
+def test_cli_node_status_reports_hybrid_wire_fixture(capsys):
+    cli = _load_cli_module()
+
+    assert cli.main(["node", "status", "--json"]) == 0
+
+    output = json.loads(capsys.readouterr().out)
+    local_node = output["local_node"]
+    manifest = local_node["capability_manifest"]
+    capability_names = {capability["name"] for capability in manifest["capabilities"]}
+    assert output["schema_version"] == "yonerai-hybrid-wire-contract/v0.1"
+    assert local_node["trust_state"] == "verified_test_node"
+    assert local_node["loopback_only"] is True
+    assert capability_names >= {"local_model", "workspace_file_access", "mock_search", "tool_boundary", "ledger"}
+    assert output["official_cloud_runtime_implemented"] is False
+    assert output["production_oracle_used"] is False
+    assert output["network_required"] is False
+
+
+def test_cli_node_pair_is_dry_run_only(capsys):
+    cli = _load_cli_module()
+
+    assert cli.main(["node", "pair", "--dry-run", "--json"]) == 0
+    output = json.loads(capsys.readouterr().out)
+
+    assert output["schema_version"] == "yonerai-hybrid-wire-contract/v0.1"
+    assert output["dry_run"] is True
+    assert output["pairing_performed"] is False
+    assert output["official_orchestration_stub_request"]["schema_name"] == "OfficialOrchestrationStubRequest"
+    assert output["trust_decision"]["execute_allowed"] is False
+
+    assert cli.main(["node", "pair", "--json"]) == 2
+    assert "dry-run only" in capsys.readouterr().err
+
+
+def test_cli_route_preview_uses_hybrid_wire_node_state_when_requested(capsys):
+    cli = _load_cli_module()
+
+    assert (
+        cli.main(
+            [
+                "route",
+                "preview",
+                "read selected workspace file",
+                "--mode",
+                "official_hybrid_private",
+                "--capability",
+                "workspace_file_access",
+                "--use-local-node-fixture",
+            ]
+        )
+        == 0
+    )
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["hybrid_wire_node_fixture_used"] is True
+    assert output["route"] == "hybrid_coordination_preview"
+    assert output["requested_capability"] == "private_files"
+    assert output["local_node_verification_state"] == "present_verified"
+    assert output["local_node_capability_declared"] is True
+    assert output["session_required"] is True
+    assert output["session_verified"] is True
+    assert output["public_repo_execution_available"] is False
+
+
 def test_cli_doctor_reports_offline_status_without_network(monkeypatch, capsys):
     cli = _load_cli_module()
     for key in (
