@@ -5,7 +5,7 @@ This document is generated from `src/cogs/ora.py` using AST inspection. It does 
 ## Summary
 
 - Target: `src/cogs/ora.py`
-- Source lines: `3277`
+- Source lines: `3157`
 - Definitions mapped: `72`
 - Risk counts: `{"high": 16, "low": 20, "medium": 36}`
 - Side-effect counts: `{"discord": 46, "file": 8, "memory": 3, "network": 7, "provider_or_llm": 11, "system_or_process": 6, "tool_or_shell_policy": 4}`
@@ -35,78 +35,78 @@ This document is generated from `src/cogs/ora.py` using AST inspection. It does 
 
 | Lines | Qualname | Responsibility | Side effects | Risk | Candidate | Target | Required tests |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 84-86 | `_nonce` | Legacy helper or setup block. | none | low | no |  | static map coverage only |
-| 92-119 | `_generate_tree` | Legacy helper with file boundary involvement. | file | high | no |  | workspace/temp-file allowlist test |
-| 125-3268 | `ORACog` | ORA-specific commands such as login link and dataset management. | discord, provider_or_llm, memory, file, tool_or_shell_policy, network, system_or_process | high | no |  | discord-free static or mock interaction test; provider mocked or local-fixture execution test; workspace/temp-file allowlist test; deny-by-default tool boundary test; network-disabled fixture test; read-only diagnostic fixture test |
-| 128-214 | `ORACog.__init__` | Initializes ORACog runtime dependencies and mutable state. | discord, provider_or_llm, memory, file, tool_or_shell_policy, network, system_or_process | high | no |  | discord-free static or mock interaction test; provider mocked or local-fixture execution test; workspace/temp-file allowlist test; deny-by-default tool boundary test; network-disabled fixture test; read-only diagnostic fixture test |
-| 216-225 | `ORACog._load_soul` | Load the 'Soul' (Persona) prompt from data/soul.md. | file | high | no |  | workspace/temp-file allowlist test |
-| 227-231 | `ORACog._get_tool_schemas` | Return tool definitions for the Unified Brain. | none | low | no |  | static map coverage only |
-| 233-239 | `ORACog.set_status` | Helper to set bot status from callbacks. | discord | medium | no |  | discord-free static or mock interaction test |
-| 241-247 | `ORACog._on_game_start` | Callback for GameWatcher when game starts. | discord | medium | no |  | discord-free static or mock interaction test |
-| 249-252 | `ORACog._on_game_end` | Callback for GameWatcher when game ends. | discord | medium | no |  | discord-free static or mock interaction test |
-| 255-340 | `ORACog.dashboard` | Get the link to this server's web dashboard. | discord, network, system_or_process | high | no |  | discord-free static or mock interaction test; network-disabled fixture test; read-only diagnostic fixture test |
-| 342-353 | `ORACog.cog_load` | Called when the Cog is loaded. Performs Startup Sync. | none | low | no |  | static map coverage only |
-| 355-380 | `ORACog._startup_sync` | Syncs OpenAI usage and updates local limiter state. | provider_or_llm, network | high | no |  | provider mocked or local-fixture execution test; network-disabled fixture test |
-| 382-398 | `ORACog.cog_unload` | Legacy helper or setup block. | none | low | no |  | static map coverage only |
-| 401-508 | `ORACog.check_unoptimized_users` | Periodically scan for unoptimized users and trigger optimization. | discord, file | high | no |  | discord-free static or mock interaction test; workspace/temp-file allowlist test |
-| 510-518 | `ORACog._on_game_start` | Callback when game starts: Switch to Gaming Mode IMMEDIATELY. | none | low | no |  | static map coverage only |
-| 520-525 | `ORACog._on_game_end` | Callback when game ends: Schedule switch to Normal Mode after 5 minutes. | none | low | no |  | static map coverage only |
-| 527-537 | `ORACog._restore_normal_mode_delayed` | Wait 5 minutes then restore Normal Mode. | none | low | no |  | static map coverage only |
-| 547-580 | `ORACog._check_permission` | Check if user has permission. Levels: - 'owner': Only the Bot Owner (Config Admin ID). - 'sub_admin': Owner OR Sub-Admins. - 'vc_admin': Owner OR Sub-Admins OR VC Admins. | none | low | no |  | static map coverage only |
-| 583-598 | `ORACog.hourly_sync_loop` | Periodically sync OpenAI usage with official API. | discord, network | high | no |  | discord-free static or mock interaction test; network-disabled fixture test |
-| 601-691 | `ORACog.desktop_loop` | Periodically check the desktop and report to Admin. | discord | medium | no |  | discord-free static or mock interaction test |
-| 708-743 | `ORACog.system_reload` | Reloads an extension without restarting the bot. | discord, system_or_process | high | no |  | discord-free static or mock interaction test; read-only diagnostic fixture test |
-| 753-759 | `ORACog.desktop_watch` | Toggle desktop watcher. | discord | medium | no |  | discord-free static or mock interaction test |
-| 763-782 | `ORACog.system_info` | Show system info. | discord, system_or_process | high | no |  | discord-free static or mock interaction test; read-only diagnostic fixture test |
-| 785-801 | `ORACog.system_process_list` | List top processes. | discord, system_or_process | high | no |  | discord-free static or mock interaction test; read-only diagnostic fixture test |
-| 804-805 | `ORACog.before_desktop_loop` | Discord command/listener/task entrypoint. | none | medium | no |  | static map coverage only |
-| 807-823 | `ORACog.login` | Discord command/listener/task entrypoint. | discord, network | high | no |  | discord-free static or mock interaction test; network-disabled fixture test |
-| 825-828 | `ORACog._ephemeral_for` | Return True if the user's privacy setting is 'private'. | discord | medium | no |  | discord-free static or mock interaction test |
-| 831-840 | `ORACog.whoami` | Discord command/listener/task entrypoint. | discord | medium | no |  | discord-free static or mock interaction test |
-| 850-857 | `ORACog.ora_privacy` | Discord command/listener/task entrypoint. | discord | medium | no |  | discord-free static or mock interaction test |
-| 867-872 | `ORACog.privacy_set_system` | Discord command/listener/task entrypoint. | discord | medium | no |  | discord-free static or mock interaction test |
-| 874-900 | `ORACog.chat` | Legacy helper with discord, provider_or_llm boundary involvement. | discord, provider_or_llm | medium | no |  | discord-free static or mock interaction test; provider mocked or local-fixture execution test |
-| 910-962 | `ORACog.dataset_add` | Discord command/listener/task entrypoint. | discord, file, network | high | no |  | discord-free static or mock interaction test; workspace/temp-file allowlist test; network-disabled fixture test |
-| 965-974 | `ORACog.dataset_list` | Discord command/listener/task entrypoint. | discord | medium | no |  | discord-free static or mock interaction test |
-| 981-1027 | `ORACog.summarize` | Summarize recent chat history. | discord, provider_or_llm | medium | no |  | discord-free static or mock interaction test; provider mocked or local-fixture execution test |
-| 1041-1061 | `ORACog.status` | Discord command/listener/task entrypoint. | discord | medium | no |  | discord-free static or mock interaction test |
-| 1069-1072 | `ORACog.memory_clear` | Discord command/listener/task entrypoint. | discord, memory | medium | no |  | discord-free static or mock interaction test |
-| 1076-1124 | `ORACog.test_all` | Run a full system diagnostic check. | discord, provider_or_llm | medium | no |  | discord-free static or mock interaction test; provider mocked or local-fixture execution test |
-| 1126-1143 | `ORACog._get_voice_channel_info` | Legacy helper with discord boundary involvement. | discord | medium | no |  | discord-free static or mock interaction test |
-| 1150-1178 | `ORACog.process_message_queue` | Process queued messages after image generation completes. | discord | medium | no |  | discord-free static or mock interaction test |
-| 1181-1212 | `ORACog.switch_brain` | Switch the AI Brain Mode. | discord | medium | no |  | discord-free static or mock interaction test |
-| 1216-1274 | `ORACog.system_override` | Override System Limits (Roleplay). | discord | medium | no |  | discord-free static or mock interaction test |
-| 1277-1335 | `ORACog.check_credits` | Check usage stats using CostManager with Sync. | discord, provider_or_llm | medium | no |  | discord-free static or mock interaction test; provider mocked or local-fixture execution test |
-| 1337-1361 | `ORACog._send_large_message` | Splits and sends large messages to avoid 400 Bad Request. | discord | medium | no |  | discord-free static or mock interaction test |
-| 1363-1381 | `ORACog._detect_spam` | Detects if text is repetitive spam using Compression Ratio. If text is long (>500 chars) and compresses extremely well (<10%), it's likely spam. | none | low | yes | `src/cogs/ora_pure_helpers.py` | characterization parity before wrapper extraction |
-| 1383-1412 | `ORACog._is_input_spam` | Detects if input is spam/abuse (e.g. 'Repeat 10000 times', massive repetition). Returns True if spam. | none | low | yes | `src/cogs/ora_pure_helpers.py` | characterization parity before wrapper extraction |
-| 1414-1475 | `ORACog._perform_guardrail_check` | [Layer 2 Security] AI Guardrail. Uses a cheap model (gpt-5-mini) to check for loop/spam/jailbreak instructions that regex missed. | provider_or_llm | medium | no |  | provider mocked or local-fixture execution test |
-| 1477-1521 | `ORACog._extract_json_objects` | Extracts top-level JSON objects from text. | none | low | yes | `src/cogs/ora_pure_helpers.py` | characterization parity before wrapper extraction |
-| 1523-1525 | `ORACog._clean_content` | Remove internal tags like <\|channel\|>... from the text. | none | low | yes | `src/cogs/ora_pure_helpers.py` | characterization parity before wrapper extraction |
-| 1528-1818 | `ORACog.on_message` | Discord command/listener/task entrypoint. | discord, provider_or_llm, file, tool_or_shell_policy | high | no |  | discord-free static or mock interaction test; provider mocked or local-fixture execution test; workspace/temp-file allowlist test; deny-by-default tool boundary test |
-| 1821-1847 | `ORACog._process_attachments` | Process a list of attachments (Text or Image) and update prompt/context. | discord, file | high | no |  | discord-free static or mock interaction test; workspace/temp-file allowlist test |
-| 1849-1863 | `ORACog._process_embed_images` | Process images found in Embeds (Thumbnail or Image field). | discord | medium | no |  | discord-free static or mock interaction test |
-| 1865-2974 | `ORACog._get_tool_schemas` | Returns the list of available tools, organized by Category. Includes 'tags' for RAG filtering. | none | low | no |  | static map coverage only |
-| 2976-3058 | `ORACog.get_context_tools` | Public method to get tools filtered by client context. Prevents usage of Discord-only tools in Web UI, or Web tools in Discord. Also includes Dynamically Loaded Skills from SKILL.m | tool_or_shell_policy | high | no |  | deny-by-default tool boundary test |
-| 3061-3070 | `ORACog.handle_prompt` | Process a user message and generate a response using the LLM (Delegated to ChatHandler). | discord, provider_or_llm | medium | no |  | discord-free static or mock interaction test; provider mocked or local-fixture execution test |
-| 3072-3074 | `ORACog._legacy_handle_prompt` | Legacy helper or setup block. | none | low | no |  | static map coverage only |
-| 3075-3088 | `ORACog.wait_for_llm` | Show a loading animation while waiting for LLM. | discord | medium | no |  | discord-free static or mock interaction test |
-| 3090-3112 | `ORACog._create_mock_interaction` | Helper to create a mock interaction from context. | discord | medium | no |  | discord-free static or mock interaction test |
-| 3092-3110 | `ORACog._create_mock_interaction.MockInteraction` | Legacy helper with discord boundary involvement. | discord | medium | no |  | discord-free static or mock interaction test |
-| 3093-3098 | `ORACog._create_mock_interaction.MockInteraction.__init__` | Initializes ORACog runtime dependencies and mutable state. | discord | medium | no |  | discord-free static or mock interaction test |
-| 3100-3105 | `ORACog._create_mock_interaction.MockInteraction.Response` | Legacy helper with discord boundary involvement. | discord | medium | no |  | discord-free static or mock interaction test |
-| 3101-3101 | `ORACog._create_mock_interaction.MockInteraction.Response.__init__` | Initializes ORACog runtime dependencies and mutable state. | none | low | no |  | static map coverage only |
-| 3102-3102 | `ORACog._create_mock_interaction.MockInteraction.Response.is_done` | Legacy helper or setup block. | none | low | no |  | static map coverage only |
-| 3103-3104 | `ORACog._create_mock_interaction.MockInteraction.Response.send_message` | Legacy helper with discord boundary involvement. | discord | medium | no |  | discord-free static or mock interaction test |
-| 3105-3105 | `ORACog._create_mock_interaction.MockInteraction.Response.defer` | Legacy helper or setup block. | none | low | no |  | static map coverage only |
-| 3107-3110 | `ORACog._create_mock_interaction.MockInteraction.Followup` | Legacy helper with discord boundary involvement. | discord | medium | no |  | discord-free static or mock interaction test |
-| 3108-3108 | `ORACog._create_mock_interaction.MockInteraction.Followup.__init__` | Initializes ORACog runtime dependencies and mutable state. | none | low | no |  | static map coverage only |
-| 3109-3110 | `ORACog._create_mock_interaction.MockInteraction.Followup.send` | Legacy helper with discord boundary involvement. | discord | medium | no |  | discord-free static or mock interaction test |
-| 3115-3183 | `ORACog.on_raw_reaction_add` | Handle flag reactions for translation. | discord, provider_or_llm | medium | no |  | discord-free static or mock interaction test; provider mocked or local-fixture execution test |
-| 3186-3211 | `ORACog.rank` | Check your current points and rank. | discord | medium | no |  | discord-free static or mock interaction test |
-| 3213-3224 | `ORACog.check_points` | AI tool to check user's current points. | discord | medium | no |  | discord-free static or mock interaction test |
-| 3226-3268 | `ORACog._strip_route_json` | Removes the JSON block containing 'route_eval' by counting braces. | none | low | yes | `src/cogs/ora_pure_helpers.py` | characterization parity before wrapper extraction |
-| 3271-3277 | `setup` | Legacy helper or setup block. | none | low | no |  | static map coverage only |
+| 89-91 | `_nonce` | Legacy helper or setup block. | none | low | no |  | static map coverage only |
+| 97-124 | `_generate_tree` | Legacy helper with file boundary involvement. | file | high | no |  | workspace/temp-file allowlist test |
+| 130-3148 | `ORACog` | ORA-specific commands such as login link and dataset management. | discord, provider_or_llm, memory, file, tool_or_shell_policy, network, system_or_process | high | no |  | discord-free static or mock interaction test; provider mocked or local-fixture execution test; workspace/temp-file allowlist test; deny-by-default tool boundary test; network-disabled fixture test; read-only diagnostic fixture test |
+| 133-219 | `ORACog.__init__` | Initializes ORACog runtime dependencies and mutable state. | discord, provider_or_llm, memory, file, tool_or_shell_policy, network, system_or_process | high | no |  | discord-free static or mock interaction test; provider mocked or local-fixture execution test; workspace/temp-file allowlist test; deny-by-default tool boundary test; network-disabled fixture test; read-only diagnostic fixture test |
+| 221-230 | `ORACog._load_soul` | Load the 'Soul' (Persona) prompt from data/soul.md. | file | high | no |  | workspace/temp-file allowlist test |
+| 232-236 | `ORACog._get_tool_schemas` | Return tool definitions for the Unified Brain. | none | low | no |  | static map coverage only |
+| 238-244 | `ORACog.set_status` | Helper to set bot status from callbacks. | discord | medium | no |  | discord-free static or mock interaction test |
+| 246-252 | `ORACog._on_game_start` | Callback for GameWatcher when game starts. | discord | medium | no |  | discord-free static or mock interaction test |
+| 254-257 | `ORACog._on_game_end` | Callback for GameWatcher when game ends. | discord | medium | no |  | discord-free static or mock interaction test |
+| 260-345 | `ORACog.dashboard` | Get the link to this server's web dashboard. | discord, network, system_or_process | high | no |  | discord-free static or mock interaction test; network-disabled fixture test; read-only diagnostic fixture test |
+| 347-358 | `ORACog.cog_load` | Called when the Cog is loaded. Performs Startup Sync. | none | low | no |  | static map coverage only |
+| 360-385 | `ORACog._startup_sync` | Syncs OpenAI usage and updates local limiter state. | provider_or_llm, network | high | no |  | provider mocked or local-fixture execution test; network-disabled fixture test |
+| 387-403 | `ORACog.cog_unload` | Legacy helper or setup block. | none | low | no |  | static map coverage only |
+| 406-513 | `ORACog.check_unoptimized_users` | Periodically scan for unoptimized users and trigger optimization. | discord, file | high | no |  | discord-free static or mock interaction test; workspace/temp-file allowlist test |
+| 515-523 | `ORACog._on_game_start` | Callback when game starts: Switch to Gaming Mode IMMEDIATELY. | none | low | no |  | static map coverage only |
+| 525-530 | `ORACog._on_game_end` | Callback when game ends: Schedule switch to Normal Mode after 5 minutes. | none | low | no |  | static map coverage only |
+| 532-542 | `ORACog._restore_normal_mode_delayed` | Wait 5 minutes then restore Normal Mode. | none | low | no |  | static map coverage only |
+| 552-585 | `ORACog._check_permission` | Check if user has permission. Levels: - 'owner': Only the Bot Owner (Config Admin ID). - 'sub_admin': Owner OR Sub-Admins. - 'vc_admin': Owner OR Sub-Admins OR VC Admins. | none | low | no |  | static map coverage only |
+| 588-603 | `ORACog.hourly_sync_loop` | Periodically sync OpenAI usage with official API. | discord, network | high | no |  | discord-free static or mock interaction test; network-disabled fixture test |
+| 606-696 | `ORACog.desktop_loop` | Periodically check the desktop and report to Admin. | discord | medium | no |  | discord-free static or mock interaction test |
+| 713-748 | `ORACog.system_reload` | Reloads an extension without restarting the bot. | discord, system_or_process | high | no |  | discord-free static or mock interaction test; read-only diagnostic fixture test |
+| 758-764 | `ORACog.desktop_watch` | Toggle desktop watcher. | discord | medium | no |  | discord-free static or mock interaction test |
+| 768-787 | `ORACog.system_info` | Show system info. | discord, system_or_process | high | no |  | discord-free static or mock interaction test; read-only diagnostic fixture test |
+| 790-806 | `ORACog.system_process_list` | List top processes. | discord, system_or_process | high | no |  | discord-free static or mock interaction test; read-only diagnostic fixture test |
+| 809-810 | `ORACog.before_desktop_loop` | Discord command/listener/task entrypoint. | none | medium | no |  | static map coverage only |
+| 812-828 | `ORACog.login` | Discord command/listener/task entrypoint. | discord, network | high | no |  | discord-free static or mock interaction test; network-disabled fixture test |
+| 830-833 | `ORACog._ephemeral_for` | Return True if the user's privacy setting is 'private'. | discord | medium | no |  | discord-free static or mock interaction test |
+| 836-845 | `ORACog.whoami` | Discord command/listener/task entrypoint. | discord | medium | no |  | discord-free static or mock interaction test |
+| 855-862 | `ORACog.ora_privacy` | Discord command/listener/task entrypoint. | discord | medium | no |  | discord-free static or mock interaction test |
+| 872-877 | `ORACog.privacy_set_system` | Discord command/listener/task entrypoint. | discord | medium | no |  | discord-free static or mock interaction test |
+| 879-905 | `ORACog.chat` | Legacy helper with discord, provider_or_llm boundary involvement. | discord, provider_or_llm | medium | no |  | discord-free static or mock interaction test; provider mocked or local-fixture execution test |
+| 915-967 | `ORACog.dataset_add` | Discord command/listener/task entrypoint. | discord, file, network | high | no |  | discord-free static or mock interaction test; workspace/temp-file allowlist test; network-disabled fixture test |
+| 970-979 | `ORACog.dataset_list` | Discord command/listener/task entrypoint. | discord | medium | no |  | discord-free static or mock interaction test |
+| 986-1032 | `ORACog.summarize` | Summarize recent chat history. | discord, provider_or_llm | medium | no |  | discord-free static or mock interaction test; provider mocked or local-fixture execution test |
+| 1046-1066 | `ORACog.status` | Discord command/listener/task entrypoint. | discord | medium | no |  | discord-free static or mock interaction test |
+| 1074-1077 | `ORACog.memory_clear` | Discord command/listener/task entrypoint. | discord, memory | medium | no |  | discord-free static or mock interaction test |
+| 1081-1129 | `ORACog.test_all` | Run a full system diagnostic check. | discord, provider_or_llm | medium | no |  | discord-free static or mock interaction test; provider mocked or local-fixture execution test |
+| 1131-1148 | `ORACog._get_voice_channel_info` | Legacy helper with discord boundary involvement. | discord | medium | no |  | discord-free static or mock interaction test |
+| 1155-1183 | `ORACog.process_message_queue` | Process queued messages after image generation completes. | discord | medium | no |  | discord-free static or mock interaction test |
+| 1186-1217 | `ORACog.switch_brain` | Switch the AI Brain Mode. | discord | medium | no |  | discord-free static or mock interaction test |
+| 1221-1279 | `ORACog.system_override` | Override System Limits (Roleplay). | discord | medium | no |  | discord-free static or mock interaction test |
+| 1282-1340 | `ORACog.check_credits` | Check usage stats using CostManager with Sync. | discord, provider_or_llm | medium | no |  | discord-free static or mock interaction test; provider mocked or local-fixture execution test |
+| 1342-1366 | `ORACog._send_large_message` | Splits and sends large messages to avoid 400 Bad Request. | discord | medium | no |  | discord-free static or mock interaction test |
+| 1368-1370 | `ORACog._detect_spam` | Compatibility wrapper for the extracted ORA spam detector. | none | low | yes | `src/cogs/ora_pure_helpers.py` | characterization parity before wrapper extraction |
+| 1372-1374 | `ORACog._is_input_spam` | Compatibility wrapper for the extracted ORA input spam detector. | none | low | yes | `src/cogs/ora_pure_helpers.py` | characterization parity before wrapper extraction |
+| 1376-1437 | `ORACog._perform_guardrail_check` | [Layer 2 Security] AI Guardrail. Uses a cheap model (gpt-5-mini) to check for loop/spam/jailbreak instructions that regex missed. | provider_or_llm | medium | no |  | provider mocked or local-fixture execution test |
+| 1439-1441 | `ORACog._extract_json_objects` | Compatibility wrapper for the extracted ORA JSON recovery helper. | none | low | yes | `src/cogs/ora_pure_helpers.py` | characterization parity before wrapper extraction |
+| 1443-1445 | `ORACog._clean_content` | Remove internal tags like <\|channel\|>... from the text. | none | low | yes | `src/cogs/ora_pure_helpers.py` | characterization parity before wrapper extraction |
+| 1448-1738 | `ORACog.on_message` | Discord command/listener/task entrypoint. | discord, provider_or_llm, file, tool_or_shell_policy | high | no |  | discord-free static or mock interaction test; provider mocked or local-fixture execution test; workspace/temp-file allowlist test; deny-by-default tool boundary test |
+| 1741-1767 | `ORACog._process_attachments` | Process a list of attachments (Text or Image) and update prompt/context. | discord, file | high | no |  | discord-free static or mock interaction test; workspace/temp-file allowlist test |
+| 1769-1783 | `ORACog._process_embed_images` | Process images found in Embeds (Thumbnail or Image field). | discord | medium | no |  | discord-free static or mock interaction test |
+| 1785-2894 | `ORACog._get_tool_schemas` | Returns the list of available tools, organized by Category. Includes 'tags' for RAG filtering. | none | low | no |  | static map coverage only |
+| 2896-2978 | `ORACog.get_context_tools` | Public method to get tools filtered by client context. Prevents usage of Discord-only tools in Web UI, or Web tools in Discord. Also includes Dynamically Loaded Skills from SKILL.m | tool_or_shell_policy | high | no |  | deny-by-default tool boundary test |
+| 2981-2990 | `ORACog.handle_prompt` | Process a user message and generate a response using the LLM (Delegated to ChatHandler). | discord, provider_or_llm | medium | no |  | discord-free static or mock interaction test; provider mocked or local-fixture execution test |
+| 2992-2994 | `ORACog._legacy_handle_prompt` | Legacy helper or setup block. | none | low | no |  | static map coverage only |
+| 2995-3008 | `ORACog.wait_for_llm` | Show a loading animation while waiting for LLM. | discord | medium | no |  | discord-free static or mock interaction test |
+| 3010-3032 | `ORACog._create_mock_interaction` | Helper to create a mock interaction from context. | discord | medium | no |  | discord-free static or mock interaction test |
+| 3012-3030 | `ORACog._create_mock_interaction.MockInteraction` | Legacy helper with discord boundary involvement. | discord | medium | no |  | discord-free static or mock interaction test |
+| 3013-3018 | `ORACog._create_mock_interaction.MockInteraction.__init__` | Initializes ORACog runtime dependencies and mutable state. | discord | medium | no |  | discord-free static or mock interaction test |
+| 3020-3025 | `ORACog._create_mock_interaction.MockInteraction.Response` | Legacy helper with discord boundary involvement. | discord | medium | no |  | discord-free static or mock interaction test |
+| 3021-3021 | `ORACog._create_mock_interaction.MockInteraction.Response.__init__` | Initializes ORACog runtime dependencies and mutable state. | none | low | no |  | static map coverage only |
+| 3022-3022 | `ORACog._create_mock_interaction.MockInteraction.Response.is_done` | Legacy helper or setup block. | none | low | no |  | static map coverage only |
+| 3023-3024 | `ORACog._create_mock_interaction.MockInteraction.Response.send_message` | Legacy helper with discord boundary involvement. | discord | medium | no |  | discord-free static or mock interaction test |
+| 3025-3025 | `ORACog._create_mock_interaction.MockInteraction.Response.defer` | Legacy helper or setup block. | none | low | no |  | static map coverage only |
+| 3027-3030 | `ORACog._create_mock_interaction.MockInteraction.Followup` | Legacy helper with discord boundary involvement. | discord | medium | no |  | discord-free static or mock interaction test |
+| 3028-3028 | `ORACog._create_mock_interaction.MockInteraction.Followup.__init__` | Initializes ORACog runtime dependencies and mutable state. | none | low | no |  | static map coverage only |
+| 3029-3030 | `ORACog._create_mock_interaction.MockInteraction.Followup.send` | Legacy helper with discord boundary involvement. | discord | medium | no |  | discord-free static or mock interaction test |
+| 3035-3103 | `ORACog.on_raw_reaction_add` | Handle flag reactions for translation. | discord, provider_or_llm | medium | no |  | discord-free static or mock interaction test; provider mocked or local-fixture execution test |
+| 3106-3131 | `ORACog.rank` | Check your current points and rank. | discord | medium | no |  | discord-free static or mock interaction test |
+| 3133-3144 | `ORACog.check_points` | AI tool to check user's current points. | discord | medium | no |  | discord-free static or mock interaction test |
+| 3146-3148 | `ORACog._strip_route_json` | Compatibility wrapper for the extracted ORA route JSON stripper. | none | low | yes | `src/cogs/ora_pure_helpers.py` | characterization parity before wrapper extraction |
+| 3151-3157 | `setup` | Legacy helper or setup block. | none | low | no |  | static map coverage only |
 
 ## Call Graph Notes
 
