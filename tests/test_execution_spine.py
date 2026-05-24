@@ -324,3 +324,83 @@ def test_search_and_tool_boundaries_are_disabled_by_default() -> None:
     assert checks["ora_guardrail_response_interpreter"]["provider_call_performed"] is False
     assert checks["ora_message_format_helper"]["status"] == "ok"
     assert checks["ora_message_format_helper"]["broad_ora_refactor"] is False
+
+
+def test_tool_boundary_uses_extracted_ora_surface_policy() -> None:
+    _prepare_paths()
+    from ora_core.execution import build_boundary_checks_for_task
+    from ora_core.planning import classify_task
+
+    web_checks = build_boundary_checks_for_task(
+        classify_task("use a tool"),
+        requested_tool="music_play",
+        client_type="web",
+    )
+    discord_checks = build_boundary_checks_for_task(
+        classify_task("use a tool"),
+        requested_tool="dom_click",
+        client_type="discord",
+    )
+
+    assert web_checks["tool_boundary"]["status"] == "denied"
+    assert web_checks["tool_boundary"]["reason"] == "discord_only_tool_not_available_for_web"
+    assert web_checks["tool_boundary"]["execution_performed"] is False
+    assert discord_checks["tool_boundary"]["status"] == "denied"
+    assert discord_checks["tool_boundary"]["reason"] == "web_only_tool_not_available_for_discord"
+    assert discord_checks["tool_boundary"]["execution_performed"] is False
+
+
+def test_execute_task_exposes_ora_surface_policy_without_tool_execution() -> None:
+    _prepare_paths()
+    from ora_core.execution import execute_task
+
+    web_result = execute_task(
+        "summarize public docs",
+        mode="self-host",
+        provider="mock",
+        requested_tool="music_play",
+        client_type="web",
+    ).to_public_dict()
+    unknown_result = execute_task(
+        "summarize public docs",
+        mode="self-host",
+        provider="mock",
+        requested_tool="music_play",
+        client_type="unknown",
+    ).to_public_dict()
+
+    assert web_result["ok"] is True
+    assert web_result["boundary_checks"]["tool_boundary"]["status"] == "denied"
+    assert web_result["boundary_checks"]["tool_boundary"]["reason"] == "discord_only_tool_not_available_for_web"
+    assert web_result["boundary_checks"]["tool_boundary"]["execution_performed"] is False
+    assert unknown_result["ok"] is True
+    assert unknown_result["boundary_checks"]["tool_boundary"]["status"] == "denied"
+    assert unknown_result["boundary_checks"]["tool_boundary"]["reason"] == "unknown_client_type_denied_by_default"
+    assert unknown_result["boundary_checks"]["tool_boundary"]["execution_performed"] is False
+
+
+def test_tool_boundary_fails_closed_when_ora_surface_policy_import_fails(monkeypatch) -> None:
+    _prepare_paths()
+    import builtins
+
+    from ora_core.execution import build_boundary_checks_for_task
+    from ora_core.planning import classify_task
+
+    original_import = builtins.__import__
+
+    def broken_import(name, *args, **kwargs):
+        if name == "src.cogs.ora_tool_schema_helpers":
+            raise RuntimeError("synthetic import failure")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", broken_import)
+
+    checks = build_boundary_checks_for_task(
+        classify_task("use a tool"),
+        requested_tool="music_play",
+        client_type="web",
+    )
+
+    assert checks["tool_boundary"]["status"] == "denied"
+    assert checks["tool_boundary"]["reason"] == "tool_schema_surface_policy_unavailable_denied_by_default"
+    assert checks["tool_boundary"]["execution_performed"] is False
