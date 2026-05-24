@@ -22,8 +22,8 @@ python -m venv .venv
 python -m pip install -U pip
 python -m pip install -r core/requirements.txt httpx
 python -m pip install -e clients/cli
-yonerai start --lang ja
-yonerai start --json
+yonerai start --guided --lang ja
+yonerai start --guided --json
 yonerai demo --pretty
 yonerai demo --json
 yonerai doctor --pretty --lang ja
@@ -35,23 +35,29 @@ yonerai manifest verify releases/manifest.example.json --pretty --lang ja
 
 ## 最初の5分
 
-`yonerai start` は、YonerAI を初めて触る人のための案内 command です。内部 label を並べるのではなく、次に何を実行すればよいかを表示します。
+`yonerai start --guided` は、YonerAI を初めて触る人のための案内 command です。内部 label を並べるのではなく、次に何を実行すればよいかを表示します。
 
 ```powershell
-yonerai start --lang ja
+yonerai start --guided --lang ja
+yonerai start --guided --json
 yonerai demo --pretty
 yonerai doctor --pretty --lang ja
 yonerai ask "hello" --provider mock --json
+yonerai ask "use this selected sample file" --file sample.txt --workspace .yonerai-sample-workspace --provider mock --json
+yonerai ask "hello" --provider mock --json --ledger .yonerai-runs.jsonl
+yonerai runs list --ledger .yonerai-runs.jsonl --json
 ```
 
 この流れで分かること:
 
+- `yonerai start --guided --lang ja` は、mock provider で安全に試す手順、local LLM の状態、ワークスペース内ファイルアクセス制御の例、ledger の例、現在の制限を表示します。
 - `yonerai demo --pretty` は、現在の alpha slice を credential なしで表示します。
 - `yonerai doctor --pretty --lang ja` は、ローカル setup、manifest、provider setup、安全境界を確認します。
-- `yonerai start --lang ja` は、Ollama / LM Studio 風の local LLM endpoint を loopback の metadata 確認だけで検出します。
+- `yonerai start --guided --lang ja` は、Ollama / LM Studio 風の local LLM endpoint を loopback の metadata 確認だけで検出します。
 - mock `ask` は public-safe な `run_id` を返します。
 - `--ledger <local.jsonl>` を付けた場合だけ、redacted な local-only run history を書きます。
 - Workspace file support は「ワークスペース内ファイルアクセス制御」です。明示した workspace の中にある、明示した UTF-8 text file だけを読みます。
+  サンプルコマンドは `.yonerai-sample-workspace/sample.txt` を自分で用意してから実行する前提です。`yonerai start --guided` 自体はファイル作成、ファイル読み取り、ledger 書き込みを行いません。
 
 Local LLM server がすでに loopback で動いている場合だけ、明示的に有効化してから local provider を試せます。
 
@@ -128,7 +134,7 @@ External provider adapter と local LLM execution はありますが、明示 op
 確認できること:
 
 - public repository を clone する
-- `yonerai start --lang ja` を実行する
+- `yonerai start --guided --lang ja` を実行する
 - `yonerai demo --pretty` / `yonerai demo --json` を実行する
 - `yonerai doctor --pretty --lang ja` を実行する
 - `yonerai ask "hello" --provider mock --json` で credential-free ask を試す
@@ -194,7 +200,7 @@ public demo:
 ```powershell
 python -m pip install -r core/requirements.txt httpx
 python -m pip install -e clients/cli
-yonerai start --lang ja
+yonerai start --guided --lang ja
 yonerai demo --pretty
 ```
 

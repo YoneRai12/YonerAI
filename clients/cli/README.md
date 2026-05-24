@@ -11,7 +11,7 @@ From the repository root:
 ```bash
 python -m pip install -r core/requirements.txt httpx
 python -m pip install -e clients/cli
-yonerai start --lang ja
+yonerai start --guided --lang ja
 yonerai demo --pretty
 yonerai demo --json
 ```
@@ -37,7 +37,7 @@ production installer, or a live Discord/Official Managed Cloud release.
 
 Credential-free commands:
 
-- `yonerai start --lang ja`
+- `yonerai start --guided --lang ja`
 - `yonerai ask "summarize public docs" --provider mock --json`
 - `yonerai ask "use this selected file" --file <path> --workspace <dir> --provider mock --json`
 - `yonerai search mock "YonerAI alpha2" --json`
@@ -48,11 +48,14 @@ Credential-free commands:
 - `yonerai manifest verify releases/manifest.example.json --json`
 - `yonerai install plan --manifest releases/manifest.example.json --json`
 
-`yonerai start` explains the first-run path and checks only loopback local LLM
-metadata endpoints. It does not send a prompt to a model. Mock `ask` returns a
-public-safe `run_id`. Workspace file support is a Workspace File Access Guard:
-it reads only an explicit UTF-8 text file under an explicit workspace. Local
-memory writes only when a store path and `--confirm-local` are provided.
+`yonerai start --guided` explains the first-run path and checks only loopback
+local LLM metadata endpoints. It does not send a prompt to a model. It prints a
+mock-first path, Local LLM next steps when loopback is detected, a workspace
+file guard sample, a redacted ledger sample, and limitations. Mock `ask`
+returns a public-safe `run_id`. Workspace file support is a Workspace File
+Access Guard: it reads only an explicit UTF-8 text file under an explicit
+workspace. Local memory writes only when a store path and `--confirm-local` are
+provided.
 
 Not included: production readiness, live Discord restoration, live web search by
 default, arbitrary shell execution, arbitrary file access, installer-ready
@@ -70,8 +73,8 @@ After installation, the local command is:
 
 ```bash
 yonerai demo --pretty
-yonerai start --lang ja
-yonerai start --json
+yonerai start --guided --lang ja
+yonerai start --guided --json
 yonerai health
 yonerai smoke --pretty
 yonerai doctor
@@ -87,6 +90,8 @@ yonerai manifest verify releases/manifest.example.json --json
 yonerai plan "summarize public docs" --json
 yonerai ask "summarize public docs" --provider mock --json
 yonerai ask "use this selected file" --file notes.txt --workspace . --provider mock --json
+yonerai ask "hello" --provider mock --json --ledger .yonerai-runs.jsonl
+yonerai runs list --ledger .yonerai-runs.jsonl --json
 yonerai search mock "YonerAI alpha2" --json
 yonerai ops plan git-status --json
 yonerai memory add "local note" --store .yonerai-memory.jsonl --confirm-local --json
@@ -125,12 +130,15 @@ demo / installer-readiness summary. `--lang ja` is available for `doctor`,
 for stable tests and automation. Pretty commands also accept
 `--color auto|never|always`; JSON output never includes terminal color codes.
 
-`yonerai start` is the recommended first command for non-engineers. It guides
-the user from demo to doctor, local LLM metadata check, and the first safe ask.
-If a loopback Ollama or LM Studio style endpoint is detected, it explains the
-explicit `ORA_LOCAL_LLM_ENABLED=1` and `--live` requirement before local provider
+`yonerai start --guided` is the recommended first command for non-engineers. It
+guides the user from demo to doctor, local LLM metadata check, first safe ask,
+workspace file guard sample, and opt-in ledger sample. If a loopback Ollama or
+LM Studio style endpoint is detected, it explains the explicit
+`ORA_LOCAL_LLM_ENABLED=1` and `--live` requirement before local provider
 execution. If no local model server is found, it recommends the mock provider
-path that works immediately.
+path that works immediately. The guided command itself does not create sample
+files, read files, write ledger files, install packages, mutate PATH, or start
+model servers.
 
 `yonerai manifest verify <path>` validates a local release manifest file. Remote
 manifest URLs are rejected, no artifact is downloaded, and no installer is run.
