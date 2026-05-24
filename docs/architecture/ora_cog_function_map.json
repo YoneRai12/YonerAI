@@ -95,13 +95,11 @@
         "Usage",
         "UserPrefs",
         "VisionHandler",
-        "_get_registry_schemas",
         "_nonce",
         "aiofiles.open",
         "aiohttp.ClientSession",
         "aiohttp.ClientTimeout",
         "aiohttp.FormData",
-        "all_tools.append",
         "any",
         "app_commands.Choice",
         "app_commands.Group",
@@ -113,6 +111,7 @@
         "asyncio.to_thread",
         "auth_code.upper",
         "base.rstrip",
+        "build_context_tool_schemas",
         "c.name.lower",
         "candidates.append",
         "channel.fetch_message",
@@ -128,7 +127,6 @@
         "ctx.send",
         "data.get",
         "dataset_group.command",
-        "deduped_tools.append",
         "defaultdict",
         "detect_ora_spam",
         "discord.Color.blue",
@@ -138,7 +136,6 @@
         "discord.Embed",
         "discord.Game",
         "discord.utils.find",
-        "dynamic_skills.keys",
         "embed.add_field",
         "embed.set_author",
         "embed.set_footer",
@@ -150,8 +147,6 @@
         "f_path.stem.split",
         "file.filename.lower",
         "file.filename.lower.endswith",
-        "filter_tool_schemas_for_user",
-        "filtered.append",
         "flag_utils.flag_to_iso",
         "flag_utils.get_country_name",
         "form.add_field",
@@ -229,10 +224,7 @@
         "response.text",
         "result.get",
         "results.append",
-        "s.get",
-        "schema.get",
         "secrets.token_hex",
-        "seen.add",
         "self.Followup",
         "self.Response",
         "self._check_permission",
@@ -299,7 +291,6 @@
         "self.set_status",
         "self.store.get_or_create_dashboard_token",
         "self.tool_handler._handle_get_role_list",
-        "self.tool_handler.skill_loader.get_schema",
         "self.unified_client.chat",
         "self.vision_handler.process_attachments",
         "self.vision_handler.process_embeds",
@@ -317,7 +308,6 @@
         "t.get",
         "tasks.loop",
         "time.time",
-        "tool.get",
         "usage.get",
         "user.send",
         "values"
@@ -332,7 +322,7 @@
       ],
       "kind": "ClassDef",
       "line_range": {
-        "end": 3148,
+        "end": 3095,
         "start": 130
       },
       "name": "ORACog",
@@ -2205,20 +2195,8 @@
     {
       "callees": [
         "ORACog._get_tool_schemas",
-        "_get_registry_schemas",
-        "all_tools.append",
-        "deduped_tools.append",
-        "dynamic_skills.keys",
-        "filter_tool_schemas_for_user",
-        "filtered.append",
-        "hasattr",
-        "isinstance",
-        "s.get",
-        "schema.get",
-        "seen.add",
-        "self.tool_handler.skill_loader.get_schema",
-        "set",
-        "tool.get"
+        "build_context_tool_schemas",
+        "hasattr"
       ],
       "callers": [],
       "decorators": [],
@@ -2230,7 +2208,7 @@
       ],
       "kind": "FunctionDef",
       "line_range": {
-        "end": 2978,
+        "end": 2925,
         "start": 2896
       },
       "name": "get_context_tools",
@@ -2266,8 +2244,8 @@
       ],
       "kind": "AsyncFunctionDef",
       "line_range": {
-        "end": 2990,
-        "start": 2981
+        "end": 2937,
+        "start": 2928
       },
       "name": "handle_prompt",
       "outputs": "async coroutine; annotation: None",
@@ -2300,8 +2278,8 @@
       ],
       "kind": "AsyncFunctionDef",
       "line_range": {
-        "end": 2994,
-        "start": 2992
+        "end": 2941,
+        "start": 2939
       },
       "name": "_legacy_handle_prompt",
       "outputs": "async coroutine",
@@ -2331,8 +2309,8 @@
       ],
       "kind": "AsyncFunctionDef",
       "line_range": {
-        "end": 3008,
-        "start": 2995
+        "end": 2955,
+        "start": 2942
       },
       "name": "wait_for_llm",
       "outputs": "async coroutine; annotation: None",
@@ -2366,8 +2344,8 @@
       ],
       "kind": "FunctionDef",
       "line_range": {
-        "end": 3032,
-        "start": 3010
+        "end": 2979,
+        "start": 2957
       },
       "name": "_create_mock_interaction",
       "outputs": "return value",
@@ -2395,8 +2373,8 @@
       "inputs": [],
       "kind": "ClassDef",
       "line_range": {
-        "end": 3030,
-        "start": 3012
+        "end": 2977,
+        "start": 2959
       },
       "name": "MockInteraction",
       "outputs": "class instance",
@@ -2426,8 +2404,8 @@
       ],
       "kind": "FunctionDef",
       "line_range": {
-        "end": 3018,
-        "start": 3013
+        "end": 2965,
+        "start": 2960
       },
       "name": "__init__",
       "outputs": "return value",
@@ -2455,8 +2433,8 @@
       "inputs": [],
       "kind": "ClassDef",
       "line_range": {
-        "end": 3025,
-        "start": 3020
+        "end": 2972,
+        "start": 2967
       },
       "name": "Response",
       "outputs": "class instance",
@@ -2483,8 +2461,8 @@
       ],
       "kind": "FunctionDef",
       "line_range": {
-        "end": 3021,
-        "start": 3021
+        "end": 2968,
+        "start": 2968
       },
       "name": "__init__",
       "outputs": "return value",
@@ -2508,8 +2486,8 @@
       ],
       "kind": "FunctionDef",
       "line_range": {
-        "end": 3022,
-        "start": 3022
+        "end": 2969,
+        "start": 2969
       },
       "name": "is_done",
       "outputs": "return value",
@@ -2537,8 +2515,8 @@
       ],
       "kind": "AsyncFunctionDef",
       "line_range": {
-        "end": 3024,
-        "start": 3023
+        "end": 2971,
+        "start": 2970
       },
       "name": "send_message",
       "outputs": "async coroutine",
@@ -2564,8 +2542,8 @@
       ],
       "kind": "AsyncFunctionDef",
       "line_range": {
-        "end": 3025,
-        "start": 3025
+        "end": 2972,
+        "start": 2972
       },
       "name": "defer",
       "outputs": "async coroutine",
@@ -2591,8 +2569,8 @@
       "inputs": [],
       "kind": "ClassDef",
       "line_range": {
-        "end": 3030,
-        "start": 3027
+        "end": 2977,
+        "start": 2974
       },
       "name": "Followup",
       "outputs": "class instance",
@@ -2619,8 +2597,8 @@
       ],
       "kind": "FunctionDef",
       "line_range": {
-        "end": 3028,
-        "start": 3028
+        "end": 2975,
+        "start": 2975
       },
       "name": "__init__",
       "outputs": "return value",
@@ -2648,8 +2626,8 @@
       ],
       "kind": "AsyncFunctionDef",
       "line_range": {
-        "end": 3030,
-        "start": 3029
+        "end": 2977,
+        "start": 2976
       },
       "name": "send",
       "outputs": "async coroutine",
@@ -2692,8 +2670,8 @@
       ],
       "kind": "AsyncFunctionDef",
       "line_range": {
-        "end": 3103,
-        "start": 3035
+        "end": 3050,
+        "start": 2982
       },
       "name": "on_raw_reaction_add",
       "outputs": "async coroutine",
@@ -2735,8 +2713,8 @@
       ],
       "kind": "AsyncFunctionDef",
       "line_range": {
-        "end": 3131,
-        "start": 3106
+        "end": 3078,
+        "start": 3053
       },
       "name": "rank",
       "outputs": "async coroutine",
@@ -2768,8 +2746,8 @@
       ],
       "kind": "AsyncFunctionDef",
       "line_range": {
-        "end": 3144,
-        "start": 3133
+        "end": 3091,
+        "start": 3080
       },
       "name": "check_points",
       "outputs": "async coroutine; annotation: None",
@@ -2798,8 +2776,8 @@
       ],
       "kind": "FunctionDef",
       "line_range": {
-        "end": 3148,
-        "start": 3146
+        "end": 3095,
+        "start": 3093
       },
       "name": "_strip_route_json",
       "outputs": "return value; annotation: str",
@@ -2828,8 +2806,8 @@
       ],
       "kind": "AsyncFunctionDef",
       "line_range": {
-        "end": 3157,
-        "start": 3151
+        "end": 3104,
+        "start": 3098
       },
       "name": "setup",
       "outputs": "async coroutine",
@@ -2866,6 +2844,6 @@
     "system_or_process": 6,
     "tool_or_shell_policy": 4
   },
-  "source_lines": 3157,
+  "source_lines": 3104,
   "target": "src/cogs/ora.py"
 }

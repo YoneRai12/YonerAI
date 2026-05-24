@@ -77,6 +77,21 @@ class ToolBoundaryAdapter:
         )
 
 
+def _ora_tool_schema_boundary_status() -> dict[str, object]:
+    try:
+        from src.cogs.ora_tool_schema_helpers import tool_schema_boundary_status
+    except Exception:
+        return {
+            "name": "ora_tool_schema_boundary",
+            "source": "src/cogs/ora_tool_schema_helpers.py",
+            "status": "unavailable",
+            "execution_performed": False,
+            "unknown_tool_execution_allowed": False,
+            "broad_ora_refactor": False,
+        }
+    return tool_schema_boundary_status()
+
+
 def build_boundary_checks_for_task(
     classification: Any,
     *,
@@ -88,4 +103,5 @@ def build_boundary_checks_for_task(
     return {
         "web_search": search.to_public_dict(),
         "tool_boundary": tool.to_public_dict(),
+        "ora_tool_schema_boundary": _ora_tool_schema_boundary_status(),
     }

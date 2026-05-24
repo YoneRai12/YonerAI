@@ -2899,83 +2899,30 @@ class ORACog(commands.Cog):
         Prevents usage of Discord-only tools in Web UI, or Web tools in Discord.
         Also includes Dynamically Loaded Skills from SKILL.md files.
         """
+        from src.cogs.ora_tool_schema_helpers import build_context_tool_schemas
         from src.utils.access_control import filter_tool_schemas_for_user
 
-        all_tools = self._get_tool_schemas()
-        
-        # [Clawdbot] Dynamic Skill Injection
-        if hasattr(self, "tool_handler") and hasattr(self.tool_handler, "skill_loader"):
-             dynamic_skills = self.tool_handler.skill_loader.skills
-             for skill_name in dynamic_skills.keys():
-                 schema = self.tool_handler.skill_loader.get_schema(skill_name)
-                 if isinstance(schema, dict) and schema.get("name"):
-                     all_tools.append(schema)
-
-        # [Registry] Dynamic tool injection (registered in tool registry)
+        registry_loader = None
         try:
             from src.cogs.tools.registry import get_tool_schemas as _get_registry_schemas
-            for s in _get_registry_schemas():
-                try:
-                    n = s.get("name")
-                except Exception:
-                    continue
-                # Include all registry tools; allowlists still restrict execution/visibility.
-                if isinstance(n, str) and n:
-                    all_tools.append(s)
+
+            registry_loader = _get_registry_schemas
         except Exception:
             pass
 
-        # De-duplicate by tool name (built-in takes priority)
-        deduped_tools = []
-        seen = set()
-        for tool in all_tools:
-            t_name = tool.get("name")
-            if not t_name or t_name in seen:
-                continue
-            deduped_tools.append(tool)
-            seen.add(t_name)
-        all_tools = deduped_tools
+        skill_loader = None
+        if hasattr(self, "tool_handler") and hasattr(self.tool_handler, "skill_loader"):
+            skill_loader = self.tool_handler.skill_loader
 
-        # Tools invalid for Discord (e.g. DOM manipulation, Browser events)
-        web_only = {"dom_click", "dom_read", "browser_nav"}
-        
-        # Tools invalid for Web (e.g. specific Discord voice channel ops? 
-        # Actually most are portable via API, but some like 'join_voice' rely on Discord connection)
-        discord_only = {
-            # Discord-only operations (require Discord connection / guild context)
-            "join_voice_channel",
-            "leave_voice_channel",
-            "join_voice",
-            "leave_voice",
-            "tts_speak",
-            "speak",
-            "manage_user_voice",
-            "create_channel",
-            "music_play",
-            "music_stop",
-            "music_control",
-            "music_queue",
-            "music_seek",
-            "music_tune",
-        }
-
-        filtered = []
-        for tool in all_tools:
-            name = tool["name"]
-            
-            if client_type == "discord":
-                if name in web_only:
-                    continue
-            elif client_type == "web":
-                if name in discord_only:
-                    continue
-            
-            filtered.append(tool)
-             
-        # Creator lock: Non-owner users only see a small safe allowlist of tools.
-        if user_id is not None:
-            return filter_tool_schemas_for_user(self.bot, user_id, filtered)
-        return filtered
+        return build_context_tool_schemas(
+            self._get_tool_schemas(),
+            client_type=client_type,
+            skill_loader=skill_loader,
+            registry_loader=registry_loader,
+            access_filter=filter_tool_schemas_for_user,
+            bot=self.bot,
+            user_id=user_id,
+        )
 
 
     async def handle_prompt(

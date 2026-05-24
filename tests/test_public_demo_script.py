@@ -81,6 +81,7 @@ def test_public_demo_json_shape_and_boundaries(capsys) -> None:
     assert legacy["execution_spine_connected"] is True
     assert legacy["broad_ora_refactor"] is False
     assert tool_boundaries["live_tool_execution"] is False
+    assert tool_boundaries["ora_tool_schema_boundary"] == "ok"
     assert memory["cloud_synced"] is False
     assert memory["raw_prompt_persisted"] is False
     hybrid_trust = next(section for section in output["sections"] if section["name"] == "hybrid_trust")
