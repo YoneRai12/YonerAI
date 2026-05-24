@@ -95,6 +95,9 @@ _PURE_EXTRACTION_TARGETS = {
     "_is_input_spam": "src/cogs/ora_pure_helpers.py",
     "_strip_route_json": "src/cogs/ora_pure_helpers.py",
 }
+_WRAPPER_EXTRACTION_TARGETS = {
+    "get_context_tools": ("build_context_tool_schemas", "src/cogs/ora_tool_schema_helpers.py"),
+}
 
 
 @dataclass(frozen=True)
@@ -344,7 +347,7 @@ def _walk_definitions(node: ast.AST, parent: str | None = None) -> list[Definiti
         calls = _collect_calls(child)
         side_effects = _side_effects(child, decorators)
         extraction_candidate = name in _PURE_EXTRACTION_TARGETS and not side_effects
-        target_module = _PURE_EXTRACTION_TARGETS.get(name) if extraction_candidate else None
+        target_module = _target_module_for_definition(name, calls, extraction_candidate)
         definitions.append(
             Definition(
                 qualname=qualname,
@@ -372,6 +375,16 @@ def _walk_definitions(node: ast.AST, parent: str | None = None) -> list[Definiti
 
 def _find_class(tree: ast.Module, class_name: str) -> ast.ClassDef | None:
     return next((node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == class_name), None)
+
+
+def _target_module_for_definition(name: str, calls: tuple[str, ...], extraction_candidate: bool) -> str | None:
+    if extraction_candidate:
+        return _PURE_EXTRACTION_TARGETS.get(name)
+    wrapper_target = _WRAPPER_EXTRACTION_TARGETS.get(name)
+    if wrapper_target is None:
+        return None
+    delegated_call, target_module = wrapper_target
+    return target_module if delegated_call in calls else None
 
 
 def _find_direct_method(class_node: ast.ClassDef, method_name: str) -> ast.FunctionDef | ast.AsyncFunctionDef | None:
