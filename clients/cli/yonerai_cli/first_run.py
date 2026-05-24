@@ -45,14 +45,17 @@ def build_first_run_report(
     repo_version: str | None = None,
     env: Mapping[str, str | None] | None = None,
     local_llm_candidates: tuple[LocalLLMProbeCandidate, ...] | None = None,
+    guided: bool = False,
 ) -> dict[str, object]:
     source = dict(os.environ if env is None else env)
     local_llm = detect_local_llm(source, candidates=local_llm_candidates)
     setup = summarize_provider_setup(provider_setup or {}, local_llm)
     first_ask = _recommended_first_ask(setup)
+    guided_actions = _guided_actions(local_llm) if guided else []
     return {
         "schema_version": FIRST_RUN_SCHEMA_VERSION,
         "command": "yonerai start",
+        "guided": guided,
         "ok": True,
         "repo_version": repo_version,
         "network_scope": "loopback_only",
@@ -65,6 +68,7 @@ def build_first_run_report(
         "limitations": _limitations(),
         "actions_not_performed": _actions_not_performed(),
         "recommended_first_ask": first_ask,
+        "guided_actions": guided_actions,
     }
 
 
@@ -101,6 +105,7 @@ def detect_local_llm(
             "detected_provider": detected["provider"],
             "detected_label": detected["label"],
             "endpoint_label": detected["endpoint_label"],
+            "setup_base_url": detected["setup_base_url"],
             "message": _local_llm_message("detected"),
             "probes": list(probes),
         }
@@ -203,6 +208,7 @@ def _probe_result(candidate: LocalLLMProbeCandidate, status: str, *, reason: str
         "endpoint_label": _endpoint_label(candidate.base_url),
         "status": status,
         "reason": reason,
+        "setup_base_url": candidate.base_url if status != "blocked" else None,
     }
 
 
@@ -315,6 +321,122 @@ def _recommended_first_ask(provider_setup: Mapping[str, object]) -> dict[str, ob
     }
 
 
+def _guided_actions(local_llm: Mapping[str, object]) -> list[dict[str, object]]:
+    return [
+        {
+            "id": "mock_first_run",
+            "title": "Mock-first demo",
+            "mode": "mock",
+            "commands": [
+                "yonerai demo --pretty",
+                'yonerai ask "hello" --provider mock --json',
+            ],
+            "does": "Shows the current alpha surface and returns a public-safe run_id without credentials.",
+            "does_not": "Does not call live providers, Discord, Oracle, or production cloud services.",
+            "requires_live": False,
+        },
+        _guided_local_llm_action(local_llm),
+        {
+            "id": "workspace_file_access_sample",
+            "title": "Workspace File Access Guard sample",
+            "mode": "manual_sample_commands",
+            "commands": [
+                'yonerai ask "use this selected sample file" --file sample.txt '
+                "--workspace .yonerai-sample-workspace --provider mock --json",
+            ],
+            "sample_workspace": ".yonerai-sample-workspace",
+            "sample_file": "sample.txt",
+            "manual_setup": (
+                "Create a UTF-8 sample.txt file inside .yonerai-sample-workspace before running the command."
+            ),
+            "does": "Demonstrates one explicitly selected UTF-8 text file inside an explicit workspace allowlist.",
+            "does_not": (
+                "yonerai start does not create files or read files; this is not PDF/image parsing, "
+                "folder crawling, arbitrary file access, or real LLM summarization."
+            ),
+            "requires_live": False,
+        },
+        {
+            "id": "run_ledger_sample",
+            "title": "Opt-in local run ledger sample",
+            "mode": "local_only_opt_in",
+            "commands": [
+                'yonerai ask "hello" --provider mock --json --ledger .yonerai-runs.jsonl',
+                "yonerai runs list --ledger .yonerai-runs.jsonl --json",
+                "yonerai runs show <run_id> --ledger .yonerai-runs.jsonl --json",
+            ],
+            "does": "Writes and reads a redacted local JSONL ledger only when you pass --ledger.",
+            "does_not": "Does not enable cloud memory, cross-device history, or complete persistent memory.",
+            "requires_live": False,
+        },
+        {
+            "id": "limitations",
+            "title": "Boundaries to keep in mind",
+            "mode": "limitations",
+            "commands": [],
+            "does": "Keeps the first-run flow honest about current alpha boundaries.",
+            "does_not": "Does not claim production readiness, live Discord restoration, or installer readiness.",
+            "requires_live": False,
+        },
+    ]
+
+
+def _guided_local_llm_action(local_llm: Mapping[str, object]) -> dict[str, object]:
+    status = str(local_llm.get("status") or "unavailable")
+    if status == "detected":
+        provider = str(local_llm.get("detected_provider") or "ollama")
+        base_url = str(local_llm.get("setup_base_url") or _default_base_url_for_provider(provider))
+        return {
+            "id": "local_llm_optional",
+            "title": "Local LLM optional run",
+            "mode": "loopback_local_live_opt_in",
+            "status": "detected",
+            "env_vars": _local_llm_env_vars(provider, base_url),
+            "commands": ['yonerai ask "hello" --provider local --live --json'],
+            "does": "Uses a detected loopback-only local LLM after you explicitly enable it and pass --live.",
+            "does_not": "yonerai start only probes metadata; it does not send prompts or call external providers.",
+            "requires_live": True,
+        }
+    if status == "blocked":
+        return {
+            "id": "local_llm_optional",
+            "title": "Local LLM optional run",
+            "mode": "blocked_by_loopback_policy",
+            "status": "blocked",
+            "env_vars": {},
+            "commands": [],
+            "does": "Explains that only localhost, 127.0.0.1, or ::1 Local LLM endpoints are allowed.",
+            "does_not": "Does not print or probe the rejected endpoint.",
+            "requires_live": True,
+        }
+    return {
+        "id": "local_llm_optional",
+        "title": "Local LLM optional setup",
+        "mode": "setup_example_only",
+        "status": "unavailable",
+        "example_env_vars": _local_llm_env_vars("ollama", "http://127.0.0.1:11434"),
+        "commands": ['yonerai ask "hello" --provider local --live --json'],
+        "does": "Shows the exact env shape to use after you start a loopback Ollama-compatible server.",
+        "does_not": "Does not start a model server, download a model, or generate text.",
+        "requires_live": True,
+    }
+
+
+def _local_llm_env_vars(provider: str, base_url: str) -> dict[str, str]:
+    return {
+        "ORA_LOCAL_LLM_ENABLED": "1",
+        "ORA_LOCAL_LLM_PROVIDER": provider,
+        "ORA_LOCAL_LLM_BASE_URL": base_url,
+        "ORA_LOCAL_LLM_MODEL": _local_llm_model_example(provider),
+    }
+
+
+def _local_llm_model_example(provider: str) -> str:
+    if provider == "openai_compatible_local":
+        return "local-model"
+    return "llama3.2"
+
+
 def _first_run_steps(first_ask: Mapping[str, object]) -> list[dict[str, object]]:
     return [
         {
@@ -374,6 +496,9 @@ def _actions_not_performed() -> list[str]:
         "no local LLM text generation",
         "no non-loopback network call",
         "no file read",
+        "no file write",
+        "no sample file creation",
+        "no ledger file creation",
         "no shell execution",
         "no install",
         "no PATH mutation",
@@ -393,7 +518,7 @@ def _first_run_sections_en(report: Mapping[str, object]) -> tuple[CliSection, ..
     local_llm = report["local_llm"] if isinstance(report.get("local_llm"), Mapping) else {}
     provider_setup = report["provider_setup"] if isinstance(report.get("provider_setup"), Mapping) else {}
     first_ask = report["recommended_first_ask"] if isinstance(report.get("recommended_first_ask"), Mapping) else {}
-    return (
+    sections = (
         CliSection(
             "First 5 minutes",
             tuple(
@@ -425,13 +550,18 @@ def _first_run_sections_en(report: Mapping[str, object]) -> tuple[CliSection, ..
         ),
         CliSection("Still unavailable", _list_rows(report.get("limitations", []), prefix="limit")),
     )
+    if report.get("guided"):
+        sections = sections[:-1] + (
+            CliSection("Guided next actions", _guided_rows_en(report.get("guided_actions", []))),
+        ) + sections[-1:]
+    return sections
 
 
 def _first_run_sections_ja(report: Mapping[str, object]) -> tuple[CliSection, ...]:
     local_llm = report["local_llm"] if isinstance(report.get("local_llm"), Mapping) else {}
     provider_setup = report["provider_setup"] if isinstance(report.get("provider_setup"), Mapping) else {}
     first_ask = report["recommended_first_ask"] if isinstance(report.get("recommended_first_ask"), Mapping) else {}
-    return (
+    sections = (
         CliSection(
             "最初の5分",
             tuple(
@@ -472,6 +602,121 @@ def _first_run_sections_ja(report: Mapping[str, object]) -> tuple[CliSection, ..
         ),
         CliSection("まだ使えないもの", _list_rows_ja(report.get("limitations", []))),
     )
+    if report.get("guided"):
+        sections = sections[:-1] + (
+            CliSection("次にやること", _guided_rows_ja(report.get("guided_actions", []))),
+        ) + sections[-1:]
+    return sections
+
+
+def _guided_rows_en(actions: object) -> tuple[CliRow, ...]:
+    rows: list[CliRow] = []
+    for action in _action_mappings(actions):
+        action_id = str(action.get("id") or "action")
+        title = str(action.get("title") or action_id)
+        rows.append(
+            CliRow(
+                action_id,
+                _command_list(action.get("commands")) or str(action.get("mode") or "guidance"),
+                _guided_status(action),
+                note=str(action.get("does") or ""),
+            )
+        )
+        env_vars = action.get("env_vars") or action.get("example_env_vars")
+        if isinstance(env_vars, Mapping) and env_vars:
+            rows.append(CliRow(f"{action_id}_env", _format_env_vars(env_vars), "warn", note="set only if you choose this path"))
+        rows.append(CliRow(f"{action_id}_not", action.get("does_not", ""), "skipped", note=title))
+    return tuple(rows)
+
+
+def _guided_rows_ja(actions: object) -> tuple[CliRow, ...]:
+    rows: list[CliRow] = []
+    for action in _action_mappings(actions):
+        action_id = str(action.get("id") or "action")
+        rows.append(
+            CliRow(
+                _guided_label_ja(action_id),
+                _command_list(action.get("commands")) or str(action.get("mode") or "案内のみ"),
+                _guided_status(action),
+                note=_guided_note_ja(action_id, action),
+            )
+        )
+        env_vars = action.get("env_vars") or action.get("example_env_vars")
+        if isinstance(env_vars, Mapping) and env_vars:
+            rows.append(
+                CliRow(
+                    f"{_guided_label_ja(action_id)} env",
+                    _format_env_vars(env_vars),
+                    "warn",
+                    note="この経路を選ぶときだけ設定します",
+                )
+            )
+        rows.append(CliRow(f"{_guided_label_ja(action_id)} しないこと", _guided_does_not_ja(action_id), "skipped"))
+    return tuple(rows)
+
+
+def _action_mappings(actions: object) -> tuple[Mapping[str, object], ...]:
+    if not isinstance(actions, list):
+        return ()
+    return tuple(action for action in actions if isinstance(action, Mapping))
+
+
+def _command_list(commands: object) -> str:
+    if not isinstance(commands, list):
+        return ""
+    return " ; ".join(str(command) for command in commands if str(command).strip())
+
+
+def _format_env_vars(env_vars: Mapping[str, object]) -> str:
+    return "; ".join(f"{key}={value}" for key, value in env_vars.items())
+
+
+def _guided_status(action: Mapping[str, object]) -> str:
+    if action.get("status") == "blocked":
+        return "fail"
+    if action.get("requires_live"):
+        return "warn"
+    if action.get("id") == "limitations":
+        return "warn"
+    return "ok"
+
+
+def _guided_label_ja(action_id: str) -> str:
+    mapping = {
+        "mock_first_run": "mock で試す",
+        "local_llm_optional": "local LLM 任意",
+        "workspace_file_access_sample": "ワークスペース例",
+        "run_ledger_sample": "ledger 例",
+        "limitations": "制限",
+    }
+    return mapping.get(action_id, action_id)
+
+
+def _guided_note_ja(action_id: str, action: Mapping[str, object]) -> str:
+    if action_id == "mock_first_run":
+        return "API key なしで run_id を確認します"
+    if action_id == "local_llm_optional":
+        if action.get("status") == "detected":
+            return "loopback 検出済み。使う場合だけ env と --live が必要です"
+        if action.get("status") == "blocked":
+            return "非 loopback は表示せず、probe もしません"
+        return "local LLM を起動したあとに使う env 例です"
+    if action_id == "workspace_file_access_sample":
+        return "start 自体はファイルを作成・読み取りしません"
+    if action_id == "run_ledger_sample":
+        return "--ledger を渡した場合だけローカル JSONL を使います"
+    return "本番 ready や live Discord 復旧とは言いません"
+
+
+def _guided_does_not_ja(action_id: str) -> str:
+    mapping = {
+        "mock_first_run": "live provider / Discord / Oracle / production cloud には接続しません",
+        "local_llm_optional": "start は prompt 送信や外部 provider 呼び出しをしません",
+        "workspace_file_access_sample": "PDF/画像解析、フォルダ巡回、任意ファイルアクセス、実LLM要約ではありません",
+        "run_ledger_sample": "cloud memory、端末間履歴、persistent memory 完成ではありません",
+        "limitations": "production-ready / installer-ready とは主張しません",
+    }
+    return mapping.get(action_id, "未対応機能を有効化しません")
 
 
 def _provider_rows_en(provider_setup: Mapping[str, object]) -> tuple[CliRow, ...]:
