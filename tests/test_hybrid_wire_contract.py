@@ -13,6 +13,7 @@ if str(core_src) not in sys.path:
 from ora_core.hybrid.wire_contract import (  # noqa: E402
     HYBRID_WIRE_CONTRACT_VERSION,
     assert_public_safe_wire_payload,
+    build_hybrid_wire_conformance_report,
     build_local_node_capability_manifest,
     build_local_node_session_ref,
     build_local_node_status_report,
@@ -123,6 +124,29 @@ def test_trust_session_rules_cover_required_denials_and_verified_test_node() -> 
     assert dangerous.approval_required is True
     assert dangerous.execute_allowed is False
     assert "dangerous_operation_disabled_in_public_repo" in dangerous.reasons
+
+
+def test_hybrid_wire_conformance_report_covers_required_states() -> None:
+    report = build_hybrid_wire_conformance_report()
+    states = {item["name"]: item for item in report["trust_states"]}
+
+    assert report["ok"] is True
+    assert report["test_fixture_only"] is True
+    assert report["production_trust_material"] is False
+    assert report["official_cloud_runtime_implemented"] is False
+    assert report["network_required"] is False
+    assert set(states) == {
+        "missing_node",
+        "unverified_node",
+        "verified_test_node",
+        "expired_session",
+        "revoked_session",
+        "capability_not_declared",
+        "approval_required",
+    }
+    assert states["verified_test_node"]["allowed_for_preview"] is True
+    assert states["approval_required"]["approval_required"] is True
+    assert all(item["execute_allowed"] is False for item in states.values())
 
 
 def test_duplicate_manifest_capabilities_are_rejected_deterministically() -> None:

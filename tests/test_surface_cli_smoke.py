@@ -473,6 +473,20 @@ def test_cli_node_status_reports_hybrid_wire_fixture(capsys):
     assert output["network_required"] is False
 
 
+def test_cli_node_status_pretty_reports_hybrid_wire_fixture(capsys):
+    cli = _load_cli_module()
+
+    assert cli.main(["node", "status", "--pretty", "--color", "never"]) == 0
+
+    output = capsys.readouterr().out
+    assert "YonerAI Local Node status" in output
+    assert "Hybrid Wire Contract" in output
+    assert "workspace_file_access" in output
+    assert "dangerous_operation" in output
+    assert "no official cloud runtime" in output
+    assert "\033[" not in output
+
+
 def test_cli_node_pair_is_dry_run_only(capsys):
     cli = _load_cli_module()
 
@@ -487,6 +501,20 @@ def test_cli_node_pair_is_dry_run_only(capsys):
 
     assert cli.main(["node", "pair", "--json"]) == 2
     assert "dry-run only" in capsys.readouterr().err
+
+
+def test_cli_node_pair_pretty_reports_non_actions(capsys):
+    cli = _load_cli_module()
+
+    assert cli.main(["node", "pair", "--dry-run", "--pretty", "--color", "never"]) == 0
+
+    output = capsys.readouterr().out
+    assert "YonerAI Local Node pairing preview" in output
+    assert "OfficialOrchestrationStubRequest" in output
+    assert "execute_allowed" in output
+    assert "false" in output
+    assert "no network call" in output
+    assert "\033[" not in output
 
 
 def test_cli_route_preview_uses_hybrid_wire_node_state_when_requested(capsys):
@@ -560,6 +588,12 @@ def test_cli_doctor_reports_offline_status_without_network(monkeypatch, capsys):
     assert e2e["local_llm"] == "loopback_mock_http_server_tested"
     assert e2e["run_ledger"] == "redacted_success_and_error_paths_tested"
     assert e2e["external_network_call_performed"] is False
+    hybrid_wire = output["hybrid_wire_contract"]
+    assert hybrid_wire["ok"] is True
+    assert hybrid_wire["test_fixture_only"] is True
+    assert hybrid_wire["network_required"] is False
+    assert len(hybrid_wire["trust_states"]) >= 7
+    assert "yonerai node status --pretty" in hybrid_wire["cli_commands"]
     providers = {provider["provider_id"]: provider for provider in output["providers"]["providers"]}
     assert providers["mock"]["setup_status"] == "ready"
     assert providers["local"]["loopback_only"] is True
@@ -614,6 +648,8 @@ def test_cli_doctor_does_not_execute_demo_or_mutate_path(monkeypatch, capsys):
     output = capsys.readouterr().out
     assert "YonerAI doctor" in output
     assert "manifest_example_valid: true" in output
+    assert "Hybrid Wire Contract" in output
+    assert "trust_states" in output
     assert "Provider runtime" in output
     assert "Provider runtime E2E fixtures" in output
     assert "local_mock_http_server_tested" in output
