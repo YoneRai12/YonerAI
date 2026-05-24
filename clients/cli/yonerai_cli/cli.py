@@ -902,11 +902,12 @@ def _optional_bool_status(value: object) -> str:
 def _build_search_report(args: argparse.Namespace) -> dict[str, Any]:
     try:
         _prepare_core_import_path()
-        from ora_core.search import MockSearchAdapter, SearchRequest
+        from ora_core.search import MockSearchAdapter, SearchRequest, build_live_search_disabled_boundary
     except Exception as exc:
         raise CliError("search adapter is unavailable.", exit_code=1) from exc
     if args.search_mode != "mock":
         query = _safe_prompt_from_args(args.query)
+        live_boundary = build_live_search_disabled_boundary(query)
         return {
             "schema_version": "yonerai-search/v1",
             "ok": False,
@@ -914,19 +915,7 @@ def _build_search_report(args: argparse.Namespace) -> dict[str, Any]:
             "query": query,
             "execution_performed": False,
             "network_performed": False,
-            "live_boundary": {
-                "status": "disabled",
-                "reason": "live_search_not_implemented",
-                "message": "Live search is disabled in this public alpha slice; no network request was performed.",
-                "requires_explicit_live_provider": True,
-                "default_mode": "mock",
-                "actions_not_performed": [
-                    "no network request",
-                    "no external search provider call",
-                    "no result scraping",
-                    "no credential lookup",
-                ],
-            },
+            "live_boundary": live_boundary,
             "error": {"code": "search_live_disabled", "message": "live search is not implemented in this public alpha slice"},
             "results": [],
         }

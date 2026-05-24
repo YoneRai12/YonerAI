@@ -46,3 +46,24 @@ class MockSearchAdapter:
                 snippet="Mock fixture only. No network request was performed.",
             ),
         )
+
+
+LIVE_SEARCH_ACTIONS_NOT_PERFORMED = (
+    "no network request",
+    "no external search provider call",
+    "no result scraping",
+    "no credential lookup",
+)
+
+
+def build_live_search_disabled_boundary(query: str) -> dict[str, object]:
+    return {
+        "status": "disabled",
+        "reason": "live_search_not_implemented",
+        "message": "Live search is disabled in this public alpha slice; no network request was performed.",
+        "query": " ".join(str(query or "").split()),
+        "requires_explicit_live_provider": True,
+        "default_mode": "mock",
+        "network_performed": False,
+        "actions_not_performed": list(LIVE_SEARCH_ACTIONS_NOT_PERFORMED),
+    }

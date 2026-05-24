@@ -63,21 +63,38 @@ def test_public_demo_json_shape_and_boundaries(capsys) -> None:
     registry = next(check for check in provider_planner["checks"] if check["name"] == "provider_registry")
     external = next(check for check in provider_planner["checks"] if check["name"] == "external_provider_availability")
     search = next(check for check in provider_planner["checks"] if check["name"] == "mock_web_search")
+    live_search = next(check for check in provider_planner["checks"] if check["name"] == "live_search_boundary")
     dangerous = next(check for check in provider_planner["checks"] if check["name"] == "dangerous_shell_plan")
     download = next(check for check in provider_planner["checks"] if check["name"] == "download_guard_plan")
     assert registry["provider"] == "mock"
     assert registry["live_call_performed"] is False
     assert external["live_call_performed"] is False
     assert search["network_performed"] is False
+    assert live_search["adapter"] == "live"
+    assert live_search["reason"] == "live_search_not_implemented"
+    assert live_search["network_performed"] is False
+    assert live_search["requires_explicit_live_provider"] is True
+    assert "no network request" in live_search["actions_not_performed"]
     assert dangerous["approval_required"] is True
     assert download["network_performed"] is False
     execution_spine = next(section for section in output["sections"] if section["name"] == "execution_spine")
     mock_execution = next(check for check in execution_spine["checks"] if check["name"] == "mock_provider_execution")
+    workspace_file = next(
+        check for check in execution_spine["checks"] if check["name"] == "workspace_file_provider_execution"
+    )
     legacy = next(check for check in execution_spine["checks"] if check["name"] == "legacy_ora_text_normalizer")
     tool_boundaries = next(check for check in execution_spine["checks"] if check["name"] == "search_tool_boundaries")
     memory = next(check for check in execution_spine["checks"] if check["name"] == "local_memory_opt_in")
     assert mock_execution["run_status"] == "completed"
     assert mock_execution["raw_prompt_persisted"] is False
+    assert workspace_file["provider"] == "mock"
+    assert workspace_file["model"] == "mock-workspace-file-summary"
+    assert workspace_file["run_status"] == "completed"
+    assert workspace_file["ledger_file_backed"] is True
+    assert workspace_file["workspace_file_access_event"] is True
+    assert workspace_file["raw_content_persisted"] is False
+    assert workspace_file["raw_prompt_persisted"] is False
+    assert workspace_file["live_call_performed"] is False
     assert legacy["execution_spine_connected"] is True
     assert legacy["broad_ora_refactor"] is False
     assert tool_boundaries["live_tool_execution"] is False
@@ -139,7 +156,12 @@ def test_public_demo_pretty_output_contains_key_sections(capsys) -> None:
     assert "memory_status=quarantined" in output
     assert "external_provider_availability" in output
     assert "mock_web_search" in output
+    assert "live_search_boundary" in output
+    assert "reason=live_search_not_implemented" in output
     assert "local_memory_opt_in" in output
+    assert "workspace_file_provider_execution" in output
+    assert "model=mock-workspace-file-summary" in output
+    assert "workspace_file_access_event=true" in output
     assert "synthetic_discord_gateway" in output
     assert "live_discord=false" in output
     assert "official_status_contract" in output

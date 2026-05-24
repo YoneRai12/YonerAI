@@ -217,12 +217,13 @@ def _provider_planner_checks() -> tuple[dict[str, object], ...]:
     from ora_core.planning import build_execution_plan
     from ora_core.planning.execution_plan import preview_mock_provider_response
     from ora_core.providers import build_default_provider_registry
-    from ora_core.search import MockSearchAdapter, SearchRequest
+    from ora_core.search import MockSearchAdapter, SearchRequest, build_live_search_disabled_boundary
 
     registry = build_default_provider_registry()
     statuses = {status["provider_id"]: status for status in registry.list_statuses()}
     mock_response = preview_mock_provider_response("hello YonerAI provider planner demo")
     search_results = MockSearchAdapter().search(SearchRequest(query="YonerAI alpha2 capability slice"))
+    live_search_boundary = build_live_search_disabled_boundary("YonerAI alpha2 capability slice")
     public_plan = build_execution_plan("summarize public docs", mode="hybrid").to_public_dict()
     coding_plan = build_execution_plan("fix this Python test", mode="hybrid", provider="openai-compatible").to_public_dict()
     private_plan = build_execution_plan("read my local file", mode="hybrid").to_public_dict()
@@ -234,6 +235,8 @@ def _provider_planner_checks() -> tuple[dict[str, object], ...]:
     assert "anthropic" in statuses and "gemini" in statuses
     assert mock_response["provider"] == "mock"
     assert search_results and search_results[0].source == "mock"
+    assert live_search_boundary["network_performed"] is False
+    assert live_search_boundary["reason"] == "live_search_not_implemented"
     assert public_plan["classification"]["category"] == "summarize_public"
     assert public_plan["side_effects"]["provider_call"] is False
     assert coding_plan["classification"]["category"] == "coding"
@@ -316,15 +319,30 @@ def _provider_planner_checks() -> tuple[dict[str, object], ...]:
             "result_count": len(search_results),
             "network_performed": False,
         },
+        {
+            "name": "live_search_boundary",
+            "status": "ok",
+            "adapter": "live",
+            "reason": live_search_boundary["reason"],
+            "network_performed": live_search_boundary["network_performed"],
+            "requires_explicit_live_provider": live_search_boundary["requires_explicit_live_provider"],
+            "actions_not_performed": ",".join(str(action) for action in live_search_boundary["actions_not_performed"]),
+        },
     )
 
 
 def _execution_spine_checks() -> tuple[dict[str, object], ...]:
     from ora_core.execution import (
+        FileRunLedger,
         InMemoryRunLedger,
         execute_task,
         legacy_text_normalizer_status,
         normalize_legacy_generated_text,
+    )
+    from ora_core.execution.workspace_files import (
+        build_workspace_file_access_event,
+        build_workspace_file_prompt,
+        read_workspace_text_file,
     )
     from ora_core.memory import LocalMemoryStore
     from ora_core.providers import build_default_provider_registry
@@ -356,6 +374,34 @@ def _execution_spine_checks() -> tuple[dict[str, object], ...]:
     assert dangerous_result["error"]["code"] == "approval_required"
     assert legacy_status["execution_spine_connected"] is True
     assert cleaned_legacy_text == "demo"
+    with tempfile.TemporaryDirectory(prefix="yonerai-demo-workspace-") as temp_dir:
+        temp_root = Path(temp_dir)
+        workspace = temp_root / "workspace"
+        workspace.mkdir()
+        (workspace / "note.txt").write_text("public alpha2 notes", encoding="utf-8")
+        file_context = read_workspace_text_file("note.txt", workspace=workspace)
+        file_ledger = FileRunLedger(temp_root / "runs.jsonl")
+        file_result = execute_task(
+            "summarize this file",
+            provider_prompt=build_workspace_file_prompt("summarize this file", file_context),
+            mode="self-host",
+            provider="mock",
+            ledger=file_ledger,
+            context_events=(build_workspace_file_access_event(file_context),),
+        ).to_public_dict()
+        persisted_file_run = FileRunLedger(temp_root / "runs.jsonl").get_run(str(file_result["run"]["run_id"]))
+        workspace_event = next(
+            event for event in file_result["run"]["events"] if event["name"] == "workspace_file_access"
+        )
+        ledger_text = (temp_root / "runs.jsonl").read_text(encoding="utf-8")
+    assert file_result["ok"] is True
+    assert file_result["response"]["model"] == "mock-workspace-file-summary"
+    assert file_result["run"]["status"] == "completed"
+    assert persisted_file_run is not None
+    assert workspace_event["status"] == "ok"
+    assert "raw_content_persisted=false" in workspace_event["summary"]
+    assert "public alpha2 notes" not in json.dumps(file_result)
+    assert "public alpha2 notes" not in ledger_text
     with tempfile.TemporaryDirectory(prefix="yonerai-demo-memory-") as temp_dir:
         memory_store = LocalMemoryStore(Path(temp_dir) / "memory.jsonl")
         memory_record = memory_store.add("demo memory sk-" + ("A" * 24), tags=("alpha2",))
@@ -377,6 +423,19 @@ def _execution_spine_checks() -> tuple[dict[str, object], ...]:
             "run_status": dangerous_result["run"]["status"],
             "approval_required": dangerous_result["run"]["approval_required"],
             "error": dangerous_result["error"]["code"],
+        },
+        {
+            "name": "workspace_file_provider_execution",
+            "status": "ok",
+            "provider": file_result["response"]["provider"],
+            "model": file_result["response"]["model"],
+            "run_id": file_result["run"]["run_id"],
+            "run_status": file_result["run"]["status"],
+            "ledger_file_backed": True,
+            "workspace_file_access_event": True,
+            "raw_content_persisted": False,
+            "raw_prompt_persisted": file_result["run"]["persistence"]["raw_prompt_persisted"],
+            "live_call_performed": file_result["live_call_performed"],
         },
         {
             "name": "local_provider_registry",
@@ -785,6 +844,9 @@ def format_pretty_demo(result: dict[str, object]) -> str:
                 "execution_performed",
                 "run_id",
                 "run_status",
+                "ledger_file_backed",
+                "workspace_file_access_event",
+                "raw_content_persisted",
                 "raw_prompt_persisted",
                 "loopback_only",
                 "web_search",
@@ -804,6 +866,9 @@ def format_pretty_demo(result: dict[str, object]) -> str:
                 "gemini",
                 "adapter",
                 "result_count",
+                "reason",
+                "requires_explicit_live_provider",
+                "actions_not_performed",
                 "record_count",
                 "cloud_synced",
                 "synthetic",
