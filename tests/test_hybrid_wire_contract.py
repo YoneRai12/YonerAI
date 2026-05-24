@@ -135,6 +135,7 @@ def test_hybrid_wire_conformance_report_covers_required_states() -> None:
     assert report["production_trust_material"] is False
     assert report["official_cloud_runtime_implemented"] is False
     assert report["network_required"] is False
+    assert report["required_trust_state_count"] == len(report["required_trust_states"])
     assert set(states) == {
         "missing_node",
         "unverified_node",

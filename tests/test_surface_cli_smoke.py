@@ -513,6 +513,7 @@ def test_cli_node_pair_pretty_reports_non_actions(capsys):
     assert "OfficialOrchestrationStubRequest" in output
     assert "execute_allowed" in output
     assert "false" in output
+    assert "[WARN] state" in output
     assert "no network call" in output
     assert "\033[" not in output
 
@@ -680,6 +681,7 @@ def test_cli_doctor_pretty_supports_japanese_without_json_key_translation(monkey
     assert "未実装" in output
     assert "本番機能" in output
     assert "含まれません" in output
+    assert "Hybrid Wire Contract" in output
     assert "プロバイダー実行環境" in output
     assert "プロバイダー実行環境 E2E フィクスチャ" in output
     assert "状態" in output

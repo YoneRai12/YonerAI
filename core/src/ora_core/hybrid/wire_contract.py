@@ -29,6 +29,15 @@ TrustSessionState = Literal[
     "capability_not_declared",
     "approval_required",
 ]
+HYBRID_WIRE_REQUIRED_TRUST_STATES: tuple[TrustSessionState, ...] = (
+    "missing_node",
+    "unverified_node",
+    "verified_test_node",
+    "expired_session",
+    "revoked_session",
+    "capability_not_declared",
+    "approval_required",
+)
 
 _ROUTE_CAPABILITY_ALIASES: dict[str, str] = {
     "local_model": "local_tools",
@@ -512,7 +521,7 @@ def build_hybrid_wire_conformance_report() -> dict[str, object]:
             ),
         ),
     )
-    expected_states = tuple(label for label, _decision in trust_cases)
+    expected_states = HYBRID_WIRE_REQUIRED_TRUST_STATES
     observed_states = tuple(decision.state for _label, decision in trust_cases)
     return {
         "schema_version": HYBRID_WIRE_CONTRACT_VERSION,
@@ -524,6 +533,8 @@ def build_hybrid_wire_conformance_report() -> dict[str, object]:
         "official_cloud_runtime_implemented": False,
         "production_oracle_used": False,
         "network_required": False,
+        "required_trust_states": list(HYBRID_WIRE_REQUIRED_TRUST_STATES),
+        "required_trust_state_count": len(HYBRID_WIRE_REQUIRED_TRUST_STATES),
         "schemas": [
             "LocalNodeHello",
             "LocalNodeHeartbeat",

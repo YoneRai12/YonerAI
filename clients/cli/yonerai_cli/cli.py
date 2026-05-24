@@ -470,7 +470,7 @@ def _doctor_sections_en(report: dict[str, Any]) -> tuple[CliSection, ...]:
     mcp_check = report["system_checks"]["mcp_deny_policy"]
     provider_rows = _provider_setup_rows(report, lang="en")
     provider_e2e_rows = _provider_runtime_e2e_rows(report, lang="en")
-    hybrid_wire_rows = _hybrid_wire_contract_rows(report)
+    hybrid_wire_rows = _hybrid_wire_contract_rows(report, lang="en")
     return (
         CliSection(
             "Setup",
@@ -532,6 +532,7 @@ def _doctor_sections_ja(report: dict[str, Any]) -> tuple[CliSection, ...]:
     mcp_check = report["system_checks"]["mcp_deny_policy"]
     provider_rows = _provider_setup_rows(report, lang="ja")
     provider_e2e_rows = _provider_runtime_e2e_rows(report, lang="ja")
+    hybrid_wire_rows = _hybrid_wire_contract_rows(report, lang="ja")
     return (
         CliSection(
             "セットアップ",
@@ -565,6 +566,7 @@ def _doctor_sections_ja(report: dict[str, Any]) -> tuple[CliSection, ...]:
                 CliRow("MCP deny policy", "成功" if mcp_check["ok"] else "失敗", "ok" if mcp_check["ok"] else "fail"),
             ),
         ),
+        CliSection("Hybrid Wire Contract", hybrid_wire_rows),
         CliSection("プロバイダー実行環境", provider_rows),
         CliSection("プロバイダー実行環境 E2E フィクスチャ", provider_e2e_rows),
         CliSection(
@@ -583,20 +585,26 @@ def _doctor_sections_ja(report: dict[str, Any]) -> tuple[CliSection, ...]:
     )
 
 
-def _hybrid_wire_contract_rows(report: dict[str, Any]) -> tuple[CliRow, ...]:
+def _hybrid_wire_contract_rows(report: dict[str, Any], *, lang: str = "en") -> tuple[CliRow, ...]:
     hybrid = report.get("hybrid_wire_contract")
     if not isinstance(hybrid, dict):
-        return (CliRow("status", "unavailable", "warn"),)
+        unavailable = "利用不可" if lang == "ja" else "unavailable"
+        return (CliRow("status", unavailable, "warn"),)
     trust_states = hybrid.get("trust_states")
     trust_state_count = len(trust_states) if isinstance(trust_states, list) else 0
+    required_count = _hybrid_required_trust_state_count(hybrid)
     capabilities = hybrid.get("capabilities")
     capability_count = len(capabilities) if isinstance(capabilities, list) else 0
+    status_ok = "正常" if lang == "ja" else "ok"
+    status_fail = "失敗" if lang == "ja" else "fail"
+    not_implemented = "未実装" if lang == "ja" else "not implemented"
+    implemented = "実装済み" if lang == "ja" else "implemented"
     return (
-        CliRow("status", "ok" if hybrid.get("ok") else "fail", "ok" if hybrid.get("ok") else "fail"),
+        CliRow("status", status_ok if hybrid.get("ok") else status_fail, "ok" if hybrid.get("ok") else "fail"),
         CliRow("schema", hybrid.get("schema_version", "unknown"), "ok"),
         CliRow("test_fixture_only", hybrid.get("test_fixture_only"), "ok" if hybrid.get("test_fixture_only") else "warn"),
         CliRow("capabilities", capability_count, "ok" if capability_count else "warn"),
-        CliRow("trust_states", trust_state_count, "ok" if trust_state_count >= 7 else "warn"),
+        CliRow("trust_states", trust_state_count, "ok" if trust_state_count >= required_count else "warn"),
         CliRow(
             "route_preview_fixture",
             hybrid.get("route_preview_fixture_supported"),
@@ -605,10 +613,21 @@ def _hybrid_wire_contract_rows(report: dict[str, Any]) -> tuple[CliRow, ...]:
         CliRow("network_required", hybrid.get("network_required"), "fail" if hybrid.get("network_required") else "ok"),
         CliRow(
             "official_cloud_runtime",
-            "not implemented" if not hybrid.get("official_cloud_runtime_implemented") else "implemented",
+            not_implemented if not hybrid.get("official_cloud_runtime_implemented") else implemented,
             "ok" if not hybrid.get("official_cloud_runtime_implemented") else "fail",
         ),
     )
+
+
+def _hybrid_required_trust_state_count(hybrid: dict[str, Any]) -> int:
+    required_count = hybrid.get("required_trust_state_count")
+    if isinstance(required_count, int) and required_count > 0:
+        return required_count
+    required_states = hybrid.get("required_trust_states")
+    if isinstance(required_states, list) and required_states:
+        return len(required_states)
+    trust_states = hybrid.get("trust_states")
+    return len(trust_states) if isinstance(trust_states, list) else 1
 
 
 def _provider_setup_rows(report: dict[str, Any], *, lang: str = "en") -> tuple[CliRow, ...]:
@@ -824,9 +843,12 @@ def _print_node_status_pretty(report: dict[str, Any], *, color: ColorMode = "aut
 
 
 def _format_node_status_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -> str:
-    local_node = report.get("local_node") if isinstance(report.get("local_node"), dict) else {}
-    manifest = local_node.get("capability_manifest") if isinstance(local_node, dict) else {}
-    capabilities = manifest.get("capabilities") if isinstance(manifest, dict) else []
+    local_node_value = report.get("local_node") or {}
+    local_node = local_node_value if isinstance(local_node_value, dict) else {}
+    manifest_value = local_node.get("capability_manifest") or {}
+    manifest = manifest_value if isinstance(manifest_value, dict) else {}
+    capabilities_value = manifest.get("capabilities") or []
+    capabilities = capabilities_value if isinstance(capabilities_value, list) else []
     capability_rows = tuple(
         CliRow(
             str(capability.get("name")),
@@ -893,7 +915,7 @@ def _format_node_pair_pretty(report: dict[str, Any], *, color: ColorMode = "auto
         CliSection(
             "Trust decision",
             (
-                CliRow("state", decision.get("state"), "warn"),
+                CliRow("state", decision.get("state"), _trust_decision_status(decision)),
                 CliRow("requested_capability", decision.get("requested_capability"), "ok"),
                 CliRow("execute_allowed", decision.get("execute_allowed"), "fail" if decision.get("execute_allowed") else "ok"),
                 CliRow("approval_required", decision.get("approval_required"), "warn" if decision.get("approval_required") else "ok"),
@@ -905,6 +927,24 @@ def _format_node_pair_pretty(report: dict[str, Any], *, color: ColorMode = "auto
         ),
     )
     return render_report("YonerAI Local Node pairing preview", sections, color=color)
+
+
+def _trust_decision_status(decision: dict[str, Any]) -> str:
+    state = decision.get("state")
+    if decision.get("execute_allowed"):
+        return "fail"
+    if state == "verified_test_node":
+        return "ok"
+    if state in {
+        "approval_required",
+        "capability_not_declared",
+        "expired_session",
+        "missing_node",
+        "revoked_session",
+        "unverified_node",
+    }:
+        return "warn"
+    return "fail"
 
 
 def _build_execution_plan_report(args: argparse.Namespace, *, command: str, dry_run: bool) -> dict[str, Any]:
