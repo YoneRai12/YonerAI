@@ -133,13 +133,14 @@ def execute_task(
     except ProviderError as exc:
         ledger.append_event(run.run_id, "provider_error", "failed", exc.message)
         run = ledger.fail_run(run.run_id, error_summary=exc.message)
+        live_call_attempted = _provider_error_after_live_attempt(adapter.provider_id, allow_live_call, exc)
         return ExecutionResult(
             ok=False,
             run=run.to_public_dict(),
             plan=plan_public,
             response=None,
             boundary_checks=boundary_checks,
-            live_call_performed=False,
+            live_call_performed=live_call_attempted,
             error=exc.to_public_dict(),
         )
 
@@ -171,3 +172,11 @@ def _normalize_provider_response(response: ProviderResponse) -> ProviderResponse
         deterministic=response.deterministic,
         finish_reason=response.finish_reason,
     )
+
+
+def _provider_error_after_live_attempt(provider_id: str, allow_live_call: bool, exc: ProviderError) -> bool:
+    if not allow_live_call:
+        return False
+    if provider_id == "local" and exc.code == "local_provider_error":
+        return True
+    return exc.code in {"provider_http_error", "provider_connection_error", "provider_bad_response"}
