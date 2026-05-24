@@ -48,6 +48,8 @@ def execute_task(
     ledger: RunLedger | None = None,
     registry: ProviderRegistry | None = None,
     context_events: Sequence[Mapping[str, object]] | None = None,
+    requested_tool: str | None = None,
+    client_type: str = "discord",
 ) -> ExecutionResult:
     ledger = ledger or build_run_ledger_from_env()
     registry = registry or build_default_provider_registry()
@@ -71,7 +73,11 @@ def execute_task(
         disabled_reason=disabled_reason,
     )
     ledger.append_event(run.run_id, "plan_created", "ok", f"{plan.classification.category}/{plan.provider_selection.provider_id}")
-    boundary_checks = build_boundary_checks_for_task(plan.classification)
+    boundary_checks = build_boundary_checks_for_task(
+        plan.classification,
+        requested_tool=requested_tool,
+        client_type=client_type,
+    )
     ledger.append_event(run.run_id, "boundary_checks", "ok", "web_search_and_tool_boundaries_disabled")
     for event in context_events or ():
         name = str(event.get("name") or "context")
