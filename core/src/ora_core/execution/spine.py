@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
 from ora_core.planning import build_execution_plan
@@ -46,6 +47,7 @@ def execute_task(
     live: bool = False,
     ledger: RunLedger | None = None,
     registry: ProviderRegistry | None = None,
+    context_events: Sequence[Mapping[str, object]] | None = None,
 ) -> ExecutionResult:
     ledger = ledger or build_run_ledger_from_env()
     registry = registry or build_default_provider_registry()
@@ -71,6 +73,11 @@ def execute_task(
     ledger.append_event(run.run_id, "plan_created", "ok", f"{plan.classification.category}/{plan.provider_selection.provider_id}")
     boundary_checks = build_boundary_checks_for_task(plan.classification)
     ledger.append_event(run.run_id, "boundary_checks", "ok", "web_search_and_tool_boundaries_disabled")
+    for event in context_events or ():
+        name = str(event.get("name") or "context")
+        status = str(event.get("status") or "ok")
+        summary = str(event.get("summary") or "")
+        ledger.append_event(run.run_id, name, status, summary)
 
     if bool(plan_public["approval"]["required"]):
         ledger.append_event(run.run_id, "execution_blocked", "blocked", "approval_required")

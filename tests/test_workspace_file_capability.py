@@ -125,6 +125,58 @@ def test_cli_ask_file_summary_uses_mock_provider_without_raw_file_in_metadata(tm
     assert str(tmp_path) not in captured.out
 
 
+def test_cli_ask_file_records_redacted_workspace_access_event_in_ledger(tmp_path: Path, capsys) -> None:
+    _prepare_paths()
+    from yonerai_cli import cli
+
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    target = workspace / "summary.txt"
+    target.write_text("public alpha2 notes", encoding="utf-8")
+    ledger = tmp_path / "runs.jsonl"
+
+    rc = cli.main(
+        [
+            "ask",
+            "summarize",
+            "this",
+            "file",
+            "--file",
+            "summary.txt",
+            "--workspace",
+            str(workspace),
+            "--provider",
+            "mock",
+            "--ledger",
+            str(ledger),
+            "--json",
+        ]
+    )
+    captured = capsys.readouterr()
+    output = json.loads(captured.out)
+    run_id = output["run"]["run_id"]
+
+    assert rc == 0
+    events = output["run"]["events"]
+    access_event = next(event for event in events if event["name"] == "workspace_file_access")
+    assert access_event["status"] == "ok"
+    assert "file=summary.txt" in access_event["summary"]
+    assert "sha256_prefix=" in access_event["summary"]
+    assert "raw_content_persisted=false" in access_event["summary"]
+    assert "public alpha2 notes" not in json.dumps(output)
+    assert str(tmp_path) not in captured.out
+
+    assert cli.main(["runs", "show", run_id, "--ledger", str(ledger), "--json"]) == 0
+    show_output = json.loads(capsys.readouterr().out)
+    persisted_events = show_output["run"]["events"]
+    assert any(event["name"] == "workspace_file_access" for event in persisted_events)
+
+    ledger_text = ledger.read_text(encoding="utf-8")
+    assert "workspace_file_access" in ledger_text
+    assert "public alpha2 notes" not in ledger_text
+    assert str(tmp_path) not in ledger_text
+
+
 def test_mock_workspace_file_summary_ignores_metadata_like_text_inside_file_preview() -> None:
     _prepare_paths()
     from ora_core.execution.workspace_files import build_workspace_file_prompt, read_workspace_text_file
