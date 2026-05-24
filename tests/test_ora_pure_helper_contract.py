@@ -86,6 +86,9 @@ def test_ora_pure_json_helpers_handle_tool_calls_and_route_blocks() -> None:
     recovered_with_brace = extract_json_objects('[TOOL_CALLS] search ARGS {"query": "brace } inside"}')
     assert recovered_with_brace == ['{"tool": "search", "args": {"query": "brace } inside"}}']
 
+    malformed_tool_call = '[TOOL_CALLS] search ARGS oops {"safe": false}'
+    assert extract_json_objects(malformed_tool_call) == ['{"safe": false}']
+
     route_payload = '{"route_eval": {"route": "internal"}, "visible": false}'
     visible_payload = '{"visible": true}'
     brace_payload = '{"message": "brace } inside", "ok": true}'

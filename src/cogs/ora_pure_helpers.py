@@ -89,12 +89,14 @@ def strip_route_json(content: str, *, info: WarnCallback | None = None) -> str:
     if not removed:
         return content
     parts.append(content[last_index:])
-    return "".join(parts).strip()
+    return "".join(parts)
 
 
 def _extract_tool_call_objects(text: str, *, warn: WarnCallback | None = None) -> list[str]:
     objects: list[str] = []
     for match in _TOOL_CALLS_PREFIX_PATTERN.finditer(text):
+        if match.end() >= len(text) or text[match.end()] != "{":
+            continue
         block = _first_balanced_json_block(text, match.end())
         if block is None:
             continue
