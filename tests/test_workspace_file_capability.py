@@ -28,7 +28,13 @@ def test_workspace_file_context_reads_utf8_text(tmp_path: Path) -> None:
     public = context.to_public_dict()
 
     assert context.preview_text == "# Title public notes"
+    assert context.capability == "workspace_file_access"
+    assert context.line_count == 2
+    assert context.word_count == 4
+    assert public["capability"] == "workspace_file_access"
     assert public["file_name"] == "note.md"
+    assert public["line_count"] == 2
+    assert public["word_count"] == 4
     assert public["raw_content_persisted"] is False
     assert "preview_text" not in public
 
@@ -106,6 +112,11 @@ def test_cli_ask_file_summary_uses_mock_provider_without_raw_file_in_metadata(tm
     assert rc == 0
     assert output["ok"] is True
     assert output["response"]["provider"] == "mock"
+    assert output["response"]["model"] == "mock-workspace-file-summary"
+    assert "alpha2" in output["response"]["output_text"]
+    assert "public alpha2 notes" not in output["response"]["output_text"]
+    assert "No live provider call was made" in output["response"]["output_text"]
+    assert output["file_context"]["capability"] == "workspace_file_access"
     assert output["file_context"]["file_name"] == "summary.txt"
     assert output["file_context"]["raw_content_persisted"] is False
     assert "public alpha2 notes" not in json.dumps(output["file_context"])
