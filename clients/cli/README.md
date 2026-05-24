@@ -11,6 +11,7 @@ From the repository root:
 ```bash
 python -m pip install -r core/requirements.txt httpx
 python -m pip install -e clients/cli
+yonerai start --lang ja
 yonerai demo --pretty
 yonerai demo --json
 ```
@@ -36,8 +37,9 @@ production installer, or a live Discord/Official Managed Cloud release.
 
 Credential-free commands:
 
+- `yonerai start --lang ja`
 - `yonerai ask "summarize public docs" --provider mock --json`
-- `yonerai ask "summarize this file" --file <path> --workspace <dir> --provider mock --json`
+- `yonerai ask "use this selected file" --file <path> --workspace <dir> --provider mock --json`
 - `yonerai search mock "YonerAI alpha2" --json`
 - `yonerai ops plan git-status --json`
 - `yonerai memory add "local note" --store <local.jsonl> --confirm-local --json`
@@ -46,9 +48,11 @@ Credential-free commands:
 - `yonerai manifest verify releases/manifest.example.json --json`
 - `yonerai install plan --manifest releases/manifest.example.json --json`
 
-Mock `ask` returns a public-safe `run_id`. Workspace file summary reads only an
-explicit file under an explicit workspace. Local memory writes only when a store
-path and `--confirm-local` are provided.
+`yonerai start` explains the first-run path and checks only loopback local LLM
+metadata endpoints. It does not send a prompt to a model. Mock `ask` returns a
+public-safe `run_id`. Workspace file support is a Workspace File Access Guard:
+it reads only an explicit UTF-8 text file under an explicit workspace. Local
+memory writes only when a store path and `--confirm-local` are provided.
 
 Not included: production readiness, live Discord restoration, live web search by
 default, arbitrary shell execution, arbitrary file access, installer-ready
@@ -66,6 +70,8 @@ After installation, the local command is:
 
 ```bash
 yonerai demo --pretty
+yonerai start --lang ja
+yonerai start --json
 yonerai health
 yonerai smoke --pretty
 yonerai doctor
@@ -80,7 +86,7 @@ yonerai manifest verify releases/manifest.example.json --pretty --lang ja
 yonerai manifest verify releases/manifest.example.json --json
 yonerai plan "summarize public docs" --json
 yonerai ask "summarize public docs" --provider mock --json
-yonerai ask "summarize this file" --file notes.txt --workspace . --provider mock --json
+yonerai ask "use this selected file" --file notes.txt --workspace . --provider mock --json
 yonerai search mock "YonerAI alpha2" --json
 yonerai ops plan git-status --json
 yonerai memory add "local note" --store .yonerai-memory.jsonl --confirm-local --json
@@ -98,7 +104,7 @@ Without installing, run from `clients/cli`:
 python -m yonerai_cli health
 ```
 
-`yonerai demo`, `yonerai smoke`, `yonerai doctor`, `yonerai status`,
+`yonerai start`, `yonerai demo`, `yonerai smoke`, `yonerai doctor`, `yonerai status`,
 `yonerai manifest verify`, `yonerai plan`, mock `yonerai ask`, mock
 `yonerai search`, `yonerai ops plan`, `yonerai discord synthetic`, and
 `yonerai install plan` run locally and do not require a local Core API process.
@@ -118,6 +124,13 @@ demo / installer-readiness summary. `--lang ja` is available for `doctor`,
 `status`, and `manifest verify` pretty output. JSON output remains English-keyed
 for stable tests and automation. Pretty commands also accept
 `--color auto|never|always`; JSON output never includes terminal color codes.
+
+`yonerai start` is the recommended first command for non-engineers. It guides
+the user from demo to doctor, local LLM metadata check, and the first safe ask.
+If a loopback Ollama or LM Studio style endpoint is detected, it explains the
+explicit `ORA_LOCAL_LLM_ENABLED=1` and `--live` requirement before local provider
+execution. If no local model server is found, it recommends the mock provider
+path that works immediately.
 
 `yonerai manifest verify <path>` validates a local release manifest file. Remote
 manifest URLs are rejected, no artifact is downloaded, and no installer is run.
@@ -139,7 +152,7 @@ service install, and no remote script execution. It does not install anything.
 - The CLI only accepts loopback API origins.
 - External provider execution requires explicit provider selection, `--live`, and provider-specific env opt-in; default CLI/demo/tests do not call live providers.
 - Local LLM execution is loopback-only.
-- Workspace file summarization requires explicit `--file` and `--workspace`.
+- Workspace File Access Guard requires explicit `--file` and `--workspace`; it is not folder crawling, PDF/image parsing, arbitrary file access, or automatic file summarization.
 - Local memory requires explicit `--store` and `--confirm-local`; it is local-only and redacted.
 - SafeShell is plan-only for a small diagnostic allowlist; it is not arbitrary shell execution.
 - It does not deploy anything.
