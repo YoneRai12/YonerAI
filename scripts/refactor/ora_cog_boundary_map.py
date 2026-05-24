@@ -382,29 +382,52 @@ def _find_direct_method(class_node: ast.ClassDef, method_name: str) -> ast.Funct
     return methods[-1] if methods else None
 
 
-def _find_name_assignment(method: ast.FunctionDef | ast.AsyncFunctionDef, name: str) -> ast.Assign | None:
-    for node in ast.walk(method):
+_NESTED_SCOPE_NODES = (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)
+
+
+def _walk_method_body(method: ast.FunctionDef | ast.AsyncFunctionDef):
+    stack = list(reversed(method.body))
+    while stack:
+        node = stack.pop()
+        yield node
+        if isinstance(node, _NESTED_SCOPE_NODES):
+            continue
+        stack.extend(reversed(list(ast.iter_child_nodes(node))))
+
+
+def _find_name_assignment(method: ast.FunctionDef | ast.AsyncFunctionDef, name: str) -> ast.Assign | ast.AnnAssign | None:
+    for node in _walk_method_body(method):
         if isinstance(node, ast.Assign):
             for target in node.targets:
                 if isinstance(target, ast.Name) and target.id == name:
                     return node
+        if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name) and node.target.id == name:
+            return node
     return None
 
 
 def _find_for_iterating_name(method: ast.FunctionDef | ast.AsyncFunctionDef, name: str) -> ast.For | ast.AsyncFor | None:
-    for node in ast.walk(method):
+    for node in _walk_method_body(method):
         if isinstance(node, (ast.For, ast.AsyncFor)) and isinstance(node.iter, ast.Name) and node.iter.id == name:
             return node
     return None
 
 
-def _is_name_test(node: ast.AST, name: str) -> bool:
-    return isinstance(node, ast.Name) and node.id == name
+def _test_mentions_name_truthiness(node: ast.AST, name: str) -> bool:
+    if isinstance(node, ast.Name):
+        return node.id == name
+    if isinstance(node, ast.Compare) and isinstance(node.left, ast.Name) and node.left.id == name:
+        return True
+    if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in {"bool", "len"}:
+        return bool(node.args) and isinstance(node.args[0], ast.Name) and node.args[0].id == name
+    if isinstance(node, ast.BoolOp):
+        return any(_test_mentions_name_truthiness(value, name) for value in node.values)
+    return False
 
 
 def _find_if_testing_name(method: ast.FunctionDef | ast.AsyncFunctionDef, name: str) -> ast.If | None:
-    for node in ast.walk(method):
-        if isinstance(node, ast.If) and _is_name_test(node.test, name):
+    for node in _walk_method_body(method):
+        if isinstance(node, ast.If) and _test_mentions_name_truthiness(node.test, name):
             return node
     return None
 
