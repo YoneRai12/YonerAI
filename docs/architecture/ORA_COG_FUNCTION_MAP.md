@@ -6,6 +6,7 @@ This document is generated from `src/cogs/ora.py` using AST inspection. It does 
 
 - Target: `src/cogs/ora.py`
 - Source lines: `3091`
+- Source SHA-256: `0f312fc696128a5db17018e26d898d753fd0f31d2bdb99b8b7a3c7b981a1fa16`
 - Definitions mapped: `69`
 - Risk counts: `{"high": 16, "low": 19, "medium": 34}`
 - Side-effect counts: `{"discord": 44, "file": 8, "memory": 3, "network": 7, "provider_or_llm": 11, "system_or_process": 6, "tool_or_shell_policy": 4}`
@@ -112,6 +113,80 @@ This document is generated from `src/cogs/ora.py` using AST inspection. It does 
 | 3067-3078 | `ORACog.check_points` | AI tool to check user's current points. | discord | medium | no |  | discord-free static or mock interaction test |
 | 3080-3082 | `ORACog._strip_route_json` | Compatibility wrapper for the extracted ORA route JSON stripper. | none | low | yes | `src/cogs/ora_pure_helpers.py` | characterization parity before wrapper extraction |
 | 3085-3091 | `setup` | Legacy helper or setup block. | none | low | no |  | static map coverage only |
+
+## Interface Map
+
+| Lines | Qualname | Inputs | Outputs | Callers | Local callees |
+| --- | --- | --- | --- | --- | --- |
+| 90-92 | `_nonce` | length: int | return value; annotation: str | `ORACog`, `ORACog.login` | none |
+| 98-125 | `_generate_tree` | dir_path: Path, max_depth: int, current_depth: int | return value; annotation: str | `_generate_tree` | `_generate_tree` |
+| 131-3082 | `ORACog` | base:commands.Cog | class instance | `setup` | `_nonce` |
+| 134-220 | `ORACog.__init__` | self, bot: commands.Bot, store: Store, llm: LLMClient, search_client: SearchClient, public_base_url: Optional[str], ora_api_base_url: Optional[str], privacy_default: str | return value; annotation: None | none | `ORACog._get_tool_schemas`, `ORACog._load_soul` |
+| 222-231 | `ORACog._load_soul` | self | return value; annotation: str | `ORACog.__init__` | none |
+| 239-245 | `ORACog.set_status` | self, text: str, status_type: discord.Status | async coroutine | none | none |
+| 261-346 | `ORACog.dashboard` | self, interaction: discord.Interaction | async coroutine | none | none |
+| 348-359 | `ORACog.cog_load` | self | async coroutine | none | `ORACog._startup_sync` |
+| 361-386 | `ORACog._startup_sync` | self | async coroutine | `ORACog.cog_load` | none |
+| 388-404 | `ORACog.cog_unload` | self | return value | none | none |
+| 407-514 | `ORACog.check_unoptimized_users` | self | async coroutine | none | none |
+| 516-524 | `ORACog._on_game_start` | self | return value | none | none |
+| 526-531 | `ORACog._on_game_end` | self | return value | none | `ORACog._restore_normal_mode_delayed` |
+| 533-543 | `ORACog._restore_normal_mode_delayed` | self | async coroutine | `ORACog._on_game_end` | none |
+| 553-586 | `ORACog._check_permission` | self, user_id: int, level: str | async coroutine; annotation: bool | `ORACog.status`, `ORACog.switch_brain`, `ORACog.system_override`, `ORACog.system_reload` | none |
+| 589-604 | `ORACog.hourly_sync_loop` | self | async coroutine | none | none |
+| 607-697 | `ORACog.desktop_loop` | self | async coroutine | none | none |
+| 714-749 | `ORACog.system_reload` | self, interaction: discord.Interaction, extension: str | async coroutine | none | `ORACog._check_permission` |
+| 759-765 | `ORACog.desktop_watch` | self, interaction: discord.Interaction, mode: str | async coroutine | none | none |
+| 769-788 | `ORACog.system_info` | self, interaction: discord.Interaction | async coroutine; annotation: None | none | none |
+| 791-807 | `ORACog.system_process_list` | self, interaction: discord.Interaction | async coroutine; annotation: None | none | none |
+| 810-811 | `ORACog.before_desktop_loop` | self | async coroutine | none | none |
+| 813-829 | `ORACog.login` | self, interaction: discord.Interaction, ephemeral: bool | async coroutine; annotation: None | none | `_nonce` |
+| 831-834 | `ORACog._ephemeral_for` | self, user: discord.User \| discord.Member | async coroutine; annotation: bool | `ORACog.chat`, `ORACog.dataset_add`, `ORACog.dataset_list`, `ORACog.summarize` | none |
+| 837-846 | `ORACog.whoami` | self, interaction: discord.Interaction | async coroutine; annotation: None | none | none |
+| 856-863 | `ORACog.ora_privacy` | self, interaction: discord.Interaction, mode: Optional[app_commands.Choice[str]] | async coroutine; annotation: None | none | none |
+| 873-878 | `ORACog.privacy_set_system` | self, interaction: discord.Interaction, mode: app_commands.Choice[str] | async coroutine; annotation: None | none | none |
+| 880-906 | `ORACog.chat` | self, interaction: discord.Interaction, prompt: str | async coroutine; annotation: None | none | `ORACog._ephemeral_for` |
+| 916-968 | `ORACog.dataset_add` | self, interaction: discord.Interaction, file: discord.Attachment, name: Optional[str] | async coroutine; annotation: None | none | `ORACog._ephemeral_for` |
+| 971-980 | `ORACog.dataset_list` | self, interaction: discord.Interaction | async coroutine; annotation: None | none | `ORACog._ephemeral_for` |
+| 987-1033 | `ORACog.summarize` | self, interaction: discord.Interaction, limit: int | async coroutine; annotation: None | none | `ORACog._ephemeral_for` |
+| 1047-1067 | `ORACog.status` | self, interaction: discord.Interaction | async coroutine | none | `ORACog._check_permission` |
+| 1075-1078 | `ORACog.memory_clear` | self, interaction: discord.Interaction | async coroutine; annotation: None | none | none |
+| 1082-1130 | `ORACog.test_all` | self, interaction: discord.Interaction, ephemeral: bool | async coroutine; annotation: None | none | none |
+| 1132-1149 | `ORACog._get_voice_channel_info` | self, guild: discord.Guild, channel_name: Optional[str], user: Optional[discord.Member] | async coroutine; annotation: str | none | none |
+| 1156-1184 | `ORACog.process_message_queue` | self | async coroutine | none | `ORACog.handle_prompt` |
+| 1187-1218 | `ORACog.switch_brain` | self, interaction: discord.Interaction, mode: str | async coroutine | none | `ORACog._check_permission` |
+| 1222-1280 | `ORACog.system_override` | self, interaction: discord.Interaction, mode: str, auth_code: str | async coroutine | none | `ORACog._check_permission` |
+| 1283-1341 | `ORACog.check_credits` | self, interaction: discord.Interaction | async coroutine | none | none |
+| 1343-1367 | `ORACog._send_large_message` | self, message: discord.Message, content: str, header: str, files: list | async coroutine | none | none |
+| 1369-1371 | `ORACog._detect_spam` | self, text: str | return value; annotation: bool | none | none |
+| 1373-1375 | `ORACog._is_input_spam` | self, text: str | return value; annotation: bool | none | none |
+| 1377-1424 | `ORACog._perform_guardrail_check` | self, prompt: str, user_id: int | async coroutine; annotation: dict | none | none |
+| 1426-1428 | `ORACog._extract_json_objects` | self, text: str | return value; annotation: list[str] | none | none |
+| 1430-1432 | `ORACog._clean_content` | self, text: str | return value; annotation: str | none | none |
+| 1435-1725 | `ORACog.on_message` | self, message: discord.Message | async coroutine; annotation: None | none | `ORACog._create_mock_interaction`, `ORACog._process_attachments`, `ORACog._process_embed_images` |
+| 1728-1754 | `ORACog._process_attachments` | self, attachments: List[discord.Attachment], prompt: str, context_message: discord.Message, is_reference: bool | async coroutine; annotation: str | `ORACog.on_message` | none |
+| 1756-1770 | `ORACog._process_embed_images` | self, embeds: List[discord.Embed], prompt: str, context_message: discord.Message, is_reference: bool | async coroutine; annotation: str | `ORACog.on_message` | none |
+| 1772-2881 | `ORACog._get_tool_schemas` | self | return value; annotation: list[dict] | `ORACog.__init__`, `ORACog.get_context_tools` | none |
+| 2883-2912 | `ORACog.get_context_tools` | self, client_type: str, user_id: int \| None | return value; annotation: list[dict] | none | `ORACog._get_tool_schemas` |
+| 2915-2924 | `ORACog.handle_prompt` | self, message: discord.Message, prompt: str, existing_status_msg: Optional[discord.Message], is_voice: bool, force_dm: bool | async coroutine; annotation: None | `ORACog.process_message_queue` | none |
+| 2926-2928 | `ORACog._legacy_handle_prompt` | self, message, prompt, existing_status_msg, is_voice, force_dm | async coroutine | none | none |
+| 2929-2942 | `ORACog.wait_for_llm` | self, message: discord.Message | async coroutine; annotation: None | none | none |
+| 2944-2966 | `ORACog._create_mock_interaction` | self, ctx | return value | `ORACog.on_message` | none |
+| 2946-2964 | `ORACog._create_mock_interaction.MockInteraction` | none | class instance | none | none |
+| 2947-2952 | `ORACog._create_mock_interaction.MockInteraction.__init__` | self, ctx | return value | none | `ORACog._create_mock_interaction.MockInteraction.Followup`, `ORACog._create_mock_interaction.MockInteraction.Response` |
+| 2954-2959 | `ORACog._create_mock_interaction.MockInteraction.Response` | none | class instance | `ORACog._create_mock_interaction.MockInteraction.__init__` | none |
+| 2955-2955 | `ORACog._create_mock_interaction.MockInteraction.Response.__init__` | self, ctx | return value | none | none |
+| 2956-2956 | `ORACog._create_mock_interaction.MockInteraction.Response.is_done` | self | return value | none | none |
+| 2957-2958 | `ORACog._create_mock_interaction.MockInteraction.Response.send_message` | self, embed, ephemeral | async coroutine | none | none |
+| 2959-2959 | `ORACog._create_mock_interaction.MockInteraction.Response.defer` | self | async coroutine | none | none |
+| 2961-2964 | `ORACog._create_mock_interaction.MockInteraction.Followup` | none | class instance | `ORACog._create_mock_interaction.MockInteraction.__init__` | none |
+| 2962-2962 | `ORACog._create_mock_interaction.MockInteraction.Followup.__init__` | self, ctx | return value | none | none |
+| 2963-2964 | `ORACog._create_mock_interaction.MockInteraction.Followup.send` | self, embed, ephemeral | async coroutine | none | none |
+| 2969-3037 | `ORACog.on_raw_reaction_add` | self, payload: discord.RawReactionActionEvent | async coroutine | none | none |
+| 3040-3065 | `ORACog.rank` | self, interaction: discord.Interaction | async coroutine | none | none |
+| 3067-3078 | `ORACog.check_points` | self, ctx: commands.Context | async coroutine; annotation: None | none | none |
+| 3080-3082 | `ORACog._strip_route_json` | self, content: str | return value; annotation: str | none | none |
+| 3085-3091 | `setup` | bot | async coroutine | none | `ORACog` |
 
 ## Call Graph Notes
 

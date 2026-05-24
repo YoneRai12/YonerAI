@@ -63,6 +63,8 @@ def test_ora_boundary_map_is_static_and_complete_without_runtime_import() -> Non
         assert payload["schema_version"] == "yonerai-ora-cog-function-map/v1"
         assert payload["target"] == "src/cogs/ora.py"
         assert payload["source_lines"] == len(_ora_source().splitlines())
+        assert payload["source_sha256"]
+        assert len(payload["source_sha256"]) == 64
         qualnames = [item["qualname"] for item in payload["definitions"]]
         assert len(qualnames) == len(set(qualnames))
     finally:
@@ -106,6 +108,8 @@ def test_ora_boundary_markdown_records_top_responsibilities_and_nonclaims() -> N
 
     assert "## Top Responsibilities" in text
     assert "## Internal Block Map" in text
+    assert "## Interface Map" in text
+    assert "Source SHA-256" in text
     assert "Discord command facade" in text
     assert "Text cleanup and route/tool JSON recovery" in text
     assert "`ORACog._extract_json_objects` -> `src/cogs/ora_pure_helpers.py`" in text
