@@ -18,8 +18,8 @@
       ],
       "kind": "FunctionDef",
       "line_range": {
-        "end": 91,
-        "start": 89
+        "end": 92,
+        "start": 90
       },
       "name": "_nonce",
       "outputs": "return value; annotation: str",
@@ -57,8 +57,8 @@
       ],
       "kind": "FunctionDef",
       "line_range": {
-        "end": 124,
-        "start": 97
+        "end": 125,
+        "start": 98
       },
       "name": "_generate_tree",
       "outputs": "return value; annotation: str",
@@ -119,7 +119,6 @@
         "clean_content.lower",
         "clean_ora_content",
         "commands.Cog.listener",
-        "content.lower",
         "content.strip",
         "context_message.add_reaction",
         "core_client.get_final_response",
@@ -158,6 +157,7 @@
         "interaction.followup.send",
         "interaction.response.defer",
         "interaction.response.send_message",
+        "interpret_ora_guardrail_response",
         "is_ora_input_spam",
         "isinstance",
         "join",
@@ -230,7 +230,6 @@
         "self._check_permission",
         "self._create_mock_interaction",
         "self._ephemeral_for",
-        "self._extract_json_objects",
         "self._gaming_restore_task.cancel",
         "self._get_tool_schemas",
         "self._llm.chat",
@@ -322,8 +321,8 @@
       ],
       "kind": "ClassDef",
       "line_range": {
-        "end": 3095,
-        "start": 130
+        "end": 3082,
+        "start": 131
       },
       "name": "ORACog",
       "outputs": "class instance",
@@ -392,8 +391,8 @@
       ],
       "kind": "FunctionDef",
       "line_range": {
-        "end": 219,
-        "start": 133
+        "end": 220,
+        "start": 134
       },
       "name": "__init__",
       "outputs": "return value; annotation: None",
@@ -439,8 +438,8 @@
       ],
       "kind": "FunctionDef",
       "line_range": {
-        "end": 230,
-        "start": 221
+        "end": 231,
+        "start": 222
       },
       "name": "_load_soul",
       "outputs": "return value; annotation: str",
@@ -472,8 +471,8 @@
       ],
       "kind": "AsyncFunctionDef",
       "line_range": {
-        "end": 244,
-        "start": 238
+        "end": 245,
+        "start": 239
       },
       "name": "set_status",
       "outputs": "async coroutine",
@@ -516,8 +515,8 @@
       ],
       "kind": "AsyncFunctionDef",
       "line_range": {
-        "end": 345,
-        "start": 260
+        "end": 346,
+        "start": 261
       },
       "name": "dashboard",
       "outputs": "async coroutine",
@@ -554,8 +553,8 @@
       ],
       "kind": "AsyncFunctionDef",
       "line_range": {
-        "end": 358,
-        "start": 347
+        "end": 359,
+        "start": 348
       },
       "name": "cog_load",
       "outputs": "async coroutine",
@@ -591,8 +590,8 @@
       ],
       "kind": "AsyncFunctionDef",
       "line_range": {
-        "end": 385,
-        "start": 360
+        "end": 386,
+        "start": 361
       },
       "name": "_startup_sync",
       "outputs": "async coroutine",
@@ -627,8 +626,8 @@
       ],
       "kind": "FunctionDef",
       "line_range": {
-        "end": 403,
-        "start": 387
+        "end": 404,
+        "start": 388
       },
       "name": "cog_unload",
       "outputs": "return value",
@@ -687,8 +686,8 @@
       ],
       "kind": "AsyncFunctionDef",
       "line_range": {
-        "end": 513,
-        "start": 406
+        "end": 514,
+        "start": 407
       },
       "name": "check_unoptimized_users",
       "outputs": "async coroutine",
@@ -721,8 +720,8 @@
       ],
       "kind": "FunctionDef",
       "line_range": {
-        "end": 523,
-        "start": 515
+        "end": 524,
+        "start": 516
       },
       "name": "_on_game_start",
       "outputs": "return value",
@@ -750,8 +749,8 @@
       ],
       "kind": "FunctionDef",
       "line_range": {
-        "end": 530,
-        "start": 525
+        "end": 531,
+        "start": 526
       },
       "name": "_on_game_end",
       "outputs": "return value",
@@ -781,8 +780,8 @@
       ],
       "kind": "AsyncFunctionDef",
       "line_range": {
-        "end": 542,
-        "start": 532
+        "end": 543,
+        "start": 533
       },
       "name": "_restore_normal_mode_delayed",
       "outputs": "async coroutine",
@@ -815,8 +814,8 @@
       ],
       "kind": "AsyncFunctionDef",
       "line_range": {
-        "end": 585,
-        "start": 552
+        "end": 586,
+        "start": 553
       },
       "name": "_check_permission",
       "outputs": "async coroutine; annotation: bool",
@@ -850,8 +849,8 @@
       ],
       "kind": "AsyncFunctionDef",
       "line_range": {
-        "end": 603,
-        "start": 588
+        "end": 604,
+        "start": 589
       },
       "name": "hourly_sync_loop",
       "outputs": "async coroutine",
@@ -894,8 +893,8 @@
       ],
       "kind": "AsyncFunctionDef",
       "line_range": {
-        "end": 696,
-        "start": 606
+        "end": 697,
+        "start": 607
       },
       "name": "desktop_loop",
       "outputs": "async coroutine",
@@ -941,8 +940,8 @@
       ],
       "kind": "AsyncFunctionDef",
       "line_range": {
-        "end": 748,
-        "start": 713
+        "end": 749,
+        "start": 714
       },
       "name": "system_reload",
       "outputs": "async coroutine",
@@ -982,8 +981,8 @@
       ],
       "kind": "AsyncFunctionDef",
       "line_range": {
-        "end": 764,
-        "start": 758
+        "end": 765,
+        "start": 759
       },
       "name": "desktop_watch",
       "outputs": "async coroutine",
@@ -1021,8 +1020,8 @@
       ],
       "kind": "AsyncFunctionDef",
       "line_range": {
-        "end": 787,
-        "start": 768
+        "end": 788,
+        "start": 769
       },
       "name": "system_info",
       "outputs": "async coroutine; annotation: None",
@@ -1061,8 +1060,8 @@
       ],
       "kind": "AsyncFunctionDef",
       "line_range": {
-        "end": 806,
-        "start": 790
+        "end": 807,
+        "start": 791
       },
       "name": "system_process_list",
       "outputs": "async coroutine; annotation: None",
@@ -1094,8 +1093,8 @@
       ],
       "kind": "AsyncFunctionDef",
       "line_range": {
-        "end": 810,
-        "start": 809
+        "end": 811,
+        "start": 810
       },
       "name": "before_desktop_loop",
       "outputs": "async coroutine",
@@ -1131,8 +1130,8 @@
       ],
       "kind": "AsyncFunctionDef",
       "line_range": {
-        "end": 828,
-        "start": 812
+        "end": 829,
+        "start": 813
       },
       "name": "login",
       "outputs": "async coroutine; annotation: None",
@@ -1168,8 +1167,8 @@
       ],
       "kind": "AsyncFunctionDef",
       "line_range": {
-        "end": 833,
-        "start": 830
+        "end": 834,
+        "start": 831
       },
       "name": "_ephemeral_for",
       "outputs": "async coroutine; annotation: bool",
@@ -1205,8 +1204,8 @@
       ],
       "kind": "AsyncFunctionDef",
       "line_range": {
-        "end": 845,
-        "start": 836
+        "end": 846,
+        "start": 837
       },
       "name": "whoami",
       "outputs": "async coroutine; annotation: None",
@@ -1247,8 +1246,8 @@
       ],
       "kind": "AsyncFunctionDef",
       "line_range": {
-        "end": 862,
-        "start": 855
+        "end": 863,
+        "start": 856
       },
       "name": "ora_privacy",
       "outputs": "async coroutine; annotation: None",
@@ -1288,8 +1287,8 @@
       ],
       "kind": "AsyncFunctionDef",
       "line_range": {
-        "end": 877,
-        "start": 872
+        "end": 878,
+        "start": 873
       },
       "name": "privacy_set_system",
       "outputs": "async coroutine; annotation: None",
@@ -1326,8 +1325,8 @@
       ],
       "kind": "AsyncFunctionDef",
       "line_range": {
-        "end": 905,
-        "start": 879
+        "end": 906,
+        "start": 880
       },
       "name": "chat",
       "outputs": "async coroutine; annotation: None",
@@ -1382,8 +1381,8 @@
       ],
       "kind": "AsyncFunctionDef",
       "line_range": {
-        "end": 967,
-        "start": 915
+        "end": 968,
+        "start": 916
       },
       "name": "dataset_add",
       "outputs": "async coroutine; annotation: None",
@@ -1423,8 +1422,8 @@
       ],
       "kind": "AsyncFunctionDef",
       "line_range": {
-        "end": 979,
-        "start": 970
+        "end": 980,
+        "start": 971
       },
       "name": "dataset_list",
       "outputs": "async coroutine; annotation: None",
@@ -1470,8 +1469,8 @@
       ],
       "kind": "AsyncFunctionDef",
       "line_range": {
-        "end": 1032,
-        "start": 986
+        "end": 1033,
+        "start": 987
       },
       "name": "summarize",
       "outputs": "async coroutine; annotation: None",
@@ -1514,8 +1513,8 @@
       ],
       "kind": "AsyncFunctionDef",
       "line_range": {
-        "end": 1066,
-        "start": 1046
+        "end": 1067,
+        "start": 1047
       },
       "name": "status",
       "outputs": "async coroutine",
@@ -1550,8 +1549,8 @@
       ],
       "kind": "AsyncFunctionDef",
       "line_range": {
-        "end": 1077,
-        "start": 1074
+        "end": 1078,
+        "start": 1075
       },
       "name": "memory_clear",
       "outputs": "async coroutine; annotation: None",
@@ -1597,8 +1596,8 @@
       ],
       "kind": "AsyncFunctionDef",
       "line_range": {
-        "end": 1129,
-        "start": 1081
+        "end": 1130,
+        "start": 1082
       },
       "name": "test_all",
       "outputs": "async coroutine; annotation: None",
@@ -1636,8 +1635,8 @@
       ],
       "kind": "AsyncFunctionDef",
       "line_range": {
-        "end": 1148,
-        "start": 1131
+        "end": 1149,
+        "start": 1132
       },
       "name": "_get_voice_channel_info",
       "outputs": "async coroutine; annotation: str",
@@ -1672,8 +1671,8 @@
       ],
       "kind": "AsyncFunctionDef",
       "line_range": {
-        "end": 1183,
-        "start": 1155
+        "end": 1184,
+        "start": 1156
       },
       "name": "process_message_queue",
       "outputs": "async coroutine",
@@ -1706,8 +1705,8 @@
       ],
       "kind": "AsyncFunctionDef",
       "line_range": {
-        "end": 1217,
-        "start": 1186
+        "end": 1218,
+        "start": 1187
       },
       "name": "switch_brain",
       "outputs": "async coroutine",
@@ -1753,8 +1752,8 @@
       ],
       "kind": "AsyncFunctionDef",
       "line_range": {
-        "end": 1279,
-        "start": 1221
+        "end": 1280,
+        "start": 1222
       },
       "name": "system_override",
       "outputs": "async coroutine",
@@ -1796,8 +1795,8 @@
       ],
       "kind": "AsyncFunctionDef",
       "line_range": {
-        "end": 1340,
-        "start": 1282
+        "end": 1341,
+        "start": 1283
       },
       "name": "check_credits",
       "outputs": "async coroutine",
@@ -1834,8 +1833,8 @@
       ],
       "kind": "AsyncFunctionDef",
       "line_range": {
-        "end": 1366,
-        "start": 1342
+        "end": 1367,
+        "start": 1343
       },
       "name": "_send_large_message",
       "outputs": "async coroutine",
@@ -1864,8 +1863,8 @@
       ],
       "kind": "FunctionDef",
       "line_range": {
-        "end": 1370,
-        "start": 1368
+        "end": 1371,
+        "start": 1369
       },
       "name": "_detect_spam",
       "outputs": "return value; annotation: bool",
@@ -1892,8 +1891,8 @@
       ],
       "kind": "FunctionDef",
       "line_range": {
-        "end": 1374,
-        "start": 1372
+        "end": 1375,
+        "start": 1373
       },
       "name": "_is_input_spam",
       "outputs": "return value; annotation: bool",
@@ -1909,10 +1908,8 @@
     },
     {
       "callees": [
-        "ORACog._extract_json_objects",
         "Usage",
-        "content.lower",
-        "json.loads",
+        "interpret_ora_guardrail_response",
         "len",
         "logger.error",
         "secrets.token_hex",
@@ -1931,8 +1928,8 @@
       ],
       "kind": "AsyncFunctionDef",
       "line_range": {
-        "end": 1437,
-        "start": 1376
+        "end": 1424,
+        "start": 1377
       },
       "name": "_perform_guardrail_check",
       "outputs": "async coroutine; annotation: dict",
@@ -1952,9 +1949,7 @@
       "callees": [
         "extract_ora_json_objects"
       ],
-      "callers": [
-        "ORACog._perform_guardrail_check"
-      ],
+      "callers": [],
       "decorators": [],
       "extraction_candidate": true,
       "inputs": [
@@ -1963,8 +1958,8 @@
       ],
       "kind": "FunctionDef",
       "line_range": {
-        "end": 1441,
-        "start": 1439
+        "end": 1428,
+        "start": 1426
       },
       "name": "_extract_json_objects",
       "outputs": "return value; annotation: list[str]",
@@ -1991,8 +1986,8 @@
       ],
       "kind": "FunctionDef",
       "line_range": {
-        "end": 1445,
-        "start": 1443
+        "end": 1432,
+        "start": 1430
       },
       "name": "_clean_content",
       "outputs": "return value; annotation: str",
@@ -2064,8 +2059,8 @@
       ],
       "kind": "AsyncFunctionDef",
       "line_range": {
-        "end": 1738,
-        "start": 1448
+        "end": 1725,
+        "start": 1435
       },
       "name": "on_message",
       "outputs": "async coroutine; annotation: None",
@@ -2108,8 +2103,8 @@
       ],
       "kind": "AsyncFunctionDef",
       "line_range": {
-        "end": 1767,
-        "start": 1741
+        "end": 1754,
+        "start": 1728
       },
       "name": "_process_attachments",
       "outputs": "async coroutine; annotation: str",
@@ -2147,8 +2142,8 @@
       ],
       "kind": "AsyncFunctionDef",
       "line_range": {
-        "end": 1783,
-        "start": 1769
+        "end": 1770,
+        "start": 1756
       },
       "name": "_process_embed_images",
       "outputs": "async coroutine; annotation: str",
@@ -2177,8 +2172,8 @@
       ],
       "kind": "FunctionDef",
       "line_range": {
-        "end": 2894,
-        "start": 1785
+        "end": 2881,
+        "start": 1772
       },
       "name": "_get_tool_schemas",
       "outputs": "return value; annotation: list[dict]",
@@ -2208,8 +2203,8 @@
       ],
       "kind": "FunctionDef",
       "line_range": {
-        "end": 2925,
-        "start": 2896
+        "end": 2912,
+        "start": 2883
       },
       "name": "get_context_tools",
       "outputs": "return value; annotation: list[dict]",
@@ -2244,8 +2239,8 @@
       ],
       "kind": "AsyncFunctionDef",
       "line_range": {
-        "end": 2937,
-        "start": 2928
+        "end": 2924,
+        "start": 2915
       },
       "name": "handle_prompt",
       "outputs": "async coroutine; annotation: None",
@@ -2278,8 +2273,8 @@
       ],
       "kind": "AsyncFunctionDef",
       "line_range": {
-        "end": 2941,
-        "start": 2939
+        "end": 2928,
+        "start": 2926
       },
       "name": "_legacy_handle_prompt",
       "outputs": "async coroutine",
@@ -2309,8 +2304,8 @@
       ],
       "kind": "AsyncFunctionDef",
       "line_range": {
-        "end": 2955,
-        "start": 2942
+        "end": 2942,
+        "start": 2929
       },
       "name": "wait_for_llm",
       "outputs": "async coroutine; annotation: None",
@@ -2344,8 +2339,8 @@
       ],
       "kind": "FunctionDef",
       "line_range": {
-        "end": 2979,
-        "start": 2957
+        "end": 2966,
+        "start": 2944
       },
       "name": "_create_mock_interaction",
       "outputs": "return value",
@@ -2373,8 +2368,8 @@
       "inputs": [],
       "kind": "ClassDef",
       "line_range": {
-        "end": 2977,
-        "start": 2959
+        "end": 2964,
+        "start": 2946
       },
       "name": "MockInteraction",
       "outputs": "class instance",
@@ -2404,8 +2399,8 @@
       ],
       "kind": "FunctionDef",
       "line_range": {
-        "end": 2965,
-        "start": 2960
+        "end": 2952,
+        "start": 2947
       },
       "name": "__init__",
       "outputs": "return value",
@@ -2433,8 +2428,8 @@
       "inputs": [],
       "kind": "ClassDef",
       "line_range": {
-        "end": 2972,
-        "start": 2967
+        "end": 2959,
+        "start": 2954
       },
       "name": "Response",
       "outputs": "class instance",
@@ -2461,8 +2456,8 @@
       ],
       "kind": "FunctionDef",
       "line_range": {
-        "end": 2968,
-        "start": 2968
+        "end": 2955,
+        "start": 2955
       },
       "name": "__init__",
       "outputs": "return value",
@@ -2486,8 +2481,8 @@
       ],
       "kind": "FunctionDef",
       "line_range": {
-        "end": 2969,
-        "start": 2969
+        "end": 2956,
+        "start": 2956
       },
       "name": "is_done",
       "outputs": "return value",
@@ -2515,8 +2510,8 @@
       ],
       "kind": "AsyncFunctionDef",
       "line_range": {
-        "end": 2971,
-        "start": 2970
+        "end": 2958,
+        "start": 2957
       },
       "name": "send_message",
       "outputs": "async coroutine",
@@ -2542,8 +2537,8 @@
       ],
       "kind": "AsyncFunctionDef",
       "line_range": {
-        "end": 2972,
-        "start": 2972
+        "end": 2959,
+        "start": 2959
       },
       "name": "defer",
       "outputs": "async coroutine",
@@ -2569,8 +2564,8 @@
       "inputs": [],
       "kind": "ClassDef",
       "line_range": {
-        "end": 2977,
-        "start": 2974
+        "end": 2964,
+        "start": 2961
       },
       "name": "Followup",
       "outputs": "class instance",
@@ -2597,8 +2592,8 @@
       ],
       "kind": "FunctionDef",
       "line_range": {
-        "end": 2975,
-        "start": 2975
+        "end": 2962,
+        "start": 2962
       },
       "name": "__init__",
       "outputs": "return value",
@@ -2626,8 +2621,8 @@
       ],
       "kind": "AsyncFunctionDef",
       "line_range": {
-        "end": 2977,
-        "start": 2976
+        "end": 2964,
+        "start": 2963
       },
       "name": "send",
       "outputs": "async coroutine",
@@ -2670,8 +2665,8 @@
       ],
       "kind": "AsyncFunctionDef",
       "line_range": {
-        "end": 3050,
-        "start": 2982
+        "end": 3037,
+        "start": 2969
       },
       "name": "on_raw_reaction_add",
       "outputs": "async coroutine",
@@ -2713,8 +2708,8 @@
       ],
       "kind": "AsyncFunctionDef",
       "line_range": {
-        "end": 3078,
-        "start": 3053
+        "end": 3065,
+        "start": 3040
       },
       "name": "rank",
       "outputs": "async coroutine",
@@ -2746,8 +2741,8 @@
       ],
       "kind": "AsyncFunctionDef",
       "line_range": {
-        "end": 3091,
-        "start": 3080
+        "end": 3078,
+        "start": 3067
       },
       "name": "check_points",
       "outputs": "async coroutine; annotation: None",
@@ -2776,8 +2771,8 @@
       ],
       "kind": "FunctionDef",
       "line_range": {
-        "end": 3095,
-        "start": 3093
+        "end": 3082,
+        "start": 3080
       },
       "name": "_strip_route_json",
       "outputs": "return value; annotation: str",
@@ -2806,8 +2801,8 @@
       ],
       "kind": "AsyncFunctionDef",
       "line_range": {
-        "end": 3104,
-        "start": 3098
+        "end": 3091,
+        "start": 3085
       },
       "name": "setup",
       "outputs": "async coroutine",
@@ -2828,15 +2823,14 @@
     "ORACog._extract_json_objects",
     "ORACog._clean_content",
     "ORACog._strip_route_json",
-    "ORACog._send_large_message.large_message_chunking",
-    "ORACog._perform_guardrail_check.guardrail_response_interpretation"
+    "ORACog._send_large_message.large_message_chunking"
   ],
   "internal_blocks": [
     {
       "extraction_candidate": true,
       "line_range": {
-        "end": 1364,
-        "start": 1354
+        "end": 1365,
+        "start": 1355
       },
       "parent": "ORACog._send_large_message",
       "qualname": "ORACog._send_large_message.large_message_chunking",
@@ -2849,17 +2843,17 @@
       "target_module": "src/cogs/ora_message_format_helpers.py"
     },
     {
-      "extraction_candidate": true,
+      "extraction_candidate": false,
       "line_range": {
-        "end": 1429,
+        "end": 1418,
         "start": 1418
       },
       "parent": "ORACog._perform_guardrail_check",
       "qualname": "ORACog._perform_guardrail_check.guardrail_response_interpretation",
       "required_tests": [
-        "characterization parity before wrapper extraction"
+        "wrapper compatibility test"
       ],
-      "responsibility": "Interpret a guardrail model response by preferring recovered JSON and falling back to a conservative safe=false keyword check.",
+      "responsibility": "Delegate guardrail model response interpretation to the extracted pure helper.",
       "safety_risk": "low",
       "side_effects": [],
       "target_module": "src/cogs/ora_guardrail_helpers.py"
@@ -2880,6 +2874,6 @@
     "system_or_process": 6,
     "tool_or_shell_policy": 4
   },
-  "source_lines": 3104,
+  "source_lines": 3091,
   "target": "src/cogs/ora.py"
 }

@@ -88,12 +88,17 @@ def test_ora_boundary_map_pins_extraction_candidates_and_risks() -> None:
         "ORACog._clean_content",
         "ORACog._strip_route_json",
         "ORACog._send_large_message.large_message_chunking",
-        "ORACog._perform_guardrail_check.guardrail_response_interpretation",
     ]
+    blocks = {item["qualname"]: item for item in payload["internal_blocks"]}
     assert by_qualname["ORACog.on_message"]["safety_risk"] == "high"
     assert "discord" in by_qualname["ORACog.on_message"]["side_effects"]
     assert by_qualname["ORACog._detect_spam"]["target_module"] == "src/cogs/ora_pure_helpers.py"
     assert by_qualname["ORACog._strip_route_json"]["side_effects"] == []
+    assert blocks["ORACog._perform_guardrail_check.guardrail_response_interpretation"]["extraction_candidate"] is False
+    assert (
+        blocks["ORACog._perform_guardrail_check.guardrail_response_interpretation"]["target_module"]
+        == "src/cogs/ora_guardrail_helpers.py"
+    )
 
 
 def test_ora_boundary_markdown_records_top_responsibilities_and_nonclaims() -> None:

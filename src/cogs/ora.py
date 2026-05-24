@@ -68,6 +68,7 @@ from .ora_pure_helpers import (
     is_input_spam as is_ora_input_spam,
     strip_route_json as strip_ora_route_json,
 )
+from .ora_guardrail_helpers import interpret_guardrail_response as interpret_ora_guardrail_response
 from .tools.tool_handler import ToolHandler
 
 logger = logging.getLogger(__name__)
@@ -1414,21 +1415,7 @@ class ORACog(commands.Cog):
             else:
                 self.cost_manager.commit("stable", "openai", user_id, rid, est_usage)
 
-            # Parse Decision
-            if content:
-                # Extract JSON
-                json_objects = self._extract_json_objects(content)
-                if json_objects:
-                    try:
-                        return json.loads(json_objects[0])
-                    except Exception:
-                        pass  # Fallback to text check
-
-                # Fallback parsing
-                if '"safe": false' in content.lower():
-                    return {"safe": False, "reason": "Keyword detected"}
-
-            return {"safe": True, "reason": "Pass"}
+            return interpret_ora_guardrail_response(content, json_extractor=self._extract_json_objects)
 
         except Exception as e:
             logger.error(f"Guardrail Failed: {e}")
