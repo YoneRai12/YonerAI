@@ -1,0 +1,2981 @@
+{
+  "definition_count": 72,
+  "definitions": [
+    {
+      "callees": [
+        "join",
+        "range",
+        "secrets.choice"
+      ],
+      "callers": [
+        "ORACog",
+        "ORACog.login"
+      ],
+      "decorators": [],
+      "extraction_candidate": false,
+      "inputs": [
+        "length: int"
+      ],
+      "kind": "FunctionDef",
+      "line_range": {
+        "end": 86,
+        "start": 84
+      },
+      "name": "_nonce",
+      "outputs": "return value; annotation: str",
+      "parent": null,
+      "qualname": "_nonce",
+      "required_tests": [
+        "static map coverage only"
+      ],
+      "responsibility": "Legacy helper or setup block.",
+      "safety_risk": "low",
+      "side_effects": [],
+      "target_module": null
+    },
+    {
+      "callees": [
+        "_generate_tree",
+        "dir_path.iterdir",
+        "item.is_dir",
+        "item.name.endswith",
+        "item.name.startswith",
+        "list",
+        "sorted",
+        "x.is_dir",
+        "x.name.lower"
+      ],
+      "callers": [
+        "_generate_tree"
+      ],
+      "decorators": [],
+      "extraction_candidate": false,
+      "inputs": [
+        "dir_path: Path",
+        "max_depth: int",
+        "current_depth: int"
+      ],
+      "kind": "FunctionDef",
+      "line_range": {
+        "end": 119,
+        "start": 92
+      },
+      "name": "_generate_tree",
+      "outputs": "return value; annotation: str",
+      "parent": null,
+      "qualname": "_generate_tree",
+      "required_tests": [
+        "workspace/temp-file allowlist test"
+      ],
+      "responsibility": "Legacy helper with file boundary involvement.",
+      "safety_risk": "high",
+      "side_effects": [
+        "file"
+      ],
+      "target_module": null
+    },
+    {
+      "callees": [
+        "ChatHandler",
+        "CostManager",
+        "DesktopWatcher",
+        "DriveClient",
+        "GameWatcher",
+        "GuildLogger.get_logger",
+        "GuildLogger.get_logger.info",
+        "HardwareManager",
+        "MockInteraction",
+        "Path",
+        "ResourceManager",
+        "RuntimeError",
+        "SafeShell",
+        "Sanitizer",
+        "ToolHandler",
+        "UnifiedClient",
+        "Usage",
+        "UserPrefs",
+        "VisionHandler",
+        "_get_registry_schemas",
+        "_nonce",
+        "aiofiles.open",
+        "aiohttp.ClientSession",
+        "aiohttp.ClientTimeout",
+        "aiohttp.FormData",
+        "all_tools.append",
+        "any",
+        "app_commands.Choice",
+        "app_commands.Group",
+        "app_commands.choices",
+        "app_commands.command",
+        "app_commands.describe",
+        "asyncio.create_task",
+        "asyncio.sleep",
+        "asyncio.to_thread",
+        "auth_code.upper",
+        "base.rstrip",
+        "c.name.lower",
+        "candidates.append",
+        "channel.fetch_message",
+        "channel_name.lower",
+        "clean_content.lower",
+        "clean_ora_content",
+        "commands.Cog.listener",
+        "content.find",
+        "content.lower",
+        "content.strip",
+        "context_message.add_reaction",
+        "core_client.get_final_response",
+        "core_client.send_message",
+        "ctx.send",
+        "data.get",
+        "dataset_group.command",
+        "deduped_tools.append",
+        "defaultdict",
+        "discord.Color.blue",
+        "discord.Color.gold",
+        "discord.Color.green",
+        "discord.Color.red",
+        "discord.Embed",
+        "discord.Game",
+        "discord.utils.find",
+        "dynamic_skills.keys",
+        "embed.add_field",
+        "embed.set_author",
+        "embed.set_footer",
+        "embed.set_thumbnail",
+        "enumerate",
+        "extend",
+        "f.read",
+        "f_out.write",
+        "f_path.stem.split",
+        "file.filename.lower",
+        "file.filename.lower.endswith",
+        "filter_tool_schemas_for_user",
+        "filtered.append",
+        "flag_utils.flag_to_iso",
+        "flag_utils.get_country_name",
+        "form.add_field",
+        "g.get_member",
+        "handle_mention_music",
+        "hasattr",
+        "int",
+        "interaction.channel.history",
+        "interaction.followup.send",
+        "interaction.response.defer",
+        "interaction.response.send_message",
+        "isinstance",
+        "join",
+        "json.dump",
+        "json.dumps",
+        "json.loads",
+        "lang_map.get",
+        "len",
+        "lines.append",
+        "logger.debug",
+        "logger.error",
+        "logger.exception",
+        "logger.info",
+        "logger.warning",
+        "match.group",
+        "media_cog._voice_manager._tts.get_speakers",
+        "memory_cog._ensure_user_name",
+        "memory_cog.force_user_optimization",
+        "memory_cog.update_user_profile",
+        "memory_dir.exists",
+        "memory_dir.glob",
+        "memory_group.command",
+        "message.add_reaction",
+        "message.channel.fetch_message",
+        "message.channel.send",
+        "message.content.lower",
+        "message.content.lower.strip",
+        "message.content.replace",
+        "message.content.replace.replace",
+        "message.content.replace.replace.strip",
+        "message.edit",
+        "message.guild.get_member",
+        "message.guild.voice_client.disconnect",
+        "message.remove_reaction",
+        "message.reply",
+        "messages.append",
+        "messages.reverse",
+        "min",
+        "mode.lower",
+        "mode.upper",
+        "msg.reply",
+        "new_tasks.append",
+        "objects.append",
+        "open",
+        "ora_group.command",
+        "os.getcwd",
+        "os.path.abspath",
+        "os.path.dirname",
+        "os.path.exists",
+        "os.path.join",
+        "procs.append",
+        "procs.sort",
+        "prompt.replace",
+        "psutil.cpu_percent",
+        "psutil.disk_usage",
+        "psutil.process_iter",
+        "psutil.virtual_memory",
+        "r.get",
+        "range",
+        "re.finditer",
+        "re.search",
+        "re.sub",
+        "re.sub.strip",
+        "replace",
+        "report.append",
+        "resp.json",
+        "resp.read",
+        "response.text",
+        "result.get",
+        "results.append",
+        "s.get",
+        "schema.get",
+        "secrets.token_hex",
+        "seen.add",
+        "self.Followup",
+        "self.Response",
+        "self._check_permission",
+        "self._create_mock_interaction",
+        "self._ephemeral_for",
+        "self._extract_json_objects",
+        "self._gaming_restore_task.cancel",
+        "self._get_tool_schemas",
+        "self._llm.chat",
+        "self._load_soul",
+        "self._process_attachments",
+        "self._process_embed_images",
+        "self._restore_normal_mode_delayed",
+        "self._startup_sync",
+        "self._store.add_dataset",
+        "self._store.add_points",
+        "self._store.clear_conversations",
+        "self._store.ensure_user",
+        "self._store.get_desktop_watch_enabled",
+        "self._store.get_google_sub",
+        "self._store.get_permission_level",
+        "self._store.get_points",
+        "self._store.get_privacy",
+        "self._store.get_rank",
+        "self._store.list_datasets",
+        "self._store.set_privacy",
+        "self._store.set_system_privacy",
+        "self._store.start_login_state",
+        "self.bot.change_presence",
+        "self.bot.fetch_user",
+        "self.bot.get_channel",
+        "self.bot.get_cog",
+        "self.bot.get_context",
+        "self.bot.get_user",
+        "self.bot.load_extension",
+        "self.bot.loop.create_task",
+        "self.bot.reload_extension",
+        "self.bot.voice_manager.auto_read_channels.pop",
+        "self.bot.voice_manager.ensure_voice_client",
+        "self.bot.voice_manager.play_tts",
+        "self.bot.wait_until_ready",
+        "self.chat_cooldowns.get",
+        "self.chat_handler.handle_prompt",
+        "self.check_unoptimized_users.cancel",
+        "self.check_unoptimized_users.start",
+        "self.cost_manager.commit",
+        "self.cost_manager.get_remaining_budget",
+        "self.cost_manager.get_usage_ratio",
+        "self.cost_manager.reserve",
+        "self.cost_manager.sync_openai_usage",
+        "self.cost_manager.toggle_unlimited_mode",
+        "self.ctx.reply",
+        "self.desktop_loop.cancel",
+        "self.desktop_loop.start",
+        "self.game_watcher.start",
+        "self.game_watcher.stop",
+        "self.handle_prompt",
+        "self.hardware_manager.get_gpu_stats",
+        "self.hourly_sync_loop.cancel",
+        "self.hourly_sync_loop.start",
+        "self.llm_done_event.is_set",
+        "self.message_queue.pop",
+        "self.resource_manager.set_gaming_mode",
+        "self.set_status",
+        "self.store.get_or_create_dashboard_token",
+        "self.tool_handler._handle_get_role_list",
+        "self.tool_handler.skill_loader.get_schema",
+        "self.unified_client.chat",
+        "self.vision_handler.process_attachments",
+        "self.vision_handler.process_embeds",
+        "session.get",
+        "session.post",
+        "set",
+        "shutil.disk_usage",
+        "str",
+        "str.replace",
+        "strip",
+        "subprocess.Popen",
+        "sync_res.get",
+        "sys_cog.run_full_scan",
+        "sys_cog.run_simple_scan",
+        "t.get",
+        "tasks.loop",
+        "text.encode",
+        "time.time",
+        "tool.get",
+        "usage.get",
+        "user.send",
+        "values",
+        "zlib.compress"
+      ],
+      "callers": [
+        "setup"
+      ],
+      "decorators": [],
+      "extraction_candidate": false,
+      "inputs": [
+        "base:commands.Cog"
+      ],
+      "kind": "ClassDef",
+      "line_range": {
+        "end": 3268,
+        "start": 125
+      },
+      "name": "ORACog",
+      "outputs": "class instance",
+      "parent": null,
+      "qualname": "ORACog",
+      "required_tests": [
+        "discord-free static or mock interaction test",
+        "provider mocked or local-fixture execution test",
+        "workspace/temp-file allowlist test",
+        "deny-by-default tool boundary test",
+        "network-disabled fixture test",
+        "read-only diagnostic fixture test"
+      ],
+      "responsibility": "ORA-specific commands such as login link and dataset management.",
+      "safety_risk": "high",
+      "side_effects": [
+        "discord",
+        "provider_or_llm",
+        "memory",
+        "file",
+        "tool_or_shell_policy",
+        "network",
+        "system_or_process"
+      ],
+      "target_module": null
+    },
+    {
+      "callees": [
+        "ChatHandler",
+        "CostManager",
+        "DesktopWatcher",
+        "DriveClient",
+        "GameWatcher",
+        "HardwareManager",
+        "ORACog._get_tool_schemas",
+        "ORACog._load_soul",
+        "ResourceManager",
+        "SafeShell",
+        "Sanitizer",
+        "ToolHandler",
+        "UnifiedClient",
+        "UserPrefs",
+        "VisionHandler",
+        "defaultdict",
+        "hasattr",
+        "logger.info",
+        "logger.warning",
+        "os.path.abspath",
+        "os.path.dirname",
+        "os.path.exists",
+        "os.path.join",
+        "self.game_watcher.start"
+      ],
+      "callers": [],
+      "decorators": [],
+      "extraction_candidate": false,
+      "inputs": [
+        "self",
+        "bot: commands.Bot",
+        "store: Store",
+        "llm: LLMClient",
+        "search_client: SearchClient",
+        "public_base_url: Optional[str]",
+        "ora_api_base_url: Optional[str]",
+        "privacy_default: str"
+      ],
+      "kind": "FunctionDef",
+      "line_range": {
+        "end": 214,
+        "start": 128
+      },
+      "name": "__init__",
+      "outputs": "return value; annotation: None",
+      "parent": "ORACog",
+      "qualname": "ORACog.__init__",
+      "required_tests": [
+        "discord-free static or mock interaction test",
+        "provider mocked or local-fixture execution test",
+        "workspace/temp-file allowlist test",
+        "deny-by-default tool boundary test",
+        "network-disabled fixture test",
+        "read-only diagnostic fixture test"
+      ],
+      "responsibility": "Initializes ORACog runtime dependencies and mutable state.",
+      "safety_risk": "high",
+      "side_effects": [
+        "discord",
+        "provider_or_llm",
+        "memory",
+        "file",
+        "tool_or_shell_policy",
+        "network",
+        "system_or_process"
+      ],
+      "target_module": null
+    },
+    {
+      "callees": [
+        "f.read",
+        "logger.warning",
+        "open",
+        "os.getcwd",
+        "os.path.exists",
+        "os.path.join"
+      ],
+      "callers": [
+        "ORACog.__init__"
+      ],
+      "decorators": [],
+      "extraction_candidate": false,
+      "inputs": [
+        "self"
+      ],
+      "kind": "FunctionDef",
+      "line_range": {
+        "end": 225,
+        "start": 216
+      },
+      "name": "_load_soul",
+      "outputs": "return value; annotation: str",
+      "parent": "ORACog",
+      "qualname": "ORACog._load_soul",
+      "required_tests": [
+        "workspace/temp-file allowlist test"
+      ],
+      "responsibility": "Load the 'Soul' (Persona) prompt from data/soul.md.",
+      "safety_risk": "high",
+      "side_effects": [
+        "file"
+      ],
+      "target_module": null
+    },
+    {
+      "callees": [],
+      "callers": [
+        "ORACog.__init__",
+        "ORACog.get_context_tools"
+      ],
+      "decorators": [],
+      "extraction_candidate": false,
+      "inputs": [
+        "self"
+      ],
+      "kind": "FunctionDef",
+      "line_range": {
+        "end": 231,
+        "start": 227
+      },
+      "name": "_get_tool_schemas",
+      "outputs": "return value",
+      "parent": "ORACog",
+      "qualname": "ORACog._get_tool_schemas",
+      "required_tests": [
+        "static map coverage only"
+      ],
+      "responsibility": "Return tool definitions for the Unified Brain.",
+      "safety_risk": "low",
+      "side_effects": [],
+      "target_module": null
+    },
+    {
+      "callees": [
+        "discord.Game",
+        "logger.warning",
+        "self.bot.change_presence"
+      ],
+      "callers": [
+        "ORACog._on_game_end",
+        "ORACog._on_game_start"
+      ],
+      "decorators": [],
+      "extraction_candidate": false,
+      "inputs": [
+        "self",
+        "text: str",
+        "status_type: discord.Status"
+      ],
+      "kind": "AsyncFunctionDef",
+      "line_range": {
+        "end": 239,
+        "start": 233
+      },
+      "name": "set_status",
+      "outputs": "async coroutine",
+      "parent": "ORACog",
+      "qualname": "ORACog.set_status",
+      "required_tests": [
+        "discord-free static or mock interaction test"
+      ],
+      "responsibility": "Helper to set bot status from callbacks.",
+      "safety_risk": "medium",
+      "side_effects": [
+        "discord"
+      ],
+      "target_module": null
+    },
+    {
+      "callees": [
+        "ORACog.set_status",
+        "logger.info"
+      ],
+      "callers": [],
+      "decorators": [],
+      "extraction_candidate": false,
+      "inputs": [
+        "self"
+      ],
+      "kind": "AsyncFunctionDef",
+      "line_range": {
+        "end": 247,
+        "start": 241
+      },
+      "name": "_on_game_start",
+      "outputs": "async coroutine",
+      "parent": "ORACog",
+      "qualname": "ORACog._on_game_start",
+      "required_tests": [
+        "discord-free static or mock interaction test"
+      ],
+      "responsibility": "Callback for GameWatcher when game starts.",
+      "safety_risk": "medium",
+      "side_effects": [
+        "discord"
+      ],
+      "target_module": null
+    },
+    {
+      "callees": [
+        "ORACog.set_status",
+        "logger.info"
+      ],
+      "callers": [],
+      "decorators": [],
+      "extraction_candidate": false,
+      "inputs": [
+        "self"
+      ],
+      "kind": "AsyncFunctionDef",
+      "line_range": {
+        "end": 252,
+        "start": 249
+      },
+      "name": "_on_game_end",
+      "outputs": "async coroutine",
+      "parent": "ORACog",
+      "qualname": "ORACog._on_game_end",
+      "required_tests": [
+        "discord-free static or mock interaction test"
+      ],
+      "responsibility": "Callback for GameWatcher when game ends.",
+      "safety_risk": "medium",
+      "side_effects": [
+        "discord"
+      ],
+      "target_module": null
+    },
+    {
+      "callees": [
+        "aiohttp.ClientSession",
+        "app_commands.command",
+        "asyncio.sleep",
+        "base.rstrip",
+        "data.get",
+        "interaction.followup.send",
+        "interaction.response.defer",
+        "interaction.response.send_message",
+        "resp.json",
+        "self.store.get_or_create_dashboard_token",
+        "session.get",
+        "subprocess.Popen",
+        "t.get"
+      ],
+      "callers": [],
+      "decorators": [
+        "app_commands.command(name='dashboard', description=\"Get the link to this server's web dashboard\")"
+      ],
+      "extraction_candidate": false,
+      "inputs": [
+        "self",
+        "interaction: discord.Interaction"
+      ],
+      "kind": "AsyncFunctionDef",
+      "line_range": {
+        "end": 340,
+        "start": 255
+      },
+      "name": "dashboard",
+      "outputs": "async coroutine",
+      "parent": "ORACog",
+      "qualname": "ORACog.dashboard",
+      "required_tests": [
+        "discord-free static or mock interaction test",
+        "network-disabled fixture test",
+        "read-only diagnostic fixture test"
+      ],
+      "responsibility": "Get the link to this server's web dashboard.",
+      "safety_risk": "high",
+      "side_effects": [
+        "discord",
+        "network",
+        "system_or_process"
+      ],
+      "target_module": null
+    },
+    {
+      "callees": [
+        "ORACog._startup_sync",
+        "logger.info",
+        "self.bot.loop.create_task",
+        "self.check_unoptimized_users.start",
+        "self.desktop_loop.start",
+        "self.hourly_sync_loop.start"
+      ],
+      "callers": [],
+      "decorators": [],
+      "extraction_candidate": false,
+      "inputs": [
+        "self"
+      ],
+      "kind": "AsyncFunctionDef",
+      "line_range": {
+        "end": 353,
+        "start": 342
+      },
+      "name": "cog_load",
+      "outputs": "async coroutine",
+      "parent": "ORACog",
+      "qualname": "ORACog.cog_load",
+      "required_tests": [
+        "static map coverage only"
+      ],
+      "responsibility": "Called when the Cog is loaded. Performs Startup Sync.",
+      "safety_risk": "low",
+      "side_effects": [],
+      "target_module": null
+    },
+    {
+      "callees": [
+        "aiohttp.ClientSession",
+        "asyncio.sleep",
+        "hasattr",
+        "logger.error",
+        "logger.info",
+        "logger.warning",
+        "result.get",
+        "self.bot.wait_until_ready",
+        "self.cost_manager.sync_openai_usage"
+      ],
+      "callers": [
+        "ORACog.cog_load"
+      ],
+      "decorators": [],
+      "extraction_candidate": false,
+      "inputs": [
+        "self"
+      ],
+      "kind": "AsyncFunctionDef",
+      "line_range": {
+        "end": 380,
+        "start": 355
+      },
+      "name": "_startup_sync",
+      "outputs": "async coroutine",
+      "parent": "ORACog",
+      "qualname": "ORACog._startup_sync",
+      "required_tests": [
+        "provider mocked or local-fixture execution test",
+        "network-disabled fixture test"
+      ],
+      "responsibility": "Syncs OpenAI usage and updates local limiter state.",
+      "safety_risk": "high",
+      "side_effects": [
+        "provider_or_llm",
+        "network"
+      ],
+      "target_module": null
+    },
+    {
+      "callees": [
+        "hasattr",
+        "self._gaming_restore_task.cancel",
+        "self.check_unoptimized_users.cancel",
+        "self.desktop_loop.cancel",
+        "self.game_watcher.stop",
+        "self.hourly_sync_loop.cancel"
+      ],
+      "callers": [],
+      "decorators": [],
+      "extraction_candidate": false,
+      "inputs": [
+        "self"
+      ],
+      "kind": "FunctionDef",
+      "line_range": {
+        "end": 398,
+        "start": 382
+      },
+      "name": "cog_unload",
+      "outputs": "return value",
+      "parent": "ORACog",
+      "qualname": "ORACog.cog_unload",
+      "required_tests": [
+        "static map coverage only"
+      ],
+      "responsibility": "Legacy helper or setup block.",
+      "safety_risk": "low",
+      "side_effects": [],
+      "target_module": null
+    },
+    {
+      "callees": [
+        "Path",
+        "aiofiles.open",
+        "candidates.append",
+        "content.strip",
+        "data.get",
+        "f.read",
+        "f_out.write",
+        "f_path.stem.split",
+        "g.get_member",
+        "hasattr",
+        "int",
+        "json.dump",
+        "json.dumps",
+        "json.loads",
+        "len",
+        "logger.debug",
+        "logger.error",
+        "logger.info",
+        "logger.warning",
+        "memory_cog.force_user_optimization",
+        "memory_dir.exists",
+        "memory_dir.glob",
+        "new_tasks.append",
+        "open",
+        "os.path.exists",
+        "r.get",
+        "self.bot.fetch_user",
+        "self.bot.get_cog",
+        "self.bot.get_user",
+        "self.bot.wait_until_ready",
+        "str",
+        "tasks.loop"
+      ],
+      "callers": [],
+      "decorators": [
+        "tasks.loop(hours=1)"
+      ],
+      "extraction_candidate": false,
+      "inputs": [
+        "self"
+      ],
+      "kind": "AsyncFunctionDef",
+      "line_range": {
+        "end": 508,
+        "start": 401
+      },
+      "name": "check_unoptimized_users",
+      "outputs": "async coroutine",
+      "parent": "ORACog",
+      "qualname": "ORACog.check_unoptimized_users",
+      "required_tests": [
+        "discord-free static or mock interaction test",
+        "workspace/temp-file allowlist test"
+      ],
+      "responsibility": "Periodically scan for unoptimized users and trigger optimization.",
+      "safety_risk": "high",
+      "side_effects": [
+        "discord",
+        "file"
+      ],
+      "target_module": null
+    },
+    {
+      "callees": [
+        "logger.info",
+        "self._gaming_restore_task.cancel",
+        "self.bot.loop.create_task",
+        "self.resource_manager.set_gaming_mode"
+      ],
+      "callers": [],
+      "decorators": [],
+      "extraction_candidate": false,
+      "inputs": [
+        "self"
+      ],
+      "kind": "FunctionDef",
+      "line_range": {
+        "end": 518,
+        "start": 510
+      },
+      "name": "_on_game_start",
+      "outputs": "return value",
+      "parent": "ORACog",
+      "qualname": "ORACog._on_game_start",
+      "required_tests": [
+        "static map coverage only"
+      ],
+      "responsibility": "Callback when game starts: Switch to Gaming Mode IMMEDIATELY.",
+      "safety_risk": "low",
+      "side_effects": [],
+      "target_module": null
+    },
+    {
+      "callees": [
+        "ORACog._restore_normal_mode_delayed",
+        "self._gaming_restore_task.cancel",
+        "self.bot.loop.create_task"
+      ],
+      "callers": [],
+      "decorators": [],
+      "extraction_candidate": false,
+      "inputs": [
+        "self"
+      ],
+      "kind": "FunctionDef",
+      "line_range": {
+        "end": 525,
+        "start": 520
+      },
+      "name": "_on_game_end",
+      "outputs": "return value",
+      "parent": "ORACog",
+      "qualname": "ORACog._on_game_end",
+      "required_tests": [
+        "static map coverage only"
+      ],
+      "responsibility": "Callback when game ends: Schedule switch to Normal Mode after 5 minutes.",
+      "safety_risk": "low",
+      "side_effects": [],
+      "target_module": null
+    },
+    {
+      "callees": [
+        "asyncio.sleep",
+        "logger.info",
+        "self.resource_manager.set_gaming_mode"
+      ],
+      "callers": [
+        "ORACog._on_game_end"
+      ],
+      "decorators": [],
+      "extraction_candidate": false,
+      "inputs": [
+        "self"
+      ],
+      "kind": "AsyncFunctionDef",
+      "line_range": {
+        "end": 537,
+        "start": 527
+      },
+      "name": "_restore_normal_mode_delayed",
+      "outputs": "async coroutine",
+      "parent": "ORACog",
+      "qualname": "ORACog._restore_normal_mode_delayed",
+      "required_tests": [
+        "static map coverage only"
+      ],
+      "responsibility": "Wait 5 minutes then restore Normal Mode.",
+      "safety_risk": "low",
+      "side_effects": [],
+      "target_module": null
+    },
+    {
+      "callees": [
+        "self._store.get_permission_level"
+      ],
+      "callers": [
+        "ORACog.status",
+        "ORACog.switch_brain",
+        "ORACog.system_override",
+        "ORACog.system_reload"
+      ],
+      "decorators": [],
+      "extraction_candidate": false,
+      "inputs": [
+        "self",
+        "user_id: int",
+        "level: str"
+      ],
+      "kind": "AsyncFunctionDef",
+      "line_range": {
+        "end": 580,
+        "start": 547
+      },
+      "name": "_check_permission",
+      "outputs": "async coroutine; annotation: bool",
+      "parent": "ORACog",
+      "qualname": "ORACog._check_permission",
+      "required_tests": [
+        "static map coverage only"
+      ],
+      "responsibility": "Check if user has permission. Levels: - 'owner': Only the Bot Owner (Config Admin ID). - 'sub_admin': Owner OR Sub-Admins. - 'vc_admin': Owner OR Sub-Admins OR VC Admins.",
+      "safety_risk": "low",
+      "side_effects": [],
+      "target_module": null
+    },
+    {
+      "callees": [
+        "aiohttp.ClientSession",
+        "logger.error",
+        "logger.info",
+        "logger.warning",
+        "result.get",
+        "self.cost_manager.sync_openai_usage",
+        "tasks.loop"
+      ],
+      "callers": [],
+      "decorators": [
+        "tasks.loop(hours=1)"
+      ],
+      "extraction_candidate": false,
+      "inputs": [
+        "self"
+      ],
+      "kind": "AsyncFunctionDef",
+      "line_range": {
+        "end": 598,
+        "start": 583
+      },
+      "name": "hourly_sync_loop",
+      "outputs": "async coroutine",
+      "parent": "ORACog",
+      "qualname": "ORACog.hourly_sync_loop",
+      "required_tests": [
+        "discord-free static or mock interaction test",
+        "network-disabled fixture test"
+      ],
+      "responsibility": "Periodically sync OpenAI usage with official API.",
+      "safety_risk": "high",
+      "side_effects": [
+        "discord",
+        "network"
+      ],
+      "target_module": null
+    },
+    {
+      "callees": [
+        "asyncio.to_thread",
+        "hasattr",
+        "join",
+        "logger.error",
+        "replace",
+        "result.get",
+        "self._store.get_desktop_watch_enabled",
+        "self.bot.fetch_user",
+        "self.cost_manager.get_remaining_budget",
+        "self.cost_manager.get_usage_ratio",
+        "tasks.loop",
+        "user.send"
+      ],
+      "callers": [],
+      "decorators": [
+        "tasks.loop(minutes=5.0)"
+      ],
+      "extraction_candidate": false,
+      "inputs": [
+        "self"
+      ],
+      "kind": "AsyncFunctionDef",
+      "line_range": {
+        "end": 691,
+        "start": 601
+      },
+      "name": "desktop_loop",
+      "outputs": "async coroutine",
+      "parent": "ORACog",
+      "qualname": "ORACog.desktop_loop",
+      "required_tests": [
+        "discord-free static or mock interaction test"
+      ],
+      "responsibility": "Periodically check the desktop and report to Admin.",
+      "safety_risk": "medium",
+      "side_effects": [
+        "discord"
+      ],
+      "target_module": null
+    },
+    {
+      "callees": [
+        "ORACog._check_permission",
+        "app_commands.Choice",
+        "app_commands.choices",
+        "app_commands.describe",
+        "interaction.followup.send",
+        "interaction.response.defer",
+        "interaction.response.send_message",
+        "join",
+        "logger.error",
+        "ora_group.command",
+        "results.append",
+        "self.bot.load_extension",
+        "self.bot.reload_extension"
+      ],
+      "callers": [],
+      "decorators": [
+        "ora_group.command(name='reload', description='Reload Bot Extensions')",
+        "app_commands.describe(extension='Extension to reload (e.g. media, ora, all)')",
+        "app_commands.choices(extension=[app_commands.Choice(name='All Extensions', value='all'), app_commands.Choice(name='Media (Voice/Music)', value='media'), app_commands.Choice(name='ORA (Chat/System)', value='ora'), app_commands.Choice(name='Memory (User Data)', value='memory')])"
+      ],
+      "extraction_candidate": false,
+      "inputs": [
+        "self",
+        "interaction: discord.Interaction",
+        "extension: str"
+      ],
+      "kind": "AsyncFunctionDef",
+      "line_range": {
+        "end": 743,
+        "start": 708
+      },
+      "name": "system_reload",
+      "outputs": "async coroutine",
+      "parent": "ORACog",
+      "qualname": "ORACog.system_reload",
+      "required_tests": [
+        "discord-free static or mock interaction test",
+        "read-only diagnostic fixture test"
+      ],
+      "responsibility": "Reloads an extension without restarting the bot.",
+      "safety_risk": "high",
+      "side_effects": [
+        "discord",
+        "system_or_process"
+      ],
+      "target_module": null
+    },
+    {
+      "callees": [
+        "app_commands.Choice",
+        "app_commands.choices",
+        "app_commands.describe",
+        "interaction.response.send_message",
+        "ora_group.command"
+      ],
+      "callers": [],
+      "decorators": [
+        "ora_group.command(name='desktop_watch', description='Toggle Desktop Watcher (DM Notifications)')",
+        "app_commands.describe(mode='ON/OFF')",
+        "app_commands.choices(mode=[app_commands.Choice(name='ON', value='on'), app_commands.Choice(name='OFF', value='off')])"
+      ],
+      "extraction_candidate": false,
+      "inputs": [
+        "self",
+        "interaction: discord.Interaction",
+        "mode: str"
+      ],
+      "kind": "AsyncFunctionDef",
+      "line_range": {
+        "end": 759,
+        "start": 753
+      },
+      "name": "desktop_watch",
+      "outputs": "async coroutine",
+      "parent": "ORACog",
+      "qualname": "ORACog.desktop_watch",
+      "required_tests": [
+        "discord-free static or mock interaction test"
+      ],
+      "responsibility": "Toggle desktop watcher.",
+      "safety_risk": "medium",
+      "side_effects": [
+        "discord"
+      ],
+      "target_module": null
+    },
+    {
+      "callees": [
+        "discord.Color.green",
+        "discord.Embed",
+        "embed.add_field",
+        "interaction.response.send_message",
+        "ora_group.command",
+        "psutil.cpu_percent",
+        "psutil.disk_usage",
+        "psutil.virtual_memory"
+      ],
+      "callers": [],
+      "decorators": [
+        "ora_group.command(name='info', description='Show System Info')"
+      ],
+      "extraction_candidate": false,
+      "inputs": [
+        "self",
+        "interaction: discord.Interaction"
+      ],
+      "kind": "AsyncFunctionDef",
+      "line_range": {
+        "end": 782,
+        "start": 763
+      },
+      "name": "system_info",
+      "outputs": "async coroutine; annotation: None",
+      "parent": "ORACog",
+      "qualname": "ORACog.system_info",
+      "required_tests": [
+        "discord-free static or mock interaction test",
+        "read-only diagnostic fixture test"
+      ],
+      "responsibility": "Show system info.",
+      "safety_risk": "high",
+      "side_effects": [
+        "discord",
+        "system_or_process"
+      ],
+      "target_module": null
+    },
+    {
+      "callees": [
+        "interaction.response.send_message",
+        "join",
+        "lines.append",
+        "ora_group.command",
+        "procs.append",
+        "procs.sort",
+        "psutil.process_iter"
+      ],
+      "callers": [],
+      "decorators": [
+        "ora_group.command(name='process_list', description='Show Top Processes by CPU')"
+      ],
+      "extraction_candidate": false,
+      "inputs": [
+        "self",
+        "interaction: discord.Interaction"
+      ],
+      "kind": "AsyncFunctionDef",
+      "line_range": {
+        "end": 801,
+        "start": 785
+      },
+      "name": "system_process_list",
+      "outputs": "async coroutine; annotation: None",
+      "parent": "ORACog",
+      "qualname": "ORACog.system_process_list",
+      "required_tests": [
+        "discord-free static or mock interaction test",
+        "read-only diagnostic fixture test"
+      ],
+      "responsibility": "List top processes.",
+      "safety_risk": "high",
+      "side_effects": [
+        "discord",
+        "system_or_process"
+      ],
+      "target_module": null
+    },
+    {
+      "callees": [
+        "self.bot.wait_until_ready"
+      ],
+      "callers": [],
+      "decorators": [
+        "desktop_loop.before_loop"
+      ],
+      "extraction_candidate": false,
+      "inputs": [
+        "self"
+      ],
+      "kind": "AsyncFunctionDef",
+      "line_range": {
+        "end": 805,
+        "start": 804
+      },
+      "name": "before_desktop_loop",
+      "outputs": "async coroutine",
+      "parent": "ORACog",
+      "qualname": "ORACog.before_desktop_loop",
+      "required_tests": [
+        "static map coverage only"
+      ],
+      "responsibility": "Discord command/listener/task entrypoint.",
+      "safety_risk": "medium",
+      "side_effects": [],
+      "target_module": null
+    },
+    {
+      "callees": [
+        "_nonce",
+        "app_commands.describe",
+        "interaction.followup.send",
+        "interaction.response.defer",
+        "interaction.response.send_message",
+        "self._store.ensure_user",
+        "self._store.start_login_state"
+      ],
+      "callers": [],
+      "decorators": [
+        "app_commands.describe(ephemeral='Show only to you (default: True)')"
+      ],
+      "extraction_candidate": false,
+      "inputs": [
+        "self",
+        "interaction: discord.Interaction",
+        "ephemeral: bool"
+      ],
+      "kind": "AsyncFunctionDef",
+      "line_range": {
+        "end": 823,
+        "start": 807
+      },
+      "name": "login",
+      "outputs": "async coroutine; annotation: None",
+      "parent": "ORACog",
+      "qualname": "ORACog.login",
+      "required_tests": [
+        "discord-free static or mock interaction test",
+        "network-disabled fixture test"
+      ],
+      "responsibility": "Discord command/listener/task entrypoint.",
+      "safety_risk": "high",
+      "side_effects": [
+        "discord",
+        "network"
+      ],
+      "target_module": null
+    },
+    {
+      "callees": [
+        "self._store.get_privacy"
+      ],
+      "callers": [
+        "ORACog.chat",
+        "ORACog.dataset_add",
+        "ORACog.dataset_list",
+        "ORACog.summarize"
+      ],
+      "decorators": [],
+      "extraction_candidate": false,
+      "inputs": [
+        "self",
+        "user: discord.User | discord.Member"
+      ],
+      "kind": "AsyncFunctionDef",
+      "line_range": {
+        "end": 828,
+        "start": 825
+      },
+      "name": "_ephemeral_for",
+      "outputs": "async coroutine; annotation: bool",
+      "parent": "ORACog",
+      "qualname": "ORACog._ephemeral_for",
+      "required_tests": [
+        "discord-free static or mock interaction test"
+      ],
+      "responsibility": "Return True if the user's privacy setting is 'private'.",
+      "safety_risk": "medium",
+      "side_effects": [
+        "discord"
+      ],
+      "target_module": null
+    },
+    {
+      "callees": [
+        "interaction.response.send_message",
+        "join",
+        "ora_group.command",
+        "self._store.ensure_user",
+        "self._store.get_google_sub",
+        "self._store.get_privacy"
+      ],
+      "callers": [],
+      "decorators": [
+        "ora_group.command(name='whoami', description='Show Linked Account Informaton')"
+      ],
+      "extraction_candidate": false,
+      "inputs": [
+        "self",
+        "interaction: discord.Interaction"
+      ],
+      "kind": "AsyncFunctionDef",
+      "line_range": {
+        "end": 840,
+        "start": 831
+      },
+      "name": "whoami",
+      "outputs": "async coroutine; annotation: None",
+      "parent": "ORACog",
+      "qualname": "ORACog.whoami",
+      "required_tests": [
+        "discord-free static or mock interaction test"
+      ],
+      "responsibility": "Discord command/listener/task entrypoint.",
+      "safety_risk": "medium",
+      "side_effects": [
+        "discord"
+      ],
+      "target_module": null
+    },
+    {
+      "callees": [
+        "app_commands.Choice",
+        "app_commands.choices",
+        "app_commands.describe",
+        "interaction.response.send_message",
+        "ora_group.command",
+        "self._store.ensure_user",
+        "self._store.get_privacy",
+        "self._store.set_privacy"
+      ],
+      "callers": [],
+      "decorators": [
+        "ora_group.command(name='privacy', description='View or set your Privacy Mode')",
+        "app_commands.describe(mode='private (Only you) / public (Everyone) / None to just check')",
+        "app_commands.choices(mode=[app_commands.Choice(name='private', value='private'), app_commands.Choice(name='public', value='public')])"
+      ],
+      "extraction_candidate": false,
+      "inputs": [
+        "self",
+        "interaction: discord.Interaction",
+        "mode: Optional[app_commands.Choice[str]]"
+      ],
+      "kind": "AsyncFunctionDef",
+      "line_range": {
+        "end": 857,
+        "start": 850
+      },
+      "name": "ora_privacy",
+      "outputs": "async coroutine; annotation: None",
+      "parent": "ORACog",
+      "qualname": "ORACog.ora_privacy",
+      "required_tests": [
+        "discord-free static or mock interaction test"
+      ],
+      "responsibility": "Discord command/listener/task entrypoint.",
+      "safety_risk": "medium",
+      "side_effects": [
+        "discord"
+      ],
+      "target_module": null
+    },
+    {
+      "callees": [
+        "app_commands.Choice",
+        "app_commands.choices",
+        "app_commands.describe",
+        "interaction.response.send_message",
+        "ora_group.command",
+        "self._store.ensure_user",
+        "self._store.set_system_privacy"
+      ],
+      "callers": [],
+      "decorators": [
+        "ora_group.command(name='privacy_system', description='Set Privacy for System Commands')",
+        "app_commands.describe(mode='private / public')",
+        "app_commands.choices(mode=[app_commands.Choice(name='private', value='private'), app_commands.Choice(name='public', value='public')])"
+      ],
+      "extraction_candidate": false,
+      "inputs": [
+        "self",
+        "interaction: discord.Interaction",
+        "mode: app_commands.Choice[str]"
+      ],
+      "kind": "AsyncFunctionDef",
+      "line_range": {
+        "end": 872,
+        "start": 867
+      },
+      "name": "privacy_set_system",
+      "outputs": "async coroutine; annotation: None",
+      "parent": "ORACog",
+      "qualname": "ORACog.privacy_set_system",
+      "required_tests": [
+        "discord-free static or mock interaction test"
+      ],
+      "responsibility": "Discord command/listener/task entrypoint.",
+      "safety_risk": "medium",
+      "side_effects": [
+        "discord"
+      ],
+      "target_module": null
+    },
+    {
+      "callees": [
+        "ORACog._ephemeral_for",
+        "core_client.get_final_response",
+        "core_client.send_message",
+        "interaction.followup.send",
+        "interaction.response.defer",
+        "logger.exception",
+        "self._store.ensure_user",
+        "str"
+      ],
+      "callers": [],
+      "decorators": [],
+      "extraction_candidate": false,
+      "inputs": [
+        "self",
+        "interaction: discord.Interaction",
+        "prompt: str"
+      ],
+      "kind": "AsyncFunctionDef",
+      "line_range": {
+        "end": 900,
+        "start": 874
+      },
+      "name": "chat",
+      "outputs": "async coroutine; annotation: None",
+      "parent": "ORACog",
+      "qualname": "ORACog.chat",
+      "required_tests": [
+        "discord-free static or mock interaction test",
+        "provider mocked or local-fixture execution test"
+      ],
+      "responsibility": "Legacy helper with discord, provider_or_llm boundary involvement.",
+      "safety_risk": "medium",
+      "side_effects": [
+        "discord",
+        "provider_or_llm"
+      ],
+      "target_module": null
+    },
+    {
+      "callees": [
+        "ORACog._ephemeral_for",
+        "RuntimeError",
+        "aiohttp.ClientSession",
+        "aiohttp.ClientTimeout",
+        "aiohttp.FormData",
+        "app_commands.describe",
+        "dataset_group.command",
+        "file.filename.lower",
+        "file.filename.lower.endswith",
+        "form.add_field",
+        "interaction.followup.send",
+        "interaction.response.defer",
+        "logger.exception",
+        "resp.read",
+        "response.text",
+        "self._store.add_dataset",
+        "self._store.ensure_user",
+        "session.get",
+        "session.post",
+        "str"
+      ],
+      "callers": [],
+      "decorators": [
+        "dataset_group.command(name='add', description='Add file to Dataset')",
+        "app_commands.describe(file='File to upload', name='Name (optional)')"
+      ],
+      "extraction_candidate": false,
+      "inputs": [
+        "self",
+        "interaction: discord.Interaction",
+        "file: discord.Attachment",
+        "name: Optional[str]"
+      ],
+      "kind": "AsyncFunctionDef",
+      "line_range": {
+        "end": 962,
+        "start": 910
+      },
+      "name": "dataset_add",
+      "outputs": "async coroutine; annotation: None",
+      "parent": "ORACog",
+      "qualname": "ORACog.dataset_add",
+      "required_tests": [
+        "discord-free static or mock interaction test",
+        "workspace/temp-file allowlist test",
+        "network-disabled fixture test"
+      ],
+      "responsibility": "Discord command/listener/task entrypoint.",
+      "safety_risk": "high",
+      "side_effects": [
+        "discord",
+        "file",
+        "network"
+      ],
+      "target_module": null
+    },
+    {
+      "callees": [
+        "ORACog._ephemeral_for",
+        "dataset_group.command",
+        "interaction.response.send_message",
+        "join",
+        "self._store.ensure_user",
+        "self._store.list_datasets"
+      ],
+      "callers": [],
+      "decorators": [
+        "dataset_group.command(name='list', description='List registered datasets')"
+      ],
+      "extraction_candidate": false,
+      "inputs": [
+        "self",
+        "interaction: discord.Interaction"
+      ],
+      "kind": "AsyncFunctionDef",
+      "line_range": {
+        "end": 974,
+        "start": 965
+      },
+      "name": "dataset_list",
+      "outputs": "async coroutine; annotation: None",
+      "parent": "ORACog",
+      "qualname": "ORACog.dataset_list",
+      "required_tests": [
+        "discord-free static or mock interaction test"
+      ],
+      "responsibility": "Discord command/listener/task entrypoint.",
+      "safety_risk": "medium",
+      "side_effects": [
+        "discord"
+      ],
+      "target_module": null
+    },
+    {
+      "callees": [
+        "ORACog._ephemeral_for",
+        "app_commands.command",
+        "app_commands.describe",
+        "interaction.channel.history",
+        "interaction.followup.send",
+        "interaction.response.defer",
+        "join",
+        "len",
+        "logger.error",
+        "logger.exception",
+        "messages.append",
+        "messages.reverse",
+        "self._llm.chat",
+        "self._store.ensure_user"
+      ],
+      "callers": [],
+      "decorators": [
+        "app_commands.command(name='summarize', description='Summarize recent chat history')",
+        "app_commands.describe(limit='Number of messages (default: 50)')"
+      ],
+      "extraction_candidate": false,
+      "inputs": [
+        "self",
+        "interaction: discord.Interaction",
+        "limit: int"
+      ],
+      "kind": "AsyncFunctionDef",
+      "line_range": {
+        "end": 1027,
+        "start": 981
+      },
+      "name": "summarize",
+      "outputs": "async coroutine; annotation: None",
+      "parent": "ORACog",
+      "qualname": "ORACog.summarize",
+      "required_tests": [
+        "discord-free static or mock interaction test",
+        "provider mocked or local-fixture execution test"
+      ],
+      "responsibility": "Summarize recent chat history.",
+      "safety_risk": "medium",
+      "side_effects": [
+        "discord",
+        "provider_or_llm"
+      ],
+      "target_module": null
+    },
+    {
+      "callees": [
+        "ORACog._check_permission",
+        "app_commands.command",
+        "discord.Color.blue",
+        "discord.Embed",
+        "embed.add_field",
+        "embed.set_footer",
+        "interaction.followup.send",
+        "interaction.response.defer",
+        "interaction.response.send_message",
+        "self.hardware_manager.get_gpu_stats",
+        "shutil.disk_usage"
+      ],
+      "callers": [],
+      "decorators": [
+        "app_commands.command(name='status', description='Show basic system and GPU status.')"
+      ],
+      "extraction_candidate": false,
+      "inputs": [
+        "self",
+        "interaction: discord.Interaction"
+      ],
+      "kind": "AsyncFunctionDef",
+      "line_range": {
+        "end": 1061,
+        "start": 1041
+      },
+      "name": "status",
+      "outputs": "async coroutine",
+      "parent": "ORACog",
+      "qualname": "ORACog.status",
+      "required_tests": [
+        "discord-free static or mock interaction test"
+      ],
+      "responsibility": "Discord command/listener/task entrypoint.",
+      "safety_risk": "medium",
+      "side_effects": [
+        "discord"
+      ],
+      "target_module": null
+    },
+    {
+      "callees": [
+        "interaction.followup.send",
+        "interaction.response.defer",
+        "memory_group.command",
+        "self._store.clear_conversations",
+        "str"
+      ],
+      "callers": [],
+      "decorators": [
+        "memory_group.command(name='clear', description='Clear Conversation History')"
+      ],
+      "extraction_candidate": false,
+      "inputs": [
+        "self",
+        "interaction: discord.Interaction"
+      ],
+      "kind": "AsyncFunctionDef",
+      "line_range": {
+        "end": 1072,
+        "start": 1069
+      },
+      "name": "memory_clear",
+      "outputs": "async coroutine; annotation: None",
+      "parent": "ORACog",
+      "qualname": "ORACog.memory_clear",
+      "required_tests": [
+        "discord-free static or mock interaction test"
+      ],
+      "responsibility": "Discord command/listener/task entrypoint.",
+      "safety_risk": "medium",
+      "side_effects": [
+        "discord",
+        "memory"
+      ],
+      "target_module": null
+    },
+    {
+      "callees": [
+        "app_commands.command",
+        "app_commands.describe",
+        "interaction.followup.send",
+        "interaction.response.defer",
+        "join",
+        "len",
+        "media_cog._voice_manager._tts.get_speakers",
+        "report.append",
+        "self._llm.chat",
+        "self._store.get_privacy",
+        "self.bot.get_cog",
+        "str",
+        "str.replace"
+      ],
+      "callers": [],
+      "decorators": [
+        "app_commands.command(name='test_all', description='Run System Diagnostic')",
+        "app_commands.describe(ephemeral='Show only to you (default: True)')"
+      ],
+      "extraction_candidate": false,
+      "inputs": [
+        "self",
+        "interaction: discord.Interaction",
+        "ephemeral: bool"
+      ],
+      "kind": "AsyncFunctionDef",
+      "line_range": {
+        "end": 1124,
+        "start": 1076
+      },
+      "name": "test_all",
+      "outputs": "async coroutine; annotation: None",
+      "parent": "ORACog",
+      "qualname": "ORACog.test_all",
+      "required_tests": [
+        "discord-free static or mock interaction test",
+        "provider mocked or local-fixture execution test"
+      ],
+      "responsibility": "Run a full system diagnostic check.",
+      "safety_risk": "medium",
+      "side_effects": [
+        "discord",
+        "provider_or_llm"
+      ],
+      "target_module": null
+    },
+    {
+      "callees": [
+        "c.name.lower",
+        "channel_name.lower",
+        "discord.utils.find",
+        "isinstance",
+        "join",
+        "len"
+      ],
+      "callers": [],
+      "decorators": [],
+      "extraction_candidate": false,
+      "inputs": [
+        "self",
+        "guild: discord.Guild",
+        "channel_name: Optional[str]",
+        "user: Optional[discord.Member]"
+      ],
+      "kind": "AsyncFunctionDef",
+      "line_range": {
+        "end": 1143,
+        "start": 1126
+      },
+      "name": "_get_voice_channel_info",
+      "outputs": "async coroutine; annotation: str",
+      "parent": "ORACog",
+      "qualname": "ORACog._get_voice_channel_info",
+      "required_tests": [
+        "discord-free static or mock interaction test"
+      ],
+      "responsibility": "Legacy helper with discord boundary involvement.",
+      "safety_risk": "medium",
+      "side_effects": [
+        "discord"
+      ],
+      "target_module": null
+    },
+    {
+      "callees": [
+        "ORACog.handle_prompt",
+        "asyncio.sleep",
+        "isinstance",
+        "len",
+        "logger.error",
+        "logger.info",
+        "msg.reply",
+        "self.message_queue.pop"
+      ],
+      "callers": [],
+      "decorators": [],
+      "extraction_candidate": false,
+      "inputs": [
+        "self"
+      ],
+      "kind": "AsyncFunctionDef",
+      "line_range": {
+        "end": 1178,
+        "start": 1150
+      },
+      "name": "process_message_queue",
+      "outputs": "async coroutine",
+      "parent": "ORACog",
+      "qualname": "ORACog.process_message_queue",
+      "required_tests": [
+        "discord-free static or mock interaction test"
+      ],
+      "responsibility": "Process queued messages after image generation completes.",
+      "safety_risk": "medium",
+      "side_effects": [
+        "discord"
+      ],
+      "target_module": null
+    },
+    {
+      "callees": [
+        "ORACog._check_permission",
+        "interaction.response.send_message",
+        "mode.lower",
+        "mode.upper"
+      ],
+      "callers": [],
+      "decorators": [],
+      "extraction_candidate": false,
+      "inputs": [
+        "self",
+        "interaction: discord.Interaction",
+        "mode: str"
+      ],
+      "kind": "AsyncFunctionDef",
+      "line_range": {
+        "end": 1212,
+        "start": 1181
+      },
+      "name": "switch_brain",
+      "outputs": "async coroutine",
+      "parent": "ORACog",
+      "qualname": "ORACog.switch_brain",
+      "required_tests": [
+        "discord-free static or mock interaction test"
+      ],
+      "responsibility": "Switch the AI Brain Mode.",
+      "safety_risk": "medium",
+      "side_effects": [
+        "discord"
+      ],
+      "target_module": null
+    },
+    {
+      "callees": [
+        "ORACog._check_permission",
+        "app_commands.command",
+        "app_commands.describe",
+        "auth_code.upper",
+        "discord.Color.green",
+        "discord.Color.red",
+        "discord.Embed",
+        "embed.set_thumbnail",
+        "interaction.response.send_message",
+        "memory_cog.update_user_profile",
+        "mode.upper",
+        "self.bot.get_cog",
+        "self.cost_manager.toggle_unlimited_mode"
+      ],
+      "callers": [],
+      "decorators": [
+        "app_commands.command(name='system_override', description='[Admin] Override System Limiters (Roleplay).')",
+        "app_commands.describe(mode='NORMAL or UNLIMITED', auth_code='Authorization Code')"
+      ],
+      "extraction_candidate": false,
+      "inputs": [
+        "self",
+        "interaction: discord.Interaction",
+        "mode: str",
+        "auth_code: str"
+      ],
+      "kind": "AsyncFunctionDef",
+      "line_range": {
+        "end": 1274,
+        "start": 1216
+      },
+      "name": "system_override",
+      "outputs": "async coroutine",
+      "parent": "ORACog",
+      "qualname": "ORACog.system_override",
+      "required_tests": [
+        "discord-free static or mock interaction test"
+      ],
+      "responsibility": "Override System Limits (Roleplay).",
+      "safety_risk": "medium",
+      "side_effects": [
+        "discord"
+      ],
+      "target_module": null
+    },
+    {
+      "callees": [
+        "app_commands.command",
+        "discord.Color.green",
+        "discord.Embed",
+        "embed.add_field",
+        "embed.set_footer",
+        "hasattr",
+        "interaction.followup.send",
+        "interaction.response.defer",
+        "self.cost_manager.sync_openai_usage",
+        "str",
+        "sync_res.get",
+        "values"
+      ],
+      "callers": [],
+      "decorators": [
+        "app_commands.command(name='credits', description='Check Cloud usage and remaining credits.')"
+      ],
+      "extraction_candidate": false,
+      "inputs": [
+        "self",
+        "interaction: discord.Interaction"
+      ],
+      "kind": "AsyncFunctionDef",
+      "line_range": {
+        "end": 1335,
+        "start": 1277
+      },
+      "name": "check_credits",
+      "outputs": "async coroutine",
+      "parent": "ORACog",
+      "qualname": "ORACog.check_credits",
+      "required_tests": [
+        "discord-free static or mock interaction test",
+        "provider mocked or local-fixture execution test"
+      ],
+      "responsibility": "Check usage stats using CostManager with Sync.",
+      "safety_risk": "medium",
+      "side_effects": [
+        "discord",
+        "provider_or_llm"
+      ],
+      "target_module": null
+    },
+    {
+      "callees": [
+        "len",
+        "message.channel.send",
+        "message.reply",
+        "range"
+      ],
+      "callers": [],
+      "decorators": [],
+      "extraction_candidate": false,
+      "inputs": [
+        "self",
+        "message: discord.Message",
+        "content: str",
+        "header: str",
+        "files: list"
+      ],
+      "kind": "AsyncFunctionDef",
+      "line_range": {
+        "end": 1361,
+        "start": 1337
+      },
+      "name": "_send_large_message",
+      "outputs": "async coroutine",
+      "parent": "ORACog",
+      "qualname": "ORACog._send_large_message",
+      "required_tests": [
+        "discord-free static or mock interaction test"
+      ],
+      "responsibility": "Splits and sends large messages to avoid 400 Bad Request.",
+      "safety_risk": "medium",
+      "side_effects": [
+        "discord"
+      ],
+      "target_module": null
+    },
+    {
+      "callees": [
+        "len",
+        "logger.warning",
+        "text.encode",
+        "zlib.compress"
+      ],
+      "callers": [],
+      "decorators": [],
+      "extraction_candidate": true,
+      "inputs": [
+        "self",
+        "text: str"
+      ],
+      "kind": "FunctionDef",
+      "line_range": {
+        "end": 1381,
+        "start": 1363
+      },
+      "name": "_detect_spam",
+      "outputs": "return value; annotation: bool",
+      "parent": "ORACog",
+      "qualname": "ORACog._detect_spam",
+      "required_tests": [
+        "characterization parity before wrapper extraction"
+      ],
+      "responsibility": "Detects if text is repetitive spam using Compression Ratio. If text is long (>500 chars) and compresses extremely well (<10%), it's likely spam.",
+      "safety_risk": "low",
+      "side_effects": [],
+      "target_module": "src/cogs/ora_pure_helpers.py"
+    },
+    {
+      "callees": [
+        "len",
+        "logger.warning",
+        "re.search",
+        "text.encode",
+        "zlib.compress"
+      ],
+      "callers": [],
+      "decorators": [],
+      "extraction_candidate": true,
+      "inputs": [
+        "self",
+        "text: str"
+      ],
+      "kind": "FunctionDef",
+      "line_range": {
+        "end": 1412,
+        "start": 1383
+      },
+      "name": "_is_input_spam",
+      "outputs": "return value; annotation: bool",
+      "parent": "ORACog",
+      "qualname": "ORACog._is_input_spam",
+      "required_tests": [
+        "characterization parity before wrapper extraction"
+      ],
+      "responsibility": "Detects if input is spam/abuse (e.g. 'Repeat 10000 times', massive repetition). Returns True if spam.",
+      "safety_risk": "low",
+      "side_effects": [],
+      "target_module": "src/cogs/ora_pure_helpers.py"
+    },
+    {
+      "callees": [
+        "ORACog._extract_json_objects",
+        "Usage",
+        "content.lower",
+        "json.loads",
+        "len",
+        "logger.error",
+        "secrets.token_hex",
+        "self.cost_manager.commit",
+        "self.cost_manager.reserve",
+        "self.unified_client.chat",
+        "usage.get"
+      ],
+      "callers": [],
+      "decorators": [],
+      "extraction_candidate": false,
+      "inputs": [
+        "self",
+        "prompt: str",
+        "user_id: int"
+      ],
+      "kind": "AsyncFunctionDef",
+      "line_range": {
+        "end": 1475,
+        "start": 1414
+      },
+      "name": "_perform_guardrail_check",
+      "outputs": "async coroutine; annotation: dict",
+      "parent": "ORACog",
+      "qualname": "ORACog._perform_guardrail_check",
+      "required_tests": [
+        "provider mocked or local-fixture execution test"
+      ],
+      "responsibility": "[Layer 2 Security] AI Guardrail. Uses a cheap model (gpt-5-mini) to check for loop/spam/jailbreak instructions that regex missed.",
+      "safety_risk": "medium",
+      "side_effects": [
+        "provider_or_llm"
+      ],
+      "target_module": null
+    },
+    {
+      "callees": [
+        "enumerate",
+        "logger.warning",
+        "match.group",
+        "objects.append",
+        "re.finditer"
+      ],
+      "callers": [
+        "ORACog._perform_guardrail_check"
+      ],
+      "decorators": [],
+      "extraction_candidate": true,
+      "inputs": [
+        "self",
+        "text: str"
+      ],
+      "kind": "FunctionDef",
+      "line_range": {
+        "end": 1521,
+        "start": 1477
+      },
+      "name": "_extract_json_objects",
+      "outputs": "return value; annotation: list[str]",
+      "parent": "ORACog",
+      "qualname": "ORACog._extract_json_objects",
+      "required_tests": [
+        "characterization parity before wrapper extraction"
+      ],
+      "responsibility": "Extracts top-level JSON objects from text.",
+      "safety_risk": "low",
+      "side_effects": [],
+      "target_module": "src/cogs/ora_pure_helpers.py"
+    },
+    {
+      "callees": [
+        "clean_ora_content"
+      ],
+      "callers": [],
+      "decorators": [],
+      "extraction_candidate": true,
+      "inputs": [
+        "self",
+        "text: str"
+      ],
+      "kind": "FunctionDef",
+      "line_range": {
+        "end": 1525,
+        "start": 1523
+      },
+      "name": "_clean_content",
+      "outputs": "return value; annotation: str",
+      "parent": "ORACog",
+      "qualname": "ORACog._clean_content",
+      "required_tests": [
+        "characterization parity before wrapper extraction"
+      ],
+      "responsibility": "Remove internal tags like <|channel|>... from the text.",
+      "safety_risk": "low",
+      "side_effects": [],
+      "target_module": "src/cogs/ora_pure_helpers.py"
+    },
+    {
+      "callees": [
+        "GuildLogger.get_logger",
+        "GuildLogger.get_logger.info",
+        "ORACog._create_mock_interaction",
+        "ORACog._process_attachments",
+        "ORACog._process_embed_images",
+        "any",
+        "asyncio.create_task",
+        "asyncio.sleep",
+        "clean_content.lower",
+        "commands.Cog.listener",
+        "handle_mention_music",
+        "hasattr",
+        "len",
+        "logger.error",
+        "logger.info",
+        "logger.warning",
+        "memory_cog._ensure_user_name",
+        "message.add_reaction",
+        "message.channel.fetch_message",
+        "message.channel.send",
+        "message.content.lower",
+        "message.content.lower.strip",
+        "message.content.replace",
+        "message.content.replace.replace",
+        "message.content.replace.replace.strip",
+        "message.guild.get_member",
+        "message.guild.voice_client.disconnect",
+        "message.reply",
+        "min",
+        "prompt.replace",
+        "re.sub",
+        "re.sub.strip",
+        "self._store.add_points",
+        "self.bot.get_cog",
+        "self.bot.get_context",
+        "self.bot.voice_manager.auto_read_channels.pop",
+        "self.bot.voice_manager.ensure_voice_client",
+        "self.bot.voice_manager.play_tts",
+        "self.chat_cooldowns.get",
+        "self.chat_handler.handle_prompt",
+        "self.tool_handler._handle_get_role_list",
+        "sys_cog.run_full_scan",
+        "sys_cog.run_simple_scan",
+        "time.time"
+      ],
+      "callers": [],
+      "decorators": [
+        "commands.Cog.listener()"
+      ],
+      "extraction_candidate": false,
+      "inputs": [
+        "self",
+        "message: discord.Message"
+      ],
+      "kind": "AsyncFunctionDef",
+      "line_range": {
+        "end": 1818,
+        "start": 1528
+      },
+      "name": "on_message",
+      "outputs": "async coroutine; annotation: None",
+      "parent": "ORACog",
+      "qualname": "ORACog.on_message",
+      "required_tests": [
+        "discord-free static or mock interaction test",
+        "provider mocked or local-fixture execution test",
+        "workspace/temp-file allowlist test",
+        "deny-by-default tool boundary test"
+      ],
+      "responsibility": "Discord command/listener/task entrypoint.",
+      "safety_risk": "high",
+      "side_effects": [
+        "discord",
+        "provider_or_llm",
+        "file",
+        "tool_or_shell_policy"
+      ],
+      "target_module": null
+    },
+    {
+      "callees": [
+        "context_message.add_reaction",
+        "extend",
+        "hasattr",
+        "self.vision_handler.process_attachments"
+      ],
+      "callers": [
+        "ORACog.on_message"
+      ],
+      "decorators": [],
+      "extraction_candidate": false,
+      "inputs": [
+        "self",
+        "attachments: List[discord.Attachment]",
+        "prompt: str",
+        "context_message: discord.Message",
+        "is_reference: bool"
+      ],
+      "kind": "AsyncFunctionDef",
+      "line_range": {
+        "end": 1847,
+        "start": 1821
+      },
+      "name": "_process_attachments",
+      "outputs": "async coroutine; annotation: str",
+      "parent": "ORACog",
+      "qualname": "ORACog._process_attachments",
+      "required_tests": [
+        "discord-free static or mock interaction test",
+        "workspace/temp-file allowlist test"
+      ],
+      "responsibility": "Process a list of attachments (Text or Image) and update prompt/context.",
+      "safety_risk": "high",
+      "side_effects": [
+        "discord",
+        "file"
+      ],
+      "target_module": null
+    },
+    {
+      "callees": [
+        "extend",
+        "hasattr",
+        "self.vision_handler.process_embeds"
+      ],
+      "callers": [
+        "ORACog.on_message"
+      ],
+      "decorators": [],
+      "extraction_candidate": false,
+      "inputs": [
+        "self",
+        "embeds: List[discord.Embed]",
+        "prompt: str",
+        "context_message: discord.Message",
+        "is_reference: bool"
+      ],
+      "kind": "AsyncFunctionDef",
+      "line_range": {
+        "end": 1863,
+        "start": 1849
+      },
+      "name": "_process_embed_images",
+      "outputs": "async coroutine; annotation: str",
+      "parent": "ORACog",
+      "qualname": "ORACog._process_embed_images",
+      "required_tests": [
+        "discord-free static or mock interaction test"
+      ],
+      "responsibility": "Process images found in Embeds (Thumbnail or Image field).",
+      "safety_risk": "medium",
+      "side_effects": [
+        "discord"
+      ],
+      "target_module": null
+    },
+    {
+      "callees": [],
+      "callers": [
+        "ORACog.__init__",
+        "ORACog.get_context_tools"
+      ],
+      "decorators": [],
+      "extraction_candidate": false,
+      "inputs": [
+        "self"
+      ],
+      "kind": "FunctionDef",
+      "line_range": {
+        "end": 2974,
+        "start": 1865
+      },
+      "name": "_get_tool_schemas",
+      "outputs": "return value; annotation: list[dict]",
+      "parent": "ORACog",
+      "qualname": "ORACog._get_tool_schemas",
+      "required_tests": [
+        "static map coverage only"
+      ],
+      "responsibility": "Returns the list of available tools, organized by Category. Includes 'tags' for RAG filtering.",
+      "safety_risk": "low",
+      "side_effects": [],
+      "target_module": null
+    },
+    {
+      "callees": [
+        "ORACog._get_tool_schemas",
+        "_get_registry_schemas",
+        "all_tools.append",
+        "deduped_tools.append",
+        "dynamic_skills.keys",
+        "filter_tool_schemas_for_user",
+        "filtered.append",
+        "hasattr",
+        "isinstance",
+        "s.get",
+        "schema.get",
+        "seen.add",
+        "self.tool_handler.skill_loader.get_schema",
+        "set",
+        "tool.get"
+      ],
+      "callers": [],
+      "decorators": [],
+      "extraction_candidate": false,
+      "inputs": [
+        "self",
+        "client_type: str",
+        "user_id: int | None"
+      ],
+      "kind": "FunctionDef",
+      "line_range": {
+        "end": 3058,
+        "start": 2976
+      },
+      "name": "get_context_tools",
+      "outputs": "return value; annotation: list[dict]",
+      "parent": "ORACog",
+      "qualname": "ORACog.get_context_tools",
+      "required_tests": [
+        "deny-by-default tool boundary test"
+      ],
+      "responsibility": "Public method to get tools filtered by client context. Prevents usage of Discord-only tools in Web UI, or Web tools in Discord. Also includes Dynamically Loaded Skills from SKILL.m",
+      "safety_risk": "high",
+      "side_effects": [
+        "tool_or_shell_policy"
+      ],
+      "target_module": null
+    },
+    {
+      "callees": [
+        "self.chat_handler.handle_prompt"
+      ],
+      "callers": [
+        "ORACog.process_message_queue"
+      ],
+      "decorators": [],
+      "extraction_candidate": false,
+      "inputs": [
+        "self",
+        "message: discord.Message",
+        "prompt: str",
+        "existing_status_msg: Optional[discord.Message]",
+        "is_voice: bool",
+        "force_dm: bool"
+      ],
+      "kind": "AsyncFunctionDef",
+      "line_range": {
+        "end": 3070,
+        "start": 3061
+      },
+      "name": "handle_prompt",
+      "outputs": "async coroutine; annotation: None",
+      "parent": "ORACog",
+      "qualname": "ORACog.handle_prompt",
+      "required_tests": [
+        "discord-free static or mock interaction test",
+        "provider mocked or local-fixture execution test"
+      ],
+      "responsibility": "Process a user message and generate a response using the LLM (Delegated to ChatHandler).",
+      "safety_risk": "medium",
+      "side_effects": [
+        "discord",
+        "provider_or_llm"
+      ],
+      "target_module": null
+    },
+    {
+      "callees": [],
+      "callers": [],
+      "decorators": [],
+      "extraction_candidate": false,
+      "inputs": [
+        "self",
+        "message",
+        "prompt",
+        "existing_status_msg",
+        "is_voice",
+        "force_dm"
+      ],
+      "kind": "AsyncFunctionDef",
+      "line_range": {
+        "end": 3074,
+        "start": 3072
+      },
+      "name": "_legacy_handle_prompt",
+      "outputs": "async coroutine",
+      "parent": "ORACog",
+      "qualname": "ORACog._legacy_handle_prompt",
+      "required_tests": [
+        "static map coverage only"
+      ],
+      "responsibility": "Legacy helper or setup block.",
+      "safety_risk": "low",
+      "side_effects": [],
+      "target_module": null
+    },
+    {
+      "callees": [
+        "asyncio.sleep",
+        "len",
+        "message.edit",
+        "self.llm_done_event.is_set"
+      ],
+      "callers": [],
+      "decorators": [],
+      "extraction_candidate": false,
+      "inputs": [
+        "self",
+        "message: discord.Message"
+      ],
+      "kind": "AsyncFunctionDef",
+      "line_range": {
+        "end": 3088,
+        "start": 3075
+      },
+      "name": "wait_for_llm",
+      "outputs": "async coroutine; annotation: None",
+      "parent": "ORACog",
+      "qualname": "ORACog.wait_for_llm",
+      "required_tests": [
+        "discord-free static or mock interaction test"
+      ],
+      "responsibility": "Show a loading animation while waiting for LLM.",
+      "safety_risk": "medium",
+      "side_effects": [
+        "discord"
+      ],
+      "target_module": null
+    },
+    {
+      "callees": [
+        "MockInteraction",
+        "self.Followup",
+        "self.Response",
+        "self.ctx.reply"
+      ],
+      "callers": [
+        "ORACog.on_message"
+      ],
+      "decorators": [],
+      "extraction_candidate": false,
+      "inputs": [
+        "self",
+        "ctx"
+      ],
+      "kind": "FunctionDef",
+      "line_range": {
+        "end": 3112,
+        "start": 3090
+      },
+      "name": "_create_mock_interaction",
+      "outputs": "return value",
+      "parent": "ORACog",
+      "qualname": "ORACog._create_mock_interaction",
+      "required_tests": [
+        "discord-free static or mock interaction test"
+      ],
+      "responsibility": "Helper to create a mock interaction from context.",
+      "safety_risk": "medium",
+      "side_effects": [
+        "discord"
+      ],
+      "target_module": null
+    },
+    {
+      "callees": [
+        "self.Followup",
+        "self.Response",
+        "self.ctx.reply"
+      ],
+      "callers": [],
+      "decorators": [],
+      "extraction_candidate": false,
+      "inputs": [],
+      "kind": "ClassDef",
+      "line_range": {
+        "end": 3110,
+        "start": 3092
+      },
+      "name": "MockInteraction",
+      "outputs": "class instance",
+      "parent": "ORACog._create_mock_interaction",
+      "qualname": "ORACog._create_mock_interaction.MockInteraction",
+      "required_tests": [
+        "discord-free static or mock interaction test"
+      ],
+      "responsibility": "Legacy helper with discord boundary involvement.",
+      "safety_risk": "medium",
+      "side_effects": [
+        "discord"
+      ],
+      "target_module": null
+    },
+    {
+      "callees": [
+        "ORACog._create_mock_interaction.MockInteraction.Followup",
+        "ORACog._create_mock_interaction.MockInteraction.Response"
+      ],
+      "callers": [],
+      "decorators": [],
+      "extraction_candidate": false,
+      "inputs": [
+        "self",
+        "ctx"
+      ],
+      "kind": "FunctionDef",
+      "line_range": {
+        "end": 3098,
+        "start": 3093
+      },
+      "name": "__init__",
+      "outputs": "return value",
+      "parent": "ORACog._create_mock_interaction.MockInteraction",
+      "qualname": "ORACog._create_mock_interaction.MockInteraction.__init__",
+      "required_tests": [
+        "discord-free static or mock interaction test"
+      ],
+      "responsibility": "Initializes ORACog runtime dependencies and mutable state.",
+      "safety_risk": "medium",
+      "side_effects": [
+        "discord"
+      ],
+      "target_module": null
+    },
+    {
+      "callees": [
+        "self.ctx.reply"
+      ],
+      "callers": [
+        "ORACog._create_mock_interaction.MockInteraction.__init__"
+      ],
+      "decorators": [],
+      "extraction_candidate": false,
+      "inputs": [],
+      "kind": "ClassDef",
+      "line_range": {
+        "end": 3105,
+        "start": 3100
+      },
+      "name": "Response",
+      "outputs": "class instance",
+      "parent": "ORACog._create_mock_interaction.MockInteraction",
+      "qualname": "ORACog._create_mock_interaction.MockInteraction.Response",
+      "required_tests": [
+        "discord-free static or mock interaction test"
+      ],
+      "responsibility": "Legacy helper with discord boundary involvement.",
+      "safety_risk": "medium",
+      "side_effects": [
+        "discord"
+      ],
+      "target_module": null
+    },
+    {
+      "callees": [],
+      "callers": [],
+      "decorators": [],
+      "extraction_candidate": false,
+      "inputs": [
+        "self",
+        "ctx"
+      ],
+      "kind": "FunctionDef",
+      "line_range": {
+        "end": 3101,
+        "start": 3101
+      },
+      "name": "__init__",
+      "outputs": "return value",
+      "parent": "ORACog._create_mock_interaction.MockInteraction.Response",
+      "qualname": "ORACog._create_mock_interaction.MockInteraction.Response.__init__",
+      "required_tests": [
+        "static map coverage only"
+      ],
+      "responsibility": "Initializes ORACog runtime dependencies and mutable state.",
+      "safety_risk": "low",
+      "side_effects": [],
+      "target_module": null
+    },
+    {
+      "callees": [],
+      "callers": [],
+      "decorators": [],
+      "extraction_candidate": false,
+      "inputs": [
+        "self"
+      ],
+      "kind": "FunctionDef",
+      "line_range": {
+        "end": 3102,
+        "start": 3102
+      },
+      "name": "is_done",
+      "outputs": "return value",
+      "parent": "ORACog._create_mock_interaction.MockInteraction.Response",
+      "qualname": "ORACog._create_mock_interaction.MockInteraction.Response.is_done",
+      "required_tests": [
+        "static map coverage only"
+      ],
+      "responsibility": "Legacy helper or setup block.",
+      "safety_risk": "low",
+      "side_effects": [],
+      "target_module": null
+    },
+    {
+      "callees": [
+        "self.ctx.reply"
+      ],
+      "callers": [],
+      "decorators": [],
+      "extraction_candidate": false,
+      "inputs": [
+        "self",
+        "embed",
+        "ephemeral"
+      ],
+      "kind": "AsyncFunctionDef",
+      "line_range": {
+        "end": 3104,
+        "start": 3103
+      },
+      "name": "send_message",
+      "outputs": "async coroutine",
+      "parent": "ORACog._create_mock_interaction.MockInteraction.Response",
+      "qualname": "ORACog._create_mock_interaction.MockInteraction.Response.send_message",
+      "required_tests": [
+        "discord-free static or mock interaction test"
+      ],
+      "responsibility": "Legacy helper with discord boundary involvement.",
+      "safety_risk": "medium",
+      "side_effects": [
+        "discord"
+      ],
+      "target_module": null
+    },
+    {
+      "callees": [],
+      "callers": [],
+      "decorators": [],
+      "extraction_candidate": false,
+      "inputs": [
+        "self"
+      ],
+      "kind": "AsyncFunctionDef",
+      "line_range": {
+        "end": 3105,
+        "start": 3105
+      },
+      "name": "defer",
+      "outputs": "async coroutine",
+      "parent": "ORACog._create_mock_interaction.MockInteraction.Response",
+      "qualname": "ORACog._create_mock_interaction.MockInteraction.Response.defer",
+      "required_tests": [
+        "static map coverage only"
+      ],
+      "responsibility": "Legacy helper or setup block.",
+      "safety_risk": "low",
+      "side_effects": [],
+      "target_module": null
+    },
+    {
+      "callees": [
+        "self.ctx.reply"
+      ],
+      "callers": [
+        "ORACog._create_mock_interaction.MockInteraction.__init__"
+      ],
+      "decorators": [],
+      "extraction_candidate": false,
+      "inputs": [],
+      "kind": "ClassDef",
+      "line_range": {
+        "end": 3110,
+        "start": 3107
+      },
+      "name": "Followup",
+      "outputs": "class instance",
+      "parent": "ORACog._create_mock_interaction.MockInteraction",
+      "qualname": "ORACog._create_mock_interaction.MockInteraction.Followup",
+      "required_tests": [
+        "discord-free static or mock interaction test"
+      ],
+      "responsibility": "Legacy helper with discord boundary involvement.",
+      "safety_risk": "medium",
+      "side_effects": [
+        "discord"
+      ],
+      "target_module": null
+    },
+    {
+      "callees": [],
+      "callers": [],
+      "decorators": [],
+      "extraction_candidate": false,
+      "inputs": [
+        "self",
+        "ctx"
+      ],
+      "kind": "FunctionDef",
+      "line_range": {
+        "end": 3108,
+        "start": 3108
+      },
+      "name": "__init__",
+      "outputs": "return value",
+      "parent": "ORACog._create_mock_interaction.MockInteraction.Followup",
+      "qualname": "ORACog._create_mock_interaction.MockInteraction.Followup.__init__",
+      "required_tests": [
+        "static map coverage only"
+      ],
+      "responsibility": "Initializes ORACog runtime dependencies and mutable state.",
+      "safety_risk": "low",
+      "side_effects": [],
+      "target_module": null
+    },
+    {
+      "callees": [
+        "self.ctx.reply"
+      ],
+      "callers": [],
+      "decorators": [],
+      "extraction_candidate": false,
+      "inputs": [
+        "self",
+        "embed",
+        "ephemeral"
+      ],
+      "kind": "AsyncFunctionDef",
+      "line_range": {
+        "end": 3110,
+        "start": 3109
+      },
+      "name": "send",
+      "outputs": "async coroutine",
+      "parent": "ORACog._create_mock_interaction.MockInteraction.Followup",
+      "qualname": "ORACog._create_mock_interaction.MockInteraction.Followup.send",
+      "required_tests": [
+        "discord-free static or mock interaction test"
+      ],
+      "responsibility": "Legacy helper with discord boundary involvement.",
+      "safety_risk": "medium",
+      "side_effects": [
+        "discord"
+      ],
+      "target_module": null
+    },
+    {
+      "callees": [
+        "channel.fetch_message",
+        "commands.Cog.listener",
+        "flag_utils.flag_to_iso",
+        "flag_utils.get_country_name",
+        "lang_map.get",
+        "logger.error",
+        "logger.info",
+        "message.add_reaction",
+        "message.remove_reaction",
+        "message.reply",
+        "self._llm.chat",
+        "self.bot.get_channel",
+        "str"
+      ],
+      "callers": [],
+      "decorators": [
+        "commands.Cog.listener()"
+      ],
+      "extraction_candidate": false,
+      "inputs": [
+        "self",
+        "payload: discord.RawReactionActionEvent"
+      ],
+      "kind": "AsyncFunctionDef",
+      "line_range": {
+        "end": 3183,
+        "start": 3115
+      },
+      "name": "on_raw_reaction_add",
+      "outputs": "async coroutine",
+      "parent": "ORACog",
+      "qualname": "ORACog.on_raw_reaction_add",
+      "required_tests": [
+        "discord-free static or mock interaction test",
+        "provider mocked or local-fixture execution test"
+      ],
+      "responsibility": "Handle flag reactions for translation.",
+      "safety_risk": "medium",
+      "side_effects": [
+        "discord",
+        "provider_or_llm"
+      ],
+      "target_module": null
+    },
+    {
+      "callees": [
+        "discord.Color.gold",
+        "discord.Embed",
+        "embed.add_field",
+        "embed.set_author",
+        "embed.set_footer",
+        "interaction.response.send_message",
+        "ora_group.command",
+        "self._store.ensure_user",
+        "self._store.get_points",
+        "self._store.get_rank"
+      ],
+      "callers": [],
+      "decorators": [
+        "ora_group.command(name='rank', description='Check your current points and rank.')"
+      ],
+      "extraction_candidate": false,
+      "inputs": [
+        "self",
+        "interaction: discord.Interaction"
+      ],
+      "kind": "AsyncFunctionDef",
+      "line_range": {
+        "end": 3211,
+        "start": 3186
+      },
+      "name": "rank",
+      "outputs": "async coroutine",
+      "parent": "ORACog",
+      "qualname": "ORACog.rank",
+      "required_tests": [
+        "discord-free static or mock interaction test"
+      ],
+      "responsibility": "Check your current points and rank.",
+      "safety_risk": "medium",
+      "side_effects": [
+        "discord"
+      ],
+      "target_module": null
+    },
+    {
+      "callees": [
+        "ctx.send",
+        "self._store.ensure_user",
+        "self._store.get_points",
+        "self._store.get_rank"
+      ],
+      "callers": [],
+      "decorators": [],
+      "extraction_candidate": false,
+      "inputs": [
+        "self",
+        "ctx: commands.Context"
+      ],
+      "kind": "AsyncFunctionDef",
+      "line_range": {
+        "end": 3224,
+        "start": 3213
+      },
+      "name": "check_points",
+      "outputs": "async coroutine; annotation: None",
+      "parent": "ORACog",
+      "qualname": "ORACog.check_points",
+      "required_tests": [
+        "discord-free static or mock interaction test"
+      ],
+      "responsibility": "AI tool to check user's current points.",
+      "safety_risk": "medium",
+      "side_effects": [
+        "discord"
+      ],
+      "target_module": null
+    },
+    {
+      "callees": [
+        "content.find",
+        "enumerate",
+        "logger.info",
+        "strip"
+      ],
+      "callers": [],
+      "decorators": [],
+      "extraction_candidate": true,
+      "inputs": [
+        "self",
+        "content: str"
+      ],
+      "kind": "FunctionDef",
+      "line_range": {
+        "end": 3268,
+        "start": 3226
+      },
+      "name": "_strip_route_json",
+      "outputs": "return value; annotation: str",
+      "parent": "ORACog",
+      "qualname": "ORACog._strip_route_json",
+      "required_tests": [
+        "characterization parity before wrapper extraction"
+      ],
+      "responsibility": "Removes the JSON block containing 'route_eval' by counting braces.",
+      "safety_risk": "low",
+      "side_effects": [],
+      "target_module": "src/cogs/ora_pure_helpers.py"
+    },
+    {
+      "callees": [
+        "ORACog",
+        "bot.add_cog",
+        "bot.tree.add_command",
+        "bot.tree.get_command"
+      ],
+      "callers": [],
+      "decorators": [],
+      "extraction_candidate": false,
+      "inputs": [
+        "bot"
+      ],
+      "kind": "AsyncFunctionDef",
+      "line_range": {
+        "end": 3277,
+        "start": 3271
+      },
+      "name": "setup",
+      "outputs": "async coroutine",
+      "parent": null,
+      "qualname": "setup",
+      "required_tests": [
+        "static map coverage only"
+      ],
+      "responsibility": "Legacy helper or setup block.",
+      "safety_risk": "low",
+      "side_effects": [],
+      "target_module": null
+    }
+  ],
+  "extraction_candidates": [
+    "ORACog._detect_spam",
+    "ORACog._is_input_spam",
+    "ORACog._extract_json_objects",
+    "ORACog._clean_content",
+    "ORACog._strip_route_json"
+  ],
+  "risk_counts": {
+    "high": 16,
+    "low": 20,
+    "medium": 36
+  },
+  "schema_version": "yonerai-ora-cog-function-map/v1",
+  "side_effect_counts": {
+    "discord": 46,
+    "file": 8,
+    "memory": 3,
+    "network": 7,
+    "provider_or_llm": 11,
+    "system_or_process": 6,
+    "tool_or_shell_policy": 4
+  },
+  "source_lines": 3277,
+  "target": "src/cogs/ora.py"
+}
