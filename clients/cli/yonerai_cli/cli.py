@@ -905,8 +905,8 @@ def _build_search_report(args: argparse.Namespace) -> dict[str, Any]:
         from ora_core.search import MockSearchAdapter, SearchRequest
     except Exception as exc:
         raise CliError("search adapter is unavailable.", exit_code=1) from exc
-    query = _prompt_from_args(args.query)
     if args.search_mode != "mock":
+        query = _safe_prompt_from_args(args.query)
         return {
             "schema_version": "yonerai-search/v1",
             "ok": False,
@@ -917,6 +917,7 @@ def _build_search_report(args: argparse.Namespace) -> dict[str, Any]:
             "live_boundary": {
                 "status": "disabled",
                 "reason": "live_search_not_implemented",
+                "message": "Live search is disabled in this public alpha slice; no network request was performed.",
                 "requires_explicit_live_provider": True,
                 "default_mode": "mock",
                 "actions_not_performed": [
@@ -929,6 +930,7 @@ def _build_search_report(args: argparse.Namespace) -> dict[str, Any]:
             "error": {"code": "search_live_disabled", "message": "live search is not implemented in this public alpha slice"},
             "results": [],
         }
+    query = _prompt_from_args(args.query)
     results = [result.to_public_dict() for result in MockSearchAdapter().search(SearchRequest(query=query))]
     return {
         "schema_version": "yonerai-search/v1",
@@ -944,6 +946,9 @@ def _build_search_report(args: argparse.Namespace) -> dict[str, Any]:
 def _print_search_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -> None:
     if not report["ok"]:
         boundary = report.get("live_boundary") or {}
+        reason = str(boundary.get("reason") or "unknown")
+        reason_status = "fail" if reason == "unknown" else "warn"
+        message = str(boundary.get("message") or report.get("error", {}).get("message") or "no message")
         actions = ", ".join(boundary.get("actions_not_performed") or ())
         print(
             render_report(
@@ -953,7 +958,8 @@ def _print_search_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -
                         "Live search boundary",
                         (
                             CliRow("status", boundary.get("status", "disabled"), "warn"),
-                            CliRow("reason", boundary.get("reason", report["error"]["message"]), "warn"),
+                            CliRow("reason", reason, reason_status),
+                            CliRow("message", message, reason_status),
                             CliRow("network_performed", report.get("network_performed", False), "ok"),
                             CliRow("actions_not_performed", actions or "no network request", "ok"),
                         ),
@@ -965,6 +971,10 @@ def _print_search_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -
         return
     rows = tuple(CliRow(result["title"], result["snippet"], "ok") for result in report["results"])
     print(render_report("YonerAI search", (CliSection("Mock results", rows),), color=color))
+
+
+def _safe_prompt_from_args(parts: list[str] | tuple[str, ...]) -> str:
+    return " ".join(" ".join(str(part or "").split()) for part in parts).strip()
 
 
 def _build_discord_report(args: argparse.Namespace) -> dict[str, Any]:
