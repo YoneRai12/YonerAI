@@ -170,6 +170,30 @@ def test_mock_workspace_file_summary_redacts_secret_like_preview_keywords() -> N
     assert secret_label.lower() not in response.output_text.lower()
 
 
+def test_mock_workspace_file_summary_redacts_generic_secret_assignment_values() -> None:
+    _prepare_paths()
+    from ora_core.execution.workspace_files import build_workspace_file_prompt, read_workspace_text_file
+    from ora_core.providers import ProviderRequest
+    from ora_core.providers.mock import MockProviderAdapter
+
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        workspace = Path(temp_dir)
+        target = workspace / "env.txt"
+        access_label = "AWS_SECRET" + "_ACCESS_KEY"
+        access_value = "AKIA" + "IOSFODNN7EXAMPLE"
+        target.write_text(f"{access_label}={access_value}\nalpha2 release note", encoding="utf-8")
+        context = read_workspace_text_file("env.txt", workspace=workspace)
+        prompt = build_workspace_file_prompt("summarize file", context)
+
+    response = MockProviderAdapter().generate(ProviderRequest(prompt=prompt))
+
+    assert "alpha2" in response.output_text
+    assert access_value.lower() not in response.output_text.lower()
+    assert access_label.lower() not in response.output_text.lower()
+
+
 def test_mock_workspace_file_summary_requires_full_file_context_signature() -> None:
     _prepare_paths()
     from ora_core.providers import ProviderRequest
