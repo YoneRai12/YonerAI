@@ -107,6 +107,21 @@ def _ora_guardrail_response_boundary_status() -> dict[str, object]:
     return guardrail_response_interpreter_status()
 
 
+def _ora_message_format_boundary_status() -> dict[str, object]:
+    try:
+        from src.cogs.ora_message_format_helpers import message_format_helper_status
+    except Exception:
+        return {
+            "name": "ora_message_format_helper",
+            "source": "src/cogs/ora_message_format_helpers.py",
+            "status": "unavailable",
+            "available": False,
+            "discord_runtime_imported": False,
+            "broad_ora_refactor": False,
+        }
+    return message_format_helper_status()
+
+
 def build_boundary_checks_for_task(
     classification: Any,
     *,
@@ -120,4 +135,5 @@ def build_boundary_checks_for_task(
         "tool_boundary": tool.to_public_dict(),
         "ora_tool_schema_boundary": _ora_tool_schema_boundary_status(),
         "ora_guardrail_response_interpreter": _ora_guardrail_response_boundary_status(),
+        "ora_message_format_helper": _ora_message_format_boundary_status(),
     }

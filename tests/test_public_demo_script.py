@@ -110,6 +110,7 @@ def test_public_demo_json_shape_and_boundaries(capsys) -> None:
     assert tool_boundaries["live_tool_execution"] is False
     assert tool_boundaries["ora_tool_schema_boundary"] == "ok"
     assert tool_boundaries["ora_guardrail_response_interpreter"] == "ok"
+    assert tool_boundaries["ora_message_format_helper"] == "ok"
     assert tool_boundaries["guardrail_provider_call_performed"] is False
     assert memory["cloud_synced"] is False
     assert memory["raw_prompt_persisted"] is False

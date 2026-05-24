@@ -61,6 +61,7 @@ from ..utils.user_prefs import UserPrefs
 from .handlers.chat_handler import ChatHandler
 from .handlers.mention_music_handler import handle_mention_music
 from .handlers.vision_handler import VisionHandler
+from .ora_message_format_helpers import split_discord_message_chunks
 from .ora_pure_helpers import (
     clean_content as clean_ora_content,
     detect_spam as detect_ora_spam,
@@ -1345,14 +1346,10 @@ class ORACog(commands.Cog):
         if not files:
             files = []
 
-        full_text = header + content
-        if len(full_text) <= 2000:
-            await message.reply(full_text, files=files, mention_author=False)
+        chunks = split_discord_message_chunks(content, header=header)
+        if len(chunks) == 1:
+            await message.reply(chunks[0], files=files, mention_author=False)
             return
-
-        # Simple splitting
-        chunk_size = 1900
-        chunks = [full_text[i : i + chunk_size] for i in range(0, len(full_text), chunk_size)]
 
         # Send first chunk with reply reference
         first = True
