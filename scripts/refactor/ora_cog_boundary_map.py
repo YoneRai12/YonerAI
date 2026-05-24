@@ -432,6 +432,13 @@ def _find_if_testing_name(method: ast.FunctionDef | ast.AsyncFunctionDef, name: 
     return None
 
 
+def _find_call_by_name(method: ast.FunctionDef | ast.AsyncFunctionDef, name: str) -> ast.Call | None:
+    for node in _walk_method_body(method):
+        if isinstance(node, ast.Call) and _call_name(node.func) == name:
+            return node
+    return None
+
+
 def _internal_blocks(tree: ast.Module) -> list[InternalBlock]:
     ora_class = _find_class(tree, "ORACog")
     if ora_class is None:
@@ -477,6 +484,23 @@ def _internal_blocks(tree: ast.Module) -> list[InternalBlock]:
                     required_tests=("characterization parity before wrapper extraction",),
                 )
             )
+        else:
+            delegated_call = _find_call_by_name(guardrail, "interpret_ora_guardrail_response")
+            if delegated_call is not None:
+                blocks.append(
+                    InternalBlock(
+                        qualname="ORACog._perform_guardrail_check.guardrail_response_interpretation",
+                        parent="ORACog._perform_guardrail_check",
+                        line_start=delegated_call.lineno,
+                        line_end=getattr(delegated_call, "end_lineno", delegated_call.lineno),
+                        responsibility="Delegate guardrail model response interpretation to the extracted pure helper.",
+                        side_effects=(),
+                        safety_risk="low",
+                        extraction_candidate=False,
+                        target_module="src/cogs/ora_guardrail_helpers.py",
+                        required_tests=("wrapper compatibility test",),
+                    )
+                )
 
     return blocks
 
