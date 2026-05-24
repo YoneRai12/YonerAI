@@ -5,7 +5,7 @@ This document is generated from `src/cogs/ora.py` using AST inspection. It does 
 ## Summary
 
 - Target: `src/cogs/ora.py`
-- Source lines: `3157`
+- Source lines: `3104`
 - Definitions mapped: `69`
 - Risk counts: `{"high": 16, "low": 19, "medium": 34}`
 - Side-effect counts: `{"discord": 44, "file": 8, "memory": 3, "network": 7, "provider_or_llm": 11, "system_or_process": 6, "tool_or_shell_policy": 4}`
@@ -37,7 +37,7 @@ This document is generated from `src/cogs/ora.py` using AST inspection. It does 
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | 89-91 | `_nonce` | Legacy helper or setup block. | none | low | no |  | static map coverage only |
 | 97-124 | `_generate_tree` | Legacy helper with file boundary involvement. | file | high | no |  | workspace/temp-file allowlist test |
-| 130-3148 | `ORACog` | ORA-specific commands such as login link and dataset management. | discord, provider_or_llm, memory, file, tool_or_shell_policy, network, system_or_process | high | no |  | discord-free static or mock interaction test; provider mocked or local-fixture execution test; workspace/temp-file allowlist test; deny-by-default tool boundary test; network-disabled fixture test; read-only diagnostic fixture test |
+| 130-3095 | `ORACog` | ORA-specific commands such as login link and dataset management. | discord, provider_or_llm, memory, file, tool_or_shell_policy, network, system_or_process | high | no |  | discord-free static or mock interaction test; provider mocked or local-fixture execution test; workspace/temp-file allowlist test; deny-by-default tool boundary test; network-disabled fixture test; read-only diagnostic fixture test |
 | 133-219 | `ORACog.__init__` | Initializes ORACog runtime dependencies and mutable state. | discord, provider_or_llm, memory, file, tool_or_shell_policy, network, system_or_process | high | no |  | discord-free static or mock interaction test; provider mocked or local-fixture execution test; workspace/temp-file allowlist test; deny-by-default tool boundary test; network-disabled fixture test; read-only diagnostic fixture test |
 | 221-230 | `ORACog._load_soul` | Load the 'Soul' (Persona) prompt from data/soul.md. | file | high | no |  | workspace/temp-file allowlist test |
 | 238-244 | `ORACog.set_status` | Helper to set bot status from callbacks. | discord | medium | no |  | discord-free static or mock interaction test |
@@ -84,26 +84,26 @@ This document is generated from `src/cogs/ora.py` using AST inspection. It does 
 | 1741-1767 | `ORACog._process_attachments` | Process a list of attachments (Text or Image) and update prompt/context. | discord, file | high | no |  | discord-free static or mock interaction test; workspace/temp-file allowlist test |
 | 1769-1783 | `ORACog._process_embed_images` | Process images found in Embeds (Thumbnail or Image field). | discord | medium | no |  | discord-free static or mock interaction test |
 | 1785-2894 | `ORACog._get_tool_schemas` | Returns the list of available tools, organized by Category. Includes 'tags' for RAG filtering. | none | low | no |  | static map coverage only |
-| 2896-2978 | `ORACog.get_context_tools` | Public method to get tools filtered by client context. Prevents usage of Discord-only tools in Web UI, or Web tools in Discord. Also includes Dynamically Loaded Skills from SKILL.m | tool_or_shell_policy | high | no |  | deny-by-default tool boundary test |
-| 2981-2990 | `ORACog.handle_prompt` | Process a user message and generate a response using the LLM (Delegated to ChatHandler). | discord, provider_or_llm | medium | no |  | discord-free static or mock interaction test; provider mocked or local-fixture execution test |
-| 2992-2994 | `ORACog._legacy_handle_prompt` | Legacy helper or setup block. | none | low | no |  | static map coverage only |
-| 2995-3008 | `ORACog.wait_for_llm` | Show a loading animation while waiting for LLM. | discord | medium | no |  | discord-free static or mock interaction test |
-| 3010-3032 | `ORACog._create_mock_interaction` | Helper to create a mock interaction from context. | discord | medium | no |  | discord-free static or mock interaction test |
-| 3012-3030 | `ORACog._create_mock_interaction.MockInteraction` | Legacy helper with discord boundary involvement. | discord | medium | no |  | discord-free static or mock interaction test |
-| 3013-3018 | `ORACog._create_mock_interaction.MockInteraction.__init__` | Initializes ORACog runtime dependencies and mutable state. | discord | medium | no |  | discord-free static or mock interaction test |
-| 3020-3025 | `ORACog._create_mock_interaction.MockInteraction.Response` | Legacy helper with discord boundary involvement. | discord | medium | no |  | discord-free static or mock interaction test |
-| 3021-3021 | `ORACog._create_mock_interaction.MockInteraction.Response.__init__` | Initializes ORACog runtime dependencies and mutable state. | none | low | no |  | static map coverage only |
-| 3022-3022 | `ORACog._create_mock_interaction.MockInteraction.Response.is_done` | Legacy helper or setup block. | none | low | no |  | static map coverage only |
-| 3023-3024 | `ORACog._create_mock_interaction.MockInteraction.Response.send_message` | Legacy helper with discord boundary involvement. | discord | medium | no |  | discord-free static or mock interaction test |
-| 3025-3025 | `ORACog._create_mock_interaction.MockInteraction.Response.defer` | Legacy helper or setup block. | none | low | no |  | static map coverage only |
-| 3027-3030 | `ORACog._create_mock_interaction.MockInteraction.Followup` | Legacy helper with discord boundary involvement. | discord | medium | no |  | discord-free static or mock interaction test |
-| 3028-3028 | `ORACog._create_mock_interaction.MockInteraction.Followup.__init__` | Initializes ORACog runtime dependencies and mutable state. | none | low | no |  | static map coverage only |
-| 3029-3030 | `ORACog._create_mock_interaction.MockInteraction.Followup.send` | Legacy helper with discord boundary involvement. | discord | medium | no |  | discord-free static or mock interaction test |
-| 3035-3103 | `ORACog.on_raw_reaction_add` | Handle flag reactions for translation. | discord, provider_or_llm | medium | no |  | discord-free static or mock interaction test; provider mocked or local-fixture execution test |
-| 3106-3131 | `ORACog.rank` | Check your current points and rank. | discord | medium | no |  | discord-free static or mock interaction test |
-| 3133-3144 | `ORACog.check_points` | AI tool to check user's current points. | discord | medium | no |  | discord-free static or mock interaction test |
-| 3146-3148 | `ORACog._strip_route_json` | Compatibility wrapper for the extracted ORA route JSON stripper. | none | low | yes | `src/cogs/ora_pure_helpers.py` | characterization parity before wrapper extraction |
-| 3151-3157 | `setup` | Legacy helper or setup block. | none | low | no |  | static map coverage only |
+| 2896-2925 | `ORACog.get_context_tools` | Public method to get tools filtered by client context. Prevents usage of Discord-only tools in Web UI, or Web tools in Discord. Also includes Dynamically Loaded Skills from SKILL.m | tool_or_shell_policy | high | no |  | deny-by-default tool boundary test |
+| 2928-2937 | `ORACog.handle_prompt` | Process a user message and generate a response using the LLM (Delegated to ChatHandler). | discord, provider_or_llm | medium | no |  | discord-free static or mock interaction test; provider mocked or local-fixture execution test |
+| 2939-2941 | `ORACog._legacy_handle_prompt` | Legacy helper or setup block. | none | low | no |  | static map coverage only |
+| 2942-2955 | `ORACog.wait_for_llm` | Show a loading animation while waiting for LLM. | discord | medium | no |  | discord-free static or mock interaction test |
+| 2957-2979 | `ORACog._create_mock_interaction` | Helper to create a mock interaction from context. | discord | medium | no |  | discord-free static or mock interaction test |
+| 2959-2977 | `ORACog._create_mock_interaction.MockInteraction` | Legacy helper with discord boundary involvement. | discord | medium | no |  | discord-free static or mock interaction test |
+| 2960-2965 | `ORACog._create_mock_interaction.MockInteraction.__init__` | Initializes ORACog runtime dependencies and mutable state. | discord | medium | no |  | discord-free static or mock interaction test |
+| 2967-2972 | `ORACog._create_mock_interaction.MockInteraction.Response` | Legacy helper with discord boundary involvement. | discord | medium | no |  | discord-free static or mock interaction test |
+| 2968-2968 | `ORACog._create_mock_interaction.MockInteraction.Response.__init__` | Initializes ORACog runtime dependencies and mutable state. | none | low | no |  | static map coverage only |
+| 2969-2969 | `ORACog._create_mock_interaction.MockInteraction.Response.is_done` | Legacy helper or setup block. | none | low | no |  | static map coverage only |
+| 2970-2971 | `ORACog._create_mock_interaction.MockInteraction.Response.send_message` | Legacy helper with discord boundary involvement. | discord | medium | no |  | discord-free static or mock interaction test |
+| 2972-2972 | `ORACog._create_mock_interaction.MockInteraction.Response.defer` | Legacy helper or setup block. | none | low | no |  | static map coverage only |
+| 2974-2977 | `ORACog._create_mock_interaction.MockInteraction.Followup` | Legacy helper with discord boundary involvement. | discord | medium | no |  | discord-free static or mock interaction test |
+| 2975-2975 | `ORACog._create_mock_interaction.MockInteraction.Followup.__init__` | Initializes ORACog runtime dependencies and mutable state. | none | low | no |  | static map coverage only |
+| 2976-2977 | `ORACog._create_mock_interaction.MockInteraction.Followup.send` | Legacy helper with discord boundary involvement. | discord | medium | no |  | discord-free static or mock interaction test |
+| 2982-3050 | `ORACog.on_raw_reaction_add` | Handle flag reactions for translation. | discord, provider_or_llm | medium | no |  | discord-free static or mock interaction test; provider mocked or local-fixture execution test |
+| 3053-3078 | `ORACog.rank` | Check your current points and rank. | discord | medium | no |  | discord-free static or mock interaction test |
+| 3080-3091 | `ORACog.check_points` | AI tool to check user's current points. | discord | medium | no |  | discord-free static or mock interaction test |
+| 3093-3095 | `ORACog._strip_route_json` | Compatibility wrapper for the extracted ORA route JSON stripper. | none | low | yes | `src/cogs/ora_pure_helpers.py` | characterization parity before wrapper extraction |
+| 3098-3104 | `setup` | Legacy helper or setup block. | none | low | no |  | static map coverage only |
 
 ## Call Graph Notes
 

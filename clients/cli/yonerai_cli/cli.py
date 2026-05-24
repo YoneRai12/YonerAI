@@ -812,6 +812,11 @@ def _format_execution_result_pretty(report: dict[str, Any], *, color: ColorMode 
             (
                 CliRow("web_search", boundary.get("web_search", {}).get("status", "unknown"), "ok"),
                 CliRow("tool_boundary", boundary.get("tool_boundary", {}).get("status", "unknown"), "ok"),
+                CliRow(
+                    "ora_tool_schema_boundary",
+                    boundary.get("ora_tool_schema_boundary", {}).get("status", "unknown"),
+                    "ok" if boundary.get("ora_tool_schema_boundary", {}).get("status") == "ok" else "warn",
+                ),
                 CliRow("shell", plan["side_effects"]["shell"], "fail" if plan["side_effects"]["shell"] else "ok"),
                 CliRow("file_access", plan["side_effects"]["file_access"], "fail" if plan["side_effects"]["file_access"] else "ok"),
                 CliRow("memory_persisted", run["persistence"]["memory_persisted"], "fail" if run["persistence"]["memory_persisted"] else "ok"),

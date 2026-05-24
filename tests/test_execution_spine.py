@@ -140,6 +140,8 @@ def test_execute_task_mock_provider_records_completed_run() -> None:
     assert result["run"]["status"] == "completed"
     assert result["run"]["events"][0]["name"] == "plan_created"
     assert result["boundary_checks"]["web_search"]["execution_performed"] is False
+    assert result["boundary_checks"]["ora_tool_schema_boundary"]["status"] == "ok"
+    assert result["boundary_checks"]["ora_tool_schema_boundary"]["unknown_tool_execution_allowed"] is False
     assert result["plan"]["side_effects"]["shell"] is False
 
 
@@ -313,3 +315,4 @@ def test_search_and_tool_boundaries_are_disabled_by_default() -> None:
     assert checks["web_search"]["execution_performed"] is False
     assert checks["tool_boundary"]["status"] == "denied"
     assert checks["tool_boundary"]["execution_performed"] is False
+    assert checks["ora_tool_schema_boundary"]["status"] == "ok"
