@@ -30,6 +30,15 @@ This document is generated from `src/cogs/ora.py` using AST inspection. It does 
 - `ORACog._extract_json_objects` -> `src/cogs/ora_pure_helpers.py`
 - `ORACog._clean_content` -> `src/cogs/ora_pure_helpers.py`
 - `ORACog._strip_route_json` -> `src/cogs/ora_pure_helpers.py`
+- `ORACog._send_large_message.large_message_chunking` -> `src/cogs/ora_message_format_helpers.py`
+- `ORACog._perform_guardrail_check.guardrail_response_interpretation` -> `src/cogs/ora_guardrail_helpers.py`
+
+## Internal Block Map
+
+| Lines | Qualname | Responsibility | Side effects | Risk | Candidate | Target | Required tests |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 1354-1364 | `ORACog._send_large_message.large_message_chunking` | Split a Discord-bound response into 1900-character chunks while keeping the first chunk tied to the reply. | none | low | yes | `src/cogs/ora_message_format_helpers.py` | characterization parity before wrapper extraction |
+| 1418-1429 | `ORACog._perform_guardrail_check.guardrail_response_interpretation` | Interpret a guardrail model response by preferring recovered JSON and falling back to a conservative safe=false keyword check. | none | low | yes | `src/cogs/ora_guardrail_helpers.py` | characterization parity before wrapper extraction |
 
 ## Definition Map
 

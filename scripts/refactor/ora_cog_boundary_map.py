@@ -137,6 +137,33 @@ class Definition:
         }
 
 
+@dataclass(frozen=True)
+class InternalBlock:
+    qualname: str
+    parent: str
+    line_start: int
+    line_end: int
+    responsibility: str
+    side_effects: tuple[str, ...]
+    safety_risk: str
+    extraction_candidate: bool
+    target_module: str | None
+    required_tests: tuple[str, ...]
+
+    def to_public_dict(self) -> dict[str, Any]:
+        return {
+            "qualname": self.qualname,
+            "parent": self.parent,
+            "line_range": {"start": self.line_start, "end": self.line_end},
+            "responsibility": self.responsibility,
+            "side_effects": list(self.side_effects),
+            "safety_risk": self.safety_risk,
+            "extraction_candidate": self.extraction_candidate,
+            "target_module": self.target_module,
+            "required_tests": list(self.required_tests),
+        }
+
+
 def _read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8-sig")
 
@@ -342,6 +369,95 @@ def _walk_definitions(node: ast.AST, parent: str | None = None) -> list[Definiti
     return definitions
 
 
+def _find_class(tree: ast.Module, class_name: str) -> ast.ClassDef | None:
+    return next((node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == class_name), None)
+
+
+def _find_direct_method(class_node: ast.ClassDef, method_name: str) -> ast.FunctionDef | ast.AsyncFunctionDef | None:
+    methods = [
+        node
+        for node in class_node.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == method_name
+    ]
+    return methods[-1] if methods else None
+
+
+def _find_name_assignment(method: ast.FunctionDef | ast.AsyncFunctionDef, name: str) -> ast.Assign | None:
+    for node in ast.walk(method):
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Name) and target.id == name:
+                    return node
+    return None
+
+
+def _find_for_iterating_name(method: ast.FunctionDef | ast.AsyncFunctionDef, name: str) -> ast.For | ast.AsyncFor | None:
+    for node in ast.walk(method):
+        if isinstance(node, (ast.For, ast.AsyncFor)) and isinstance(node.iter, ast.Name) and node.iter.id == name:
+            return node
+    return None
+
+
+def _is_name_test(node: ast.AST, name: str) -> bool:
+    return isinstance(node, ast.Name) and node.id == name
+
+
+def _find_if_testing_name(method: ast.FunctionDef | ast.AsyncFunctionDef, name: str) -> ast.If | None:
+    for node in ast.walk(method):
+        if isinstance(node, ast.If) and _is_name_test(node.test, name):
+            return node
+    return None
+
+
+def _internal_blocks(tree: ast.Module) -> list[InternalBlock]:
+    ora_class = _find_class(tree, "ORACog")
+    if ora_class is None:
+        return []
+
+    blocks: list[InternalBlock] = []
+
+    large_message = _find_direct_method(ora_class, "_send_large_message")
+    if large_message is not None:
+        chunks_assignment = _find_name_assignment(large_message, "chunks")
+        chunks_loop = _find_for_iterating_name(large_message, "chunks")
+        if chunks_assignment is not None and chunks_loop is not None:
+            blocks.append(
+                InternalBlock(
+                    qualname="ORACog._send_large_message.large_message_chunking",
+                    parent="ORACog._send_large_message",
+                    line_start=chunks_assignment.lineno,
+                    line_end=getattr(chunks_loop, "end_lineno", chunks_loop.lineno),
+                    responsibility="Split a Discord-bound response into 1900-character chunks while keeping the first chunk tied to the reply.",
+                    side_effects=(),
+                    safety_risk="low",
+                    extraction_candidate=True,
+                    target_module="src/cogs/ora_message_format_helpers.py",
+                    required_tests=("characterization parity before wrapper extraction",),
+                )
+            )
+
+    guardrail = _find_direct_method(ora_class, "_perform_guardrail_check")
+    if guardrail is not None:
+        content_if = _find_if_testing_name(guardrail, "content")
+        if content_if is not None:
+            blocks.append(
+                InternalBlock(
+                    qualname="ORACog._perform_guardrail_check.guardrail_response_interpretation",
+                    parent="ORACog._perform_guardrail_check",
+                    line_start=content_if.lineno,
+                    line_end=getattr(content_if, "end_lineno", content_if.lineno),
+                    responsibility="Interpret a guardrail model response by preferring recovered JSON and falling back to a conservative safe=false keyword check.",
+                    side_effects=(),
+                    safety_risk="low",
+                    extraction_candidate=True,
+                    target_module="src/cogs/ora_guardrail_helpers.py",
+                    required_tests=("characterization parity before wrapper extraction",),
+                )
+            )
+
+    return blocks
+
+
 def _normalize_callee(raw_call: str, known_qualnames: set[str], current_parent: str | None) -> str:
     if raw_call.startswith("self.") and current_parent:
         candidate = f"{current_parent}.{raw_call.removeprefix('self.')}"
@@ -400,11 +516,20 @@ def build_ora_cog_function_map(repo_root: str | Path = ".", target: str | Path =
         definition.to_public_dict(tuple(sorted(callers[definition.qualname])))
         for definition in sorted(normalized_definitions, key=lambda item: (item.line_start, item.qualname))
     ]
+    internal_blocks = [
+        block.to_public_dict()
+        for block in sorted(_internal_blocks(tree), key=lambda item: (item.line_start, item.qualname))
+    ]
     extraction_candidates = [
         item["qualname"]
         for item in definitions_payload
         if item["extraction_candidate"]
     ]
+    extraction_candidates.extend(
+        item["qualname"]
+        for item in internal_blocks
+        if item["extraction_candidate"]
+    )
     risk_counts = {
         risk: sum(1 for item in definitions_payload if item["safety_risk"] == risk)
         for risk in ("low", "medium", "high")
@@ -421,6 +546,7 @@ def build_ora_cog_function_map(repo_root: str | Path = ".", target: str | Path =
         "risk_counts": risk_counts,
         "side_effect_counts": dict(sorted(side_effect_counts.items())),
         "extraction_candidates": extraction_candidates,
+        "internal_blocks": internal_blocks,
         "definitions": definitions_payload,
     }
 
@@ -458,9 +584,34 @@ def render_markdown(payload: dict[str, Any]) -> str:
     candidates = payload["extraction_candidates"]
     if candidates:
         for candidate in candidates:
-            lines.append(f"- `{candidate}` -> `src/cogs/ora_pure_helpers.py`")
+            target = _target_for_candidate(payload, candidate)
+            lines.append(f"- `{candidate}` -> `{target}`")
     else:
         lines.append("- None. No pure helper met the current extraction heuristic.")
+    lines.extend(["", "## Internal Block Map", ""])
+    internal_blocks = payload.get("internal_blocks") or []
+    if internal_blocks:
+        lines.append("| Lines | Qualname | Responsibility | Side effects | Risk | Candidate | Target | Required tests |")
+        lines.append("| --- | --- | --- | --- | --- | --- | --- | --- |")
+        for item in internal_blocks:
+            lines.append(
+                "| "
+                + " | ".join(
+                    [
+                        f"{item['line_range']['start']}-{item['line_range']['end']}",
+                        f"`{item['qualname']}`",
+                        _md_cell(item["responsibility"]),
+                        ", ".join(item["side_effects"]) or "none",
+                        item["safety_risk"],
+                        "yes" if item["extraction_candidate"] else "no",
+                        f"`{item['target_module']}`" if item["target_module"] else "",
+                        _md_cell("; ".join(item["required_tests"])),
+                    ]
+                )
+                + " |"
+            )
+    else:
+        lines.append("- None. No significant internal blocks met the current extraction heuristic.")
     lines.extend(["", "## Definition Map", ""])
     lines.append(
         "| Lines | Qualname | Responsibility | Side effects | Risk | Candidate | Target | Required tests |"
@@ -501,6 +652,14 @@ def render_markdown(payload: dict[str, Any]) -> str:
 
 def _md_cell(value: str) -> str:
     return " ".join(str(value).replace("|", "\\|").split())
+
+
+def _target_for_candidate(payload: dict[str, Any], candidate: str) -> str:
+    for section in ("definitions", "internal_blocks"):
+        for item in payload.get(section, []):
+            if item["qualname"] == candidate and item.get("target_module"):
+                return item["target_module"]
+    return "unknown"
 
 
 def write_outputs(payload: dict[str, Any], json_output: Path, markdown_output: Path) -> None:
