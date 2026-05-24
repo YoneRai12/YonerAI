@@ -241,6 +241,24 @@ def _provider_runtime_e2e_fixture_report() -> dict[str, object]:
     }
 
 
+def _build_start_report() -> dict[str, Any]:
+    _prepare_core_import_path()
+    from yonerai_cli.first_run import build_first_run_report
+
+    doctor_report = _build_doctor_report(command="yonerai start")
+    return build_first_run_report(
+        provider_setup=doctor_report.get("providers"),
+        repo_version=doctor_report.get("cli", {}).get("repo_version"),
+        env=os.environ,
+    )
+
+
+def _print_start_pretty(report: dict[str, Any], *, lang: str = "en", color: ColorMode = "auto") -> None:
+    from yonerai_cli.first_run import format_first_run_pretty
+
+    print(format_first_run_pretty(report, lang=lang, color=color))
+
+
 def _build_status_report(*, source: str = "local") -> dict[str, Any]:
     report = _build_doctor_report(command="yonerai status")
     try:
@@ -1527,6 +1545,13 @@ def build_parser() -> argparse.ArgumentParser:
     demo_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
     demo_output.add_argument("--pretty", action="store_true", help="Print a readable sectioned demo summary.")
 
+    start = subcommands.add_parser("start", help="Guide the first local YonerAI run for non-engineers.")
+    start_output = start.add_mutually_exclusive_group()
+    start_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
+    start_output.add_argument("--pretty", action="store_true", help="Print a readable first-run guide.")
+    start.add_argument("--lang", choices=LANG_CHOICES, default="en", help="Pretty output language. Default: en.")
+    start.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
+
     doctor = subcommands.add_parser("doctor", help="Run offline, non-mutating setup diagnostics.")
     doctor_output = doctor.add_mutually_exclusive_group()
     doctor_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
@@ -1757,6 +1782,13 @@ def run(argv: list[str] | None = None) -> int:
         return _run_public_mvp_smoke(json_output=args.json, pretty=args.pretty)
     if args.command in {"demo", "quickstart"}:
         return _run_public_demo(json_output=args.json, pretty=args.pretty)
+    if args.command == "start":
+        report = _build_start_report()
+        if args.json:
+            _print_json(report)
+        else:
+            _print_start_pretty(report, lang=args.lang, color=args.color)
+        return 0
     if args.command == "doctor":
         report = _build_doctor_report()
         if args.json:

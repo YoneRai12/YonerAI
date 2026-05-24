@@ -4,7 +4,9 @@ import json
 import os
 import subprocess
 import sys
+import threading
 import urllib.error
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from io import BytesIO
 from pathlib import Path
 from typing import Any
@@ -17,6 +19,30 @@ def _load_cli_module():
     from yonerai_cli import cli
 
     return cli
+
+
+class _LocalLLMProbeHandler(BaseHTTPRequestHandler):
+    def do_GET(self) -> None:
+        if self.path == "/api/tags":
+            body = b'{"models":[{"name":"local-test"}]}'
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        self.send_response(404)
+        self.end_headers()
+
+    def log_message(self, _format: str, *_args: Any) -> None:
+        return
+
+
+def _start_loopback_probe_server() -> tuple[ThreadingHTTPServer, threading.Thread]:
+    server = ThreadingHTTPServer(("127.0.0.1", 0), _LocalLLMProbeHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    return server, thread
 
 
 def test_cli_health_command_uses_loopback_core_api(monkeypatch, capsys):
@@ -150,6 +176,131 @@ def test_cli_demo_available_from_clients_cli_cwd() -> None:
     assert "Traceback" not in result.stderr
     assert "session_id" not in result.stdout.lower()
     assert "C:\\Users" not in result.stdout
+
+
+def test_cli_start_json_reports_first_run_without_external_calls(monkeypatch, capsys):
+    cli = _load_cli_module()
+    from yonerai_cli import first_run
+
+    for key in (
+        "ORA_LOCAL_LLM_ENABLED",
+        "ORA_LOCAL_LLM_PROVIDER",
+        "ORA_LOCAL_LLM_BASE_URL",
+        "YONERAI_OPENAI_COMPATIBLE_BASE_URL",
+        "YONERAI_OPENAI_COMPATIBLE_API_KEY",
+        "YONERAI_OPENAI_COMPATIBLE_LIVE",
+    ):
+        monkeypatch.delenv(key, raising=False)
+
+    def unavailable(*_args: Any, **_kwargs: Any):
+        raise urllib.error.URLError("connection refused")
+
+    monkeypatch.setattr(first_run.urllib.request, "urlopen", unavailable)
+
+    assert cli.main(["start", "--json"]) == 0
+
+    captured = capsys.readouterr()
+    output = json.loads(captured.out)
+    assert output["schema_version"] == "yonerai-first-run/v1"
+    assert output["command"] == "yonerai start"
+    assert output["network_scope"] == "loopback_only"
+    assert output["live_provider_call_performed"] is False
+    assert output["local_llm_generation_performed"] is False
+    assert output["local_llm"]["status"] == "unavailable"
+    assert output["provider_setup"]["mock"]["plain_state"] == "ready_now"
+    assert output["provider_setup"]["openai_compatible"]["plain_state"] == "not_configured"
+    assert output["steps"][0]["command"] == "yonerai demo --pretty"
+    assert output["steps"][1]["command"] == "yonerai doctor --pretty --lang ja"
+    assert output["recommended_first_ask"]["provider"] == "mock"
+    assert "no external provider call" in output["actions_not_performed"]
+    assert "Traceback" not in captured.err
+    local_path_marker = "C:" + "\\Users"
+    assert local_path_marker not in captured.out
+
+
+def test_cli_start_pretty_supports_clean_japanese(monkeypatch, capsys):
+    cli = _load_cli_module()
+    from yonerai_cli import first_run
+
+    def unavailable(*_args: Any, **_kwargs: Any):
+        raise urllib.error.URLError("connection refused")
+
+    monkeypatch.setattr(first_run.urllib.request, "urlopen", unavailable)
+
+    assert cli.main(["start", "--pretty", "--lang", "ja", "--color", "never"]) == 0
+
+    output = capsys.readouterr().out
+    assert "YonerAI はじめての起動" in output
+    assert "最初の5分" in output
+    assert "ローカルLLM確認" in output
+    assert "プロバイダー設定" in output
+    assert "ワークスペース内ファイルアクセス制御" in output
+    assert "yonerai doctor --pretty --lang ja" in output
+    assert "まだ使えないもの" in output
+    assert "繝" not in output
+    assert "\033[" not in output
+
+
+def test_cli_start_detects_loopback_ollama_mock_server(monkeypatch, capsys):
+    cli = _load_cli_module()
+    from yonerai_cli import first_run
+
+    server, thread = _start_loopback_probe_server()
+    try:
+        port = server.server_address[1]
+        monkeypatch.setattr(
+            first_run,
+            "DEFAULT_LOCAL_LLM_CANDIDATES",
+            (
+                first_run.LocalLLMProbeCandidate(
+                    provider="ollama",
+                    label="Ollama",
+                    base_url=f"http://127.0.0.1:{port}",
+                    probe_path="api/tags",
+                ),
+            ),
+        )
+
+        assert cli.main(["start", "--json"]) == 0
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["local_llm"]["status"] == "detected"
+    assert output["local_llm"]["detected_provider"] == "ollama"
+    assert output["local_llm"]["endpoint_label"].startswith("loopback:")
+    assert output["provider_setup"]["local"]["plain_state"] == "local_server_detected_enable_env"
+    assert output["provider_setup"]["local"]["next_step"] == (
+        'set ORA_LOCAL_LLM_ENABLED=1, then run yonerai ask "hello" --provider local --live --json'
+    )
+    assert output["recommended_first_ask"]["provider"] == "mock"
+
+
+def test_cli_start_rejects_non_loopback_local_llm_config_without_probe(monkeypatch, capsys):
+    cli = _load_cli_module()
+    from yonerai_cli import first_run
+
+    monkeypatch.setenv("ORA_LOCAL_LLM_PROVIDER", "openai_compatible_local")
+    monkeypatch.setenv("ORA_LOCAL_LLM_BASE_URL", "https://example.com/v1")
+
+    def fail_probe(*_args: Any, **_kwargs: Any):
+        raise AssertionError("start must not probe non-loopback local LLM URLs")
+
+    monkeypatch.setattr(first_run.urllib.request, "urlopen", fail_probe)
+
+    assert cli.main(["start", "--json"]) == 0
+
+    captured = capsys.readouterr()
+    output = json.loads(captured.out)
+    assert output["local_llm"]["status"] == "blocked"
+    assert output["local_llm"]["configured_endpoint_allowed"] is False
+    assert output["local_llm"]["rejected_non_loopback"] is True
+    assert output["local_llm"]["probe_performed"] is False
+    assert output["provider_setup"]["local"]["plain_state"] == "blocked_by_loopback_policy"
+    assert "example.com" not in captured.out
+    assert "Traceback" not in captured.err
 
 
 def test_cli_doctor_reports_offline_status_without_network(monkeypatch, capsys):
