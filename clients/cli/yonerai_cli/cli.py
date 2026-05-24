@@ -891,6 +891,30 @@ def _ledger_status(ledger_path: str | None) -> dict[str, object]:
     }
 
 
+def _start_cli_boundary_run(
+    ledger: Any,
+    *,
+    task_text: str,
+    category: str,
+    route: str,
+    provider_id: str,
+    provider_available: bool,
+    disabled_reason: str | None = None,
+):
+    return ledger.create_run(
+        task_text=task_text,
+        classification={"category": category, "risk": "safe_public", "source": "yonerai_cli"},
+        route_decision={"route": route, "mode": "public_cli", "network_required": False},
+        provider_decision={
+            "provider_id": provider_id,
+            "provider_available": provider_available,
+            "live_call_performed": False,
+        },
+        approval_required=False,
+        disabled_reason=disabled_reason,
+    )
+
+
 def _optional_bool_status(value: object) -> str:
     if value is True:
         return "ok"
@@ -903,16 +927,32 @@ def _build_search_report(args: argparse.Namespace) -> dict[str, Any]:
     try:
         _prepare_core_import_path()
         from ora_core.search import MockSearchAdapter, SearchRequest, build_live_search_disabled_boundary
+        from ora_core.execution.ledger import build_run_ledger_from_env
     except Exception as exc:
         raise CliError("search adapter is unavailable.", exit_code=1) from exc
+    ledger = build_run_ledger_from_env(args.ledger_path)
+    ledger_status = _ledger_status(args.ledger_path)
     if args.search_mode != "mock":
         query = _safe_prompt_from_args(args.query)
         live_boundary = build_live_search_disabled_boundary(query)
+        run = _start_cli_boundary_run(
+            ledger,
+            task_text=f"search live {query}",
+            category="web_search_boundary",
+            route="live_search_disabled_boundary",
+            provider_id="live-search",
+            provider_available=False,
+            disabled_reason=live_boundary["reason"],
+        )
+        ledger.append_event(run.run_id, "live_search_boundary", "blocked", live_boundary["reason"])
+        run = ledger.fail_run(run.run_id, error_summary=live_boundary["message"], blocked=True)
         return {
             "schema_version": "yonerai-search/v1",
             "ok": False,
             "adapter": args.search_mode,
             "query": query,
+            "run": run.to_public_dict(),
+            "ledger": ledger_status,
             "execution_performed": False,
             "network_performed": False,
             "live_boundary": live_boundary,
@@ -920,11 +960,23 @@ def _build_search_report(args: argparse.Namespace) -> dict[str, Any]:
             "results": [],
         }
     query = _prompt_from_args(args.query)
+    run = _start_cli_boundary_run(
+        ledger,
+        task_text=f"search mock {query}",
+        category="mock_web_search",
+        route="mock_search_adapter",
+        provider_id="mock-search",
+        provider_available=True,
+    )
     results = [result.to_public_dict() for result in MockSearchAdapter().search(SearchRequest(query=query))]
+    ledger.append_event(run.run_id, "mock_search_results", "ok", f"result_count={len(results)}")
+    run = ledger.complete_run(run.run_id, result_summary=f"mock search returned {len(results)} results")
     return {
         "schema_version": "yonerai-search/v1",
         "ok": True,
         "adapter": "mock",
+        "run": run.to_public_dict(),
+        "ledger": ledger_status,
         "execution_performed": False,
         "network_performed": False,
         "query": query,
@@ -935,6 +987,7 @@ def _build_search_report(args: argparse.Namespace) -> dict[str, Any]:
 def _print_search_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -> None:
     if not report["ok"]:
         boundary = report.get("live_boundary") or {}
+        run = report.get("run") or {}
         reason = str(boundary.get("reason") or "unknown")
         reason_status = "fail" if reason == "unknown" else "warn"
         message = str(boundary.get("message") or report.get("error", {}).get("message") or "no message")
@@ -946,6 +999,8 @@ def _print_search_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -
                     CliSection(
                         "Live search boundary",
                         (
+                            CliRow("run_id", run.get("run_id", "unknown"), "warn"),
+                            CliRow("run_status", run.get("status", "blocked"), "warn"),
                             CliRow("status", boundary.get("status", "disabled"), "warn"),
                             CliRow("reason", reason, reason_status),
                             CliRow("message", message, reason_status),
@@ -958,8 +1013,24 @@ def _print_search_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -
             )
         )
         return
+    run = report.get("run") or {}
     rows = tuple(CliRow(result["title"], result["snippet"], "ok") for result in report["results"])
-    print(render_report("YonerAI search", (CliSection("Mock results", rows),), color=color))
+    print(
+        render_report(
+            "YonerAI search",
+            (
+                CliSection(
+                    "Run",
+                    (
+                        CliRow("run_id", run.get("run_id", "unknown"), "ok"),
+                        CliRow("run_status", run.get("status", "completed"), "ok"),
+                    ),
+                ),
+                CliSection("Mock results", rows),
+            ),
+            color=color,
+        )
+    )
 
 
 def _safe_prompt_from_args(parts: list[str] | tuple[str, ...]) -> str:
@@ -970,15 +1041,33 @@ def _build_discord_report(args: argparse.Namespace) -> dict[str, Any]:
     try:
         _prepare_core_import_path()
         from ora_core.discord_gateway import SyntheticDiscordGatewayAdapter
+        from ora_core.execution.ledger import build_run_ledger_from_env
     except Exception as exc:
         raise CliError("Discord gateway adapter is unavailable.", exit_code=1) from exc
     prompt = _prompt_from_args(args.message)
+    ledger = build_run_ledger_from_env(args.ledger_path)
+    ledger_status = _ledger_status(args.ledger_path)
+    run = _start_cli_boundary_run(
+        ledger,
+        task_text=f"discord synthetic {prompt}",
+        category="synthetic_discord_gateway",
+        route="synthetic_discord_gateway",
+        provider_id="synthetic-discord-gateway",
+        provider_available=True,
+    )
     result = SyntheticDiscordGatewayAdapter().handle_mention(prompt)
-    return result.to_public_dict()
+    report = result.to_public_dict()
+    ledger.append_event(run.run_id, "synthetic_discord_gateway", "ok", f"progress_events={report['progress_events']}")
+    run = ledger.complete_run(run.run_id, result_summary="synthetic Discord gateway completed")
+    report["run"] = run.to_public_dict()
+    report["ledger"] = ledger_status
+    return report
 
 
 def _print_discord_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -> None:
     rows = (
+        CliRow("run_id", report.get("run", {}).get("run_id", "unknown"), "ok"),
+        CliRow("run_status", report.get("run", {}).get("status", "completed"), "ok"),
         CliRow("adapter", report["adapter"], "ok" if report["ok"] else "fail"),
         CliRow("synthetic", report["synthetic"], "ok" if report["synthetic"] else "fail"),
         CliRow("live_discord", report["live_discord"], "fail" if report["live_discord"] else "ok"),
@@ -1458,6 +1547,7 @@ def build_parser() -> argparse.ArgumentParser:
     search = subcommands.add_parser("search", help="Run deterministic mock search or report live search as disabled.")
     search.add_argument("search_mode", choices=("mock", "live"), help="Search mode. Default-safe mode is mock.")
     search.add_argument("query", nargs="+")
+    search.add_argument("--ledger-path", "--ledger", dest="ledger_path", help="Optional redacted JSONL run ledger path. Disabled by default.")
     search_output = search.add_mutually_exclusive_group()
     search_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
     search_output.add_argument("--pretty", action="store_true", help="Print a readable search fixture summary.")
@@ -1467,6 +1557,7 @@ def build_parser() -> argparse.ArgumentParser:
     discord_subcommands = discord.add_subparsers(dest="discord_command", required=True)
     discord_synthetic = discord_subcommands.add_parser("synthetic", help="Run a synthetic Discord mention fixture.")
     discord_synthetic.add_argument("message", nargs="+")
+    discord_synthetic.add_argument("--ledger-path", "--ledger", dest="ledger_path", help="Optional redacted JSONL run ledger path. Disabled by default.")
     discord_synthetic_output = discord_synthetic.add_mutually_exclusive_group()
     discord_synthetic_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
     discord_synthetic_output.add_argument("--pretty", action="store_true", help="Print a readable Discord adapter summary.")

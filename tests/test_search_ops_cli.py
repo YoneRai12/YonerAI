@@ -37,6 +37,29 @@ def test_cli_search_mock_has_no_network(capsys) -> None:
     assert output["adapter"] == "mock"
     assert output["network_performed"] is False
     assert output["results"][0]["source"] == "mock"
+    assert output["run"]["run_id"].startswith("run_")
+    assert output["run"]["status"] == "completed"
+
+
+def test_cli_search_mock_records_redacted_ledger(tmp_path, capsys) -> None:
+    _prepare_paths()
+    from yonerai_cli import cli
+
+    ledger = tmp_path / "runs.jsonl"
+
+    rc = cli.main(["search", "mock", "YonerAI", "alpha2", "--json", "--ledger", str(ledger)])
+    captured = capsys.readouterr()
+    output = json.loads(captured.out)
+
+    assert rc == 0
+    assert output["ok"] is True
+    assert output["run"]["status"] == "completed"
+    assert output["run"]["classification"]["category"] == "mock_web_search"
+    assert output["ledger"]["file_backed"] is True
+    assert str(ledger) not in captured.out
+    ledger_text = ledger.read_text(encoding="utf-8")
+    assert output["run"]["run_id"] in ledger_text
+    assert "mock_search_results" in ledger_text
 
 
 def test_cli_search_live_is_disabled_by_default(capsys) -> None:
@@ -57,6 +80,8 @@ def test_cli_search_live_is_disabled_by_default(capsys) -> None:
     assert output["live_boundary"]["requires_explicit_live_provider"] is True
     assert "no network request" in output["live_boundary"]["actions_not_performed"]
     assert output["error"]["code"] == "search_live_disabled"
+    assert output["run"]["run_id"].startswith("run_")
+    assert output["run"]["status"] == "blocked"
 
 
 def test_cli_search_live_whitespace_query_still_returns_boundary_json(capsys) -> None:
@@ -72,7 +97,26 @@ def test_cli_search_live_whitespace_query_still_returns_boundary_json(capsys) ->
     assert output["query"] == ""
     assert output["network_performed"] is False
     assert output["live_boundary"]["reason"] == "live_search_not_implemented"
+    assert output["run"]["task_summary"] == "search live"
     assert captured.err == ""
+
+
+def test_cli_search_live_records_blocked_run_without_network(tmp_path, capsys) -> None:
+    _prepare_paths()
+    from yonerai_cli import cli
+
+    ledger = tmp_path / "runs.jsonl"
+
+    rc = cli.main(["search", "live", "YonerAI", "--json", "--ledger", str(ledger)])
+    captured = capsys.readouterr()
+    output = json.loads(captured.out)
+
+    assert rc == 1
+    assert output["run"]["status"] == "blocked"
+    assert output["run"]["disabled_reason"] == "live_search_not_implemented"
+    assert output["network_performed"] is False
+    assert str(ledger) not in captured.out
+    assert "live_search_boundary" in ledger.read_text(encoding="utf-8")
 
 
 def test_cli_search_live_pretty_reports_no_network_boundary(capsys) -> None:
@@ -155,3 +199,24 @@ def test_cli_ops_plan_does_not_import_mcp_policy_from_cwd(tmp_path, capsys, monk
     assert output["ok"] is True
     assert marker.exists() is False
     assert "attacker-pattern" not in output["plan"]["mcp_policy"]["default_deny_patterns"]
+
+
+def test_cli_discord_synthetic_records_redacted_ledger(tmp_path, capsys) -> None:
+    _prepare_paths()
+    from yonerai_cli import cli
+
+    ledger = tmp_path / "runs.jsonl"
+
+    rc = cli.main(["discord", "synthetic", "hello", "--json", "--ledger", str(ledger)])
+    captured = capsys.readouterr()
+    output = json.loads(captured.out)
+
+    assert rc == 0
+    assert output["ok"] is True
+    assert output["live_discord"] is False
+    assert output["run"]["run_id"].startswith("run_")
+    assert output["run"]["status"] == "completed"
+    assert output["run"]["classification"]["category"] == "synthetic_discord_gateway"
+    assert output["ledger"]["file_backed"] is True
+    assert str(ledger) not in captured.out
+    assert "synthetic_discord_gateway" in ledger.read_text(encoding="utf-8")
