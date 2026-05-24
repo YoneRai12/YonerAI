@@ -63,6 +63,7 @@ def test_public_demo_json_shape_and_boundaries(capsys) -> None:
     registry = next(check for check in provider_planner["checks"] if check["name"] == "provider_registry")
     external = next(check for check in provider_planner["checks"] if check["name"] == "external_provider_availability")
     provider_setup = next(check for check in provider_planner["checks"] if check["name"] == "provider_setup_blockers")
+    provider_e2e = next(check for check in provider_planner["checks"] if check["name"] == "provider_runtime_e2e_fixtures")
     search = next(check for check in provider_planner["checks"] if check["name"] == "mock_web_search")
     live_search = next(check for check in provider_planner["checks"] if check["name"] == "live_search_boundary")
     dangerous = next(check for check in provider_planner["checks"] if check["name"] == "dangerous_shell_plan")
@@ -74,6 +75,10 @@ def test_public_demo_json_shape_and_boundaries(capsys) -> None:
     assert provider_setup["openai_compatible_live_ready"] is False
     assert "YONERAI_OPENAI_COMPATIBLE_BASE_URL" in provider_setup["openai_compatible_blockers"]
     assert provider_setup["network_probe_performed"] is False
+    assert provider_e2e["openai_compatible"] == "local_mock_http_server_tested"
+    assert provider_e2e["local_llm"] == "loopback_mock_http_server_tested"
+    assert provider_e2e["run_ledger"] == "redacted_success_and_error_paths_tested"
+    assert provider_e2e["external_network_call_performed"] is False
     assert search["network_performed"] is False
     assert live_search["adapter"] == "live"
     assert live_search["reason"] == "live_search_not_implemented"
@@ -161,6 +166,9 @@ def test_public_demo_pretty_output_contains_key_sections(capsys) -> None:
     assert "memory_status=quarantined" in output
     assert "external_provider_availability" in output
     assert "provider_setup_blockers" in output
+    assert "provider_runtime_e2e_fixtures" in output
+    assert "local_mock_http_server_tested" in output
+    assert "loopback_mock_http_server_tested" in output
     assert "local_loopback_only=true" in output
     assert "openai_compatible_live_ready=false" in output
     assert "mock_web_search" in output
