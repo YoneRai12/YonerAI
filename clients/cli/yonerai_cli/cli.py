@@ -193,6 +193,30 @@ def _build_doctor_report(*, command: str = "yonerai doctor") -> dict[str, Any]:
             "production_oracle_used": False,
             "production_trust_material": False,
         }
+    try:
+        from ora_core.hybrid.relay_status import build_relay_status_report
+
+        relay_status = build_relay_status_report(os.environ)
+    except ImportError:
+        relay_status = {
+            "schema_version": "yonerai-relay-status/v0.1",
+            "ok": False,
+            "error": "relay_status_unavailable",
+            "relay": {"process_started": False, "public_exposure_allowed": False},
+        }
+    try:
+        from ora_core.hybrid.node_relay_contract import build_hybrid_node_relay_contract_stub
+
+        hybrid_node_relay_contract = build_hybrid_node_relay_contract_stub(os.environ)
+    except ImportError:
+        hybrid_node_relay_contract = {
+            "schema_version": "yonerai-hybrid-node-relay-contract/v0.1",
+            "ok": False,
+            "error": "hybrid_node_relay_contract_unavailable",
+            "official_cloud_runtime_implemented": False,
+            "production_oracle_used": False,
+            "network_required": False,
+        }
     python_supported = sys.version_info >= (3, 11)
     manifest_contract_valid = bool(manifest_report.get("contract_valid", manifest_report.get("ok")))
     system_checks = {
@@ -201,8 +225,10 @@ def _build_doctor_report(*, command: str = "yonerai doctor") -> dict[str, Any]:
     }
     checks_ok = all(bool(check.get("ok")) for check in system_checks.values())
     hybrid_wire_ok = bool(hybrid_wire_contract.get("ok"))
+    relay_ok = bool(relay_status.get("ok"))
+    hybrid_node_relay_ok = bool(hybrid_node_relay_contract.get("ok"))
     return {
-        "ok": manifest_contract_valid and python_supported and checks_ok and hybrid_wire_ok,
+        "ok": manifest_contract_valid and python_supported and checks_ok and hybrid_wire_ok and relay_ok and hybrid_node_relay_ok,
         "command": command,
         "schema_version": "yonerai-doctor/v1",
         "python": {
@@ -239,6 +265,8 @@ def _build_doctor_report(*, command: str = "yonerai doctor") -> dict[str, Any]:
         },
         "providers": provider_setup,
         "hybrid_wire_contract": hybrid_wire_contract,
+        "relay_status": relay_status,
+        "hybrid_node_relay_contract": hybrid_node_relay_contract,
         "provider_runtime_e2e_fixtures": _provider_runtime_e2e_fixture_report(),
         "system_checks": system_checks,
         "errors": manifest_report.get("errors", []),
@@ -474,6 +502,8 @@ def _doctor_sections_en(report: dict[str, Any]) -> tuple[CliSection, ...]:
     provider_rows = _provider_setup_rows(report, lang="en")
     provider_e2e_rows = _provider_runtime_e2e_rows(report, lang="en")
     hybrid_wire_rows = _hybrid_wire_contract_rows(report, lang="en")
+    node_relay_rows = _hybrid_node_relay_contract_rows(report, lang="en")
+    relay_rows = _relay_status_rows(report, lang="en")
     return (
         CliSection(
             "Setup",
@@ -508,6 +538,8 @@ def _doctor_sections_en(report: dict[str, Any]) -> tuple[CliSection, ...]:
             ),
         ),
         CliSection("Hybrid Wire Contract", hybrid_wire_rows),
+        CliSection("Hybrid Node/Relay", node_relay_rows),
+        CliSection("Relay local-dev", relay_rows),
         CliSection("Provider runtime", provider_rows),
         CliSection("Provider runtime E2E fixtures", provider_e2e_rows),
         CliSection(
@@ -536,6 +568,8 @@ def _doctor_sections_ja(report: dict[str, Any]) -> tuple[CliSection, ...]:
     provider_rows = _provider_setup_rows(report, lang="ja")
     provider_e2e_rows = _provider_runtime_e2e_rows(report, lang="ja")
     hybrid_wire_rows = _hybrid_wire_contract_rows(report, lang="ja")
+    node_relay_rows = _hybrid_node_relay_contract_rows(report, lang="ja")
+    relay_rows = _relay_status_rows(report, lang="ja")
     return (
         CliSection(
             "セットアップ",
@@ -570,6 +604,8 @@ def _doctor_sections_ja(report: dict[str, Any]) -> tuple[CliSection, ...]:
             ),
         ),
         CliSection("Hybrid Wire Contract", hybrid_wire_rows),
+        CliSection("Hybrid Node/Relay", node_relay_rows),
+        CliSection("Relay local-dev", relay_rows),
         CliSection("プロバイダー実行環境", provider_rows),
         CliSection("プロバイダー実行環境 E2E フィクスチャ", provider_e2e_rows),
         CliSection(
@@ -631,6 +667,57 @@ def _hybrid_required_trust_state_count(hybrid: dict[str, Any]) -> int:
         return len(required_states)
     trust_states = hybrid.get("trust_states")
     return len(trust_states) if isinstance(trust_states, list) else 1
+
+
+def _hybrid_node_relay_contract_rows(report: dict[str, Any], *, lang: str = "en") -> tuple[CliRow, ...]:
+    contract = report.get("hybrid_node_relay_contract")
+    if not isinstance(contract, dict):
+        unavailable = "利用不可" if lang == "ja" else "unavailable"
+        return (CliRow("status", unavailable, "warn"),)
+    is_ok = bool(contract.get("ok"))
+    status_ok = "正常" if lang == "ja" else "ok"
+    needs_attention = "確認が必要" if lang == "ja" else "needs attention"
+    not_implemented = "未実装" if lang == "ja" else "not implemented"
+    implemented = "実装済み" if lang == "ja" else "implemented"
+    schema_version = contract.get("schema_version", "unknown")
+    schema_status = "fail" if schema_version == "unknown" else "ok"
+    scope = contract.get("public_repo_scope", "unknown")
+    scope_status = "fail" if scope == "unknown" else "ok"
+    return (
+        CliRow("status", status_ok if is_ok else needs_attention, "ok" if is_ok else "fail"),
+        CliRow("schema", schema_version, schema_status),
+        CliRow("scope", scope, scope_status),
+        CliRow(
+            "official_cloud_runtime",
+            not_implemented if not contract.get("official_cloud_runtime_implemented") else implemented,
+            "ok" if not contract.get("official_cloud_runtime_implemented") else "fail",
+        ),
+        CliRow("production_oracle", contract.get("production_oracle_used"), "fail" if contract.get("production_oracle_used") else "ok"),
+        CliRow("network_required", contract.get("network_required"), "fail" if contract.get("network_required") else "ok"),
+    )
+
+
+def _relay_status_rows(report: dict[str, Any], *, lang: str = "en") -> tuple[CliRow, ...]:
+    relay_status = report.get("relay_status")
+    if not isinstance(relay_status, dict):
+        unavailable = "利用不可" if lang == "ja" else "unavailable"
+        return (CliRow("status", unavailable, "warn"),)
+    relay = relay_status.get("relay")
+    relay = relay if isinstance(relay, dict) else {}
+    is_ok = bool(relay_status.get("ok"))
+    status_ok = "正常" if lang == "ja" else "ok"
+    needs_attention = "確認が必要" if lang == "ja" else "needs attention"
+    schema_version = relay_status.get("schema_version", "unknown")
+    mode = relay_status.get("mode", "unknown")
+    return (
+        CliRow("status", status_ok if is_ok else needs_attention, "ok" if is_ok else "fail"),
+        CliRow("schema", schema_version, "fail" if schema_version == "unknown" else "ok"),
+        CliRow("mode", mode, "fail" if mode == "unknown" else "ok"),
+        CliRow("loopback_only", relay.get("loopback_only"), "ok" if relay.get("loopback_only") else "fail"),
+        CliRow("process_started", relay.get("process_started"), "fail" if relay.get("process_started") else "ok"),
+        CliRow("public_exposure_allowed", relay.get("public_exposure_allowed"), "fail" if relay.get("public_exposure_allowed") else "ok"),
+        CliRow("message_body_persisted", relay.get("message_body_persisted"), "fail" if relay.get("message_body_persisted") else "ok"),
+    )
 
 
 def _provider_setup_rows(report: dict[str, Any], *, lang: str = "en") -> tuple[CliRow, ...]:

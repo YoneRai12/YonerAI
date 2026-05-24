@@ -118,6 +118,8 @@ def test_public_demo_json_shape_and_boundaries(capsys) -> None:
     wire_conformance = next(
         check for check in hybrid_trust["checks"] if check["name"] == "hybrid_wire_contract_conformance"
     )
+    node_relay = next(check for check in hybrid_trust["checks"] if check["name"] == "hybrid_node_relay_contract")
+    relay_status = next(check for check in hybrid_trust["checks"] if check["name"] == "relay_local_dev_status")
     discord = next(check for check in hybrid_trust["checks"] if check["name"] == "synthetic_discord_gateway")
     assert wire_conformance["schema_version"] == "yonerai-hybrid-wire-contract/v0.3"
     assert wire_conformance["session_token_hash_only"] is True
@@ -127,6 +129,14 @@ def test_public_demo_json_shape_and_boundaries(capsys) -> None:
     assert wire_conformance["route_preview_fixture_supported"] is True
     assert wire_conformance["official_cloud_runtime_implemented"] is False
     assert wire_conformance["network_required"] is False
+    assert node_relay["schema_version"] == "yonerai-hybrid-node-relay-contract/v0.1"
+    assert node_relay["official_cloud_runtime_implemented"] is False
+    assert node_relay["production_oracle_used"] is False
+    assert node_relay["message_body_persisted"] is False
+    assert relay_status["schema_version"] == "yonerai-relay-status/v0.1"
+    assert relay_status["process_started"] is False
+    assert relay_status["public_exposure_allowed"] is False
+    assert relay_status["message_body_persisted"] is False
     assert discord["live_discord"] is False
     assert discord["token_required"] is False
     assert discord["final_once"] is True
