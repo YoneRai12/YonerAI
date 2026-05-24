@@ -2,8 +2,12 @@ from __future__ import annotations
 
 import ast
 import asyncio
+import importlib
+import sys
 from pathlib import Path
 from typing import Any
+
+from src.cogs.ora_message_format_helpers import message_format_helper_status, split_discord_message_chunks
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -56,7 +60,7 @@ def _build_large_message_fixture() -> object:
         type_ignores=[],
     )
     ast.fix_missing_locations(module)
-    namespace: dict[str, object] = {}
+    namespace: dict[str, object] = {"split_discord_message_chunks": split_discord_message_chunks}
     exec(compile(module, str(ORA_SOURCE), "exec"), namespace)
     return namespace["OraMessageFixture"]()
 
@@ -86,3 +90,34 @@ def test_ora_large_message_chunking_characterization() -> None:
     assert "".join(sent_chunks) == "head: " + content
     assert message.replies[0]["files"] == []
     assert message.replies[0]["mention_author"] is False
+
+
+def test_ora_large_message_chunking_helper_matches_characterized_boundary() -> None:
+    chunks = split_discord_message_chunks("a" * 3890, header="head: ")
+
+    assert [len(chunk) for chunk in chunks] == [1900, 1900, 96]
+    assert "".join(chunks) == "head: " + ("a" * 3890)
+    assert split_discord_message_chunks("body", header="head: ") == ("head: body",)
+    assert message_format_helper_status() == {
+        "name": "ora_message_format_helper",
+        "source": "src/cogs/ora_message_format_helpers.py",
+        "status": "ok",
+        "available": True,
+        "discord_runtime_imported": False,
+        "broad_ora_refactor": False,
+    }
+
+
+def test_ora_message_format_helper_import_does_not_load_discord_runtime() -> None:
+    removed = {
+        name: sys.modules.pop(name)
+        for name in list(sys.modules)
+        if name == "discord" or name.startswith("discord.") or name == "src.cogs.ora_message_format_helpers"
+    }
+    try:
+        importlib.import_module("src.cogs.ora_message_format_helpers")
+        loaded = {name for name in sys.modules if name == "discord" or name.startswith("discord.")}
+    finally:
+        sys.modules.update(removed)
+
+    assert loaded == set()

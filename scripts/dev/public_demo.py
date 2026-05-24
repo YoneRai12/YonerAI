@@ -508,6 +508,7 @@ def _execution_spine_checks() -> tuple[dict[str, object], ...]:
             "ora_guardrail_response_interpreter": mock_result["boundary_checks"]["ora_guardrail_response_interpreter"][
                 "status"
             ],
+            "ora_message_format_helper": mock_result["boundary_checks"]["ora_message_format_helper"]["status"],
             "guardrail_provider_call_performed": mock_result["boundary_checks"]["ora_guardrail_response_interpreter"][
                 "provider_call_performed"
             ],
@@ -924,6 +925,7 @@ def format_pretty_demo(result: dict[str, object]) -> str:
                 "requires_explicit_live_provider",
                 "actions_not_performed",
                 "external_network_call_performed",
+                "ora_message_format_helper",
                 "record_count",
                 "cloud_synced",
                 "synthetic",

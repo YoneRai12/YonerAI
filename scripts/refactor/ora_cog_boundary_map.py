@@ -440,6 +440,13 @@ def _find_call_by_name(method: ast.FunctionDef | ast.AsyncFunctionDef, name: str
     return None
 
 
+def _assignment_calls_name(node: ast.Assign | ast.AnnAssign | None, name: str) -> bool:
+    if node is None:
+        return False
+    value = node.value
+    return isinstance(value, ast.Call) and _call_name(value.func) == name
+
+
 def _internal_blocks(tree: ast.Module) -> list[InternalBlock]:
     ora_class = _find_class(tree, "ORACog")
     if ora_class is None:
@@ -452,18 +459,27 @@ def _internal_blocks(tree: ast.Module) -> list[InternalBlock]:
         chunks_assignment = _find_name_assignment(large_message, "chunks")
         chunks_loop = _find_for_iterating_name(large_message, "chunks")
         if chunks_assignment is not None and chunks_loop is not None:
+            delegated = _assignment_calls_name(chunks_assignment, "split_discord_message_chunks")
             blocks.append(
                 InternalBlock(
                     qualname="ORACog._send_large_message.large_message_chunking",
                     parent="ORACog._send_large_message",
                     line_start=chunks_assignment.lineno,
                     line_end=getattr(chunks_loop, "end_lineno", chunks_loop.lineno),
-                    responsibility="Split a Discord-bound response into 1900-character chunks while keeping the first chunk tied to the reply.",
+                    responsibility=(
+                        "Delegate Discord-bound chunk calculation to the extracted pure helper, then keep reply/send side effects inside ORACog."
+                        if delegated
+                        else "Split a Discord-bound response into 1900-character chunks while keeping the first chunk tied to the reply."
+                    ),
                     side_effects=(),
                     safety_risk="low",
-                    extraction_candidate=True,
+                    extraction_candidate=not delegated,
                     target_module="src/cogs/ora_message_format_helpers.py",
-                    required_tests=("characterization parity before wrapper extraction",),
+                    required_tests=(
+                        ("wrapper compatibility test",)
+                        if delegated
+                        else ("characterization parity before wrapper extraction",)
+                    ),
                 )
             )
 
