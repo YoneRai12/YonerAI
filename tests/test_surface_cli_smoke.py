@@ -681,6 +681,14 @@ def test_cli_doctor_reports_offline_status_without_network(monkeypatch, capsys):
     assert hybrid_wire["network_required"] is False
     assert len(hybrid_wire["trust_states"]) >= 7
     assert "yonerai node status --pretty" in hybrid_wire["cli_commands"]
+    relay_status = output["relay_status"]
+    assert relay_status["ok"] is True
+    assert relay_status["relay"]["process_started"] is False
+    assert relay_status["relay"]["public_exposure_allowed"] is False
+    node_relay = output["hybrid_node_relay_contract"]
+    assert node_relay["ok"] is True
+    assert node_relay["official_cloud_runtime_implemented"] is False
+    assert node_relay["relay"]["message_body_persisted"] is False
     providers = {provider["provider_id"]: provider for provider in output["providers"]["providers"]}
     assert providers["mock"]["setup_status"] == "ready"
     assert providers["local"]["loopback_only"] is True
@@ -707,6 +715,32 @@ def test_cli_doctor_keeps_provider_diagnostics_if_hybrid_wire_import_fails(monke
     assert "providers" in output["providers"]
     assert output["hybrid_wire_contract"]["ok"] is False
     assert output["hybrid_wire_contract"]["error"] == "hybrid_wire_contract_unavailable"
+
+
+def test_cli_hybrid_node_relay_rows_mark_unknown_schema_and_mode_as_fail():
+    cli = _load_cli_module()
+
+    contract_rows = {
+        row.label: row
+        for row in cli._hybrid_node_relay_contract_rows(
+            {"hybrid_node_relay_contract": {"ok": False}},
+            lang="ja",
+        )
+    }
+    relay_rows = {
+        row.label: row
+        for row in cli._relay_status_rows(
+            {"relay_status": {"ok": False, "relay": {}}},
+            lang="ja",
+        )
+    }
+
+    assert contract_rows["status"].value == "確認が必要"
+    assert contract_rows["schema"].status == "fail"
+    assert contract_rows["scope"].status == "fail"
+    assert relay_rows["status"].value == "確認が必要"
+    assert relay_rows["schema"].status == "fail"
+    assert relay_rows["mode"].status == "fail"
 
 
 def test_cli_doctor_redacts_token_presence(monkeypatch, capsys):
@@ -757,6 +791,8 @@ def test_cli_doctor_does_not_execute_demo_or_mutate_path(monkeypatch, capsys):
     assert "YonerAI doctor" in output
     assert "manifest_example_valid: true" in output
     assert "Hybrid Wire Contract" in output
+    assert "Hybrid Node/Relay" in output
+    assert "Relay local-dev" in output
     assert "trust_states" in output
     assert "Provider runtime" in output
     assert "Provider runtime E2E fixtures" in output

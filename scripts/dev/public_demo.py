@@ -531,7 +531,9 @@ def _hybrid_trust_checks() -> tuple[dict[str, object], ...]:
         LocalNodeEnrollmentRequest,
         action_args_hash,
         build_local_dev_enrolled_session_fixture,
+        build_hybrid_node_relay_contract_stub,
         build_hybrid_wire_conformance_report,
+        build_relay_status_report,
         build_test_local_node_manifest,
         build_unsigned_local_node_action_envelope,
         consume_pairing_code,
@@ -618,8 +620,12 @@ def _hybrid_trust_checks() -> tuple[dict[str, object], ...]:
 
     discord = SyntheticDiscordGatewayAdapter().handle_mention("hello from demo").to_public_dict()
     wire_conformance = build_hybrid_wire_conformance_report()
+    relay_status = build_relay_status_report({})
+    node_relay_contract = build_hybrid_node_relay_contract_stub({})
     assert trust_status.local_node.verification_state == "present_verified"
     assert wire_conformance["ok"] is True
+    assert relay_status["ok"] is True
+    assert node_relay_contract["ok"] is True
     assert pairing_once.accepted is True and pairing_reuse.accepted is False
     assert verified_action.status == "approval_required"
     assert replay.status == "replayed_nonce"
@@ -638,6 +644,25 @@ def _hybrid_trust_checks() -> tuple[dict[str, object], ...]:
             "route_preview_fixture_supported": wire_conformance["route_preview_fixture_supported"],
             "official_cloud_runtime_implemented": wire_conformance["official_cloud_runtime_implemented"],
             "network_required": wire_conformance["network_required"],
+        },
+        {
+            "name": "hybrid_node_relay_contract",
+            "status": "ok",
+            "schema_version": node_relay_contract["schema_version"],
+            "official_cloud_runtime_implemented": node_relay_contract["official_cloud_runtime_implemented"],
+            "production_oracle_used": node_relay_contract["production_oracle_used"],
+            "network_required": node_relay_contract["network_required"],
+            "message_body_persisted": node_relay_contract["relay"]["message_body_persisted"],
+        },
+        {
+            "name": "relay_local_dev_status",
+            "status": "ok",
+            "schema_version": relay_status["schema_version"],
+            "mode": relay_status["mode"],
+            "process_started": relay_status["relay"]["process_started"],
+            "health_probe_performed": relay_status["relay"]["health_probe_performed"],
+            "public_exposure_allowed": relay_status["relay"]["public_exposure_allowed"],
+            "message_body_persisted": relay_status["relay"]["message_body_persisted"],
         },
         {"name": "signed_manifest_verified", "status": "ok", "verified": True},
         {"name": "enrollment_session_available", "status": "ok", "session_bound": True},
@@ -948,6 +973,10 @@ def format_pretty_demo(result: dict[str, object]) -> str:
                 "final_once",
                 "token_required",
                 "schema_version",
+                "mode",
+                "process_started",
+                "health_probe_performed",
+                "public_exposure_allowed",
                 "trust_state_count",
                 "session_token_hash_only",
                 "message_body_persisted",

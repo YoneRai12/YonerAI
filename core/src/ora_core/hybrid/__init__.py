@@ -112,6 +112,10 @@ from .relay_status import (
     RELAY_STATUS_SCHEMA_VERSION,
     build_relay_status_report,
 )
+from .node_relay_contract import (
+    HYBRID_NODE_RELAY_CONTRACT_VERSION,
+    build_hybrid_node_relay_contract_stub,
+)
 
 __all__ = [
     "DonationPolicyDecision",
@@ -125,6 +129,7 @@ __all__ = [
     "HybridWireTrustDecision",
     "HYBRID_WIRE_CONTRACT_VERSION",
     "HYBRID_WIRE_COMPATIBLE_VERSIONS",
+    "HYBRID_NODE_RELAY_CONTRACT_VERSION",
     "RELAY_STATUS_SCHEMA_VERSION",
     "InMemoryNonceStore",
     "InMemoryTrustRegistry",
@@ -161,6 +166,7 @@ __all__ = [
     "TrustRegistryEntry",
     "build_improvement_proposal_fixture",
     "build_hybrid_wire_conformance_report",
+    "build_hybrid_node_relay_contract_stub",
     "build_local_dev_enrolled_session_fixture",
     "build_local_dev_control_plane_status",
     "build_local_dev_fixture_trust_context",
