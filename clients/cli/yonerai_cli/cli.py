@@ -905,17 +905,30 @@ def _build_search_report(args: argparse.Namespace) -> dict[str, Any]:
         from ora_core.search import MockSearchAdapter, SearchRequest
     except Exception as exc:
         raise CliError("search adapter is unavailable.", exit_code=1) from exc
+    query = _prompt_from_args(args.query)
     if args.search_mode != "mock":
         return {
             "schema_version": "yonerai-search/v1",
             "ok": False,
             "adapter": args.search_mode,
+            "query": query,
             "execution_performed": False,
             "network_performed": False,
+            "live_boundary": {
+                "status": "disabled",
+                "reason": "live_search_not_implemented",
+                "requires_explicit_live_provider": True,
+                "default_mode": "mock",
+                "actions_not_performed": [
+                    "no network request",
+                    "no external search provider call",
+                    "no result scraping",
+                    "no credential lookup",
+                ],
+            },
             "error": {"code": "search_live_disabled", "message": "live search is not implemented in this public alpha slice"},
             "results": [],
         }
-    query = _prompt_from_args(args.query)
     results = [result.to_public_dict() for result in MockSearchAdapter().search(SearchRequest(query=query))]
     return {
         "schema_version": "yonerai-search/v1",
@@ -930,7 +943,25 @@ def _build_search_report(args: argparse.Namespace) -> dict[str, Any]:
 
 def _print_search_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -> None:
     if not report["ok"]:
-        print(render_report("YonerAI search", (CliSection("Error", (CliRow("error", report["error"]["message"], "fail"),)),), color=color))
+        boundary = report.get("live_boundary") or {}
+        actions = ", ".join(boundary.get("actions_not_performed") or ())
+        print(
+            render_report(
+                "YonerAI search",
+                (
+                    CliSection(
+                        "Live search boundary",
+                        (
+                            CliRow("status", boundary.get("status", "disabled"), "warn"),
+                            CliRow("reason", boundary.get("reason", report["error"]["message"]), "warn"),
+                            CliRow("network_performed", report.get("network_performed", False), "ok"),
+                            CliRow("actions_not_performed", actions or "no network request", "ok"),
+                        ),
+                    ),
+                ),
+                color=color,
+            )
+        )
         return
     rows = tuple(CliRow(result["title"], result["snippet"], "ok") for result in report["results"])
     print(render_report("YonerAI search", (CliSection("Mock results", rows),), color=color))
