@@ -6,6 +6,8 @@ import types
 from pathlib import Path
 from types import SimpleNamespace
 
+from src.cogs.ora_tool_schema_helpers import filter_tool_schemas_by_client
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ORA_PATH = REPO_ROOT / "src" / "cogs" / "ora.py"
@@ -153,3 +155,9 @@ def test_ora_context_tools_non_owner_keeps_allowlist_and_denies_unknown(monkeypa
     names = {tool["name"] for tool in fixture.get_context_tools("discord", user_id=123)}
 
     assert names == {"music_play", "web_search_api"}
+
+
+def test_ora_context_filter_skips_schemas_without_names() -> None:
+    filtered = filter_tool_schemas_by_client([{}, {"name": "dom_click"}, {"name": "music_play"}], "discord")
+
+    assert filtered == [{"name": "music_play"}]

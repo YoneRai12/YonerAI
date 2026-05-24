@@ -50,11 +50,11 @@ def build_context_tool_schemas(
     return filtered
 
 
-def iter_dynamic_skill_schemas(skill_loader: object | None) -> list[ToolSchema]:
+def iter_dynamic_skill_schemas(skill_loader: Any | None) -> list[ToolSchema]:
     if skill_loader is None or not hasattr(skill_loader, "skills"):
         return []
     schemas: list[ToolSchema] = []
-    for skill_name in getattr(skill_loader, "skills").keys():
+    for skill_name in skill_loader.skills.keys():
         schema = skill_loader.get_schema(skill_name)
         if isinstance(schema, dict) and schema.get("name"):
             schemas.append(schema)
@@ -97,7 +97,9 @@ def dedupe_tool_schemas_by_name(tools: Iterable[ToolSchema]) -> list[ToolSchema]
 def filter_tool_schemas_by_client(tools: Iterable[ToolSchema], client_type: str = "discord") -> list[ToolSchema]:
     filtered: list[ToolSchema] = []
     for tool in tools:
-        name = tool["name"]
+        name = tool.get("name")
+        if not name:
+            continue
         if client_type == "discord" and name in WEB_ONLY_TOOL_NAMES:
             continue
         if client_type == "web" and name in DISCORD_ONLY_TOOL_NAMES:
