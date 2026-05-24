@@ -22,8 +22,8 @@ python -m venv .venv
 python -m pip install -U pip
 python -m pip install -r core/requirements.txt httpx
 python -m pip install -e clients/cli
-yonerai start --lang ja
-yonerai start --json
+yonerai start --guided --lang ja
+yonerai start --guided --json
 yonerai demo --pretty
 yonerai demo --json
 yonerai doctor --pretty
@@ -39,22 +39,28 @@ yonerai install plan --manifest releases/manifest.example.json --json
 
 ## First 5 minutes
 
-`yonerai start` is the guided path for a first local run. It is written for
-people who want to know what to run next, not for people already familiar with
+`yonerai start --guided` is the guided path for a first local run. It is written
+for people who want copyable next actions, not for people already familiar with
 the internals.
 
 ```powershell
-yonerai start --lang ja
+yonerai start --guided --lang ja
+yonerai start --guided --json
 yonerai demo --pretty
 yonerai doctor --pretty --lang ja
 yonerai ask "hello" --provider mock --json
+yonerai ask "use this selected sample file" --file sample.txt --workspace .yonerai-sample-workspace --provider mock --json
+yonerai ask "hello" --provider mock --json --ledger .yonerai-runs.jsonl
+yonerai runs list --ledger .yonerai-runs.jsonl --json
 ```
 
 If you already have a local LLM server on loopback, for example Ollama on
 `127.0.0.1:11434` or an LM Studio / OpenAI-compatible server on
-`127.0.0.1:1234`, `yonerai start` checks only local metadata endpoints. It does
-not send a prompt to the model. After you intentionally enable local execution,
-you can try:
+`127.0.0.1:1234`, `yonerai start --guided` checks only local metadata endpoints.
+It does not send a prompt to the model. If a loopback endpoint is detected, the
+guided output prints the exact environment variables to set before you choose
+the local provider path. After you intentionally enable local execution, you can
+try:
 
 ```powershell
 $env:ORA_LOCAL_LLM_ENABLED = "1"
@@ -77,6 +83,8 @@ yonerai ask "hello" --provider local --live --json
 
 What this first path explains:
 
+- `yonerai start --guided --lang ja` prints a mock-first path, Local LLM status,
+  workspace file guard example, ledger example, and current limitations.
 - `yonerai demo --pretty` shows the current alpha slice without credentials.
 - `yonerai doctor --pretty --lang ja` checks local setup without installing or
   mutating PATH.
@@ -86,6 +94,9 @@ What this first path explains:
   history.
 - Workspace file support is a Workspace File Access Guard: it reads only an
   explicitly selected UTF-8 text file inside an explicit workspace allowlist.
+  The sample command expects you to create `.yonerai-sample-workspace/sample.txt`
+  yourself; `yonerai start --guided` does not create files, read files, or write
+  a ledger.
 
 Still not included: production readiness, Official Managed Cloud runtime,
 production Oracle, live Discord restoration, arbitrary shell execution,
