@@ -48,6 +48,8 @@ def test_validate_loopback_base_url_accepts_loopback(url: str) -> None:
         "http://0.0.0.0:11434",
         "file:///tmp/local-model",
         "http://user:pass@127.0.0.1:11434",
+        "http://127.0.0.1:11434?token=secret",
+        "http://127.0.0.1:11434#fragment",
     ],
 )
 def test_validate_loopback_base_url_rejects_non_loopback_or_credential_urls(url: str) -> None:

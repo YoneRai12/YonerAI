@@ -45,6 +45,10 @@ _PUBLIC_CREDENTIAL_ENV_KEYS = (
     "ORA_LOCAL_LLM_BASE_URL",
     "ORA_LOCAL_LLM_ENABLED",
     "ORA_LOCAL_LLM_PUBLIC_TOKEN",
+    "YONERAI_OPENAI_COMPATIBLE_API_KEY",
+    "YONERAI_OPENAI_COMPATIBLE_BASE_URL",
+    "YONERAI_OPENAI_COMPATIBLE_LIVE",
+    "YONERAI_OPENAI_COMPATIBLE_MODEL",
     "YONERAI_ANTHROPIC_API_KEY",
     "YONERAI_GEMINI_API_KEY",
 )
@@ -228,11 +232,17 @@ def _route_preview_checks() -> tuple[dict[str, object], ...]:
 def _provider_planner_checks() -> tuple[dict[str, object], ...]:
     from ora_core.planning import build_execution_plan
     from ora_core.planning.execution_plan import preview_mock_provider_response
-    from ora_core.providers import build_default_provider_registry
+    from ora_core.providers import build_default_provider_registry, build_provider_setup_report
     from ora_core.search import MockSearchAdapter, SearchRequest, build_live_search_disabled_boundary
 
     registry = build_default_provider_registry()
     statuses = {status["provider_id"]: status for status in registry.list_statuses()}
+    provider_setup = build_provider_setup_report(registry=registry)
+    setup_by_provider = {
+        str(provider["provider_id"]): provider
+        for provider in provider_setup["providers"]
+        if isinstance(provider, dict) and provider.get("provider_id")
+    }
     mock_response = preview_mock_provider_response("hello YonerAI provider planner demo")
     search_results = MockSearchAdapter().search(SearchRequest(query="YonerAI alpha2 capability slice"))
     live_search_boundary = build_live_search_disabled_boundary("YonerAI alpha2 capability slice")
@@ -245,6 +255,9 @@ def _provider_planner_checks() -> tuple[dict[str, object], ...]:
     assert statuses["mock"]["available"] is True
     assert statuses["openai-compatible"]["available"] is False
     assert "anthropic" in statuses and "gemini" in statuses
+    assert provider_setup["network_probe_performed"] is False
+    assert setup_by_provider["local"]["loopback_only"] is True
+    assert "set YONERAI_OPENAI_COMPATIBLE_BASE_URL" in setup_by_provider["openai-compatible"]["setup_blockers"]
     assert mock_response["provider"] == "mock"
     assert search_results and search_results[0].source == "mock"
     assert live_search_boundary["network_performed"] is False
@@ -272,6 +285,19 @@ def _provider_planner_checks() -> tuple[dict[str, object], ...]:
             "anthropic": statuses["anthropic"]["available"],
             "gemini": statuses["gemini"]["available"],
             "live_call_performed": False,
+        },
+        {
+            "name": "provider_setup_blockers",
+            "status": "ok",
+            "local_provider_available": setup_by_provider["local"]["available"],
+            "local_provider_blockers": ",".join(str(item) for item in setup_by_provider["local"]["setup_blockers"]),
+            "local_loopback_only": setup_by_provider["local"]["loopback_only"],
+            "openai_compatible_live_ready": setup_by_provider["openai-compatible"]["live_ready"],
+            "openai_compatible_blockers": ",".join(
+                str(item) for item in setup_by_provider["openai-compatible"]["setup_blockers"]
+            ),
+            "network_probe_performed": provider_setup["network_probe_performed"],
+            "live_call_performed": provider_setup["live_call_performed"],
         },
         {
             "name": "mock_provider_response",
@@ -875,6 +901,11 @@ def format_pretty_demo(result: dict[str, object]) -> str:
                 "openai_compatible",
                 "anthropic",
                 "gemini",
+                "local_provider_available",
+                "local_provider_blockers",
+                "local_loopback_only",
+                "openai_compatible_live_ready",
+                "openai_compatible_blockers",
                 "adapter",
                 "result_count",
                 "reason",

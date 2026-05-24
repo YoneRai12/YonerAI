@@ -154,6 +154,14 @@ def test_cli_demo_available_from_clients_cli_cwd() -> None:
 
 def test_cli_doctor_reports_offline_status_without_network(monkeypatch, capsys):
     cli = _load_cli_module()
+    for key in (
+        "ORA_LOCAL_LLM_ENABLED",
+        "ORA_LOCAL_LLM_BASE_URL",
+        "YONERAI_OPENAI_COMPATIBLE_BASE_URL",
+        "YONERAI_OPENAI_COMPATIBLE_API_KEY",
+        "YONERAI_OPENAI_COMPATIBLE_LIVE",
+    ):
+        monkeypatch.delenv(key, raising=False)
 
     def fail_request_json(*_args: Any, **_kwargs: Any):
         raise AssertionError("doctor must not call loopback API")
@@ -178,6 +186,12 @@ def test_cli_doctor_reports_offline_status_without_network(monkeypatch, capsys):
     assert output["system_checks"]["redaction_self_check"]["ok"] is True
     assert output["system_checks"]["mcp_deny_policy"]["ok"] is True
     assert output["system_checks"]["mcp_deny_policy"]["network_required"] is False
+    assert output["providers"]["network_probe_performed"] is False
+    providers = {provider["provider_id"]: provider for provider in output["providers"]["providers"]}
+    assert providers["mock"]["setup_status"] == "ready"
+    assert providers["local"]["loopback_only"] is True
+    assert "set ORA_LOCAL_LLM_ENABLED=1" in providers["local"]["setup_blockers"]
+    assert "set YONERAI_OPENAI_COMPATIBLE_BASE_URL" in providers["openai-compatible"]["setup_blockers"]
 
 
 def test_cli_doctor_redacts_token_presence(monkeypatch, capsys):
@@ -191,6 +205,25 @@ def test_cli_doctor_redacts_token_presence(monkeypatch, capsys):
     assert output["credentials"][cli.TOKEN_ENV] == "present_redacted"
     assert "super-secret-token" not in captured.out
     assert "Traceback" not in captured.err
+
+
+def test_cli_doctor_redacts_openai_compatible_provider_setup(monkeypatch, capsys):
+    cli = _load_cli_module()
+    pseudo_key = "redaction-fixture-key"
+    monkeypatch.setenv("YONERAI_OPENAI_COMPATIBLE_BASE_URL", "https://api.example.invalid/v1")
+    monkeypatch.setenv("YONERAI_OPENAI_COMPATIBLE_API_KEY", pseudo_key)
+    monkeypatch.setenv("YONERAI_OPENAI_COMPATIBLE_LIVE", "1")
+
+    assert cli.main(["doctor", "--json"]) == 0
+
+    captured = capsys.readouterr()
+    output = json.loads(captured.out)
+    provider = next(item for item in output["providers"]["providers"] if item["provider_id"] == "openai-compatible")
+    assert provider["setup_status"] == "live_ready"
+    assert provider["live_ready"] is True
+    assert provider["env_status"]["YONERAI_OPENAI_COMPATIBLE_API_KEY"] == "present_redacted"
+    assert pseudo_key not in captured.out
+    assert "api.example.invalid" not in captured.out
 
 
 def test_cli_doctor_does_not_execute_demo_or_mutate_path(monkeypatch, capsys):
@@ -208,11 +241,20 @@ def test_cli_doctor_does_not_execute_demo_or_mutate_path(monkeypatch, capsys):
     output = capsys.readouterr().out
     assert "YonerAI doctor" in output
     assert "manifest_example_valid: true" in output
+    assert "Provider runtime" in output
     assert "\033[" not in output
 
 
-def test_cli_doctor_pretty_supports_japanese_without_json_key_translation(capsys):
+def test_cli_doctor_pretty_supports_japanese_without_json_key_translation(monkeypatch, capsys):
     cli = _load_cli_module()
+    for key in (
+        "ORA_LOCAL_LLM_ENABLED",
+        "ORA_LOCAL_LLM_BASE_URL",
+        "YONERAI_OPENAI_COMPATIBLE_BASE_URL",
+        "YONERAI_OPENAI_COMPATIBLE_API_KEY",
+        "YONERAI_OPENAI_COMPATIBLE_LIVE",
+    ):
+        monkeypatch.delenv(key, raising=False)
 
     assert cli.main(["doctor", "--pretty", "--lang", "ja", "--color", "never"]) == 0
 
@@ -226,8 +268,21 @@ def test_cli_doctor_pretty_supports_japanese_without_json_key_translation(capsys
     assert "未実装" in output
     assert "本番機能" in output
     assert "含まれません" in output
+    assert "プロバイダー実行環境" in output
+    assert "openai-compatible" in output
+    assert "set YONERAI_OPENAI_COMPATIBLE_BASE_URL" in output
     assert "manifest_example_valid" not in output
     assert "\033[" not in output
+
+
+def test_provider_setup_rows_localizes_japanese_fallback():
+    cli = _load_cli_module()
+
+    rows = cli._provider_setup_rows({"providers": {}}, lang="ja")
+
+    assert rows[0].label == "プロバイダー"
+    assert rows[0].value == "利用不可"
+    assert rows[0].status == "warn"
 
 
 def test_cli_doctor_json_remains_english_keyed_with_lang_ja(capsys):

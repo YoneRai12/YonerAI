@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
 
 def _prepare_paths() -> None:
@@ -175,6 +176,72 @@ def test_cli_ask_file_records_redacted_workspace_access_event_in_ledger(tmp_path
     assert "workspace_file_access" in ledger_text
     assert "public alpha2 notes" not in ledger_text
     assert str(tmp_path) not in ledger_text
+
+
+def test_cli_ask_file_executes_through_local_provider_with_live_opt_in(
+    tmp_path: Path,
+    capsys,
+    monkeypatch,
+) -> None:
+    _prepare_paths()
+    from ora_core.providers import local_llm
+    from yonerai_cli import cli
+
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    target = workspace / "local-note.txt"
+    target.write_text("local provider workspace notes", encoding="utf-8")
+    ledger = tmp_path / "runs.jsonl"
+
+    monkeypatch.setenv("ORA_LOCAL_LLM_ENABLED", "1")
+    monkeypatch.setenv("ORA_LOCAL_LLM_BASE_URL", "http://127.0.0.1:11434")
+    monkeypatch.setenv("ORA_LOCAL_LLM_MODEL", "local-file-test")
+
+    def fake_generate_local_llm_reply(**kwargs: Any) -> local_llm.LocalLLMReply:
+        assert kwargs["config"].base_url == "http://127.0.0.1:11434"
+        assert "Workspace file context follows" in kwargs["message"]
+        assert "content_preview:" in kwargs["message"]
+        assert "local provider workspace notes" in kwargs["message"]
+        return local_llm.LocalLLMReply(
+            reply="<|final|>local file summary",
+            provider="local-ollama",
+            model="local-file-test",
+        )
+
+    monkeypatch.setattr(local_llm, "generate_local_llm_reply", fake_generate_local_llm_reply)
+
+    rc = cli.main(
+        [
+            "ask",
+            "summarize",
+            "this",
+            "file",
+            "--file",
+            "local-note.txt",
+            "--workspace",
+            str(workspace),
+            "--provider",
+            "local",
+            "--live",
+            "--ledger",
+            str(ledger),
+            "--json",
+        ]
+    )
+    captured = capsys.readouterr()
+    output = json.loads(captured.out)
+
+    assert rc == 0
+    assert output["ok"] is True
+    assert output["response"]["provider"] == "local"
+    assert output["response"]["output_text"] == "local file summary"
+    assert output["live_call_performed"] is True
+    assert output["file_context"]["capability"] == "workspace_file_access"
+    assert output["run"]["run_id"].startswith("run_")
+    assert any(event["name"] == "workspace_file_access" for event in output["run"]["events"])
+    assert "local provider workspace notes" not in json.dumps(output["run"])
+    assert "local provider workspace notes" not in ledger.read_text(encoding="utf-8")
+    assert str(tmp_path) not in captured.out
 
 
 def test_mock_workspace_file_summary_ignores_metadata_like_text_inside_file_preview() -> None:
