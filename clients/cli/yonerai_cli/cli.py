@@ -166,13 +166,11 @@ def _build_doctor_report(*, command: str = "yonerai doctor") -> dict[str, Any]:
         manifest_report = verify_manifest(load_manifest_file(str(manifest_path)))
     except ManifestError as exc:
         manifest_report = {"ok": False, "errors": [str(exc)]}
+    _prepare_core_import_path()
     try:
-        _prepare_core_import_path()
         from ora_core.providers import build_provider_setup_report
-        from ora_core.hybrid.wire_contract import build_hybrid_wire_conformance_report
 
         provider_setup = build_provider_setup_report()
-        hybrid_wire_contract = build_hybrid_wire_conformance_report()
     except ImportError:
         provider_setup = {
             "schema_version": "yonerai-provider-setup/v1",
@@ -181,6 +179,11 @@ def _build_doctor_report(*, command: str = "yonerai doctor") -> dict[str, Any]:
             "providers": [],
             "error": "provider_setup_unavailable",
         }
+    try:
+        from ora_core.hybrid.wire_contract import build_hybrid_wire_conformance_report
+
+        hybrid_wire_contract = build_hybrid_wire_conformance_report()
+    except ImportError:
         hybrid_wire_contract = {
             "schema_version": "yonerai-hybrid-wire-contract/v0.1",
             "ok": False,

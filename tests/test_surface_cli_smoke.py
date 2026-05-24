@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import builtins
 import json
 import os
 import subprocess
@@ -600,6 +601,27 @@ def test_cli_doctor_reports_offline_status_without_network(monkeypatch, capsys):
     assert providers["local"]["loopback_only"] is True
     assert "set ORA_LOCAL_LLM_ENABLED=1" in providers["local"]["setup_blockers"]
     assert "set YONERAI_OPENAI_COMPATIBLE_BASE_URL" in providers["openai-compatible"]["setup_blockers"]
+
+
+def test_cli_doctor_keeps_provider_diagnostics_if_hybrid_wire_import_fails(monkeypatch, capsys):
+    cli = _load_cli_module()
+    real_import = builtins.__import__
+
+    def guarded_import(name: str, *args: Any, **kwargs: Any):
+        if name == "ora_core.hybrid.wire_contract":
+            raise ImportError("test hybrid import unavailable")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", guarded_import)
+
+    assert cli.main(["doctor", "--json"]) == 1
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["providers"]["schema_version"] == "yonerai-provider-setup/v1"
+    assert output["providers"]["network_probe_performed"] is False
+    assert "providers" in output["providers"]
+    assert output["hybrid_wire_contract"]["ok"] is False
+    assert output["hybrid_wire_contract"]["error"] == "hybrid_wire_contract_unavailable"
 
 
 def test_cli_doctor_redacts_token_presence(monkeypatch, capsys):
