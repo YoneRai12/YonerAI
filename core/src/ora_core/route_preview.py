@@ -46,6 +46,12 @@ _CAPABILITY_ALIASES = {
     "cloud": "cloud_orchestration",
     "orchestration": "cloud_orchestration",
     "local_node": "local_node",
+    "local_model": "local_tools",
+    "workspace_file_access": "private_files",
+    "mock_search": "local_tools",
+    "tool_boundary": "local_tools",
+    "ledger": "local_tools",
+    "dangerous_operation": "dangerous_operations",
     "private_files": "private_files",
     "private_file": "private_files",
     "file": "private_files",
@@ -150,6 +156,15 @@ def _capability_for_operation(operation_class: OperationClass, requested_capabil
     return "unknown"
 
 
+def _normalize_local_node_capabilities(capabilities: tuple[str, ...] | None) -> tuple[str, ...] | None:
+    if capabilities is None:
+        return None
+    return tuple(
+        _CAPABILITY_ALIASES.get(item.strip().lower().replace("-", "_").replace(".", "_"), item)
+        for item in capabilities
+    )
+
+
 def _normalize_local_node_state(
     *,
     has_local_node: bool,
@@ -226,6 +241,7 @@ def preview_route(
 ) -> RoutePreviewDecision:
     operation_class = _classify_operation(task_text, requested_capability, risk_hint)
     capability_name = _capability_for_operation(operation_class, requested_capability)
+    local_node_capabilities = _normalize_local_node_capabilities(local_node_capabilities)
     profile = get_mode_capability_profile(mode)
     non_claims = (
         "preview_only_no_execution",

@@ -707,6 +707,19 @@ def _preview_route(args: argparse.Namespace) -> dict[str, Any]:
 
     prompt = _prompt_from_args(args.task)
     local_node_state = args.local_node_state
+    fixture_inputs: dict[str, object] | None = None
+    if getattr(args, "use_local_node_fixture", False):
+        try:
+            from ora_core.hybrid.wire_contract import (
+                build_local_node_status_report,
+                route_preview_inputs_from_node_status,
+            )
+        except Exception as exc:
+            raise CliError("Hybrid Wire Local Node fixture is unavailable.", exit_code=1) from exc
+        status_report = build_local_node_status_report()
+        local_node = status_report.get("local_node")
+        if isinstance(local_node, dict):
+            fixture_inputs = route_preview_inputs_from_node_status(local_node)
     has_local_node = args.has_local_node or local_node_state in {
         "present_unverified",
         "present_verified",
@@ -718,6 +731,13 @@ def _preview_route(args: argparse.Namespace) -> dict[str, Any]:
         has_local_node = False
     local_node_capabilities = tuple(args.local_node_capability or ()) or None
     require_session = args.require_enrolled_verified_session or args.session_state is not None
+    session_state = args.session_state
+    if fixture_inputs is not None:
+        has_local_node = bool(fixture_inputs["has_local_node"])
+        local_node_state = str(fixture_inputs["local_node_verification_state"])
+        local_node_capabilities = tuple(fixture_inputs["local_node_capabilities"])  # type: ignore[arg-type]
+        require_session = bool(fixture_inputs["require_enrolled_verified_session"])
+        session_state = str(fixture_inputs["session_verification_state"])
     decision = preview_route(
         prompt,
         mode=args.mode,
@@ -726,10 +746,33 @@ def _preview_route(args: argparse.Namespace) -> dict[str, Any]:
         local_node_verification_state=local_node_state,
         local_node_capabilities=local_node_capabilities,
         require_enrolled_verified_session=require_session,
-        session_verification_state=args.session_state,
+        session_verification_state=session_state,
         risk_hint=args.risk_hint,
     )
-    return decision.to_public_dict()
+    report = decision.to_public_dict()
+    if fixture_inputs is not None:
+        report["hybrid_wire_node_fixture_used"] = True
+    return report
+
+
+def _build_node_status_report() -> dict[str, Any]:
+    try:
+        _prepare_core_import_path()
+        from ora_core.hybrid.wire_contract import build_local_node_status_report
+    except Exception as exc:
+        raise CliError("Hybrid Wire Local Node status is unavailable.", exit_code=1) from exc
+    return build_local_node_status_report()
+
+
+def _build_node_pair_report(args: argparse.Namespace) -> dict[str, Any]:
+    if not args.dry_run:
+        raise CliError("yonerai node pair is dry-run only in this public repo.", exit_code=2)
+    try:
+        _prepare_core_import_path()
+        from ora_core.hybrid.wire_contract import build_pairing_dry_run_report
+    except Exception as exc:
+        raise CliError("Hybrid Wire Local Node pairing dry-run is unavailable.", exit_code=1) from exc
+    return build_pairing_dry_run_report()
 
 
 def _build_execution_plan_report(args: argparse.Namespace, *, command: str, dry_run: bool) -> dict[str, Any]:
@@ -1602,6 +1645,11 @@ def build_parser() -> argparse.ArgumentParser:
     route_preview.add_argument("--risk-hint", help="Optional public-safe operation class hint.")
     route_preview.add_argument("--has-local-node", action="store_true", help="Preview as if a user Local Node is available.")
     route_preview.add_argument(
+        "--use-local-node-fixture",
+        action="store_true",
+        help="Use the public-safe Hybrid Wire v0.1 Local Node dev fixture for route preview.",
+    )
+    route_preview.add_argument(
         "--local-node-state",
         choices=[
             "missing",
@@ -1637,6 +1685,14 @@ def build_parser() -> argparse.ArgumentParser:
         ],
         help="Optional public-safe Local Node enrollment/session state for route preview.",
     )
+
+    node = subcommands.add_parser("node", help="Inspect public-safe Hybrid Wire Local Node fixtures.")
+    node_subcommands = node.add_subparsers(dest="node_command", required=True)
+    node_status = node_subcommands.add_parser("status", help="Show public-safe Local Node fixture status.")
+    node_status.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
+    node_pair = node_subcommands.add_parser("pair", help="Preview Local Node pairing without performing it.")
+    node_pair.add_argument("--dry-run", action="store_true", help="Required; do not pair or contact any service.")
+    node_pair.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
 
     plan = subcommands.add_parser("plan", help="Preview classification, route, provider, and approval without executing.")
     plan.add_argument("task", nargs="+")
@@ -1824,6 +1880,12 @@ def run(argv: list[str] | None = None) -> int:
         return 0 if report["ok"] else 1
     if args.command == "route" and args.route_command == "preview":
         _print_json(_preview_route(args))
+        return 0
+    if args.command == "node" and args.node_command == "status":
+        _print_json(_build_node_status_report())
+        return 0
+    if args.command == "node" and args.node_command == "pair":
+        _print_json(_build_node_pair_report(args))
         return 0
     if args.command == "plan":
         report = _build_execution_plan_report(args, command="yonerai plan", dry_run=True)
