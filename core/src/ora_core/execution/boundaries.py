@@ -92,6 +92,21 @@ def _ora_tool_schema_boundary_status() -> dict[str, object]:
     return tool_schema_boundary_status()
 
 
+def _ora_guardrail_response_boundary_status() -> dict[str, object]:
+    try:
+        from src.cogs.ora_guardrail_helpers import guardrail_response_interpreter_status
+    except Exception:
+        return {
+            "name": "ora_guardrail_response_interpreter",
+            "source": "src/cogs/ora_guardrail_helpers.py",
+            "status": "unavailable",
+            "available": False,
+            "provider_call_performed": False,
+            "broad_ora_refactor": False,
+        }
+    return guardrail_response_interpreter_status()
+
+
 def build_boundary_checks_for_task(
     classification: Any,
     *,
@@ -104,4 +119,5 @@ def build_boundary_checks_for_task(
         "web_search": search.to_public_dict(),
         "tool_boundary": tool.to_public_dict(),
         "ora_tool_schema_boundary": _ora_tool_schema_boundary_status(),
+        "ora_guardrail_response_interpreter": _ora_guardrail_response_boundary_status(),
     }
