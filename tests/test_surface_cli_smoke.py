@@ -736,6 +736,8 @@ def test_cli_ask_executes_mock_provider_by_default(capsys):
     assert output["run"]["run_id"].startswith("run_")
     assert output["response"]["provider"] == "mock"
     assert output["live_call_performed"] is False
+    assert output["boundary_checks"]["ora_guardrail_response_interpreter"]["status"] == "ok"
+    assert output["boundary_checks"]["ora_guardrail_response_interpreter"]["provider_call_performed"] is False
 
 
 def test_cli_ask_pretty_reports_ledger_file_backed_label(tmp_path, capsys):
@@ -746,6 +748,7 @@ def test_cli_ask_pretty_reports_ledger_file_backed_label(tmp_path, capsys):
 
     output = capsys.readouterr().out
     assert "file_backed" in output
+    assert "ora_guardrail_response_interpreter" in output
     assert "ledger_file_backed" not in output
     assert "true" in output.lower()
     assert "\033[" not in output

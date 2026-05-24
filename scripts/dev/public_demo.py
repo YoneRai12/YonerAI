@@ -399,6 +399,12 @@ def _execution_spine_checks() -> tuple[dict[str, object], ...]:
             "web_search": mock_result["boundary_checks"]["web_search"]["status"],
             "tool_boundary": mock_result["boundary_checks"]["tool_boundary"]["status"],
             "ora_tool_schema_boundary": mock_result["boundary_checks"]["ora_tool_schema_boundary"]["status"],
+            "ora_guardrail_response_interpreter": mock_result["boundary_checks"]["ora_guardrail_response_interpreter"][
+                "status"
+            ],
+            "guardrail_provider_call_performed": mock_result["boundary_checks"]["ora_guardrail_response_interpreter"][
+                "provider_call_performed"
+            ],
             "live_tool_execution": False,
             "network_performed": False,
         },
