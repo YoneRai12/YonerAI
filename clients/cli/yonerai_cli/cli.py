@@ -185,7 +185,7 @@ def _build_doctor_report(*, command: str = "yonerai doctor") -> dict[str, Any]:
         hybrid_wire_contract = build_hybrid_wire_conformance_report()
     except ImportError:
         hybrid_wire_contract = {
-            "schema_version": "yonerai-hybrid-wire-contract/v0.1",
+            "schema_version": "yonerai-hybrid-wire-contract/v0.3",
             "ok": False,
             "error": "hybrid_wire_contract_unavailable",
             "network_required": False,
@@ -1822,7 +1822,7 @@ def build_parser() -> argparse.ArgumentParser:
     route_preview.add_argument(
         "--use-local-node-fixture",
         action="store_true",
-        help="Use the public-safe Hybrid Wire v0.1 Local Node dev fixture for route preview.",
+        help="Use the public-safe Hybrid Wire v0.3 Local Node dev fixture for route preview.",
     )
     route_preview.add_argument(
         "--local-node-state",

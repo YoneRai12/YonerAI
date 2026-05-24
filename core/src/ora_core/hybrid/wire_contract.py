@@ -8,9 +8,16 @@ from typing import Any, Literal, Mapping
 from ora_core.execution.ledger import new_run_id, safe_summary
 
 
-HYBRID_WIRE_CONTRACT_VERSION = "yonerai-hybrid-wire-contract/v0.1"
+HYBRID_WIRE_CONTRACT_VERSION = "yonerai-hybrid-wire-contract/v0.3"
+HYBRID_WIRE_COMPATIBLE_VERSIONS = (
+    "yonerai-hybrid-wire-contract/v0.1",
+    "yonerai-hybrid-wire-contract/v0.2",
+    HYBRID_WIRE_CONTRACT_VERSION,
+)
 HYBRID_WIRE_STUB_NODE_ID = "local-node-dev-fixture"
 HYBRID_WIRE_STUB_SESSION_ID = "local-node-session-dev-fixture"
+HYBRID_WIRE_STUB_LEASE_ID = "local-node-lease-dev-fixture"
+HYBRID_WIRE_STUB_TOKEN_HASH = "sha256:local-node-session-token-dev-fixture-hash"
 
 WireCapabilityName = Literal[
     "local_model",
@@ -84,6 +91,9 @@ class LocalNodeHello:
     loopback_only: bool
     non_production: bool
     production_trust_material: bool
+    status: str
+    lease_required: bool
+    audit_log_required: bool
     schema_name: str = "LocalNodeHello"
 
     def to_public_dict(self) -> dict[str, object]:
@@ -98,6 +108,11 @@ class LocalNodeHeartbeat:
     healthy: bool
     loopback_only: bool
     production_runtime: bool
+    status: str
+    lease_id: str
+    lease_expires_at: str
+    audit_cursor: str
+    message_body_persisted: bool
     schema_name: str = "LocalNodeHeartbeat"
 
     def to_public_dict(self) -> dict[str, object]:
@@ -115,6 +130,10 @@ class LocalNodeCapabilityManifest:
     non_production: bool
     signed_origin_verified: bool
     production_trust_material: bool
+    manifest_status: str
+    lease_policy: str
+    audit_event_schema: str
+    message_body_persistence: str
     schema_name: str = "LocalNodeCapabilityManifest"
 
     def to_public_dict(self) -> dict[str, object]:
@@ -135,6 +154,12 @@ class LocalNodeSessionRef:
     non_production: bool
     bearer_token_included: bool
     production_trust_material: bool
+    lease_id: str
+    lease_expires_at: str
+    token_hash: str
+    token_hash_algorithm: str
+    bearer_token_hash_only: bool
+    message_body_persisted: bool
     schema_name: str = "LocalNodeSessionRef"
 
     def to_public_dict(self) -> dict[str, object]:
@@ -151,6 +176,11 @@ class LocalNodeRunEnvelope:
     raw_prompt_included: bool
     provider_key_included: bool
     local_path_included: bool
+    created_at: str
+    lease_id: str
+    audit_event_id: str
+    audit_summary: str
+    message_body_persisted: bool
     schema_name: str = "LocalNodeRunEnvelope"
 
     def to_public_dict(self) -> dict[str, object]:
@@ -167,6 +197,9 @@ class LocalNodeRunResult:
     raw_result_included: bool
     local_path_included: bool
     artifacts: tuple[dict[str, object], ...]
+    completed_at: str
+    audit_event_id: str
+    message_body_persisted: bool
     schema_name: str = "LocalNodeRunResult"
 
     def to_public_dict(self) -> dict[str, object]:
@@ -182,6 +215,8 @@ class LocalNodeError:
     retryable: bool
     public_safe: bool
     raw_exception_included: bool
+    status: str
+    audit_event_id: str
     schema_name: str = "LocalNodeError"
 
     def to_public_dict(self) -> dict[str, object]:
@@ -282,6 +317,9 @@ def build_local_node_hello(*, node_id: str = HYBRID_WIRE_STUB_NODE_ID) -> LocalN
         loopback_only=True,
         non_production=True,
         production_trust_material=False,
+        status="fixture_ready",
+        lease_required=True,
+        audit_log_required=True,
     )
 
 
@@ -303,6 +341,10 @@ def build_local_node_capability_manifest(
         non_production=True,
         signed_origin_verified=signed_origin_verified,
         production_trust_material=False,
+        manifest_status="fixture_valid" if signed_origin_verified else "fixture_unverified",
+        lease_policy="required_per_session",
+        audit_event_schema="hybrid-wire-audit/v0.3",
+        message_body_persistence="forbidden",
     )
 
 
@@ -315,6 +357,7 @@ def build_local_node_session_ref(
     issued_at: str = "2026-05-22T00:00:00Z",
     expires_at: str = "2026-05-29T01:00:00Z",
     signed_origin_verified: bool = True,
+    lease_id: str = HYBRID_WIRE_STUB_LEASE_ID,
 ) -> LocalNodeSessionRef:
     return LocalNodeSessionRef(
         session_id=session_id,
@@ -327,6 +370,12 @@ def build_local_node_session_ref(
         non_production=True,
         bearer_token_included=False,
         production_trust_material=False,
+        lease_id=lease_id,
+        lease_expires_at=expires_at,
+        token_hash=HYBRID_WIRE_STUB_TOKEN_HASH,
+        token_hash_algorithm="sha256",
+        bearer_token_hash_only=True,
+        message_body_persisted=False,
     )
 
 
@@ -335,6 +384,7 @@ def build_local_node_heartbeat(
     node_id: str = HYBRID_WIRE_STUB_NODE_ID,
     session_id: str = HYBRID_WIRE_STUB_SESSION_ID,
 ) -> LocalNodeHeartbeat:
+    lease_expires_at = "2026-05-29T01:00:00Z"
     return LocalNodeHeartbeat(
         node_id=node_id,
         session_id=session_id,
@@ -342,6 +392,11 @@ def build_local_node_heartbeat(
         healthy=True,
         loopback_only=True,
         production_runtime=False,
+        status="fixture_alive",
+        lease_id=HYBRID_WIRE_STUB_LEASE_ID,
+        lease_expires_at=lease_expires_at,
+        audit_cursor="audit-cursor-dev-fixture",
+        message_body_persisted=False,
     )
 
 
@@ -354,8 +409,9 @@ def build_run_envelope(
 ) -> LocalNodeRunEnvelope:
     ref = session_ref or build_local_node_session_ref()
     summary = _wire_summary(prompt)
+    envelope_run_id = run_id or new_run_id()
     return LocalNodeRunEnvelope(
-        run_id=run_id or new_run_id(),
+        run_id=envelope_run_id,
         session_ref=ref,
         capability=capability,
         task_summary=summary,
@@ -363,6 +419,11 @@ def build_run_envelope(
         raw_prompt_included=False,
         provider_key_included=False,
         local_path_included=False,
+        created_at=_now(),
+        lease_id=ref.lease_id,
+        audit_event_id=f"audit-{envelope_run_id}",
+        audit_summary="metadata_only_no_message_body",
+        message_body_persisted=False,
     )
 
 
@@ -374,6 +435,9 @@ def build_run_result(*, run_id: str, result: str, status: str = "completed") -> 
         raw_result_included=False,
         local_path_included=False,
         artifacts=(),
+        completed_at=_now(),
+        audit_event_id=f"audit-{run_id}",
+        message_body_persisted=False,
     )
 
 
@@ -384,6 +448,8 @@ def build_node_error(*, code: str, message: str, retryable: bool = False) -> Loc
         retryable=retryable,
         public_safe=True,
         raw_exception_included=False,
+        status="error",
+        audit_event_id=f"audit-error-{_wire_summary(code, max_chars=40) or 'unknown'}",
     )
 
 
@@ -420,6 +486,7 @@ def build_local_node_status_report(
     )
     return {
         "schema_version": HYBRID_WIRE_CONTRACT_VERSION,
+        "compatible_versions": list(HYBRID_WIRE_COMPATIBLE_VERSIONS),
         "command": "yonerai node status",
         "ok": True,
         "local_node": {
@@ -428,6 +495,10 @@ def build_local_node_status_report(
             "loopback_only": True,
             "non_production": True,
             "production_trust_material": False,
+            "lease_id": HYBRID_WIRE_STUB_LEASE_ID if node_available else None,
+            "session_token_hash_only": bool(session_ref and session_ref.bearer_token_hash_only),
+            "message_body_persisted": False,
+            "audit_event_schema": "hybrid-wire-audit/v0.3",
             "hello": build_local_node_hello().to_public_dict() if node_available else None,
             "heartbeat": build_local_node_heartbeat().to_public_dict() if node_available else None,
             "capability_manifest": manifest.to_public_dict() if manifest else None,
@@ -450,10 +521,14 @@ def build_pairing_dry_run_report() -> dict[str, object]:
     )
     return {
         "schema_version": HYBRID_WIRE_CONTRACT_VERSION,
+        "compatible_versions": list(HYBRID_WIRE_COMPATIBLE_VERSIONS),
         "command": "yonerai node pair --dry-run",
         "ok": True,
         "dry_run": True,
         "pairing_performed": False,
+        "session_token_plaintext_included": False,
+        "session_token_hash_only": True,
+        "message_body_persisted": False,
         "official_orchestration_stub_request": request.to_public_dict(),
         "trust_decision": decision.to_public_dict(),
         "actions_not_performed": _wire_non_actions(),
@@ -525,6 +600,7 @@ def build_hybrid_wire_conformance_report() -> dict[str, object]:
     observed_states = tuple(decision.state for _label, decision in trust_cases)
     return {
         "schema_version": HYBRID_WIRE_CONTRACT_VERSION,
+        "compatible_versions": list(HYBRID_WIRE_COMPATIBLE_VERSIONS),
         "ok": expected_states == observed_states,
         "test_fixture_only": True,
         "local_node_fixture_available": True,
@@ -533,6 +609,10 @@ def build_hybrid_wire_conformance_report() -> dict[str, object]:
         "official_cloud_runtime_implemented": False,
         "production_oracle_used": False,
         "network_required": False,
+        "lease_required": True,
+        "session_token_hash_only": True,
+        "message_body_persisted": False,
+        "audit_event_schema": "hybrid-wire-audit/v0.3",
         "required_trust_states": list(HYBRID_WIRE_REQUIRED_TRUST_STATES),
         "required_trust_state_count": len(HYBRID_WIRE_REQUIRED_TRUST_STATES),
         "schemas": [
@@ -586,6 +666,10 @@ def evaluate_wire_request(
         return _wire_decision("expired_session", capability, ("local_node_session_missing",))
     if session_ref.production_trust_material:
         return _wire_decision("unverified_node", capability, ("production_trust_material_not_allowed_public_repo",))
+    if not session_ref.signed_origin_verified:
+        return _wire_decision("unverified_node", capability, ("local_node_session_not_verified",))
+    if session_ref.node_id != manifest.node_id or session_ref.manifest_id != manifest.manifest_id:
+        return _wire_decision("unverified_node", capability, ("local_node_session_manifest_mismatch",))
     if session_ref.state == "revoked":
         return _wire_decision("revoked_session", capability, ("local_node_session_revoked",))
     if session_ref.state != "active":
