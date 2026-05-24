@@ -125,6 +125,24 @@ def build_workspace_file_prompt(task_text: str, context: WorkspaceFileContext) -
     )
 
 
+def build_workspace_file_access_event(context: WorkspaceFileContext) -> dict[str, str]:
+    return {
+        "name": WORKSPACE_FILE_ACCESS_CAPABILITY,
+        "status": "ok",
+        "summary": (
+            f"{WORKSPACE_FILE_ACCESS_CAPABILITY} "
+            f"file={context.file_name} "
+            f"extension={context.extension or 'none'} "
+            f"size_bytes={context.size_bytes} "
+            f"line_count={context.line_count} "
+            f"word_count={context.word_count} "
+            f"sha256_prefix={context.sha256_prefix} "
+            f"truncated={str(context.truncated).lower()} "
+            "raw_content_persisted=false"
+        ),
+    }
+
+
 def _resolve_existing_directory(path: str | Path) -> Path:
     try:
         resolved = Path(path).resolve(strict=True)

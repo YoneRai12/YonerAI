@@ -710,7 +710,12 @@ def _execute_ask_report(args: argparse.Namespace) -> dict[str, Any]:
     try:
         _prepare_repo_import_path()
         _prepare_core_import_path()
-        from ora_core.execution.workspace_files import WorkspaceFileError, build_workspace_file_prompt, read_workspace_text_file
+        from ora_core.execution.workspace_files import (
+            WorkspaceFileError,
+            build_workspace_file_access_event,
+            build_workspace_file_prompt,
+            read_workspace_text_file,
+        )
         from ora_core.execution.ledger import build_run_ledger_from_env
         from ora_core.execution.spine import execute_task
     except Exception as exc:
@@ -720,6 +725,7 @@ def _execute_ask_report(args: argparse.Namespace) -> dict[str, Any]:
     ledger_status = _ledger_status(args.ledger_path)
     provider_prompt = prompt
     file_context = None
+    context_events = []
     if args.file:
         if not args.workspace:
             raise CliError("--workspace is required when --file is used.", exit_code=2)
@@ -743,6 +749,7 @@ def _execute_ask_report(args: argparse.Namespace) -> dict[str, Any]:
                 "error": exc.to_public_dict(),
             }
         provider_prompt = build_workspace_file_prompt(prompt, file_context)
+        context_events.append(build_workspace_file_access_event(file_context))
     try:
         result = execute_task(
             prompt,
@@ -751,6 +758,7 @@ def _execute_ask_report(args: argparse.Namespace) -> dict[str, Any]:
             provider=args.provider,
             live=args.live,
             ledger=build_run_ledger_from_env(args.ledger_path),
+            context_events=context_events,
         )
     except ValueError as exc:
         raise CliError(str(exc), exit_code=2) from exc
