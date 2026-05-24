@@ -26,7 +26,7 @@ _LEGACY_BOUNDARY_TAG_PATTERN = re.compile(
 
 def normalize_legacy_generated_text(text: object) -> str:
     """Apply extracted legacy ORA text cleaners when they are importable."""
-    raw = str(text or "").strip()
+    raw = "" if text is None else str(text)
     if not raw:
         return ""
 

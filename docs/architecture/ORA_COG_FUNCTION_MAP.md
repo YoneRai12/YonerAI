@@ -6,9 +6,9 @@ This document is generated from `src/cogs/ora.py` using AST inspection. It does 
 
 - Target: `src/cogs/ora.py`
 - Source lines: `3157`
-- Definitions mapped: `72`
-- Risk counts: `{"high": 16, "low": 20, "medium": 36}`
-- Side-effect counts: `{"discord": 46, "file": 8, "memory": 3, "network": 7, "provider_or_llm": 11, "system_or_process": 6, "tool_or_shell_policy": 4}`
+- Definitions mapped: `69`
+- Risk counts: `{"high": 16, "low": 19, "medium": 34}`
+- Side-effect counts: `{"discord": 44, "file": 8, "memory": 3, "network": 7, "provider_or_llm": 11, "system_or_process": 6, "tool_or_shell_policy": 4}`
 
 ## Top Responsibilities
 
@@ -40,10 +40,7 @@ This document is generated from `src/cogs/ora.py` using AST inspection. It does 
 | 130-3148 | `ORACog` | ORA-specific commands such as login link and dataset management. | discord, provider_or_llm, memory, file, tool_or_shell_policy, network, system_or_process | high | no |  | discord-free static or mock interaction test; provider mocked or local-fixture execution test; workspace/temp-file allowlist test; deny-by-default tool boundary test; network-disabled fixture test; read-only diagnostic fixture test |
 | 133-219 | `ORACog.__init__` | Initializes ORACog runtime dependencies and mutable state. | discord, provider_or_llm, memory, file, tool_or_shell_policy, network, system_or_process | high | no |  | discord-free static or mock interaction test; provider mocked or local-fixture execution test; workspace/temp-file allowlist test; deny-by-default tool boundary test; network-disabled fixture test; read-only diagnostic fixture test |
 | 221-230 | `ORACog._load_soul` | Load the 'Soul' (Persona) prompt from data/soul.md. | file | high | no |  | workspace/temp-file allowlist test |
-| 232-236 | `ORACog._get_tool_schemas` | Return tool definitions for the Unified Brain. | none | low | no |  | static map coverage only |
 | 238-244 | `ORACog.set_status` | Helper to set bot status from callbacks. | discord | medium | no |  | discord-free static or mock interaction test |
-| 246-252 | `ORACog._on_game_start` | Callback for GameWatcher when game starts. | discord | medium | no |  | discord-free static or mock interaction test |
-| 254-257 | `ORACog._on_game_end` | Callback for GameWatcher when game ends. | discord | medium | no |  | discord-free static or mock interaction test |
 | 260-345 | `ORACog.dashboard` | Get the link to this server's web dashboard. | discord, network, system_or_process | high | no |  | discord-free static or mock interaction test; network-disabled fixture test; read-only diagnostic fixture test |
 | 347-358 | `ORACog.cog_load` | Called when the Cog is loaded. Performs Startup Sync. | none | low | no |  | static map coverage only |
 | 360-385 | `ORACog._startup_sync` | Syncs OpenAI usage and updates local limiter state. | provider_or_llm, network | high | no |  | provider mocked or local-fixture execution test; network-disabled fixture test |
@@ -126,18 +123,6 @@ This document is generated from `src/cogs/ora.py` using AST inspection. It does 
 
 ### `ORACog._load_soul`
 - Callers: `ORACog.__init__`
-
-### `ORACog._get_tool_schemas`
-- Callers: `ORACog.__init__`, `ORACog.get_context_tools`
-
-### `ORACog.set_status`
-- Callers: `ORACog._on_game_end`, `ORACog._on_game_start`
-
-### `ORACog._on_game_start`
-- Local callees: `ORACog.set_status`
-
-### `ORACog._on_game_end`
-- Local callees: `ORACog.set_status`
 
 ### `ORACog.cog_load`
 - Local callees: `ORACog._startup_sync`

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import ast
 import importlib.util
 import json
 import sys
@@ -50,11 +49,6 @@ def _ora_source() -> str:
     return (REPO_ROOT / "src" / "cogs" / "ora.py").read_text(encoding="utf-8-sig")
 
 
-def _ast_definition_count() -> int:
-    tree = ast.parse(_ora_source())
-    return sum(1 for node in ast.walk(tree) if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)))
-
-
 def test_ora_boundary_map_is_static_and_complete_without_runtime_import() -> None:
     removed = _pop_modules((*RUNTIME_IMPORT_MODULES, "ora_cog_boundary_map"))
     try:
@@ -69,7 +63,8 @@ def test_ora_boundary_map_is_static_and_complete_without_runtime_import() -> Non
         assert payload["schema_version"] == "yonerai-ora-cog-function-map/v1"
         assert payload["target"] == "src/cogs/ora.py"
         assert payload["source_lines"] == len(_ora_source().splitlines())
-        assert payload["definition_count"] == _ast_definition_count()
+        qualnames = [item["qualname"] for item in payload["definitions"]]
+        assert len(qualnames) == len(set(qualnames))
     finally:
         _restore_modules(removed)
 

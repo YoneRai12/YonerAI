@@ -294,9 +294,21 @@ def _iter_direct_definitions(node: ast.AST) -> list[ast.AST]:
     return [child for child in body if isinstance(child, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef))]
 
 
+def _iter_live_direct_definitions(node: ast.AST) -> list[ast.AST]:
+    definitions = _iter_direct_definitions(node)
+    live_names: set[str] = set()
+    live_reversed: list[ast.AST] = []
+    for child in reversed(definitions):
+        if child.name in live_names:
+            continue
+        live_names.add(child.name)
+        live_reversed.append(child)
+    return list(reversed(live_reversed))
+
+
 def _walk_definitions(node: ast.AST, parent: str | None = None) -> list[Definition]:
     definitions: list[Definition] = []
-    for child in _iter_direct_definitions(node):
+    for child in _iter_live_direct_definitions(node):
         name = child.name
         qualname = f"{parent}.{name}" if parent else name
         decorators = tuple(_decorator_name(decorator) for decorator in getattr(child, "decorator_list", []))

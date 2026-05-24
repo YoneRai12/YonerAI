@@ -1,5 +1,5 @@
 {
-  "definition_count": 72,
+  "definition_count": 69,
   "definitions": [
     {
       "callees": [
@@ -467,43 +467,12 @@
       "target_module": null
     },
     {
-      "callees": [],
-      "callers": [
-        "ORACog.__init__",
-        "ORACog.get_context_tools"
-      ],
-      "decorators": [],
-      "extraction_candidate": false,
-      "inputs": [
-        "self"
-      ],
-      "kind": "FunctionDef",
-      "line_range": {
-        "end": 236,
-        "start": 232
-      },
-      "name": "_get_tool_schemas",
-      "outputs": "return value",
-      "parent": "ORACog",
-      "qualname": "ORACog._get_tool_schemas",
-      "required_tests": [
-        "static map coverage only"
-      ],
-      "responsibility": "Return tool definitions for the Unified Brain.",
-      "safety_risk": "low",
-      "side_effects": [],
-      "target_module": null
-    },
-    {
       "callees": [
         "discord.Game",
         "logger.warning",
         "self.bot.change_presence"
       ],
-      "callers": [
-        "ORACog._on_game_end",
-        "ORACog._on_game_start"
-      ],
+      "callers": [],
       "decorators": [],
       "extraction_candidate": false,
       "inputs": [
@@ -524,66 +493,6 @@
         "discord-free static or mock interaction test"
       ],
       "responsibility": "Helper to set bot status from callbacks.",
-      "safety_risk": "medium",
-      "side_effects": [
-        "discord"
-      ],
-      "target_module": null
-    },
-    {
-      "callees": [
-        "ORACog.set_status",
-        "logger.info"
-      ],
-      "callers": [],
-      "decorators": [],
-      "extraction_candidate": false,
-      "inputs": [
-        "self"
-      ],
-      "kind": "AsyncFunctionDef",
-      "line_range": {
-        "end": 252,
-        "start": 246
-      },
-      "name": "_on_game_start",
-      "outputs": "async coroutine",
-      "parent": "ORACog",
-      "qualname": "ORACog._on_game_start",
-      "required_tests": [
-        "discord-free static or mock interaction test"
-      ],
-      "responsibility": "Callback for GameWatcher when game starts.",
-      "safety_risk": "medium",
-      "side_effects": [
-        "discord"
-      ],
-      "target_module": null
-    },
-    {
-      "callees": [
-        "ORACog.set_status",
-        "logger.info"
-      ],
-      "callers": [],
-      "decorators": [],
-      "extraction_candidate": false,
-      "inputs": [
-        "self"
-      ],
-      "kind": "AsyncFunctionDef",
-      "line_range": {
-        "end": 257,
-        "start": 254
-      },
-      "name": "_on_game_end",
-      "outputs": "async coroutine",
-      "parent": "ORACog",
-      "qualname": "ORACog._on_game_end",
-      "required_tests": [
-        "discord-free static or mock interaction test"
-      ],
-      "responsibility": "Callback for GameWatcher when game ends.",
       "safety_risk": "medium",
       "side_effects": [
         "discord"
@@ -2944,12 +2853,12 @@
   ],
   "risk_counts": {
     "high": 16,
-    "low": 20,
-    "medium": 36
+    "low": 19,
+    "medium": 34
   },
   "schema_version": "yonerai-ora-cog-function-map/v1",
   "side_effect_counts": {
-    "discord": 46,
+    "discord": 44,
     "file": 8,
     "memory": 3,
     "network": 7,

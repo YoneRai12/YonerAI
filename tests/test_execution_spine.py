@@ -84,6 +84,15 @@ def test_legacy_text_normalizer_preserves_embedded_generic_token_text() -> None:
     assert normalize_legacy_generated_text(text) == text
 
 
+def test_legacy_text_normalizer_preserves_non_legacy_whitespace() -> None:
+    _prepare_paths()
+    from ora_core.execution import normalize_legacy_generated_text
+
+    text = "\n  keep markdown spacing  \n"
+
+    assert normalize_legacy_generated_text(text) == text
+
+
 def test_legacy_text_normalizer_strips_route_eval_json_for_ledger() -> None:
     _prepare_paths()
     from ora_core.execution import legacy_text_normalizer_status, normalize_legacy_generated_text
