@@ -176,6 +176,7 @@ def test_hybrid_wire_conformance_report_covers_required_states() -> None:
     assert report["message_body_persisted"] is False
     assert report["audit_event_schema"] == "hybrid-wire-audit/v0.3"
     assert report["node_posture_schema_version"] == "yonerai-local-node-posture/v0.1"
+    assert report["extension_capability_manifest_schema_version"] == "yonerai-extension-capability-manifest/v0.1"
     assert report["required_node_posture_state_count"] == 5
     assert {item["state"] for item in report["node_posture_states"]} == {
         "VERIFIED",
@@ -197,6 +198,13 @@ def test_hybrid_wire_conformance_report_covers_required_states() -> None:
     assert states["verified_test_node"]["allowed_for_preview"] is True
     assert states["approval_required"]["approval_required"] is True
     assert all(item["execute_allowed"] is False for item in states.values())
+    extension_statuses = {item["extension_id"]: item["status"] for item in report["extension_boundary"]}
+    assert extension_statuses == {
+        "local-dev-search-extension": "accepted_for_review",
+        "duplicate-capability-extension": "denied",
+        "overbroad-capability-extension": "denied",
+        "policy-drift-extension": "policy_drift",
+    }
 
 
 def test_duplicate_manifest_capabilities_are_rejected_deterministically() -> None:

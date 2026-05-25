@@ -1,0 +1,79 @@
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+
+
+repo_root = Path(__file__).resolve().parents[1]
+core_src = repo_root / "core" / "src"
+if str(core_src) not in sys.path:
+    sys.path.insert(0, str(core_src))
+
+from ora_core.hybrid.extension_manifest import (  # noqa: E402
+    EXTENSION_CAPABILITY_MANIFEST_SCHEMA_VERSION,
+    build_extension_capability_manifest,
+    evaluate_extension_capability_manifest,
+)
+from ora_core.hybrid.wire_contract import assert_public_safe_wire_payload  # noqa: E402
+
+
+def test_safe_extension_manifest_is_review_only_and_cannot_execute() -> None:
+    manifest = build_extension_capability_manifest(
+        extension_id="local-dev-search-extension",
+        declared_capabilities=("mock_search", "ledger"),
+    )
+    decision = evaluate_extension_capability_manifest(manifest)
+    payload = decision.to_public_dict()
+
+    assert payload["schema_version"] == EXTENSION_CAPABILITY_MANIFEST_SCHEMA_VERSION
+    assert payload["status"] == "accepted_for_review"
+    assert payload["accepted_capabilities"] == ["mock_search", "ledger"]
+    assert payload["can_execute"] is False
+    assert payload["audit_required"] is True
+    assert "extension_capabilities_declared_no_execution" in payload["reasons"]
+    assert assert_public_safe_wire_payload(payload) == ()
+
+
+def test_duplicate_extension_capability_is_denied_deterministically() -> None:
+    manifest = build_extension_capability_manifest(
+        extension_id="duplicate-capability-extension",
+        declared_capabilities=("mock_search", "mock-search", "ledger"),
+    )
+    payload = evaluate_extension_capability_manifest(manifest).to_public_dict()
+
+    assert payload["status"] == "denied"
+    assert payload["accepted_capabilities"] == []
+    assert payload["duplicate_capabilities"] == ["mock_search"]
+    assert "duplicate_extension_capability_denied" in payload["reasons"]
+
+
+def test_overbroad_and_unknown_extension_capabilities_are_denied() -> None:
+    manifest = build_extension_capability_manifest(
+        extension_id="overbroad-extension",
+        declared_capabilities=("local_tools", "pc_operations", "future_private_capability"),
+    )
+    payload = evaluate_extension_capability_manifest(manifest).to_public_dict()
+
+    assert payload["status"] == "denied"
+    assert payload["accepted_capabilities"] == []
+    assert payload["overbroad_capabilities"] == ["local_tools", "pc_operations"]
+    assert payload["unknown_capabilities"] == ["future_private_capability"]
+    assert "overbroad_extension_capability_denied" in payload["reasons"]
+    assert "unknown_extension_capability_denied" in payload["reasons"]
+
+
+def test_extension_policy_drift_fails_closed_with_audit_reason() -> None:
+    manifest = build_extension_capability_manifest(
+        extension_id="policy-drift-extension",
+        declared_capabilities=("mock_search",),
+    )
+    payload = evaluate_extension_capability_manifest(manifest, policy_drift=True).to_public_dict()
+    serialized = json.dumps(payload, sort_keys=True)
+
+    assert payload["status"] == "policy_drift"
+    assert payload["accepted_capabilities"] == []
+    assert payload["policy_drift"] is True
+    assert payload["can_execute"] is False
+    assert "extension_policy_drift_detected" in payload["reasons"]
+    assert "C:\\Users\\" not in serialized
