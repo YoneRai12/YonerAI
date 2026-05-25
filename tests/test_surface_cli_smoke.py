@@ -225,6 +225,7 @@ def test_cli_start_json_reports_first_run_without_external_calls(monkeypatch, ca
     assert output["steps"][0]["command"] == "yonerai demo --pretty"
     assert output["steps"][1]["command"] == "yonerai doctor --pretty --lang ja"
     assert output["recommended_first_ask"]["provider"] == "mock"
+    assert output["recommended_first_ask"]["command"] == 'yonerai ask "hello" --auto --json'
     assert "no external provider call" in output["actions_not_performed"]
     assert "Traceback" not in captured.err
     local_path_marker = "C:" + "\\Users"
@@ -254,7 +255,17 @@ def test_cli_start_guided_json_includes_workspace_and_ledger_actions(monkeypatch
     output = json.loads(captured.out)
     actions = {action["id"]: action for action in output["guided_actions"]}
     assert output["guided"] is True
-    assert {"mock_first_run", "local_llm_optional", "workspace_file_access_sample", "run_ledger_sample"} <= set(actions)
+    assert {
+        "auto_runtime_first_run",
+        "mock_first_run",
+        "local_llm_optional",
+        "workspace_file_access_sample",
+        "run_ledger_sample",
+    } <= set(actions)
+    assert actions["auto_runtime_first_run"]["commands"] == [
+        'yonerai ask "hello" --auto --json',
+        'yonerai ask "hard public reasoning over public API docs" --auto --json',
+    ]
     assert actions["workspace_file_access_sample"]["commands"] == [
         'yonerai ask "use this selected sample file" --file sample.txt '
         "--workspace .yonerai-sample-workspace --provider mock --json"
@@ -794,6 +805,13 @@ def test_cli_doctor_reports_offline_status_without_network(monkeypatch, capsys):
     assert oracle_stub["network_required"] is False
     assert oracle_stub["production_oracle_used"] is False
     assert oracle_stub["official_cloud_runtime_implemented"] is False
+    auto_runtime = output["auto_runtime"]
+    assert auto_runtime["ok"] is True
+    assert auto_runtime["command"] == "yonerai ask --auto --json"
+    assert {"instant_local", "local_llm", "hybrid_node", "cloud_contract_candidate", "deny"} <= set(auto_runtime["routes"])
+    assert auto_runtime["mock_provider_default"] is True
+    assert auto_runtime["local_llm_loopback_only"] is True
+    assert auto_runtime["live_external_provider_default"] is False
     providers = {provider["provider_id"]: provider for provider in output["providers"]["providers"]}
     assert providers["mock"]["setup_status"] == "ready"
     assert providers["local"]["loopback_only"] is True
@@ -1608,6 +1626,132 @@ def test_cli_ask_executes_mock_provider_by_default(capsys):
     assert output["live_call_performed"] is False
     assert output["boundary_checks"]["ora_guardrail_response_interpreter"]["status"] == "ok"
     assert output["boundary_checks"]["ora_guardrail_response_interpreter"]["provider_call_performed"] is False
+
+
+def test_cli_ask_auto_executes_instant_mock_provider(capsys):
+    cli = _load_cli_module()
+
+    exit_code = cli.main(["ask", "hello", "--auto", "--json"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    output = json.loads(captured.out)
+    assert output["schema_version"] == "yonerai-auto-runtime/v0.1"
+    assert output["ok"] is True
+    assert output["auto"]["difficulty"] == "instant"
+    assert output["auto"]["privacy"] == "public"
+    assert output["auto"]["route"] == "instant_local"
+    assert output["response"]["provider"] == "mock"
+    assert output["run"]["run_id"].startswith("run_")
+    assert output["live_call_performed"] is False
+    assert output["boundaries"]["provider_key_output"] is False
+
+
+def test_cli_ask_auto_agent_task_uses_oracle_stub_and_reviewer_plan(capsys):
+    cli = _load_cli_module()
+
+    exit_code = cli.main(["ask", "hard", "public", "reasoning", "over", "public", "API", "docs", "--auto", "--json"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    output = json.loads(captured.out)
+    assert output["ok"] is True
+    assert output["auto"]["route"] == "cloud_contract_candidate"
+    assert output["reviewer_plan"]["enabled"] is True
+    assert output["oracle_stub"]["response"]["status"] == "completed"
+    assert output["oracle_stub"]["request"]["raw_prompt_included"] is False
+    assert output["boundaries"]["private_file_content_sent_to_cloud_contract"] is False
+
+
+def test_cli_ask_auto_pretty_reports_route_and_boundaries(capsys):
+    cli = _load_cli_module()
+
+    assert cli.main(["ask", "hello", "--auto", "--pretty", "--color", "never"]) == 0
+
+    output = capsys.readouterr().out
+    assert "YonerAI ask --auto" in output
+    assert "difficulty" in output
+    assert "instant" in output
+    assert "private_file_to_cloud" in output
+    assert "\033[" not in output
+
+
+def test_cli_ask_auto_ledger_records_decision_and_reviewer_plan(tmp_path, capsys):
+    cli = _load_cli_module()
+    ledger = tmp_path / "runs.jsonl"
+
+    assert cli.main(
+        [
+            "ask",
+            "hard",
+            "public",
+            "reasoning",
+            "over",
+            "public",
+            "API",
+            "docs",
+            "--auto",
+            "--json",
+            "--ledger",
+            str(ledger),
+        ]
+    ) == 0
+
+    output = json.loads(capsys.readouterr().out)
+    run_id = output["run"]["run_id"]
+    assert str(ledger) not in json.dumps(output)
+    persisted = ledger.read_text(encoding="utf-8")
+    assert run_id in persisted
+    assert "auto_runtime_decision" in persisted
+    assert "auto_reviewer_plan" in persisted
+    assert "oracle_stub_enqueued" in persisted
+    assert "C:\\Users" not in persisted
+    assert "sk-" not in persisted
+
+
+def test_cli_ask_auto_blocks_dangerous_task(capsys):
+    cli = _load_cli_module()
+
+    exit_code = cli.main(["ask", "delete", "file", "and", "run", "shell", "command", "--auto", "--json"])
+
+    output = json.loads(capsys.readouterr().out)
+    assert exit_code == 1
+    assert output["ok"] is False
+    assert output["auto"]["route"] == "deny"
+    assert output["run"]["status"] == "blocked"
+    assert output["error"]["code"] == "approval_required"
+    assert output["boundaries"]["shell_execution_performed"] is False
+
+
+def test_cli_ask_auto_executes_loopback_local_provider_with_live_opt_in(monkeypatch, capsys):
+    cli = _load_cli_module()
+    repo_root = Path(__file__).resolve().parents[1]
+    core_src = repo_root / "core" / "src"
+    for path in (repo_root, core_src):
+        text = str(path)
+        if text not in sys.path:
+            sys.path.insert(0, text)
+    from ora_core.providers import local_llm
+
+    monkeypatch.setenv("ORA_LOCAL_LLM_ENABLED", "1")
+    monkeypatch.setenv("ORA_LOCAL_LLM_BASE_URL", "http://127.0.0.1:11434")
+    monkeypatch.setenv("ORA_LOCAL_LLM_MODEL", "local-test")
+
+    def fake_generate_local_llm_reply(**kwargs: Any) -> local_llm.LocalLLMReply:
+        assert kwargs["config"].base_url == "http://127.0.0.1:11434"
+        return local_llm.LocalLLMReply(reply="<|final|>local auto reply", provider="local-ollama", model="local-test")
+
+    monkeypatch.setattr(local_llm, "generate_local_llm_reply", fake_generate_local_llm_reply)
+
+    exit_code = cli.main(["ask", "hello", "--auto", "--provider", "local", "--live", "--json"])
+
+    output = json.loads(capsys.readouterr().out)
+    assert exit_code == 0
+    assert output["ok"] is True
+    assert output["auto"]["route"] == "local_llm"
+    assert output["response"]["provider"] == "local"
+    assert output["response"]["output_text"] == "local auto reply"
+    assert output["live_call_performed"] is True
 
 
 def test_cli_ask_pretty_reports_ledger_file_backed_label(tmp_path, capsys):

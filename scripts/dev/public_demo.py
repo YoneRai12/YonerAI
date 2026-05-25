@@ -401,6 +401,7 @@ def _execution_spine_checks() -> tuple[dict[str, object], ...]:
     from ora_core.execution import (
         FileRunLedger,
         InMemoryRunLedger,
+        build_auto_runtime_report,
         execute_task,
         legacy_text_normalizer_status,
         normalize_legacy_generated_text,
@@ -427,6 +428,11 @@ def _execution_spine_checks() -> tuple[dict[str, object], ...]:
         provider="mock",
         ledger=ledger,
     ).to_public_dict()
+    auto_result = build_auto_runtime_report(
+        "hard public reasoning over public API docs",
+        provider="mock",
+        ledger=ledger,
+    )
     registry_statuses = {status["provider_id"]: status for status in build_default_provider_registry().list_statuses()}
     legacy_status = legacy_text_normalizer_status()
     cleaned_legacy_text = normalize_legacy_generated_text("<|final|>demo")
@@ -438,6 +444,11 @@ def _execution_spine_checks() -> tuple[dict[str, object], ...]:
     assert dangerous_result["ok"] is False
     assert dangerous_result["run"]["status"] == "blocked"
     assert dangerous_result["error"]["code"] == "approval_required"
+    assert auto_result["ok"] is True
+    assert auto_result["auto"]["route"] == "cloud_contract_candidate"
+    assert auto_result["reviewer_plan"]["enabled"] is True
+    assert auto_result["oracle_stub"]["response"]["status"] == "completed"
+    assert auto_result["boundaries"]["private_file_content_sent_to_cloud_contract"] is False
     assert legacy_status["execution_spine_connected"] is True
     assert cleaned_legacy_text == "demo"
     with tempfile.TemporaryDirectory(prefix="yonerai-demo-workspace-") as temp_dir:
@@ -481,6 +492,19 @@ def _execution_spine_checks() -> tuple[dict[str, object], ...]:
             "run_status": mock_result["run"]["status"],
             "live_call_performed": mock_result["live_call_performed"],
             "raw_prompt_persisted": mock_result["run"]["persistence"]["raw_prompt_persisted"],
+        },
+        {
+            "name": "auto_runtime_ask",
+            "status": "ok",
+            "route_strategy": auto_result["auto"]["route"],
+            "difficulty": auto_result["auto"]["difficulty"],
+            "privacy": auto_result["auto"]["privacy"],
+            "run_id": auto_result["run"]["run_id"],
+            "reviewer_plan": auto_result["reviewer_plan"]["enabled"],
+            "subtask_count": auto_result["reviewer_plan"]["subtask_count"],
+            "oracle_status": auto_result["oracle_stub"]["response"]["status"],
+            "private_file_content_sent_to_cloud": auto_result["boundaries"]["private_file_content_sent_to_cloud_contract"],
+            "live_call_performed": auto_result["live_call_performed"],
         },
         {
             "name": "dangerous_task_blocked",
@@ -1056,6 +1080,10 @@ def format_pretty_demo(result: dict[str, object]) -> str:
                 "audit_event_schema",
                 "route_preview_fixture_supported",
                 "route_strategy",
+                "difficulty",
+                "privacy",
+                "reviewer_plan",
+                "subtask_count",
                 "request_schema",
                 "response_schema",
                 "response_status",
