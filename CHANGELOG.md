@@ -2,6 +2,21 @@
 
 See also: `docs/RELEASE_NOTES.md` (curated summary, v5.0.0 -> current).
 
+## v0.1.0-alpha.4 (2026-05-26) - CLI Auto Runtime Slice
+- Added `yonerai ask --auto`, which classifies task difficulty/privacy,
+  selects a safe route, executes mock/local-dev paths, returns a `run_id`, and
+  records redacted ledger events when a ledger is explicitly requested.
+- Connected auto routing to mock provider execution, loopback-only local LLM
+  opt-in, mock search, local-dev Oracle stub envelopes, reviewer/subtask
+  planning, workspace file access guard boundaries, and dangerous-task deny
+  behavior.
+- Extended `yonerai demo`, `yonerai doctor`, and `yonerai start --guided` so
+  users can see the auto runtime path without live services.
+- Preserved hard boundaries: no production Oracle, no Official Managed Cloud
+  runtime, no live Discord, no public tunnel/deploy, no arbitrary shell/file/tool
+  execution, no default live provider calls, and no private file content sent to
+  cloud-contract candidates.
+
 ## v0.1.0-alpha.3 (2026-05-26) - Real Hybrid Execution Slice
 - Added `yonerai hybrid run --pretty/--json`, a public-safe local-dev Hybrid
   execution slice that connects route preview, verified test Local Node session,
