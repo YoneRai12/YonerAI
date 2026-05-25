@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from dataclasses import asdict, dataclass
 from typing import Literal
 
@@ -141,46 +142,55 @@ class RoutePreviewDecision:
 
 def _classify_operation(task_text: str, requested_capability: str | None, risk_hint: str | None) -> OperationClass:
     hint = " ".join(part for part in (requested_capability or "", risk_hint or "", task_text) if part).lower()
-    if any(term in hint for term in ("deploy", "deployment", "release production", "rollout")):
+    if _contains_terms(hint, ("deploy", "deployment", "release production", "rollout")):
         return "deployment"
-    if any(term in hint for term in ("discord", "live bot", "gateway")):
+    if _contains_terms(hint, ("discord", "live bot", "gateway")):
         return "discord_live"
-    if any(term in hint for term in ("shell", "command", "run ", "execute", "pc operation", "delete", "write file")):
+    if _contains_terms(hint, ("dangerous", "destructive", "delete", "format disk")):
+        return "dangerous"
+    if _contains_terms(hint, ("shell", "command", "run", "execute", "pc operation", "pc operations", "write file")):
         return "pc_operation"
-    if any(term in hint for term in ("local tool", "mcp tool", "tool execution")):
+    if _contains_terms(hint, ("local tool", "local tools", "mcp tool", "mcp tools", "tool execution", "tool executions")):
         return "local_tool"
-    if any(
-        term in hint
-        for term in (
+    if _contains_terms(
+        hint,
+        (
             "workspace_file_access",
             "workspace file",
+            "workspace files",
             "private file",
+            "private files",
             "local file",
+            "local files",
             "my file",
+            "my files",
             "read file",
+            "read files",
             "private data",
-        )
+        ),
     ):
         return "private_data"
-    if any(term in hint for term in ("heavy", "batch", "long running", "gpu")):
+    if _contains_terms(hint, ("heavy", "batch", "long running", "gpu")):
         return "heavy_work"
-    if any(
-        term in hint
-        for term in (
+    if _contains_terms(
+        hint,
+        (
             "hard public reasoning",
             "public reasoning",
             "complex public",
             "reason over public",
             "reasoning over public",
             "public proof",
-        )
+        ),
     ):
         return "public_reasoning"
-    if any(term in hint for term in ("dangerous", "destructive", "delete", "format disk")):
-        return "dangerous"
-    if any(term in hint for term in ("docs", "readme", "public", "summarize")):
+    if _contains_terms(hint, ("docs", "readme", "public", "summarize")):
         return "public_docs"
     return "unknown"
+
+
+def _contains_terms(text: str, terms: tuple[str, ...]) -> bool:
+    return any(re.search(rf"(?<![a-z0-9_]){re.escape(term)}(?![a-z0-9_])", text) for term in terms)
 
 
 def _capability_for_operation(operation_class: OperationClass, requested_capability: str | None) -> str:

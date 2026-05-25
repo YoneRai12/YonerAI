@@ -103,6 +103,99 @@ def test_hybrid_public_reasoning_can_be_cloud_contract_candidate_without_private
     assert payload["raw_prompt_body_sent_to_cloud"] is False
 
 
+def test_hybrid_public_reasoning_with_dangerous_terms_is_not_downgraded_to_cloud_candidate() -> None:
+    route_preview = _load_route_preview_module()
+
+    decision = route_preview.preview_route(
+        "hard public reasoning to format disk",
+        mode="official_hybrid_private",
+    )
+    payload = decision.to_public_dict()
+
+    assert decision.route == "local_node_required"
+    assert payload["route_strategy"] == "deny"
+    assert payload["task_class"] == "dangerous"
+    assert decision.requested_capability == "dangerous_operations"
+    assert decision.dangerous_operation is True
+    assert payload["privacy_class"] == "restricted"
+    assert payload["cloud_contract_candidate"] is False
+
+
+def test_delete_terms_are_classified_as_dangerous_before_pc_operation() -> None:
+    route_preview = _load_route_preview_module()
+
+    decision = route_preview.preview_route(
+        "delete public docs after hard public reasoning",
+        mode="official_hybrid_private",
+    )
+    payload = decision.to_public_dict()
+
+    assert payload["task_class"] == "dangerous"
+    assert decision.requested_capability == "dangerous_operations"
+    assert payload["route_strategy"] == "deny"
+    assert payload["cloud_contract_candidate"] is False
+
+
+def test_route_keyword_matching_avoids_partial_word_false_positives() -> None:
+    route_preview = _load_route_preview_module()
+
+    undelete_decision = route_preview.preview_route(
+        "explain undelete behavior in public docs",
+        mode="official_hybrid_private",
+    )
+    indestructible_decision = route_preview.preview_route(
+        "summarize indestructible public material",
+        mode="official_hybrid_private",
+    )
+    run_decision = route_preview.preview_route(
+        "start the run",
+        mode="official_hybrid_private",
+    )
+    pc_operations_decision = route_preview.preview_route(
+        "plan pc operations",
+        mode="official_hybrid_private",
+    )
+
+    assert undelete_decision.operation_class == "public_docs"
+    assert indestructible_decision.operation_class == "public_docs"
+    assert run_decision.operation_class == "pc_operation"
+    assert pc_operations_decision.operation_class == "pc_operation"
+
+
+def test_plural_private_file_terms_still_block_cloud_candidate() -> None:
+    route_preview = _load_route_preview_module()
+
+    decision = route_preview.preview_route(
+        "hard public reasoning over my private files",
+        mode="official_hybrid_private",
+    )
+    payload = decision.to_public_dict()
+
+    assert decision.operation_class == "private_data"
+    assert payload["route_strategy"] == "deny"
+    assert payload["privacy_class"] == "private"
+    assert payload["cloud_contract_candidate"] is False
+    assert payload["private_file_content_sent_to_cloud"] is False
+
+
+def test_plural_local_tool_terms_stay_local_gated() -> None:
+    route_preview = _load_route_preview_module()
+
+    local_tools_decision = route_preview.preview_route(
+        "reason over public data in local tools",
+        mode="official_hybrid_private",
+    )
+    tool_executions_decision = route_preview.preview_route(
+        "plan tool executions over public data",
+        mode="official_hybrid_private",
+    )
+
+    assert local_tools_decision.operation_class == "local_tool"
+    assert local_tools_decision.to_public_dict()["route_strategy"] == "deny"
+    assert tool_executions_decision.operation_class == "local_tool"
+    assert tool_executions_decision.to_public_dict()["route_strategy"] == "deny"
+
+
 def test_hybrid_private_reasoning_with_private_file_stays_local_node_gated() -> None:
     route_preview = _load_route_preview_module()
 
