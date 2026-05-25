@@ -30,6 +30,13 @@ PATH_PATTERNS = (
     re.compile(r"[A-Za-z]:[\\/]+Users[\\/]+[^,\s]+", re.IGNORECASE),
     re.compile(r"/(?:home|Users|root)/[^,\s]+"),
 )
+CONTROL_CHARACTER_TRANSLATION: dict[int, str] = {
+    codepoint: f"\\x{codepoint:02x}" for codepoint in range(32)
+}
+CONTROL_CHARACTER_TRANSLATION[0x7F] = "\\x7f"
+for codepoint in range(0x80, 0xA0):
+    CONTROL_CHARACTER_TRANSLATION[codepoint] = f"\\x{codepoint:02x}"
+
 COMMAND_ALIASES = {
     "/?": "/help",
     "/ヘルプ": "/help",
@@ -594,6 +601,7 @@ def _safe(value: object) -> str:
         text = pattern.sub("[REDACTED]", text)
     for pattern in PATH_PATTERNS:
         text = pattern.sub("[LOCAL_PATH]", text)
+    text = text.translate(CONTROL_CHARACTER_TRANSLATION)
     return text[:500]
 
 

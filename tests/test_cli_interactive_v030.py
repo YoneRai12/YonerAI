@@ -268,3 +268,31 @@ def test_first_launch_language_selection_persists_choice(tmp_path: Path) -> None
     assert "YonerAI language / 表示言語" in output
     assert "English mode" in output
     assert json.loads(config_path.read_text(encoding="utf-8"))["language"] == "en"
+
+
+def test_safe_escapes_terminal_control_sequences() -> None:
+    from yonerai_cli.interactive import _safe
+
+    rendered = _safe("hello\x1b[31mred\x07")
+
+    assert "\\x1b" in rendered
+    assert "\\x07" in rendered
+    assert "\x1b" not in rendered
+    assert "\x07" not in rendered
+
+
+def test_format_runs_escapes_control_sequences() -> None:
+    from yonerai_cli.interactive import _format_runs
+
+    report = {
+        "runs": [
+            {"run_id": "r-1", "status": "completed", "task_summary": "ok\x1b]52;c;dGVzdA==\x07"},
+        ]
+    }
+
+    rendered = _format_runs(report, lang="en")
+
+    assert "\\x1b" in rendered
+    assert "\\x07" in rendered
+    assert "\x1b" not in rendered
+    assert "\x07" not in rendered
