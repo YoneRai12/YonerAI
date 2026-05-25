@@ -8,6 +8,7 @@ from typing import Any, Callable, TextIO
 
 from yonerai_cli.config import (
     APPROVAL_MODES,
+    ConfigError,
     FILE_ACCESS_MODES,
     PROVIDER_PREFERENCES,
     build_config_report,
@@ -216,12 +217,20 @@ def _handle_slash_command(
         return {}
     if command == "/language" and args:
         value = _canonical_value(args[0])
-        new_lang = _set_config(config, "language", value, options.config_path)
+        try:
+            new_lang = _set_config(config, "language", value, options.config_path)
+        except ConfigError:
+            _write(output_stream, _invalid(lang))
+            return {}
         _write(output_stream, _changed_message("language", new_lang["language"], lang=str(new_lang["language"])))
         return {"lang": str(new_lang["language"])}
     if command == "/provider" and args:
         value = _canonical_value(args[0])
-        new_config = _set_config(config, "provider", value, options.config_path)
+        try:
+            new_config = _set_config(config, "provider", value, options.config_path)
+        except ConfigError:
+            _write(output_stream, _invalid(lang))
+            return {}
         new_provider = str(new_config["provider_preference"])
         _write(output_stream, _changed_message("provider", new_provider, lang=lang))
         return {"provider": new_provider}
@@ -230,7 +239,11 @@ def _handle_slash_command(
         if value not in APPROVAL_MODES:
             _write(output_stream, _invalid(lang))
             return {}
-        new_config = _set_config(config, "approval", value, options.config_path)
+        try:
+            new_config = _set_config(config, "approval", value, options.config_path)
+        except ConfigError:
+            _write(output_stream, _invalid(lang))
+            return {}
         _write(output_stream, _changed_message("approval", new_config["approval_mode"], lang=lang))
         return {}
     if command == "/file-access" and args:
@@ -238,7 +251,11 @@ def _handle_slash_command(
         if value not in FILE_ACCESS_MODES:
             _write(output_stream, _invalid(lang))
             return {}
-        new_config = _set_config(config, "file_access", value, options.config_path)
+        try:
+            new_config = _set_config(config, "file_access", value, options.config_path)
+        except ConfigError:
+            _write(output_stream, _invalid(lang))
+            return {}
         _write(output_stream, _changed_message("file_access", new_config["file_access_mode"], lang=lang))
         return {}
     _write(output_stream, _unknown(lang))

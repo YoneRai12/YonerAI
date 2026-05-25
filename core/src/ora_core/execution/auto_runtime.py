@@ -15,6 +15,7 @@ from .legacy_text import normalize_legacy_generated_text
 
 
 AUTO_RUNTIME_SCHEMA_VERSION = "yonerai-auto-runtime/v0.1"
+_PUBLIC_CLOUD_CONTRACT_PREVIEW_TASK = "public reasoning over public documentation"
 
 AutoDifficulty = Literal["instant", "task", "agent"]
 AutoPrivacy = Literal["public", "private", "local_file", "dangerous"]
@@ -363,7 +364,12 @@ def _classification_payload(classification: TaskClassification, decision: AutoRu
 
 def _route_decision(task: str, decision: AutoRuntimeDecision, classification: TaskClassification) -> dict[str, object]:
     if decision.route == "cloud_contract_candidate":
-        route = preview_route(task, mode="official_hybrid_private", risk_hint="hard public reasoning").to_public_dict()
+        route = preview_route(
+            _PUBLIC_CLOUD_CONTRACT_PREVIEW_TASK,
+            mode="official_hybrid_private",
+            requested_capability="cloud_orchestration",
+            risk_hint="hard public reasoning",
+        ).to_public_dict()
     elif decision.route == "hybrid_node":
         route = preview_route(
             task,

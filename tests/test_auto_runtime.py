@@ -62,6 +62,20 @@ def test_auto_runtime_cloud_contract_route_uses_actual_task_metadata() -> None:
     assert "hard public reasoning over public API docs" not in serialized
 
 
+def test_auto_runtime_cloud_contract_preview_keeps_public_reasoning_for_run_words() -> None:
+    build_report, InMemoryRunLedger, _FileRunLedger = _load_auto_runtime()
+
+    task = "fix bug in parser and run tests with hard public reasoning over public API docs"
+    report = build_report(task, ledger=InMemoryRunLedger())
+
+    assert report["ok"] is True
+    assert report["auto"]["route"] == "cloud_contract_candidate"
+    assert report["route"]["task_class"] == "public_reasoning"
+    assert report["route"]["dangerous_operation"] is False
+    assert report["route"]["approval_state"] == "not_required"
+    assert report["route"]["cloud_contract_candidate"] is True
+
+
 def test_auto_runtime_research_task_uses_mock_search_without_network() -> None:
     build_report, InMemoryRunLedger, _FileRunLedger = _load_auto_runtime()
 
