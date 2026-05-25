@@ -119,6 +119,7 @@ def test_cli_ask_file_summary_uses_mock_provider_without_raw_file_in_metadata(tm
     assert "No live provider call was made" in output["response"]["output_text"]
     assert output["file_context"]["capability"] == "workspace_file_access"
     assert output["file_context"]["file_name"] == "summary.txt"
+    assert "sha256_prefix" not in output["file_context"]
     assert output["file_context"]["raw_content_persisted"] is False
     assert "public alpha2 notes" not in json.dumps(output["file_context"])
     assert "public alpha2 notes" not in json.dumps(output["plan"])
@@ -162,7 +163,8 @@ def test_cli_ask_file_records_redacted_workspace_access_event_in_ledger(tmp_path
     access_event = next(event for event in events if event["name"] == "workspace_file_access")
     assert access_event["status"] == "ok"
     assert "file=summary.txt" in access_event["summary"]
-    assert "sha256_prefix=" in access_event["summary"]
+    assert "sha256_prefix=" not in access_event["summary"]
+    assert "sha256_prefix" not in output["file_context"]
     assert "raw_content_persisted=false" in access_event["summary"]
     assert "public alpha2 notes" not in json.dumps(output)
     assert str(tmp_path) not in captured.out
@@ -174,6 +176,7 @@ def test_cli_ask_file_records_redacted_workspace_access_event_in_ledger(tmp_path
 
     ledger_text = ledger.read_text(encoding="utf-8")
     assert "workspace_file_access" in ledger_text
+    assert "sha256_prefix" not in ledger_text
     assert "public alpha2 notes" not in ledger_text
     assert str(tmp_path) not in ledger_text
 
@@ -237,6 +240,7 @@ def test_cli_ask_file_executes_through_local_provider_with_live_opt_in(
     assert output["response"]["output_text"] == "local file summary"
     assert output["live_call_performed"] is True
     assert output["file_context"]["capability"] == "workspace_file_access"
+    assert "sha256_prefix" not in output["file_context"]
     assert output["run"]["run_id"].startswith("run_")
     assert any(event["name"] == "workspace_file_access" for event in output["run"]["events"])
     assert "local provider workspace notes" not in json.dumps(output["run"])
