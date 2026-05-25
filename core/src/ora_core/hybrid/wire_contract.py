@@ -805,6 +805,8 @@ def route_preview_inputs_from_node_status(local_node: Mapping[str, object]) -> d
         "local_node_capabilities": tuple(capabilities),
         "require_enrolled_verified_session": session_state == "enrolled_verified",
         "session_verification_state": session_state,
+        "node_posture_state": str(posture.get("state")) if isinstance(posture, Mapping) else None,
+        "local_work_preview_allowed": local_work_preview_allowed,
     }
 
 

@@ -34,6 +34,12 @@ def test_public_docs_route_is_contract_only_in_managed_cloud() -> None:
     assert decision.disabled is False
     assert "preview_only_no_execution" in decision.non_claims
     assert "official_managed_cloud_runtime_not_in_public_repo" in decision.non_claims
+    payload = decision.to_public_dict()
+    assert payload["route_strategy"] == "cloud_contract_only"
+    assert payload["privacy_class"] == "public"
+    assert payload["cloud_escape_reason"] == "official_managed_cloud_runtime_not_included_in_public_repo"
+    assert payload["cloud_escape_erased_approval_audit_args_hash"] is False
+    assert payload["audit_requirements"]["cloud_escape_preserves_approval"] is True
 
 
 def test_managed_cloud_refuses_private_file_access() -> None:
@@ -59,10 +65,12 @@ def test_hybrid_private_routes_private_file_work_to_local_node_requirement() -> 
     )
 
     assert missing_node.route == "local_node_required"
+    assert missing_node.to_public_dict()["route_strategy"] == "deny"
     assert missing_node.local_node_required is True
     assert missing_node.approval_required is True
     assert missing_node.unavailable_reason == "local_node_missing"
     assert with_node.route == "hybrid_coordination_preview"
+    assert with_node.to_public_dict()["route_strategy"] == "hybrid"
     assert with_node.private_data_allowed is True
     assert with_node.approval_required is True
     assert with_node.signed_origin_verified is False
@@ -79,6 +87,7 @@ def test_shell_command_preview_requires_local_node_and_approval() -> None:
     )
 
     assert decision.route == "hybrid_coordination_preview"
+    assert decision.to_public_dict()["route_strategy"] == "hybrid"
     assert decision.requested_capability == "pc_operations"
     assert decision.local_node_required is True
     assert decision.approval_required is True
@@ -253,12 +262,22 @@ def test_self_host_routes_local_work_to_owner_responsibility() -> None:
     decision = route_preview.preview_route("run local heavy work", mode="full_private_self_host", has_local_node=True)
 
     assert decision.route == "self_host_local_preview"
+    assert decision.to_public_dict()["route_strategy"] == "local_only"
     assert decision.cloud_allowed is False
     assert decision.approval_required is True
     assert decision.local_node_required is False
     assert decision.runtime_available_in_public_repo is True
     assert decision.public_repo_support_status == "public_local_supported"
     assert decision.public_repo_execution_available is False
+
+
+def test_self_host_public_docs_are_local_preferred() -> None:
+    route_preview = _load_route_preview_module()
+
+    decision = route_preview.preview_route("summarize public docs", mode="full_private_self_host", has_local_node=True)
+
+    assert decision.route == "self_host_local_preview"
+    assert decision.to_public_dict()["route_strategy"] == "local_preferred"
 
 
 def test_unknown_requested_capability_is_disabled() -> None:
