@@ -143,6 +143,7 @@ def test_public_demo_json_shape_and_boundaries(capsys) -> None:
     assert wire_conformance["route_preview_fixture_supported"] is True
     assert wire_conformance["orchestration_response_schema"] == "OfficialOrchestrationStubResponse"
     assert wire_conformance["orchestration_public_execution"] is False
+    assert wire_conformance["route_orchestration_alignment"] == "ok"
     assert wire_conformance["official_cloud_runtime_implemented"] is False
     assert wire_conformance["network_required"] is False
     route_preview = next(section for section in output["sections"] if section["name"] == "route_preview")

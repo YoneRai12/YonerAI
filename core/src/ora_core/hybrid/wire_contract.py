@@ -639,6 +639,7 @@ def build_hybrid_wire_conformance_report() -> dict[str, object]:
         session_ref=active_session,
     )
     orchestration_response = build_official_orchestration_stub_response(request=orchestration_request)
+    route_orchestration_alignment = _route_orchestration_alignment_case()
     posture_cases = _node_posture_cases()
     extension_cases = _extension_boundary_cases()
     trust_cases = (
@@ -701,10 +702,11 @@ def build_hybrid_wire_conformance_report() -> dict[str, object]:
     )
     expected_states = HYBRID_WIRE_REQUIRED_TRUST_STATES
     observed_states = tuple(decision.state for _label, decision in trust_cases)
+    route_alignment_ok = route_orchestration_alignment.get("status") == "ok"
     return {
         "schema_version": HYBRID_WIRE_CONTRACT_VERSION,
         "compatible_versions": list(HYBRID_WIRE_COMPATIBLE_VERSIONS),
-        "ok": expected_states == observed_states,
+        "ok": expected_states == observed_states and route_alignment_ok,
         "test_fixture_only": True,
         "local_node_fixture_available": True,
         "route_preview_fixture_supported": True,
@@ -737,6 +739,7 @@ def build_hybrid_wire_conformance_report() -> dict[str, object]:
             "request": orchestration_request.to_public_dict(),
             "response": orchestration_response.to_public_dict(),
         },
+        "route_orchestration_alignment": route_orchestration_alignment,
         "capabilities": [capability.name for capability in manifest.capabilities],
         "trust_states": [
             {
@@ -830,6 +833,69 @@ def _extension_boundary_cases() -> list[dict[str, object]]:
             policy_drift=True,
         ).to_public_dict(),
     ]
+
+
+def _route_orchestration_alignment_case() -> dict[str, object]:
+    from ora_core.route_preview import preview_route
+
+    route_decision = preview_route(
+        "hard public reasoning over public API docs",
+        mode="official_hybrid_private",
+    ).to_public_dict()
+    route_strategy = route_decision.get("route_strategy")
+    route = route_decision.get("route")
+    requested_capability = route_decision.get("requested_capability")
+    approval_required = bool(route_decision.get("approval_required"))
+    request = build_official_orchestration_stub_request(
+        requested_capability=str(requested_capability or ""),
+        task="Hard public reasoning over public API docs.",
+    )
+    response = build_official_orchestration_stub_response(request=request)
+    audit_requirements = route_decision.get("audit_requirements")
+    if not isinstance(audit_requirements, dict):
+        audit_requirements = {}
+    checks = {
+        "route_strategy_matches_request": route_strategy == request.route_strategy,
+        "route_strategy_matches_response": route_strategy == response.route_strategy,
+        "approval_preserved": approval_required == request.approval_required == response.approval_required,
+        "audit_preserved": (
+            bool(audit_requirements.get("audit_event_required"))
+            == request.audit_event_required
+            == response.audit_event_required
+        ),
+        "args_hash_preserved": (
+            bool(audit_requirements.get("args_hash_required")) == request.args_hash_required == response.args_hash_required
+        ),
+        "private_file_content_excluded": (
+            route_decision.get("private_file_content_sent_to_cloud") is False
+            and request.private_file_content_included is False
+            and response.private_file_content_included is False
+        ),
+        "raw_prompt_excluded": (
+            route_decision.get("raw_prompt_body_sent_to_cloud") is False
+            and request.raw_prompt_included is False
+            and response.raw_prompt_included is False
+        ),
+        "provider_key_excluded": (
+            route_decision.get("provider_key_sent_to_cloud") is False
+            and request.provider_key_included is False
+            and response.provider_key_included is False
+        ),
+        "public_repo_execution_disabled": response.public_repo_execution_available is False,
+        "network_not_required": request.network_required is False and response.network_required is False,
+    }
+    return {
+        "name": "hard_public_reasoning_cloud_contract_candidate",
+        "status": "ok" if all(checks.values()) else "fail",
+        "route": route,
+        "route_strategy": route_strategy,
+        "request_schema": request.schema_name,
+        "response_schema": response.schema_name,
+        "requested_capability": request.requested_capability,
+        "privacy_class": route_decision.get("privacy_class"),
+        "cloud_contract_candidate": bool(route_decision.get("cloud_contract_candidate")),
+        "checks": checks,
+    }
 
 
 def _parse_wire_timestamp(value: str) -> datetime | None:

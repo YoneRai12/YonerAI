@@ -28,6 +28,7 @@ This plan turns the current Hybrid local-dev fixture into an Oracle-ready contra
 - `core/src/ora_core/hybrid/extension_manifest.py` denies duplicate, unknown, and overbroad extension capability declarations and keeps extension execution disabled.
 - `core/src/ora_core/route_preview.py` exposes local-first, cloud-contract-only, and `cloud_contract_candidate` route preview fields, including privacy class, route strategy, approval state, cloud escape reason, audit requirements, and explicit no-private-content-to-cloud flags.
 - `core/src/ora_core/hybrid/wire_contract.py` defines public-safe `OfficialOrchestrationStubRequest` and `OfficialOrchestrationStubResponse` schemas for private YonerAIOracle conformance without public-repo execution.
+- `build_hybrid_wire_conformance_report()` includes route-to-orchestration alignment checks that compare route preview, request, and response fields for approval, audit, args hash, and private-content exclusion.
 - `yonerai doctor`, `yonerai status`, `yonerai node status`, `yonerai node pair --dry-run`, and `yonerai route preview` expose public-safe fixture status.
 
 ## Milestone 1: Hybrid Relay/Node Local-Dev Runtime
@@ -210,6 +211,11 @@ Run the smallest relevant subset per PR, plus:
 
 Next safe implementation lane:
 
-1. Add deeper conformance checks that compare route preview output to the Oracle request/response stub field-by-field.
-2. Keep `can_execute` false and deny unknown, overbroad, dangerous, private-file, PC operation, live Discord, deployment, and official-control-plane capabilities.
-3. Do not implement production Oracle, production signing/trust, public tunnel, or official cloud runtime in this repo.
+Recently added in public implementation:
+
+- Add deeper conformance checks that compare route preview output to the Oracle request/response stub field-by-field.
+
+Remaining guardrails:
+
+1. Keep `can_execute` false and deny unknown, overbroad, dangerous, private-file, PC operation, live Discord, deployment, and official-control-plane capabilities.
+2. Do not implement production Oracle, production signing/trust, public tunnel, or official cloud runtime in this repo.

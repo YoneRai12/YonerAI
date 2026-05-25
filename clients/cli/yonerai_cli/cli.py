@@ -645,8 +645,14 @@ def _hybrid_wire_contract_rows(report: dict[str, Any], *, lang: str = "en") -> t
         response_value = orchestration_stub.get("response")
         if isinstance(response_value, dict):
             orchestration_response = response_value
+    route_alignment = hybrid.get("route_orchestration_alignment")
+    if not isinstance(route_alignment, dict):
+        route_alignment = {}
     status_ok = "正常" if lang == "ja" else "ok"
     status_fail = "失敗" if lang == "ja" else "fail"
+    route_alignment_status = route_alignment.get("status")
+    route_alignment_value = status_ok if route_alignment_status == "ok" else status_fail
+    route_alignment_level = "ok" if route_alignment_status == "ok" else "fail"
     not_implemented = "未実装" if lang == "ja" else "not implemented"
     implemented = "実装済み" if lang == "ja" else "implemented"
     return (
@@ -675,6 +681,11 @@ def _hybrid_wire_contract_rows(report: dict[str, Any], *, lang: str = "en") -> t
             "cloud_contract_candidate",
             orchestration_response.get("route_strategy", "missing"),
             "ok" if orchestration_response.get("route_strategy") == "cloud_contract_candidate" else "warn",
+        ),
+        CliRow(
+            "route_orchestration_alignment",
+            route_alignment_value,
+            route_alignment_level,
         ),
         CliRow("network_required", hybrid.get("network_required"), "fail" if hybrid.get("network_required") else "ok"),
         CliRow(

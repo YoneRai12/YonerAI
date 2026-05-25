@@ -894,6 +894,7 @@ def test_cli_doctor_does_not_execute_demo_or_mutate_path(monkeypatch, capsys):
     assert "trust_states" in output
     assert "orchestration_response" in output
     assert "cloud_contract_candidate" in output
+    assert "route_orchestration_alignment" in output
     assert "Provider runtime" in output
     assert "Provider runtime E2E fixtures" in output
     assert "local_mock_http_server_tested" in output
