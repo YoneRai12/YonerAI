@@ -2,6 +2,22 @@
 
 See also: `docs/RELEASE_NOTES.md` (curated summary, v5.0.0 -> current).
 
+## v0.3.0-alpha.1 (2026-05-26) - Interactive CLI Slice
+- Added `yonerai` and `yonerai chat` as a Japanese-first interactive terminal
+  shell backed by the existing `ask --auto` runtime path.
+- Added first-launch language selection and local non-secret CLI preferences
+  through `yonerai config show/set`.
+- Added Japanese slash command UI for settings, provider status, safety
+  boundaries, run history, and run display while keeping English slash command
+  aliases such as `/settings` available for compatibility.
+- Fixed current-main P1/P2 review debt before release: public cloud-contract
+  route metadata, SemVer-compatible CLI package version reporting, and
+  controlled config/interactive setting errors.
+- Preserved alpha runtime boundaries: no production Oracle, no Official Managed
+  Cloud runtime, no live Discord, no deploy/public tunnel, no arbitrary
+  shell/file/tool execution, no default live provider calls, and no provider key
+  output or storage.
+
 ## v0.2.0-alpha.1 (2026-05-26) - Real CLI Runtime Slice
 - Added `yonerai providers` so users can inspect mock, local LLM,
   OpenAI-compatible, Anthropic, and Gemini readiness without printing keys or
