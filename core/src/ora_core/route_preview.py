@@ -146,7 +146,7 @@ class RoutePreviewDecision:
 
 def _classify_operation(task_text: str, requested_capability: str | None, risk_hint: str | None) -> OperationClass:
     hint = " ".join(part for part in (requested_capability or "", risk_hint or "", task_text) if part).lower()
-    if _contains_terms(hint, ("deploy", "deployment", "release production", "rollout")):
+    if _contains_terms(hint, ("deploy", "deploying", "redeploy", "redeploying", "deployment", "redeployment", "release production", "rollout")):
         return "deployment"
     if _contains_terms(hint, ("discord", "live bot", "gateway")):
         return "discord_live"

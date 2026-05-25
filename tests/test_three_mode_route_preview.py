@@ -383,6 +383,30 @@ def test_invalid_local_node_states_are_gated() -> None:
         assert decision.signed_origin_verified is False
 
 
+
+
+def test_deployment_word_variants_do_not_bypass_disabled_gate() -> None:
+    route_preview = _load_route_preview_module()
+
+    deploying = route_preview.preview_route(
+        "hard public reasoning before deploying to prod",
+        mode="official_hybrid_private",
+    )
+    redeploy = route_preview.preview_route(
+        "hard public reasoning before redeploy to prod",
+        mode="official_hybrid_private",
+    )
+
+    assert deploying.operation_class == "deployment"
+    assert deploying.requested_capability == "production_deploy"
+    assert deploying.route == "disabled"
+    assert deploying.to_public_dict()["cloud_contract_candidate"] is False
+
+    assert redeploy.operation_class == "deployment"
+    assert redeploy.requested_capability == "production_deploy"
+    assert redeploy.route == "disabled"
+    assert redeploy.to_public_dict()["cloud_contract_candidate"] is False
+
 def test_live_discord_and_deployment_are_disabled() -> None:
     route_preview = _load_route_preview_module()
 
