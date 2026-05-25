@@ -65,6 +65,33 @@ def test_cli_config_show_and_set_do_not_print_paths_or_store_secrets(tmp_path: P
     assert "api_key" not in config_path.read_text(encoding="utf-8").lower()
 
 
+def test_cli_config_write_failure_is_controlled(tmp_path: Path, monkeypatch, capsys) -> None:
+    from yonerai_cli import cli
+
+    config_path = tmp_path / "cli-config.json"
+
+    def fail_write_text(*_args, **_kwargs):
+        raise OSError("fixture write failure")
+
+    monkeypatch.setattr(Path, "write_text", fail_write_text)
+
+    assert cli.main(["config", "set", "language", "ja", "--config-path", str(config_path)]) == 2
+
+    captured = capsys.readouterr()
+    assert "YonerAI CLI config could not be written" in captured.err
+    assert "Traceback" not in captured.err
+    assert str(tmp_path) not in captured.err
+
+
+def test_cli_package_version_normalizes_pep440_prerelease() -> None:
+    import yonerai_cli
+
+    assert yonerai_cli._to_public_semver("0.3.0a1") == "0.3.0-alpha.1"
+    assert yonerai_cli._to_public_semver("0.3.0b2") == "0.3.0-beta.2"
+    assert yonerai_cli._to_public_semver("0.3.0rc3") == "0.3.0-rc.3"
+    assert yonerai_cli._to_public_semver("0.3.0-alpha.1") == "0.3.0-alpha.1"
+
+
 def test_cli_without_args_has_non_tty_interactive_fallback(tmp_path: Path, monkeypatch, capsys) -> None:
     from yonerai_cli import cli
 
@@ -160,6 +187,26 @@ def test_chat_japanese_commands_and_values_are_accepted(tmp_path: Path, monkeypa
     assert "ツール（操作機能）" in output
     assert "プロバイダー（AI接続先）=モック（テスト用）" in output
     assert "言語=日本語" in output
+    assert str(tmp_path) not in output
+
+
+def test_chat_invalid_language_and_provider_keep_shell_alive(tmp_path: Path, monkeypatch, capsys) -> None:
+    from yonerai_cli import cli
+
+    _clear_provider_env(monkeypatch)
+    config_path = tmp_path / "cli-config.json"
+    monkeypatch.setattr(
+        sys,
+        "stdin",
+        _PlainStringIO("/language xx\n/provider nope\nhello\n/quit\n"),
+    )
+
+    assert cli.main(["chat", "--script", "--lang", "ja", "--config-path", str(config_path), "--color", "never"]) == 0
+    output = capsys.readouterr().out
+
+    assert output.count("値が不正です") == 2
+    assert "YonerAI 応答" in output
+    assert "Traceback" not in output
     assert str(tmp_path) not in output
 
 

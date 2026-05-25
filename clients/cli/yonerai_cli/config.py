@@ -62,8 +62,14 @@ def load_cli_config(path: str | Path | None = None, *, env: Mapping[str, str | N
 def save_cli_config(config: Mapping[str, object], path: str | Path | None = None, *, env: Mapping[str, str | None] | None = None) -> dict[str, object]:
     config_path = Path(path).expanduser() if path is not None else default_config_path(env)
     validated = validate_cli_config(config)
-    config_path.parent.mkdir(parents=True, exist_ok=True)
-    config_path.write_text(json.dumps(validated, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    try:
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        config_path.write_text(
+            json.dumps(validated, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+    except OSError as exc:
+        raise ConfigError("YonerAI CLI config could not be written.") from exc
     return validated
 
 
