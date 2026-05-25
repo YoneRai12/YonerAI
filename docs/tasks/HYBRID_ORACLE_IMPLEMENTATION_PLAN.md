@@ -26,7 +26,8 @@ This plan turns the current Hybrid local-dev fixture into an Oracle-ready contra
 - `core/src/ora_core/hybrid/local_node_action_envelope.py` has signed local node action envelope verification with session/manifest binding, args hash, expiry, nonce replay protection, and approval-required output.
 - `core/src/ora_core/hybrid/node_posture.py` reduces exposed capabilities based on verified, limited, recovery, quarantined, and revoked posture states.
 - `core/src/ora_core/hybrid/extension_manifest.py` denies duplicate, unknown, and overbroad extension capability declarations and keeps extension execution disabled.
-- `core/src/ora_core/route_preview.py` exposes local-first and cloud-contract-only route preview fields, including privacy class, route strategy, approval state, cloud escape reason, and audit requirements.
+- `core/src/ora_core/route_preview.py` exposes local-first, cloud-contract-only, and `cloud_contract_candidate` route preview fields, including privacy class, route strategy, approval state, cloud escape reason, audit requirements, and explicit no-private-content-to-cloud flags.
+- `core/src/ora_core/hybrid/wire_contract.py` defines public-safe `OfficialOrchestrationStubRequest` and `OfficialOrchestrationStubResponse` schemas for private YonerAIOracle conformance without public-repo execution.
 - `yonerai doctor`, `yonerai status`, `yonerai node status`, `yonerai node pair --dry-run`, and `yonerai route preview` expose public-safe fixture status.
 
 ## Milestone 1: Hybrid Relay/Node Local-Dev Runtime
@@ -168,6 +169,24 @@ Private YonerAIOracle handoff:
 
 - Use CLI fixture fields as public conformance expectations for the private runtime.
 
+## Private YonerAIOracle Consumer Handoff Matrix
+
+The private/official Oracle lane must consume these public-safe contracts without copying
+production secrets, private routes, private runtime inventory, raw prompts, or local file
+content into this public repo.
+
+| Consumer responsibility | Public contract source | Public proof | Private implementation expectation |
+| --- | --- | --- | --- |
+| Status | `build_local_node_status_report()` / `yonerai node status --json` | loopback-only, non-production, no network, no plaintext token | Replace fixture status with private relay/node status while preserving public-safe fields. |
+| Heartbeat | `LocalNodeHeartbeat` | lease id, lease expiry, audit cursor, no message body persistence | Verify heartbeat freshness, expiry, revoke state, and audit cursor continuity. |
+| Capability manifest | `LocalNodeCapabilityManifest` and extension manifest decisions | typed capabilities, disabled dangerous operation, no production trust material | Enforce private signed capability review and revocation without widening public capabilities. |
+| Session ref | `LocalNodeSessionRef` | hash-only token, bearer token excluded, lease-bound session | Store only hash/reference material in public-facing reports; never expose bearer tokens. |
+| Route decision | `preview_route()` / `yonerai route preview` | `local`, `hybrid`, `cloud_contract_candidate`, or `deny` with privacy class | Consume route decisions and preserve local/private work on the Local Node boundary. |
+| Audit event | Hybrid transport audit and wire conformance fields | audit required, args hash required, cloud escape preserves approval/audit/args hash | Persist private audit events in the private lane without message body or secret leakage. |
+| Orchestration request | `OfficialOrchestrationStubRequest` | dry-run, approval required, audit required, args hash required, no raw prompt/provider key | Implement private request ingestion and policy evaluation outside this public repo. |
+| Orchestration response | `OfficialOrchestrationStubResponse` | contract stub only, public execution unavailable, disabled reason, controlled error schema | Return private runtime status/results through controlled public-safe envelopes only. |
+| Controlled error | `LocalNodeError` | public safe, raw exception excluded, local paths and credentials redacted | Map private failures to stable public-safe error codes and summaries. |
+
 ## Required Cross-Cutting Checks
 
 Run the smallest relevant subset per PR, plus:
@@ -183,15 +202,14 @@ Run the smallest relevant subset per PR, plus:
 
 1. Completed in public implementation: add typed input/output, risk tag, owner scope, and audit fields to extension manifests.
 2. Completed in public implementation: add audit event shape to local-dev transport proxy attempts and results.
-3. Add explicit `cloud_contract_candidate` route strategy for hard public reasoning tasks.
-4. Add Oracle request/response stub fields for status, heartbeat, route, capability, and audit.
-5. Update CLI/demo/doctor output to show the new contract fields without production claims.
+3. Completed in public implementation: add explicit `cloud_contract_candidate` route strategy for hard public reasoning tasks while keeping private content local/denied.
+4. Completed in public implementation: add Oracle request/response stub fields for route, approval, audit, args hash, disabled reason, controlled error schema, and no-runtime/no-network boundaries.
+5. Completed in public implementation: update CLI/demo/doctor output to show the new contract fields without production claims. `yonerai route preview`, `yonerai node pair`, `yonerai demo`, and doctor Hybrid Wire rows expose `cloud_contract_candidate` / `OfficialOrchestrationStubResponse` status while keeping production execution disabled.
 
 ## MAIN-CODEX-HANDOFF
 
 Next safe implementation lane:
 
-1. Extend `core/src/ora_core/hybrid/extension_manifest.py` with typed input/output, risk tags, owner scope, and audit fields.
-2. Add tests in `tests/test_hybrid_extension_manifest.py`.
-3. Connect the richer extension decision into `build_hybrid_wire_conformance_report()`.
-4. Keep `can_execute` false and deny unknown, overbroad, dangerous, private-file, PC operation, live Discord, deployment, and official-control-plane capabilities.
+1. Add deeper conformance checks that compare route preview output to the Oracle request/response stub field-by-field.
+2. Keep `can_execute` false and deny unknown, overbroad, dangerous, private-file, PC operation, live Discord, deployment, and official-control-plane capabilities.
+3. Do not implement production Oracle, production signing/trust, public tunnel, or official cloud runtime in this repo.

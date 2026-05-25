@@ -141,8 +141,15 @@ def test_public_demo_json_shape_and_boundaries(capsys) -> None:
         "policy_drift",
     }
     assert wire_conformance["route_preview_fixture_supported"] is True
+    assert wire_conformance["orchestration_response_schema"] == "OfficialOrchestrationStubResponse"
+    assert wire_conformance["orchestration_public_execution"] is False
     assert wire_conformance["official_cloud_runtime_implemented"] is False
     assert wire_conformance["network_required"] is False
+    route_preview = next(section for section in output["sections"] if section["name"] == "route_preview")
+    public_reasoning = next(check for check in route_preview["checks"] if check["name"] == "public_reasoning_task")
+    assert public_reasoning["route"] == "cloud_contract_candidate"
+    assert public_reasoning["route_strategy"] == "cloud_contract_candidate"
+    assert public_reasoning["private_file_content_sent_to_cloud"] is False
     assert node_relay["schema_version"] == "yonerai-hybrid-node-relay-contract/v0.1"
     assert node_relay["official_cloud_runtime_implemented"] is False
     assert node_relay["production_oracle_used"] is False

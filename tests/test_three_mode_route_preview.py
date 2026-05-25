@@ -77,6 +77,48 @@ def test_hybrid_private_routes_private_file_work_to_local_node_requirement() -> 
     assert with_node.public_repo_execution_available is False
 
 
+def test_hybrid_public_reasoning_can_be_cloud_contract_candidate_without_private_content() -> None:
+    route_preview = _load_route_preview_module()
+
+    decision = route_preview.preview_route(
+        "hard public reasoning over public API docs",
+        mode="official_hybrid_private",
+    )
+    payload = decision.to_public_dict()
+
+    assert decision.route == "cloud_contract_candidate"
+    assert payload["route_strategy"] == "cloud_contract_candidate"
+    assert decision.requested_capability == "cloud_orchestration"
+    assert payload["task_class"] == "public_reasoning"
+    assert payload["privacy_class"] == "public"
+    assert decision.cloud_allowed is True
+    assert decision.approval_required is True
+    assert payload["cloud_contract_candidate"] is True
+    assert payload["audit_requirements"]["cloud_escape"] is True
+    assert payload["audit_requirements"]["cloud_escape_preserves_approval"] is True
+    assert payload["audit_requirements"]["cloud_escape_preserves_args_hash"] is True
+    assert payload["audit_requirements"]["args_hash_required"] is True
+    assert payload["private_file_content_sent_to_cloud"] is False
+    assert payload["provider_key_sent_to_cloud"] is False
+    assert payload["raw_prompt_body_sent_to_cloud"] is False
+
+
+def test_hybrid_private_reasoning_with_private_file_stays_local_node_gated() -> None:
+    route_preview = _load_route_preview_module()
+
+    decision = route_preview.preview_route(
+        "hard reasoning over my private file",
+        mode="official_hybrid_private",
+    )
+    payload = decision.to_public_dict()
+
+    assert decision.route == "local_node_required"
+    assert payload["route_strategy"] == "deny"
+    assert payload["privacy_class"] == "private"
+    assert payload["cloud_contract_candidate"] is False
+    assert payload["private_file_content_sent_to_cloud"] is False
+
+
 def test_shell_command_preview_requires_local_node_and_approval() -> None:
     route_preview = _load_route_preview_module()
 

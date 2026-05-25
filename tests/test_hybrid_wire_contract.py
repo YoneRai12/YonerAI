@@ -20,6 +20,7 @@ from ora_core.hybrid.wire_contract import (  # noqa: E402
     build_local_node_status_report,
     build_node_error,
     build_official_orchestration_stub_request,
+    build_official_orchestration_stub_response,
     build_pairing_dry_run_report,
     build_run_envelope,
     build_run_result,
@@ -78,17 +79,42 @@ def test_local_node_fixture_conforms_to_hybrid_wire_contract() -> None:
 def test_official_cloud_stub_request_conforms_without_implementing_cloud_runtime() -> None:
     session_ref = build_local_node_session_ref()
     request = build_official_orchestration_stub_request(session_ref=session_ref)
+    response = build_official_orchestration_stub_response(request=request)
     report = build_pairing_dry_run_report()
 
     assert request.schema_name == "OfficialOrchestrationStubRequest"
     assert request.dry_run is True
+    assert request.route_strategy == "hybrid"
+    assert request.approval_required is True
+    assert request.audit_event_required is True
+    assert request.args_hash_required is True
+    assert request.private_file_content_included is False
+    assert request.raw_prompt_included is False
+    assert request.provider_key_included is False
     assert request.official_cloud_runtime_implemented is False
     assert request.production_oracle_used is False
     assert request.network_required is False
+    assert response.schema_name == "OfficialOrchestrationStubResponse"
+    assert response.request_id == request.request_id
+    assert response.status == "contract_stub_only"
+    assert response.route_strategy == "hybrid"
+    assert response.accepted_for_private_implementation is True
+    assert response.public_repo_execution_available is False
+    assert response.disabled_reason == "production_oracle_not_implemented_in_public_repo"
+    assert response.controlled_error_schema == "LocalNodeError"
+    assert response.private_file_content_included is False
+    assert response.raw_prompt_included is False
+    assert response.provider_key_included is False
+    assert response.message_body_persisted is False
+    assert response.official_cloud_runtime_implemented is False
+    assert response.production_oracle_used is False
+    assert response.network_required is False
     assert report["pairing_performed"] is False
     assert report["session_token_plaintext_included"] is False
     assert report["session_token_hash_only"] is True
     assert report["message_body_persisted"] is False
+    assert report["official_orchestration_stub_response"]["schema_name"] == "OfficialOrchestrationStubResponse"
+    assert report["official_orchestration_stub_response"]["route_strategy"] == "hybrid"
     assert report["trust_decision"]["execute_allowed"] is False
 
 
@@ -218,6 +244,15 @@ def test_hybrid_wire_conformance_report_covers_required_states() -> None:
     assert report["session_token_hash_only"] is True
     assert report["message_body_persisted"] is False
     assert report["audit_event_schema"] == "hybrid-wire-audit/v0.3"
+    assert "OfficialOrchestrationStubRequest" in report["schemas"]
+    assert "OfficialOrchestrationStubResponse" in report["schemas"]
+    assert report["official_orchestration_stub"]["request"]["schema_name"] == "OfficialOrchestrationStubRequest"
+    assert report["official_orchestration_stub"]["request"]["requested_capability"] == "cloud_orchestration"
+    assert report["official_orchestration_stub"]["request"]["route_strategy"] == "cloud_contract_candidate"
+    assert report["official_orchestration_stub"]["response"]["schema_name"] == "OfficialOrchestrationStubResponse"
+    assert report["official_orchestration_stub"]["response"]["route_strategy"] == "cloud_contract_candidate"
+    assert report["official_orchestration_stub"]["response"]["public_repo_execution_available"] is False
+    assert report["official_orchestration_stub"]["response"]["network_required"] is False
     assert report["node_posture_schema_version"] == "yonerai-local-node-posture/v0.1"
     assert report["extension_capability_manifest_schema_version"] == "yonerai-extension-capability-manifest/v0.2"
     assert report["required_node_posture_state_count"] == 5

@@ -11,13 +11,25 @@ ROUTE_PREVIEW_SCHEMA_VERSION = "three-mode-route-preview-0.3"
 RouteName = Literal[
     "managed_cloud_contract_only",
     "external_official_service_required",
+    "cloud_contract_candidate",
     "local_node_required",
     "enrolled_verified_node_required",
     "hybrid_coordination_preview",
     "self_host_local_preview",
     "disabled",
 ]
-OperationClass = Literal["public_docs", "private_data", "pc_operation", "local_tool", "heavy_work", "dangerous", "discord_live", "deployment", "unknown"]
+OperationClass = Literal[
+    "public_docs",
+    "public_reasoning",
+    "private_data",
+    "pc_operation",
+    "local_tool",
+    "heavy_work",
+    "dangerous",
+    "discord_live",
+    "deployment",
+    "unknown",
+]
 LocalNodeVerificationState = Literal[
     "missing",
     "present_unverified",
@@ -120,6 +132,10 @@ class RoutePreviewDecision:
         payload["cloud_escape_reason"] = _cloud_escape_reason(self, route_strategy)
         payload["audit_requirements"] = _audit_requirements(self, route_strategy)
         payload["cloud_escape_erased_approval_audit_args_hash"] = False
+        payload["cloud_contract_candidate"] = route_strategy == "cloud_contract_candidate"
+        payload["private_file_content_sent_to_cloud"] = False
+        payload["provider_key_sent_to_cloud"] = False
+        payload["raw_prompt_body_sent_to_cloud"] = False
         return payload
 
 
@@ -148,6 +164,18 @@ def _classify_operation(task_text: str, requested_capability: str | None, risk_h
         return "private_data"
     if any(term in hint for term in ("heavy", "batch", "long running", "gpu")):
         return "heavy_work"
+    if any(
+        term in hint
+        for term in (
+            "hard public reasoning",
+            "public reasoning",
+            "complex public",
+            "reason over public",
+            "reasoning over public",
+            "public proof",
+        )
+    ):
+        return "public_reasoning"
     if any(term in hint for term in ("dangerous", "destructive", "delete", "format disk")):
         return "dangerous"
     if any(term in hint for term in ("docs", "readme", "public", "summarize")):
@@ -159,7 +187,7 @@ def _capability_for_operation(operation_class: OperationClass, requested_capabil
     if requested_capability:
         normalized = requested_capability.strip().lower().replace("-", "_").replace(".", "_")
         return _CAPABILITY_ALIASES.get(normalized, normalized)
-    if operation_class == "public_docs":
+    if operation_class in {"public_docs", "public_reasoning"}:
         return "cloud_orchestration"
     if operation_class == "private_data":
         return "private_files"
@@ -250,7 +278,7 @@ def _session_enrolled(state: SessionVerificationState) -> bool:
 
 
 def _privacy_class_for_operation(operation_class: OperationClass) -> str:
-    if operation_class == "public_docs":
+    if operation_class in {"public_docs", "public_reasoning"}:
         return "public"
     if operation_class == "private_data":
         return "private"
@@ -282,6 +310,8 @@ def _route_strategy(decision: RoutePreviewDecision) -> str:
         return "deny"
     if decision.route in {"managed_cloud_contract_only", "external_official_service_required"}:
         return "cloud_contract_only"
+    if decision.route == "cloud_contract_candidate":
+        return "cloud_contract_candidate"
     if decision.route == "hybrid_coordination_preview":
         return "hybrid"
     if decision.route == "self_host_local_preview":
@@ -326,8 +356,10 @@ def _capability_gate(decision: RoutePreviewDecision) -> str:
 
 
 def _cloud_escape_reason(decision: RoutePreviewDecision, route_strategy: str) -> str | None:
-    if route_strategy != "cloud_contract_only":
+    if route_strategy not in {"cloud_contract_only", "cloud_contract_candidate"}:
         return None
+    if route_strategy == "cloud_contract_candidate":
+        return decision.unavailable_reason or "hard_public_reasoning_cloud_contract_candidate"
     return decision.unavailable_reason or "official_cloud_contract_only"
 
 
@@ -337,12 +369,13 @@ def _audit_requirements(decision: RoutePreviewDecision, route_strategy: str) -> 
         or decision.private_data_allowed
         or decision.dangerous_operation
         or decision.operation_class in {"pc_operation", "local_tool", "heavy_work", "dangerous"}
+        or route_strategy in {"cloud_contract_only", "cloud_contract_candidate"}
     )
     return {
         "approval_required": decision.approval_required,
         "audit_event_required": True,
         "args_hash_required": args_hash_required,
-        "cloud_escape": route_strategy == "cloud_contract_only",
+        "cloud_escape": route_strategy in {"cloud_contract_only", "cloud_contract_candidate"},
         "cloud_escape_preserves_approval": True,
         "cloud_escape_preserves_audit": True,
         "cloud_escape_preserves_args_hash": True,
@@ -644,7 +677,7 @@ def preview_route(
     elif local_node_required:
         route = "hybrid_coordination_preview"
     elif cloud_allowed:
-        route = "external_official_service_required"
+        route = "cloud_contract_candidate" if operation_class == "public_reasoning" else "external_official_service_required"
     else:
         route = "disabled"
 

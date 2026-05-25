@@ -892,6 +892,8 @@ def test_cli_doctor_does_not_execute_demo_or_mutate_path(monkeypatch, capsys):
     assert "Hybrid Node/Relay" in output
     assert "Relay local-dev" in output
     assert "trust_states" in output
+    assert "orchestration_response" in output
+    assert "cloud_contract_candidate" in output
     assert "Provider runtime" in output
     assert "Provider runtime E2E fixtures" in output
     assert "local_mock_http_server_tested" in output
@@ -1239,6 +1241,42 @@ def test_cli_route_preview_public_docs_is_preview_only(capsys):
     assert output["disabled"] is False
     assert output["unavailable_reason"] == "official_managed_cloud_runtime_not_included_in_public_repo"
     assert "preview_only_no_execution" in output["non_claims"]
+
+
+def test_cli_route_preview_public_reasoning_is_cloud_contract_candidate(capsys):
+    cli = _load_cli_module()
+
+    assert (
+        cli.main(
+            [
+                "route",
+                "preview",
+                "--mode",
+                "official_hybrid_private",
+                "hard",
+                "public",
+                "reasoning",
+                "over",
+                "public",
+                "API",
+                "docs",
+            ]
+        )
+        == 0
+    )
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["route"] == "cloud_contract_candidate"
+    assert output["route_strategy"] == "cloud_contract_candidate"
+    assert output["cloud_contract_candidate"] is True
+    assert output["privacy_class"] == "public"
+    assert output["approval_state"] == "required"
+    assert output["audit_requirements"]["cloud_escape_preserves_approval"] is True
+    assert output["audit_requirements"]["cloud_escape_preserves_args_hash"] is True
+    assert output["audit_requirements"]["args_hash_required"] is True
+    assert output["private_file_content_sent_to_cloud"] is False
+    assert output["provider_key_sent_to_cloud"] is False
+    assert output["raw_prompt_body_sent_to_cloud"] is False
 
 
 def test_cli_route_preview_private_file_in_hybrid_requires_local_node(capsys):

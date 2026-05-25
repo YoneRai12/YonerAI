@@ -639,6 +639,12 @@ def _hybrid_wire_contract_rows(report: dict[str, Any], *, lang: str = "en") -> t
     capability_count = len(capabilities) if isinstance(capabilities, list) else 0
     extension_boundary = hybrid.get("extension_boundary")
     extension_boundary_count = len(extension_boundary) if isinstance(extension_boundary, list) else 0
+    orchestration_stub = hybrid.get("official_orchestration_stub")
+    orchestration_response = {}
+    if isinstance(orchestration_stub, dict):
+        response_value = orchestration_stub.get("response")
+        if isinstance(response_value, dict):
+            orchestration_response = response_value
     status_ok = "正常" if lang == "ja" else "ok"
     status_fail = "失敗" if lang == "ja" else "fail"
     not_implemented = "未実装" if lang == "ja" else "not implemented"
@@ -659,6 +665,16 @@ def _hybrid_wire_contract_rows(report: dict[str, Any], *, lang: str = "en") -> t
             "route_preview_fixture",
             hybrid.get("route_preview_fixture_supported"),
             "ok" if hybrid.get("route_preview_fixture_supported") else "warn",
+        ),
+        CliRow(
+            "orchestration_response",
+            orchestration_response.get("schema_name", "missing"),
+            "ok" if orchestration_response.get("schema_name") == "OfficialOrchestrationStubResponse" else "warn",
+        ),
+        CliRow(
+            "cloud_contract_candidate",
+            orchestration_response.get("route_strategy", "missing"),
+            "ok" if orchestration_response.get("route_strategy") == "cloud_contract_candidate" else "warn",
         ),
         CliRow("network_required", hybrid.get("network_required"), "fail" if hybrid.get("network_required") else "ok"),
         CliRow(
@@ -1071,6 +1087,9 @@ def _format_node_pair_pretty(report: dict[str, Any], *, color: ColorMode = "auto
     request = report.get("official_orchestration_stub_request")
     if not isinstance(request, dict):
         request = {}
+    response = report.get("official_orchestration_stub_response")
+    if not isinstance(response, dict):
+        response = {}
     decision = report.get("trust_decision")
     if not isinstance(decision, dict):
         decision = {}
@@ -1082,6 +1101,7 @@ def _format_node_pair_pretty(report: dict[str, Any], *, color: ColorMode = "auto
                 CliRow("dry_run", report.get("dry_run"), "ok" if report.get("dry_run") else "fail"),
                 CliRow("pairing_performed", report.get("pairing_performed"), "fail" if report.get("pairing_performed") else "ok"),
                 CliRow("request_schema", request.get("schema_name"), "ok"),
+                CliRow("response_schema", response.get("schema_name"), "ok" if response else "warn"),
             ),
         ),
         CliSection(
