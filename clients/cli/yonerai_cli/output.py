@@ -67,12 +67,25 @@ def render_status(status: Status, *, color: ColorMode = "auto", stream: TextIO |
 
 def _format_value(value: object) -> str:
     if value is True:
-        return "true"
-    if value is False:
-        return "false"
-    if value is None:
-        return "none"
-    return str(value)
+        rendered = "true"
+    elif value is False:
+        rendered = "false"
+    elif value is None:
+        rendered = "none"
+    else:
+        rendered = str(value)
+    return _escape_control_characters(rendered)
+
+
+def _escape_control_characters(value: str) -> str:
+    return "".join(_escape_char(char) for char in value)
+
+
+def _escape_char(char: str) -> str:
+    codepoint = ord(char)
+    if codepoint < 0x20 or codepoint == 0x7F:
+        return f"\\x{codepoint:02x}"
+    return char
 
 
 def _status_marker(status: Status, *, color_enabled: bool) -> str:

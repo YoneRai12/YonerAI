@@ -79,3 +79,17 @@ def test_cli_output_color_always_is_opt_in():
     )
 
     assert "\033[" in rendered
+
+
+def test_cli_output_escapes_ascii_control_characters_in_values():
+    output = _load_output_module()
+
+    rendered = output.render_report(
+        "YonerAI test",
+        (output.CliSection("Checks", (output.CliRow("requested_capability", "safe\x1b[31mred\x1b[0m", "ok"),)),),
+        color="never",
+    )
+
+    assert "\\x1b[31m" in rendered
+    assert "\\x1b[0m" in rendered
+    assert "" not in rendered
