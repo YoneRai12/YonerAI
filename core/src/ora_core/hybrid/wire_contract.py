@@ -8,6 +8,11 @@ from typing import Any, Literal, Mapping
 from ora_core.execution.ledger import new_run_id, safe_summary
 
 from .node_posture import NODE_POSTURE_SCHEMA_VERSION, evaluate_local_node_posture
+from .extension_manifest import (
+    EXTENSION_CAPABILITY_MANIFEST_SCHEMA_VERSION,
+    build_extension_capability_manifest,
+    evaluate_extension_capability_manifest,
+)
 
 
 HYBRID_WIRE_CONTRACT_VERSION = "yonerai-hybrid-wire-contract/v0.3"
@@ -557,6 +562,7 @@ def build_hybrid_wire_conformance_report() -> dict[str, object]:
     manifest = build_local_node_capability_manifest()
     active_session = build_local_node_session_ref()
     posture_cases = _node_posture_cases()
+    extension_cases = _extension_boundary_cases()
     trust_cases = (
         (
             "missing_node",
@@ -625,6 +631,7 @@ def build_hybrid_wire_conformance_report() -> dict[str, object]:
         "local_node_fixture_available": True,
         "route_preview_fixture_supported": True,
         "node_posture_schema_version": NODE_POSTURE_SCHEMA_VERSION,
+        "extension_capability_manifest_schema_version": EXTENSION_CAPABILITY_MANIFEST_SCHEMA_VERSION,
         "required_node_posture_states": ["VERIFIED", "LIMITED", "RECOVERY", "QUARANTINED", "REVOKED"],
         "required_node_posture_state_count": 5,
         "production_trust_material": False,
@@ -660,6 +667,7 @@ def build_hybrid_wire_conformance_report() -> dict[str, object]:
             for label, decision in trust_cases
         ],
         "node_posture_states": posture_cases,
+        "extension_boundary": extension_cases,
         "cli_commands": [
             "yonerai node status --json",
             "yonerai node status --pretty",
@@ -707,6 +715,36 @@ def _node_posture_cases() -> list[dict[str, object]]:
             manifest_verified=True,
             session_state="revoked",
             declared_capabilities=base_capabilities,
+        ).to_public_dict(),
+    ]
+
+
+def _extension_boundary_cases() -> list[dict[str, object]]:
+    return [
+        evaluate_extension_capability_manifest(
+            build_extension_capability_manifest(
+                extension_id="local-dev-search-extension",
+                declared_capabilities=("mock_search",),
+            )
+        ).to_public_dict(),
+        evaluate_extension_capability_manifest(
+            build_extension_capability_manifest(
+                extension_id="duplicate-capability-extension",
+                declared_capabilities=("mock_search", "mock_search"),
+            )
+        ).to_public_dict(),
+        evaluate_extension_capability_manifest(
+            build_extension_capability_manifest(
+                extension_id="overbroad-capability-extension",
+                declared_capabilities=("local_tools", "pc_operations"),
+            )
+        ).to_public_dict(),
+        evaluate_extension_capability_manifest(
+            build_extension_capability_manifest(
+                extension_id="policy-drift-extension",
+                declared_capabilities=("mock_search",),
+            ),
+            policy_drift=True,
         ).to_public_dict(),
     ]
 

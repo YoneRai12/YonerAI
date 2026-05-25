@@ -52,6 +52,13 @@ from .local_node_manifest import (
     sign_local_node_manifest,
     verify_local_node_manifest,
 )
+from .extension_manifest import (
+    EXTENSION_CAPABILITY_MANIFEST_SCHEMA_VERSION,
+    ExtensionCapabilityDecision,
+    ExtensionCapabilityManifest,
+    build_extension_capability_manifest,
+    evaluate_extension_capability_manifest,
+)
 from .local_node_enrollment import (
     DEFAULT_ENROLLMENT_HEARTBEAT_TIMEOUT_SEC,
     LOCAL_NODE_ENROLLMENT_SCHEMA_VERSION,
@@ -164,6 +171,9 @@ __all__ = [
     "LOCAL_NODE_ACTION_ENVELOPE_SCHEMA_VERSION",
     "LOCAL_NODE_SESSION_REF_SCHEMA_VERSION",
     "NODE_POSTURE_SCHEMA_VERSION",
+    "EXTENSION_CAPABILITY_MANIFEST_SCHEMA_VERSION",
+    "ExtensionCapabilityDecision",
+    "ExtensionCapabilityManifest",
     "LocalDevControlPlaneStatus",
     "LocalDevNodeStatus",
     "LocalDevSessionBindingDecision",
@@ -206,6 +216,7 @@ __all__ = [
     "build_self_evolution_signal_fixture",
     "build_synthetic_discord_gateway_payload",
     "build_test_local_node_manifest",
+    "build_extension_capability_manifest",
     "build_unsigned_local_node_action_envelope",
     "build_local_node_session_ref",
     "canonical_payload_hash",
@@ -216,6 +227,7 @@ __all__ = [
     "envelope_to_mapping",
     "evaluate_donation_policy",
     "evaluate_enrollment_session_capability",
+    "evaluate_extension_capability_manifest",
     "evaluate_local_dev_session_binding",
     "evaluate_local_node_posture",
     "evaluate_memory_candidate_policy",
