@@ -93,15 +93,15 @@ def test_legacy_text_normalizer_preserves_non_legacy_whitespace() -> None:
     assert normalize_legacy_generated_text(text) == text
 
 
-def test_legacy_text_normalizer_strips_route_eval_json_for_ledger() -> None:
+def test_legacy_text_normalizer_keeps_route_eval_json_in_plain_text_for_ledger() -> None:
     _prepare_paths()
     from ora_core.execution import legacy_text_normalizer_status, normalize_legacy_generated_text
     from ora_core.execution.ledger import safe_summary
 
     content = 'before {"visible": true} middle {"route_eval": {"route": "internal", "note": "brace } inside"}} after'
 
-    assert normalize_legacy_generated_text(content) == 'before {"visible": true} middle  after'
-    assert safe_summary(content) == 'before {"visible": true} middle  after'
+    assert normalize_legacy_generated_text(content) == content
+    assert safe_summary(content) == content
     assert legacy_text_normalizer_status()["route_json_stripper_connected"] is True
 
 

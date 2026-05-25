@@ -30,9 +30,10 @@ def normalize_legacy_generated_text(text: object) -> str:
     if not raw:
         return ""
 
+    if _LEGACY_BOUNDARY_TAG_PATTERN.search(raw) is None:
+        return raw
+
     cleaned = _strip_legacy_route_json(raw)
-    if _LEGACY_BOUNDARY_TAG_PATTERN.search(cleaned) is None:
-        return cleaned
 
     cleaner = _load_legacy_cleaner()
     if cleaner is None:
