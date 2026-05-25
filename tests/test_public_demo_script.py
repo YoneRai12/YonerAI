@@ -120,6 +120,7 @@ def test_public_demo_json_shape_and_boundaries(capsys) -> None:
     )
     node_relay = next(check for check in hybrid_trust["checks"] if check["name"] == "hybrid_node_relay_contract")
     relay_status = next(check for check in hybrid_trust["checks"] if check["name"] == "relay_local_dev_status")
+    oracle_stub = next(check for check in hybrid_trust["checks"] if check["name"] == "oracle_stub_execution")
     discord = next(check for check in hybrid_trust["checks"] if check["name"] == "synthetic_discord_gateway")
     assert wire_conformance["schema_version"] == "yonerai-hybrid-wire-contract/v0.3"
     assert wire_conformance["session_token_hash_only"] is True
@@ -159,6 +160,18 @@ def test_public_demo_json_shape_and_boundaries(capsys) -> None:
     assert relay_status["process_started"] is False
     assert relay_status["public_exposure_allowed"] is False
     assert relay_status["message_body_persisted"] is False
+    assert oracle_stub["schema_version"] == "yonerai-oracle-stub/v0.1"
+    assert oracle_stub["route_strategy"] == "cloud_contract_candidate"
+    assert oracle_stub["request_schema"] == "OracleStubRequest"
+    assert oracle_stub["response_schema"] == "OracleStubResponse"
+    assert oracle_stub["response_status"] == "completed"
+    assert oracle_stub["private_candidate_denied"] is True
+    assert oracle_stub["network_required"] is False
+    assert oracle_stub["provider_call_performed"] is False
+    assert oracle_stub["production_oracle_used"] is False
+    assert oracle_stub["official_cloud_runtime_implemented"] is False
+    assert oracle_stub["raw_prompt_included"] is False
+    assert oracle_stub["private_file_content_included"] is False
     assert discord["live_discord"] is False
     assert discord["token_required"] is False
     assert discord["final_once"] is True
@@ -216,6 +229,8 @@ def test_public_demo_pretty_output_contains_key_sections(capsys) -> None:
     assert "local_loopback_only=true" in output
     assert "openai_compatible_live_ready=false" in output
     assert "hybrid_wire_contract_conformance" in output
+    assert "oracle_stub_execution" in output
+    assert "private_candidate_denied=true" in output
     assert "trust_state_count=7" in output
     assert "mock_web_search" in output
     assert "live_search_boundary" in output

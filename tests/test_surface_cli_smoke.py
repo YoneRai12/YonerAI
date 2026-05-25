@@ -716,6 +716,7 @@ def test_cli_route_preview_pretty_shows_routing_gates(capsys):
     assert "route_strategy" in output
     assert "node_posture_state" in output
     assert "capability_gate" in output
+    assert "oracle_stub_status" in output
     assert "args_hash_required" in output
 
 
@@ -787,6 +788,12 @@ def test_cli_doctor_reports_offline_status_without_network(monkeypatch, capsys):
     assert node_relay["ok"] is True
     assert node_relay["official_cloud_runtime_implemented"] is False
     assert node_relay["relay"]["message_body_persisted"] is False
+    oracle_stub = output["oracle_stub"]
+    assert oracle_stub["ok"] is True
+    assert oracle_stub["queue_available"] is True
+    assert oracle_stub["network_required"] is False
+    assert oracle_stub["production_oracle_used"] is False
+    assert oracle_stub["official_cloud_runtime_implemented"] is False
     providers = {provider["provider_id"]: provider for provider in output["providers"]["providers"]}
     assert providers["mock"]["setup_status"] == "ready"
     assert providers["local"]["loopback_only"] is True
@@ -891,6 +898,7 @@ def test_cli_doctor_does_not_execute_demo_or_mutate_path(monkeypatch, capsys):
     assert "Hybrid Wire Contract" in output
     assert "Hybrid Node/Relay" in output
     assert "Relay local-dev" in output
+    assert "Oracle stub" in output
     assert "trust_states" in output
     assert "orchestration_response" in output
     assert "cloud_contract_candidate" in output
@@ -900,6 +908,61 @@ def test_cli_doctor_does_not_execute_demo_or_mutate_path(monkeypatch, capsys):
     assert "local_mock_http_server_tested" in output
     assert "loopback_mock_http_server_tested" in output
     assert "\033[" not in output
+
+
+def test_cli_oracle_status_and_queue_are_offline(monkeypatch, tmp_path, capsys):
+    cli = _load_cli_module()
+
+    def fail_urlopen(*_args: Any, **_kwargs: Any):
+        raise AssertionError("oracle stub must not open network")
+
+    monkeypatch.setattr(cli.urllib.request, "urlopen", fail_urlopen)
+
+    assert cli.main(["oracle", "status", "--json"]) == 0
+
+    status = json.loads(capsys.readouterr().out)
+    assert status["schema_version"] == "yonerai-oracle-stub/v0.1"
+    assert status["operation"] == "status"
+    assert status["queue_available"] is True
+    assert status["network_required"] is False
+    assert status["production_oracle_used"] is False
+
+    ledger = tmp_path / "runs.jsonl"
+    assert cli.main(["oracle", "queue", "--ledger", str(ledger), "--json"]) == 0
+
+    queued_capture = capsys.readouterr()
+    queued = json.loads(queued_capture.out)
+    assert queued["ok"] is True
+    assert queued["operation"] == "queue"
+    assert queued["response"]["status"] == "completed"
+    assert queued["request"]["route_strategy"] == "cloud_contract_candidate"
+    assert queued["request"]["raw_prompt_included"] is False
+    assert queued["response"]["network_call_performed"] is False
+    assert queued["response"]["production_oracle_used"] is False
+    assert "hard public reasoning over public API docs" not in queued_capture.out
+
+    run_id = queued["run"]["run_id"]
+    assert cli.main(["runs", "show", run_id, "--ledger", str(ledger), "--json"]) == 0
+
+    run_show = json.loads(capsys.readouterr().out)
+    assert [event["name"] for event in run_show["run"]["events"]] == [
+        "oracle_stub_enqueued",
+        "oracle_stub_result",
+    ]
+
+
+def test_cli_oracle_queue_rejects_private_task_without_cloud_stub(capsys):
+    cli = _load_cli_module()
+
+    assert cli.main(["oracle", "queue", "--json", "hard", "public", "reasoning", "over", "my", "private", "files"]) == 1
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["ok"] is False
+    assert output["response"]["status"] == "denied"
+    assert output["request"]["privacy_class"] == "private"
+    assert output["response"]["private_file_content_included"] is False
+    assert output["network_required"] is False
+    assert output["production_oracle_used"] is False
 
 
 def test_cli_doctor_pretty_supports_japanese_without_json_key_translation(monkeypatch, capsys):

@@ -551,6 +551,7 @@ def _hybrid_trust_checks() -> tuple[dict[str, object], ...]:
         build_local_dev_enrolled_session_fixture,
         build_hybrid_node_relay_contract_stub,
         build_hybrid_wire_conformance_report,
+        build_oracle_stub_queue_report,
         build_relay_status_report,
         build_test_local_node_manifest,
         build_unsigned_local_node_action_envelope,
@@ -641,10 +642,14 @@ def _hybrid_trust_checks() -> tuple[dict[str, object], ...]:
     wire_conformance = build_hybrid_wire_conformance_report()
     relay_status = build_relay_status_report({})
     node_relay_contract = build_hybrid_node_relay_contract_stub({})
+    oracle_stub = build_oracle_stub_queue_report()
+    oracle_stub_private = build_oracle_stub_queue_report("hard public reasoning over my private files")
     assert trust_status.local_node.verification_state == "present_verified"
     assert wire_conformance["ok"] is True
     assert relay_status["ok"] is True
     assert node_relay_contract["ok"] is True
+    assert oracle_stub["ok"] is True and oracle_stub["response"]["status"] == "completed"
+    assert oracle_stub_private["ok"] is False and oracle_stub_private["response"]["status"] == "denied"
     assert pairing_once.accepted is True and pairing_reuse.accepted is False
     assert verified_action.status == "approval_required"
     assert replay.status == "replayed_nonce"
@@ -693,6 +698,22 @@ def _hybrid_trust_checks() -> tuple[dict[str, object], ...]:
             "health_probe_performed": relay_status["relay"]["health_probe_performed"],
             "public_exposure_allowed": relay_status["relay"]["public_exposure_allowed"],
             "message_body_persisted": relay_status["relay"]["message_body_persisted"],
+        },
+        {
+            "name": "oracle_stub_execution",
+            "status": "ok",
+            "schema_version": oracle_stub["schema_version"],
+            "route_strategy": oracle_stub["request"]["route_strategy"],
+            "request_schema": oracle_stub["request"]["schema_name"],
+            "response_schema": oracle_stub["response"]["schema_name"],
+            "response_status": oracle_stub["response"]["status"],
+            "private_candidate_denied": oracle_stub_private["response"]["status"] == "denied",
+            "network_required": oracle_stub["network_required"],
+            "provider_call_performed": oracle_stub["provider_call_performed"],
+            "production_oracle_used": oracle_stub["production_oracle_used"],
+            "official_cloud_runtime_implemented": oracle_stub["official_cloud_runtime_implemented"],
+            "raw_prompt_included": oracle_stub["response"]["raw_prompt_included"],
+            "private_file_content_included": oracle_stub["response"]["private_file_content_included"],
         },
         {"name": "signed_manifest_verified", "status": "ok", "verified": True},
         {"name": "enrollment_session_available", "status": "ok", "session_bound": True},
@@ -1012,6 +1033,16 @@ def format_pretty_demo(result: dict[str, object]) -> str:
                 "message_body_persisted",
                 "audit_event_schema",
                 "route_preview_fixture_supported",
+                "route_strategy",
+                "request_schema",
+                "response_schema",
+                "response_status",
+                "private_candidate_denied",
+                "provider_call_performed",
+                "raw_prompt_included",
+                "private_file_content_included",
+                "production_oracle_used",
+                "official_cloud_runtime_implemented",
                 "official_cloud_runtime_included",
                 "oracle_control_plane_production_ready",
                 "dry_run",

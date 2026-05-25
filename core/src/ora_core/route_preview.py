@@ -137,6 +137,10 @@ class RoutePreviewDecision:
         payload["private_file_content_sent_to_cloud"] = False
         payload["provider_key_sent_to_cloud"] = False
         payload["raw_prompt_body_sent_to_cloud"] = False
+        payload["oracle_stub_eligible"] = _oracle_stub_preview_eligible(payload, self.dangerous_operation)
+        payload["oracle_stub_status"] = (
+            "eligible_local_dev_stub" if payload["oracle_stub_eligible"] else "not_eligible"
+        )
         return payload
 
 
@@ -390,6 +394,17 @@ def _audit_requirements(decision: RoutePreviewDecision, route_strategy: str) -> 
         "cloud_escape_preserves_audit": True,
         "cloud_escape_preserves_args_hash": True,
     }
+
+
+def _oracle_stub_preview_eligible(payload: dict[str, object], dangerous_operation: bool) -> bool:
+    return (
+        payload.get("route_strategy") == "cloud_contract_candidate"
+        and payload.get("privacy_class") == "public"
+        and payload.get("private_file_content_sent_to_cloud") is False
+        and payload.get("provider_key_sent_to_cloud") is False
+        and payload.get("raw_prompt_body_sent_to_cloud") is False
+        and not dangerous_operation
+    )
 
 
 def preview_route(
