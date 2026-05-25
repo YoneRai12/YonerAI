@@ -761,7 +761,8 @@ def test_cli_doctor_reports_offline_status_without_network(monkeypatch, capsys):
     assert output["boundaries"]["official_cloud_runtime_included"] is False
     assert output["manifest"]["contract_valid"] is True
     assert output["manifest"]["install_ready"] is False
-    assert output["cli"]["repo_version"] == "0.1.0-alpha.3"
+    expected_version = (Path(__file__).resolve().parents[1] / "VERSION").read_text(encoding="utf-8").strip()
+    assert output["cli"]["repo_version"] == expected_version
     assert output["system_checks"]["redaction_self_check"]["ok"] is True
     assert output["system_checks"]["mcp_deny_policy"]["ok"] is True
     assert output["system_checks"]["mcp_deny_policy"]["network_required"] is False
