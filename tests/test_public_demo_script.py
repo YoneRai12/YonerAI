@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import os
 import sys
 from pathlib import Path
 
@@ -281,7 +280,7 @@ def test_public_demo_failure_output_redacts_local_paths(monkeypatch, capsys) -> 
     assert "Traceback" not in captured.err
 
 
-def test_public_demo_restores_provider_env_keys() -> None:
+def test_public_demo_restores_provider_env_keys(monkeypatch) -> None:
     public_demo = _load_public_demo()
     keys = {
         "YONERAI_OPENAI_COMPATIBLE_API_KEY": "demo-openai-compatible-key",
@@ -291,16 +290,11 @@ def test_public_demo_restores_provider_env_keys() -> None:
         "YONERAI_ANTHROPIC_API_KEY": "demo-anthropic-key",
         "YONERAI_GEMINI_API_KEY": "demo-gemini-key",
     }
-    previous = {key: os.environ.get(key) for key in keys}
-    os.environ.update(keys)
-    try:
-        result = public_demo.run_demo()
-        assert result["ok"] is True
-        for key, value in keys.items():
-            assert os.environ.get(key) == value
-    finally:
-        for key, value in previous.items():
-            if value is None:
-                os.environ.pop(key, None)
-            else:
-                os.environ[key] = value
+    for key, value in keys.items():
+        monkeypatch.setenv(key, value)
+
+    result = public_demo.run_demo()
+
+    assert result["ok"] is True
+    for key, value in keys.items():
+        assert public_demo.os.environ.get(key) == value
