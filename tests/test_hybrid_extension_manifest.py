@@ -56,6 +56,23 @@ def test_duplicate_extension_capability_is_denied_deterministically() -> None:
     assert "duplicate_extension_capability_denied" in payload["reasons"]
 
 
+def test_duplicate_unknown_extension_capability_is_redacted() -> None:
+    manifest = build_extension_capability_manifest(
+        extension_id="duplicate-unknown-extension",
+        declared_capabilities=("future.private.one", "future.private.one"),
+    )
+    payload = evaluate_extension_capability_manifest(manifest).to_public_dict()
+    serialized = json.dumps(payload, sort_keys=True)
+
+    assert payload["status"] == "denied"
+    assert payload["accepted_capabilities"] == []
+    assert payload["duplicate_capabilities"] == ["unknown_capability_redacted"]
+    assert payload["denied_capabilities"] == ["unknown_capability_redacted"]
+    assert "duplicate_extension_capability_denied" in payload["reasons"]
+    assert "unknown_extension_capability_denied" in payload["reasons"]
+    assert "future_private_one" not in serialized
+
+
 def test_overbroad_and_unknown_extension_capabilities_are_denied() -> None:
     manifest = build_extension_capability_manifest(
         extension_id="overbroad-extension",
