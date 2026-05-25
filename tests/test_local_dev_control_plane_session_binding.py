@@ -104,6 +104,7 @@ def test_invalid_action_envelope_denies_without_raw_args_storage() -> None:
         action_id="local-dev-action",
         node_id=session.enrolled_node_id,
         session_id=session.session_id,
+        manifest_id=session.manifest_id,
         mode=session.mode,
         capability="local_tools",
         args_hash=args_hash,

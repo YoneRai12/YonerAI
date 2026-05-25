@@ -53,6 +53,7 @@ from .local_node_manifest import (
     verify_local_node_manifest,
 )
 from .local_node_enrollment import (
+    DEFAULT_ENROLLMENT_HEARTBEAT_TIMEOUT_SEC,
     LOCAL_NODE_ENROLLMENT_SCHEMA_VERSION,
     LocalNodeEnrollmentRequest,
     LocalNodeEnrollmentSession,
@@ -64,6 +65,7 @@ from .local_node_enrollment import (
     enrollment_session_state,
     evaluate_enrollment_session_capability,
     pairing_code_hash,
+    record_enrollment_session_heartbeat,
     revoke_enrollment_session,
 )
 from .node_posture import (
@@ -158,6 +160,7 @@ __all__ = [
     "LOCAL_NODE_MANIFEST_SCHEMA_VERSION",
     "LOCAL_NODE_MANIFEST_SIGNATURE_SCHEMA_VERSION",
     "LOCAL_NODE_ENROLLMENT_SCHEMA_VERSION",
+    "DEFAULT_ENROLLMENT_HEARTBEAT_TIMEOUT_SEC",
     "LOCAL_NODE_ACTION_ENVELOPE_SCHEMA_VERSION",
     "LOCAL_NODE_SESSION_REF_SCHEMA_VERSION",
     "NODE_POSTURE_SCHEMA_VERSION",
@@ -223,6 +226,7 @@ __all__ = [
     "local_node_public_key_id",
     "pairing_code_hash",
     "preview_route_with_local_dev_control_plane",
+    "record_enrollment_session_heartbeat",
     "route_preview_inputs_from_node_status",
     "revoke_enrollment_session",
     "sign_local_node_action_envelope",
