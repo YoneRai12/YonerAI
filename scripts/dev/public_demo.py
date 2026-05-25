@@ -641,6 +641,10 @@ def _hybrid_trust_checks() -> tuple[dict[str, object], ...]:
             "trust_state_count": len(wire_conformance["trust_states"]),
             "node_posture_state_count": wire_conformance["required_node_posture_state_count"],
             "node_posture_states": wire_conformance["required_node_posture_states"],
+            "extension_boundary_count": len(wire_conformance["extension_boundary"]),
+            "extension_boundary_statuses": [
+                item["status"] for item in wire_conformance["extension_boundary"]
+            ],
             "session_token_hash_only": wire_conformance["session_token_hash_only"],
             "message_body_persisted": wire_conformance["message_body_persisted"],
             "audit_event_schema": wire_conformance["audit_event_schema"],
