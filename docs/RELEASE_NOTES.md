@@ -11,7 +11,7 @@ This page is a public-safe index of current release notes and progress checkpoin
 - What users can try now: `yonerai start --guided --lang ja`, `yonerai providers --pretty --lang ja`, `yonerai providers --json`, `yonerai ask "hello" --auto --pretty --lang ja`, `yonerai ask "hard public reasoning over public API docs" --auto --json`, workspace-scoped `yonerai ask ... --auto --file <path> --workspace <dir> --json`, explicit local `yonerai ask "hello" --provider local --live --json`, explicit external `yonerai ask ... --provider openai-compatible|anthropic|gemini --live --json`, `yonerai runs list/show --pretty --lang ja`, `yonerai demo --pretty`, and `yonerai doctor --pretty --lang ja`.
 - Capability slice: provider readiness CLI, Japanese-first auto/runs output, auto routing guardrails, local LLM loopback opt-in, external-provider live opt-in, local-only redacted ledger visibility, Workspace File Access Guard, and current security/runtime review fixes.
 - Boundary: no production Oracle, no Official Managed Cloud runtime, no live Discord, no deploy/public tunnel, no arbitrary shell/file/tool execution, no default live provider calls, no production signing/trust store, and no provider keys printed or stored.
-- Primary traceability range: `v0.1.0-alpha.4..v0.2.0-alpha.1`, currently #427 plus this release-gate PR after merge.
+- Primary traceability range: `v0.1.0-alpha.4..v0.2.0-alpha.1`, 2 PRs: #427 and #428.
 
 ## v0.1.0-alpha.4 CLI Auto Runtime Slice
 
