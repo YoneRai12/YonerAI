@@ -166,3 +166,34 @@ def test_auto_runtime_oracle_queue_failure_returns_controlled_error(monkeypatch)
     assert report["error"]["code"] == "oracle_stub_denied"
     event_names = [event["name"] for event in report["run"]["events"]]
     assert "oracle_stub_result" in event_names
+
+
+def test_auto_runtime_oracle_import_failure_returns_controlled_error(monkeypatch) -> None:
+    build_report, InMemoryRunLedger, _FileRunLedger = _load_auto_runtime()
+    import builtins
+    import sys
+
+    real_import = builtins.__import__
+
+    def fake_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name.startswith("cryptography"):
+            raise ModuleNotFoundError("No module named 'cryptography'")
+        return real_import(name, globals, locals, fromlist, level)
+
+    for module_name in list(sys.modules):
+        if module_name == "ora_core.hybrid" or module_name.startswith("ora_core.hybrid."):
+            sys.modules.pop(module_name, None)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+
+    report = build_report("hard public reasoning over public API docs", ledger=InMemoryRunLedger())
+
+    assert report["ok"] is False
+    assert report["auto"]["route"] == "cloud_contract_candidate"
+    assert report["oracle_stub"]["status"] == "failed"
+    assert report["oracle_stub"]["operation"] == "import"
+    assert report["oracle_stub"]["response"]["status"] == "failed"
+    assert "oracle_stub_unavailable:ModuleNotFoundError" == report["oracle_stub"]["response"]["disabled_reason"]
+    assert report["error"]["code"] == "oracle_stub_denied"
+    event_names = [event["name"] for event in report["run"]["events"]]
+    assert "oracle_stub_import" in event_names
