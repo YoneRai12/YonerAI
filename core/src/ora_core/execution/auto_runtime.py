@@ -293,8 +293,18 @@ def decide_auto_runtime_route(
     if local_file_context or privacy == "private":
         if normalized_provider == "local" and live:
             route: AutoRoute = "local_llm"
+            private_provider_id = "local"
+            private_reasons = ["private_context_kept_local", "local_provider_requested"]
         else:
             route = "hybrid_node"
+            private_provider_id = "mock"
+            private_reasons = ["private_context_kept_local"]
+            if normalized_provider in _EXTERNAL_LIVE_PROVIDERS:
+                private_reasons.append("external_provider_blocked_for_private_context")
+            elif normalized_provider == "local":
+                private_reasons.append("local_provider_requires_live_for_private_context")
+            else:
+                private_reasons.append("mock_local_safe_path")
         return AutoRuntimeDecision(
             difficulty=difficulty,
             privacy="local_file" if local_file_context else privacy,
@@ -303,8 +313,8 @@ def decide_auto_runtime_route(
             search_needed=search_needed,
             tool_needed=tool_needed,
             local_file_context=local_file_context,
-            provider_id=normalized_provider,
-            reasons=tuple(reasons + ["private_context_kept_local"]),
+            provider_id=private_provider_id,
+            reasons=tuple(reasons + private_reasons),
         )
     if normalized_provider == "local":
         return AutoRuntimeDecision(

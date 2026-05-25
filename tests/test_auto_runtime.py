@@ -69,6 +69,8 @@ def test_auto_runtime_private_file_context_stays_local_and_records_redacted_ledg
     report = build_report(
         "summarize this file",
         provider_prompt=f"Workspace file context follows. {secretish}",
+        provider="anthropic",
+        live=True,
         ledger=FileRunLedger(ledger_path),
         local_file_context=True,
     )
@@ -78,6 +80,10 @@ def test_auto_runtime_private_file_context_stays_local_and_records_redacted_ledg
     assert report["ok"] is True
     assert report["auto"]["privacy"] == "local_file"
     assert report["auto"]["route"] == "hybrid_node"
+    assert report["auto"]["provider_id"] == "mock"
+    assert "external_provider_blocked_for_private_context" in report["auto"]["reasons"]
+    assert report["provider"]["external_provider_allowed"] is False
+    assert report["live_call_performed"] is False
     assert report["local_node"]["used"] is True
     assert report["boundaries"]["private_file_content_sent_to_cloud_contract"] is False
     assert secretish not in serialized

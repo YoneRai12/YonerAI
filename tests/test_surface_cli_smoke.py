@@ -1709,6 +1709,44 @@ def test_cli_ask_auto_ledger_records_decision_and_reviewer_plan(tmp_path, capsys
     assert "sk-" not in persisted
 
 
+def test_cli_ask_auto_local_file_blocks_live_external_provider(tmp_path, capsys):
+    cli = _load_cli_module()
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    note = workspace / "note.txt"
+    note.write_text("private alpha content token=abc", encoding="utf-8")
+
+    exit_code = cli.main(
+        [
+            "ask",
+            "summarize",
+            "this",
+            "file",
+            "--auto",
+            "--file",
+            str(note),
+            "--workspace",
+            str(workspace),
+            "--provider",
+            "anthropic",
+            "--live",
+            "--json",
+        ]
+    )
+
+    output = json.loads(capsys.readouterr().out)
+    serialized = json.dumps(output)
+    assert exit_code == 0
+    assert output["ok"] is True
+    assert output["auto"]["route"] == "hybrid_node"
+    assert output["auto"]["provider_id"] == "mock"
+    assert "external_provider_blocked_for_private_context" in output["auto"]["reasons"]
+    assert output["provider"]["external_provider_allowed"] is False
+    assert output["live_call_performed"] is False
+    assert output["boundaries"]["private_file_content_sent_to_cloud_contract"] is False
+    assert "private alpha content" not in serialized
+
+
 def test_cli_ask_auto_blocks_dangerous_task(capsys):
     cli = _load_cli_module()
 
