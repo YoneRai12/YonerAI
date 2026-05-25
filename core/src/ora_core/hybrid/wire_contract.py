@@ -7,6 +7,8 @@ from typing import Any, Literal, Mapping
 
 from ora_core.execution.ledger import new_run_id, safe_summary
 
+from .node_posture import NODE_POSTURE_SCHEMA_VERSION, evaluate_local_node_posture
+
 
 HYBRID_WIRE_CONTRACT_VERSION = "yonerai-hybrid-wire-contract/v0.3"
 HYBRID_WIRE_COMPATIBLE_VERSIONS = (
@@ -484,6 +486,21 @@ def build_local_node_status_report(
         if node_available
         else None
     )
+    posture = (
+        evaluate_local_node_posture(
+            node_id=HYBRID_WIRE_STUB_NODE_ID,
+            manifest_verified=verified,
+            session_state=session_state,
+            declared_capabilities=tuple(
+                capability.name for capability in manifest.capabilities if capability.enabled
+            )
+            if manifest
+            else (),
+            revoked=session_state == "revoked",
+        )
+        if node_available
+        else None
+    )
     return {
         "schema_version": HYBRID_WIRE_CONTRACT_VERSION,
         "compatible_versions": list(HYBRID_WIRE_COMPATIBLE_VERSIONS),
@@ -503,6 +520,7 @@ def build_local_node_status_report(
             "heartbeat": build_local_node_heartbeat().to_public_dict() if node_available else None,
             "capability_manifest": manifest.to_public_dict() if manifest else None,
             "session_ref": session_ref.to_public_dict() if session_ref else None,
+            "posture": posture.to_public_dict() if posture else None,
         },
         "official_cloud_runtime_implemented": False,
         "production_oracle_used": False,
@@ -538,6 +556,7 @@ def build_pairing_dry_run_report() -> dict[str, object]:
 def build_hybrid_wire_conformance_report() -> dict[str, object]:
     manifest = build_local_node_capability_manifest()
     active_session = build_local_node_session_ref()
+    posture_cases = _node_posture_cases()
     trust_cases = (
         (
             "missing_node",
@@ -605,6 +624,9 @@ def build_hybrid_wire_conformance_report() -> dict[str, object]:
         "test_fixture_only": True,
         "local_node_fixture_available": True,
         "route_preview_fixture_supported": True,
+        "node_posture_schema_version": NODE_POSTURE_SCHEMA_VERSION,
+        "required_node_posture_states": ["VERIFIED", "LIMITED", "RECOVERY", "QUARANTINED", "REVOKED"],
+        "required_node_posture_state_count": 5,
         "production_trust_material": False,
         "official_cloud_runtime_implemented": False,
         "production_oracle_used": False,
@@ -637,6 +659,7 @@ def build_hybrid_wire_conformance_report() -> dict[str, object]:
             }
             for label, decision in trust_cases
         ],
+        "node_posture_states": posture_cases,
         "cli_commands": [
             "yonerai node status --json",
             "yonerai node status --pretty",
@@ -646,6 +669,46 @@ def build_hybrid_wire_conformance_report() -> dict[str, object]:
         ],
         "actions_not_performed": _wire_non_actions(),
     }
+
+
+def _node_posture_cases() -> list[dict[str, object]]:
+    base_capabilities = ("local_model", "workspace_file_access", "mock_search", "tool_boundary", "ledger")
+    return [
+        evaluate_local_node_posture(
+            node_id=HYBRID_WIRE_STUB_NODE_ID,
+            manifest_verified=True,
+            session_state="active",
+            declared_capabilities=base_capabilities,
+        ).to_public_dict(),
+        evaluate_local_node_posture(
+            node_id=HYBRID_WIRE_STUB_NODE_ID,
+            manifest_verified=False,
+            session_state="active",
+            declared_capabilities=base_capabilities,
+            declared_extensions=("experimental.extension",),
+        ).to_public_dict(),
+        evaluate_local_node_posture(
+            node_id=HYBRID_WIRE_STUB_NODE_ID,
+            manifest_verified=True,
+            session_state="expired",
+            declared_capabilities=base_capabilities,
+            policy_drift=True,
+            manifest_drift=True,
+        ).to_public_dict(),
+        evaluate_local_node_posture(
+            node_id=HYBRID_WIRE_STUB_NODE_ID,
+            manifest_verified=True,
+            session_state="active",
+            declared_capabilities=base_capabilities,
+            suspicious_behavior=True,
+        ).to_public_dict(),
+        evaluate_local_node_posture(
+            node_id=HYBRID_WIRE_STUB_NODE_ID,
+            manifest_verified=True,
+            session_state="revoked",
+            declared_capabilities=base_capabilities,
+        ).to_public_dict(),
+    ]
 
 
 def evaluate_wire_request(
@@ -703,12 +766,33 @@ def evaluate_wire_request(
 def route_preview_inputs_from_node_status(local_node: Mapping[str, object]) -> dict[str, object]:
     manifest = local_node.get("capability_manifest")
     capabilities: list[str] = []
+    posture = local_node.get("posture")
+    exposed_wire_capabilities: set[str] | None = None
+    local_work_preview_allowed = True
+    if isinstance(posture, Mapping):
+        local_work_preview_allowed = bool(posture.get("local_work_preview_allowed"))
+        exposed_capabilities = posture.get("exposed_capabilities")
+        if isinstance(exposed_capabilities, list):
+            exposed_wire_capabilities = {
+                str(item).strip().lower().replace("-", "_").replace(".", "_")
+                for item in exposed_capabilities
+                if isinstance(item, str) and item.strip()
+            }
     if isinstance(manifest, Mapping):
         for item in manifest.get("capabilities", []):
-            if isinstance(item, Mapping) and item.get("enabled"):
+            if not isinstance(item, Mapping) or not item.get("enabled"):
+                continue
+            wire_name = str(item.get("name") or "").strip().lower().replace("-", "_").replace(".", "_")
+            if exposed_wire_capabilities is not None:
+                if not local_work_preview_allowed or wire_name not in exposed_wire_capabilities:
+                    continue
                 route_capability = str(item.get("route_capability") or "")
                 if route_capability:
                     capabilities.append(route_capability)
+                continue
+            route_capability = str(item.get("route_capability") or "")
+            if route_capability:
+                capabilities.append(route_capability)
     trust_state = str(local_node.get("trust_state") or "missing_node")
     route_state = "present_verified" if trust_state == "verified_test_node" else "present_unverified"
     if trust_state == "missing_node" or not local_node.get("available"):

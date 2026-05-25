@@ -66,6 +66,11 @@ from .local_node_enrollment import (
     pairing_code_hash,
     revoke_enrollment_session,
 )
+from .node_posture import (
+    NODE_POSTURE_SCHEMA_VERSION,
+    LocalNodePostureDecision,
+    evaluate_local_node_posture,
+)
 from .local_node_action_envelope import (
     LOCAL_NODE_ACTION_ENVELOPE_SCHEMA_VERSION,
     LocalNodeActionEnvelope,
@@ -148,6 +153,7 @@ __all__ = [
     "LOCAL_NODE_ENROLLMENT_SCHEMA_VERSION",
     "LOCAL_NODE_ACTION_ENVELOPE_SCHEMA_VERSION",
     "LOCAL_NODE_SESSION_REF_SCHEMA_VERSION",
+    "NODE_POSTURE_SCHEMA_VERSION",
     "LocalDevControlPlaneStatus",
     "LocalDevNodeStatus",
     "LocalDevSessionBindingDecision",
@@ -160,6 +166,7 @@ __all__ = [
     "LocalNodeIdentity",
     "LocalNodeManifestSignature",
     "LocalNodeManifestVerification",
+    "LocalNodePostureDecision",
     "LocalNodeSessionRef",
     "LocalNodeSessionRefValidation",
     "LocalNodeSessionCapabilityDecision",
@@ -197,6 +204,7 @@ __all__ = [
     "evaluate_donation_policy",
     "evaluate_enrollment_session_capability",
     "evaluate_local_dev_session_binding",
+    "evaluate_local_node_posture",
     "evaluate_memory_candidate_policy",
     "generate_test_local_node_keypair",
     "action_args_hash",

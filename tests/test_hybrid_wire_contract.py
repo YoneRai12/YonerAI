@@ -175,6 +175,15 @@ def test_hybrid_wire_conformance_report_covers_required_states() -> None:
     assert report["session_token_hash_only"] is True
     assert report["message_body_persisted"] is False
     assert report["audit_event_schema"] == "hybrid-wire-audit/v0.3"
+    assert report["node_posture_schema_version"] == "yonerai-local-node-posture/v0.1"
+    assert report["required_node_posture_state_count"] == 5
+    assert {item["state"] for item in report["node_posture_states"]} == {
+        "VERIFIED",
+        "LIMITED",
+        "RECOVERY",
+        "QUARANTINED",
+        "REVOKED",
+    }
     assert report["required_trust_state_count"] == len(report["required_trust_states"])
     assert set(states) == {
         "missing_node",
