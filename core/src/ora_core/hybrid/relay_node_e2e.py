@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import hashlib
-from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Mapping
 
@@ -17,6 +15,7 @@ from .local_node_manifest import (
     sign_local_node_manifest,
 )
 from .relay_status import build_relay_status_report
+from .transport import InMemoryRelayTransport, TransportProxyResult
 from .wire_contract import (
     LocalNodeCapabilityManifest as WireLocalNodeCapabilityManifest,
     LocalNodeSessionRef as WireLocalNodeSessionRef,
@@ -29,24 +28,6 @@ from .wire_contract import (
 
 
 HYBRID_RELAY_NODE_E2E_SCHEMA_VERSION = "yonerai-hybrid-relay-node-e2e/v0.1"
-
-
-@dataclass(frozen=True)
-class RelayHttpProxyFixture:
-    request_id: str
-    method: str
-    path_category: str
-    request_body_hash: str
-    response_body_hash: str
-    request_body_bytes: int
-    response_body_bytes: int
-    request_body_persisted: bool
-    response_body_persisted: bool
-    raw_body_included: bool
-    message_type: str = "http_proxy"
-
-    def to_public_dict(self) -> dict[str, object]:
-        return asdict(self)
 
 
 def build_local_dev_relay_node_e2e_report(
@@ -66,6 +47,7 @@ def build_local_dev_relay_node_e2e_report(
     """
 
     relay_status = build_relay_status_report(env)
+    current = now or datetime(2026, 5, 22, 0, 5, tzinfo=timezone.utc)
     manifest = build_local_node_capability_manifest(signed_origin_verified=verified)
     session_ref = build_local_node_session_ref(state=session_state, signed_origin_verified=verified)
     trust_decision = evaluate_wire_request(
@@ -74,7 +56,7 @@ def build_local_dev_relay_node_e2e_report(
         requested_capability=requested_capability,
     )
     pairing = _build_pairing_probe(mode=mode, now=now)
-    proxy_fixture = _build_proxy_fixture() if trust_decision.allowed_for_preview else None
+    transport, proxy_fixture = _build_transport_proxy_fixture(now=current) if trust_decision.allowed_for_preview else (None, None)
     rejection_cases = _build_rejection_cases(manifest=manifest, session_ref=session_ref)
 
     ok = (
@@ -109,6 +91,7 @@ def build_local_dev_relay_node_e2e_report(
             "pairing_code_storage": _nested(relay_status, "relay", "pairing_code_storage"),
             "session_token_storage": _nested(relay_status, "relay", "session_token_storage"),
         },
+        "transport": transport.status_report() if transport else None,
         "node_flow": {
             "hello": build_local_node_hello().to_public_dict(),
             "heartbeat": build_local_node_heartbeat().to_public_dict(),
@@ -214,25 +197,33 @@ def _build_rejection_cases(
     }
 
 
-def _build_proxy_fixture() -> RelayHttpProxyFixture:
-    request_body = b'{"query":"local dev relay fixture"}'
-    response_body = b'{"ok":true,"summary":"fixture response"}'
-    return RelayHttpProxyFixture(
-        request_id="relay-node-e2e-http-proxy",
-        method="POST",
-        path_category="loopback_node_api_fixture",
-        request_body_hash=_sha256_prefixed(request_body),
-        response_body_hash=_sha256_prefixed(response_body),
-        request_body_bytes=len(request_body),
-        response_body_bytes=len(response_body),
-        request_body_persisted=False,
-        response_body_persisted=False,
-        raw_body_included=False,
+def _build_transport_proxy_fixture(*, now: datetime) -> tuple[InMemoryRelayTransport, TransportProxyResult]:
+    transport = InMemoryRelayTransport()
+    transport.register_node(
+        node_id="relay-node-e2e-fixture",
+        key_id="relay-node-e2e-key",
+        capabilities=("mock_search",),
+        handler=lambda _body: b'{"ok":true,"summary":"fixture response"}',
+        heartbeat_at=now,
     )
-
-
-def _sha256_prefixed(value: bytes) -> str:
-    return f"sha256:{hashlib.sha256(value).hexdigest()}"
+    transport.start_session(
+        session_id="relay-node-e2e-session",
+        node_id="relay-node-e2e-fixture",
+        key_id="relay-node-e2e-key",
+        session_token="relay-node-e2e-token",
+        capabilities=("mock_search",),
+        expires_at=now + timedelta(minutes=55),
+    )
+    request_body = b'{"query":"local dev relay fixture"}'
+    result = transport.proxy_request(
+        session_token="relay-node-e2e-token",
+        session_id="relay-node-e2e-session",
+        request_id="relay-node-e2e-http-proxy",
+        capability="mock_search",
+        body=request_body,
+        now=now,
+    )
+    return transport, result
 
 
 def _nested(payload: Mapping[str, object], parent: str, key: str) -> object:

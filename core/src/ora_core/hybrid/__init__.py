@@ -125,6 +125,12 @@ from .relay_node_e2e import (
     HYBRID_RELAY_NODE_E2E_SCHEMA_VERSION,
     build_local_dev_relay_node_e2e_report,
 )
+from .transport import (
+    LOCAL_DEV_RELAY_TRANSPORT_SCHEMA_VERSION,
+    InMemoryRelayTransport,
+    LocalDevRelayTransport,
+    TransportProxyResult,
+)
 
 __all__ = [
     "DonationPolicyDecision",
@@ -140,6 +146,7 @@ __all__ = [
     "HYBRID_WIRE_COMPATIBLE_VERSIONS",
     "HYBRID_NODE_RELAY_CONTRACT_VERSION",
     "HYBRID_RELAY_NODE_E2E_SCHEMA_VERSION",
+    "LOCAL_DEV_RELAY_TRANSPORT_SCHEMA_VERSION",
     "RELAY_STATUS_SCHEMA_VERSION",
     "InMemoryNonceStore",
     "InMemoryTrustRegistry",
@@ -170,12 +177,15 @@ __all__ = [
     "LocalNodeSessionRef",
     "LocalNodeSessionRefValidation",
     "LocalNodeSessionCapabilityDecision",
+    "InMemoryRelayTransport",
+    "LocalDevRelayTransport",
     "MemoryCandidatePolicyDecision",
     "PairingChallenge",
     "PairingConsumptionResult",
     "StaticSignatureVerifier",
     "SignedLocalNodeManifest",
     "TrustRegistryEntry",
+    "TransportProxyResult",
     "build_improvement_proposal_fixture",
     "build_hybrid_wire_conformance_report",
     "build_hybrid_node_relay_contract_stub",

@@ -39,6 +39,9 @@ def test_hybrid_node_relay_contract_stub_is_public_safe_and_contract_only() -> N
     assert report["session_ref"]["bearer_token_hash_only"] is True
     assert report["local_dev_e2e"]["ok"] is True
     assert report["local_dev_e2e"]["network_required"] is False
+    assert report["local_dev_e2e"]["transport_schema_version"] == "yonerai-local-dev-relay-transport/v0.1"
+    assert report["local_dev_e2e"]["transport_mode"] == "local_dev_in_memory"
+    assert report["local_dev_e2e"]["transport_loopback_only"] is True
     assert report["local_dev_e2e"]["pairing_code_hash_only"] is True
     assert report["local_dev_e2e"]["session_token_hash_only"] is True
     assert report["local_dev_e2e"]["message_body_persisted"] is False
