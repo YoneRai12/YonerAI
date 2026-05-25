@@ -1802,7 +1802,9 @@ def _format_relay_status_pretty(report: dict[str, Any], *, color: ColorMode = "a
                 CliRow(
                     "relay_url_category",
                     connector.get("relay_url_category"),
-                    "ok" if connector.get("relay_url_category") in {"loopback", "auto_unresolved_no_probe"} else "fail",
+                    "ok"
+                    if connector.get("relay_url_category") in {"loopback", "auto_unresolved_no_probe", "auto_resolved_loopback"}
+                    else "fail",
                 ),
                 CliRow(
                     "node_api_base_url_category",

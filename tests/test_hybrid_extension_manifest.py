@@ -90,6 +90,24 @@ def test_extension_manifest_redacts_unknown_capability_and_version_inputs() -> N
     assert "future.private.capability" not in serialized
 
 
+def test_extension_manifest_distinguishes_unknown_capabilities_before_redaction() -> None:
+    manifest = build_extension_capability_manifest(
+        extension_id="unknown-extension",
+        declared_capabilities=("future.private.one", "future.private.two"),
+    )
+    manifest_payload = manifest.to_public_dict()
+    decision_payload = evaluate_extension_capability_manifest(manifest).to_public_dict()
+    serialized = json.dumps({"manifest": manifest_payload, "decision": decision_payload}, sort_keys=True)
+
+    assert manifest_payload["declared_capabilities"] == ["unknown_capability_redacted"]
+    assert decision_payload["status"] == "denied"
+    assert decision_payload["duplicate_capabilities"] == []
+    assert decision_payload["unknown_capabilities"] == ["unknown_capability_redacted"]
+    assert "duplicate_extension_capability_denied" not in decision_payload["reasons"]
+    assert "future_private_one" not in serialized
+    assert "future_private_two" not in serialized
+
+
 def test_extension_manifest_denies_unsafe_risk_owner_scope_and_audit_gap() -> None:
     manifest = build_extension_capability_manifest(
         extension_id="unsafe-risk-extension",

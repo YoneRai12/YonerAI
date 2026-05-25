@@ -634,6 +634,22 @@ def test_cli_relay_status_pretty_reports_non_actions(monkeypatch, capsys):
     assert "\033[" not in output
 
 
+def test_cli_relay_status_pretty_accepts_auto_resolved_loopback(monkeypatch, tmp_path, capsys):
+    cli = _load_cli_module()
+    url_file = tmp_path / "relay-url.txt"
+    url_file.write_text("http://127.0.0.1:9010\n", encoding="utf-8")
+    monkeypatch.setenv("ORA_RELAY_URL", "auto")
+    monkeypatch.setenv("ORA_RELAY_URL_FILE", str(url_file))
+
+    assert cli.main(["relay", "status", "--pretty", "--color", "never"]) == 0
+
+    output = capsys.readouterr().out
+    assert "relay_url_category" in output
+    assert "auto_resolved_loopback" in output
+    assert "[FAIL] relay_url_category" not in output
+    assert str(url_file) not in output
+
+
 def test_cli_relay_status_pretty_flags_public_exposure_request(monkeypatch, capsys):
     cli = _load_cli_module()
     monkeypatch.setenv("ORA_RELAY_EXPOSE_MODE", "cloudflared_quick")
