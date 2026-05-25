@@ -61,6 +61,8 @@ _REQUIRED_WORKSPACE_FIELDS = {
     "truncated",
 }
 _SECRET_VALUE_PATTERNS = (
+    re.compile(r"\bauthorization\s*:\s*bearer\s+[^\s,;]+", re.IGNORECASE),
+    re.compile(r"\bbearer\s+[A-Za-z0-9._-]{10,}\b", re.IGNORECASE),
     re.compile(
         r"\b[A-Za-z0-9_-]*(?:api[_-]?key|apikey|access[_-]?key|access[_-]?token|refresh[_-]?token|discord[_-]?token|private[_-]?key|client[_-]?secret|authorization|bearer|password|secret|token)[A-Za-z0-9_-]*\s*(?:=|:)\s*[^\s,;]+",
         re.IGNORECASE,
@@ -69,9 +71,9 @@ _SECRET_VALUE_PATTERNS = (
     re.compile(r"\bAIzaSy[A-Za-z0-9_-]{20,}\b"),
     re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
     re.compile(r"\bgh[pousr]_[A-Za-z0-9_]{20,}\b", re.IGNORECASE),
+    re.compile(r"\bgithub_pat_[A-Za-z0-9_]{20,}\b", re.IGNORECASE),
     re.compile(r"\bxox(?:b|p|a|r|s)-[A-Za-z0-9-]{10,}\b", re.IGNORECASE),
     re.compile(r"\b(?:rk|pk)_(?:live|test)_[A-Za-z0-9]{10,}\b", re.IGNORECASE),
-    re.compile(r"\bbearer\s+[A-Za-z0-9._-]{10,}\b", re.IGNORECASE),
     re.compile(r"\b[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{20,}\b"),
 )
 _SECRET_KEYWORD_MARKERS = (
@@ -158,6 +160,7 @@ def _is_secret_like_keyword(word: str) -> bool:
             "ghu_",
             "ghs_",
             "ghr_",
+            "github_pat_",
             "xoxb-",
             "xoxp-",
             "xoxa-",
