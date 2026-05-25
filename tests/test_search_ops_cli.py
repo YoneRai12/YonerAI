@@ -68,12 +68,36 @@ def test_trusted_cli_import_paths_keep_core_before_repo_and_cwd(tmp_path, monkey
 
     repo_root = Path(cli.__file__).resolve().parents[3]
     core_src = repo_root / "core" / "src"
+    monkeypatch.setattr(sys, "path", list(sys.path))
     monkeypatch.syspath_prepend(str(tmp_path))
 
     cli._prepare_trusted_cli_import_paths()
 
     assert sys.path[0] == str(core_src)
     assert sys.path[1] == str(repo_root)
+    assert sys.path.index(str(core_src)) < sys.path.index(str(repo_root))
+    assert sys.path.index(str(repo_root)) < sys.path.index(str(tmp_path))
+
+
+def test_repo_self_checks_preserve_core_import_precedence(tmp_path, monkeypatch) -> None:
+    _prepare_paths()
+    from yonerai_cli import cli
+
+    repo_root = Path(cli.__file__).resolve().parents[3]
+    core_src = repo_root / "core" / "src"
+    monkeypatch.setattr(sys, "path", list(sys.path))
+    monkeypatch.syspath_prepend(str(tmp_path))
+
+    redaction_check = cli._run_redaction_self_check()
+    mcp_check = cli._run_mcp_deny_policy_self_check()
+
+    assert redaction_check["ok"] is True
+    assert redaction_check["status"] == "ok"
+    assert redaction_check["network_required"] is False
+    assert mcp_check["ok"] is True
+    assert mcp_check["status"] == "ok"
+    assert mcp_check["network_required"] is False
+
     assert sys.path.index(str(core_src)) < sys.path.index(str(repo_root))
     assert sys.path.index(str(repo_root)) < sys.path.index(str(tmp_path))
 
