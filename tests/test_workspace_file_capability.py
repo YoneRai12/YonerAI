@@ -162,7 +162,7 @@ def test_cli_ask_file_records_redacted_workspace_access_event_in_ledger(tmp_path
     access_event = next(event for event in events if event["name"] == "workspace_file_access")
     assert access_event["status"] == "ok"
     assert "file=summary.txt" in access_event["summary"]
-    assert "sha256_prefix=" in access_event["summary"]
+    assert "sha256_prefix=" not in access_event["summary"]
     assert "raw_content_persisted=false" in access_event["summary"]
     assert "public alpha2 notes" not in json.dumps(output)
     assert str(tmp_path) not in captured.out

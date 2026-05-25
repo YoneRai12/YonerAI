@@ -136,7 +136,6 @@ def build_workspace_file_access_event(context: WorkspaceFileContext) -> dict[str
             f"size_bytes={context.size_bytes} "
             f"line_count={context.line_count} "
             f"word_count={context.word_count} "
-            f"sha256_prefix={context.sha256_prefix} "
             f"truncated={str(context.truncated).lower()} "
             "raw_content_persisted=false"
         ),
