@@ -43,6 +43,8 @@ yonerai start --guided --json
 yonerai demo --pretty
 yonerai doctor --pretty --lang ja
 yonerai ask "hello" --provider mock --json
+yonerai hybrid run --pretty
+yonerai hybrid run --json
 yonerai ask "use this selected sample file" --file sample.txt --workspace .yonerai-sample-workspace --provider mock --json
 yonerai ask "hello" --provider mock --json --ledger .yonerai-runs.jsonl
 yonerai runs list --ledger .yonerai-runs.jsonl --json

@@ -32,6 +32,8 @@ yonerai status --pretty
 yonerai manifest verify releases/manifest.example.json --pretty
 yonerai plan "summarize public docs" --json
 yonerai ask "summarize public docs" --provider mock --json
+yonerai hybrid run --pretty
+yonerai hybrid run --json
 yonerai search mock "YonerAI alpha2" --json
 yonerai ops plan git-status --json
 yonerai install plan --manifest releases/manifest.example.json --json
@@ -49,6 +51,7 @@ yonerai start --guided --json
 yonerai demo --pretty
 yonerai doctor --pretty --lang ja
 yonerai ask "hello" --provider mock --json
+yonerai hybrid run --pretty
 yonerai ask "use this selected sample file" --file sample.txt --workspace .yonerai-sample-workspace --provider mock --json
 yonerai ask "hello" --provider mock --json --ledger .yonerai-runs.jsonl
 yonerai runs list --ledger .yonerai-runs.jsonl --json
@@ -88,6 +91,9 @@ What this first path explains:
 - `yonerai demo --pretty` shows the current alpha slice without credentials.
 - `yonerai doctor --pretty --lang ja` checks local setup without installing or
   mutating PATH.
+- `yonerai hybrid run --pretty` runs a local-dev Hybrid slice: route preview,
+  verified test Local Node session, in-memory relay transport, mock provider
+  execution, redacted ledger events, and an Oracle stub request/result envelope.
 - Local LLM detection is loopback-only and metadata-only.
 - Mock `ask` returns a public-safe `run_id`.
 - `--ledger <local.jsonl>` is optional and writes redacted local-only run
@@ -197,6 +203,10 @@ What works today:
 - run `yonerai manifest verify releases/manifest.example.json --pretty` for local manifest contract verification without downloading or installing anything
 - run `yonerai plan "task"` and `yonerai ask "task" --provider mock` for public-safe planning and mock provider execution
 - run `yonerai ask "use this selected file" --file <path> --workspace <dir> --provider mock` for explicit workspace-only text file access guard behavior
+- run `yonerai hybrid run --pretty` for a local-dev Hybrid execution slice that
+  keeps execution in process/loopback-only, records redacted run events, and
+  demonstrates Oracle stub envelopes without production Oracle or official cloud
+  runtime
 - run `yonerai search mock "query"` for deterministic mock search fixtures
 - run `yonerai ops plan git-status` for SafeShell diagnostic planning without arbitrary shell execution
 - run `yonerai memory add/list/delete/export --store <local.jsonl>` for explicit opt-in local-only memory records

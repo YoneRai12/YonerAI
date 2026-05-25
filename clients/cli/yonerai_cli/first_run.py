@@ -378,6 +378,24 @@ def _guided_actions(local_llm: Mapping[str, object]) -> list[dict[str, object]]:
             "requires_live": False,
         },
         {
+            "id": "hybrid_local_dev_slice",
+            "title": "Hybrid local-dev execution slice",
+            "mode": "local_dev_only",
+            "commands": [
+                "yonerai hybrid run --pretty",
+                "yonerai hybrid run --json",
+            ],
+            "does": (
+                "Runs route preview, verified test Local Node session, in-memory relay transport, "
+                "mock provider execution, redacted ledger events, and an Oracle stub envelope locally."
+            ),
+            "does_not": (
+                "Does not use production Oracle, official cloud runtime, public tunnels, live Discord, "
+                "external providers by default, or message-body persistence in the relay."
+            ),
+            "requires_live": False,
+        },
+        {
             "id": "limitations",
             "title": "Boundaries to keep in mind",
             "mode": "limitations",
@@ -471,6 +489,12 @@ def _first_run_steps(first_ask: Mapping[str, object]) -> list[dict[str, object]]
             "does": "Runs the first safe ask path.",
             "does_not": "Does not enable unsupported production features.",
         },
+        {
+            "step": 5,
+            "command": "yonerai hybrid run --pretty",
+            "does": "Runs the local-dev Hybrid slice end to end with mock provider execution and Oracle stub envelopes.",
+            "does_not": "Does not contact production Oracle, Official Managed Cloud, live Discord, or public tunnels.",
+        },
     ]
 
 
@@ -482,6 +506,7 @@ def _current_capabilities() -> list[str]:
         "Loopback-only Local LLM provider execution when explicitly enabled with --live.",
         "OpenAI-compatible provider path behind explicit --live and environment opt-in.",
         "Optional redacted local run ledger via --ledger.",
+        "Local-dev Hybrid execution slice through route preview, in-memory relay, mock provider, and Oracle stub envelopes.",
     ]
 
 

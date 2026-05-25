@@ -551,6 +551,7 @@ def _hybrid_trust_checks() -> tuple[dict[str, object], ...]:
         build_local_dev_enrolled_session_fixture,
         build_hybrid_node_relay_contract_stub,
         build_hybrid_wire_conformance_report,
+        build_hybrid_execution_slice_report,
         build_oracle_stub_queue_report,
         build_relay_status_report,
         build_test_local_node_manifest,
@@ -642,12 +643,14 @@ def _hybrid_trust_checks() -> tuple[dict[str, object], ...]:
     wire_conformance = build_hybrid_wire_conformance_report()
     relay_status = build_relay_status_report({})
     node_relay_contract = build_hybrid_node_relay_contract_stub({})
+    hybrid_execution_slice = build_hybrid_execution_slice_report()
     oracle_stub = build_oracle_stub_queue_report()
     oracle_stub_private = build_oracle_stub_queue_report("hard public reasoning over my private files")
     assert trust_status.local_node.verification_state == "present_verified"
     assert wire_conformance["ok"] is True
     assert relay_status["ok"] is True
     assert node_relay_contract["ok"] is True
+    assert hybrid_execution_slice["ok"] is True
     assert oracle_stub["ok"] is True and oracle_stub["response"]["status"] == "completed"
     assert oracle_stub_private["ok"] is False and oracle_stub_private["response"]["status"] == "denied"
     assert pairing_once.accepted is True and pairing_reuse.accepted is False
@@ -714,6 +717,25 @@ def _hybrid_trust_checks() -> tuple[dict[str, object], ...]:
             "official_cloud_runtime_implemented": oracle_stub["official_cloud_runtime_implemented"],
             "raw_prompt_included": oracle_stub["response"]["raw_prompt_included"],
             "private_file_content_included": oracle_stub["response"]["private_file_content_included"],
+        },
+        {
+            "name": "real_hybrid_execution_slice",
+            "status": "ok",
+            "schema_version": hybrid_execution_slice["schema_version"],
+            "selected_route_strategy": hybrid_execution_slice["selected_route"]["route_strategy"],
+            "provider": hybrid_execution_slice["provider_execution"]["response"]["provider"],
+            "provider_run_status": hybrid_execution_slice["provider_execution"]["run"]["status"],
+            "provider_run_id": hybrid_execution_slice["run_ids"]["provider_run_id"],
+            "oracle_run_id": hybrid_execution_slice["run_ids"]["oracle_run_id"],
+            "oracle_status": hybrid_execution_slice["oracle_stub_execution"]["response"]["status"],
+            "relay_proxy_status": hybrid_execution_slice["local_node_runtime"]["http_proxy_fixture"]["status"],
+            "route_matrix_count": len(hybrid_execution_slice["route_matrix"]),
+            "loopback_only": hybrid_execution_slice["boundaries"]["loopback_only"],
+            "in_process_relay_transport": hybrid_execution_slice["boundaries"]["in_process_relay_transport"],
+            "private_file_content_sent_to_oracle_stub": hybrid_execution_slice["boundaries"]["private_file_content_sent_to_oracle_stub"],
+            "raw_prompt_sent_to_oracle_stub": hybrid_execution_slice["boundaries"]["raw_prompt_sent_to_oracle_stub"],
+            "production_oracle_used": hybrid_execution_slice["boundaries"]["production_oracle_used"],
+            "official_cloud_runtime_implemented": hybrid_execution_slice["boundaries"]["official_cloud_runtime_implemented"],
         },
         {"name": "signed_manifest_verified", "status": "ok", "verified": True},
         {"name": "enrollment_session_available", "status": "ok", "session_bound": True},
@@ -1039,6 +1061,17 @@ def format_pretty_demo(result: dict[str, object]) -> str:
                 "response_status",
                 "private_candidate_denied",
                 "provider_call_performed",
+                "selected_route_strategy",
+                "provider_run_status",
+                "provider_run_id",
+                "oracle_run_id",
+                "oracle_status",
+                "relay_proxy_status",
+                "route_matrix_count",
+                "loopback_only",
+                "in_process_relay_transport",
+                "private_file_content_sent_to_oracle_stub",
+                "raw_prompt_sent_to_oracle_stub",
                 "raw_prompt_included",
                 "private_file_content_included",
                 "production_oracle_used",

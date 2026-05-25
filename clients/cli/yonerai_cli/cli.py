@@ -230,6 +230,19 @@ def _build_doctor_report(*, command: str = "yonerai doctor") -> dict[str, Any]:
             "production_oracle_used": False,
             "official_cloud_runtime_implemented": False,
         }
+    try:
+        from ora_core.hybrid import build_hybrid_execution_slice_status_report
+
+        hybrid_execution_slice = build_hybrid_execution_slice_status_report()
+    except ImportError:
+        hybrid_execution_slice = {
+            "schema_version": "yonerai-hybrid-execution-slice/v0.1",
+            "ok": False,
+            "error": "hybrid_execution_slice_unavailable",
+            "network_required": False,
+            "production_oracle_used": False,
+            "official_cloud_runtime_implemented": False,
+        }
     python_supported = sys.version_info >= (3, 11)
     manifest_contract_valid = bool(manifest_report.get("contract_valid", manifest_report.get("ok")))
     system_checks = {
@@ -241,6 +254,7 @@ def _build_doctor_report(*, command: str = "yonerai doctor") -> dict[str, Any]:
     relay_ok = bool(relay_status.get("ok"))
     hybrid_node_relay_ok = bool(hybrid_node_relay_contract.get("ok"))
     oracle_stub_ok = bool(oracle_stub.get("ok"))
+    hybrid_execution_slice_ok = bool(hybrid_execution_slice.get("ok"))
     return {
         "ok": (
             manifest_contract_valid
@@ -250,6 +264,7 @@ def _build_doctor_report(*, command: str = "yonerai doctor") -> dict[str, Any]:
             and relay_ok
             and hybrid_node_relay_ok
             and oracle_stub_ok
+            and hybrid_execution_slice_ok
         ),
         "command": command,
         "schema_version": "yonerai-doctor/v1",
@@ -290,6 +305,7 @@ def _build_doctor_report(*, command: str = "yonerai doctor") -> dict[str, Any]:
         "relay_status": relay_status,
         "hybrid_node_relay_contract": hybrid_node_relay_contract,
         "oracle_stub": oracle_stub,
+        "hybrid_execution_slice": hybrid_execution_slice,
         "provider_runtime_e2e_fixtures": _provider_runtime_e2e_fixture_report(),
         "system_checks": system_checks,
         "errors": manifest_report.get("errors", []),
@@ -357,6 +373,26 @@ def _build_oracle_report(args: argparse.Namespace) -> dict[str, Any]:
         ledger = build_run_ledger_from_env(args.ledger_path) if args.ledger_path else None
         return build_oracle_stub_queue_report(task, ledger=ledger)
     raise CliError("unknown oracle command", exit_code=2)
+
+
+def _build_hybrid_report(args: argparse.Namespace) -> dict[str, Any]:
+    try:
+        _prepare_trusted_cli_import_paths()
+        from ora_core.execution import build_run_ledger_from_env
+        from ora_core.hybrid import DEFAULT_HYBRID_EXECUTION_TASK, build_hybrid_execution_slice_report
+    except Exception as exc:
+        raise CliError("Hybrid execution slice is unavailable.", exit_code=1) from exc
+    if args.hybrid_command != "run":
+        raise CliError("unknown hybrid command", exit_code=2)
+    task = " ".join(args.task).strip() or DEFAULT_HYBRID_EXECUTION_TASK
+    ledger = build_run_ledger_from_env(args.ledger_path)
+    return build_hybrid_execution_slice_report(
+        task,
+        provider=args.provider,
+        live=args.live,
+        ledger=ledger,
+        env=os.environ,
+    )
 
 
 def _run_redaction_self_check() -> dict[str, Any]:
@@ -908,6 +944,12 @@ def _bool_text(value: object) -> str:
     return "true" if value is True else "false" if value is False else str(value)
 
 
+def _nested_dict(value: object, key: str) -> object:
+    if not isinstance(value, dict):
+        return None
+    return value.get(key)
+
+
 def _run_public_mvp_smoke(*, json_output: bool = False, pretty: bool = False) -> int:
     try:
         _prepare_trusted_cli_import_paths()
@@ -1134,6 +1176,72 @@ def _format_oracle_pretty(report: dict[str, Any], *, color: ColorMode = "auto") 
         ),
         color=color,
     )
+
+
+def _print_hybrid_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -> None:
+    print(_format_hybrid_pretty(report, color=color))
+
+
+def _format_hybrid_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -> str:
+    provider = report.get("provider_execution") if isinstance(report.get("provider_execution"), dict) else {}
+    provider_run = provider.get("run") if isinstance(provider.get("run"), dict) else {}
+    provider_response = provider.get("response") if isinstance(provider.get("response"), dict) else {}
+    selected_route = report.get("selected_route") if isinstance(report.get("selected_route"), dict) else {}
+    local_node = report.get("local_node_runtime") if isinstance(report.get("local_node_runtime"), dict) else {}
+    proxy = local_node.get("http_proxy_fixture") if isinstance(local_node.get("http_proxy_fixture"), dict) else {}
+    oracle = report.get("oracle_stub_execution") if isinstance(report.get("oracle_stub_execution"), dict) else {}
+    oracle_request = oracle.get("request") if isinstance(oracle.get("request"), dict) else {}
+    boundaries = report.get("boundaries") if isinstance(report.get("boundaries"), dict) else {}
+    route_rows = tuple(
+        CliRow(
+            str(item.get("name")),
+            str(item.get("route_strategy")),
+            "ok",
+            note=f"privacy={item.get('privacy_class')} approval={item.get('approval_state')}",
+        )
+        for item in report.get("route_matrix", [])
+        if isinstance(item, dict)
+    )
+    sections = (
+        CliSection(
+            "Hybrid run",
+            (
+                CliRow("status", "ok" if report.get("ok") else "failed", "ok" if report.get("ok") else "fail"),
+                CliRow("selected_route", selected_route.get("route_strategy"), "ok"),
+                CliRow("provider_run_id", provider_run.get("run_id"), "ok" if provider_run.get("run_id") else "warn"),
+                CliRow("provider", provider_response.get("provider") or "none", "ok" if provider_response else "warn"),
+            ),
+        ),
+        CliSection(
+            "Local-dev node and relay",
+            (
+                CliRow("local_node_runtime", local_node.get("ok"), "ok" if local_node.get("ok") else "fail"),
+                CliRow("relay_loopback_only", _nested_dict(local_node.get("relay"), "loopback_only"), "ok"),
+                CliRow("proxy_status", proxy.get("status"), "ok" if proxy.get("status") == "completed" else "warn"),
+                CliRow("message_body_persisted", boundaries.get("message_body_persisted"), "fail" if boundaries.get("message_body_persisted") else "ok"),
+            ),
+        ),
+        CliSection(
+            "Oracle stub",
+            (
+                CliRow("status", oracle.get("status"), "ok" if oracle.get("ok") else "warn"),
+                CliRow("run_id", oracle_request.get("run_id"), "ok" if oracle_request.get("run_id") else "warn"),
+                CliRow("route_strategy", oracle_request.get("route_strategy"), "ok"),
+                CliRow("raw_prompt_sent", boundaries.get("raw_prompt_sent_to_oracle_stub"), "fail" if boundaries.get("raw_prompt_sent_to_oracle_stub") else "ok"),
+                CliRow(
+                    "private_file_sent",
+                    boundaries.get("private_file_content_sent_to_oracle_stub"),
+                    "fail" if boundaries.get("private_file_content_sent_to_oracle_stub") else "ok",
+                ),
+            ),
+        ),
+        CliSection("Route matrix", route_rows),
+        CliSection(
+            "Non-actions",
+            tuple(CliRow("boundary", item, "ok") for item in report.get("actions_not_performed", [])),
+        ),
+    )
+    return render_report("YonerAI Hybrid local-dev run", sections, color=color)
 
 
 def _build_node_status_report() -> dict[str, Any]:
@@ -2302,6 +2410,21 @@ def build_parser() -> argparse.ArgumentParser:
     oracle_queue_output.add_argument("--pretty", action="store_true", help="Print a readable Oracle stub queue result.")
     oracle_queue.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
 
+    hybrid = subcommands.add_parser("hybrid", help="Run public-safe local-dev Hybrid execution slices.")
+    hybrid_subcommands = hybrid.add_subparsers(dest="hybrid_command", required=True)
+    hybrid_run = hybrid_subcommands.add_parser(
+        "run",
+        help="Run route, Local Node relay fixture, provider execution, and Oracle stub envelope locally.",
+    )
+    hybrid_run.add_argument("task", nargs="*", help="Public task text. Defaults to a safe Hybrid slice fixture.")
+    hybrid_run.add_argument("--provider", choices=("mock", "local"), default="mock", help="Provider to execute locally. Default: mock.")
+    hybrid_run.add_argument("--live", action="store_true", help="Allow explicit loopback-only local provider execution.")
+    hybrid_run.add_argument("--ledger-path", "--ledger", dest="ledger_path", help="Optional redacted JSONL run ledger path. Disabled by default.")
+    hybrid_run_output = hybrid_run.add_mutually_exclusive_group()
+    hybrid_run_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
+    hybrid_run_output.add_argument("--pretty", action="store_true", help="Print a readable Hybrid execution report.")
+    hybrid_run.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
+
     plan = subcommands.add_parser("plan", help="Preview classification, route, provider, and approval without executing.")
     plan.add_argument("task", nargs="+")
     plan_output = plan.add_mutually_exclusive_group()
@@ -2518,6 +2641,13 @@ def run(argv: list[str] | None = None) -> int:
         report = _build_oracle_report(args)
         if args.pretty:
             _print_oracle_pretty(report, color=args.color)
+        else:
+            _print_json(report)
+        return 0 if report["ok"] else 1
+    if args.command == "hybrid":
+        report = _build_hybrid_report(args)
+        if args.pretty:
+            _print_hybrid_pretty(report, color=args.color)
         else:
             _print_json(report)
         return 0 if report["ok"] else 1
