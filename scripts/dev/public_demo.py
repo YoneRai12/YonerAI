@@ -193,6 +193,10 @@ def _route_preview_checks() -> tuple[dict[str, object], ...]:
     from ora_core.route_preview import preview_route
 
     public_docs = preview_route("summarize public docs", mode="official_managed_cloud")
+    public_reasoning = preview_route(
+        "hard public reasoning over public API docs",
+        mode="official_hybrid_private",
+    )
     private_file = preview_route(
         "read my local file",
         mode="official_hybrid_private",
@@ -215,11 +219,19 @@ def _route_preview_checks() -> tuple[dict[str, object], ...]:
         risk_hint="dangerous",
     )
     assert public_docs.route == "managed_cloud_contract_only"
+    assert public_reasoning.route == "cloud_contract_candidate"
     assert private_file.route == "hybrid_coordination_preview"
     assert private_file.session_verified is True
     assert dangerous_shell.approval_required is True
     return (
         {"name": "public_docs_task", "status": "ok", "route": public_docs.route},
+        {
+            "name": "public_reasoning_task",
+            "status": "ok",
+            "route": public_reasoning.route,
+            "route_strategy": public_reasoning.to_public_dict()["route_strategy"],
+            "private_file_content_sent_to_cloud": False,
+        },
         {
             "name": "private_local_file_task",
             "status": "ok",
@@ -655,6 +667,10 @@ def _hybrid_trust_checks() -> tuple[dict[str, object], ...]:
             "message_body_persisted": wire_conformance["message_body_persisted"],
             "audit_event_schema": wire_conformance["audit_event_schema"],
             "route_preview_fixture_supported": wire_conformance["route_preview_fixture_supported"],
+            "orchestration_response_schema": wire_conformance["official_orchestration_stub"]["response"]["schema_name"],
+            "orchestration_public_execution": wire_conformance["official_orchestration_stub"]["response"][
+                "public_repo_execution_available"
+            ],
             "official_cloud_runtime_implemented": wire_conformance["official_cloud_runtime_implemented"],
             "network_required": wire_conformance["network_required"],
         },

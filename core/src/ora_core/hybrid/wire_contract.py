@@ -235,9 +235,16 @@ class LocalNodeError:
 @dataclass(frozen=True)
 class OfficialOrchestrationStubRequest:
     request_id: str
-    requested_capability: WireCapabilityName
+    requested_capability: str
     task_summary: str
     session_ref: LocalNodeSessionRef | None
+    route_strategy: str
+    approval_required: bool
+    audit_event_required: bool
+    args_hash_required: bool
+    private_file_content_included: bool
+    raw_prompt_included: bool
+    provider_key_included: bool
     dry_run: bool
     official_cloud_runtime_implemented: bool
     production_oracle_used: bool
@@ -248,6 +255,32 @@ class OfficialOrchestrationStubRequest:
         payload = asdict(self)
         payload["session_ref"] = self.session_ref.to_public_dict() if self.session_ref else None
         return payload
+
+
+@dataclass(frozen=True)
+class OfficialOrchestrationStubResponse:
+    response_id: str
+    request_id: str
+    status: str
+    route_strategy: str
+    accepted_for_private_implementation: bool
+    public_repo_execution_available: bool
+    disabled_reason: str
+    controlled_error_schema: str
+    approval_required: bool
+    audit_event_required: bool
+    args_hash_required: bool
+    private_file_content_included: bool
+    raw_prompt_included: bool
+    provider_key_included: bool
+    message_body_persisted: bool
+    official_cloud_runtime_implemented: bool
+    production_oracle_used: bool
+    network_required: bool
+    schema_name: str = "OfficialOrchestrationStubResponse"
+
+    def to_public_dict(self) -> dict[str, object]:
+        return asdict(self)
 
 
 @dataclass(frozen=True)
@@ -464,7 +497,7 @@ def build_node_error(*, code: str, message: str, retryable: bool = False) -> Loc
 
 def build_official_orchestration_stub_request(
     *,
-    requested_capability: WireCapabilityName = "workspace_file_access",
+    requested_capability: str = "workspace_file_access",
     task: str = "Preview workspace file access through Local Node contract.",
     session_ref: LocalNodeSessionRef | None = None,
     request_id: str = "official-stub-request-dev-fixture",
@@ -474,7 +507,42 @@ def build_official_orchestration_stub_request(
         requested_capability=requested_capability,
         task_summary=_wire_summary(task),
         session_ref=session_ref,
+        route_strategy=_orchestration_route_strategy(requested_capability),
+        approval_required=True,
+        audit_event_required=True,
+        args_hash_required=True,
+        private_file_content_included=False,
+        raw_prompt_included=False,
+        provider_key_included=False,
         dry_run=True,
+        official_cloud_runtime_implemented=False,
+        production_oracle_used=False,
+        network_required=False,
+    )
+
+
+def build_official_orchestration_stub_response(
+    *,
+    request: OfficialOrchestrationStubRequest | None = None,
+    response_id: str = "official-stub-response-dev-fixture",
+) -> OfficialOrchestrationStubResponse:
+    request = request or build_official_orchestration_stub_request()
+    return OfficialOrchestrationStubResponse(
+        response_id=response_id,
+        request_id=request.request_id,
+        status="contract_stub_only",
+        route_strategy=request.route_strategy,
+        accepted_for_private_implementation=True,
+        public_repo_execution_available=False,
+        disabled_reason="production_oracle_not_implemented_in_public_repo",
+        controlled_error_schema="LocalNodeError",
+        approval_required=request.approval_required,
+        audit_event_required=request.audit_event_required,
+        args_hash_required=request.args_hash_required,
+        private_file_content_included=False,
+        raw_prompt_included=False,
+        provider_key_included=False,
+        message_body_persisted=False,
         official_cloud_runtime_implemented=False,
         production_oracle_used=False,
         network_required=False,
@@ -539,6 +607,7 @@ def build_local_node_status_report(
 def build_pairing_dry_run_report() -> dict[str, object]:
     session_ref = build_local_node_session_ref()
     request = build_official_orchestration_stub_request(session_ref=session_ref)
+    response = build_official_orchestration_stub_response(request=request)
     decision = evaluate_wire_request(
         manifest=build_local_node_capability_manifest(),
         session_ref=session_ref,
@@ -555,6 +624,7 @@ def build_pairing_dry_run_report() -> dict[str, object]:
         "session_token_hash_only": True,
         "message_body_persisted": False,
         "official_orchestration_stub_request": request.to_public_dict(),
+        "official_orchestration_stub_response": response.to_public_dict(),
         "trust_decision": decision.to_public_dict(),
         "actions_not_performed": _wire_non_actions(),
     }
@@ -563,6 +633,12 @@ def build_pairing_dry_run_report() -> dict[str, object]:
 def build_hybrid_wire_conformance_report() -> dict[str, object]:
     manifest = build_local_node_capability_manifest()
     active_session = build_local_node_session_ref()
+    orchestration_request = build_official_orchestration_stub_request(
+        requested_capability="cloud_orchestration",
+        task="Hard public reasoning over public docs through cloud contract candidate.",
+        session_ref=active_session,
+    )
+    orchestration_response = build_official_orchestration_stub_response(request=orchestration_request)
     posture_cases = _node_posture_cases()
     extension_cases = _extension_boundary_cases()
     trust_cases = (
@@ -655,7 +731,12 @@ def build_hybrid_wire_conformance_report() -> dict[str, object]:
             "LocalNodeRunResult",
             "LocalNodeError",
             "OfficialOrchestrationStubRequest",
+            "OfficialOrchestrationStubResponse",
         ],
+        "official_orchestration_stub": {
+            "request": orchestration_request.to_public_dict(),
+            "response": orchestration_response.to_public_dict(),
+        },
         "capabilities": [capability.name for capability in manifest.capabilities],
         "trust_states": [
             {
@@ -891,6 +972,15 @@ def route_preview_inputs_from_node_status(local_node: Mapping[str, object]) -> d
 def wire_capability_to_route_capability(capability: str) -> str:
     normalized = capability.strip().lower().replace("-", "_").replace(".", "_")
     return _ROUTE_CAPABILITY_ALIASES.get(normalized, normalized)
+
+
+def _orchestration_route_strategy(requested_capability: str) -> str:
+    normalized = requested_capability.strip().lower().replace("-", "_").replace(".", "_")
+    if normalized in {"cloud_orchestration", "public_ui_sync_support", "self_evolution_proposals"}:
+        return "cloud_contract_candidate"
+    if normalized in {"workspace_file_access", "local_model", "tool_boundary", "ledger", "dangerous_operation"}:
+        return "hybrid"
+    return "deny"
 
 
 def _wire_decision(

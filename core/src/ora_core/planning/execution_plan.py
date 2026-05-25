@@ -249,7 +249,7 @@ def _route_risk_hint(classification: TaskClassification) -> str | None:
 
 def _surface_for_route(route: dict[str, object]) -> EstimatedExecutionSurface:
     route_name = str(route.get("route") or "")
-    if route_name == "managed_cloud_contract_only":
+    if route_name in {"managed_cloud_contract_only", "cloud_contract_candidate"}:
         return "cloud_contract"
     if route_name in {"local_node_required", "enrolled_verified_node_required", "hybrid_coordination_preview"}:
         return "local_node"
