@@ -16,12 +16,14 @@ from .local_node_manifest import (
 
 
 LOCAL_NODE_ENROLLMENT_SCHEMA_VERSION = "yonerai-local-node-enrollment-test/v1"
+DEFAULT_ENROLLMENT_HEARTBEAT_TIMEOUT_SEC = 90
 
 EnrollmentState = Literal[
     "not_enrolled",
     "pairing_pending",
     "enrolled_unverified",
     "enrolled_verified",
+    "heartbeat_stale",
     "expired",
     "revoked",
 ]
@@ -39,6 +41,7 @@ SessionCapabilityStatus = Literal[
     "allowed",
     "approval_required",
     "not_verified",
+    "heartbeat_stale",
     "expired",
     "revoked",
     "capability_not_declared",
@@ -98,6 +101,8 @@ class LocalNodeEnrollmentSession:
     approval_required_capabilities: tuple[str, ...]
     enrollment_state: EnrollmentState
     signed_origin_verified: bool
+    last_heartbeat_at: str = ""
+    heartbeat_timeout_seconds: int = DEFAULT_ENROLLMENT_HEARTBEAT_TIMEOUT_SEC
     trusted: bool = False
     non_production: bool = True
     production_trust_material: bool = False
@@ -266,6 +271,8 @@ def consume_pairing_code(
         ),
         enrollment_state=enrollment_state,
         signed_origin_verified=verification.verified,
+        last_heartbeat_at=consumed_at,
+        heartbeat_timeout_seconds=DEFAULT_ENROLLMENT_HEARTBEAT_TIMEOUT_SEC,
         trusted=False,
         production_trust_material=False,
     )
@@ -283,6 +290,14 @@ def revoke_enrollment_session(session: LocalNodeEnrollmentSession) -> LocalNodeE
     return replace(session, revoked=True, enrollment_state="revoked")
 
 
+def record_enrollment_session_heartbeat(
+    session: LocalNodeEnrollmentSession,
+    *,
+    at: datetime,
+) -> LocalNodeEnrollmentSession:
+    return replace(session, last_heartbeat_at=_format_datetime(at))
+
+
 def enrollment_session_state(
     session: LocalNodeEnrollmentSession,
     *,
@@ -293,6 +308,8 @@ def enrollment_session_state(
     current = _current_time(now)
     if current >= parse_envelope_datetime(session.session_expires_at):
         return "expired"
+    if _session_heartbeat_stale(session, current=current):
+        return "heartbeat_stale"
     return session.enrollment_state
 
 
@@ -320,6 +337,15 @@ def evaluate_enrollment_session_capability(
             session_state=state,
             capability=capability,
             reasons=("session_expired",),
+        )
+    if state == "heartbeat_stale":
+        return LocalNodeSessionCapabilityDecision(
+            status="heartbeat_stale",
+            allowed=False,
+            approval_required=True,
+            session_state=state,
+            capability=capability,
+            reasons=("session_heartbeat_stale",),
         )
     if state != "enrolled_verified":
         return LocalNodeSessionCapabilityDecision(
@@ -382,3 +408,13 @@ def _session_token_hash(*, session_id: str, session_token: str | None) -> str | 
         return None
     payload = f"{session_id}:{session_token}".encode("utf-8")
     return f"sha256:{hashlib.sha256(payload).hexdigest()}"
+
+
+def _session_heartbeat_stale(session: LocalNodeEnrollmentSession, *, current: datetime) -> bool:
+    if session.heartbeat_timeout_seconds <= 0 or not session.last_heartbeat_at:
+        return True
+    try:
+        last_heartbeat = parse_envelope_datetime(session.last_heartbeat_at)
+    except ValueError:
+        return True
+    return (current - last_heartbeat).total_seconds() > session.heartbeat_timeout_seconds

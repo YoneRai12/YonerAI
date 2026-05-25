@@ -130,6 +130,40 @@ def test_invalid_or_expired_pairing_code_is_rejected() -> None:
     assert expired.challenge.enrollment_state == "expired"
 
 
+def test_node_and_key_mismatch_are_rejected_without_session() -> None:
+    enrollment, _manifest_mod, signed, public_key_b64, challenge = _signed_manifest_fixture()
+
+    wrong_node = enrollment.consume_pairing_code(
+        replace(
+            challenge,
+            node_id="other-node",
+            pairing_code_hash=enrollment.pairing_code_hash(
+                challenge_id=challenge.challenge_id,
+                node_id="other-node",
+                pairing_code=PAIRING_CODE,
+            ),
+        ),
+        pairing_code=PAIRING_CODE,
+        signed_manifest=signed,
+        public_key_b64=public_key_b64,
+        now=NOW,
+    )
+    wrong_key = enrollment.consume_pairing_code(
+        replace(challenge, key_id="other-key"),
+        pairing_code=PAIRING_CODE,
+        signed_manifest=signed,
+        public_key_b64=public_key_b64,
+        now=NOW,
+    )
+
+    assert wrong_node.accepted is False
+    assert wrong_node.status == "node_mismatch"
+    assert wrong_node.session is None
+    assert wrong_key.accepted is False
+    assert wrong_key.status == "key_mismatch"
+    assert wrong_key.session is None
+
+
 def test_enrollment_without_verified_manifest_is_gated() -> None:
     enrollment, _manifest_mod, signed, public_key_b64, challenge = _signed_manifest_fixture()
     tampered = replace(
@@ -185,6 +219,37 @@ def test_revoked_or_expired_session_denies_local_node_work() -> None:
     assert revoked_decision.status == "revoked"
     assert expired_decision.allowed is False
     assert expired_decision.status == "expired"
+
+
+def test_stale_heartbeat_denies_until_session_heartbeat_refresh() -> None:
+    enrollment, _manifest_mod, signed, public_key_b64, challenge = _signed_manifest_fixture()
+    result = enrollment.consume_pairing_code(
+        challenge,
+        pairing_code=PAIRING_CODE,
+        signed_manifest=signed,
+        public_key_b64=public_key_b64,
+        now=NOW,
+    )
+    assert result.session is not None
+
+    stale_at = datetime(2026, 5, 21, 0, 7, tzinfo=timezone.utc)
+    stale_decision = enrollment.evaluate_enrollment_session_capability(
+        result.session,
+        "private_files",
+        now=stale_at,
+    )
+    refreshed = enrollment.record_enrollment_session_heartbeat(result.session, at=stale_at)
+    refreshed_decision = enrollment.evaluate_enrollment_session_capability(
+        refreshed,
+        "private_files",
+        now=stale_at,
+    )
+
+    assert stale_decision.allowed is False
+    assert stale_decision.status == "heartbeat_stale"
+    assert stale_decision.reasons == ("session_heartbeat_stale",)
+    assert refreshed_decision.status == "approval_required"
+    assert refreshed_decision.allowed is True
 
 
 def test_dangerous_capability_still_requires_approval() -> None:

@@ -36,6 +36,7 @@ ActionVerificationStatus = Literal[
     "expired",
     "replayed_nonce",
     "session_mismatch",
+    "manifest_mismatch",
     "capability_not_declared",
     "approval_required",
     "disabled_by_mode",
@@ -57,6 +58,7 @@ class LocalNodeActionEnvelope:
     action_id: str
     node_id: str
     session_id: str
+    manifest_id: str
     mode: ModeName
     capability: str
     audience: str
@@ -73,6 +75,7 @@ class LocalNodeActionEnvelope:
             "action_id": self.action_id,
             "node_id": self.node_id,
             "session_id": self.session_id,
+            "manifest_id": self.manifest_id,
             "mode": self.mode,
             "capability": self.capability,
             "audience": self.audience,
@@ -119,6 +122,7 @@ def build_unsigned_local_node_action_envelope(
     action_id: str,
     node_id: str,
     session_id: str,
+    manifest_id: str,
     mode: ModeName,
     capability: str,
     args_hash: str,
@@ -132,6 +136,7 @@ def build_unsigned_local_node_action_envelope(
         action_id=action_id,
         node_id=node_id,
         session_id=session_id,
+        manifest_id=manifest_id,
         mode=mode,
         capability=capability,
         audience=audience,
@@ -203,6 +208,8 @@ def verify_local_node_action_envelope(
 
     if envelope.node_id != session.enrolled_node_id or envelope.session_id != session.session_id:
         return _decision(status="session_mismatch", reasons=("action_session_or_node_mismatch",))
+    if envelope.manifest_id != session.manifest_id:
+        return _decision(status="manifest_mismatch", reasons=("action_manifest_mismatch",))
     if envelope.mode != mode or session.mode != mode:
         return _decision(status="disabled_by_mode", reasons=("action_mode_mismatch",), disabled_by_mode=True)
     if envelope.audience != expected_audience:
