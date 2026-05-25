@@ -406,6 +406,50 @@ def test_cli_start_guided_detects_loopback_and_prints_local_llm_next_steps(monke
     assert output["local_llm_generation_performed"] is False
 
 
+def test_cli_start_probe_does_not_follow_redirect_off_loopback(monkeypatch, capsys):
+    cli = _load_cli_module()
+    from yonerai_cli import first_run
+
+    class _RedirectHandler(BaseHTTPRequestHandler):
+        def do_GET(self) -> None:
+            self.send_response(302)
+            self.send_header("Location", "http://198.51.100.10:8080/api/tags")
+            self.end_headers()
+
+        def log_message(self, _format: str, *_args: Any) -> None:
+            return
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), _RedirectHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        port = server.server_address[1]
+        monkeypatch.setattr(
+            first_run,
+            "DEFAULT_LOCAL_LLM_CANDIDATES",
+            (
+                first_run.LocalLLMProbeCandidate(
+                    provider="ollama",
+                    label="Ollama",
+                    base_url=f"http://127.0.0.1:{port}",
+                    probe_path="api/tags",
+                ),
+            ),
+        )
+
+        assert cli.main(["start", "--json"]) == 0
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["local_llm"]["status"] == "unavailable"
+    assert output["local_llm"]["probe_performed"] is True
+    assert output["local_llm"]["detected_provider"] is None
+    assert output["local_llm"]["probes"][0]["reason"] == "http_status_302"
+
+
 def test_cli_start_rejects_non_loopback_local_llm_config_without_probe(monkeypatch, capsys):
     cli = _load_cli_module()
     from yonerai_cli import first_run
