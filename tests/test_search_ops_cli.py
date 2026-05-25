@@ -62,6 +62,22 @@ def _write_attacker_core_module(tmp_path: Path, module_path: str) -> Path:
     return marker
 
 
+def test_trusted_cli_import_paths_keep_core_before_repo_and_cwd(tmp_path, monkeypatch) -> None:
+    _prepare_paths()
+    from yonerai_cli import cli
+
+    repo_root = Path(cli.__file__).resolve().parents[3]
+    core_src = repo_root / "core" / "src"
+    monkeypatch.syspath_prepend(str(tmp_path))
+
+    cli._prepare_trusted_cli_import_paths()
+
+    assert sys.path[0] == str(core_src)
+    assert sys.path[1] == str(repo_root)
+    assert sys.path.index(str(core_src)) < sys.path.index(str(repo_root))
+    assert sys.path.index(str(repo_root)) < sys.path.index(str(tmp_path))
+
+
 def test_mock_search_adapter_returns_deterministic_fixture() -> None:
     _prepare_paths()
     from ora_core.search import MockSearchAdapter, SearchRequest

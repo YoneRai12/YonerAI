@@ -843,8 +843,8 @@ def _prepare_repo_import_path() -> None:
 
 
 def _prepare_trusted_cli_import_paths() -> None:
-    _prepare_core_import_path()
     _prepare_repo_import_path()
+    _prepare_core_import_path()
 
 
 def _load_repo_script_module(module_name: str, script_relative_path: str) -> Any:
