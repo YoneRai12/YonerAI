@@ -278,3 +278,23 @@ def test_public_demo_failure_output_redacts_local_paths(monkeypatch, capsys) -> 
     assert sample_path not in captured.out
     assert "Traceback" not in captured.out
     assert "Traceback" not in captured.err
+
+
+def test_public_demo_restores_provider_env_keys(monkeypatch) -> None:
+    public_demo = _load_public_demo()
+    keys = {
+        "YONERAI_OPENAI_COMPATIBLE_API_KEY": "demo-openai-compatible-key",
+        "YONERAI_OPENAI_COMPATIBLE_BASE_URL": "http://127.0.0.1:11434/v1",
+        "YONERAI_OPENAI_COMPATIBLE_LIVE": "1",
+        "YONERAI_OPENAI_COMPATIBLE_MODEL": "demo-model",
+        "YONERAI_ANTHROPIC_API_KEY": "demo-anthropic-key",
+        "YONERAI_GEMINI_API_KEY": "demo-gemini-key",
+    }
+    for key, value in keys.items():
+        monkeypatch.setenv(key, value)
+
+    result = public_demo.run_demo()
+
+    assert result["ok"] is True
+    for key, value in keys.items():
+        assert public_demo.os.environ.get(key) == value
