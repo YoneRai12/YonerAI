@@ -2,6 +2,24 @@
 
 See also: `docs/RELEASE_NOTES.md` (curated summary, v5.0.0 -> current).
 
+## v0.2.0-alpha.1 (2026-05-26) - Real CLI Runtime Slice
+- Added `yonerai providers` so users can inspect mock, local LLM,
+  OpenAI-compatible, Anthropic, and Gemini readiness without printing keys or
+  making provider calls.
+- Improved `yonerai ask --auto --pretty --lang ja` and
+  `yonerai runs list/show --pretty --lang ja` so non-engineers can see route,
+  privacy, provider, ledger, and non-action boundaries without reading JSON.
+- Reframed mock workspace-file behavior as Workspace File Access Guard, not a
+  real file summarization feature.
+- Added an AI CLI security/UX matrix and implemented release-gate guardrails
+  from current review debt: dangerous risk hints, self-host public reasoning,
+  strict bool audit flags, real task route metadata, Oracle ledger env support,
+  and Hybrid loopback pretty status.
+- Preserved hard boundaries: no production Oracle, no Official Managed Cloud
+  runtime, no live Discord, no deploy/public tunnel, no arbitrary
+  shell/file/tool execution, no default live provider calls, and no provider key
+  output.
+
 ## v0.1.0-alpha.4 (2026-05-26) - CLI Auto Runtime Slice
 - Added `yonerai ask --auto`, which classifies task difficulty/privacy,
   selects a safe route, executes mock/local-dev paths, returns a `run_id`, and
