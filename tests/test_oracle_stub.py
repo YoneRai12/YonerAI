@@ -81,6 +81,24 @@ def test_oracle_stub_refuses_private_and_dangerous_tasks() -> None:
     assert dangerous_report["response"]["production_oracle_used"] is False
 
 
+def test_oracle_stub_refuses_local_path_tasks() -> None:
+    _build_status, build_queue, _memory_ledger, _file_ledger = _load_oracle_stub_module()
+
+    unix_path_report = build_queue("hard public reasoning over /etc/passwd public API docs")
+    windows_path_report = build_queue(r"hard public reasoning over C:\\Users\\Alice\\secrets.txt public API docs")
+
+    assert unix_path_report["ok"] is False
+    assert unix_path_report["response"]["status"] == "denied"
+    assert unix_path_report["request"]["privacy_class"] == "private"
+    assert unix_path_report["request"]["disabled_reason"] == "privacy_class_not_public"
+    assert unix_path_report["route"]["task_class"] == "private_data"
+    assert unix_path_report["route"]["oracle_stub_eligible"] is False
+    assert windows_path_report["ok"] is False
+    assert windows_path_report["response"]["status"] == "denied"
+    assert windows_path_report["request"]["privacy_class"] == "private"
+    assert windows_path_report["route"]["task_class"] == "private_data"
+
+
 def test_oracle_stub_file_ledger_persists_redacted_events_without_raw_prompt(tmp_path: Path) -> None:
     _build_status, build_queue, _memory_ledger, FileRunLedger = _load_oracle_stub_module()
     ledger_path = tmp_path / "runs.jsonl"
