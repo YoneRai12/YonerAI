@@ -16,6 +16,10 @@ See also: `docs/RELEASE_NOTES.md` (curated summary, v5.0.0 -> current).
 - Hardened additional release-gate review blockers: Oracle stub private/local
   path routing, deployment word variants, relay `auto` URL trust checks, and
   public extension manifest redaction.
+- Fixed post-merge P2 review debt before release: unknown extension
+  capabilities remain distinct until evaluation while public output stays
+  redacted, and relay pretty output treats `auto_resolved_loopback` as a safe
+  loopback state.
 - This remains a semantic alpha pre-release. It is not the date-tagged
   stable/latest GitHub Release stream (`v2026...`).
 - Preserved alpha runtime boundaries: no production Oracle, no Official Managed
