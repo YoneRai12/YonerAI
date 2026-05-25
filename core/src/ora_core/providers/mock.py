@@ -61,8 +61,8 @@ _REQUIRED_WORKSPACE_FIELDS = {
     "truncated",
 }
 _SECRET_VALUE_PATTERNS = (
-    re.compile(r"\bauthorization\s*:\s*bearer\s+[^\s,;]+", re.IGNORECASE),
-    re.compile(r"\bbearer\s+[A-Za-z0-9._-]{10,}\b", re.IGNORECASE),
+    re.compile(r"\b[A-Za-z0-9_-]*authorization\s*[=:]\s*bearer\s+[^\s,;]+", re.IGNORECASE),
+    re.compile(r"\bbearer\s+[^\s,;]{10,}", re.IGNORECASE),
     re.compile(
         r"\b[A-Za-z0-9_-]*(?:api[_-]?key|apikey|access[_-]?key|access[_-]?token|refresh[_-]?token|discord[_-]?token|private[_-]?key|client[_-]?secret|authorization|bearer|password|secret|token)[A-Za-z0-9_-]*\s*(?:=|:)\s*[^\s,;]+",
         re.IGNORECASE,

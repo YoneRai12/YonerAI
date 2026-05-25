@@ -404,6 +404,30 @@ def test_mock_workspace_file_summary_redacts_bearer_github_pat_from_keywords() -
     assert "bearer" not in response.output_text.lower()
 
 
+def test_mock_workspace_file_summary_redacts_proxy_authorization_bearer_config() -> None:
+    _prepare_paths()
+    from ora_core.execution.workspace_files import build_workspace_file_prompt, read_workspace_text_file
+    from ora_core.providers import ProviderRequest
+    from ora_core.providers.mock import MockProviderAdapter
+
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        workspace = Path(temp_dir)
+        target = workspace / "proxy.txt"
+        token = "AbCdEfGhIjKl+/MnOpQrStUvWxYz012345=="
+        target.write_text(f"Proxy-Authorization=Bearer {token}\nalpha2 release note", encoding="utf-8")
+        context = read_workspace_text_file("proxy.txt", workspace=workspace)
+        prompt = build_workspace_file_prompt("summarize file", context)
+
+    response = MockProviderAdapter().generate(ProviderRequest(prompt=prompt))
+
+    assert "alpha2" in response.output_text
+    assert token.lower() not in response.output_text.lower()
+    assert "authorization" not in response.output_text.lower()
+    assert "bearer" not in response.output_text.lower()
+
+
 def test_mock_workspace_file_summary_filters_slack_token_prefix_keywords() -> None:
     _prepare_paths()
     from ora_core.providers.mock import _is_secret_like_keyword
