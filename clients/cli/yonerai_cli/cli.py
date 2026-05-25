@@ -217,6 +217,19 @@ def _build_doctor_report(*, command: str = "yonerai doctor") -> dict[str, Any]:
             "production_oracle_used": False,
             "network_required": False,
         }
+    try:
+        from ora_core.hybrid import build_oracle_stub_status_report
+
+        oracle_stub = build_oracle_stub_status_report()
+    except ImportError:
+        oracle_stub = {
+            "schema_version": "yonerai-oracle-stub/v0.1",
+            "ok": False,
+            "error": "oracle_stub_unavailable",
+            "network_required": False,
+            "production_oracle_used": False,
+            "official_cloud_runtime_implemented": False,
+        }
     python_supported = sys.version_info >= (3, 11)
     manifest_contract_valid = bool(manifest_report.get("contract_valid", manifest_report.get("ok")))
     system_checks = {
@@ -227,8 +240,17 @@ def _build_doctor_report(*, command: str = "yonerai doctor") -> dict[str, Any]:
     hybrid_wire_ok = bool(hybrid_wire_contract.get("ok"))
     relay_ok = bool(relay_status.get("ok"))
     hybrid_node_relay_ok = bool(hybrid_node_relay_contract.get("ok"))
+    oracle_stub_ok = bool(oracle_stub.get("ok"))
     return {
-        "ok": manifest_contract_valid and python_supported and checks_ok and hybrid_wire_ok and relay_ok and hybrid_node_relay_ok,
+        "ok": (
+            manifest_contract_valid
+            and python_supported
+            and checks_ok
+            and hybrid_wire_ok
+            and relay_ok
+            and hybrid_node_relay_ok
+            and oracle_stub_ok
+        ),
         "command": command,
         "schema_version": "yonerai-doctor/v1",
         "python": {
@@ -267,6 +289,7 @@ def _build_doctor_report(*, command: str = "yonerai doctor") -> dict[str, Any]:
         "hybrid_wire_contract": hybrid_wire_contract,
         "relay_status": relay_status,
         "hybrid_node_relay_contract": hybrid_node_relay_contract,
+        "oracle_stub": oracle_stub,
         "provider_runtime_e2e_fixtures": _provider_runtime_e2e_fixture_report(),
         "system_checks": system_checks,
         "errors": manifest_report.get("errors", []),
@@ -314,6 +337,26 @@ def _build_status_report(*, source: str = "local") -> dict[str, Any]:
     report["status_source"] = source
     report["official_status"] = build_official_status_contract(source=source)
     return report
+
+
+def _build_oracle_report(args: argparse.Namespace) -> dict[str, Any]:
+    try:
+        _prepare_trusted_cli_import_paths()
+        from ora_core.execution import build_run_ledger_from_env
+        from ora_core.hybrid import (
+            DEFAULT_ORACLE_STUB_TASK,
+            build_oracle_stub_queue_report,
+            build_oracle_stub_status_report,
+        )
+    except Exception as exc:
+        raise CliError("Oracle stub fixture is unavailable.", exit_code=1) from exc
+    if args.oracle_command == "status":
+        return build_oracle_stub_status_report()
+    if args.oracle_command == "queue":
+        task = " ".join(args.task).strip() or DEFAULT_ORACLE_STUB_TASK
+        ledger = build_run_ledger_from_env(args.ledger_path) if args.ledger_path else None
+        return build_oracle_stub_queue_report(task, ledger=ledger)
+    raise CliError("unknown oracle command", exit_code=2)
 
 
 def _run_redaction_self_check() -> dict[str, Any]:
@@ -504,6 +547,7 @@ def _doctor_sections_en(report: dict[str, Any]) -> tuple[CliSection, ...]:
     hybrid_wire_rows = _hybrid_wire_contract_rows(report, lang="en")
     node_relay_rows = _hybrid_node_relay_contract_rows(report, lang="en")
     relay_rows = _relay_status_rows(report, lang="en")
+    oracle_rows = _oracle_stub_rows(report)
     return (
         CliSection(
             "Setup",
@@ -540,6 +584,7 @@ def _doctor_sections_en(report: dict[str, Any]) -> tuple[CliSection, ...]:
         CliSection("Hybrid Wire Contract", hybrid_wire_rows),
         CliSection("Hybrid Node/Relay", node_relay_rows),
         CliSection("Relay local-dev", relay_rows),
+        CliSection("Oracle stub", oracle_rows),
         CliSection("Provider runtime", provider_rows),
         CliSection("Provider runtime E2E fixtures", provider_e2e_rows),
         CliSection(
@@ -570,6 +615,7 @@ def _doctor_sections_ja(report: dict[str, Any]) -> tuple[CliSection, ...]:
     hybrid_wire_rows = _hybrid_wire_contract_rows(report, lang="ja")
     node_relay_rows = _hybrid_node_relay_contract_rows(report, lang="ja")
     relay_rows = _relay_status_rows(report, lang="ja")
+    oracle_rows = _oracle_stub_rows(report)
     return (
         CliSection(
             "セットアップ",
@@ -606,6 +652,7 @@ def _doctor_sections_ja(report: dict[str, Any]) -> tuple[CliSection, ...]:
         CliSection("Hybrid Wire Contract", hybrid_wire_rows),
         CliSection("Hybrid Node/Relay", node_relay_rows),
         CliSection("Relay local-dev", relay_rows),
+        CliSection("Oracle stub", oracle_rows),
         CliSection("プロバイダー実行環境", provider_rows),
         CliSection("プロバイダー実行環境 E2E フィクスチャ", provider_e2e_rows),
         CliSection(
@@ -620,6 +667,37 @@ def _doctor_sections_ja(report: dict[str, Any]) -> tuple[CliSection, ...]:
                 CliRow("インストール変更", "なし" if not boundaries["install_mutation"] else "あり", "ok" if not boundaries["install_mutation"] else "fail"),
                 CliRow("PATH変更", "なし" if not boundaries["path_mutation"] else "あり", "ok" if not boundaries["path_mutation"] else "fail"),
             ),
+        ),
+    )
+
+
+def _oracle_stub_rows(report: dict[str, Any]) -> tuple[CliRow, ...]:
+    oracle = report.get("oracle_stub")
+    if not isinstance(oracle, dict):
+        return (CliRow("status", "unavailable", "warn"),)
+    return (
+        CliRow("status", oracle.get("status", "unknown"), "ok" if oracle.get("ok") else "fail"),
+        CliRow("schema", oracle.get("schema_version", "unknown"), "ok"),
+        CliRow("queue_available", oracle.get("queue_available", False), "ok" if oracle.get("queue_available") else "warn"),
+        CliRow(
+            "deterministic_fixture",
+            oracle.get("deterministic_fixture_result", False),
+            "ok" if oracle.get("deterministic_fixture_result") else "warn",
+        ),
+        CliRow(
+            "network_required",
+            oracle.get("network_required", False),
+            "fail" if oracle.get("network_required") else "ok",
+        ),
+        CliRow(
+            "production_oracle_used",
+            oracle.get("production_oracle_used", False),
+            "fail" if oracle.get("production_oracle_used") else "ok",
+        ),
+        CliRow(
+            "official_cloud_runtime",
+            oracle.get("official_cloud_runtime_implemented", False),
+            "fail" if oracle.get("official_cloud_runtime_implemented") else "ok",
         ),
     )
 
@@ -992,6 +1070,7 @@ def _format_route_preview_pretty(report: dict[str, Any], *, color: ColorMode = "
                 CliRow("capability_gate", report.get("capability_gate"), "ok" if report.get("capability_gate") == "satisfied" else "warn"),
                 CliRow("approval_state", report.get("approval_state"), "warn" if report.get("approval_state") == "required" else "ok"),
                 CliRow("cloud_escape_reason", report.get("cloud_escape_reason") or "none", "warn" if report.get("cloud_escape_reason") else "ok"),
+                CliRow("oracle_stub_status", report.get("oracle_stub_status"), "ok" if report.get("oracle_stub_eligible") else "warn"),
             ),
         ),
         CliSection(
@@ -1005,6 +1084,56 @@ def _format_route_preview_pretty(report: dict[str, Any], *, color: ColorMode = "
         ),
     )
     return render_report("YonerAI route preview", sections, color=color)
+
+
+def _print_oracle_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -> None:
+    print(_format_oracle_pretty(report, color=color))
+
+
+def _format_oracle_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -> str:
+    request = report.get("request") if isinstance(report.get("request"), dict) else {}
+    response = report.get("response") if isinstance(report.get("response"), dict) else {}
+    rows = (
+        CliRow("operation", report.get("operation", "status"), "ok"),
+        CliRow("status", report.get("status"), "ok" if report.get("ok") else "fail"),
+        CliRow("local_dev_stub", report.get("local_dev_stub", True), "ok"),
+        CliRow("route_strategy", request.get("route_strategy", "n/a"), "ok" if report.get("ok") else "warn"),
+        CliRow("privacy_class", request.get("privacy_class", "n/a"), "ok" if request.get("privacy_class") == "public" else "warn"),
+        CliRow("run_id", request.get("run_id", "n/a"), "ok"),
+    )
+    boundaries = (
+        CliRow("network_required", report.get("network_required", False), "fail" if report.get("network_required") else "ok"),
+        CliRow(
+            "provider_call_performed",
+            report.get("provider_call_performed", False),
+            "fail" if report.get("provider_call_performed") else "ok",
+        ),
+        CliRow(
+            "production_oracle_used",
+            report.get("production_oracle_used", False),
+            "fail" if report.get("production_oracle_used") else "ok",
+        ),
+        CliRow(
+            "raw_prompt_included",
+            response.get("raw_prompt_included", False),
+            "fail" if response.get("raw_prompt_included") else "ok",
+        ),
+        CliRow(
+            "private_file_content_included",
+            response.get("private_file_content_included", False),
+            "fail" if response.get("private_file_content_included") else "ok",
+        ),
+    )
+    non_actions = tuple(CliRow("not_performed", item, "ok") for item in report.get("actions_not_performed", []))
+    return render_report(
+        "YonerAI Oracle stub",
+        (
+            CliSection("Local-dev fixture", rows),
+            CliSection("Boundaries", boundaries),
+            CliSection("Actions not performed", non_actions or (CliRow("actions", "none", "warn"),)),
+        ),
+        color=color,
+    )
 
 
 def _build_node_status_report() -> dict[str, Any]:
@@ -2158,6 +2287,21 @@ def build_parser() -> argparse.ArgumentParser:
     relay_status_output.add_argument("--pretty", action="store_true", help="Print a readable Relay local-dev status.")
     relay_status.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
 
+    oracle = subcommands.add_parser("oracle", help="Run public-safe local-dev Oracle stub fixtures.")
+    oracle_subcommands = oracle.add_subparsers(dest="oracle_command", required=True)
+    oracle_status = oracle_subcommands.add_parser("status", help="Show Oracle stub availability without contacting cloud.")
+    oracle_status_output = oracle_status.add_mutually_exclusive_group()
+    oracle_status_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
+    oracle_status_output.add_argument("--pretty", action="store_true", help="Print a readable Oracle stub status.")
+    oracle_status.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
+    oracle_queue = oracle_subcommands.add_parser("queue", help="Queue one safe cloud-candidate task into the local-dev Oracle stub.")
+    oracle_queue.add_argument("task", nargs="*", help="Public task text. Defaults to a public reasoning fixture.")
+    oracle_queue.add_argument("--ledger-path", "--ledger", dest="ledger_path", help="Optional redacted JSONL run ledger path. Disabled by default.")
+    oracle_queue_output = oracle_queue.add_mutually_exclusive_group()
+    oracle_queue_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
+    oracle_queue_output.add_argument("--pretty", action="store_true", help="Print a readable Oracle stub queue result.")
+    oracle_queue.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
+
     plan = subcommands.add_parser("plan", help="Preview classification, route, provider, and approval without executing.")
     plan.add_argument("task", nargs="+")
     plan_output = plan.add_mutually_exclusive_group()
@@ -2367,6 +2511,13 @@ def run(argv: list[str] | None = None) -> int:
         report = _build_relay_status_report()
         if args.pretty:
             _print_relay_status_pretty(report, color=args.color)
+        else:
+            _print_json(report)
+        return 0 if report["ok"] else 1
+    if args.command == "oracle":
+        report = _build_oracle_report(args)
+        if args.pretty:
+            _print_oracle_pretty(report, color=args.color)
         else:
             _print_json(report)
         return 0 if report["ok"] else 1

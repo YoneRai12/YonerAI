@@ -101,6 +101,8 @@ def test_hybrid_public_reasoning_can_be_cloud_contract_candidate_without_private
     assert payload["private_file_content_sent_to_cloud"] is False
     assert payload["provider_key_sent_to_cloud"] is False
     assert payload["raw_prompt_body_sent_to_cloud"] is False
+    assert payload["oracle_stub_eligible"] is True
+    assert payload["oracle_stub_status"] == "eligible_local_dev_stub"
 
 
 def test_hybrid_public_reasoning_with_dangerous_terms_is_not_downgraded_to_cloud_candidate() -> None:
@@ -119,6 +121,8 @@ def test_hybrid_public_reasoning_with_dangerous_terms_is_not_downgraded_to_cloud
     assert decision.dangerous_operation is True
     assert payload["privacy_class"] == "restricted"
     assert payload["cloud_contract_candidate"] is False
+    assert payload["oracle_stub_eligible"] is False
+    assert payload["oracle_stub_status"] == "not_eligible"
 
 
 def test_delete_terms_are_classified_as_dangerous_before_pc_operation() -> None:
@@ -134,6 +138,7 @@ def test_delete_terms_are_classified_as_dangerous_before_pc_operation() -> None:
     assert decision.requested_capability == "dangerous_operations"
     assert payload["route_strategy"] == "deny"
     assert payload["cloud_contract_candidate"] is False
+    assert payload["oracle_stub_eligible"] is False
 
 
 def test_route_keyword_matching_avoids_partial_word_false_positives() -> None:
@@ -176,6 +181,7 @@ def test_plural_private_file_terms_still_block_cloud_candidate() -> None:
     assert payload["privacy_class"] == "private"
     assert payload["cloud_contract_candidate"] is False
     assert payload["private_file_content_sent_to_cloud"] is False
+    assert payload["oracle_stub_eligible"] is False
 
 
 def test_plural_local_tool_terms_stay_local_gated() -> None:
