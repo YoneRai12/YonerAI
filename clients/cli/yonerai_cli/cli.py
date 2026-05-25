@@ -243,6 +243,19 @@ def _build_doctor_report(*, command: str = "yonerai doctor") -> dict[str, Any]:
             "production_oracle_used": False,
             "official_cloud_runtime_implemented": False,
         }
+    try:
+        from ora_core.execution.auto_runtime import build_auto_runtime_status_report
+
+        auto_runtime = build_auto_runtime_status_report()
+    except ImportError:
+        auto_runtime = {
+            "schema_version": "yonerai-auto-runtime/v0.1",
+            "ok": False,
+            "error": "auto_runtime_unavailable",
+            "network_required": False,
+            "production_oracle_used": False,
+            "official_cloud_runtime_implemented": False,
+        }
     python_supported = sys.version_info >= (3, 11)
     manifest_contract_valid = bool(manifest_report.get("contract_valid", manifest_report.get("ok")))
     system_checks = {
@@ -255,6 +268,7 @@ def _build_doctor_report(*, command: str = "yonerai doctor") -> dict[str, Any]:
     hybrid_node_relay_ok = bool(hybrid_node_relay_contract.get("ok"))
     oracle_stub_ok = bool(oracle_stub.get("ok"))
     hybrid_execution_slice_ok = bool(hybrid_execution_slice.get("ok"))
+    auto_runtime_ok = bool(auto_runtime.get("ok"))
     return {
         "ok": (
             manifest_contract_valid
@@ -265,6 +279,7 @@ def _build_doctor_report(*, command: str = "yonerai doctor") -> dict[str, Any]:
             and hybrid_node_relay_ok
             and oracle_stub_ok
             and hybrid_execution_slice_ok
+            and auto_runtime_ok
         ),
         "command": command,
         "schema_version": "yonerai-doctor/v1",
@@ -306,6 +321,7 @@ def _build_doctor_report(*, command: str = "yonerai doctor") -> dict[str, Any]:
         "hybrid_node_relay_contract": hybrid_node_relay_contract,
         "oracle_stub": oracle_stub,
         "hybrid_execution_slice": hybrid_execution_slice,
+        "auto_runtime": auto_runtime,
         "provider_runtime_e2e_fixtures": _provider_runtime_e2e_fixture_report(),
         "system_checks": system_checks,
         "errors": manifest_report.get("errors", []),
@@ -584,6 +600,7 @@ def _doctor_sections_en(report: dict[str, Any]) -> tuple[CliSection, ...]:
     node_relay_rows = _hybrid_node_relay_contract_rows(report, lang="en")
     relay_rows = _relay_status_rows(report, lang="en")
     oracle_rows = _oracle_stub_rows(report)
+    auto_runtime_rows = _auto_runtime_rows(report)
     return (
         CliSection(
             "Setup",
@@ -621,6 +638,7 @@ def _doctor_sections_en(report: dict[str, Any]) -> tuple[CliSection, ...]:
         CliSection("Hybrid Node/Relay", node_relay_rows),
         CliSection("Relay local-dev", relay_rows),
         CliSection("Oracle stub", oracle_rows),
+        CliSection("Auto runtime", auto_runtime_rows),
         CliSection("Provider runtime", provider_rows),
         CliSection("Provider runtime E2E fixtures", provider_e2e_rows),
         CliSection(
@@ -652,6 +670,7 @@ def _doctor_sections_ja(report: dict[str, Any]) -> tuple[CliSection, ...]:
     node_relay_rows = _hybrid_node_relay_contract_rows(report, lang="ja")
     relay_rows = _relay_status_rows(report, lang="ja")
     oracle_rows = _oracle_stub_rows(report)
+    auto_runtime_rows = _auto_runtime_rows(report)
     return (
         CliSection(
             "セットアップ",
@@ -689,6 +708,7 @@ def _doctor_sections_ja(report: dict[str, Any]) -> tuple[CliSection, ...]:
         CliSection("Hybrid Node/Relay", node_relay_rows),
         CliSection("Relay local-dev", relay_rows),
         CliSection("Oracle stub", oracle_rows),
+        CliSection("Auto runtime", auto_runtime_rows),
         CliSection("プロバイダー実行環境", provider_rows),
         CliSection("プロバイダー実行環境 E2E フィクスチャ", provider_e2e_rows),
         CliSection(
@@ -734,6 +754,32 @@ def _oracle_stub_rows(report: dict[str, Any]) -> tuple[CliRow, ...]:
             "official_cloud_runtime",
             oracle.get("official_cloud_runtime_implemented", False),
             "fail" if oracle.get("official_cloud_runtime_implemented") else "ok",
+        ),
+    )
+
+
+def _auto_runtime_rows(report: dict[str, Any]) -> tuple[CliRow, ...]:
+    auto_runtime = report.get("auto_runtime")
+    if not isinstance(auto_runtime, dict):
+        return (CliRow("status", "unavailable", "warn"),)
+    routes = auto_runtime.get("routes")
+    route_count = len(routes) if isinstance(routes, list) else 0
+    return (
+        CliRow("status", auto_runtime.get("status", "unknown"), "ok" if auto_runtime.get("ok") else "fail"),
+        CliRow("schema", auto_runtime.get("schema_version", "unknown"), "ok"),
+        CliRow("command", auto_runtime.get("command", "yonerai ask --auto --json"), "ok"),
+        CliRow("routes", route_count, "ok" if route_count >= 5 else "warn"),
+        CliRow("mock_provider_default", auto_runtime.get("mock_provider_default"), "ok"),
+        CliRow("local_llm_loopback_only", auto_runtime.get("local_llm_loopback_only"), "ok"),
+        CliRow(
+            "live_external_provider_default",
+            auto_runtime.get("live_external_provider_default"),
+            "fail" if auto_runtime.get("live_external_provider_default") else "ok",
+        ),
+        CliRow(
+            "reviewer_plan",
+            auto_runtime.get("reviewer_plan_supported"),
+            "ok" if auto_runtime.get("reviewer_plan_supported") else "warn",
         ),
     )
 
@@ -1607,8 +1653,133 @@ def _execute_ask_report(args: argparse.Namespace) -> dict[str, Any]:
     return report
 
 
+def _execute_auto_ask_report(args: argparse.Namespace) -> dict[str, Any]:
+    try:
+        _prepare_trusted_cli_import_paths()
+        from ora_core.execution.auto_runtime import build_auto_runtime_report
+        from ora_core.execution.workspace_files import (
+            WorkspaceFileError,
+            build_workspace_file_access_event,
+            build_workspace_file_prompt,
+            read_workspace_text_file,
+        )
+        from ora_core.execution.ledger import build_run_ledger_from_env
+    except Exception as exc:
+        raise CliError("auto runtime is unavailable.", exit_code=1) from exc
+
+    prompt = _prompt_from_args(args.task)
+    ledger_status = _ledger_status(args.ledger_path)
+    provider_prompt = prompt
+    file_context = None
+    context_events = []
+    if args.file:
+        if not args.workspace:
+            raise CliError("--workspace is required when --file is used.", exit_code=2)
+        try:
+            file_context = read_workspace_text_file(
+                args.file,
+                workspace=args.workspace,
+                max_bytes=args.file_max_bytes,
+            )
+        except WorkspaceFileError as exc:
+            return {
+                "schema_version": "yonerai-auto-runtime/v0.1",
+                "ok": False,
+                "command": "yonerai ask --auto",
+                "run": None,
+                "auto": None,
+                "response": None,
+                "ledger": ledger_status,
+                "file_context": None,
+                "live_call_performed": False,
+                "error": exc.to_public_dict(),
+            }
+        provider_prompt = build_workspace_file_prompt(prompt, file_context)
+        context_events.append(build_workspace_file_access_event(file_context))
+    try:
+        report = build_auto_runtime_report(
+            prompt,
+            provider_prompt=provider_prompt,
+            provider=args.provider,
+            live=args.live,
+            ledger=build_run_ledger_from_env(args.ledger_path),
+            context_events=context_events,
+            local_file_context=file_context is not None,
+        )
+    except ValueError as exc:
+        raise CliError(str(exc), exit_code=2) from exc
+    report["ledger"] = ledger_status
+    if file_context is not None:
+        report["file_context"] = file_context.to_public_dict()
+    return report
+
+
 def _print_execution_result_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -> None:
     print(_format_execution_result_pretty(report, color=color))
+
+
+def _print_auto_runtime_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -> None:
+    print(_format_auto_runtime_pretty(report, color=color))
+
+
+def _format_auto_runtime_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -> str:
+    if report.get("run") is None or report.get("auto") is None:
+        error = report.get("error") or {}
+        return render_report(
+            "YonerAI ask --auto",
+            (CliSection("Error", (CliRow(str(error.get("code") or "error"), error.get("message") or "request failed", "fail"),)),),
+            color=color,
+        )
+    run = report["run"] if isinstance(report.get("run"), dict) else {}
+    auto = report["auto"] if isinstance(report.get("auto"), dict) else {}
+    provider = report["provider"] if isinstance(report.get("provider"), dict) else {}
+    response = report["response"] if isinstance(report.get("response"), dict) else {}
+    search = report["search"] if isinstance(report.get("search"), dict) else {}
+    reviewer = report["reviewer_plan"] if isinstance(report.get("reviewer_plan"), dict) else {}
+    boundaries = report["boundaries"] if isinstance(report.get("boundaries"), dict) else {}
+    error = report["error"] if isinstance(report.get("error"), dict) else {}
+    sections = (
+        CliSection(
+            "Auto runtime",
+            (
+                CliRow("run_id", run.get("run_id"), "ok" if run.get("run_id") else "warn"),
+                CliRow("status", run.get("status"), "ok" if run.get("status") == "completed" else "warn"),
+                CliRow("difficulty", auto.get("difficulty"), "ok"),
+                CliRow("privacy", auto.get("privacy"), "ok" if auto.get("privacy") == "public" else "warn"),
+                CliRow("route", auto.get("route"), "fail" if auto.get("route") == "deny" else "ok"),
+                CliRow("approval_required", auto.get("approval_required"), "warn" if auto.get("approval_required") else "ok"),
+            ),
+        ),
+        CliSection(
+            "Execution",
+            (
+                CliRow("provider", provider.get("provider_id"), "ok" if provider.get("provider_available") else "warn"),
+                CliRow("model", response.get("model") or provider.get("model_id"), "ok"),
+                CliRow("live_call_performed", report.get("live_call_performed"), "warn" if report.get("live_call_performed") else "ok"),
+                CliRow("output", response.get("output_text") or error.get("message") or "none", "ok" if report.get("ok") else "warn"),
+            ),
+        ),
+        CliSection(
+            "Search and reviewer",
+            (
+                CliRow("search_mode", search.get("mode"), "ok" if search.get("mode") in {"mock", "not_requested"} else "warn"),
+                CliRow("search_results", len(search.get("results") or []), "ok"),
+                CliRow("reviewer_plan", reviewer.get("enabled"), "ok" if reviewer.get("enabled") else "skipped"),
+                CliRow("subtasks", reviewer.get("subtask_count"), "ok" if reviewer.get("enabled") else "skipped"),
+            ),
+        ),
+        CliSection(
+            "Boundaries",
+            (
+                CliRow("private_file_to_cloud", boundaries.get("private_file_content_sent_to_cloud_contract"), "fail" if boundaries.get("private_file_content_sent_to_cloud_contract") else "ok"),
+                CliRow("live_search_performed", boundaries.get("live_search_performed"), "fail" if boundaries.get("live_search_performed") else "ok"),
+                CliRow("shell_execution", boundaries.get("shell_execution_performed"), "fail" if boundaries.get("shell_execution_performed") else "ok"),
+                CliRow("production_oracle", boundaries.get("production_oracle_used"), "fail" if boundaries.get("production_oracle_used") else "ok"),
+                CliRow("official_cloud_runtime", boundaries.get("official_cloud_runtime_implemented"), "fail" if boundaries.get("official_cloud_runtime_implemented") else "ok"),
+            ),
+        ),
+    )
+    return render_report("YonerAI ask --auto", sections, color=color)
 
 
 def _format_execution_result_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -> str:
@@ -2436,6 +2607,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     ask = subcommands.add_parser("ask", help="Execute a safe YonerAI ask path or preview it with --dry-run.")
     ask.add_argument("task", nargs="+")
+    ask.add_argument("--auto", action="store_true", help="Use the auto runtime router: classify, route, execute safe paths, and record run_id.")
     ask.add_argument("--dry-run", action="store_true", help="Preview only; no provider call is made.")
     ask.add_argument("--live", action="store_true", help="Allow explicitly gated local or external live provider execution.")
     ask.add_argument("--ledger-path", "--ledger", dest="ledger_path", help="Optional redacted JSONL run ledger path. Disabled by default.")
@@ -2661,6 +2833,8 @@ def run(argv: list[str] | None = None) -> int:
     if args.command == "ask":
         if args.dry_run:
             report = _build_execution_plan_report(args, command="yonerai ask --dry-run", dry_run=True)
+        elif args.auto:
+            report = _execute_auto_ask_report(args)
         else:
             report = _execute_ask_report(args)
         if args.json:
@@ -2668,6 +2842,8 @@ def run(argv: list[str] | None = None) -> int:
         else:
             if args.dry_run:
                 _print_execution_plan_pretty(report, color=args.color)
+            elif args.auto:
+                _print_auto_runtime_pretty(report, color=args.color)
             else:
                 _print_execution_result_pretty(report, color=args.color)
         return 0 if args.dry_run or report["ok"] else 1

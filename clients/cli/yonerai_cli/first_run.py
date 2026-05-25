@@ -324,13 +324,25 @@ def _recommended_first_ask(provider_setup: Mapping[str, object]) -> dict[str, ob
         }
     return {
         "provider": "mock",
-        "command": 'yonerai ask "hello" --provider mock --json',
-        "why": "This works immediately without provider keys, ORA_LOCAL_LLM_ENABLED, or a local model server.",
+        "command": 'yonerai ask "hello" --auto --json',
+        "why": "This works immediately through the auto runtime router without provider keys or a local model server.",
     }
 
 
 def _guided_actions(local_llm: Mapping[str, object]) -> list[dict[str, object]]:
     return [
+        {
+            "id": "auto_runtime_first_run",
+            "title": "Auto runtime first ask",
+            "mode": "auto_runtime",
+            "commands": [
+                'yonerai ask "hello" --auto --json',
+                'yonerai ask "hard public reasoning over public API docs" --auto --json',
+            ],
+            "does": "Classifies difficulty/privacy, selects a safe route, executes mock/local-dev stub paths, and returns a run_id.",
+            "does_not": "Does not run arbitrary shell, read arbitrary files, use live Discord, or contact production Oracle/cloud.",
+            "requires_live": False,
+        },
         {
             "id": "mock_first_run",
             "title": "Mock-first demo",
@@ -505,6 +517,7 @@ def _current_capabilities() -> list[str]:
         "Workspace File Access Guard for explicitly selected files inside an allowlisted workspace.",
         "Loopback-only Local LLM provider execution when explicitly enabled with --live.",
         "OpenAI-compatible provider path behind explicit --live and environment opt-in.",
+        "Auto runtime ask path that classifies privacy/difficulty and routes safe local/stub execution.",
         "Optional redacted local run ledger via --ledger.",
         "Local-dev Hybrid execution slice through route preview, in-memory relay, mock provider, and Oracle stub envelopes.",
     ]
