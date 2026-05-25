@@ -149,8 +149,25 @@ def _redact_secret_like_text(text: str) -> str:
 
 
 def _is_secret_like_keyword(word: str) -> bool:
-    if word.startswith(("sk-", "aizasy", "ghp_", "gho_", "ghu_", "ghs_", "ghr_", "xoxb-", "xoxp-", "rk_", "pk_")):
+    if word.startswith(
+        (
+            "sk-",
+            "aizasy",
+            "ghp_",
+            "gho_",
+            "ghu_",
+            "ghs_",
+            "ghr_",
+            "xoxb-",
+            "xoxp-",
+            "xoxa-",
+            "xoxr-",
+            "xoxs-",
+            "rk_",
+            "pk_",
+        )
+    ):
         return True
-    if len(word) >= 20 and re.search(r"[a-zA-Z]", word) and re.search(r"[0-9]", word):
+    if len(word) >= 20 and any(char.isalpha() for char in word) and any(char.isdigit() for char in word):
         return True
     return any(marker in word for marker in _SECRET_KEYWORD_MARKERS)

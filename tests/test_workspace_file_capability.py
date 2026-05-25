@@ -397,3 +397,11 @@ def test_mock_workspace_file_summary_redacts_bearer_github_pat_from_keywords() -
     assert "alpha2" in response.output_text
     assert token.lower() not in response.output_text.lower()
     assert "bearer" not in response.output_text.lower()
+
+
+def test_mock_workspace_file_summary_filters_slack_token_prefix_keywords() -> None:
+    _prepare_paths()
+    from ora_core.providers.mock import _is_secret_like_keyword
+
+    for prefix in ("xoxb-", "xoxp-", "xoxa-", "xoxr-", "xoxs-"):
+        assert _is_secret_like_keyword(prefix + "synthetic")
