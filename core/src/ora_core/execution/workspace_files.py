@@ -51,6 +51,7 @@ class WorkspaceFileContext:
     def to_public_dict(self) -> dict[str, object]:
         payload = asdict(self)
         payload.pop("preview_text", None)
+        payload.pop("sha256_prefix", None)
         payload["raw_content_persisted"] = False
         return payload
 
