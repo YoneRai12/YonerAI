@@ -12,6 +12,7 @@ if str(core_src) not in sys.path:
 
 from ora_core.hybrid.extension_manifest import (  # noqa: E402
     EXTENSION_CAPABILITY_MANIFEST_SCHEMA_VERSION,
+    ExtensionIOField,
     build_extension_capability_manifest,
     evaluate_extension_capability_manifest,
 )
@@ -29,6 +30,13 @@ def test_safe_extension_manifest_is_review_only_and_cannot_execute() -> None:
     assert payload["schema_version"] == EXTENSION_CAPABILITY_MANIFEST_SCHEMA_VERSION
     assert payload["status"] == "accepted_for_review"
     assert payload["accepted_capabilities"] == ["mock_search", "ledger"]
+    assert payload["typed_inputs"][0]["name"] == "query"
+    assert payload["typed_outputs"][0]["name"] == "result_refs"
+    assert payload["risk_tags"] == ["fixture_only", "mock", "read_only", "no_network"]
+    assert payload["owner_scope"] == "local_owner"
+    assert payload["owner_scope_allowed"] is True
+    assert payload["audit_event_required"] is True
+    assert payload["args_hash_required"] is True
     assert payload["can_execute"] is False
     assert payload["audit_required"] is True
     assert "extension_capabilities_declared_no_execution" in payload["reasons"]
@@ -61,6 +69,60 @@ def test_overbroad_and_unknown_extension_capabilities_are_denied() -> None:
     assert payload["unknown_capabilities"] == ["future_private_capability"]
     assert "overbroad_extension_capability_denied" in payload["reasons"]
     assert "unknown_extension_capability_denied" in payload["reasons"]
+
+
+def test_extension_manifest_denies_unsafe_risk_owner_scope_and_audit_gap() -> None:
+    manifest = build_extension_capability_manifest(
+        extension_id="unsafe-risk-extension",
+        declared_capabilities=("mock_search",),
+        risk_tags=("network", "custom_future_risk"),
+        owner_scope="official_control_plane",
+        audit_event_required=False,
+        args_hash_required=False,
+    )
+    payload = evaluate_extension_capability_manifest(manifest).to_public_dict()
+
+    assert payload["status"] == "denied"
+    assert payload["accepted_capabilities"] == []
+    assert payload["denied_risk_tags"] == ["network"]
+    assert payload["unknown_risk_tags"] == ["custom_future_risk"]
+    assert payload["owner_scope"] == "official_control_plane"
+    assert payload["owner_scope_allowed"] is False
+    assert "denied_extension_risk_tag" in payload["reasons"]
+    assert "unknown_extension_risk_tag_denied" in payload["reasons"]
+    assert "owner_scope_not_allowed" in payload["reasons"]
+    assert "audit_event_required" in payload["reasons"]
+    assert "args_hash_required" in payload["reasons"]
+
+
+def test_extension_manifest_denies_secret_or_untyped_io_fields() -> None:
+    manifest = build_extension_capability_manifest(
+        extension_id="secret-io-extension",
+        declared_capabilities=("mock_search",),
+        typed_inputs=(
+            ExtensionIOField(
+                name="api_token",
+                type="string",
+                required=True,
+                sensitivity="secret",
+            ),
+        ),
+        typed_outputs=(
+            ExtensionIOField(
+                name="raw_blob",
+                type="bytes",
+                required=True,
+                sensitivity="public",
+            ),
+        ),
+    )
+    payload = evaluate_extension_capability_manifest(manifest).to_public_dict()
+
+    assert payload["status"] == "denied"
+    assert payload["accepted_capabilities"] == []
+    assert "api_token:invalid_sensitivity" in payload["invalid_io_fields"]
+    assert "raw_blob:invalid_type" in payload["invalid_io_fields"]
+    assert "invalid_extension_io_contract_denied" in payload["reasons"]
 
 
 def test_extension_policy_drift_fails_closed_with_audit_reason() -> None:

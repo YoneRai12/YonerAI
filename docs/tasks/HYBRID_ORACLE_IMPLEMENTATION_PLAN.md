@@ -181,7 +181,7 @@ Run the smallest relevant subset per PR, plus:
 
 ## Open Implementation Items
 
-1. Add typed input/output, risk tag, owner scope, and audit fields to extension manifests.
+1. Completed in public implementation: add typed input/output, risk tag, owner scope, and audit fields to extension manifests.
 2. Add audit event shape to local-dev transport proxy attempts and results.
 3. Add explicit `cloud_contract_candidate` route strategy for hard public reasoning tasks.
 4. Add Oracle request/response stub fields for status, heartbeat, route, capability, and audit.
@@ -195,4 +195,3 @@ Next safe implementation lane:
 2. Add tests in `tests/test_hybrid_extension_manifest.py`.
 3. Connect the richer extension decision into `build_hybrid_wire_conformance_report()`.
 4. Keep `can_execute` false and deny unknown, overbroad, dangerous, private-file, PC operation, live Discord, deployment, and official-control-plane capabilities.
-
