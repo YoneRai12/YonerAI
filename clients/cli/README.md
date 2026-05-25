@@ -13,6 +13,9 @@ From the repository root:
 ```bash
 python -m pip install -r core/requirements.txt httpx
 python -m pip install -e clients/cli
+yonerai
+yonerai chat
+yonerai config show --pretty --lang ja
 yonerai start --guided --lang ja
 yonerai providers --pretty --lang ja
 yonerai ask "hello" --auto --pretty --lang ja
@@ -34,13 +37,41 @@ simulator, Managed Cloud as external contract-only, route preview, enrolled
 Local Node trust/session simulation, the managed download guard, and
 proposal-only self-evolution.
 
-## What You Can Try In v0.1.0-alpha.2
+## Interactive CLI v0.3 Alpha
 
-v0.1.0-alpha.2 is a local public alpha slice. It is not a finished product, a
+`yonerai` and `yonerai chat` start the interactive terminal app when stdin is a
+TTY. It is Japanese-first, uses the same `ask --auto` runtime path as the
+command CLI, and exposes settings through slash commands:
+
+- `/settings`
+- `/providers`
+- `/safety`
+- `/runs`
+- `/show <run_id>`
+- `/language ja|en`
+- `/provider auto|mock|local|openai-compatible|anthropic|gemini`
+- `/quit`
+
+First interactive launch asks for Japanese or English and stores only local
+non-secret preferences. Non-TTY execution prints fallback instructions instead
+of hanging. `yonerai chat --script` intentionally reads lines from stdin for
+tests or scripted demos.
+
+The interactive CLI does not add production Oracle, Official Managed Cloud,
+live Discord, arbitrary shell/file/tool execution, or default live provider
+calls. External providers still require explicit `--live` and provider-specific
+environment opt-in. Local LLM remains loopback-only.
+
+## What You Can Try In v0.2.0-alpha.1 And Later
+
+v0.2.0-alpha.1 and the v0.3 interactive alpha are local public alpha slices. They are not a finished product, a
 production installer, or a live Discord/Official Managed Cloud release.
 
 Credential-free commands:
 
+- `yonerai`
+- `yonerai chat`
+- `yonerai config show --pretty --lang ja`
 - `yonerai start --guided --lang ja`
 - `yonerai providers --pretty --lang ja`
 - `yonerai ask "hello" --auto --pretty --lang ja`

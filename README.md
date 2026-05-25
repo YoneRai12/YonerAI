@@ -22,6 +22,9 @@ python -m venv .venv
 python -m pip install -U pip
 python -m pip install -r core/requirements.txt httpx
 python -m pip install -e clients/cli
+yonerai
+yonerai chat
+yonerai config show --pretty --lang ja
 yonerai start --guided --lang ja
 yonerai start --guided --json
 yonerai providers --pretty --lang ja
@@ -43,12 +46,36 @@ yonerai install plan --manifest releases/manifest.example.json --json
 
 ## First 5 minutes
 
+`yonerai` now opens the v0.3 alpha interactive terminal when stdin is a TTY.
+Use `yonerai chat` for the same screen explicitly. The interactive shell is a
+standard-library terminal app, not a full-screen GUI: type a message to run the
+same safe `ask --auto` path, or use slash commands.
+
+```text
+/settings        show language/provider/safety settings
+/providers       show mock/local/API provider readiness without printing keys
+/safety          show network/tool/file/provider boundaries
+/runs            list redacted local run history
+/show <run_id>   show one redacted run
+/language ja|en  change UI language
+/provider auto|mock|local|openai-compatible|anthropic|gemini
+/quit            exit
+```
+
+On first interactive launch, YonerAI asks for Japanese or English and stores
+only non-secret local preferences. Non-TTY use, for example pipes or CI, does
+not hang; it prints fallback instructions. Use `yonerai chat --script` when you
+intentionally want to feed scripted input.
+
 `yonerai start --guided` is the guided path for a first local run. It is written
 for people who want copyable next actions, not for people already familiar with
 the internals.
 
 ```powershell
 yonerai start --guided --lang ja
+yonerai chat
+yonerai config set language ja
+yonerai config show --pretty --lang ja
 yonerai start --guided --json
 yonerai demo --pretty
 yonerai doctor --pretty --lang ja
@@ -88,6 +115,10 @@ yonerai ask "hello" --provider local --live --json
 
 What this first path explains:
 
+- `yonerai` / `yonerai chat` starts a Japanese-first interactive shell with
+  chat, provider status, safety settings, and run history slash commands.
+- `yonerai config show/set` stores only local non-secret preferences such as
+  language, provider preference, approval mode, and file-access mode.
 - `yonerai start --guided --lang ja` prints a mock-first path, Local LLM status,
   workspace file guard example, ledger example, and current limitations.
 - `yonerai providers --pretty --lang ja` shows which provider paths are usable
