@@ -166,7 +166,7 @@ def _build_doctor_report(*, command: str = "yonerai doctor") -> dict[str, Any]:
         manifest_report = verify_manifest(load_manifest_file(str(manifest_path)))
     except ManifestError as exc:
         manifest_report = {"ok": False, "errors": [str(exc)]}
-    _prepare_core_import_path()
+    _prepare_trusted_cli_import_paths()
     try:
         from ora_core.providers import build_provider_setup_report
 
@@ -286,7 +286,7 @@ def _provider_runtime_e2e_fixture_report() -> dict[str, object]:
 
 
 def _build_start_report(*, guided: bool = False) -> dict[str, Any]:
-    _prepare_core_import_path()
+    _prepare_trusted_cli_import_paths()
     from yonerai_cli.first_run import build_first_run_report
 
     doctor_report = _build_doctor_report(command="yonerai start")
@@ -307,7 +307,7 @@ def _print_start_pretty(report: dict[str, Any], *, lang: str = "en", color: Colo
 def _build_status_report(*, source: str = "local") -> dict[str, Any]:
     report = _build_doctor_report(command="yonerai status")
     try:
-        _prepare_core_import_path()
+        _prepare_trusted_cli_import_paths()
         from ora_core.status_contract import build_official_status_contract
     except Exception as exc:
         raise CliError("official status contract fixture is unavailable.", exit_code=1) from exc
@@ -839,9 +839,12 @@ def _run_public_demo(*, json_output: bool = False, pretty: bool = False) -> int:
 
 
 def _prepare_repo_import_path() -> None:
-    text = str(_repo_root())
-    if text not in sys.path:
-        sys.path.insert(0, text)
+    _pin_import_path_front(_repo_root())
+
+
+def _prepare_trusted_cli_import_paths() -> None:
+    _prepare_core_import_path()
+    _prepare_repo_import_path()
 
 
 def _load_repo_script_module(module_name: str, script_relative_path: str) -> Any:
@@ -864,9 +867,13 @@ def _load_public_demo_module() -> Any:
 
 def _prepare_core_import_path() -> None:
     core_src = _repo_root() / "core" / "src"
-    text = str(core_src)
-    if text not in sys.path:
-        sys.path.insert(0, text)
+    _pin_import_path_front(core_src)
+
+
+def _pin_import_path_front(path: Path) -> None:
+    text = str(path)
+    sys.path[:] = [entry for entry in sys.path if entry != text]
+    sys.path.insert(0, text)
 
 
 def _repo_root() -> Path:
@@ -875,7 +882,7 @@ def _repo_root() -> Path:
 
 def _preview_route(args: argparse.Namespace) -> dict[str, Any]:
     try:
-        _prepare_core_import_path()
+        _prepare_trusted_cli_import_paths()
         from ora_core.route_preview import preview_route
     except Exception as exc:
         raise CliError("route preview is unavailable.", exit_code=1) from exc
@@ -975,7 +982,7 @@ def _format_route_preview_pretty(report: dict[str, Any], *, color: ColorMode = "
 
 def _build_node_status_report() -> dict[str, Any]:
     try:
-        _prepare_core_import_path()
+        _prepare_trusted_cli_import_paths()
         from ora_core.hybrid.wire_contract import build_local_node_status_report
     except Exception as exc:
         raise CliError("Hybrid Wire Local Node status is unavailable.", exit_code=1) from exc
@@ -986,7 +993,7 @@ def _build_node_pair_report(args: argparse.Namespace) -> dict[str, Any]:
     if not args.dry_run:
         raise CliError("yonerai node pair is dry-run only in this public repo.", exit_code=2)
     try:
-        _prepare_core_import_path()
+        _prepare_trusted_cli_import_paths()
         from ora_core.hybrid.wire_contract import build_pairing_dry_run_report
     except Exception as exc:
         raise CliError("Hybrid Wire Local Node pairing dry-run is unavailable.", exit_code=1) from exc
@@ -995,7 +1002,7 @@ def _build_node_pair_report(args: argparse.Namespace) -> dict[str, Any]:
 
 def _build_relay_status_report() -> dict[str, Any]:
     try:
-        _prepare_core_import_path()
+        _prepare_trusted_cli_import_paths()
         from ora_core.hybrid.relay_status import build_relay_status_report
     except Exception as exc:
         raise CliError("Hybrid Relay local-dev status is unavailable.", exit_code=1) from exc
@@ -1189,8 +1196,7 @@ def _trust_decision_status(decision: dict[str, Any]) -> str:
 
 def _build_execution_plan_report(args: argparse.Namespace, *, command: str, dry_run: bool) -> dict[str, Any]:
     try:
-        _prepare_repo_import_path()
-        _prepare_core_import_path()
+        _prepare_trusted_cli_import_paths()
         from ora_core.planning import build_execution_plan
     except Exception as exc:
         raise CliError("execution plan preview is unavailable.", exit_code=1) from exc
@@ -1273,8 +1279,7 @@ def _format_execution_plan_pretty(report: dict[str, Any], *, color: ColorMode = 
 
 def _execute_ask_report(args: argparse.Namespace) -> dict[str, Any]:
     try:
-        _prepare_repo_import_path()
-        _prepare_core_import_path()
+        _prepare_trusted_cli_import_paths()
         from ora_core.execution.workspace_files import (
             WorkspaceFileError,
             build_workspace_file_access_event,
@@ -1406,8 +1411,7 @@ def _format_execution_result_pretty(report: dict[str, Any], *, color: ColorMode 
 
 def _build_runs_report(args: argparse.Namespace) -> dict[str, Any]:
     try:
-        _prepare_repo_import_path()
-        _prepare_core_import_path()
+        _prepare_trusted_cli_import_paths()
         from ora_core.execution.ledger import build_run_ledger_from_env
     except Exception as exc:
         raise CliError("run ledger is unavailable.", exit_code=1) from exc
@@ -1490,7 +1494,7 @@ def _optional_bool_status(value: object) -> str:
 
 def _build_search_report(args: argparse.Namespace) -> dict[str, Any]:
     try:
-        _prepare_core_import_path()
+        _prepare_trusted_cli_import_paths()
         from ora_core.search import MockSearchAdapter, SearchRequest, build_live_search_disabled_boundary
         from ora_core.execution.ledger import build_run_ledger_from_env
     except Exception as exc:
@@ -1604,7 +1608,7 @@ def _safe_prompt_from_args(parts: list[str] | tuple[str, ...]) -> str:
 
 def _build_discord_report(args: argparse.Namespace) -> dict[str, Any]:
     try:
-        _prepare_core_import_path()
+        _prepare_trusted_cli_import_paths()
         from ora_core.discord_gateway import SyntheticDiscordGatewayAdapter
         from ora_core.execution.ledger import build_run_ledger_from_env
     except Exception as exc:
@@ -1808,7 +1812,7 @@ def _print_update_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -
 
 def _build_ops_plan_report(args: argparse.Namespace) -> dict[str, Any]:
     try:
-        _prepare_core_import_path()
+        _prepare_trusted_cli_import_paths()
         from ora_core.ops import plan_operation
     except Exception as exc:
         raise CliError("SafeShell planner is unavailable.", exit_code=1) from exc
@@ -1836,8 +1840,7 @@ def _print_ops_plan_pretty(report: dict[str, Any], *, color: ColorMode = "auto")
 
 def _build_memory_report(args: argparse.Namespace) -> dict[str, Any]:
     try:
-        _prepare_repo_import_path()
-        _prepare_core_import_path()
+        _prepare_trusted_cli_import_paths()
         from ora_core.memory import LocalMemoryStore
     except Exception as exc:
         raise CliError("local memory store is unavailable.", exit_code=1) from exc
