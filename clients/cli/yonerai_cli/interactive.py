@@ -19,7 +19,7 @@ from yonerai_cli.config import (
 )
 
 
-INTERACTIVE_SCHEMA_VERSION = "yonerai-interactive-cli/v0.3"
+INTERACTIVE_SCHEMA_VERSION = "yonerai-interactive-cli/v0.4"
 SECRET_PATTERNS = (
     re.compile(r"sk-[A-Za-z0-9_-]{8,}"),
     re.compile(r"github_pat_[A-Za-z0-9_]+"),
@@ -55,6 +55,10 @@ COMMAND_ALIASES = {
     "/ファイル": "/file-access",
     "/ファイルアクセス": "/file-access",
     "/file-access": "/file-access",
+    "/履歴記録": "/ledger",
+    "/ledger": "/ledger",
+    "/選択": "/select",
+    "/select": "/select",
     "/終了": "/quit",
     "/quit": "/quit",
     "/exit": "/quit",
@@ -75,6 +79,11 @@ VALUE_ALIASES = {
     "拒否": "deny",
     "ワークスペース内のみ": "workspace_only",
     "無効": "disabled",
+    "オン": "on",
+    "有効": "on",
+    "記録オン": "on",
+    "オフ": "off",
+    "記録オフ": "off",
 }
 
 
@@ -113,6 +122,7 @@ def run_interactive_cli(
     if provider not in PROVIDER_PREFERENCES:
         provider = "auto"
     live = bool(options.live or config.get("live_provider_enabled") is True)
+    ledger_path = _resolve_ledger_path(config, options)
 
     if not options.script and not _is_interactive(input_stream):
         _write(output_stream, _non_tty_fallback(lang))
@@ -139,17 +149,19 @@ def run_interactive_cli(
                 lang=lang,
                 provider=provider,
                 live=live,
+                ledger_path=ledger_path,
                 output_stream=output_stream,
             )
             provider = command_result.get("provider", provider)
             lang = command_result.get("lang", lang)
             live = bool(command_result.get("live", live))
+            ledger_path = command_result.get("ledger_path", ledger_path)
             if command_result.get("exit"):
                 _write(output_stream, _bye(lang))
                 return 0
             continue
 
-        report = callbacks.ask_auto(text, provider, live, options.ledger_path, lang)
+        report = callbacks.ask_auto(text, provider, live, ledger_path, lang)
         _write(output_stream, _format_chat_response(report, lang=lang))
 
 
@@ -190,6 +202,7 @@ def _handle_slash_command(
     lang: str,
     provider: str,
     live: bool,
+    ledger_path: str | None,
     output_stream: TextIO,
 ) -> dict[str, object]:
     parts = text.split()
@@ -210,11 +223,21 @@ def _handle_slash_command(
         _write(output_stream, _format_providers(callbacks.providers(), lang=lang))
         return {}
     if command == "/runs":
-        _write(output_stream, _format_runs(callbacks.runs_list(options.ledger_path, 10, lang), lang=lang))
+        _write(output_stream, _format_runs(callbacks.runs_list(ledger_path, 10, lang), lang=lang))
         return {}
     if command == "/show" and args:
-        _write(output_stream, _format_run(callbacks.runs_show(args[0], options.ledger_path, lang), lang=lang))
+        _write(output_stream, _format_run(callbacks.runs_show(args[0], ledger_path, lang), lang=lang))
         return {}
+    if command == "/select" and args:
+        return _handle_numbered_selection(
+            args,
+            config=config,
+            options=options,
+            lang=lang,
+            provider=provider,
+            live=live,
+            output_stream=output_stream,
+        )
     if command == "/language" and args:
         value = _canonical_value(args[0])
         if value not in {"ja", "en"}:
@@ -264,6 +287,18 @@ def _handle_slash_command(
             return {}
         _write(output_stream, _changed_message("file_access", new_config["file_access_mode"], lang=lang))
         return {}
+    if command == "/ledger" and args:
+        value = _canonical_value(args[0])
+        if value not in {"on", "off", "true", "false", "1", "0", "yes", "no"}:
+            _write(output_stream, _invalid(lang))
+            return {}
+        try:
+            new_config = _set_config(config, "ledger", value, options.config_path)
+        except ConfigError as exc:
+            _write(output_stream, _config_error(lang, exc))
+            return {}
+        _write(output_stream, _changed_message("ledger", new_config["ledger_enabled"], lang=lang))
+        return {"ledger_path": _resolve_ledger_path(new_config, options)}
     _write(output_stream, _unknown(lang))
     return {}
 
@@ -273,6 +308,67 @@ def _set_config(config: dict[str, object], key: str, value: str, config_path: st
     config.clear()
     config.update(updated)
     return updated
+
+
+def _handle_numbered_selection(
+    args: list[str],
+    *,
+    config: dict[str, object],
+    options: InteractiveOptions,
+    lang: str,
+    provider: str,
+    live: bool,
+    output_stream: TextIO,
+) -> dict[str, object]:
+    number = args[0]
+    value = _canonical_value(args[1]) if len(args) > 1 else None
+    try:
+        if number == "1" and value in {"ja", "en"}:
+            new_config = _set_config(config, "language", value, options.config_path)
+            _write(output_stream, _changed_message("language", new_config["language"], lang=str(new_config["language"])))
+            return {"lang": str(new_config["language"])}
+        if number == "2" and value in PROVIDER_PREFERENCES:
+            new_config = _set_config(config, "provider", value, options.config_path)
+            new_provider = str(new_config["provider_preference"])
+            _write(output_stream, _changed_message("provider", new_provider, lang=lang))
+            return {"provider": new_provider}
+        if number == "3" and value in APPROVAL_MODES:
+            new_config = _set_config(config, "approval", value, options.config_path)
+            _write(output_stream, _changed_message("approval", new_config["approval_mode"], lang=lang))
+            return {}
+        if number == "4" and value in FILE_ACCESS_MODES:
+            new_config = _set_config(config, "file_access", value, options.config_path)
+            _write(output_stream, _changed_message("file_access", new_config["file_access_mode"], lang=lang))
+            return {}
+        if number == "5":
+            selected = value or ("off" if config.get("ledger_enabled") is True else "on")
+            if selected not in {"on", "off", "true", "false", "1", "0", "yes", "no"}:
+                _write(output_stream, _invalid(lang))
+                return {}
+            new_config = _set_config(config, "ledger", selected, options.config_path)
+            _write(output_stream, _changed_message("ledger", new_config["ledger_enabled"], lang=lang))
+            return {"ledger_path": _resolve_ledger_path(new_config, options)}
+    except ConfigError as exc:
+        _write(output_stream, _config_error(lang, exc))
+        return {}
+    _write(output_stream, _settings_selection_help(lang))
+    return {"provider": provider, "live": live}
+
+
+def _resolve_ledger_path(config: dict[str, object], options: InteractiveOptions) -> str | None:
+    if options.ledger_path:
+        return options.ledger_path
+    if config.get("ledger_enabled") is not True:
+        return None
+    return str(_default_ledger_path(options.config_path))
+
+
+def _default_ledger_path(config_path: str | None) -> Path:
+    try:
+        base = default_config_path() if config_path is None else Path(config_path).expanduser()
+        return base.with_name("runs.jsonl")
+    except Exception:
+        return Path("yonerai-runs.jsonl")
 
 
 def _canonical_command(value: str) -> str:
@@ -328,34 +424,51 @@ def _format_settings(
     report = build_config_report(config, exists=True)
     values = report["config"]
     local_state = _provider_state(provider_report or {}, "local")
+    ledger = "on" if values.get("ledger_enabled") else "off"
     if lang == "ja":
         return "\n".join(
             (
                 "設定",
+                "  1. 表示言語: " + _language_label(values["language"] or "ja", lang="ja"),
+                "     変更: /選択 1 日本語 または /選択 1 英語",
+                "  2. プロバイダー（AI接続先）: " + _provider_label(provider, lang="ja"),
+                "     変更: /選択 2 自動|モック|ローカル|オープンAI互換|アンソロピック|ジェミニ",
+                "  3. 承認（危険操作）: " + _approval_label(values["approval_mode"], lang="ja"),
+                "     変更: /選択 3 確認 または /選択 3 拒否",
+                "  4. ファイルアクセス（ファイル読み取り）: " + _file_access_label(values["file_access_mode"], lang="ja"),
+                "     変更: /選択 4 ワークスペース内のみ または /選択 4 無効",
+                "  5. 履歴記録（ローカルledger）: " + ("オン（redacted local JSONL）" if values.get("ledger_enabled") else "オフ（初期値）"),
+                "     変更: /選択 5 オン または /選択 5 オフ",
+                "",
+                "状態",
                 f"  表示言語: {_language_label(values['language'] or 'ja', lang='ja')}",
                 f"  プロバイダー（AI接続先）: {_provider_label(provider, lang='ja')}",
                 f"  ローカルLLM（PC内モデル）: {_state_label(local_state, lang='ja')}",
                 f"  承認（危険操作）: {_approval_label(values['approval_mode'], lang='ja')}",
                 f"  ファイルアクセス（ファイル読み取り）: {_file_access_label(values['file_access_mode'], lang='ja')}",
+                f"  履歴記録（ローカルledger）: {ledger}",
                 f"  ライブ接続（外部/ローカル実行）: {'オン（明示許可）' if live else 'オフ（初期値）'}",
                 f"  ネットワーク（外部通信）: {'オン（明示許可）' if values['network_enabled'] else 'オフ（初期値）'}",
                 "  秘密情報（APIキーなど）: 保存しません",
                 "  ローカルパス（PC内の場所）: 出力しません",
+                "  操作方法: 番号で変える場合は /選択 <番号> <値> を使います",
                 "",
             )
         )
     return "\n".join(
-            (
-                "Settings",
-                f"  language: {values['language'] or 'ja'}",
-                f"  provider: {provider}",
-                f"  local_llm: {local_state}",
-                f"  approval: {values['approval_mode']}",
-                f"  file_access: {values['file_access_mode']}",
+        (
+            "Settings",
+            f"  language: {values['language'] or 'ja'}",
+            f"  provider: {provider}",
+            f"  local_llm: {local_state}",
+            f"  approval: {values['approval_mode']}",
+            f"  file_access: {values['file_access_mode']}",
+            f"  ledger: {ledger}",
             f"  live_provider: {'on' if live else 'off'}",
             f"  network: {'on' if values['network_enabled'] else 'off'}",
             "  secrets: not stored",
             "  path: not printed",
+            "  numbered selection: /select 1 en, /select 2 mock, /select 5 on",
             "",
         )
     )
@@ -381,7 +494,7 @@ def _format_safety(config: dict[str, object], *, live: bool, lang: str) -> str:
                 "",
                 "ネットワーク（外部通信）",
                 f"{_selector('off', network_selected)} オフ（初期値）",
-                f"{_selector('provider', network_selected)} プロバイダーだけ許可（明示した時だけ）",
+                f"{_selector('provider', network_selected)} プロバイダーだけ許可（--liveで明示した時だけ）",
                 f"{_selector('search', network_selected)} 検索を許可（未実装）",
                 "",
                 "ファイルアクセス（ファイル読み取り）",
@@ -395,6 +508,7 @@ def _format_safety(config: dict[str, object], *, live: bool, lang: str) -> str:
                 f"{_selector('disabled', tools_selected)} 無効",
                 "",
                 f"承認（危険操作）: {_approval_label(values['approval_mode'], lang='ja')}",
+                f"履歴記録（ローカルledger）: {'オン（redacted local only）' if values.get('ledger_enabled') else 'オフ'}",
                 "シェル実行（PC操作）: 任意コマンドは無効",
                 "クラウド候補: private/local fileは送りません",
                 "",
@@ -408,6 +522,7 @@ def _format_safety(config: dict[str, object], *, live: bool, lang: str) -> str:
             f"  tools: {values['tools_mode']}",
             f"  file access: {values['file_access_mode']}",
             f"  approval: {values['approval_mode']}",
+            f"  ledger: {'on' if values.get('ledger_enabled') else 'off'}",
             "  shell: arbitrary shell disabled",
             "  cloud: private/local files never sent to cloud candidates",
             "",
@@ -417,7 +532,7 @@ def _format_safety(config: dict[str, object], *, live: bool, lang: str) -> str:
 
 def _format_providers(report: dict[str, Any], *, lang: str) -> str:
     providers = report.get("providers") if isinstance(report.get("providers"), list) else []
-    title = "プロバイダー" if lang == "ja" else "Providers"
+    title = "プロバイダー（AI接続先）" if lang == "ja" else "Providers"
     lines = [title]
     for item in providers:
         if not isinstance(item, dict):
@@ -433,7 +548,10 @@ def _format_providers(report: dict[str, Any], *, lang: str) -> str:
                 f"  {item.get('provider_id')}: {item.get('plain_state') or item.get('setup_status')} "
                 f"(configured={item.get('configured')})"
             )
-    lines.append("  キー（秘密情報）: 表示しません" if lang == "ja" else "  keys: redacted / not printed")
+    lines.append("  キー（秘密情報）: 表示しません。設定にも保存しません" if lang == "ja" else "  keys: redacted / not printed")
+    if lang == "ja":
+        lines.append("  ローカルLLM: localhost / 127.0.0.1 / ::1 だけを許可します")
+        lines.append("  外部API: --live と provider別env opt-in がある時だけ呼びます")
     lines.append("")
     return "\n".join(_safe(line) for line in lines)
 
@@ -441,7 +559,16 @@ def _format_providers(report: dict[str, Any], *, lang: str) -> str:
 def _format_runs(report: dict[str, Any], *, lang: str) -> str:
     runs = report.get("runs") if isinstance(report.get("runs"), list) else []
     if not runs:
-        return "実行履歴: まだありません\n" if lang == "ja" else "Runs: none yet\n"
+        if lang == "ja":
+            return "\n".join(
+                (
+                    "実行履歴: まだありません",
+                    "履歴は明示したローカルledgerだけを読みます。",
+                    "対話画面では /選択 5 オン で redacted local ledger を有効化できます。",
+                    "",
+                )
+            )
+        return "Runs: none yet\nLedger is opt-in and local-only.\n"
     title = "実行履歴" if lang == "ja" else "Runs"
     lines = [title]
     for run in runs:
@@ -487,16 +614,17 @@ def _welcome(lang: str, *, provider: str, live: bool, config_exists: bool) -> st
     if lang == "ja":
         return "\n".join(
             (
-                "YonerAI Interactive CLI v0.3 alpha",
+                "YonerAI CLI Local Runtime",
                 "日本語モード。/ヘルプ でコマンドを表示します。",
                 f"プロバイダー（AI接続先）={_provider_label(provider, lang='ja')} ライブ接続={'オン' if live else 'オフ'} 設定={'既存' if config_exists else '初期値'}",
                 "安全: ネットワークは初期値オフ / ツールはドライラン / ファイルはワークスペース内のみ",
+                "設定を変える: /設定  または  /選択 <番号> <値>",
                 "",
             )
         )
     return "\n".join(
         (
-            "YonerAI Interactive CLI v0.3 alpha",
+            "YonerAI CLI Local Runtime",
             "English mode. Type /help for commands.",
             f"provider={provider} live={'on' if live else 'off'} config={'found' if config_exists else 'created/default'}",
             "Safety: network off / tools dry-run / workspace file only / live providers off by default",
@@ -519,6 +647,8 @@ def _help(lang: str) -> str:
                 "  /提供元選択 自動|モック|ローカル|オープンAI互換|アンソロピック|ジェミニ",
                 "  /承認 確認|拒否       危険操作の扱いを変更",
                 "  /ファイル ワークスペース内のみ|無効",
+                "  /履歴記録 オン|オフ    redacted local ledger の記録を変更",
+                "  /選択 <番号> <値>      設定画面の番号で変更",
                 "  /終了                 終了",
                 "",
             )
@@ -533,6 +663,8 @@ def _help(lang: str) -> str:
             "  /show <run_id>   Show one run",
             "  /language ja|en  Change language",
             "  /provider auto|mock|local|openai-compatible|anthropic|gemini",
+            "  /ledger on|off    Toggle redacted local ledger",
+            "  /select <n> <value> Change a numbered setting",
             "  /quit            Exit",
             "",
         )
@@ -545,7 +677,8 @@ def _non_tty_fallback(lang: str) -> str:
             (
                 "YonerAI Interactive CLI",
                 "この入力はTTYではないため、対話画面は起動しません。",
-                "対話で使う: yonerai chat",
+                "対話で使う: yonerai",
+                "明示して使う: yonerai chat",
                 "スクリプトで使う: yonerai chat --script",
                 "確認する: yonerai providers --pretty --lang ja",
                 "",
@@ -571,6 +704,20 @@ def _changed_message(key: str, value: object, *, lang: str) -> str:
 
 def _invalid(lang: str) -> str:
     return "値が不正です\n" if lang == "ja" else "Invalid value\n"
+
+
+def _settings_selection_help(lang: str) -> str:
+    if lang == "ja":
+        return "\n".join(
+            (
+                "番号設定の形式が不正です。",
+                "例: /選択 1 日本語",
+                "例: /選択 2 モック",
+                "例: /選択 5 オン",
+                "",
+            )
+        )
+    return "Invalid numbered setting. Examples: /select 1 en, /select 2 mock, /select 5 on\n"
 
 
 def _config_error(lang: str, exc: ConfigError) -> str:
@@ -679,6 +826,7 @@ def _setting_label(value: object, *, lang: str) -> str:
         "provider": "プロバイダー（AI接続先）",
         "approval": "承認（危険操作）",
         "file_access": "ファイルアクセス（ファイル読み取り）",
+        "ledger": "履歴記録（ローカルledger）",
     }
     return labels.get(str(value), _safe(value))
 
@@ -694,6 +842,8 @@ def _value_label(value: object, *, lang: str) -> str:
         return _approval_label(value, lang=lang)
     if value in FILE_ACCESS_MODES:
         return _file_access_label(value, lang=lang)
+    if type(value) is bool:
+        return "オン" if value else "オフ"
     return _safe(value)
 
 

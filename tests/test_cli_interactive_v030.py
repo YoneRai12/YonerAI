@@ -3,6 +3,7 @@ from __future__ import annotations
 import io
 import json
 import sys
+import tomllib
 from pathlib import Path
 from typing import Any
 
@@ -52,7 +53,7 @@ def test_cli_config_show_and_set_do_not_print_paths_or_store_secrets(tmp_path: P
     assert cli.main(["config", "show", "--json"]) == 0
     report = json.loads(capsys.readouterr().out)
 
-    assert report["schema_version"] == "yonerai-cli-config/v0.3"
+    assert report["schema_version"] == "yonerai-cli-config/v0.4"
     assert report["secrets_supported"] is False
     assert report["path_persisted_in_output"] is False
     assert str(tmp_path) not in json.dumps(report)
@@ -63,6 +64,11 @@ def test_cli_config_show_and_set_do_not_print_paths_or_store_secrets(tmp_path: P
     assert updated["config"]["language"] == "ja"
     assert "no provider key storage" in updated["actions_not_performed"]
     assert "api_key" not in config_path.read_text(encoding="utf-8").lower()
+
+    assert cli.main(["config", "set", "ledger", "on", "--json"]) == 0
+    ledger_enabled = json.loads(capsys.readouterr().out)
+    assert ledger_enabled["config"]["ledger_enabled"] is True
+    assert str(tmp_path) not in json.dumps(ledger_enabled)
 
 
 def test_cli_config_write_failure_is_controlled(tmp_path: Path, monkeypatch, capsys) -> None:
@@ -92,6 +98,23 @@ def test_cli_package_version_normalizes_pep440_prerelease() -> None:
     assert yonerai_cli._to_public_semver("0.3.0-alpha.1") == "0.3.0-alpha.1"
 
 
+def test_cli_package_entry_point_exposes_yonerai_command() -> None:
+    pyproject = tomllib.loads((REPO_ROOT / "clients" / "cli" / "pyproject.toml").read_text(encoding="utf-8"))
+
+    assert pyproject["project"]["scripts"]["yonerai"] == "yonerai_cli.cli:main"
+
+
+def test_readmes_document_install_and_start_yonerai() -> None:
+    for relative_path in ("README.md", "README_JP.md", "clients/cli/README.md"):
+        text = (REPO_ROOT / relative_path).read_text(encoding="utf-8")
+
+        assert "Install and start YonerAI" in text
+        assert "python -m pip install -e clients/cli" in text
+        assert "yonerai" in text
+        assert "yonerai chat" in text
+        assert "yonerai ask --auto" in text
+
+
 def test_cli_without_args_has_non_tty_interactive_fallback(tmp_path: Path, monkeypatch, capsys) -> None:
     from yonerai_cli import cli
 
@@ -102,6 +125,23 @@ def test_cli_without_args_has_non_tty_interactive_fallback(tmp_path: Path, monke
 
     assert "YonerAI Interactive CLI" in output
     assert "対話画面は起動しません" in output
+    assert str(tmp_path) not in output
+
+
+def test_cli_without_args_tty_runs_first_launch_language_selection(tmp_path: Path, monkeypatch, capsys) -> None:
+    from yonerai_cli import cli
+
+    config_path = tmp_path / "cli-config.json"
+    monkeypatch.setenv("YONERAI_CLI_CONFIG_PATH", str(config_path))
+    monkeypatch.setattr(sys, "stdin", _TTYStringIO("1\n/終了\n"))
+
+    assert cli.main([]) == 0
+    output = capsys.readouterr().out
+
+    assert "YonerAI language / 表示言語" in output
+    assert "YonerAI CLI Local Runtime" in output
+    assert "日本語モード" in output
+    assert json.loads(config_path.read_text(encoding="utf-8"))["language"] == "ja"
     assert str(tmp_path) not in output
 
 
@@ -132,7 +172,7 @@ def test_chat_script_runs_ask_auto_and_persists_language_without_path_leak(tmp_p
     )
     output = capsys.readouterr().out
 
-    assert "YonerAI Interactive CLI v0.3 alpha" in output
+    assert "YonerAI CLI Local Runtime" in output
     assert "YonerAI 応答" in output
     assert "実行ID（run_id）" in output
     assert "プロバイダー（AI接続先）: モック（テスト用）" in output
@@ -157,6 +197,8 @@ def test_chat_accepts_english_commands_while_showing_japanese_ui(tmp_path: Path,
     output = capsys.readouterr().out
 
     assert "設定" in output
+    assert "/選択 5 オン" in output
+    assert "履歴記録（ローカルledger）" in output
     assert "プロバイダー" in output
     assert "安全設定" in output
     assert "実行履歴" in output
@@ -187,6 +229,29 @@ def test_chat_japanese_commands_and_values_are_accepted(tmp_path: Path, monkeypa
     assert "ツール（操作機能）" in output
     assert "プロバイダー（AI接続先）=モック（テスト用）" in output
     assert "言語=日本語" in output
+    assert str(tmp_path) not in output
+
+
+def test_chat_numbered_settings_and_ledger_are_usable_in_japanese(tmp_path: Path, monkeypatch, capsys) -> None:
+    from yonerai_cli import cli
+
+    _clear_provider_env(monkeypatch)
+    config_path = tmp_path / "cli-config.json"
+    default_ledger = tmp_path / "runs.jsonl"
+    monkeypatch.setattr(
+        sys,
+        "stdin",
+        _PlainStringIO("/設定\n/選択 2 モック\n/選択 5 オン\nhello\n/履歴\n/終了\n"),
+    )
+
+    assert cli.main(["chat", "--script", "--lang", "ja", "--config-path", str(config_path), "--color", "never"]) == 0
+    output = capsys.readouterr().out
+
+    assert "設定を変更しました: プロバイダー（AI接続先）=モック（テスト用）" in output
+    assert "設定を変更しました: 履歴記録（ローカルledger）=オン" in output
+    assert "YonerAI 応答" in output
+    assert "実行履歴" in output
+    assert default_ledger.exists()
     assert str(tmp_path) not in output
 
 

@@ -1,10 +1,28 @@
 # YonerAI Local CLI Smoke
 
-`clients/cli` is the local YonerAI CLI runtime alpha. It is becoming the main
+`clients/cli` is the YonerAI CLI Local Runtime surface. It is the main
 public-safe command surface for provider readiness, auto routing, local-dev
-execution, diagnostics, and release/install dry-run planning. It is not
-production-ready, not a deployment tool, and not a live Discord/Official Managed
-Cloud runtime.
+execution, diagnostics, and release/install dry-run planning. It is not a
+deployment tool and not a live Discord/Official Managed Cloud runtime.
+
+## Install and start YonerAI
+
+From the repository root, install the local CLI runtime into a virtual
+environment. This is not the production installer path and does not download or
+execute remote installer scripts.
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -U pip
+python -m pip install -r core/requirements.txt httpx
+python -m pip install -e clients/cli
+yonerai
+```
+
+`yonerai` starts the interactive CLI when stdin is a TTY. `yonerai chat` starts
+the same screen explicitly, and `yonerai ask --auto` remains the scriptable
+runtime path.
 
 ## Public Demo
 
@@ -37,7 +55,7 @@ simulator, Managed Cloud as external contract-only, route preview, enrolled
 Local Node trust/session simulation, the managed download guard, and
 proposal-only self-evolution.
 
-## Interactive CLI v0.3 Alpha
+## Interactive CLI
 
 `yonerai` and `yonerai chat` start the interactive terminal app when stdin is a
 TTY. It is Japanese-first, uses the same `ask --auto` runtime path as the
@@ -50,6 +68,8 @@ command CLI, and exposes settings through slash commands:
 - `/show <run_id>`
 - `/language ja|en`
 - `/provider auto|mock|local|openai-compatible|anthropic|gemini`
+- `/ledger on|off`
+- `/select <n> <value>`
 - `/quit`
 
 First interactive launch asks for Japanese or English and stores only local
@@ -64,8 +84,9 @@ environment opt-in. Local LLM remains loopback-only.
 
 ## What You Can Try In v0.2.0-alpha.1 And Later
 
-v0.2.0-alpha.1 and the v0.3 interactive alpha are local public alpha slices. They are not a finished product, a
-production installer, or a live Discord/Official Managed Cloud release.
+The current CLI local runtime is a local public runtime slice. It is not a
+finished full product, a production installer, or a live Discord/Official
+Managed Cloud release.
 
 Credential-free commands:
 
