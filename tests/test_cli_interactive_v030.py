@@ -210,6 +210,33 @@ def test_chat_invalid_language_and_provider_keep_shell_alive(tmp_path: Path, mon
     assert str(tmp_path) not in output
 
 
+def test_chat_setting_write_failure_is_not_reported_as_invalid_input(tmp_path: Path, monkeypatch, capsys) -> None:
+    from yonerai_cli import cli
+    from yonerai_cli import interactive as interactive_module
+    from yonerai_cli.config import ConfigError, DEFAULT_CONFIG, save_cli_config
+
+    _clear_provider_env(monkeypatch)
+    config_path = tmp_path / "cli-config.json"
+    config = dict(DEFAULT_CONFIG)
+    config["language"] = "en"
+    save_cli_config(config, config_path)
+
+    def fail_set_config(*_args: Any, **_kwargs: Any) -> dict[str, object]:
+        raise ConfigError("fixture write failure")
+
+    monkeypatch.setattr(interactive_module, "set_cli_config_value", fail_set_config)
+    monkeypatch.setattr(sys, "stdin", _PlainStringIO("/provider mock\nhello\n/quit\n"))
+
+    assert cli.main(["chat", "--script", "--config-path", str(config_path), "--color", "never"]) == 0
+    output = capsys.readouterr().out
+
+    assert "Could not save config: fixture write failure" in output
+    assert "Invalid value" not in output
+    assert "YonerAI response" in output
+    assert "Traceback" not in output
+    assert str(tmp_path) not in output
+
+
 def test_first_launch_language_selection_persists_choice(tmp_path: Path) -> None:
     from yonerai_cli.interactive import InteractiveCallbacks, InteractiveOptions, run_interactive_cli
 

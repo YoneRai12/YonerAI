@@ -143,11 +143,11 @@ def build_extension_capability_manifest(
     audit_event_required: object = True,
     args_hash_required: object = True,
 ) -> ExtensionCapabilityManifest:
-    normalized_capabilities = tuple(_normalize_capability(capability) for capability in declared_capabilities)
+    normalized_capabilities = tuple(_public_declared_capability_name(capability) for capability in declared_capabilities)
     return ExtensionCapabilityManifest(
         extension_id=_safe_extension_id(extension_id),
-        version=str(version or "unknown")[:64],
-        declared_capabilities=declared_capabilities,
+        version=_safe_manifest_version(version),
+        declared_capabilities=normalized_capabilities,
         typed_inputs=typed_inputs if typed_inputs is not None else _default_typed_inputs(normalized_capabilities),
         typed_outputs=typed_outputs if typed_outputs is not None else _default_typed_outputs(normalized_capabilities),
         risk_tags=tuple(dict.fromkeys(_normalize_capability(tag) for tag in risk_tags if str(tag or "").strip())),
@@ -172,11 +172,12 @@ def evaluate_extension_capability_manifest(
     overbroad = tuple(
         capability for capability in declared_unique if capability in OVERBROAD_EXTENSION_CAPABILITIES or "*" in capability
     )
-    unknown = tuple(
+    unknown_raw = tuple(
         capability
         for capability in declared_unique
         if capability not in SAFE_EXTENSION_CAPABILITIES and capability not in overbroad
     )
+    unknown = tuple(dict.fromkeys(_redacted_unknown_capability_name(capability) for capability in unknown_raw))
     denied_risk_tags = tuple(tag for tag in risk_tags if tag in DENIED_EXTENSION_RISK_TAGS)
     unknown_risk_tags = tuple(
         tag for tag in risk_tags if tag not in SAFE_EXTENSION_RISK_TAGS and tag not in DENIED_EXTENSION_RISK_TAGS
@@ -331,3 +332,26 @@ def _safe_extension_id(value: object) -> str:
     if "\\" in text or "/" in text or ":" in text:
         return "extension-id-redacted"
     return text[:80]
+
+
+def _safe_manifest_version(value: object) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return "unknown"
+    if "\\" in text or "/" in text or ":" in text:
+        return "version-redacted"
+    safe = "".join(ch for ch in text if ch.isalnum() or ch in {".", "_", "+", "-"})
+    return safe[:64] if safe else "version-redacted"
+
+
+def _redacted_unknown_capability_name(_value: str) -> str:
+    return "unknown_capability_redacted"
+
+
+def _public_declared_capability_name(value: object) -> str:
+    normalized = _normalize_capability(value)
+    if not normalized:
+        return ""
+    if normalized in SAFE_EXTENSION_CAPABILITIES or normalized in OVERBROAD_EXTENSION_CAPABILITIES:
+        return normalized
+    return _redacted_unknown_capability_name(normalized)

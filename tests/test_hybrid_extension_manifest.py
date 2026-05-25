@@ -66,9 +66,28 @@ def test_overbroad_and_unknown_extension_capabilities_are_denied() -> None:
     assert payload["status"] == "denied"
     assert payload["accepted_capabilities"] == []
     assert payload["overbroad_capabilities"] == ["local_tools", "pc_operations"]
-    assert payload["unknown_capabilities"] == ["future_private_capability"]
+    assert payload["unknown_capabilities"] == ["unknown_capability_redacted"]
+    assert payload["denied_capabilities"] == ["local_tools", "pc_operations", "unknown_capability_redacted"]
     assert "overbroad_extension_capability_denied" in payload["reasons"]
     assert "unknown_extension_capability_denied" in payload["reasons"]
+
+
+def test_extension_manifest_redacts_unknown_capability_and_version_inputs() -> None:
+    manifest = build_extension_capability_manifest(
+        extension_id="unknown-extension",
+        version="https://example.invalid/private-version",
+        declared_capabilities=("future.private.capability",),
+    )
+    manifest_payload = manifest.to_public_dict()
+    decision_payload = evaluate_extension_capability_manifest(manifest).to_public_dict()
+    serialized = json.dumps({"manifest": manifest_payload, "decision": decision_payload}, sort_keys=True)
+
+    assert manifest_payload["version"] == "version-redacted"
+    assert manifest_payload["declared_capabilities"] == ["unknown_capability_redacted"]
+    assert decision_payload["unknown_capabilities"] == ["unknown_capability_redacted"]
+    assert decision_payload["denied_capabilities"] == ["unknown_capability_redacted"]
+    assert "https://example.invalid/private-version" not in serialized
+    assert "future.private.capability" not in serialized
 
 
 def test_extension_manifest_denies_unsafe_risk_owner_scope_and_audit_gap() -> None:

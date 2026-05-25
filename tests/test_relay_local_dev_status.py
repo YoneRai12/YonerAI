@@ -77,6 +77,46 @@ def test_relay_status_accepts_loopback_ip_range_and_auto_url_without_probe() -> 
     assert report["node_connector"]["relay_url_category"] == "auto_unresolved_no_probe"
 
 
+def test_relay_status_resolves_auto_url_file_before_marking_safe(tmp_path: Path) -> None:
+    url_file = tmp_path / "relay-url.txt"
+    url_file.write_text("https://relay.example.invalid\n", encoding="utf-8")
+
+    report = build_relay_status_report(
+        {
+            "ORA_RELAY_URL": "auto",
+            "ORA_RELAY_URL_FILE": str(url_file),
+        }
+    )
+    serialized = json.dumps(report, sort_keys=True)
+
+    assert report["ok"] is False
+    assert report["relay"]["configured_url_category"] == "auto_resolved_non_loopback_blocked"
+    assert report["relay"]["auto_url_resolution"] == "auto_resolved_non_loopback_blocked"
+    assert report["relay"]["loopback_only"] is False
+    assert report["node_connector"]["relay_url_category"] == "auto_resolved_non_loopback_blocked"
+    assert "relay.example.invalid" not in serialized
+    assert str(url_file) not in serialized
+
+
+def test_relay_status_treats_invalid_auto_url_file_as_unreadable(tmp_path: Path) -> None:
+    url_file = tmp_path / "relay-url.txt"
+    url_file.write_bytes(b"\xff\xfe\xfa")
+
+    report = build_relay_status_report(
+        {
+            "ORA_RELAY_URL": "auto",
+            "ORA_RELAY_URL_FILE": str(url_file),
+        }
+    )
+    serialized = json.dumps(report, sort_keys=True)
+
+    assert report["ok"] is False
+    assert report["relay"]["configured_url_category"] == "auto_resolution_unreadable"
+    assert report["relay"]["auto_url_resolution"] == "auto_resolution_unreadable"
+    assert report["node_connector"]["relay_url_category"] == "auto_resolution_unreadable"
+    assert str(url_file) not in serialized
+
+
 def test_relay_status_accepts_scheme_less_loopback_url() -> None:
     report = build_relay_status_report(
         {

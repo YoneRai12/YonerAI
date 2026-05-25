@@ -151,7 +151,13 @@ def build_oracle_stub_queue_report(
 ) -> dict[str, object]:
     task = " ".join(str(task_text or "").split()) or DEFAULT_ORACLE_STUB_TASK
     classification = classify_task(task)
-    route = preview_route(task, mode="official_hybrid_private").to_public_dict()
+    requested_capability = "private_files" if classification.risk == "private_data" else None
+    route = preview_route(
+        task,
+        mode="official_hybrid_private",
+        requested_capability=requested_capability,
+        risk_hint=classification.risk.replace("_", " "),
+    ).to_public_dict()
     disabled_reason = _oracle_stub_disabled_reason(route)
     run = None
     run_id = ""
