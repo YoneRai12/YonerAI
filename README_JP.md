@@ -22,6 +22,9 @@ python -m venv .venv
 python -m pip install -U pip
 python -m pip install -r core/requirements.txt httpx
 python -m pip install -e clients/cli
+yonerai
+yonerai chat
+yonerai config show --pretty --lang ja
 yonerai start --guided --lang ja
 yonerai start --guided --json
 yonerai demo --pretty
@@ -35,9 +38,40 @@ yonerai manifest verify releases/manifest.example.json --pretty --lang ja
 
 ## 最初の5分
 
+`yonerai` は v0.3 alpha の対話型 terminal を起動します。明示したい場合は
+`yonerai chat` を使います。これは full-screen GUI ではなく、標準ライブラリ
+だけで動く安全な対話 shell です。文章を入力すると `ask --auto` と同じ安全
+経路で実行し、slash command で設定や履歴を見られます。
+
+```text
+/設定                 設定を見る
+/提供元               プロバイダー（AI接続先）の状態を見る。キーは表示しません
+/安全                 ネットワーク（外部通信）/ツール（操作機能）/ファイルアクセス（ファイル読み取り）の境界を見る
+/履歴                 実行履歴（redacted local run history）を見る
+/表示 <実行ID>        1件の実行を見る
+/言語 日本語|英語     表示言語を変更
+/提供元選択 自動|モック|ローカル|オープンAI互換|アンソロピック|ジェミニ
+/承認 確認|拒否       危険操作の扱いを変更
+/ファイル ワークスペース内のみ|無効
+/終了                 終了
+```
+
+日本語モードでも `/settings`、`/providers`、`/safety`、`/runs`、`/provider mock`、
+`/quit` のような英語 slash command は互換 alias として使えます。ただし、画面に
+出す説明は日本語優先です。
+
+初回の対話起動では、日本語 / English を選びます。保存するのは language、
+provider preference、approval mode、file access mode などの非secret設定
+だけです。pipe や CI のような non-TTY ではハングせず、使い方だけを表示し
+ます。script入力を意図する場合は `yonerai chat --script` を使います。
+
 `yonerai start --guided` は、YonerAI を初めて触る人のための案内 command です。内部 label を並べるのではなく、次に何を実行すればよいかを表示します。
 
 ```powershell
+yonerai
+yonerai chat
+yonerai config set language ja
+yonerai config show --pretty --lang ja
 yonerai start --guided --lang ja
 yonerai start --guided --json
 yonerai demo --pretty
@@ -52,6 +86,10 @@ yonerai runs list --ledger .yonerai-runs.jsonl --json
 
 この流れで分かること:
 
+- `yonerai` / `yonerai chat` は、日本語優先の対話 shell を起動します。chat、
+  provider状態、safety設定、run historyをslash commandで確認できます。
+- `yonerai config show/set` は、secretを保存せず、local preferenceだけを
+  扱います。
 - `yonerai start --guided --lang ja` は、mock provider で安全に試す手順、local LLM の状態、ワークスペース内ファイルアクセス制御の例、ledger の例、現在の制限を表示します。
 - `yonerai demo --pretty` は、現在の alpha slice を credential なしで表示します。
 - `yonerai doctor --pretty --lang ja` は、ローカル setup、manifest、provider setup、安全境界を確認します。

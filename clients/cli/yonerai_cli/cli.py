@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from yonerai_cli import __version__
+from yonerai_cli.config import ConfigError, build_config_report, default_config_path, load_cli_config, set_cli_config_value
 from yonerai_cli.output import CliRow, CliSection, ColorMode, render_report
 from yonerai_cli.release_manifest import (
     ManifestError,
@@ -2907,6 +2908,117 @@ def _print_run_show_pretty(report: dict[str, Any], *, lang: str = "en", color: C
     print(render_report(title, sections, color=color))
 
 
+def _build_config_report_for_cli(args: argparse.Namespace) -> dict[str, Any]:
+    try:
+        config = load_cli_config(args.config_path)
+        config_path = Path(args.config_path).expanduser() if args.config_path else default_config_path()
+        return build_config_report(config, exists=config_path.exists())
+    except ConfigError as exc:
+        raise CliError(str(exc), exit_code=2) from exc
+
+
+def _set_config_report_for_cli(args: argparse.Namespace) -> dict[str, Any]:
+    try:
+        config = set_cli_config_value(args.config_key, args.config_value, args.config_path)
+        return build_config_report(config, exists=True) | {
+            "operation": "set",
+            "changed_key": args.config_key,
+        }
+    except ConfigError as exc:
+        raise CliError(str(exc), exit_code=2) from exc
+
+
+def _print_config_pretty(report: dict[str, Any], *, lang: str = "ja", color: ColorMode = "auto") -> None:
+    config = report.get("config") if isinstance(report.get("config"), dict) else {}
+    if lang == "ja":
+        title = "YonerAI 設定"
+        settings_title = "設定"
+        boundary_title = "境界"
+        rows = (
+            CliRow("language", config.get("language") or "ja", "ok"),
+            CliRow("provider", config.get("provider_preference"), "ok"),
+            CliRow("approval", config.get("approval_mode"), "ok"),
+            CliRow("file_access", config.get("file_access_mode"), "ok"),
+            CliRow("live_provider", config.get("live_provider_enabled"), "warn" if config.get("live_provider_enabled") else "ok"),
+            CliRow("network", config.get("network_enabled"), "warn" if config.get("network_enabled") else "ok"),
+            CliRow("tools", config.get("tools_mode"), "ok"),
+        )
+        boundary_rows = (
+            CliRow("secrets_supported", report.get("secrets_supported"), "fail" if report.get("secrets_supported") else "ok"),
+            CliRow("path_persisted_in_output", report.get("path_persisted_in_output"), "fail" if report.get("path_persisted_in_output") else "ok"),
+        )
+    else:
+        title = "YonerAI config"
+        settings_title = "Settings"
+        boundary_title = "Boundary"
+        rows = (
+            CliRow("language", config.get("language") or "ja", "ok"),
+            CliRow("provider", config.get("provider_preference"), "ok"),
+            CliRow("approval", config.get("approval_mode"), "ok"),
+            CliRow("file_access", config.get("file_access_mode"), "ok"),
+            CliRow("live_provider", config.get("live_provider_enabled"), "warn" if config.get("live_provider_enabled") else "ok"),
+            CliRow("network", config.get("network_enabled"), "warn" if config.get("network_enabled") else "ok"),
+            CliRow("tools", config.get("tools_mode"), "ok"),
+        )
+        boundary_rows = (
+            CliRow("secrets_supported", report.get("secrets_supported"), "fail" if report.get("secrets_supported") else "ok"),
+            CliRow("path_persisted_in_output", report.get("path_persisted_in_output"), "fail" if report.get("path_persisted_in_output") else "ok"),
+        )
+    print(render_report(title, (CliSection(settings_title, rows), CliSection(boundary_title, boundary_rows)), color=color))
+
+
+def _interactive_callbacks():
+    from yonerai_cli.interactive import InteractiveCallbacks
+
+    return InteractiveCallbacks(
+        providers=_build_providers_report,
+        ask_auto=_interactive_ask_auto,
+        runs_list=_interactive_runs_list,
+        runs_show=_interactive_runs_show,
+    )
+
+
+def _interactive_ask_auto(task: str, provider: str, live: bool, ledger_path: str | None, _lang: str) -> dict[str, Any]:
+    args = argparse.Namespace(
+        task=[task],
+        provider=provider,
+        live=live,
+        ledger_path=ledger_path,
+        file=None,
+        workspace=None,
+        file_max_bytes=65536,
+    )
+    return _execute_auto_ask_report(args)
+
+
+def _interactive_runs_list(ledger_path: str | None, limit: int, _lang: str) -> dict[str, Any]:
+    args = argparse.Namespace(runs_command="list", ledger_path=ledger_path, limit=limit)
+    return _build_runs_report(args)
+
+
+def _interactive_runs_show(run_id: str, ledger_path: str | None, _lang: str) -> dict[str, Any]:
+    args = argparse.Namespace(runs_command="show", ledger_path=ledger_path, run_id=run_id, limit=1)
+    return _build_runs_report(args)
+
+
+def _run_interactive_chat(args: argparse.Namespace) -> int:
+    from yonerai_cli.interactive import InteractiveOptions, run_interactive_cli
+
+    options = InteractiveOptions(
+        config_path=args.config_path,
+        lang=args.lang,
+        provider=args.provider,
+        live=args.live,
+        ledger_path=args.ledger_path,
+        script=args.script,
+        color=args.color,
+    )
+    try:
+        return run_interactive_cli(options, _interactive_callbacks())
+    except ConfigError as exc:
+        raise CliError(str(exc), exit_code=2) from exc
+
+
 def _prompt_from_args(parts: list[str]) -> str:
     prompt = " ".join(parts).strip()
     if not prompt:
@@ -2925,11 +3037,40 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="yonerai",
         description=(
-            "YonerAI local public MVP smoke CLI. "
-            "Not the final product CLI, not native Japanese CLI, and not a deploy tool."
+            "YonerAI local public MVP smoke CLI and runtime alpha. "
+            "Includes an interactive terminal shell, safe provider readiness, auto routing, and diagnostics. "
+            "It is not a deploy tool."
         ),
     )
-    subcommands = parser.add_subparsers(dest="command", required=True)
+    subcommands = parser.add_subparsers(dest="command", required=False)
+
+    chat = subcommands.add_parser("chat", aliases=["interactive"], help="Start the Japanese-first interactive YonerAI terminal.")
+    chat.add_argument("--config-path", help="Optional local CLI config path. Defaults to the user config directory.")
+    chat.add_argument("--lang", choices=LANG_CHOICES, help="Interactive language. Defaults to saved config or first-launch selection.")
+    chat.add_argument("--provider", choices=PLAN_PROVIDER_CHOICES, help="Provider preference for chat messages. Defaults to saved config.")
+    chat.add_argument("--live", action="store_true", help="Explicitly allow configured live provider/local LLM execution.")
+    chat.add_argument("--ledger-path", "--ledger", dest="ledger_path", help="Optional redacted JSONL run ledger path.")
+    chat.add_argument("--script", action="store_true", help="Read chat lines from stdin even when stdin is not a TTY.")
+    chat.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Output color mode. Default: auto.")
+
+    config = subcommands.add_parser("config", help="Show or update local YonerAI CLI preferences. No secrets are stored.")
+    config_subcommands = config.add_subparsers(dest="config_command", required=True)
+    config_show = config_subcommands.add_parser("show", help="Show local CLI preferences without printing the config path.")
+    config_show.add_argument("--config-path", help="Optional local CLI config path.")
+    config_show_output = config_show.add_mutually_exclusive_group()
+    config_show_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
+    config_show_output.add_argument("--pretty", action="store_true", help="Print a readable settings summary.")
+    config_show.add_argument("--lang", choices=LANG_CHOICES, default="ja", help="Pretty output language. Default: ja.")
+    config_show.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
+    config_set = config_subcommands.add_parser("set", help="Set one local CLI preference. Provider keys are not accepted.")
+    config_set.add_argument("config_key", choices=("language", "lang", "provider", "provider_preference", "approval", "approval_mode", "file_access", "file_access_mode", "live_provider", "network"))
+    config_set.add_argument("config_value")
+    config_set.add_argument("--config-path", help="Optional local CLI config path.")
+    config_set_output = config_set.add_mutually_exclusive_group()
+    config_set_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
+    config_set_output.add_argument("--pretty", action="store_true", help="Print a readable settings summary.")
+    config_set.add_argument("--lang", choices=LANG_CHOICES, default="ja", help="Pretty output language. Default: ja.")
+    config_set.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
 
     subcommands.add_parser("health", parents=[shared], help="Check the local Core API health endpoint.")
 
@@ -3247,9 +3388,31 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def run(argv: list[str] | None = None) -> int:
+    actual_argv = list(sys.argv[1:] if argv is None else argv)
+    if not actual_argv:
+        return _run_interactive_chat(
+            argparse.Namespace(
+                config_path=None,
+                lang=None,
+                provider=None,
+                live=False,
+                ledger_path=None,
+                script=False,
+                color="auto",
+            )
+        )
     parser = build_parser()
-    args = parser.parse_args(argv)
+    args = parser.parse_args(actual_argv)
 
+    if args.command in {"chat", "interactive"}:
+        return _run_interactive_chat(args)
+    if args.command == "config":
+        report = _set_config_report_for_cli(args) if args.config_command == "set" else _build_config_report_for_cli(args)
+        if args.json:
+            _print_json(report)
+        else:
+            _print_config_pretty(report, lang=args.lang, color=args.color)
+        return 0
     if args.command == "health":
         _print_json(request_json("GET", args.api_origin, "/health"))
         return 0
