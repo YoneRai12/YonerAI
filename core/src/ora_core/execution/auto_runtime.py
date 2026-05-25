@@ -484,10 +484,32 @@ def _execute_oracle_stub(
     ledger: RunLedger,
     run_id: str,
 ) -> dict[str, object]:
-    from ora_core.hybrid.oracle_stub import (
-        LocalDevOracleStubQueue,
-        build_oracle_stub_request,
-    )
+    try:
+        from ora_core.hybrid.oracle_stub import (
+            LocalDevOracleStubQueue,
+            build_oracle_stub_request,
+        )
+    except (ImportError, ModuleNotFoundError) as exc:
+        reason = f"oracle_stub_unavailable:{type(exc).__name__}"
+        ledger.append_event(run_id, "oracle_stub_import", "failed", reason)
+        return {
+            "schema_version": "yonerai-oracle-stub/v0.1",
+            "ok": False,
+            "operation": "import",
+            "status": "failed",
+            "local_dev_stub": True,
+            "request": {},
+            "queue": {},
+            "response": {
+                "status": "failed",
+                "disabled_reason": reason,
+                "redacted_summary": "oracle stub unavailable in this environment",
+            },
+            "network_required": False,
+            "provider_call_performed": False,
+            "production_oracle_used": False,
+            "official_cloud_runtime_implemented": False,
+        }
 
     request = build_oracle_stub_request(
         task_text=task,
