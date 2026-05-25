@@ -105,6 +105,15 @@ def test_legacy_text_normalizer_keeps_route_eval_json_in_plain_text_for_ledger()
     assert legacy_text_normalizer_status()["route_json_stripper_connected"] is True
 
 
+def test_legacy_text_normalizer_strips_route_eval_before_boundary_cleanup() -> None:
+    _prepare_paths()
+    from ora_core.execution import normalize_legacy_generated_text
+
+    content = '{"route_eval": {"route": "internal", "note": "brace } inside"}}<|final|>reply'
+
+    assert normalize_legacy_generated_text(content) == "reply"
+
+
 def test_legacy_text_cleaner_import_is_cached(monkeypatch) -> None:
     _prepare_paths()
     import builtins
