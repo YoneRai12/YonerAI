@@ -33,6 +33,12 @@ def test_local_dev_relay_node_e2e_fixture_connects_wire_and_relay_boundaries() -
     assert report["relay"]["message_body_persisted"] is False
     assert report["relay"]["pairing_code_storage"] == "hash_only"
     assert report["relay"]["session_token_storage"] == "hash_only"
+    assert report["transport"]["schema_version"] == "yonerai-local-dev-relay-transport/v0.1"
+    assert report["transport"]["mode"] == "local_dev_in_memory"
+    assert report["transport"]["loopback_only"] is True
+    assert report["transport"]["process_started"] is False
+    assert report["transport"]["public_exposure_allowed"] is False
+    assert report["transport"]["message_body_persisted"] is False
 
     node_flow = report["node_flow"]
     assert node_flow["hello"]["schema_name"] == "LocalNodeHello"
@@ -71,8 +77,10 @@ def test_local_dev_relay_node_e2e_http_proxy_fixture_keeps_only_hashes() -> None
     proxy = report["http_proxy_fixture"]
     serialized = json.dumps(proxy, sort_keys=True)
 
-    assert proxy["message_type"] == "http_proxy"
-    assert proxy["path_category"] == "loopback_node_api_fixture"
+    assert proxy["schema_version"] == "yonerai-local-dev-relay-transport/v0.1"
+    assert proxy["ok"] is True
+    assert proxy["status"] == "completed"
+    assert proxy["capability"] == "mock_search"
     assert proxy["request_body_hash"].startswith("sha256:")
     assert proxy["response_body_hash"].startswith("sha256:")
     assert proxy["request_body_bytes"] > 0
@@ -80,6 +88,8 @@ def test_local_dev_relay_node_e2e_http_proxy_fixture_keeps_only_hashes() -> None
     assert proxy["request_body_persisted"] is False
     assert proxy["response_body_persisted"] is False
     assert proxy["raw_body_included"] is False
+    assert proxy["session_token_hash_only"] is True
+    assert proxy["controlled_error"] is False
     assert "local dev relay fixture" not in serialized
     assert "fixture response" not in serialized
 
