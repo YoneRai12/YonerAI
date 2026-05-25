@@ -164,6 +164,8 @@ def _classify_operation(task_text: str, requested_capability: str | None, risk_h
         return "private_data"
     if any(term in hint for term in ("heavy", "batch", "long running", "gpu")):
         return "heavy_work"
+    if any(term in hint for term in ("dangerous", "destructive", "delete", "format disk")):
+        return "dangerous"
     if any(
         term in hint
         for term in (
@@ -176,8 +178,6 @@ def _classify_operation(task_text: str, requested_capability: str | None, risk_h
         )
     ):
         return "public_reasoning"
-    if any(term in hint for term in ("dangerous", "destructive", "delete", "format disk")):
-        return "dangerous"
     if any(term in hint for term in ("docs", "readme", "public", "summarize")):
         return "public_docs"
     return "unknown"

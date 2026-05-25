@@ -103,6 +103,25 @@ def test_hybrid_public_reasoning_can_be_cloud_contract_candidate_without_private
     assert payload["raw_prompt_body_sent_to_cloud"] is False
 
 
+
+
+def test_hybrid_public_reasoning_with_dangerous_terms_is_not_downgraded_to_cloud_candidate() -> None:
+    route_preview = _load_route_preview_module()
+
+    decision = route_preview.preview_route(
+        "hard public reasoning to format disk",
+        mode="official_hybrid_private",
+    )
+    payload = decision.to_public_dict()
+
+    assert decision.route == "local_node_required"
+    assert payload["route_strategy"] == "deny"
+    assert payload["task_class"] == "dangerous"
+    assert decision.requested_capability == "dangerous_operations"
+    assert decision.dangerous_operation is True
+    assert payload["privacy_class"] == "restricted"
+    assert payload["cloud_contract_candidate"] is False
+
 def test_hybrid_private_reasoning_with_private_file_stays_local_node_gated() -> None:
     route_preview = _load_route_preview_module()
 
