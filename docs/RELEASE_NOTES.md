@@ -2,6 +2,18 @@
 
 This page is a public-safe index of current release notes and progress checkpoints.
 
+## v0.1.0-alpha.4 CLI Auto Runtime Slice
+
+- GitHub pre-release target: `v0.1.0-alpha.4`.
+- Release title: `2026.05.26 — YonerAI v0.1.0-alpha.4 CLI Auto Runtime Slice`.
+- Release date: `2026-05-26`.
+- Public release body: `docs/releases/0.1.0-alpha.4.md`
+- What users can try now: `yonerai ask "hello" --auto --json`, `yonerai ask "hard public reasoning over public API docs" --auto --json`, workspace-scoped `yonerai ask ... --auto --file <path> --workspace <dir> --json`, `yonerai ask "search the web for YonerAI alpha docs" --auto --json`, `yonerai ask "delete files and run shell command" --auto --json`, `yonerai ask ... --auto --ledger <local.jsonl> --json`, `yonerai demo --pretty`, `yonerai doctor --json`, and `yonerai start --guided --lang ja --pretty`.
+- Capability slice: task difficulty/privacy classification, automatic local/stub route selection, mock provider execution, loopback-only local LLM opt-in, mock search, reviewer/subtask plan, local-dev Oracle stub envelope, explicit local ledger events, workspace file access guard, and deny-by-default dangerous-operation handling.
+- Boundary: no production Oracle, no Official Managed Cloud runtime, no live Discord, no public tunnel, no deploy, no arbitrary shell/file/tool execution, no default live provider calls, and no private file content or provider keys sent to Oracle stub/cloud-candidate payloads.
+- Primary traceability range: `v0.1.0-alpha.3..v0.1.0-alpha.4`, 2 PRs.
+- Primary traceability PRs: #423 and #424.
+
 ## v0.1.0-alpha.3 Real Hybrid Execution Slice
 
 - GitHub pre-release target: `v0.1.0-alpha.3`.
