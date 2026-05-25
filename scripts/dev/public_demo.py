@@ -671,6 +671,7 @@ def _hybrid_trust_checks() -> tuple[dict[str, object], ...]:
             "orchestration_public_execution": wire_conformance["official_orchestration_stub"]["response"][
                 "public_repo_execution_available"
             ],
+            "route_orchestration_alignment": wire_conformance["route_orchestration_alignment"]["status"],
             "official_cloud_runtime_implemented": wire_conformance["official_cloud_runtime_implemented"],
             "network_required": wire_conformance["network_required"],
         },

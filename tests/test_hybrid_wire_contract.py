@@ -3,6 +3,7 @@ from __future__ import annotations
 import sys
 from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 
 
 repo_root = Path(__file__).resolve().parents[1]
@@ -253,6 +254,15 @@ def test_hybrid_wire_conformance_report_covers_required_states() -> None:
     assert report["official_orchestration_stub"]["response"]["route_strategy"] == "cloud_contract_candidate"
     assert report["official_orchestration_stub"]["response"]["public_repo_execution_available"] is False
     assert report["official_orchestration_stub"]["response"]["network_required"] is False
+    alignment = report["route_orchestration_alignment"]
+    assert alignment["status"] == "ok"
+    assert alignment["route"] == "cloud_contract_candidate"
+    assert alignment["route_strategy"] == "cloud_contract_candidate"
+    assert alignment["request_schema"] == "OfficialOrchestrationStubRequest"
+    assert alignment["response_schema"] == "OfficialOrchestrationStubResponse"
+    assert alignment["privacy_class"] == "public"
+    assert alignment["cloud_contract_candidate"] is True
+    assert all(alignment["checks"].values())
     assert report["node_posture_schema_version"] == "yonerai-local-node-posture/v0.1"
     assert report["extension_capability_manifest_schema_version"] == "yonerai-extension-capability-manifest/v0.2"
     assert report["required_node_posture_state_count"] == 5
@@ -292,6 +302,27 @@ def test_hybrid_wire_conformance_report_covers_required_states() -> None:
     assert accepted_extension["audit_event_required"] is True
     assert accepted_extension["args_hash_required"] is True
     assert accepted_extension["can_execute"] is False
+
+
+def test_hybrid_wire_conformance_report_fails_when_route_alignment_drifts(monkeypatch) -> None:
+    from ora_core.route_preview import preview_route
+
+    route_decision = preview_route(
+        "hard public reasoning over public API docs",
+        mode="official_hybrid_private",
+    ).to_public_dict()
+    route_decision["route_strategy"] = "hybrid"
+
+    monkeypatch.setattr(
+        "ora_core.route_preview.preview_route",
+        lambda *_args, **_kwargs: SimpleNamespace(to_public_dict=lambda: route_decision),
+    )
+
+    report = build_hybrid_wire_conformance_report()
+
+    assert report["route_orchestration_alignment"]["status"] == "fail"
+    assert report["route_orchestration_alignment"]["checks"]["route_strategy_matches_request"] is False
+    assert report["ok"] is False
 
 
 def test_duplicate_manifest_capabilities_are_rejected_deterministically() -> None:
