@@ -6,7 +6,7 @@ import re
 __all__ = ["__version__"]
 
 _PACKAGE_NAME = "yonerai-cli"
-_PACKAGE_VERSION_FALLBACK = "0.2.0a1"
+_PACKAGE_VERSION_FALLBACK = "0.3.0a1"
 _PEP440_PRERELEASE_RE = re.compile(r"^(\d+\.\d+\.\d+)(a|b|rc)(\d+)$")
 _PEP440_LABELS = {"a": "alpha", "b": "beta", "rc": "rc"}
 

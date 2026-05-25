@@ -2,6 +2,17 @@
 
 This page is a public-safe index of current release notes and progress checkpoints.
 
+## v0.3.0-alpha.1 Interactive CLI Slice
+
+- GitHub pre-release target: `v0.3.0-alpha.1`.
+- Release title: `2026.05.26 — YonerAI v0.3.0-alpha.1 Interactive CLI Slice`.
+- Release date: `2026-05-26`.
+- Public release body: `docs/releases/0.3.0-alpha.1.md`
+- What users can try now: `yonerai`, `yonerai chat`, first-launch Japanese/English selection, Japanese slash commands such as `/設定`, `/提供元`, `/安全`, `/履歴`, `/表示 <実行ID>`, local preference commands `yonerai config show/set`, and compatibility aliases such as `/settings` in Japanese mode.
+- Capability slice: Japanese-first interactive chat shell, settings/provider/safety/run-history screens, local non-secret config, `ask --auto` chat execution, non-TTY fallback, scripted chat mode for tests/automation, and current-main P1/P2 review-debt fixes.
+- Boundary: no production Oracle, no Official Managed Cloud runtime, no live Discord, no deploy/public tunnel, no arbitrary shell/file/tool execution, no default live provider calls, no production signing/trust store, and no provider keys printed or stored.
+- Primary traceability range: `v0.2.0-alpha.1..v0.3.0-alpha.1`, PRs #429, #430, and #431.
+
 ## v0.2.0-alpha.1 Real CLI Runtime Slice
 
 - GitHub pre-release target: `v0.2.0-alpha.1`.

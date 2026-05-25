@@ -9,6 +9,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 CLI_SRC = ROOT / "clients" / "cli"
+FUTURE_TEST_VERSION = "999.0.0-alpha.1"
 
 
 def _prepare_paths() -> None:
@@ -69,7 +70,7 @@ def test_cli_update_plan_reports_update_available(tmp_path, capsys) -> None:
     from yonerai_cli import cli
 
     manifest = _example_manifest()
-    _set_manifest_version(manifest, "0.1.0-alpha.3")
+    _set_manifest_version(manifest, FUTURE_TEST_VERSION)
     manifest_path = _write_manifest(tmp_path, manifest)
 
     assert cli.main(["update", "plan", "--manifest", str(manifest_path), "--json"]) == 0
@@ -77,7 +78,7 @@ def test_cli_update_plan_reports_update_available(tmp_path, capsys) -> None:
     output = json.loads(capsys.readouterr().out)
     assert output["schema_version"] == "yonerai-update-plan/v0.1"
     assert output["current_version"] == _current_version()
-    assert output["target_version"] == "0.1.0-alpha.3"
+    assert output["target_version"] == FUTURE_TEST_VERSION
     assert output["update_available"] is True
     assert output["version_comparison"] == "target_newer"
     assert output["download_performed"] is False
@@ -91,10 +92,10 @@ def test_cli_update_plan_rejects_invalid_artifact_name(tmp_path, capsys) -> None
     from yonerai_cli import cli
 
     manifest = _example_manifest()
-    _set_manifest_version(manifest, "0.1.0-alpha.3")
+    _set_manifest_version(manifest, FUTURE_TEST_VERSION)
     manifest["artifacts"][0]["url"] = (
         "https://github.com/YoneRai12/YonerAI/releases/download/"
-        "v0.1.0-alpha.3/YonerAI-latest.zip"
+        f"v{FUTURE_TEST_VERSION}/YonerAI-latest.zip"
     )
     manifest_path = _write_manifest(tmp_path, manifest)
 
@@ -114,7 +115,7 @@ def test_cli_update_plan_rejects_missing_sha256(tmp_path, capsys) -> None:
     from yonerai_cli import cli
 
     manifest = _example_manifest()
-    _set_manifest_version(manifest, "0.1.0-alpha.3")
+    _set_manifest_version(manifest, FUTURE_TEST_VERSION)
     del manifest["artifacts"][0]["sha256"]
     manifest_path = _write_manifest(tmp_path, manifest)
 
