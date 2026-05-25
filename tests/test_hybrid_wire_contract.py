@@ -119,6 +119,16 @@ def test_official_cloud_stub_request_conforms_without_implementing_cloud_runtime
     assert report["trust_decision"]["execute_allowed"] is False
 
 
+def test_public_docs_orchestration_alias_uses_cloud_contract_candidate() -> None:
+    request = build_official_orchestration_stub_request(requested_capability="public_docs")
+
+    assert request.route_strategy == "cloud_contract_candidate"
+    assert request.private_file_content_included is False
+    assert request.raw_prompt_included is False
+    assert request.provider_key_included is False
+    assert request.network_required is False
+
+
 def test_local_node_error_is_public_safe_wire_schema() -> None:
     error = build_node_error(code="local_path_error", message="failed at C:\\Users\\Example\\secret.txt")
     payload = error.to_public_dict()

@@ -470,7 +470,7 @@ def _execution_spine_checks() -> tuple[dict[str, object], ...]:
         workspace_event = _find_run_event(file_result["run"], "workspace_file_access")
         ledger_text = (temp_root / "runs.jsonl").read_text(encoding="utf-8")
     assert file_result["ok"] is True
-    assert file_result["response"]["model"] == "mock-workspace-file-summary"
+    assert file_result["response"]["model"] == "mock-workspace-file-access-guard"
     assert file_result["run"]["status"] == "completed"
     assert persisted_file_run is not None, "workspace file run was not persisted"
     assert workspace_event is not None, "workspace file access event missing from demo run"

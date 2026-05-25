@@ -48,6 +48,20 @@ def test_auto_runtime_agent_public_task_uses_oracle_stub_and_reviewer_plan() -> 
     assert report["boundaries"]["private_file_content_sent_to_cloud_contract"] is False
 
 
+def test_auto_runtime_cloud_contract_route_uses_actual_task_metadata() -> None:
+    build_report, InMemoryRunLedger, _FileRunLedger = _load_auto_runtime()
+
+    task = "review public YonerAI API docs for a release checklist"
+    report = build_report(task, ledger=InMemoryRunLedger())
+    serialized = json.dumps(report, ensure_ascii=False, sort_keys=True)
+
+    assert report["ok"] is True
+    assert report["auto"]["route"] == "cloud_contract_candidate"
+    assert report["route"]["task_class"] == "public_reasoning"
+    assert report["route"]["cloud_contract_candidate"] is True
+    assert "hard public reasoning over public API docs" not in serialized
+
+
 def test_auto_runtime_research_task_uses_mock_search_without_network() -> None:
     build_report, InMemoryRunLedger, _FileRunLedger = _load_auto_runtime()
 

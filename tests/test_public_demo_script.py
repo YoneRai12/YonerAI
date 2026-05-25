@@ -98,7 +98,7 @@ def test_public_demo_json_shape_and_boundaries(capsys) -> None:
     assert mock_execution["run_status"] == "completed"
     assert mock_execution["raw_prompt_persisted"] is False
     assert workspace_file["provider"] == "mock"
-    assert workspace_file["model"] == "mock-workspace-file-summary"
+    assert workspace_file["model"] == "mock-workspace-file-access-guard"
     assert workspace_file["run_status"] == "completed"
     assert workspace_file["ledger_file_backed"] is True
     assert workspace_file["workspace_file_access_event"] is True
@@ -237,7 +237,7 @@ def test_public_demo_pretty_output_contains_key_sections(capsys) -> None:
     assert "reason=live_search_not_implemented" in output
     assert "local_memory_opt_in" in output
     assert "workspace_file_provider_execution" in output
-    assert "model=mock-workspace-file-summary" in output
+    assert "model=mock-workspace-file-access-guard" in output
     assert "workspace_file_access_event=true" in output
     assert "synthetic_discord_gateway" in output
     assert "live_discord=false" in output

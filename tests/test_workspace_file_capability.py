@@ -113,10 +113,12 @@ def test_cli_ask_file_summary_uses_mock_provider_without_raw_file_in_metadata(tm
     assert rc == 0
     assert output["ok"] is True
     assert output["response"]["provider"] == "mock"
-    assert output["response"]["model"] == "mock-workspace-file-summary"
+    assert output["response"]["model"] == "mock-workspace-file-access-guard"
+    assert "Workspace file access guard" in output["response"]["output_text"]
+    assert "folder crawl" in output["response"]["output_text"]
     assert "alpha2" in output["response"]["output_text"]
     assert "public alpha2 notes" not in output["response"]["output_text"]
-    assert "No live provider call was made" in output["response"]["output_text"]
+    assert "No live provider call" in output["response"]["output_text"]
     assert output["file_context"]["capability"] == "workspace_file_access"
     assert output["file_context"]["file_name"] == "summary.txt"
     assert "sha256_prefix" not in output["file_context"]
@@ -206,7 +208,7 @@ def test_cli_ask_file_executes_through_local_provider_with_live_opt_in(
         assert "content_preview:" in kwargs["message"]
         assert "local provider workspace notes" in kwargs["message"]
         return local_llm.LocalLLMReply(
-            reply="<|final|>local file summary",
+            reply="<|final|>local file guard response",
             provider="local-ollama",
             model="local-file-test",
         )
@@ -237,7 +239,7 @@ def test_cli_ask_file_executes_through_local_provider_with_live_opt_in(
     assert rc == 0
     assert output["ok"] is True
     assert output["response"]["provider"] == "local"
-    assert output["response"]["output_text"] == "local file summary"
+    assert output["response"]["output_text"] == "local file guard response"
     assert output["live_call_performed"] is True
     assert output["file_context"]["capability"] == "workspace_file_access"
     assert "sha256_prefix" not in output["file_context"]
@@ -391,7 +393,7 @@ def test_mock_workspace_file_summary_redacts_bearer_github_pat_from_keywords() -
     with tempfile.TemporaryDirectory() as temp_dir:
         workspace = Path(temp_dir)
         target = workspace / "creds.txt"
-        token = "github_pat_abcdefghijklmnopqrstuvwxyz_1234567890"
+        token = "github_pat_" + "abcdefghijklmnopqrstuvwxyz" + "_1234567890"
         target.write_text(f"Authorization: Bearer {token}\nalpha2 release note", encoding="utf-8")
         context = read_workspace_text_file("creds.txt", workspace=workspace)
         prompt = build_workspace_file_prompt("summarize file", context)

@@ -12,6 +12,8 @@ From the repository root:
 python -m pip install -r core/requirements.txt httpx
 python -m pip install -e clients/cli
 yonerai start --guided --lang ja
+yonerai providers --pretty --lang ja
+yonerai ask "hello" --auto --pretty --lang ja
 yonerai demo --pretty
 yonerai demo --json
 ```
@@ -38,6 +40,8 @@ production installer, or a live Discord/Official Managed Cloud release.
 Credential-free commands:
 
 - `yonerai start --guided --lang ja`
+- `yonerai providers --pretty --lang ja`
+- `yonerai ask "hello" --auto --pretty --lang ja`
 - `yonerai ask "summarize public docs" --provider mock --json`
 - `yonerai hybrid run --pretty`
 - `yonerai hybrid run --json`
@@ -58,6 +62,17 @@ returns a public-safe `run_id`. Workspace file support is a Workspace File
 Access Guard: it reads only an explicit UTF-8 text file under an explicit
 workspace. Local memory writes only when a store path and `--confirm-local` are
 provided.
+
+`yonerai providers --pretty --lang ja` is the provider readiness view. It
+reports mock, local LLM, OpenAI-compatible, Anthropic, and Gemini setup without
+printing keys or making provider calls. External providers require explicit
+`--live` plus provider-specific environment opt-in. Local LLM remains
+loopback-only.
+
+`yonerai ask "hello" --auto --pretty --lang ja` is the non-engineer CLI path. It
+shows difficulty, privacy, selected route, selected provider, ledger status,
+and non-actions. `yonerai runs list/show --pretty --lang ja` reads an explicit
+local ledger path or `YONERAI_RUN_LEDGER_PATH` and does not upload run history.
 
 `yonerai hybrid run` is the first local-dev Hybrid execution slice. It runs
 route preview, a verified test Local Node session, in-memory relay transport,
@@ -84,6 +99,8 @@ After installation, the local command is:
 yonerai demo --pretty
 yonerai start --guided --lang ja
 yonerai start --guided --json
+yonerai providers --pretty --lang ja
+yonerai providers --json
 yonerai health
 yonerai smoke --pretty
 yonerai doctor
@@ -97,12 +114,15 @@ yonerai manifest verify releases/manifest.example.json --pretty
 yonerai manifest verify releases/manifest.example.json --pretty --lang ja
 yonerai manifest verify releases/manifest.example.json --json
 yonerai plan "summarize public docs" --json
+yonerai ask "hello" --auto --pretty --lang ja
+yonerai ask "hard public reasoning over public API docs" --auto --json
 yonerai ask "summarize public docs" --provider mock --json
 yonerai hybrid run --pretty
 yonerai hybrid run --json
 yonerai ask "use this selected file" --file notes.txt --workspace . --provider mock --json
 yonerai ask "hello" --provider mock --json --ledger .yonerai-runs.jsonl
-yonerai runs list --ledger .yonerai-runs.jsonl --json
+yonerai runs list --ledger .yonerai-runs.jsonl --pretty --lang ja
+yonerai runs show <run_id> --ledger .yonerai-runs.jsonl --pretty --lang ja
 yonerai search mock "YonerAI alpha2" --json
 yonerai ops plan git-status --json
 yonerai memory add "local note" --store .yonerai-memory.jsonl --confirm-local --json

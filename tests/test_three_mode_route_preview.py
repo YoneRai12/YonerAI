@@ -421,6 +421,38 @@ def test_self_host_public_docs_are_local_preferred() -> None:
     assert decision.to_public_dict()["route_strategy"] == "local_preferred"
 
 
+def test_self_host_public_reasoning_is_local_preferred() -> None:
+    route_preview = _load_route_preview_module()
+
+    decision = route_preview.preview_route(
+        "hard public reasoning over public API docs",
+        mode="full_private_self_host",
+        has_local_node=True,
+    )
+
+    assert decision.route == "self_host_local_preview"
+    assert decision.operation_class == "public_reasoning"
+    assert decision.requested_capability == "local_tools"
+    assert decision.to_public_dict()["route_strategy"] == "local_preferred"
+
+
+def test_snake_case_dangerous_risk_hint_is_denied() -> None:
+    route_preview = _load_route_preview_module()
+
+    decision = route_preview.preview_route(
+        "hard public reasoning over public API docs",
+        mode="official_hybrid_private",
+        risk_hint="dangerous_operation",
+    )
+    payload = decision.to_public_dict()
+
+    assert decision.operation_class == "dangerous"
+    assert decision.dangerous_operation is True
+    assert payload["route_strategy"] == "deny"
+    assert payload["approval_state"] == "required"
+    assert payload["cloud_contract_candidate"] is False
+
+
 def test_unknown_requested_capability_is_disabled() -> None:
     route_preview = _load_route_preview_module()
 

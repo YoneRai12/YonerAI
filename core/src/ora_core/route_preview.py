@@ -194,7 +194,22 @@ def _classify_operation(task_text: str, requested_capability: str | None, risk_h
 
 
 def _contains_terms(text: str, terms: tuple[str, ...]) -> bool:
-    return any(re.search(rf"(?<![a-z0-9_]){re.escape(term)}(?![a-z0-9_])", text) for term in terms)
+    normalized_text = _separator_normalized_text(text)
+    return any(
+        _contains_term(text, term)
+        or _contains_term(normalized_text, _separator_normalized_text(term))
+        for term in terms
+    )
+
+
+def _contains_term(text: str, term: str) -> bool:
+    if not term:
+        return False
+    return re.search(rf"(?<![a-z0-9_]){re.escape(term)}(?![a-z0-9_])", text) is not None
+
+
+def _separator_normalized_text(value: str) -> str:
+    return re.sub(r"[_\-.]+", " ", value.lower())
 
 
 def _capability_for_operation(operation_class: OperationClass, requested_capability: str | None) -> str:
@@ -329,7 +344,7 @@ def _route_strategy(decision: RoutePreviewDecision) -> str:
     if decision.route == "hybrid_coordination_preview":
         return "hybrid"
     if decision.route == "self_host_local_preview":
-        if decision.operation_class == "public_docs":
+        if decision.operation_class in {"public_docs", "public_reasoning"}:
             return "local_preferred"
         return "local_only"
     return "deny"
@@ -421,7 +436,7 @@ def preview_route(
 ) -> RoutePreviewDecision:
     operation_class = _classify_operation(task_text, requested_capability, risk_hint)
     capability_name = _capability_for_operation(operation_class, requested_capability)
-    if mode == "full_private_self_host" and operation_class == "public_docs" and requested_capability is None:
+    if mode == "full_private_self_host" and operation_class in {"public_docs", "public_reasoning"} and requested_capability is None:
         capability_name = "local_tools"
     local_node_capabilities = _normalize_local_node_capabilities(local_node_capabilities)
     profile = get_mode_capability_profile(mode)
