@@ -21,6 +21,10 @@ STATUS_COLORS: dict[Status, str] = {
     "skipped": "\033[36m",
 }
 RESET = "\033[0m"
+_CONTROL_CHARACTER_TRANSLATION: dict[int, str] = {
+    codepoint: f"\\x{codepoint:02x}" for codepoint in range(32)
+}
+_CONTROL_CHARACTER_TRANSLATION[0x7F] = "\\x7f"
 
 
 @dataclass(frozen=True)
@@ -45,19 +49,20 @@ def render_report(
     stream: TextIO | None = None,
 ) -> str:
     color_enabled = _color_enabled(color, stream=stream)
-    lines = [title]
+    lines = [_escape_control_characters(title)]
     for section in sections:
         rows = tuple(section.rows)
         if not rows:
             continue
         lines.append("")
-        lines.append(section.title)
-        label_width = max(len(row.label) for row in rows)
-        for row in rows:
+        lines.append(_escape_control_characters(section.title))
+        labels = tuple(_escape_control_characters(row.label) for row in rows)
+        label_width = max(len(label) for label in labels)
+        for row, label in zip(rows, labels):
             prefix = _status_marker(row.status, color_enabled=color_enabled) if row.status else "  "
             value = _format_value(row.value)
-            note = f" ({row.note})" if row.note else ""
-            lines.append(f"{prefix} {row.label.ljust(label_width)}: {value}{note}")
+            note = f" ({_escape_control_characters(row.note)})" if row.note else ""
+            lines.append(f"{prefix} {label.ljust(label_width)}: {value}{note}")
     return "\n".join(lines)
 
 
@@ -78,14 +83,7 @@ def _format_value(value: object) -> str:
 
 
 def _escape_control_characters(value: str) -> str:
-    return "".join(_escape_char(char) for char in value)
-
-
-def _escape_char(char: str) -> str:
-    codepoint = ord(char)
-    if codepoint < 0x20 or codepoint == 0x7F:
-        return f"\\x{codepoint:02x}"
-    return char
+    return value.translate(_CONTROL_CHARACTER_TRANSLATION)
 
 
 def _status_marker(status: Status, *, color_enabled: bool) -> str:

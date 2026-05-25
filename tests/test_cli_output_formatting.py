@@ -86,10 +86,36 @@ def test_cli_output_escapes_ascii_control_characters_in_values():
 
     rendered = output.render_report(
         "YonerAI test",
-        (output.CliSection("Checks", (output.CliRow("requested_capability", "safe\x1b[31mred\x1b[0m", "ok"),)),),
+        (
+            output.CliSection(
+                "Checks",
+                (output.CliRow("requested_capability", "safe\x1b[31mred\x1b[0m", "ok"),),
+            ),
+        ),
         color="never",
     )
 
     assert "\\x1b[31m" in rendered
     assert "\\x1b[0m" in rendered
-    assert "" not in rendered
+    assert "\x1b" not in rendered
+
+
+def test_cli_output_escapes_control_characters_in_labels_notes_and_titles():
+    output = _load_output_module()
+
+    rendered = output.render_report(
+        "YonerAI\x1b title",
+        (
+            output.CliSection(
+                "Checks\x1b section",
+                (output.CliRow("label\x1b", "value", "warn", "note\x1b"),),
+            ),
+        ),
+        color="never",
+    )
+
+    assert "\\x1b title" in rendered
+    assert "\\x1b section" in rendered
+    assert "label\\x1b" in rendered
+    assert "note\\x1b" in rendered
+    assert "\x1b" not in rendered
