@@ -12,7 +12,7 @@ This page is a public-safe index of current release notes and progress checkpoin
 - Capability slice: task difficulty/privacy classification, automatic local/stub route selection, mock provider execution, loopback-only local LLM opt-in, mock search, reviewer/subtask plan, local-dev Oracle stub envelope, explicit local ledger events, workspace file access guard, and deny-by-default dangerous-operation handling.
 - Boundary: no production Oracle, no Official Managed Cloud runtime, no live Discord, no public tunnel, no deploy, no arbitrary shell/file/tool execution, no default live provider calls, and no private file content or provider keys sent to Oracle stub/cloud-candidate payloads.
 - Primary traceability range: `v0.1.0-alpha.3..v0.1.0-alpha.4`, 4 PRs.
-- Primary traceability PRs: #423, #424, #425, and #TBD.
+- Primary traceability PRs: #423, #424, #425, and #426.
 
 ## v0.1.0-alpha.3 Real Hybrid Execution Slice
 
