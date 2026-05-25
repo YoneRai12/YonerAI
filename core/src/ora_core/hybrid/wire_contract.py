@@ -749,6 +749,19 @@ def _extension_boundary_cases() -> list[dict[str, object]]:
     ]
 
 
+def _parse_wire_timestamp(value: str) -> datetime | None:
+    text = value.strip()
+    if not text:
+        return None
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
 def evaluate_wire_request(
     *,
     manifest: LocalNodeCapabilityManifest | None,
@@ -775,6 +788,11 @@ def evaluate_wire_request(
         return _wire_decision("revoked_session", capability, ("local_node_session_revoked",))
     if session_ref.state != "active":
         return _wire_decision("expired_session", capability, ("local_node_session_not_active",))
+    session_expires_at = _parse_wire_timestamp(session_ref.expires_at)
+    if session_expires_at is None:
+        return _wire_decision("expired_session", capability, ("local_node_session_expiry_invalid",))
+    if session_expires_at <= datetime.now(timezone.utc):
+        return _wire_decision("expired_session", capability, ("local_node_session_expired",))
 
     declared, duplicates = _declared_capabilities(manifest)
     if duplicates:

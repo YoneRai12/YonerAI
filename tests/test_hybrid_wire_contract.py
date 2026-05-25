@@ -137,6 +137,18 @@ def test_trust_session_rules_cover_required_denials_and_verified_test_node() -> 
     ).state == "expired_session"
     assert evaluate_wire_request(
         manifest=manifest,
+        session_ref=build_local_node_session_ref(expires_at="2000-01-01T00:00:00Z"),
+        requested_capability="workspace_file_access",
+    ).state == "expired_session"
+    invalid_expiry = evaluate_wire_request(
+        manifest=manifest,
+        session_ref=build_local_node_session_ref(expires_at="not-a-timestamp"),
+        requested_capability="workspace_file_access",
+    )
+    assert invalid_expiry.state == "expired_session"
+    assert "local_node_session_expiry_invalid" in invalid_expiry.reasons
+    assert evaluate_wire_request(
+        manifest=manifest,
         session_ref=build_local_node_session_ref(state="revoked"),
         requested_capability="workspace_file_access",
     ).state == "revoked_session"
