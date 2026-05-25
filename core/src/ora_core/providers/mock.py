@@ -68,6 +68,10 @@ _SECRET_VALUE_PATTERNS = (
     re.compile(r"\bsk-[A-Za-z0-9_-]{10,}\b"),
     re.compile(r"\bAIzaSy[A-Za-z0-9_-]{20,}\b"),
     re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
+    re.compile(r"\bgh[pousr]_[A-Za-z0-9_]{20,}\b", re.IGNORECASE),
+    re.compile(r"\bxox(?:b|p|a|r|s)-[A-Za-z0-9-]{10,}\b", re.IGNORECASE),
+    re.compile(r"\b(?:rk|pk)_(?:live|test)_[A-Za-z0-9]{10,}\b", re.IGNORECASE),
+    re.compile(r"\bbearer\s+[A-Za-z0-9._-]{10,}\b", re.IGNORECASE),
     re.compile(r"\b[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{20,}\b"),
 )
 _SECRET_KEYWORD_MARKERS = (
@@ -145,6 +149,25 @@ def _redact_secret_like_text(text: str) -> str:
 
 
 def _is_secret_like_keyword(word: str) -> bool:
-    if word.startswith("sk-") or word.startswith("aizasy"):
+    if word.startswith(
+        (
+            "sk-",
+            "aizasy",
+            "ghp_",
+            "gho_",
+            "ghu_",
+            "ghs_",
+            "ghr_",
+            "xoxb-",
+            "xoxp-",
+            "xoxa-",
+            "xoxr-",
+            "xoxs-",
+            "rk_",
+            "pk_",
+        )
+    ):
+        return True
+    if len(word) >= 20 and any(char.isalpha() for char in word) and any(char.isdigit() for char in word):
         return True
     return any(marker in word for marker in _SECRET_KEYWORD_MARKERS)
