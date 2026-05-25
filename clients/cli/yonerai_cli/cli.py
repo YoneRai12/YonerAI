@@ -318,7 +318,7 @@ def _build_status_report(*, source: str = "local") -> dict[str, Any]:
 
 def _run_redaction_self_check() -> dict[str, Any]:
     try:
-        _prepare_repo_import_path()
+        _prepare_trusted_cli_import_paths()
         from src.utils.redaction import redact_text
     except Exception:
         return {
@@ -358,7 +358,7 @@ def _read_repo_version() -> str | None:
 
 def _run_mcp_deny_policy_self_check() -> dict[str, Any]:
     try:
-        _prepare_repo_import_path()
+        _prepare_trusted_cli_import_paths()
         from src.cogs.mcp_policy import is_mcp_tool_denied
     except Exception:
         return {
@@ -805,7 +805,7 @@ def _bool_text(value: object) -> str:
 
 def _run_public_mvp_smoke(*, json_output: bool = False, pretty: bool = False) -> int:
     try:
-        _prepare_repo_import_path()
+        _prepare_trusted_cli_import_paths()
         public_mvp_smoke = _load_public_mvp_smoke_module()
     except Exception as exc:
         raise CliError("public MVP smoke is unavailable.", exit_code=1) from exc
@@ -823,7 +823,7 @@ def _run_public_mvp_smoke(*, json_output: bool = False, pretty: bool = False) ->
 
 def _run_public_demo(*, json_output: bool = False, pretty: bool = False) -> int:
     try:
-        _prepare_repo_import_path()
+        _prepare_trusted_cli_import_paths()
         public_demo = _load_public_demo_module()
     except Exception as exc:
         raise CliError("YonerAI public demo is unavailable.", exit_code=1) from exc
