@@ -8,6 +8,7 @@ from typing import Callable, Mapping
 
 
 LOCAL_DEV_RELAY_TRANSPORT_SCHEMA_VERSION = "yonerai-local-dev-relay-transport/v0.1"
+LOCAL_DEV_RELAY_AUDIT_SCHEMA_VERSION = "yonerai-local-dev-relay-audit/v0.1"
 DEFAULT_TRANSPORT_BIND_HOST = "127.0.0.1"
 DEFAULT_TRANSPORT_HEARTBEAT_TIMEOUT_SEC = 90
 DEFAULT_TRANSPORT_MAX_BODY_BYTES = 262_144
@@ -50,6 +51,32 @@ class TransportSessionRecord:
 
 
 @dataclass(frozen=True)
+class TransportAuditEvent:
+    schema_version: str
+    event_id: str
+    request_id: str
+    created_at: str
+    node_id: str | None
+    capability: str
+    status: str
+    ok: bool
+    request_body_hash: str | None
+    response_body_hash: str | None
+    request_body_bytes: int
+    response_body_bytes: int
+    request_body_persisted: bool
+    response_body_persisted: bool
+    raw_body_included: bool
+    session_token_hash_only: bool
+    reason_codes: tuple[str, ...]
+
+    def to_public_dict(self) -> dict[str, object]:
+        payload = asdict(self)
+        payload["reason_codes"] = list(self.reason_codes)
+        return payload
+
+
+@dataclass(frozen=True)
 class TransportProxyResult:
     schema_version: str
     ok: bool
@@ -67,10 +94,12 @@ class TransportProxyResult:
     session_token_hash_only: bool
     controlled_error: bool
     reasons: tuple[str, ...]
+    audit_event: TransportAuditEvent
 
     def to_public_dict(self) -> dict[str, object]:
         payload = asdict(self)
         payload["reasons"] = list(self.reasons)
+        payload["audit_event"] = self.audit_event.to_public_dict()
         return payload
 
 
@@ -207,12 +236,17 @@ class InMemoryRelayTransport:
     ) -> TransportProxyResult:
         normalized_capability = _normalize_requested_capability(capability)
         safe_request_id = _safe_id(request_id) or "request"
+        audit_created_at = _format_datetime(now)
+        request_body_hash = _sha256_prefixed(body)
         if not self.loopback_only:
             return _proxy_error(
                 request_id=safe_request_id,
                 capability=normalized_capability,
                 status="non_loopback_bind_denied",
                 reasons=("transport_bind_host_not_loopback",),
+                request_body_hash=request_body_hash,
+                request_body_bytes=len(body),
+                audit_created_at=audit_created_at,
             )
         if len(body) > self.max_body_bytes:
             return _proxy_error(
@@ -220,7 +254,9 @@ class InMemoryRelayTransport:
                 capability=normalized_capability,
                 status="body_too_large",
                 reasons=("request_body_exceeds_local_dev_limit",),
+                request_body_hash=request_body_hash,
                 request_body_bytes=len(body),
+                audit_created_at=audit_created_at,
             )
         token_hash = _session_token_hash(session_id=_safe_id(session_id), session_token=session_token)
         session = self._sessions.get(token_hash)
@@ -230,6 +266,9 @@ class InMemoryRelayTransport:
                 capability=normalized_capability,
                 status="invalid_session",
                 reasons=("session_token_hash_not_found",),
+                request_body_hash=request_body_hash,
+                request_body_bytes=len(body),
+                audit_created_at=audit_created_at,
             )
         if session.revoked:
             return _proxy_error(
@@ -238,6 +277,9 @@ class InMemoryRelayTransport:
                 status="revoked_session",
                 node_id=session.node_id,
                 reasons=("session_revoked",),
+                request_body_hash=request_body_hash,
+                request_body_bytes=len(body),
+                audit_created_at=audit_created_at,
             )
         if now >= _parse_datetime(session.expires_at):
             return _proxy_error(
@@ -246,6 +288,9 @@ class InMemoryRelayTransport:
                 status="expired_session",
                 node_id=session.node_id,
                 reasons=("session_expired",),
+                request_body_hash=request_body_hash,
+                request_body_bytes=len(body),
+                audit_created_at=audit_created_at,
             )
         if normalized_capability not in session.capabilities:
             return _proxy_error(
@@ -254,6 +299,9 @@ class InMemoryRelayTransport:
                 status="capability_not_declared",
                 node_id=session.node_id,
                 reasons=("session_capability_not_declared",),
+                request_body_hash=request_body_hash,
+                request_body_bytes=len(body),
+                audit_created_at=audit_created_at,
             )
         node = self._nodes.get(session.node_id)
         if node is None:
@@ -263,6 +311,9 @@ class InMemoryRelayTransport:
                 status="node_not_connected",
                 node_id=session.node_id,
                 reasons=("node_not_connected",),
+                request_body_hash=request_body_hash,
+                request_body_bytes=len(body),
+                audit_created_at=audit_created_at,
             )
         if node.revoked:
             return _proxy_error(
@@ -271,6 +322,9 @@ class InMemoryRelayTransport:
                 status="revoked_node",
                 node_id=node.node_id,
                 reasons=("node_revoked",),
+                request_body_hash=request_body_hash,
+                request_body_bytes=len(body),
+                audit_created_at=audit_created_at,
             )
         if node.key_id != session.key_id:
             return _proxy_error(
@@ -279,6 +333,9 @@ class InMemoryRelayTransport:
                 status="node_key_mismatch",
                 node_id=node.node_id,
                 reasons=("session_key_id_does_not_match_node",),
+                request_body_hash=request_body_hash,
+                request_body_bytes=len(body),
+                audit_created_at=audit_created_at,
             )
         if normalized_capability not in node.capabilities:
             return _proxy_error(
@@ -287,6 +344,9 @@ class InMemoryRelayTransport:
                 status="node_capability_not_declared",
                 node_id=node.node_id,
                 reasons=("node_capability_not_declared",),
+                request_body_hash=request_body_hash,
+                request_body_bytes=len(body),
+                audit_created_at=audit_created_at,
             )
         last_heartbeat = _parse_datetime(node.last_heartbeat_at)
         if now - last_heartbeat > timedelta(seconds=self.heartbeat_timeout_sec):
@@ -296,6 +356,9 @@ class InMemoryRelayTransport:
                 status="stale_heartbeat",
                 node_id=node.node_id,
                 reasons=("node_heartbeat_stale",),
+                request_body_hash=request_body_hash,
+                request_body_bytes=len(body),
+                audit_created_at=audit_created_at,
             )
         handler = self._handlers.get(node.node_id)
         if handler is None:
@@ -305,6 +368,9 @@ class InMemoryRelayTransport:
                 status="node_handler_missing",
                 node_id=node.node_id,
                 reasons=("node_handler_missing",),
+                request_body_hash=request_body_hash,
+                request_body_bytes=len(body),
+                audit_created_at=audit_created_at,
             )
         try:
             response = handler(bytes(body))
@@ -315,9 +381,13 @@ class InMemoryRelayTransport:
                 status="node_handler_error",
                 node_id=node.node_id,
                 reasons=("node_handler_error",),
+                request_body_hash=request_body_hash,
+                request_body_bytes=len(body),
+                audit_created_at=audit_created_at,
             )
         if not isinstance(response, bytes):
             response = str(response).encode("utf-8", errors="replace")
+        response_body_hash = _sha256_prefixed(response)
         return TransportProxyResult(
             schema_version=LOCAL_DEV_RELAY_TRANSPORT_SCHEMA_VERSION,
             ok=True,
@@ -325,8 +395,8 @@ class InMemoryRelayTransport:
             request_id=safe_request_id,
             node_id=node.node_id,
             capability=normalized_capability,
-            request_body_hash=_sha256_prefixed(body),
-            response_body_hash=_sha256_prefixed(response),
+            request_body_hash=request_body_hash,
+            response_body_hash=response_body_hash,
             request_body_bytes=len(body),
             response_body_bytes=len(response),
             request_body_persisted=False,
@@ -335,6 +405,19 @@ class InMemoryRelayTransport:
             session_token_hash_only=True,
             controlled_error=False,
             reasons=("transport_proxy_completed_hash_only",),
+            audit_event=_audit_event(
+                request_id=safe_request_id,
+                created_at=audit_created_at,
+                node_id=node.node_id,
+                capability=normalized_capability,
+                status="completed",
+                ok=True,
+                request_body_hash=request_body_hash,
+                response_body_hash=response_body_hash,
+                request_body_bytes=len(body),
+                response_body_bytes=len(response),
+                reason_codes=("transport_proxy_completed_hash_only",),
+            ),
         )
 
 
@@ -348,7 +431,9 @@ def _proxy_error(
     status: str,
     reasons: tuple[str, ...],
     node_id: str | None = None,
+    request_body_hash: str | None = None,
     request_body_bytes: int = 0,
+    audit_created_at: str = "",
 ) -> TransportProxyResult:
     return TransportProxyResult(
         schema_version=LOCAL_DEV_RELAY_TRANSPORT_SCHEMA_VERSION,
@@ -357,7 +442,7 @@ def _proxy_error(
         request_id=request_id,
         node_id=node_id,
         capability=capability,
-        request_body_hash=None,
+        request_body_hash=request_body_hash,
         response_body_hash=None,
         request_body_bytes=request_body_bytes,
         response_body_bytes=0,
@@ -367,6 +452,54 @@ def _proxy_error(
         session_token_hash_only=True,
         controlled_error=True,
         reasons=reasons,
+        audit_event=_audit_event(
+            request_id=request_id,
+            created_at=audit_created_at or _format_datetime(datetime.now(timezone.utc)),
+            node_id=node_id,
+            capability=capability,
+            status=status,
+            ok=False,
+            request_body_hash=request_body_hash,
+            response_body_hash=None,
+            request_body_bytes=request_body_bytes,
+            response_body_bytes=0,
+            reason_codes=reasons,
+        ),
+    )
+
+
+def _audit_event(
+    *,
+    request_id: str,
+    created_at: str,
+    node_id: str | None,
+    capability: str,
+    status: str,
+    ok: bool,
+    request_body_hash: str | None,
+    response_body_hash: str | None,
+    request_body_bytes: int,
+    response_body_bytes: int,
+    reason_codes: tuple[str, ...],
+) -> TransportAuditEvent:
+    return TransportAuditEvent(
+        schema_version=LOCAL_DEV_RELAY_AUDIT_SCHEMA_VERSION,
+        event_id=f"audit-{request_id}",
+        request_id=request_id,
+        created_at=created_at,
+        node_id=node_id,
+        capability=capability,
+        status=status,
+        ok=ok,
+        request_body_hash=request_body_hash,
+        response_body_hash=response_body_hash,
+        request_body_bytes=request_body_bytes,
+        response_body_bytes=response_body_bytes,
+        request_body_persisted=False,
+        response_body_persisted=False,
+        raw_body_included=False,
+        session_token_hash_only=True,
+        reason_codes=reason_codes,
     )
 
 

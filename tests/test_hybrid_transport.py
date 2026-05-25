@@ -12,6 +12,7 @@ if str(core_src) not in sys.path:
     sys.path.insert(0, str(core_src))
 
 from ora_core.hybrid.transport import (  # noqa: E402
+    LOCAL_DEV_RELAY_AUDIT_SCHEMA_VERSION,
     LOCAL_DEV_RELAY_TRANSPORT_SCHEMA_VERSION,
     InMemoryRelayTransport,
 )
@@ -77,6 +78,14 @@ def test_transport_proxy_roundtrip_keeps_hashes_only() -> None:
     assert payload["response_body_persisted"] is False
     assert payload["raw_body_included"] is False
     assert payload["session_token_hash_only"] is True
+    assert payload["audit_event"]["schema_version"] == LOCAL_DEV_RELAY_AUDIT_SCHEMA_VERSION
+    assert payload["audit_event"]["event_id"] == "audit-request-1"
+    assert payload["audit_event"]["status"] == "completed"
+    assert payload["audit_event"]["ok"] is True
+    assert payload["audit_event"]["request_body_hash"] == payload["request_body_hash"]
+    assert payload["audit_event"]["response_body_hash"] == payload["response_body_hash"]
+    assert payload["audit_event"]["raw_body_included"] is False
+    assert payload["audit_event"]["session_token_hash_only"] is True
     assert assert_public_safe_wire_payload(payload) == ()
     assert "secret-session-token" not in serialized
     assert "request body must not persist" not in serialized
@@ -99,6 +108,9 @@ def test_transport_denies_non_loopback_bind_without_leaking_configuration() -> N
     assert report["bind_host"] == "non_loopback_redacted"
     assert result.status == "non_loopback_bind_denied"
     assert result.controlled_error is True
+    assert result.audit_event.status == "non_loopback_bind_denied"
+    assert result.audit_event.request_body_hash is not None
+    assert result.audit_event.raw_body_included is False
     assert "0.0.0.0" not in serialized
 
 
@@ -141,6 +153,7 @@ def test_transport_returns_controlled_errors_for_session_and_capability_failures
     assert missing_session.controlled_error is True
     assert wrong_capability.status == "capability_not_declared"
     assert wrong_capability.controlled_error is True
+    assert wrong_capability.audit_event.reason_codes == ("session_capability_not_declared",)
     assert whitespace_capability.capability == "unknown"
     assert whitespace_capability.status == "capability_not_declared"
     assert whitespace_capability.controlled_error is True
@@ -210,3 +223,5 @@ def test_transport_rejects_revoked_session_wrong_node_key_stale_heartbeat_and_la
     assert stale.status == "stale_heartbeat"
     assert large.status == "body_too_large"
     assert all(item.controlled_error for item in (revoked, wrong_key, stale, large))
+    assert all(item.audit_event.raw_body_included is False for item in (revoked, wrong_key, stale, large))
+    assert large.audit_event.request_body_bytes == 5
