@@ -20,6 +20,9 @@ See also: `docs/RELEASE_NOTES.md` (curated summary, v5.0.0 -> current).
   capabilities remain distinct until evaluation while public output stays
   redacted, and relay pretty output treats `auto_resolved_loopback` as a safe
   loopback state.
+- Fixed follow-up P1 review debt: duplicate unknown extension capabilities are
+  redacted in public decision payloads instead of exposing normalized private
+  capability names.
 - This remains a semantic alpha pre-release. It is not the date-tagged
   stable/latest GitHub Release stream (`v2026...`).
 - Preserved alpha runtime boundaries: no production Oracle, no Official Managed

@@ -168,8 +168,11 @@ def evaluate_extension_capability_manifest(
     normalized_all = [capability for capability in normalized_all if capability]
     declared_unique = tuple(dict.fromkeys(normalized_all))
     risk_tags = tuple(dict.fromkeys(_normalize_capability(tag) for tag in manifest.risk_tags if tag))
-    duplicates = tuple(
+    duplicate_raw = tuple(
         capability for capability in declared_unique if normalized_all.count(capability) > 1
+    )
+    duplicates = tuple(
+        dict.fromkeys(_public_denied_capability_name(capability) for capability in duplicate_raw)
     )
     overbroad = tuple(
         capability for capability in declared_unique if capability in OVERBROAD_EXTENSION_CAPABILITIES or "*" in capability
@@ -348,6 +351,12 @@ def _safe_manifest_version(value: object) -> str:
 
 def _redacted_unknown_capability_name(_value: str) -> str:
     return "unknown_capability_redacted"
+
+
+def _public_denied_capability_name(value: str) -> str:
+    if value in SAFE_EXTENSION_CAPABILITIES or value in OVERBROAD_EXTENSION_CAPABILITIES:
+        return value
+    return _redacted_unknown_capability_name(value)
 
 
 def _public_declared_capability_name(value: object) -> str:
