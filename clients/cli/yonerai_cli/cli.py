@@ -637,6 +637,8 @@ def _hybrid_wire_contract_rows(report: dict[str, Any], *, lang: str = "en") -> t
     required_posture_count = _hybrid_required_node_posture_state_count(hybrid)
     capabilities = hybrid.get("capabilities")
     capability_count = len(capabilities) if isinstance(capabilities, list) else 0
+    extension_boundary = hybrid.get("extension_boundary")
+    extension_boundary_count = len(extension_boundary) if isinstance(extension_boundary, list) else 0
     status_ok = "正常" if lang == "ja" else "ok"
     status_fail = "失敗" if lang == "ja" else "fail"
     not_implemented = "未実装" if lang == "ja" else "not implemented"
@@ -647,6 +649,7 @@ def _hybrid_wire_contract_rows(report: dict[str, Any], *, lang: str = "en") -> t
         CliRow("test_fixture_only", hybrid.get("test_fixture_only"), "ok" if hybrid.get("test_fixture_only") else "warn"),
         CliRow("capabilities", capability_count, "ok" if capability_count else "warn"),
         CliRow("trust_states", trust_state_count, "ok" if trust_state_count >= required_count else "warn"),
+        CliRow("extension_boundary", extension_boundary_count, "ok" if extension_boundary_count else "warn"),
         CliRow(
             "node_posture_states",
             posture_state_count,
@@ -927,6 +930,47 @@ def _preview_route(args: argparse.Namespace) -> dict[str, Any]:
         report["node_posture_state"] = fixture_inputs.get("node_posture_state")
         report["local_work_preview_allowed"] = fixture_inputs.get("local_work_preview_allowed")
     return report
+
+
+def _print_route_preview_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -> None:
+    print(_format_route_preview_pretty(report, color=color))
+
+
+def _format_route_preview_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -> str:
+    audit = report.get("audit_requirements")
+    if not isinstance(audit, dict):
+        audit = {}
+    sections = (
+        CliSection(
+            "Route preview",
+            (
+                CliRow("route", report.get("route"), "fail" if report.get("route_strategy") == "deny" else "ok"),
+                CliRow("route_strategy", report.get("route_strategy"), "ok"),
+                CliRow("task_class", report.get("task_class"), "ok"),
+                CliRow("privacy_class", report.get("privacy_class"), "warn" if report.get("privacy_class") != "public" else "ok"),
+                CliRow("requested_capability", report.get("requested_capability"), "ok"),
+            ),
+        ),
+        CliSection(
+            "Local and cloud gates",
+            (
+                CliRow("node_posture_state", report.get("node_posture_state") or "none", "ok"),
+                CliRow("capability_gate", report.get("capability_gate"), "ok" if report.get("capability_gate") == "satisfied" else "warn"),
+                CliRow("approval_state", report.get("approval_state"), "warn" if report.get("approval_state") == "required" else "ok"),
+                CliRow("cloud_escape_reason", report.get("cloud_escape_reason") or "none", "warn" if report.get("cloud_escape_reason") else "ok"),
+            ),
+        ),
+        CliSection(
+            "Audit requirements",
+            (
+                CliRow("audit_event_required", audit.get("audit_event_required"), "ok"),
+                CliRow("args_hash_required", audit.get("args_hash_required"), "ok" if audit.get("args_hash_required") else "warn"),
+                CliRow("preserve_approval", audit.get("cloud_escape_preserves_approval"), "ok"),
+                CliRow("preserve_args_hash", audit.get("cloud_escape_preserves_args_hash"), "ok"),
+            ),
+        ),
+    )
+    return render_report("YonerAI route preview", sections, color=color)
 
 
 def _build_node_status_report() -> dict[str, Any]:
@@ -2004,6 +2048,9 @@ def build_parser() -> argparse.ArgumentParser:
     route_subcommands = route.add_subparsers(dest="route_command", required=True)
     route_preview = route_subcommands.add_parser("preview", help="Preview cloud/local/hybrid/disabled routing.")
     route_preview.add_argument("task", nargs="+")
+    route_preview_output = route_preview.add_mutually_exclusive_group()
+    route_preview_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
+    route_preview_output.add_argument("--pretty", action="store_true", help="Print a readable route preview.")
     route_preview.add_argument(
         "--mode",
         choices=["official_managed_cloud", "official_hybrid_private", "full_private_self_host"],
@@ -2053,6 +2100,7 @@ def build_parser() -> argparse.ArgumentParser:
         ],
         help="Optional public-safe Local Node enrollment/session state for route preview.",
     )
+    route_preview.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
 
     node = subcommands.add_parser("node", help="Inspect public-safe Hybrid Wire Local Node fixtures.")
     node_subcommands = node.add_subparsers(dest="node_command", required=True)
@@ -2261,7 +2309,11 @@ def run(argv: list[str] | None = None) -> int:
             print(format_manifest_verify_pretty(report, lang=args.lang, color=args.color))
         return 0 if report["ok"] else 1
     if args.command == "route" and args.route_command == "preview":
-        _print_json(_preview_route(args))
+        report = _preview_route(args)
+        if args.pretty:
+            _print_route_preview_pretty(report, color=args.color)
+        else:
+            _print_json(report)
         return 0
     if args.command == "node" and args.node_command == "status":
         report = _build_node_status_report()

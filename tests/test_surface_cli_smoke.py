@@ -644,6 +644,36 @@ def test_cli_route_preview_uses_hybrid_wire_node_state_when_requested(capsys):
     assert output["public_repo_execution_available"] is False
 
 
+def test_cli_route_preview_pretty_shows_routing_gates(capsys):
+    cli = _load_cli_module()
+
+    assert (
+        cli.main(
+            [
+                "route",
+                "preview",
+                "read selected workspace file",
+                "--mode",
+                "official_hybrid_private",
+                "--capability",
+                "workspace_file_access",
+                "--use-local-node-fixture",
+                "--pretty",
+                "--color",
+                "never",
+            ]
+        )
+        == 0
+    )
+
+    output = capsys.readouterr().out
+    assert "YonerAI route preview" in output
+    assert "route_strategy" in output
+    assert "node_posture_state" in output
+    assert "capability_gate" in output
+    assert "args_hash_required" in output
+
+
 def test_cli_doctor_reports_offline_status_without_network(monkeypatch, capsys):
     cli = _load_cli_module()
     for key in (
@@ -690,6 +720,11 @@ def test_cli_doctor_reports_offline_status_without_network(monkeypatch, capsys):
     assert hybrid_wire["test_fixture_only"] is True
     assert hybrid_wire["network_required"] is False
     assert len(hybrid_wire["trust_states"]) >= 7
+    assert {item["status"] for item in hybrid_wire["extension_boundary"]} >= {
+        "accepted_for_review",
+        "denied",
+        "policy_drift",
+    }
     assert hybrid_wire["required_node_posture_state_count"] == 5
     assert {item["state"] for item in hybrid_wire["node_posture_states"]} >= {
         "VERIFIED",

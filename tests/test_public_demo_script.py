@@ -134,6 +134,12 @@ def test_public_demo_json_shape_and_boundaries(capsys) -> None:
         "QUARANTINED",
         "REVOKED",
     ]
+    assert wire_conformance["extension_boundary_count"] == 4
+    assert set(wire_conformance["extension_boundary_statuses"]) == {
+        "accepted_for_review",
+        "denied",
+        "policy_drift",
+    }
     assert wire_conformance["route_preview_fixture_supported"] is True
     assert wire_conformance["official_cloud_runtime_implemented"] is False
     assert wire_conformance["network_required"] is False
