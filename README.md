@@ -24,6 +24,8 @@ python -m pip install -r core/requirements.txt httpx
 python -m pip install -e clients/cli
 yonerai start --guided --lang ja
 yonerai start --guided --json
+yonerai providers --pretty --lang ja
+yonerai ask "hello" --auto --pretty --lang ja
 yonerai demo --pretty
 yonerai demo --json
 yonerai doctor --pretty
@@ -54,7 +56,7 @@ yonerai ask "hello" --provider mock --json
 yonerai hybrid run --pretty
 yonerai ask "use this selected sample file" --file sample.txt --workspace .yonerai-sample-workspace --provider mock --json
 yonerai ask "hello" --provider mock --json --ledger .yonerai-runs.jsonl
-yonerai runs list --ledger .yonerai-runs.jsonl --json
+yonerai runs list --ledger .yonerai-runs.jsonl --pretty --lang ja
 ```
 
 If you already have a local LLM server on loopback, for example Ollama on
@@ -88,6 +90,11 @@ What this first path explains:
 
 - `yonerai start --guided --lang ja` prints a mock-first path, Local LLM status,
   workspace file guard example, ledger example, and current limitations.
+- `yonerai providers --pretty --lang ja` shows which provider paths are usable
+  now, which require explicit `--live`, and which setup step is missing.
+- `yonerai ask "hello" --auto --pretty --lang ja` classifies the task, chooses a
+  safe route, shows the selected provider, and explains whether a ledger was
+  written.
 - `yonerai demo --pretty` shows the current alpha slice without credentials.
 - `yonerai doctor --pretty --lang ja` checks local setup without installing or
   mutating PATH.
@@ -98,6 +105,8 @@ What this first path explains:
 - Mock `ask` returns a public-safe `run_id`.
 - `--ledger <local.jsonl>` is optional and writes redacted local-only run
   history.
+- `yonerai runs list/show --pretty --lang ja` reads only the explicitly selected
+  local ledger path or `YONERAI_RUN_LEDGER_PATH`; it does not upload history.
 - Workspace file support is a Workspace File Access Guard: it reads only an
   explicitly selected UTF-8 text file inside an explicit workspace allowlist.
   The sample command expects you to create `.yonerai-sample-workspace/sample.txt`

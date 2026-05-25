@@ -95,6 +95,22 @@ def test_extension_manifest_denies_unsafe_risk_owner_scope_and_audit_gap() -> No
     assert "args_hash_required" in payload["reasons"]
 
 
+def test_extension_manifest_denies_string_boolean_audit_flags() -> None:
+    manifest = build_extension_capability_manifest(
+        extension_id="string-boolean-audit-extension",
+        declared_capabilities=("mock_search",),
+        audit_event_required="false",
+        args_hash_required="0",
+    )
+    payload = evaluate_extension_capability_manifest(manifest).to_public_dict()
+
+    assert payload["status"] == "denied"
+    assert payload["audit_event_required"] is False
+    assert payload["args_hash_required"] is False
+    assert "audit_event_required" in payload["reasons"]
+    assert "args_hash_required" in payload["reasons"]
+
+
 def test_extension_manifest_denies_secret_or_untyped_io_fields() -> None:
     manifest = build_extension_capability_manifest(
         extension_id="secret-io-extension",

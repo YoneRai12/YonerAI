@@ -363,7 +363,7 @@ def _classification_payload(classification: TaskClassification, decision: AutoRu
 
 def _route_decision(task: str, decision: AutoRuntimeDecision, classification: TaskClassification) -> dict[str, object]:
     if decision.route == "cloud_contract_candidate":
-        route = preview_route("hard public reasoning over public API docs", mode="official_hybrid_private").to_public_dict()
+        route = preview_route(task, mode="official_hybrid_private", risk_hint="hard public reasoning").to_public_dict()
     elif decision.route == "hybrid_node":
         route = preview_route(
             task,

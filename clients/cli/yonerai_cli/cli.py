@@ -40,6 +40,7 @@ PRIVATE_MARKERS = (
 LANG_CHOICES = ("en", "ja")
 COLOR_CHOICES = ("auto", "never", "always")
 PLAN_PROVIDER_CHOICES = ("auto", "mock", "openai-compatible", "local", "anthropic", "gemini")
+PROVIDERS_SCHEMA_VERSION = "yonerai-providers/v0.2"
 PLAN_MODE_CHOICES = (
     "managed-contract",
     "hybrid",
@@ -353,6 +354,335 @@ def _build_start_report(*, guided: bool = False) -> dict[str, Any]:
     )
 
 
+def _build_providers_report() -> dict[str, Any]:
+    _prepare_trusted_cli_import_paths()
+    try:
+        from ora_core.providers import build_provider_setup_report
+        from yonerai_cli.first_run import detect_local_llm
+    except Exception as exc:
+        raise CliError("provider runtime setup is unavailable.", exit_code=1) from exc
+
+    provider_setup = build_provider_setup_report(os.environ)
+    local_llm = detect_local_llm(os.environ)
+    raw_providers = provider_setup.get("providers") if isinstance(provider_setup, dict) else []
+    providers = [
+        _provider_runtime_entry(provider, local_llm)
+        for provider in raw_providers
+        if isinstance(provider, dict)
+    ]
+    return {
+        "schema_version": PROVIDERS_SCHEMA_VERSION,
+        "ok": True,
+        "command": "yonerai providers",
+        "network_probe_performed": False,
+        "loopback_probe_performed": bool(local_llm.get("probe_performed")),
+        "live_call_performed": False,
+        "local_llm": local_llm,
+        "providers": providers,
+        "recommended_first_command": _recommended_provider_first_command(providers),
+        "actions_not_performed": [
+            "no external provider call",
+            "no local LLM text generation",
+            "no provider key output",
+            "no live Discord",
+            "no production Oracle",
+            "no official cloud runtime",
+            "no shell execution",
+            "no file read",
+            "no install",
+            "no PATH mutation",
+        ],
+    }
+
+
+def _provider_runtime_entry(provider: dict[str, Any], local_llm: dict[str, object]) -> dict[str, object]:
+    provider_id = str(provider.get("provider_id") or "unknown")
+    setup_status = str(provider.get("setup_status") or "unknown")
+    entry = dict(provider)
+    entry["plain_state"] = _provider_plain_state(provider_id, provider, local_llm)
+    entry["default_allowed"] = provider_id == "mock"
+    entry["safe_for_private_context"] = provider_id in {"mock", "local"}
+    entry["external_provider"] = provider_id in {"openai-compatible", "anthropic", "gemini"}
+    entry["loopback_only"] = bool(provider.get("loopback_only")) or provider_id == "local"
+    entry["command"] = _provider_command(provider_id, setup_status)
+    entry["does"] = _provider_does(provider_id)
+    entry["does_not"] = _provider_does_not(provider_id)
+    entry["setup_hint"] = _provider_setup_hint(provider_id, provider, local_llm)
+    if provider_id == "local":
+        entry["local_llm_status"] = local_llm.get("status")
+        entry["local_llm_endpoint_label"] = local_llm.get("endpoint_label")
+        entry["local_llm_generation_performed"] = False
+    return entry
+
+
+def _provider_plain_state(
+    provider_id: str,
+    provider: dict[str, Any],
+    local_llm: dict[str, object],
+) -> str:
+    setup_status = str(provider.get("setup_status") or "unknown")
+    if provider_id == "mock":
+        return "ready_now"
+    if provider_id == "local":
+        if provider.get("available") is True:
+            return "ready_for_explicit_local_live"
+        if local_llm.get("status") == "detected":
+            return "loopback_server_detected_enable_env"
+        if local_llm.get("status") == "blocked" or setup_status == "loopback_rejected":
+            return "blocked_by_loopback_policy"
+        return "not_enabled_or_not_detected"
+    if setup_status == "live_ready":
+        return "configured_for_explicit_live"
+    if setup_status == "live_opt_in_required":
+        return "needs_live_opt_in"
+    if setup_status == "invalid_configuration":
+        return "invalid_configuration"
+    return "not_configured"
+
+
+def _provider_command(provider_id: str, setup_status: str) -> str:
+    if provider_id == "mock":
+        return 'yonerai ask "hello" --auto --json'
+    if provider_id == "local":
+        return 'yonerai ask "hello" --auto --provider local --live --json'
+    if provider_id in {"openai-compatible", "anthropic", "gemini"}:
+        return f'yonerai ask "hello" --provider {provider_id} --live --json'
+    return "yonerai providers --json"
+
+
+def _provider_does(provider_id: str) -> str:
+    mapping = {
+        "mock": "Runs immediately without credentials and returns a public-safe run_id.",
+        "local": "Uses an explicitly enabled loopback-only local LLM when --live is passed.",
+        "openai-compatible": "Calls an OpenAI-compatible endpoint only after --live and env opt-in are present.",
+        "anthropic": "Calls Anthropic only after --live and env opt-in are present.",
+        "gemini": "Calls Gemini only after --live and env opt-in are present.",
+    }
+    return mapping.get(provider_id, "Reports provider setup state.")
+
+
+def _provider_does_not(provider_id: str) -> str:
+    if provider_id == "mock":
+        return "Does not call live providers, local LLMs, Discord, Oracle, or official cloud."
+    if provider_id == "local":
+        return "Does not allow non-loopback URLs, embedded credentials, or default live execution."
+    if provider_id in {"openai-compatible", "anthropic", "gemini"}:
+        return "Does not run by default, does not receive private/local-file auto routes, and does not print keys."
+    return "Does not execute provider calls from the providers command."
+
+
+def _provider_setup_hint(provider_id: str, provider: dict[str, Any], local_llm: dict[str, object]) -> str:
+    blockers = [str(item) for item in provider.get("setup_blockers") or [] if str(item).strip()]
+    if provider_id == "mock":
+        return "No setup required."
+    if provider_id == "local":
+        if provider.get("available") is True:
+            return "Use --live for the local provider; endpoint remains loopback-only."
+        if local_llm.get("status") == "detected":
+            return "Set ORA_LOCAL_LLM_ENABLED=1, then use --provider local --live."
+        if local_llm.get("status") == "blocked":
+            return "Use localhost, 127.0.0.1, or ::1 without credentials, query, or fragment."
+    if blockers:
+        return "; ".join(blockers)
+    return "Ready for explicit --live."
+
+
+def _recommended_provider_first_command(providers: list[dict[str, object]]) -> str:
+    local_provider = next((item for item in providers if item.get("provider_id") == "local"), {})
+    if local_provider.get("plain_state") == "ready_for_explicit_local_live":
+        return 'yonerai ask "hello" --auto --provider local --live --json'
+    return 'yonerai ask "hello" --auto --json'
+
+
+def _print_providers_pretty(report: dict[str, Any], *, lang: str = "ja", color: ColorMode = "auto") -> None:
+    print(_format_providers_pretty(report, lang=lang, color=color))
+
+
+def _format_providers_pretty(report: dict[str, Any], *, lang: str = "ja", color: ColorMode = "auto") -> str:
+    if lang == "ja":
+        title = "YonerAI プロバイダー"
+        sections = _provider_sections_ja(report)
+    else:
+        title = "YonerAI providers"
+        sections = _provider_sections_en(report)
+    return render_report(title, sections, color=color)
+
+
+def _provider_sections_en(report: dict[str, Any]) -> tuple[CliSection, ...]:
+    providers = _provider_entries(report)
+    return (
+        CliSection(
+            "Recommended first command",
+            (
+                CliRow("command", report.get("recommended_first_command"), "ok"),
+                CliRow("live_call_performed", report.get("live_call_performed"), "fail" if report.get("live_call_performed") else "ok"),
+                CliRow("network_probe_performed", report.get("network_probe_performed"), "fail" if report.get("network_probe_performed") else "ok"),
+                CliRow("loopback_probe_performed", report.get("loopback_probe_performed"), "warn" if report.get("loopback_probe_performed") else "ok"),
+            ),
+        ),
+        *(_provider_entry_section_en(provider) for provider in providers),
+        CliSection(
+            "Non-actions",
+            tuple(CliRow(f"no_{index}", item, "ok") for index, item in enumerate(report.get("actions_not_performed") or [], start=1)),
+        ),
+    )
+
+
+def _provider_sections_ja(report: dict[str, Any]) -> tuple[CliSection, ...]:
+    providers = _provider_entries(report)
+    return (
+        CliSection(
+            "最初に試すコマンド",
+            (
+                CliRow("command", report.get("recommended_first_command"), "ok"),
+                CliRow("live呼び出し", _yes_no_ja(report.get("live_call_performed")), "fail" if report.get("live_call_performed") else "ok"),
+                CliRow("外部ネットワークprobe", _yes_no_ja(report.get("network_probe_performed")), "fail" if report.get("network_probe_performed") else "ok"),
+                CliRow("loopback確認", _yes_no_ja(report.get("loopback_probe_performed")), "warn" if report.get("loopback_probe_performed") else "ok"),
+            ),
+        ),
+        *(_provider_entry_section_ja(provider) for provider in providers),
+        CliSection(
+            "このコマンドがしないこと",
+            tuple(CliRow(f"未実行{index}", _provider_non_action_ja(str(item)), "ok") for index, item in enumerate(report.get("actions_not_performed") or [], start=1)),
+        ),
+    )
+
+
+def _provider_entry_section_en(provider: dict[str, object]) -> CliSection:
+    provider_id = str(provider.get("provider_id") or "unknown")
+    return CliSection(
+        provider_id,
+        (
+            CliRow("state", provider.get("plain_state"), _provider_plain_state_level(provider.get("plain_state"))),
+            CliRow("configured", provider.get("configured"), "ok" if provider.get("configured") else "warn"),
+            CliRow("available", provider.get("available"), "ok" if provider.get("available") else "warn"),
+            CliRow("requires_live", provider.get("requires_live_flag", False), "warn" if provider.get("requires_live_flag") else "ok"),
+            CliRow("private_context_safe", provider.get("safe_for_private_context"), "ok" if provider.get("safe_for_private_context") else "warn"),
+            CliRow("command", provider.get("command"), "ok"),
+            CliRow("does", provider.get("does"), "ok"),
+            CliRow("does_not", provider.get("does_not"), "ok"),
+            CliRow("setup", provider.get("setup_hint"), "ok" if provider.get("available") else "warn"),
+        ),
+    )
+
+
+def _provider_entry_section_ja(provider: dict[str, object]) -> CliSection:
+    provider_id = str(provider.get("provider_id") or "unknown")
+    return CliSection(
+        _provider_label_ja(provider_id),
+        (
+            CliRow("状態", _provider_plain_state_text_ja(provider.get("plain_state")), _provider_plain_state_level(provider.get("plain_state"))),
+            CliRow("設定済み", _yes_no_ja(provider.get("configured")), "ok" if provider.get("configured") else "warn"),
+            CliRow("利用可能", _yes_no_ja(provider.get("available")), "ok" if provider.get("available") else "warn"),
+            CliRow("--live必須", _yes_no_ja(provider.get("requires_live_flag", False)), "warn" if provider.get("requires_live_flag") else "ok"),
+            CliRow("private/local file", "送らない" if provider.get("safe_for_private_context") else "送らないため自動経路ではブロック", "ok" if provider.get("safe_for_private_context") else "warn"),
+            CliRow("コマンド", provider.get("command"), "ok"),
+            CliRow("何をするか", _provider_does_ja(provider_id), "ok"),
+            CliRow("何をしないか", _provider_does_not_ja(provider_id), "ok"),
+            CliRow("次の設定", _provider_setup_hint_ja(provider_id, provider), "ok" if provider.get("available") else "warn"),
+        ),
+    )
+
+
+def _provider_entries(report: dict[str, Any]) -> tuple[dict[str, object], ...]:
+    providers = report.get("providers")
+    if not isinstance(providers, list):
+        return ()
+    return tuple(provider for provider in providers if isinstance(provider, dict))
+
+
+def _provider_plain_state_level(state: object) -> str:
+    if state in {"ready_now", "ready_for_explicit_local_live", "configured_for_explicit_live"}:
+        return "ok"
+    if state in {"blocked_by_loopback_policy", "invalid_configuration"}:
+        return "fail"
+    return "warn"
+
+
+def _provider_label_ja(provider_id: str) -> str:
+    mapping = {
+        "mock": "mock provider",
+        "local": "local LLM",
+        "openai-compatible": "OpenAI-compatible",
+        "anthropic": "Anthropic",
+        "gemini": "Gemini",
+    }
+    return mapping.get(provider_id, provider_id)
+
+
+def _provider_plain_state_text_ja(state: object) -> str:
+    mapping = {
+        "ready_now": "今すぐ利用可能",
+        "ready_for_explicit_local_live": "明示的なlocal --liveで利用可能",
+        "loopback_server_detected_enable_env": "loopbackサーバー検出済み、env有効化が必要",
+        "blocked_by_loopback_policy": "loopbackポリシーで拒否",
+        "not_enabled_or_not_detected": "未有効または未検出",
+        "configured_for_explicit_live": "明示的な--liveで利用可能",
+        "needs_live_opt_in": "provider別live opt-inが必要",
+        "invalid_configuration": "設定が不正",
+        "not_configured": "未設定",
+    }
+    return mapping.get(str(state), "不明")
+
+
+def _provider_does_ja(provider_id: str) -> str:
+    mapping = {
+        "mock": "API keyなしで安全なrun_id付き応答を返します。",
+        "local": "明示的に有効化したloopback-only local LLMを--live時だけ使います。",
+        "openai-compatible": "--liveとenv opt-inがある場合だけOpenAI互換endpointを呼びます。",
+        "anthropic": "--liveとenv opt-inがある場合だけAnthropicを呼びます。",
+        "gemini": "--liveとenv opt-inがある場合だけGeminiを呼びます。",
+    }
+    return mapping.get(provider_id, "provider設定状態を表示します。")
+
+
+def _provider_does_not_ja(provider_id: str) -> str:
+    if provider_id == "mock":
+        return "live provider、local LLM、Discord、Oracle、official cloudには接続しません。"
+    if provider_id == "local":
+        return "非loopback URL、埋め込みcredential、既定live実行は許可しません。"
+    if provider_id in {"openai-compatible", "anthropic", "gemini"}:
+        return "既定では実行せず、private/local-file自動経路には送らず、keyも表示しません。"
+    return "providersコマンド自体はprovider呼び出しを実行しません。"
+
+
+def _provider_setup_hint_ja(provider_id: str, provider: dict[str, object]) -> str:
+    hint = str(provider.get("setup_hint") or "")
+    if provider_id == "mock":
+        return "設定不要です。"
+    if provider_id == "local" and provider.get("plain_state") == "loopback_server_detected_enable_env":
+        return "ORA_LOCAL_LLM_ENABLED=1 を設定して --provider local --live を使います。"
+    if provider_id == "local" and provider.get("plain_state") == "blocked_by_loopback_policy":
+        return "localhost / 127.0.0.1 / ::1 のみ許可します。credential、query、fragmentは不可です。"
+    return hint
+
+
+def _provider_non_action_ja(value: str) -> str:
+    mapping = {
+        "no external provider call": "外部provider呼び出しなし",
+        "no local LLM text generation": "local LLM生成なし",
+        "no provider key output": "provider key出力なし",
+        "no live Discord": "live Discord接続なし",
+        "no production Oracle": "production Oracleなし",
+        "no official cloud runtime": "official cloud runtimeなし",
+        "no shell execution": "shell実行なし",
+        "no file read": "ファイル読み取りなし",
+        "no install": "installなし",
+        "no PATH mutation": "PATH変更なし",
+        "no arbitrary shell execution": "任意shell実行なし",
+        "no arbitrary file access": "任意ファイルアクセスなし",
+        "no deploy": "deployなし",
+        "no public tunnel": "public tunnelなし",
+        "no live external provider call by default": "既定のlive外部provider呼び出しなし",
+        "no private file content sent to cloud contract": "private file内容をcloud contractへ送信なし",
+    }
+    return mapping.get(value, value)
+
+
+def _yes_no_ja(value: object) -> str:
+    return "はい" if bool(value) else "いいえ"
+
+
 def _print_start_pretty(report: dict[str, Any], *, lang: str = "en", color: ColorMode = "auto") -> None:
     from yonerai_cli.first_run import format_first_run_pretty
 
@@ -386,7 +716,7 @@ def _build_oracle_report(args: argparse.Namespace) -> dict[str, Any]:
         return build_oracle_stub_status_report()
     if args.oracle_command == "queue":
         task = " ".join(args.task).strip() or DEFAULT_ORACLE_STUB_TASK
-        ledger = build_run_ledger_from_env(args.ledger_path) if args.ledger_path else None
+        ledger = build_run_ledger_from_env(args.ledger_path) if args.ledger_path or os.getenv("YONERAI_RUN_LEDGER_PATH") else None
         return build_oracle_stub_queue_report(task, ledger=ledger)
     raise CliError("unknown oracle command", exit_code=2)
 
@@ -1262,7 +1592,11 @@ def _format_hybrid_pretty(report: dict[str, Any], *, color: ColorMode = "auto") 
             "Local-dev node and relay",
             (
                 CliRow("local_node_runtime", local_node.get("ok"), "ok" if local_node.get("ok") else "fail"),
-                CliRow("relay_loopback_only", _nested_dict(local_node.get("relay"), "loopback_only"), "ok"),
+                CliRow(
+                    "relay_loopback_only",
+                    _nested_dict(local_node.get("relay"), "loopback_only"),
+                    "ok" if _nested_dict(local_node.get("relay"), "loopback_only") is True else "fail",
+                ),
                 CliRow("proxy_status", proxy.get("status"), "ok" if proxy.get("status") == "completed" else "warn"),
                 CliRow("message_body_persisted", boundaries.get("message_body_persisted"), "fail" if boundaries.get("message_body_persisted") else "ok"),
             ),
@@ -1718,11 +2052,11 @@ def _print_execution_result_pretty(report: dict[str, Any], *, color: ColorMode =
     print(_format_execution_result_pretty(report, color=color))
 
 
-def _print_auto_runtime_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -> None:
-    print(_format_auto_runtime_pretty(report, color=color))
+def _print_auto_runtime_pretty(report: dict[str, Any], *, lang: str = "en", color: ColorMode = "auto") -> None:
+    print(_format_auto_runtime_pretty(report, lang=lang, color=color))
 
 
-def _format_auto_runtime_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -> str:
+def _format_auto_runtime_pretty(report: dict[str, Any], *, lang: str = "en", color: ColorMode = "auto") -> str:
     if report.get("run") is None or report.get("auto") is None:
         error = report.get("error") or {}
         return render_report(
@@ -1738,6 +2072,23 @@ def _format_auto_runtime_pretty(report: dict[str, Any], *, color: ColorMode = "a
     reviewer = report["reviewer_plan"] if isinstance(report.get("reviewer_plan"), dict) else {}
     boundaries = report["boundaries"] if isinstance(report.get("boundaries"), dict) else {}
     error = report["error"] if isinstance(report.get("error"), dict) else {}
+    ledger = report["ledger"] if isinstance(report.get("ledger"), dict) else {}
+    actions_not_performed = tuple(str(item) for item in report.get("actions_not_performed") or ())
+    if lang == "ja":
+        sections = _auto_runtime_sections_ja(
+            report=report,
+            run=run,
+            auto=auto,
+            provider=provider,
+            response=response,
+            search=search,
+            reviewer=reviewer,
+            boundaries=boundaries,
+            error=error,
+            ledger=ledger,
+            actions_not_performed=actions_not_performed,
+        )
+        return render_report("YonerAI ask --auto", sections, color=color)
     sections = (
         CliSection(
             "Auto runtime",
@@ -1747,6 +2098,7 @@ def _format_auto_runtime_pretty(report: dict[str, Any], *, color: ColorMode = "a
                 CliRow("difficulty", auto.get("difficulty"), "ok"),
                 CliRow("privacy", auto.get("privacy"), "ok" if auto.get("privacy") == "public" else "warn"),
                 CliRow("route", auto.get("route"), "fail" if auto.get("route") == "deny" else "ok"),
+                CliRow("route_label", _auto_route_label_en(auto.get("route")), "fail" if auto.get("route") == "deny" else "ok"),
                 CliRow("approval_required", auto.get("approval_required"), "warn" if auto.get("approval_required") else "ok"),
             ),
         ),
@@ -1757,6 +2109,16 @@ def _format_auto_runtime_pretty(report: dict[str, Any], *, color: ColorMode = "a
                 CliRow("model", response.get("model") or provider.get("model_id"), "ok"),
                 CliRow("live_call_performed", report.get("live_call_performed"), "warn" if report.get("live_call_performed") else "ok"),
                 CliRow("output", response.get("output_text") or error.get("message") or "none", "ok" if report.get("ok") else "warn"),
+            ),
+        ),
+        CliSection(
+            "Ledger",
+            (
+                CliRow("enabled", ledger.get("enabled", False), "ok" if ledger.get("enabled") else "warn"),
+                CliRow("file_backed", ledger.get("file_backed", False), _optional_bool_status(ledger.get("file_backed", False))),
+                CliRow("local_only", ledger.get("local_only", True), "ok"),
+                CliRow("raw_prompt_persisted", ledger.get("raw_prompt_persisted", False), "fail" if ledger.get("raw_prompt_persisted") else "ok"),
+                CliRow("next", _runs_next_command(run, ledger), "ok" if ledger.get("file_backed") else "warn"),
             ),
         ),
         CliSection(
@@ -1778,8 +2140,132 @@ def _format_auto_runtime_pretty(report: dict[str, Any], *, color: ColorMode = "a
                 CliRow("official_cloud_runtime", boundaries.get("official_cloud_runtime_implemented"), "fail" if boundaries.get("official_cloud_runtime_implemented") else "ok"),
             ),
         ),
+        CliSection(
+            "Non-actions",
+            tuple(CliRow(f"no_{index}", item, "ok") for index, item in enumerate(actions_not_performed[:6], start=1)),
+        ),
     )
     return render_report("YonerAI ask --auto", sections, color=color)
+
+
+def _auto_runtime_sections_ja(
+    *,
+    report: dict[str, Any],
+    run: dict[str, Any],
+    auto: dict[str, Any],
+    provider: dict[str, Any],
+    response: dict[str, Any],
+    search: dict[str, Any],
+    reviewer: dict[str, Any],
+    boundaries: dict[str, Any],
+    error: dict[str, Any],
+    ledger: dict[str, Any],
+    actions_not_performed: tuple[str, ...],
+) -> tuple[CliSection, ...]:
+    return (
+        CliSection(
+            "判断",
+            (
+                CliRow("run_id", run.get("run_id"), "ok" if run.get("run_id") else "warn"),
+                CliRow("状態", _run_status_ja(run.get("status")), "ok" if run.get("status") == "completed" else "warn"),
+                CliRow("難しさ", _auto_difficulty_ja(auto.get("difficulty")), "ok"),
+                CliRow("privacy", _auto_privacy_ja(auto.get("privacy")), "ok" if auto.get("privacy") == "public" else "warn"),
+                CliRow("経路", _auto_route_label_ja(auto.get("route")), "fail" if auto.get("route") == "deny" else "ok"),
+                CliRow("承認", "必要" if auto.get("approval_required") else "不要", "warn" if auto.get("approval_required") else "ok"),
+            ),
+        ),
+        CliSection(
+            "実行",
+            (
+                CliRow("provider", provider.get("provider_id"), "ok" if provider.get("provider_available") else "warn"),
+                CliRow("model", response.get("model") or provider.get("model_id"), "ok"),
+                CliRow("live呼び出し", _yes_no_ja(report.get("live_call_performed")), "warn" if report.get("live_call_performed") else "ok"),
+                CliRow("出力", response.get("output_text") or error.get("message") or "なし", "ok" if report.get("ok") else "warn"),
+            ),
+        ),
+        CliSection(
+            "履歴",
+            (
+                CliRow("有効", _yes_no_ja(ledger.get("enabled", False)), "ok" if ledger.get("enabled") else "warn"),
+                CliRow("file-backed", _yes_no_ja(ledger.get("file_backed", False)), _optional_bool_status(ledger.get("file_backed", False))),
+                CliRow("local-only", _yes_no_ja(ledger.get("local_only", True)), "ok"),
+                CliRow("raw prompt保存", _yes_no_ja(ledger.get("raw_prompt_persisted", False)), "fail" if ledger.get("raw_prompt_persisted") else "ok"),
+                CliRow("次に見る", _runs_next_command(run, ledger), "ok" if ledger.get("file_backed") else "warn"),
+            ),
+        ),
+        CliSection(
+            "検索とレビュー",
+            (
+                CliRow("検索", _search_mode_ja(search.get("mode")), "ok" if search.get("mode") in {"mock", "not_requested"} else "warn"),
+                CliRow("検索結果数", len(search.get("results") or []), "ok"),
+                CliRow("reviewer plan", _yes_no_ja(reviewer.get("enabled")), "ok" if reviewer.get("enabled") else "skipped"),
+                CliRow("subtasks", reviewer.get("subtask_count"), "ok" if reviewer.get("enabled") else "skipped"),
+            ),
+        ),
+        CliSection(
+            "境界",
+            (
+                CliRow("private fileをcloudへ送信", _yes_no_ja(boundaries.get("private_file_content_sent_to_cloud_contract")), "fail" if boundaries.get("private_file_content_sent_to_cloud_contract") else "ok"),
+                CliRow("live search", _yes_no_ja(boundaries.get("live_search_performed")), "fail" if boundaries.get("live_search_performed") else "ok"),
+                CliRow("shell実行", _yes_no_ja(boundaries.get("shell_execution_performed")), "fail" if boundaries.get("shell_execution_performed") else "ok"),
+                CliRow("production Oracle", _yes_no_ja(boundaries.get("production_oracle_used")), "fail" if boundaries.get("production_oracle_used") else "ok"),
+                CliRow("official cloud runtime", _yes_no_ja(boundaries.get("official_cloud_runtime_implemented")), "fail" if boundaries.get("official_cloud_runtime_implemented") else "ok"),
+            ),
+        ),
+        CliSection(
+            "この実行がしないこと",
+            tuple(CliRow(f"未実行{index}", _provider_non_action_ja(item), "ok") for index, item in enumerate(actions_not_performed[:6], start=1)),
+        ),
+    )
+
+
+def _auto_route_label_en(route: object) -> str:
+    mapping = {
+        "instant_local": "run immediately through local mock/provider-safe path",
+        "local_llm": "run through explicit loopback-only local LLM",
+        "hybrid_node": "keep private/local-file context on the local Hybrid node path",
+        "cloud_contract_candidate": "public hard task queued to local-dev Oracle stub envelope",
+        "deny": "blocked because approval or unsafe capability would be required",
+    }
+    return mapping.get(str(route), "unknown route")
+
+
+def _auto_route_label_ja(route: object) -> str:
+    mapping = {
+        "instant_local": "ローカルで即時実行",
+        "local_llm": "loopback-only local LLMで実行",
+        "hybrid_node": "private/local-fileをローカルHybrid側に留める",
+        "cloud_contract_candidate": "公開タスクだけlocal-dev Oracle stubへ",
+        "deny": "危険または未承認のため拒否",
+    }
+    return mapping.get(str(route), "不明")
+
+
+def _auto_difficulty_ja(value: object) -> str:
+    mapping = {"instant": "すぐ返せる", "task": "通常タスク", "agent": "複数手順"}
+    return mapping.get(str(value), str(value or "不明"))
+
+
+def _auto_privacy_ja(value: object) -> str:
+    mapping = {"public": "公開情報", "private": "private扱い", "local_file": "選択ファイル内", "dangerous": "危険操作"}
+    return mapping.get(str(value), str(value or "不明"))
+
+
+def _run_status_ja(value: object) -> str:
+    mapping = {"completed": "完了", "failed": "失敗", "blocked": "ブロック", "running": "実行中", "created": "作成済み"}
+    return mapping.get(str(value), str(value or "不明"))
+
+
+def _search_mode_ja(value: object) -> str:
+    mapping = {"mock": "mock検索", "not_requested": "検索なし", "live": "live検索"}
+    return mapping.get(str(value), str(value or "不明"))
+
+
+def _runs_next_command(run: dict[str, Any], ledger: dict[str, Any]) -> str:
+    run_id = str(run.get("run_id") or "<run_id>")
+    if ledger.get("file_backed"):
+        return f"yonerai runs show {run_id} --ledger <local.jsonl> --json"
+    return '履歴を残すには: yonerai ask "hello" --auto --ledger .yonerai-runs.jsonl --json'
 
 
 def _format_execution_result_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -> str:
@@ -2338,9 +2824,23 @@ def _print_memory_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -
     print(render_report("YonerAI local memory", (CliSection("Local-only", rows),), color=color))
 
 
-def _print_runs_list_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -> None:
+def _print_runs_list_pretty(report: dict[str, Any], *, lang: str = "en", color: ColorMode = "auto") -> None:
     ledger = report.get("ledger") or {}
     file_backed = ledger.get("file_backed", "unknown")
+    if lang == "ja":
+        title = "YonerAI 実行履歴"
+        ledger_title = "履歴"
+        recent_title = "最近の実行"
+        empty_text = "選択したlocal ledgerには履歴がありません"
+        path_label = "出力にpathを保存"
+        guidance = '履歴を残すには: yonerai ask "hello" --auto --ledger .yonerai-runs.jsonl --json'
+    else:
+        title = "YonerAI runs"
+        ledger_title = "Ledger"
+        recent_title = "Recent"
+        empty_text = "none in selected local ledger"
+        path_label = "path_persisted_in_output"
+        guidance = 'To keep history: yonerai ask "hello" --auto --ledger .yonerai-runs.jsonl --json'
     rows = tuple(
         CliRow(
             str(run["run_id"]),
@@ -2348,33 +2848,37 @@ def _print_runs_list_pretty(report: dict[str, Any], *, color: ColorMode = "auto"
             "ok" if run["status"] == "completed" else "warn",
         )
         for run in report["runs"]
-    ) or (CliRow("runs", "none in selected local ledger", "warn"),)
+    ) or (CliRow("runs", empty_text, "warn"),)
+    if not ledger.get("file_backed"):
+        rows = rows + (CliRow("next", guidance, "warn"),)
     print(
         render_report(
-            "YonerAI runs",
+            title,
             (
                 CliSection(
-                    "Ledger",
+                    ledger_title,
                     (
                         CliRow("file_backed", file_backed, _optional_bool_status(file_backed)),
                         CliRow("local_only", ledger.get("local_only", True), "ok"),
                         CliRow(
-                            "path_persisted_in_output",
+                            path_label,
                             ledger.get("path_persisted_in_output", False),
                             "fail" if ledger.get("path_persisted_in_output") else "ok",
                         ),
                     ),
                 ),
-                CliSection("Recent", rows),
+                CliSection(recent_title, rows),
             ),
             color=color,
         )
     )
 
 
-def _print_run_show_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -> None:
+def _print_run_show_pretty(report: dict[str, Any], *, lang: str = "en", color: ColorMode = "auto") -> None:
+    title = "YonerAI 実行" if lang == "ja" else "YonerAI run"
     if not report["ok"]:
-        print(render_report("YonerAI run", (CliSection("Error", (CliRow("error", report["error"]["message"], "fail"),)),), color=color))
+        error_title = "エラー" if lang == "ja" else "Error"
+        print(render_report(title, (CliSection(error_title, (CliRow("error", report["error"]["message"], "fail"),)),), color=color))
         return
     run = report["run"]
     ledger = report.get("ledger") or {}
@@ -2382,7 +2886,7 @@ def _print_run_show_pretty(report: dict[str, Any], *, color: ColorMode = "auto")
     events = tuple(CliRow(event["name"], f"{event['status']} {event['summary']}", "ok" if event["status"] == "ok" else "warn") for event in run["events"])
     sections = (
         CliSection(
-            "Ledger",
+            "履歴" if lang == "ja" else "Ledger",
             (
                 CliRow("file_backed", file_backed, _optional_bool_status(file_backed)),
                 CliRow("local_only", ledger.get("local_only", True), "ok"),
@@ -2390,17 +2894,17 @@ def _print_run_show_pretty(report: dict[str, Any], *, color: ColorMode = "auto")
             ),
         ),
         CliSection(
-            "Run",
+            "実行" if lang == "ja" else "Run",
             (
                 CliRow("run_id", run["run_id"], "ok"),
-                CliRow("status", run["status"], "ok" if run["status"] == "completed" else "warn"),
+                CliRow("status", _run_status_ja(run["status"]) if lang == "ja" else run["status"], "ok" if run["status"] == "completed" else "warn"),
                 CliRow("task_summary", run["task_summary"], "ok"),
                 CliRow("provider", run["provider_decision"].get("provider_id", "unknown"), "ok"),
             ),
         ),
-        CliSection("Events", events or (CliRow("events", "none", "warn"),)),
+        CliSection("イベント" if lang == "ja" else "Events", events or (CliRow("events", "none", "warn"),)),
     )
-    print(render_report("YonerAI run", sections, color=color))
+    print(render_report(title, sections, color=color))
 
 
 def _prompt_from_args(parts: list[str]) -> str:
@@ -2457,6 +2961,13 @@ def build_parser() -> argparse.ArgumentParser:
     doctor_output.add_argument("--pretty", action="store_true", help="Print a readable diagnostic summary.")
     doctor.add_argument("--lang", choices=LANG_CHOICES, default="en", help="Pretty output language. Default: en.")
     doctor.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
+
+    providers = subcommands.add_parser("providers", help="Show provider readiness and safe setup guidance.")
+    providers_output = providers.add_mutually_exclusive_group()
+    providers_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
+    providers_output.add_argument("--pretty", action="store_true", help="Print readable provider setup guidance.")
+    providers.add_argument("--lang", choices=LANG_CHOICES, default="ja", help="Pretty output language. Default: ja.")
+    providers.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
 
     status = subcommands.add_parser("status", help="Print offline public demo and installer readiness status.")
     status_output = status.add_mutually_exclusive_group()
@@ -2619,6 +3130,7 @@ def build_parser() -> argparse.ArgumentParser:
     ask_output.add_argument("--pretty", action="store_true", help="Print a readable execution summary.")
     ask.add_argument("--provider", choices=PLAN_PROVIDER_CHOICES, default="auto", help="Provider preference. Default: auto.")
     ask.add_argument("--mode", choices=PLAN_MODE_CHOICES, default="self-host", help="Execution planning mode. Default: self-host.")
+    ask.add_argument("--lang", choices=LANG_CHOICES, default="en", help="Pretty output language. Default: en.")
     ask.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
 
     search = subcommands.add_parser("search", help="Run deterministic mock search or report live search as disabled.")
@@ -2712,6 +3224,7 @@ def build_parser() -> argparse.ArgumentParser:
     runs_list_output = runs_list.add_mutually_exclusive_group()
     runs_list_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
     runs_list_output.add_argument("--pretty", action="store_true", help="Print a readable run list.")
+    runs_list.add_argument("--lang", choices=LANG_CHOICES, default="en", help="Pretty output language. Default: en.")
     runs_list.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
     runs_show = runs_subcommands.add_parser("show", help="Show one run from an opt-in ledger.")
     runs_show.add_argument("run_id")
@@ -2719,6 +3232,7 @@ def build_parser() -> argparse.ArgumentParser:
     runs_show_output = runs_show.add_mutually_exclusive_group()
     runs_show_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
     runs_show_output.add_argument("--pretty", action="store_true", help="Print a readable run summary.")
+    runs_show.add_argument("--lang", choices=LANG_CHOICES, default="en", help="Pretty output language. Default: en.")
     runs_show.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
 
     message = subcommands.add_parser("message", parents=[shared], help="Send a local public message smoke request.")
@@ -2756,6 +3270,13 @@ def run(argv: list[str] | None = None) -> int:
             _print_json(report)
         else:
             _print_doctor_pretty(report, lang=args.lang, color=args.color)
+        return 0 if report["ok"] else 1
+    if args.command == "providers":
+        report = _build_providers_report()
+        if args.json:
+            _print_json(report)
+        else:
+            _print_providers_pretty(report, lang=args.lang, color=args.color)
         return 0 if report["ok"] else 1
     if args.command == "status":
         report = _build_status_report(source=args.source)
@@ -2843,7 +3364,7 @@ def run(argv: list[str] | None = None) -> int:
             if args.dry_run:
                 _print_execution_plan_pretty(report, color=args.color)
             elif args.auto:
-                _print_auto_runtime_pretty(report, color=args.color)
+                _print_auto_runtime_pretty(report, lang=args.lang, color=args.color)
             else:
                 _print_execution_result_pretty(report, color=args.color)
         return 0 if args.dry_run or report["ok"] else 1
@@ -2852,9 +3373,9 @@ def run(argv: list[str] | None = None) -> int:
         if args.json:
             _print_json(report)
         elif args.runs_command == "show":
-            _print_run_show_pretty(report, color=args.color)
+            _print_run_show_pretty(report, lang=args.lang, color=args.color)
         else:
-            _print_runs_list_pretty(report, color=args.color)
+            _print_runs_list_pretty(report, lang=args.lang, color=args.color)
         return 0 if report["ok"] else 1
     if args.command == "search":
         report = _build_search_report(args)

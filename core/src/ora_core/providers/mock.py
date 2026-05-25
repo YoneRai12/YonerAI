@@ -29,12 +29,12 @@ class MockProviderAdapter:
 
     def generate(self, request: ProviderRequest, *, allow_live_call: bool = False) -> ProviderResponse:
         del allow_live_call
-        workspace_summary = _workspace_file_summary_response(request.prompt)
-        if workspace_summary is not None:
+        workspace_access_guard = _workspace_file_access_guard_response(request.prompt)
+        if workspace_access_guard is not None:
             return ProviderResponse(
                 provider=self.provider_id,
-                model="mock-workspace-file-summary",
-                output_text=workspace_summary,
+                model="mock-workspace-file-access-guard",
+                output_text=workspace_access_guard,
                 deterministic=True,
             )
         return ProviderResponse(
@@ -91,7 +91,7 @@ _SECRET_KEYWORD_MARKERS = (
 )
 
 
-def _workspace_file_summary_response(prompt: str) -> str | None:
+def _workspace_file_access_guard_response(prompt: str) -> str | None:
     context = _extract_workspace_context(prompt)
     if context is None:
         return None
@@ -100,12 +100,17 @@ def _workspace_file_summary_response(prompt: str) -> str | None:
     line_count = fields.get("line_count") or "unknown"
     word_count = fields.get("word_count") or "unknown"
     truncated = fields.get("truncated") or "false"
-    summary = _summarize_preview(preview)
+    keywords = _extract_preview_keywords(preview)
     return (
-        f"Workspace file summary for {file_name}: {summary} "
-        f"File stats: {line_count} lines, {word_count} words, truncated={truncated}. "
-        "No live provider call was made."
+        f"Workspace file access guard for {file_name}: {keywords} "
+        f"Guard metadata: {line_count} lines, {word_count} words, truncated={truncated}. "
+        "Only the explicitly selected workspace file context was accepted. "
+        "No live provider call, folder crawl, PDF/image parsing, or arbitrary file access was made."
     )
+
+
+def _workspace_file_summary_response(prompt: str) -> str | None:
+    return _workspace_file_access_guard_response(prompt)
 
 
 def _extract_workspace_context(prompt: str) -> tuple[dict[str, str], str] | None:
@@ -125,7 +130,7 @@ def _extract_workspace_context(prompt: str) -> tuple[dict[str, str], str] | None
     return fields, " ".join(preview.split())
 
 
-def _summarize_preview(preview: str) -> str:
+def _extract_preview_keywords(preview: str) -> str:
     if not preview:
         return "No readable preview text was provided."
     safe_preview = _redact_secret_like_text(preview)

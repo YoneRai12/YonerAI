@@ -1042,7 +1042,7 @@ def wire_capability_to_route_capability(capability: str) -> str:
 
 def _orchestration_route_strategy(requested_capability: str) -> str:
     normalized = requested_capability.strip().lower().replace("-", "_").replace(".", "_")
-    if normalized in {"cloud_orchestration", "public_ui_sync_support", "self_evolution_proposals"}:
+    if normalized in {"cloud_orchestration", "public_docs", "public_reasoning", "public_ui_sync_support", "self_evolution_proposals"}:
         return "cloud_contract_candidate"
     if normalized in {"workspace_file_access", "local_model", "tool_boundary", "ledger", "dangerous_operation"}:
         return "hybrid"

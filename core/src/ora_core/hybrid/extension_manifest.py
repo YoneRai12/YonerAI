@@ -140,8 +140,8 @@ def build_extension_capability_manifest(
     typed_outputs: tuple[ExtensionIOField, ...] | None = None,
     risk_tags: tuple[str, ...] = ("fixture_only", "mock", "read_only", "no_network"),
     owner_scope: str = "local_owner",
-    audit_event_required: bool = True,
-    args_hash_required: bool = True,
+    audit_event_required: object = True,
+    args_hash_required: object = True,
 ) -> ExtensionCapabilityManifest:
     normalized_capabilities = tuple(_normalize_capability(capability) for capability in declared_capabilities)
     return ExtensionCapabilityManifest(
@@ -152,8 +152,8 @@ def build_extension_capability_manifest(
         typed_outputs=typed_outputs if typed_outputs is not None else _default_typed_outputs(normalized_capabilities),
         risk_tags=tuple(dict.fromkeys(_normalize_capability(tag) for tag in risk_tags if str(tag or "").strip())),
         owner_scope=_normalize_capability(owner_scope) or "unknown_owner_scope",
-        audit_event_required=bool(audit_event_required),
-        args_hash_required=bool(args_hash_required),
+        audit_event_required=audit_event_required is True,
+        args_hash_required=args_hash_required is True,
     )
 
 
