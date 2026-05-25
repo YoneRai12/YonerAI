@@ -81,6 +81,22 @@ def test_oracle_stub_refuses_private_and_dangerous_tasks() -> None:
     assert dangerous_report["response"]["production_oracle_used"] is False
 
 
+def test_oracle_stub_refuses_local_path_tasks() -> None:
+    _build_status, build_queue, _memory_ledger, _file_ledger = _load_oracle_stub_module()
+
+    report = build_queue("hard public reasoning over /tmp/yonerai-private-input.txt")
+
+    assert report["ok"] is False
+    assert report["response"]["status"] == "denied"
+    assert report["request"]["privacy_class"] == "private"
+    assert report["request"]["disabled_reason"] == "privacy_class_not_public"
+    assert report["route"]["requested_capability"] == "private_files"
+    assert report["route"]["cloud_contract_candidate"] is False
+    assert report["route"]["oracle_stub_eligible"] is False
+    assert report["response"]["private_file_content_included"] is False
+    assert "/tmp/yonerai-private-input.txt" not in json.dumps(report, ensure_ascii=False)
+
+
 def test_oracle_stub_file_ledger_persists_redacted_events_without_raw_prompt(tmp_path: Path) -> None:
     _build_status, build_queue, _memory_ledger, FileRunLedger = _load_oracle_stub_module()
     ledger_path = tmp_path / "runs.jsonl"

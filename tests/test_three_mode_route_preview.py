@@ -141,6 +141,27 @@ def test_delete_terms_are_classified_as_dangerous_before_pc_operation() -> None:
     assert payload["oracle_stub_eligible"] is False
 
 
+def test_deployment_word_variants_do_not_bypass_disabled_gate() -> None:
+    route_preview = _load_route_preview_module()
+
+    for task in (
+        "deploying the production service",
+        "redeploy public docs service",
+        "redeploying production",
+        "redeployment plan",
+    ):
+        decision = route_preview.preview_route(task, mode="official_hybrid_private")
+        payload = decision.to_public_dict()
+
+        assert decision.operation_class == "deployment"
+        assert decision.requested_capability == "production_deploy"
+        assert decision.route == "disabled"
+        assert decision.unavailable_reason == "capability_disabled"
+        assert payload["route_strategy"] == "deny"
+        assert payload["cloud_contract_candidate"] is False
+        assert payload["oracle_stub_eligible"] is False
+
+
 def test_route_keyword_matching_avoids_partial_word_false_positives() -> None:
     route_preview = _load_route_preview_module()
 

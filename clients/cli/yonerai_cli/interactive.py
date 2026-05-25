@@ -217,19 +217,25 @@ def _handle_slash_command(
         return {}
     if command == "/language" and args:
         value = _canonical_value(args[0])
+        if value not in {"ja", "en"}:
+            _write(output_stream, _invalid(lang))
+            return {}
         try:
             new_lang = _set_config(config, "language", value, options.config_path)
-        except ConfigError:
-            _write(output_stream, _invalid(lang))
+        except ConfigError as exc:
+            _write(output_stream, _config_error(lang, exc))
             return {}
         _write(output_stream, _changed_message("language", new_lang["language"], lang=str(new_lang["language"])))
         return {"lang": str(new_lang["language"])}
     if command == "/provider" and args:
         value = _canonical_value(args[0])
+        if value not in PROVIDER_PREFERENCES:
+            _write(output_stream, _invalid(lang))
+            return {}
         try:
             new_config = _set_config(config, "provider", value, options.config_path)
-        except ConfigError:
-            _write(output_stream, _invalid(lang))
+        except ConfigError as exc:
+            _write(output_stream, _config_error(lang, exc))
             return {}
         new_provider = str(new_config["provider_preference"])
         _write(output_stream, _changed_message("provider", new_provider, lang=lang))
@@ -241,8 +247,8 @@ def _handle_slash_command(
             return {}
         try:
             new_config = _set_config(config, "approval", value, options.config_path)
-        except ConfigError:
-            _write(output_stream, _invalid(lang))
+        except ConfigError as exc:
+            _write(output_stream, _config_error(lang, exc))
             return {}
         _write(output_stream, _changed_message("approval", new_config["approval_mode"], lang=lang))
         return {}
@@ -253,8 +259,8 @@ def _handle_slash_command(
             return {}
         try:
             new_config = _set_config(config, "file_access", value, options.config_path)
-        except ConfigError:
-            _write(output_stream, _invalid(lang))
+        except ConfigError as exc:
+            _write(output_stream, _config_error(lang, exc))
             return {}
         _write(output_stream, _changed_message("file_access", new_config["file_access_mode"], lang=lang))
         return {}
@@ -565,6 +571,13 @@ def _changed_message(key: str, value: object, *, lang: str) -> str:
 
 def _invalid(lang: str) -> str:
     return "値が不正です\n" if lang == "ja" else "Invalid value\n"
+
+
+def _config_error(lang: str, exc: ConfigError) -> str:
+    message = _safe(str(exc) or "config error")
+    if lang == "ja":
+        return f"設定を保存できませんでした: {message}\n"
+    return f"Could not save config: {message}\n"
 
 
 def _unknown(lang: str) -> str:

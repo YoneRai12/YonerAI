@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ipaddress
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Mapping
 from urllib.parse import urlparse
 
@@ -43,7 +44,11 @@ def build_relay_status_report(env: Mapping[str, str] | None = None) -> dict[str,
 
     host_loopback = _is_loopback_host(host)
     relay_url_auto = relay_url.lower() == "auto"
-    relay_url_loopback = relay_url_auto or _is_loopback_url(relay_url)
+    auto_resolution = _resolve_auto_relay_url(values, relay_url_auto=relay_url_auto)
+    if relay_url_auto and auto_resolution["resolved"]:
+        relay_url_loopback = bool(auto_resolution["loopback"])
+    else:
+        relay_url_loopback = relay_url_auto or _is_loopback_url(relay_url)
     node_api_loopback = _is_loopback_url(node_api_base_url)
     public_exposure_requested = expose_mode not in {"", "none", "off", "false", "0"}
     ok = host_loopback and relay_url_loopback and node_api_loopback and not public_exposure_requested
@@ -57,7 +62,12 @@ def build_relay_status_report(env: Mapping[str, str] | None = None) -> dict[str,
             "host": host if host_loopback else "non_loopback_redacted",
             "port": port,
             "default_url": DEFAULT_RELAY_URL,
-            "configured_url_category": _relay_url_category(relay_url_loopback=relay_url_loopback, relay_url_auto=relay_url_auto),
+            "configured_url_category": _relay_url_category(
+                relay_url_loopback=relay_url_loopback,
+                relay_url_auto=relay_url_auto,
+                auto_resolution=auto_resolution,
+            ),
+            "auto_url_resolution": auto_resolution["status"],
             "loopback_default": True,
             "loopback_only": host_loopback and relay_url_loopback,
             "health_probe_performed": False,
@@ -74,7 +84,12 @@ def build_relay_status_report(env: Mapping[str, str] | None = None) -> dict[str,
         },
         "node_connector": {
             "default_relay_url": DEFAULT_RELAY_URL,
-            "relay_url_category": _relay_url_category(relay_url_loopback=relay_url_loopback, relay_url_auto=relay_url_auto),
+            "relay_url_category": _relay_url_category(
+                relay_url_loopback=relay_url_loopback,
+                relay_url_auto=relay_url_auto,
+                auto_resolution=auto_resolution,
+            ),
+            "auto_url_resolution": auto_resolution["status"],
             "default_node_api_base_url": DEFAULT_NODE_API_BASE_URL,
             "node_api_base_url_category": "loopback" if node_api_loopback else "non_loopback_blocked",
             "node_api_loopback_only": node_api_loopback,
@@ -157,7 +172,36 @@ def _is_loopback_host(host: str) -> bool:
         return False
 
 
-def _relay_url_category(*, relay_url_loopback: bool, relay_url_auto: bool) -> str:
+def _resolve_auto_relay_url(env: Mapping[str, str], *, relay_url_auto: bool) -> dict[str, object]:
+    if not relay_url_auto:
+        return {"resolved": False, "loopback": False, "status": "not_auto"}
+    url_file = str(env.get("ORA_RELAY_URL_FILE") or ".relay_public_url.txt").strip()
+    try:
+        path = Path(url_file).expanduser()
+        if not path.exists():
+            return {"resolved": False, "loopback": False, "status": "auto_unresolved_no_file"}
+        raw = path.read_text(encoding="utf-8").splitlines()[0].strip()
+    except (OSError, UnicodeDecodeError, IndexError):
+        return {"resolved": True, "loopback": False, "status": "auto_resolution_unreadable"}
+    if not raw:
+        return {"resolved": True, "loopback": False, "status": "auto_resolution_empty"}
+    loopback = _is_loopback_url(_coerce_ws_base_url(raw))
+    return {
+        "resolved": True,
+        "loopback": loopback,
+        "status": "auto_resolved_loopback" if loopback else "auto_resolved_non_loopback_blocked",
+    }
+
+
+def _relay_url_category(
+    *,
+    relay_url_loopback: bool,
+    relay_url_auto: bool,
+    auto_resolution: Mapping[str, object] | None = None,
+) -> str:
     if relay_url_auto:
-        return "auto_unresolved_no_probe"
+        status = str((auto_resolution or {}).get("status") or "auto_unresolved_no_probe")
+        if status in {"auto_unresolved_no_file", "auto_unresolved_no_probe"}:
+            return "auto_unresolved_no_probe"
+        return status
     return "loopback" if relay_url_loopback else "non_loopback_blocked"

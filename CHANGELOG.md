@@ -13,6 +13,11 @@ See also: `docs/RELEASE_NOTES.md` (curated summary, v5.0.0 -> current).
 - Fixed current-main P1/P2 review debt before release: public cloud-contract
   route metadata, SemVer-compatible CLI package version reporting, and
   controlled config/interactive setting errors.
+- Hardened additional release-gate review blockers: Oracle stub private/local
+  path routing, deployment word variants, relay `auto` URL trust checks, and
+  public extension manifest redaction.
+- This remains a semantic alpha pre-release. It is not the date-tagged
+  stable/latest GitHub Release stream (`v2026...`).
 - Preserved alpha runtime boundaries: no production Oracle, no Official Managed
   Cloud runtime, no live Discord, no deploy/public tunnel, no arbitrary
   shell/file/tool execution, no default live provider calls, and no provider key
