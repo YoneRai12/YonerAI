@@ -1696,15 +1696,18 @@ def _execute_auto_ask_report(args: argparse.Namespace) -> dict[str, Any]:
             }
         provider_prompt = build_workspace_file_prompt(prompt, file_context)
         context_events.append(build_workspace_file_access_event(file_context))
-    report = build_auto_runtime_report(
-        prompt,
-        provider_prompt=provider_prompt,
-        provider=args.provider,
-        live=args.live,
-        ledger=build_run_ledger_from_env(args.ledger_path),
-        context_events=context_events,
-        local_file_context=file_context is not None,
-    )
+    try:
+        report = build_auto_runtime_report(
+            prompt,
+            provider_prompt=provider_prompt,
+            provider=args.provider,
+            live=args.live,
+            ledger=build_run_ledger_from_env(args.ledger_path),
+            context_events=context_events,
+            local_file_context=file_context is not None,
+        )
+    except ValueError as exc:
+        raise CliError(str(exc), exit_code=2) from exc
     report["ledger"] = ledger_status
     if file_context is not None:
         report["file_context"] = file_context.to_public_dict()

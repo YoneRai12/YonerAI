@@ -127,6 +127,9 @@ def build_auto_runtime_report(
     ledger.append_event(run.run_id, "auto_runtime_decision", "ok", _decision_summary(decision))
 
     for event in context_events or ():
+        if not isinstance(event, Mapping):
+            ledger.append_event(run.run_id, "context_event_ignored", "warn", "invalid context event type")
+            continue
         ledger.append_event(
             run.run_id,
             str(event.get("name") or "context"),
@@ -481,7 +484,25 @@ def _execute_oracle_stub(
     ledger.append_event(run_id, "oracle_stub_enqueued", "ok" if request.disabled_reason is None else "blocked", f"queue_id={item.queue_id}")
     completed = queue.process_next()
     if completed is None or completed.response is None:
-        raise RuntimeError("oracle stub queue did not process the enqueued item")
+        ledger.append_event(run_id, "oracle_stub_result", "failed", "oracle stub queue processing failed")
+        return {
+            "schema_version": "yonerai-oracle-stub/v0.1",
+            "ok": False,
+            "operation": "queue",
+            "status": "failed",
+            "local_dev_stub": True,
+            "request": request.to_public_dict(),
+            "queue": completed.to_public_dict() if completed is not None else {},
+            "response": {
+                "status": "failed",
+                "disabled_reason": "oracle_stub_queue_processing_failed",
+                "redacted_summary": "oracle stub queue processing failed",
+            },
+            "network_required": False,
+            "provider_call_performed": False,
+            "production_oracle_used": False,
+            "official_cloud_runtime_implemented": False,
+        }
     response = completed.response
     ledger.append_event(run_id, "oracle_stub_result", response.status, response.redacted_summary)
     return {

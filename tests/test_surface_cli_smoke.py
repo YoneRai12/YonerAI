@@ -1723,6 +1723,27 @@ def test_cli_ask_auto_blocks_dangerous_task(capsys):
     assert output["boundaries"]["shell_execution_performed"] is False
 
 
+def test_cli_ask_auto_value_error_returns_cli_error(monkeypatch, capsys):
+    cli = _load_cli_module()
+    repo_root = Path(__file__).resolve().parents[1]
+    core_src = repo_root / "core" / "src"
+    if str(core_src) not in sys.path:
+        sys.path.insert(0, str(core_src))
+    import ora_core.execution.auto_runtime as auto_runtime
+
+    def fail_report(*_args: Any, **_kwargs: Any) -> dict[str, object]:
+        raise ValueError("bad auto runtime input")
+
+    monkeypatch.setattr(auto_runtime, "build_auto_runtime_report", fail_report)
+
+    exit_code = cli.main(["ask", "hello", "--auto", "--json"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 2
+    assert "bad auto runtime input" in captured.err
+    assert "Traceback" not in captured.err
+
+
 def test_cli_ask_auto_executes_loopback_local_provider_with_live_opt_in(monkeypatch, capsys):
     cli = _load_cli_module()
     repo_root = Path(__file__).resolve().parents[1]

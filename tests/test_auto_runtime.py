@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 
 def _load_auto_runtime():
@@ -95,3 +96,39 @@ def test_auto_runtime_dangerous_task_is_denied_without_shell_execution() -> None
     assert report["run"]["status"] == "blocked"
     assert report["error"]["code"] == "approval_required"
     assert report["boundaries"]["shell_execution_performed"] is False
+
+
+def test_auto_runtime_ignores_invalid_context_event_without_crashing() -> None:
+    build_report, InMemoryRunLedger, _FileRunLedger = _load_auto_runtime()
+
+    report = build_report("hello", ledger=InMemoryRunLedger(), context_events=[object()])
+
+    assert report["ok"] is True
+    event_names = [event["name"] for event in report["run"]["events"]]
+    assert "context_event_ignored" in event_names
+    assert "provider_response" in event_names
+
+
+def test_auto_runtime_oracle_queue_failure_returns_controlled_error(monkeypatch) -> None:
+    build_report, InMemoryRunLedger, _FileRunLedger = _load_auto_runtime()
+    from ora_core.hybrid import oracle_stub
+
+    class BrokenOracleQueue:
+        def enqueue(self, request):
+            self.request = request
+            return SimpleNamespace(queue_id="oracle_stub_queue_broken")
+
+        def process_next(self):
+            return None
+
+    monkeypatch.setattr(oracle_stub, "LocalDevOracleStubQueue", BrokenOracleQueue)
+
+    report = build_report("hard public reasoning over public API docs", ledger=InMemoryRunLedger())
+
+    assert report["ok"] is False
+    assert report["auto"]["route"] == "cloud_contract_candidate"
+    assert report["oracle_stub"]["status"] == "failed"
+    assert report["oracle_stub"]["response"]["disabled_reason"] == "oracle_stub_queue_processing_failed"
+    assert report["error"]["code"] == "oracle_stub_denied"
+    event_names = [event["name"] for event in report["run"]["events"]]
+    assert "oracle_stub_result" in event_names
