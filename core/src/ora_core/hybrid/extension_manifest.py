@@ -80,7 +80,9 @@ class ExtensionCapabilityManifest:
 
     def to_public_dict(self) -> dict[str, object]:
         payload = asdict(self)
-        payload["declared_capabilities"] = list(payload["declared_capabilities"])
+        payload["declared_capabilities"] = list(
+            dict.fromkeys(_public_declared_capability_name(capability) for capability in self.declared_capabilities)
+        )
         payload["typed_inputs"] = list(payload["typed_inputs"])
         payload["typed_outputs"] = list(payload["typed_outputs"])
         payload["risk_tags"] = list(payload["risk_tags"])
@@ -143,7 +145,7 @@ def build_extension_capability_manifest(
     audit_event_required: object = True,
     args_hash_required: object = True,
 ) -> ExtensionCapabilityManifest:
-    normalized_capabilities = tuple(_public_declared_capability_name(capability) for capability in declared_capabilities)
+    normalized_capabilities = tuple(_normalize_capability(capability) for capability in declared_capabilities)
     return ExtensionCapabilityManifest(
         extension_id=_safe_extension_id(extension_id),
         version=_safe_manifest_version(version),
