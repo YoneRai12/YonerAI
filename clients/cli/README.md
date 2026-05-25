@@ -1,8 +1,10 @@
 # YonerAI Local CLI Smoke
 
-`clients/cli` is a temporary public MVP smoke CLI for the local YonerAI Core API.
-It is not the final product CLI, not a native Japanese CLI, and not a deployment
-or operations tool.
+`clients/cli` is the local YonerAI CLI runtime alpha. It is becoming the main
+public-safe command surface for provider readiness, auto routing, local-dev
+execution, diagnostics, and release/install dry-run planning. It is not
+production-ready, not a deployment tool, and not a live Discord/Official Managed
+Cloud runtime.
 
 ## Public Demo
 
