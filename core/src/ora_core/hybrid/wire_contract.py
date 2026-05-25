@@ -25,6 +25,8 @@ HYBRID_WIRE_STUB_NODE_ID = "local-node-dev-fixture"
 HYBRID_WIRE_STUB_SESSION_ID = "local-node-session-dev-fixture"
 HYBRID_WIRE_STUB_LEASE_ID = "local-node-lease-dev-fixture"
 HYBRID_WIRE_STUB_TOKEN_HASH = "sha256:local-node-session-token-dev-fixture-hash"
+HYBRID_WIRE_STUB_MANIFEST_EXPIRES_AT = "2100-01-01T00:00:00Z"
+HYBRID_WIRE_STUB_SESSION_EXPIRES_AT = "2100-01-01T01:00:00Z"
 
 WireCapabilityName = Literal[
     "local_model",
@@ -336,7 +338,7 @@ def build_local_node_capability_manifest(
     manifest_id: str = "local-node-dev-fixture-manifest",
     signed_origin_verified: bool = True,
     issued_at: str = "2026-05-22T00:00:00Z",
-    expires_at: str = "2026-05-29T00:00:00Z",
+    expires_at: str = HYBRID_WIRE_STUB_MANIFEST_EXPIRES_AT,
 ) -> LocalNodeCapabilityManifest:
     return LocalNodeCapabilityManifest(
         manifest_id=manifest_id,
@@ -362,7 +364,7 @@ def build_local_node_session_ref(
     session_id: str = HYBRID_WIRE_STUB_SESSION_ID,
     state: str = "active",
     issued_at: str = "2026-05-22T00:00:00Z",
-    expires_at: str = "2026-05-29T01:00:00Z",
+    expires_at: str = HYBRID_WIRE_STUB_SESSION_EXPIRES_AT,
     signed_origin_verified: bool = True,
     lease_id: str = HYBRID_WIRE_STUB_LEASE_ID,
 ) -> LocalNodeSessionRef:
@@ -391,7 +393,7 @@ def build_local_node_heartbeat(
     node_id: str = HYBRID_WIRE_STUB_NODE_ID,
     session_id: str = HYBRID_WIRE_STUB_SESSION_ID,
 ) -> LocalNodeHeartbeat:
-    lease_expires_at = "2026-05-29T01:00:00Z"
+    lease_expires_at = HYBRID_WIRE_STUB_SESSION_EXPIRES_AT
     return LocalNodeHeartbeat(
         node_id=node_id,
         session_id=session_id,
@@ -749,20 +751,48 @@ def _extension_boundary_cases() -> list[dict[str, object]]:
     ]
 
 
+def _parse_wire_timestamp(value: str) -> datetime | None:
+    text = value.strip()
+    if not text:
+        return None
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _wire_now(now: datetime | None) -> datetime:
+    if now is None:
+        return datetime.now(timezone.utc)
+    if now.tzinfo is None:
+        return now.replace(tzinfo=timezone.utc)
+    return now.astimezone(timezone.utc)
+
+
 def evaluate_wire_request(
     *,
     manifest: LocalNodeCapabilityManifest | None,
     session_ref: LocalNodeSessionRef | None,
     requested_capability: str,
     approval_granted: bool = False,
+    now: datetime | None = None,
 ) -> HybridWireTrustDecision:
     capability = requested_capability.strip().lower().replace("-", "_").replace(".", "_")
+    current = _wire_now(now)
     if manifest is None:
         return _wire_decision("missing_node", capability, ("local_node_missing",))
     if manifest.production_trust_material:
         return _wire_decision("unverified_node", capability, ("production_trust_material_not_allowed_public_repo",))
     if not manifest.signed_origin_verified:
         return _wire_decision("unverified_node", capability, ("local_node_not_verified",))
+    manifest_expires_at = _parse_wire_timestamp(manifest.expires_at)
+    if manifest_expires_at is None:
+        return _wire_decision("unverified_node", capability, ("local_node_manifest_expiry_invalid",))
+    if manifest_expires_at <= current:
+        return _wire_decision("unverified_node", capability, ("local_node_manifest_expired",))
     if session_ref is None:
         return _wire_decision("expired_session", capability, ("local_node_session_missing",))
     if session_ref.production_trust_material:
@@ -775,6 +805,16 @@ def evaluate_wire_request(
         return _wire_decision("revoked_session", capability, ("local_node_session_revoked",))
     if session_ref.state != "active":
         return _wire_decision("expired_session", capability, ("local_node_session_not_active",))
+    session_expires_at = _parse_wire_timestamp(session_ref.expires_at)
+    if session_expires_at is None:
+        return _wire_decision("expired_session", capability, ("local_node_session_expiry_invalid",))
+    if session_expires_at <= current:
+        return _wire_decision("expired_session", capability, ("local_node_session_expired",))
+    lease_expires_at = _parse_wire_timestamp(session_ref.lease_expires_at)
+    if lease_expires_at is None:
+        return _wire_decision("expired_session", capability, ("local_node_session_lease_expiry_invalid",))
+    if lease_expires_at <= current:
+        return _wire_decision("expired_session", capability, ("local_node_session_lease_expired",))
 
     declared, duplicates = _declared_capabilities(manifest)
     if duplicates:
