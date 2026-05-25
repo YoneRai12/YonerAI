@@ -2006,8 +2006,9 @@ def test_cli_help_text_is_public_safe(capsys):
         assert exc.code == 0
 
     help_text = capsys.readouterr().out
-    assert "local public MVP smoke CLI" in help_text
+    assert "YonerAI CLI Local Runtime" in help_text
     assert "not a deploy tool" in help_text
+    assert "Official Managed Cloud runtime" in help_text
     assert "production-ready" not in help_text
 
 

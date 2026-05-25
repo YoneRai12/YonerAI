@@ -12,6 +12,24 @@ It is not just a Discord bot and not just a model router. Discord, Web, relay, A
 
 This public README describes the public contract surface. It does not publish internal operations detail, credentials, live routes, or host-specific facts.
 
+## Install and start YonerAI
+
+This is the local CLI runtime path, not a production cloud installer. It installs
+the CLI from this checkout and creates the `yonerai` command locally.
+
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+python -m pip install -U pip
+python -m pip install -r core/requirements.txt httpx
+python -m pip install -e clients/cli
+yonerai
+```
+
+After install, `yonerai` starts the interactive CLI when stdin is a TTY.
+`yonerai chat` starts the same screen explicitly. For CI, pipes, and scripted
+input, use `yonerai chat --script` or `yonerai ask --auto`.
+
 ## Quickstart: Public Demo
 
 After clone, the fastest public-safe way to see the current YonerAI slice is the credential-free demo command. It runs in-process and does not require a Core API server, Discord token, Oracle access, provider API key, Google login, deployment, or persistent memory.
@@ -46,7 +64,7 @@ yonerai install plan --manifest releases/manifest.example.json --json
 
 ## First 5 minutes
 
-`yonerai` now opens the v0.3 alpha interactive terminal when stdin is a TTY.
+`yonerai` opens the local interactive terminal when stdin is a TTY.
 Use `yonerai chat` for the same screen explicitly. The interactive shell is a
 standard-library terminal app, not a full-screen GUI: type a message to run the
 same safe `ask --auto` path, or use slash commands.
@@ -59,6 +77,8 @@ same safe `ask --auto` path, or use slash commands.
 /show <run_id>   show one redacted run
 /language ja|en  change UI language
 /provider auto|mock|local|openai-compatible|anthropic|gemini
+/ledger on|off   toggle redacted local run ledger
+/select <n> <v>  change a numbered setting from the settings screen
 /quit            exit
 ```
 

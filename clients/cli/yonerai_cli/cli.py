@@ -2944,6 +2944,7 @@ def _print_config_pretty(report: dict[str, Any], *, lang: str = "ja", color: Col
             CliRow("live_provider", config.get("live_provider_enabled"), "warn" if config.get("live_provider_enabled") else "ok"),
             CliRow("network", config.get("network_enabled"), "warn" if config.get("network_enabled") else "ok"),
             CliRow("tools", config.get("tools_mode"), "ok"),
+            CliRow("ledger", config.get("ledger_enabled"), "ok" if config.get("ledger_enabled") else "warn"),
         )
         boundary_rows = (
             CliRow("secrets_supported", report.get("secrets_supported"), "fail" if report.get("secrets_supported") else "ok"),
@@ -2961,6 +2962,7 @@ def _print_config_pretty(report: dict[str, Any], *, lang: str = "ja", color: Col
             CliRow("live_provider", config.get("live_provider_enabled"), "warn" if config.get("live_provider_enabled") else "ok"),
             CliRow("network", config.get("network_enabled"), "warn" if config.get("network_enabled") else "ok"),
             CliRow("tools", config.get("tools_mode"), "ok"),
+            CliRow("ledger", config.get("ledger_enabled"), "ok" if config.get("ledger_enabled") else "warn"),
         )
         boundary_rows = (
             CliRow("secrets_supported", report.get("secrets_supported"), "fail" if report.get("secrets_supported") else "ok"),
@@ -3039,9 +3041,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="yonerai",
         description=(
-            "YonerAI local public MVP smoke CLI and runtime alpha. "
+            "YonerAI CLI Local Runtime. "
             "Includes an interactive terminal shell, safe provider readiness, auto routing, and diagnostics. "
-            "It is not a deploy tool."
+            "It is not a deploy tool or Official Managed Cloud runtime."
         ),
     )
     subcommands = parser.add_subparsers(dest="command", required=False)
@@ -3065,7 +3067,7 @@ def build_parser() -> argparse.ArgumentParser:
     config_show.add_argument("--lang", choices=LANG_CHOICES, default="ja", help="Pretty output language. Default: ja.")
     config_show.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
     config_set = config_subcommands.add_parser("set", help="Set one local CLI preference. Provider keys are not accepted.")
-    config_set.add_argument("config_key", choices=("language", "lang", "provider", "provider_preference", "approval", "approval_mode", "file_access", "file_access_mode", "live_provider", "network"))
+    config_set.add_argument("config_key", choices=("language", "lang", "provider", "provider_preference", "approval", "approval_mode", "file_access", "file_access_mode", "live_provider", "network", "ledger", "history"))
     config_set.add_argument("config_value")
     config_set.add_argument("--config-path", help="Optional local CLI config path.")
     config_set_output = config_set.add_mutually_exclusive_group()

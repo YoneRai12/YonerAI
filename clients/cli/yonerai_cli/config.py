@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Mapping
 
 
-CONFIG_SCHEMA_VERSION = "yonerai-cli-config/v0.3"
+CONFIG_SCHEMA_VERSION = "yonerai-cli-config/v0.4"
 LANGUAGES = ("ja", "en")
 PROVIDER_PREFERENCES = ("auto", "mock", "local", "openai-compatible", "anthropic", "gemini")
 APPROVAL_MODES = ("prompt", "deny")
@@ -21,6 +21,7 @@ DEFAULT_CONFIG: dict[str, object] = {
     "live_provider_enabled": False,
     "network_enabled": False,
     "tools_mode": "dry_run",
+    "ledger_enabled": False,
 }
 
 
@@ -101,7 +102,7 @@ def validate_cli_config(config: Mapping[str, object]) -> dict[str, object]:
         raise ConfigError("approval_mode is invalid.")
     if merged.get("file_access_mode") not in FILE_ACCESS_MODES:
         raise ConfigError("file_access_mode is invalid.")
-    for key in ("live_provider_enabled", "network_enabled"):
+    for key in ("live_provider_enabled", "network_enabled", "ledger_enabled"):
         if type(merged.get(key)) is not bool:
             raise ConfigError(f"{key} must be a boolean.")
     if merged.get("tools_mode") != "dry_run":
@@ -119,6 +120,8 @@ def normalize_config_key(key: str) -> str:
         "file_access": "file_access_mode",
         "live_provider": "live_provider_enabled",
         "network": "network_enabled",
+        "ledger": "ledger_enabled",
+        "history": "ledger_enabled",
     }
     normalized = aliases.get(normalized, normalized)
     if normalized not in DEFAULT_CONFIG or normalized == "schema_version":
@@ -144,7 +147,7 @@ def parse_config_value(key: str, value: str) -> object:
         if raw not in FILE_ACCESS_MODES:
             raise ConfigError("file access mode must be workspace_only or disabled.")
         return raw
-    if key in {"live_provider_enabled", "network_enabled"}:
+    if key in {"live_provider_enabled", "network_enabled", "ledger_enabled"}:
         if raw.lower() in {"true", "1", "yes", "on"}:
             return True
         if raw.lower() in {"false", "0", "no", "off"}:
@@ -169,6 +172,7 @@ def build_config_report(config: Mapping[str, object], *, exists: bool) -> dict[s
             "live_provider_enabled": validated["live_provider_enabled"],
             "network_enabled": validated["network_enabled"],
             "tools_mode": validated["tools_mode"],
+            "ledger_enabled": validated["ledger_enabled"],
         },
         "actions_not_performed": (
             "no provider key storage",

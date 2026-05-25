@@ -12,6 +12,24 @@ YonerAI は単なる Discord bot でも、単なる model router でもありま
 
 この public repo で確認できる中核は、公開可能な core contract、self-host/local surface、Hybrid Local Node contract/dev simulator、proposal-only self-evolution です。
 
+## Install and start YonerAI
+
+これは YonerAI CLI Local Runtime をこの checkout から local install する手順です。
+production cloud installer ではありません。PATH 変更や remote script 実行は行いません。
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -U pip
+python -m pip install -r core/requirements.txt httpx
+python -m pip install -e clients/cli
+yonerai
+```
+
+install 後は `yonerai` だけで対話 CLI が起動します。明示したい場合は
+`yonerai chat`、script/CI では `yonerai chat --script` または
+`yonerai ask --auto` を使います。
+
 ## Quickstart: public demo
 
 clone 後に現在の public-safe slice を見る最短手順は、credential-free の demo command です。Core API server の常時起動、Discord token、Oracle access、provider API key、Google login、deployment、persistent memory は不要です。
@@ -38,7 +56,7 @@ yonerai manifest verify releases/manifest.example.json --pretty --lang ja
 
 ## 最初の5分
 
-`yonerai` は v0.3 alpha の対話型 terminal を起動します。明示したい場合は
+`yonerai` は local interactive terminal を起動します。明示したい場合は
 `yonerai chat` を使います。これは full-screen GUI ではなく、標準ライブラリ
 だけで動く安全な対話 shell です。文章を入力すると `ask --auto` と同じ安全
 経路で実行し、slash command で設定や履歴を見られます。
@@ -53,6 +71,8 @@ yonerai manifest verify releases/manifest.example.json --pretty --lang ja
 /提供元選択 自動|モック|ローカル|オープンAI互換|アンソロピック|ジェミニ
 /承認 確認|拒否       危険操作の扱いを変更
 /ファイル ワークスペース内のみ|無効
+/履歴記録 オン|オフ    redacted local ledger の記録を変更
+/選択 <番号> <値>      設定画面の番号で変更
 /終了                 終了
 ```
 
