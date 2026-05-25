@@ -37,6 +37,12 @@ def test_hybrid_node_relay_contract_stub_is_public_safe_and_contract_only() -> N
     assert report["relay"]["session_token_storage"] == "hash_only"
     assert report["session_ref"]["bearer_token_included"] is False
     assert report["session_ref"]["bearer_token_hash_only"] is True
+    assert report["local_dev_e2e"]["ok"] is True
+    assert report["local_dev_e2e"]["network_required"] is False
+    assert report["local_dev_e2e"]["pairing_code_hash_only"] is True
+    assert report["local_dev_e2e"]["session_token_hash_only"] is True
+    assert report["local_dev_e2e"]["message_body_persisted"] is False
+    assert report["local_dev_e2e"]["http_proxy_fixture_available"] is True
     assert report["official_cloud_consumption_stub"]["contract_only"] is True
     assert report["official_cloud_consumption_stub"]["persists_message_bodies"] is False
     assert "token=" not in serialized.lower()
@@ -54,4 +60,5 @@ def test_hybrid_node_relay_contract_reflects_blocked_relay_without_leaking_url()
     assert report["ok"] is False
     assert report["relay"]["ok"] is False
     assert report["relay"]["loopback_only"] is False
+    assert report["local_dev_e2e"]["ok"] is False
     assert "relay.example.invalid" not in serialized
