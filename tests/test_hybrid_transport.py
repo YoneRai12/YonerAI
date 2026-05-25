@@ -120,6 +120,14 @@ def test_transport_returns_controlled_errors_for_session_and_capability_failures
         body=b"body",
         now=NOW,
     )
+    whitespace_capability = transport.proxy_request(
+        session_token="secret-session-token",
+        session_id="session-1",
+        request_id="request-whitespace",
+        capability="   ",
+        body=b"body",
+        now=NOW,
+    )
     expired = transport.proxy_request(
         session_token="secret-session-token",
         session_id="session-1",
@@ -133,6 +141,9 @@ def test_transport_returns_controlled_errors_for_session_and_capability_failures
     assert missing_session.controlled_error is True
     assert wrong_capability.status == "capability_not_declared"
     assert wrong_capability.controlled_error is True
+    assert whitespace_capability.capability == "unknown"
+    assert whitespace_capability.status == "capability_not_declared"
+    assert whitespace_capability.controlled_error is True
     assert expired.status == "expired_session"
     assert expired.controlled_error is True
 

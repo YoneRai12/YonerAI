@@ -205,7 +205,7 @@ class InMemoryRelayTransport:
         body: bytes,
         now: datetime,
     ) -> TransportProxyResult:
-        normalized_capability = _normalize_capabilities((capability,))[0] if capability else "unknown"
+        normalized_capability = _normalize_requested_capability(capability)
         safe_request_id = _safe_id(request_id) or "request"
         if not self.loopback_only:
             return _proxy_error(
@@ -387,6 +387,11 @@ def _normalize_capabilities(values: tuple[str, ...]) -> tuple[str, ...]:
             if value and value.strip()
         )
     )
+
+
+def _normalize_requested_capability(value: str) -> str:
+    normalized = _normalize_capabilities((value,))
+    return normalized[0] if normalized else "unknown"
 
 
 def _safe_id(value: str) -> str:
