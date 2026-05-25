@@ -15,6 +15,14 @@ FIRST_RUN_SCHEMA_VERSION = "yonerai-first-run/v1"
 LOCAL_LLM_PROBE_TIMEOUT_SECONDS = 1.0
 
 
+class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):  # type: ignore[override]
+        return None
+
+
+_LOCAL_PROBE_OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRedirectHandler())
+
+
 @dataclass(frozen=True)
 class LocalLLMProbeCandidate:
     provider: str
@@ -184,7 +192,7 @@ def _probe_local_candidate(candidate: LocalLLMProbeCandidate) -> dict[str, objec
     url = _join_url(base_url, candidate.probe_path)
     request = urllib.request.Request(url, headers={"Accept": "application/json"})
     try:
-        with urllib.request.urlopen(request, timeout=LOCAL_LLM_PROBE_TIMEOUT_SECONDS) as response:
+        with _LOCAL_PROBE_OPENER.open(request, timeout=LOCAL_LLM_PROBE_TIMEOUT_SECONDS) as response:
             raw = response.read()
             status = getattr(response, "status", 200)
     except urllib.error.HTTPError as exc:

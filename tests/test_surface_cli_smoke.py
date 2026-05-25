@@ -46,6 +46,19 @@ def _start_loopback_probe_server() -> tuple[ThreadingHTTPServer, threading.Threa
     return server, thread
 
 
+class _UnavailableProbeOpener:
+    def open(self, *_args: Any, **_kwargs: Any) -> object:
+        raise urllib.error.URLError("connection refused")
+
+
+class _UnexpectedProbeOpener:
+    def __init__(self, message: str) -> None:
+        self._message = message
+
+    def open(self, *_args: Any, **_kwargs: Any) -> object:
+        raise AssertionError(self._message)
+
+
 def test_cli_health_command_uses_loopback_core_api(monkeypatch, capsys):
     cli = _load_cli_module()
     calls = []
@@ -193,10 +206,7 @@ def test_cli_start_json_reports_first_run_without_external_calls(monkeypatch, ca
     ):
         monkeypatch.delenv(key, raising=False)
 
-    def unavailable(*_args: Any, **_kwargs: Any):
-        raise urllib.error.URLError("connection refused")
-
-    monkeypatch.setattr(first_run.urllib.request, "urlopen", unavailable)
+    monkeypatch.setattr(first_run, "_LOCAL_PROBE_OPENER", _UnavailableProbeOpener())
 
     assert cli.main(["start", "--json"]) == 0
 
@@ -236,10 +246,7 @@ def test_cli_start_guided_json_includes_workspace_and_ledger_actions(monkeypatch
         monkeypatch.delenv(key, raising=False)
     monkeypatch.chdir(tmp_path)
 
-    def unavailable(*_args: Any, **_kwargs: Any):
-        raise urllib.error.URLError("connection refused")
-
-    monkeypatch.setattr(first_run.urllib.request, "urlopen", unavailable)
+    monkeypatch.setattr(first_run, "_LOCAL_PROBE_OPENER", _UnavailableProbeOpener())
 
     assert cli.main(["start", "--guided", "--json"]) == 0
 
@@ -277,10 +284,7 @@ def test_cli_start_guided_pretty_supports_clean_japanese(monkeypatch, capsys):
     cli = _load_cli_module()
     from yonerai_cli import first_run
 
-    def unavailable(*_args: Any, **_kwargs: Any):
-        raise urllib.error.URLError("connection refused")
-
-    monkeypatch.setattr(first_run.urllib.request, "urlopen", unavailable)
+    monkeypatch.setattr(first_run, "_LOCAL_PROBE_OPENER", _UnavailableProbeOpener())
 
     assert cli.main(["start", "--guided", "--pretty", "--lang", "ja", "--color", "never"]) == 0
 
@@ -307,10 +311,7 @@ def test_cli_start_pretty_supports_clean_japanese(monkeypatch, capsys):
     cli = _load_cli_module()
     from yonerai_cli import first_run
 
-    def unavailable(*_args: Any, **_kwargs: Any):
-        raise urllib.error.URLError("connection refused")
-
-    monkeypatch.setattr(first_run.urllib.request, "urlopen", unavailable)
+    monkeypatch.setattr(first_run, "_LOCAL_PROBE_OPENER", _UnavailableProbeOpener())
 
     assert cli.main(["start", "--pretty", "--lang", "ja", "--color", "never"]) == 0
 
@@ -406,6 +407,50 @@ def test_cli_start_guided_detects_loopback_and_prints_local_llm_next_steps(monke
     assert output["local_llm_generation_performed"] is False
 
 
+def test_cli_start_probe_does_not_follow_redirect_off_loopback(monkeypatch, capsys):
+    cli = _load_cli_module()
+    from yonerai_cli import first_run
+
+    class _RedirectHandler(BaseHTTPRequestHandler):
+        def do_GET(self) -> None:
+            self.send_response(302)
+            self.send_header("Location", "http://198.51.100.10:8080/api/tags")
+            self.end_headers()
+
+        def log_message(self, _format: str, *_args: Any) -> None:
+            return
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), _RedirectHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        port = server.server_address[1]
+        monkeypatch.setattr(
+            first_run,
+            "DEFAULT_LOCAL_LLM_CANDIDATES",
+            (
+                first_run.LocalLLMProbeCandidate(
+                    provider="ollama",
+                    label="Ollama",
+                    base_url=f"http://127.0.0.1:{port}",
+                    probe_path="api/tags",
+                ),
+            ),
+        )
+
+        assert cli.main(["start", "--json"]) == 0
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["local_llm"]["status"] == "unavailable"
+    assert output["local_llm"]["probe_performed"] is True
+    assert output["local_llm"]["detected_provider"] is None
+    assert output["local_llm"]["probes"][0]["reason"] == "http_status_302"
+
+
 def test_cli_start_rejects_non_loopback_local_llm_config_without_probe(monkeypatch, capsys):
     cli = _load_cli_module()
     from yonerai_cli import first_run
@@ -413,10 +458,9 @@ def test_cli_start_rejects_non_loopback_local_llm_config_without_probe(monkeypat
     monkeypatch.setenv("ORA_LOCAL_LLM_PROVIDER", "openai_compatible_local")
     monkeypatch.setenv("ORA_LOCAL_LLM_BASE_URL", "https://example.com/v1")
 
-    def fail_probe(*_args: Any, **_kwargs: Any):
-        raise AssertionError("start must not probe non-loopback local LLM URLs")
-
-    monkeypatch.setattr(first_run.urllib.request, "urlopen", fail_probe)
+    monkeypatch.setattr(
+        first_run, "_LOCAL_PROBE_OPENER", _UnexpectedProbeOpener("start must not probe non-loopback local LLM URLs")
+    )
 
     assert cli.main(["start", "--json"]) == 0
 
@@ -438,10 +482,11 @@ def test_cli_start_guided_rejects_non_loopback_without_leaking_url(monkeypatch, 
     monkeypatch.setenv("ORA_LOCAL_LLM_PROVIDER", "openai_compatible_local")
     monkeypatch.setenv("ORA_LOCAL_LLM_BASE_URL", "https://example.com/v1")
 
-    def fail_probe(*_args: Any, **_kwargs: Any):
-        raise AssertionError("guided start must not probe non-loopback local LLM URLs")
-
-    monkeypatch.setattr(first_run.urllib.request, "urlopen", fail_probe)
+    monkeypatch.setattr(
+        first_run,
+        "_LOCAL_PROBE_OPENER",
+        _UnexpectedProbeOpener("guided start must not probe non-loopback local LLM URLs"),
+    )
 
     assert cli.main(["start", "--guided", "--json"]) == 0
 
