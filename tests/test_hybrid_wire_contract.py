@@ -51,8 +51,11 @@ def test_local_node_fixture_conforms_to_hybrid_wire_contract() -> None:
     assert local_node["heartbeat"]["message_body_persisted"] is False
     assert manifest["lease_policy"] == "required_per_session"
     assert manifest["message_body_persistence"] == "forbidden"
+    assert str(manifest["expires_at"]).startswith("2100-")
     assert session_ref["bearer_token_included"] is False
     assert session_ref["bearer_token_hash_only"] is True
+    assert str(session_ref["expires_at"]).startswith("2100-")
+    assert str(session_ref["lease_expires_at"]).startswith("2100-")
     assert session_ref["token_hash_algorithm"] == "sha256"
     assert session_ref["token_hash"].startswith("sha256:")
     assert session_ref["message_body_persisted"] is False
@@ -116,6 +119,20 @@ def test_trust_session_rules_cover_required_denials_and_verified_test_node() -> 
         session_ref=session,
         requested_capability="workspace_file_access",
     ).state == "unverified_node"
+    invalid_manifest_expiry = evaluate_wire_request(
+        manifest=build_local_node_capability_manifest(expires_at="not-a-timestamp"),
+        session_ref=session,
+        requested_capability="workspace_file_access",
+    )
+    assert invalid_manifest_expiry.state == "unverified_node"
+    assert "local_node_manifest_expiry_invalid" in invalid_manifest_expiry.reasons
+    expired_manifest = evaluate_wire_request(
+        manifest=build_local_node_capability_manifest(expires_at="2000-01-01T00:00:00Z"),
+        session_ref=session,
+        requested_capability="workspace_file_access",
+    )
+    assert expired_manifest.state == "unverified_node"
+    assert "local_node_manifest_expired" in expired_manifest.reasons
     unverified_session = evaluate_wire_request(
         manifest=manifest,
         session_ref=build_local_node_session_ref(signed_origin_verified=False),
@@ -147,6 +164,20 @@ def test_trust_session_rules_cover_required_denials_and_verified_test_node() -> 
     )
     assert invalid_expiry.state == "expired_session"
     assert "local_node_session_expiry_invalid" in invalid_expiry.reasons
+    invalid_lease_expiry = evaluate_wire_request(
+        manifest=manifest,
+        session_ref=replace(session, lease_expires_at="not-a-timestamp"),
+        requested_capability="workspace_file_access",
+    )
+    assert invalid_lease_expiry.state == "expired_session"
+    assert "local_node_session_lease_expiry_invalid" in invalid_lease_expiry.reasons
+    expired_lease = evaluate_wire_request(
+        manifest=manifest,
+        session_ref=replace(session, lease_expires_at="2000-01-01T00:00:00Z"),
+        requested_capability="workspace_file_access",
+    )
+    assert expired_lease.state == "expired_session"
+    assert "local_node_session_lease_expired" in expired_lease.reasons
     assert evaluate_wire_request(
         manifest=manifest,
         session_ref=build_local_node_session_ref(state="revoked"),
