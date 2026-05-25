@@ -632,6 +632,9 @@ def _hybrid_wire_contract_rows(report: dict[str, Any], *, lang: str = "en") -> t
     trust_states = hybrid.get("trust_states")
     trust_state_count = len(trust_states) if isinstance(trust_states, list) else 0
     required_count = _hybrid_required_trust_state_count(hybrid)
+    posture_states = hybrid.get("node_posture_states")
+    posture_state_count = len(posture_states) if isinstance(posture_states, list) else 0
+    required_posture_count = _hybrid_required_node_posture_state_count(hybrid)
     capabilities = hybrid.get("capabilities")
     capability_count = len(capabilities) if isinstance(capabilities, list) else 0
     status_ok = "正常" if lang == "ja" else "ok"
@@ -644,6 +647,11 @@ def _hybrid_wire_contract_rows(report: dict[str, Any], *, lang: str = "en") -> t
         CliRow("test_fixture_only", hybrid.get("test_fixture_only"), "ok" if hybrid.get("test_fixture_only") else "warn"),
         CliRow("capabilities", capability_count, "ok" if capability_count else "warn"),
         CliRow("trust_states", trust_state_count, "ok" if trust_state_count >= required_count else "warn"),
+        CliRow(
+            "node_posture_states",
+            posture_state_count,
+            "ok" if posture_state_count >= required_posture_count else "warn",
+        ),
         CliRow(
             "route_preview_fixture",
             hybrid.get("route_preview_fixture_supported"),
@@ -667,6 +675,17 @@ def _hybrid_required_trust_state_count(hybrid: dict[str, Any]) -> int:
         return len(required_states)
     trust_states = hybrid.get("trust_states")
     return len(trust_states) if isinstance(trust_states, list) else 1
+
+
+def _hybrid_required_node_posture_state_count(hybrid: dict[str, Any]) -> int:
+    required_count = hybrid.get("required_node_posture_state_count")
+    if isinstance(required_count, int) and required_count > 0:
+        return required_count
+    required_states = hybrid.get("required_node_posture_states")
+    if isinstance(required_states, list) and required_states:
+        return len(required_states)
+    posture_states = hybrid.get("node_posture_states")
+    return len(posture_states) if isinstance(posture_states, list) else 1
 
 
 def _hybrid_node_relay_contract_rows(report: dict[str, Any], *, lang: str = "en") -> tuple[CliRow, ...]:
@@ -905,6 +924,8 @@ def _preview_route(args: argparse.Namespace) -> dict[str, Any]:
     report = decision.to_public_dict()
     if fixture_inputs is not None:
         report["hybrid_wire_node_fixture_used"] = True
+        report["node_posture_state"] = fixture_inputs.get("node_posture_state")
+        report["local_work_preview_allowed"] = fixture_inputs.get("local_work_preview_allowed")
     return report
 
 
@@ -964,6 +985,7 @@ def _format_node_status_pretty(report: dict[str, Any], *, color: ColorMode = "au
             (
                 CliRow("schema", report.get("schema_version"), "ok"),
                 CliRow("trust_state", local_node.get("trust_state"), "ok"),
+                CliRow("posture_state", _node_posture_state(local_node), "ok"),
                 CliRow("loopback_only", local_node.get("loopback_only"), "ok"),
                 CliRow("non_production", local_node.get("non_production"), "ok"),
             ),
@@ -1026,6 +1048,13 @@ def _format_node_pair_pretty(report: dict[str, Any], *, color: ColorMode = "auto
         ),
     )
     return render_report("YonerAI Local Node pairing preview", sections, color=color)
+
+
+def _node_posture_state(local_node: dict[str, Any]) -> object:
+    posture = local_node.get("posture")
+    if not isinstance(posture, dict):
+        return "unknown"
+    return posture.get("state", "unknown")
 
 
 def _print_relay_status_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -> None:

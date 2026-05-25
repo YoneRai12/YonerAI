@@ -468,6 +468,8 @@ def test_cli_node_status_reports_hybrid_wire_fixture(capsys):
     assert output["schema_version"] == "yonerai-hybrid-wire-contract/v0.3"
     assert "yonerai-hybrid-wire-contract/v0.1" in output["compatible_versions"]
     assert local_node["trust_state"] == "verified_test_node"
+    assert local_node["posture"]["state"] == "VERIFIED"
+    assert "workspace_file_access" in local_node["posture"]["exposed_capabilities"]
     assert local_node["loopback_only"] is True
     assert local_node["session_token_hash_only"] is True
     assert local_node["message_body_persisted"] is False
@@ -486,6 +488,8 @@ def test_cli_node_status_pretty_reports_hybrid_wire_fixture(capsys):
     output = capsys.readouterr().out
     assert "YonerAI Local Node status" in output
     assert "Hybrid Wire Contract" in output
+    assert "posture_state" in output
+    assert "VERIFIED" in output
     assert "workspace_file_access" in output
     assert "dangerous_operation" in output
     assert "no official cloud runtime" in output
@@ -626,6 +630,12 @@ def test_cli_route_preview_uses_hybrid_wire_node_state_when_requested(capsys):
     output = json.loads(capsys.readouterr().out)
     assert output["hybrid_wire_node_fixture_used"] is True
     assert output["route"] == "hybrid_coordination_preview"
+    assert output["route_strategy"] == "hybrid"
+    assert output["privacy_class"] == "private"
+    assert output["node_posture_state"] == "VERIFIED"
+    assert output["capability_gate"] == "satisfied"
+    assert output["cloud_escape_erased_approval_audit_args_hash"] is False
+    assert output["audit_requirements"]["args_hash_required"] is True
     assert output["requested_capability"] == "private_files"
     assert output["local_node_verification_state"] == "present_verified"
     assert output["local_node_capability_declared"] is True
@@ -680,6 +690,14 @@ def test_cli_doctor_reports_offline_status_without_network(monkeypatch, capsys):
     assert hybrid_wire["test_fixture_only"] is True
     assert hybrid_wire["network_required"] is False
     assert len(hybrid_wire["trust_states"]) >= 7
+    assert hybrid_wire["required_node_posture_state_count"] == 5
+    assert {item["state"] for item in hybrid_wire["node_posture_states"]} >= {
+        "VERIFIED",
+        "LIMITED",
+        "RECOVERY",
+        "QUARANTINED",
+        "REVOKED",
+    }
     assert "yonerai node status --pretty" in hybrid_wire["cli_commands"]
     relay_status = output["relay_status"]
     assert relay_status["ok"] is True

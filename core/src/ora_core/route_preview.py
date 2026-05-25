@@ -109,6 +109,17 @@ class RoutePreviewDecision:
     def to_public_dict(self) -> dict[str, object]:
         payload = asdict(self)
         payload["non_claims"] = list(self.non_claims)
+        route_strategy = _route_strategy(self)
+        payload["route_strategy"] = route_strategy
+        payload["task_class"] = self.operation_class
+        payload["privacy_class"] = _privacy_class_for_operation(self.operation_class)
+        payload["local_provider_available"] = _local_provider_available(self)
+        payload["node_posture_state"] = _node_posture_state_for_route(self.local_node_verification_state)
+        payload["capability_gate"] = _capability_gate(self)
+        payload["approval_state"] = "required" if self.approval_required else "not_required"
+        payload["cloud_escape_reason"] = _cloud_escape_reason(self, route_strategy)
+        payload["audit_requirements"] = _audit_requirements(self, route_strategy)
+        payload["cloud_escape_erased_approval_audit_args_hash"] = False
         return payload
 
 
@@ -122,7 +133,18 @@ def _classify_operation(task_text: str, requested_capability: str | None, risk_h
         return "pc_operation"
     if any(term in hint for term in ("local tool", "mcp tool", "tool execution")):
         return "local_tool"
-    if any(term in hint for term in ("private file", "local file", "my file", "read file", "private data")):
+    if any(
+        term in hint
+        for term in (
+            "workspace_file_access",
+            "workspace file",
+            "private file",
+            "local file",
+            "my file",
+            "read file",
+            "private data",
+        )
+    ):
         return "private_data"
     if any(term in hint for term in ("heavy", "batch", "long running", "gpu")):
         return "heavy_work"
@@ -227,6 +249,106 @@ def _session_enrolled(state: SessionVerificationState) -> bool:
     return state in {"enrolled_unverified", "enrolled_verified", "expired", "revoked"}
 
 
+def _privacy_class_for_operation(operation_class: OperationClass) -> str:
+    if operation_class == "public_docs":
+        return "public"
+    if operation_class == "private_data":
+        return "private"
+    if operation_class in {"pc_operation", "local_tool", "heavy_work"}:
+        return "local_sensitive"
+    if operation_class in {"dangerous", "discord_live", "deployment"}:
+        return "restricted"
+    return "unknown"
+
+
+def _route_strategy(decision: RoutePreviewDecision) -> str:
+    if decision.disabled or decision.unavailable_reason in {
+        "unknown_capability",
+        "capability_disabled",
+        "local_node_missing",
+        "unverified_node_denied",
+        "expired_node_manifest",
+        "invalid_node_signature",
+        "wrong_audience_node_manifest",
+        "local_node_capability_not_declared",
+        "local_node_session_required",
+        "local_node_enrollment_required",
+        "pairing_pending",
+        "session_not_verified",
+        "session_expired",
+        "session_revoked",
+        "session_wrong_audience",
+    }:
+        return "deny"
+    if decision.route in {"managed_cloud_contract_only", "external_official_service_required"}:
+        return "cloud_contract_only"
+    if decision.route == "hybrid_coordination_preview":
+        return "hybrid"
+    if decision.route == "self_host_local_preview":
+        if decision.operation_class == "public_docs":
+            return "local_preferred"
+        return "local_only"
+    return "deny"
+
+
+def _local_provider_available(decision: RoutePreviewDecision) -> bool:
+    return (
+        decision.local_node_verification_state == "present_verified"
+        and decision.session_gate_satisfied
+        and not decision.disabled
+    )
+
+
+def _node_posture_state_for_route(state: LocalNodeVerificationState | None) -> str | None:
+    if state == "present_verified":
+        return "VERIFIED"
+    if state == "present_unverified":
+        return "LIMITED"
+    if state == "expired":
+        return "RECOVERY"
+    if state in {"invalid_signature", "wrong_audience"}:
+        return "QUARANTINED"
+    if state == "missing":
+        return None
+    return None
+
+
+def _capability_gate(decision: RoutePreviewDecision) -> str:
+    if decision.unavailable_reason == "local_node_capability_not_declared":
+        return "capability_not_declared"
+    if decision.local_node_capability_declared is True:
+        return "satisfied"
+    if decision.local_node_capability_declared is False:
+        return decision.unavailable_reason or "not_satisfied"
+    if decision.local_node_required:
+        return decision.unavailable_reason or "local_node_required"
+    return "not_required"
+
+
+def _cloud_escape_reason(decision: RoutePreviewDecision, route_strategy: str) -> str | None:
+    if route_strategy != "cloud_contract_only":
+        return None
+    return decision.unavailable_reason or "official_cloud_contract_only"
+
+
+def _audit_requirements(decision: RoutePreviewDecision, route_strategy: str) -> dict[str, object]:
+    args_hash_required = bool(
+        decision.local_node_required
+        or decision.private_data_allowed
+        or decision.dangerous_operation
+        or decision.operation_class in {"pc_operation", "local_tool", "heavy_work", "dangerous"}
+    )
+    return {
+        "approval_required": decision.approval_required,
+        "audit_event_required": True,
+        "args_hash_required": args_hash_required,
+        "cloud_escape": route_strategy == "cloud_contract_only",
+        "cloud_escape_preserves_approval": True,
+        "cloud_escape_preserves_audit": True,
+        "cloud_escape_preserves_args_hash": True,
+    }
+
+
 def preview_route(
     task_text: str,
     *,
@@ -241,6 +363,8 @@ def preview_route(
 ) -> RoutePreviewDecision:
     operation_class = _classify_operation(task_text, requested_capability, risk_hint)
     capability_name = _capability_for_operation(operation_class, requested_capability)
+    if mode == "full_private_self_host" and operation_class == "public_docs" and requested_capability is None:
+        capability_name = "local_tools"
     local_node_capabilities = _normalize_local_node_capabilities(local_node_capabilities)
     profile = get_mode_capability_profile(mode)
     non_claims = (

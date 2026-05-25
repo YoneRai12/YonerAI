@@ -126,6 +126,14 @@ def test_public_demo_json_shape_and_boundaries(capsys) -> None:
     assert wire_conformance["message_body_persisted"] is False
     assert wire_conformance["audit_event_schema"] == "hybrid-wire-audit/v0.3"
     assert wire_conformance["trust_state_count"] >= 7
+    assert wire_conformance["node_posture_state_count"] == 5
+    assert wire_conformance["node_posture_states"] == [
+        "VERIFIED",
+        "LIMITED",
+        "RECOVERY",
+        "QUARANTINED",
+        "REVOKED",
+    ]
     assert wire_conformance["route_preview_fixture_supported"] is True
     assert wire_conformance["official_cloud_runtime_implemented"] is False
     assert wire_conformance["network_required"] is False
