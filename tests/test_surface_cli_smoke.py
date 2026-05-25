@@ -1343,6 +1343,61 @@ def test_cli_route_preview_public_reasoning_is_cloud_contract_candidate(capsys):
     assert output["raw_prompt_body_sent_to_cloud"] is False
 
 
+def test_cli_hybrid_run_json_executes_local_dev_slice(capsys):
+    cli = _load_cli_module()
+
+    assert cli.main(["hybrid", "run", "--json"]) == 0
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["schema_version"] == "yonerai-hybrid-execution-slice/v0.1"
+    assert output["ok"] is True
+    assert output["local_node_runtime"]["http_proxy_fixture"]["status"] == "completed"
+    assert output["provider_execution"]["response"]["provider"] == "mock"
+    assert output["provider_execution"]["run"]["status"] == "completed"
+    assert output["oracle_stub_execution"]["response"]["status"] == "completed"
+    assert output["boundaries"]["loopback_only"] is True
+    assert output["boundaries"]["production_oracle_used"] is False
+    assert output["boundaries"]["official_cloud_runtime_implemented"] is False
+    assert output["run_ids"]["provider_run_id"].startswith("run_")
+    assert output["run_ids"]["oracle_run_id"].startswith("run_")
+
+
+def test_cli_hybrid_run_pretty_reports_boundaries(capsys):
+    cli = _load_cli_module()
+
+    assert cli.main(["hybrid", "run", "--pretty", "--color", "never"]) == 0
+
+    output = capsys.readouterr().out
+    assert "YonerAI Hybrid local-dev run" in output
+    assert "Local-dev node and relay" in output
+    assert "Oracle stub" in output
+    assert "deny_dangerous_operation" in output
+    assert "[FAIL] deny_dangerous_operation" not in output
+    assert "no production Oracle" in output
+    assert "\033[" not in output
+    assert "C:\\Users" not in output
+
+
+def test_cli_hybrid_run_available_from_clients_cli_cwd() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    cli_cwd = repo_root / "clients" / "cli"
+    result = subprocess.run(
+        [sys.executable, "-m", "yonerai_cli", "hybrid", "run", "--json"],
+        cwd=cli_cwd,
+        env={**os.environ, "PYTHONPATH": str(cli_cwd)},
+        text=True,
+        capture_output=True,
+        timeout=30,
+    )
+
+    assert result.returncode == 0, result.stderr
+    output = json.loads(result.stdout)
+    assert output["schema_version"] == "yonerai-hybrid-execution-slice/v0.1"
+    assert output["ok"] is True
+    assert output["provider_execution"]["response"]["provider"] == "mock"
+    assert "C:\\Users" not in result.stdout
+
+
 def test_cli_route_preview_private_file_in_hybrid_requires_local_node(capsys):
     cli = _load_cli_module()
 

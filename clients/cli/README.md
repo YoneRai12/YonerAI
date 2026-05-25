@@ -39,6 +39,8 @@ Credential-free commands:
 
 - `yonerai start --guided --lang ja`
 - `yonerai ask "summarize public docs" --provider mock --json`
+- `yonerai hybrid run --pretty`
+- `yonerai hybrid run --json`
 - `yonerai ask "use this selected file" --file <path> --workspace <dir> --provider mock --json`
 - `yonerai search mock "YonerAI alpha2" --json`
 - `yonerai ops plan git-status --json`
@@ -56,6 +58,13 @@ returns a public-safe `run_id`. Workspace file support is a Workspace File
 Access Guard: it reads only an explicit UTF-8 text file under an explicit
 workspace. Local memory writes only when a store path and `--confirm-local` are
 provided.
+
+`yonerai hybrid run` is the first local-dev Hybrid execution slice. It runs
+route preview, a verified test Local Node session, in-memory relay transport,
+mock provider execution, redacted ledger events, and an Oracle stub
+request/result envelope in one report. It does not contact production Oracle,
+Official Managed Cloud, live Discord, public tunnels, or external providers by
+default.
 
 Not included: production readiness, live Discord restoration, live web search by
 default, arbitrary shell execution, arbitrary file access, installer-ready
@@ -89,6 +98,8 @@ yonerai manifest verify releases/manifest.example.json --pretty --lang ja
 yonerai manifest verify releases/manifest.example.json --json
 yonerai plan "summarize public docs" --json
 yonerai ask "summarize public docs" --provider mock --json
+yonerai hybrid run --pretty
+yonerai hybrid run --json
 yonerai ask "use this selected file" --file notes.txt --workspace . --provider mock --json
 yonerai ask "hello" --provider mock --json --ledger .yonerai-runs.jsonl
 yonerai runs list --ledger .yonerai-runs.jsonl --json
@@ -110,7 +121,8 @@ python -m yonerai_cli health
 ```
 
 `yonerai start`, `yonerai demo`, `yonerai smoke`, `yonerai doctor`, `yonerai status`,
-`yonerai manifest verify`, `yonerai plan`, mock `yonerai ask`, mock
+`yonerai manifest verify`, `yonerai plan`, mock `yonerai ask`,
+`yonerai hybrid run`, mock
 `yonerai search`, `yonerai ops plan`, `yonerai discord synthetic`, and
 `yonerai install plan` run locally and do not require a local Core API process.
 `yonerai install plan-windows` remains a Windows-specific dry-run alias.

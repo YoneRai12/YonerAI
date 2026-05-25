@@ -144,6 +144,13 @@ from .oracle_stub import (
     oracle_stub_eligible,
     process_oracle_stub_request,
 )
+from .execution_slice import (
+    DEFAULT_HYBRID_EXECUTION_ORACLE_TASK,
+    DEFAULT_HYBRID_EXECUTION_TASK,
+    HYBRID_EXECUTION_SLICE_SCHEMA_VERSION,
+    build_hybrid_execution_slice_report,
+    build_hybrid_execution_slice_status_report,
+)
 from .relay_node_e2e import (
     HYBRID_RELAY_NODE_E2E_SCHEMA_VERSION,
     build_local_dev_relay_node_e2e_report,
@@ -168,6 +175,7 @@ __all__ = [
     "HYBRID_WIRE_CONTRACT_VERSION",
     "HYBRID_WIRE_COMPATIBLE_VERSIONS",
     "HYBRID_NODE_RELAY_CONTRACT_VERSION",
+    "HYBRID_EXECUTION_SLICE_SCHEMA_VERSION",
     "HYBRID_RELAY_NODE_E2E_SCHEMA_VERSION",
     "LOCAL_DEV_RELAY_TRANSPORT_SCHEMA_VERSION",
     "RELAY_STATUS_SCHEMA_VERSION",
@@ -190,6 +198,8 @@ __all__ = [
     "ExtensionCapabilityDecision",
     "ExtensionCapabilityManifest",
     "DEFAULT_ORACLE_STUB_TASK",
+    "DEFAULT_HYBRID_EXECUTION_ORACLE_TASK",
+    "DEFAULT_HYBRID_EXECUTION_TASK",
     "LocalDevControlPlaneStatus",
     "LocalDevNodeStatus",
     "LocalDevSessionBindingDecision",
@@ -222,6 +232,8 @@ __all__ = [
     "build_improvement_proposal_fixture",
     "build_hybrid_wire_conformance_report",
     "build_hybrid_node_relay_contract_stub",
+    "build_hybrid_execution_slice_report",
+    "build_hybrid_execution_slice_status_report",
     "build_local_dev_relay_node_e2e_report",
     "build_local_dev_enrolled_session_fixture",
     "build_local_dev_control_plane_status",
