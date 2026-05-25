@@ -23,6 +23,8 @@ See also: `docs/RELEASE_NOTES.md` (curated summary, v5.0.0 -> current).
 - Fixed follow-up P1 review debt: duplicate unknown extension capabilities are
   redacted in public decision payloads instead of exposing normalized private
   capability names.
+- Fixed local-dev Oracle stub import failures so `ask --auto` returns a
+  controlled unavailable report when optional hybrid dependencies are missing.
 - This remains a semantic alpha pre-release. It is not the date-tagged
   stable/latest GitHub Release stream (`v2026...`).
 - Preserved alpha runtime boundaries: no production Oracle, no Official Managed

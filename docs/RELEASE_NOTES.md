@@ -13,9 +13,9 @@ This page is a public-safe index of current release notes and progress checkpoin
   (for example `v2026.5.21.5`) unless the owner separately approves a date-tag
   production release.
 - What users can try now: `yonerai`, `yonerai chat`, first-launch Japanese/English selection, Japanese slash commands such as `/設定`, `/提供元`, `/安全`, `/履歴`, `/表示 <実行ID>`, local preference commands `yonerai config show/set`, and compatibility aliases such as `/settings` in Japanese mode.
-- Capability slice: Japanese-first interactive chat shell, settings/provider/safety/run-history screens, local non-secret config, `ask --auto` chat execution, non-TTY fallback, scripted chat mode for tests/automation, and current-main P1/P2 review-debt fixes including Oracle stub privacy routing, deployment classification, relay auto URL trust checks, extension manifest redaction, unknown capability evaluation ordering, duplicate unknown-capability redaction, and relay pretty output status.
+- Capability slice: Japanese-first interactive chat shell, settings/provider/safety/run-history screens, local non-secret config, `ask --auto` chat execution, non-TTY fallback, scripted chat mode for tests/automation, and current-main P1/P2 review-debt fixes including Oracle stub privacy routing, missing hybrid dependency handling, deployment classification, relay auto URL trust checks, extension manifest redaction, unknown capability evaluation ordering, duplicate unknown-capability redaction, and relay pretty output status.
 - Boundary: no production Oracle, no Official Managed Cloud runtime, no live Discord, no deploy/public tunnel, no arbitrary shell/file/tool execution, no default live provider calls, no production signing/trust store, and no provider keys printed or stored.
-- Primary traceability range: `v0.2.0-alpha.1..v0.3.0-alpha.1`, PRs #429, #430, #431, #435, #437, and #440.
+- Primary traceability range: `v0.2.0-alpha.1..v0.3.0-alpha.1`, PRs #429, #430, #431, #435, #437, #440, and #441.
 
 ## v0.2.0-alpha.1 Real CLI Runtime Slice
 
