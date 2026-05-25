@@ -13,6 +13,55 @@ def _prepare_paths() -> None:
             sys.path.insert(0, text)
 
 
+def _clear_modules(monkeypatch, *module_names: str) -> None:
+    for module_name in module_names:
+        monkeypatch.delitem(sys.modules, module_name, raising=False)
+
+
+def _write_attacker_redaction_package(tmp_path: Path) -> Path:
+    src_package = tmp_path / "src"
+    utils_package = src_package / "utils"
+    utils_package.mkdir(parents=True)
+    (src_package / "__init__.py").write_text("", encoding="utf-8")
+    (utils_package / "__init__.py").write_text("", encoding="utf-8")
+    marker = tmp_path / "attacker_redaction_imported.txt"
+    (utils_package / "redaction.py").write_text(
+        "from pathlib import Path\n"
+        f"Path({str(marker)!r}).write_text('executed', encoding='utf-8')\n"
+        "def redact_text(value):\n"
+        "    return value\n"
+        "def redact_json(value):\n"
+        "    return value\n",
+        encoding="utf-8",
+    )
+    return marker
+
+
+def _write_attacker_core_module(tmp_path: Path, module_path: str) -> Path:
+    package = tmp_path / "ora_core"
+    package.mkdir()
+    (package / "__init__.py").write_text("", encoding="utf-8")
+    marker = tmp_path / f"attacker_{module_path.replace('/', '_')}_imported.txt"
+    target = package / module_path
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if target.name == "__init__.py":
+        target.write_text(
+            "from pathlib import Path\n"
+            f"Path({str(marker)!r}).write_text('executed', encoding='utf-8')\n"
+            "raise RuntimeError('attacker ora_core package imported')\n",
+            encoding="utf-8",
+        )
+    else:
+        (target.parent / "__init__.py").write_text("", encoding="utf-8")
+        target.write_text(
+            "from pathlib import Path\n"
+            f"Path({str(marker)!r}).write_text('executed', encoding='utf-8')\n"
+            "raise RuntimeError('attacker ora_core module imported')\n",
+            encoding="utf-8",
+        )
+    return marker
+
+
 def test_mock_search_adapter_returns_deterministic_fixture() -> None:
     _prepare_paths()
     from ora_core.search import MockSearchAdapter, SearchRequest
@@ -179,6 +228,8 @@ def test_cli_ops_plan_does_not_import_mcp_policy_from_cwd(tmp_path, capsys, monk
 
     attacker_policy = tmp_path / "src" / "cogs" / "mcp_policy.py"
     attacker_policy.parent.mkdir(parents=True)
+    (tmp_path / "src" / "__init__.py").write_text("", encoding="utf-8")
+    (tmp_path / "src" / "cogs" / "__init__.py").write_text("", encoding="utf-8")
     marker = tmp_path / "attacker_imported.txt"
     attacker_policy.write_text(
         "from pathlib import Path\n"
@@ -189,6 +240,8 @@ def test_cli_ops_plan_does_not_import_mcp_policy_from_cwd(tmp_path, capsys, monk
         "    return False\n",
         encoding="utf-8",
     )
+    _clear_modules(monkeypatch, "src", "src.cogs", "src.cogs.mcp_policy")
+    monkeypatch.syspath_prepend(str(tmp_path))
     monkeypatch.chdir(tmp_path)
 
     rc = cli.main(["ops", "plan", "python-version", "--json"])
@@ -199,6 +252,80 @@ def test_cli_ops_plan_does_not_import_mcp_policy_from_cwd(tmp_path, capsys, monk
     assert output["ok"] is True
     assert marker.exists() is False
     assert "attacker-pattern" not in output["plan"]["mcp_policy"]["default_deny_patterns"]
+
+
+def test_cli_ops_plan_does_not_import_ora_core_from_cwd(tmp_path, capsys, monkeypatch) -> None:
+    _prepare_paths()
+    from yonerai_cli import cli
+
+    marker = _write_attacker_core_module(tmp_path, "ops/__init__.py")
+    _clear_modules(monkeypatch, "ora_core", "ora_core.ops")
+    monkeypatch.syspath_prepend(str(tmp_path))
+    monkeypatch.chdir(tmp_path)
+
+    rc = cli.main(["ops", "plan", "python-version", "--json"])
+    captured = capsys.readouterr()
+    output = json.loads(captured.out)
+
+    assert rc == 0
+    assert output["ok"] is True
+    assert marker.exists() is False
+    assert output["plan"]["command_preview"] == ["python", "--version"]
+
+
+def test_cli_route_preview_does_not_import_ora_core_from_cwd(tmp_path, capsys, monkeypatch) -> None:
+    _prepare_paths()
+    from yonerai_cli import cli
+
+    marker = _write_attacker_core_module(tmp_path, "route_preview.py")
+    _clear_modules(monkeypatch, "ora_core", "ora_core.route_preview")
+    monkeypatch.syspath_prepend(str(tmp_path))
+    monkeypatch.chdir(tmp_path)
+
+    rc = cli.main(["route", "preview", "summarize", "public", "docs", "--json"])
+    captured = capsys.readouterr()
+    output = json.loads(captured.out)
+
+    assert rc == 0
+    assert marker.exists() is False
+    assert output["schema_version"] == "three-mode-route-preview-0.3"
+    assert output["route"]
+
+
+def test_cli_search_mock_does_not_import_redaction_from_cwd(tmp_path, capsys, monkeypatch) -> None:
+    _prepare_paths()
+    _clear_modules(monkeypatch, "src", "src.utils", "src.utils.redaction")
+    from yonerai_cli import cli
+
+    marker = _write_attacker_redaction_package(tmp_path)
+    monkeypatch.syspath_prepend(str(tmp_path))
+    monkeypatch.chdir(tmp_path)
+
+    rc = cli.main(["search", "mock", "YonerAI", "alpha2", "--json"])
+    captured = capsys.readouterr()
+    output = json.loads(captured.out)
+
+    assert rc == 0
+    assert output["ok"] is True
+    assert marker.exists() is False
+
+
+def test_cli_discord_synthetic_does_not_import_redaction_from_cwd(tmp_path, capsys, monkeypatch) -> None:
+    _prepare_paths()
+    _clear_modules(monkeypatch, "src", "src.utils", "src.utils.redaction")
+    from yonerai_cli import cli
+
+    marker = _write_attacker_redaction_package(tmp_path)
+    monkeypatch.syspath_prepend(str(tmp_path))
+    monkeypatch.chdir(tmp_path)
+
+    rc = cli.main(["discord", "synthetic", "hello", "--json"])
+    captured = capsys.readouterr()
+    output = json.loads(captured.out)
+
+    assert rc == 0
+    assert output["ok"] is True
+    assert marker.exists() is False
 
 
 def test_cli_discord_synthetic_records_redacted_ledger(tmp_path, capsys) -> None:
