@@ -2,6 +2,22 @@
 
 See also: `docs/RELEASE_NOTES.md` (curated summary, v5.0.0 -> current).
 
+## v0.1.0-alpha.3 (2026-05-26) - Real Hybrid Execution Slice
+- Added `yonerai hybrid run --pretty/--json`, a public-safe local-dev Hybrid
+  execution slice that connects route preview, verified test Local Node session,
+  in-memory relay transport, mock provider execution, redacted ledger events,
+  and Oracle stub request/result envelopes with run IDs.
+- Extended `yonerai demo`, `yonerai doctor`, and `yonerai start --guided` so
+  non-engineers can see what runs locally, what is a stub, and what remains
+  outside the public repo.
+- Continued Hybrid wire/relay/route/oracle hardening through Local Node posture
+  states, relay transport, audit events, extension manifest boundaries, session
+  expiry validation, and dangerous cloud-candidate denial.
+- Preserved hard boundaries: no production Oracle, no Official Managed Cloud
+  runtime, no live Discord, no public tunnel/deploy, no production signing or
+  trust store, no arbitrary shell/file/tool execution, and no default live
+  provider calls.
+
 ## v0.1.0-alpha.2 (2026-05-22) - Capability Slice
 - Corrected the existing `v0.1.0-alpha.2` release note into operation-manual
   style with command-by-command run guidance, explicit non-actions, immutable
