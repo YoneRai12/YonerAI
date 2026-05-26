@@ -4,6 +4,19 @@ YonerAI は、公式・ローカル・self-hosted の実行環境が変わって
 
 [English README](README.md) | [Current phase](docs/CURRENT_PHASE_CONTEXT.md) | [Contracts](docs/contracts) | [Codex / contributor workflow](docs/process/YONERAI_CODEX_WORKFLOW.md) | [Release governance](docs/process/YONERAI_RELEASE_GOVERNANCE.md)
 
+## ライセンスと配布
+
+YonerAI は source-available / noncommercial を既定とします。OSI open source
+ではありません。
+
+- コード: PolyForm Noncommercial License 1.0.0。
+- ドキュメントとアセット: 各ファイルで別途指定がない限り CC BY-NC-ND 4.0。
+- YonerAI の名称、ロゴ、プロダクト識別子、ドメイン、ブランドアセット: All Rights Reserved。
+- 商用利用には YoneRai12 からの別途商用ライセンスが必要です。
+
+[LICENSE](LICENSE)、[LICENSE_JP.md](LICENSE_JP.md)、[NOTICE](NOTICE)、
+[License policy](docs/legal/LICENSE_POLICY.md) を確認してください。
+
 この public repository は public contract surface を説明します。内部運用の詳細、credential、live route、host 固有の事実は公開しません。
 
 ## YonerAI とは
@@ -30,6 +43,29 @@ python -m pip install -r core/requirements.txt httpx
 python -m pip install -e clients/cli
 yonerai
 ```
+
+展開したアーカイブまたは checkout に `install-local.ps1` が入っている場合は、
+仮想環境の手順を手で全部打たずに、ローカルbootstrap helperを使えます。
+
+```powershell
+# 計画だけ表示します。インストールはしません。
+.\install-local.ps1
+
+# .venv を作り、ローカルCLI packageを入れて、YonerAIを起動します。
+.\install-local.ps1 -Execute -Launch
+```
+
+PowerShell がローカル script 実行を止める場合は、PC全体の実行ポリシーを変えずに
+次の形で実行できます。
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\install-local.ps1 -Execute -Launch
+```
+
+この helper はローカル優先です。既定は計画表示だけで、仮想環境の場所が展開した
+YonerAIフォルダの外に出る指定は拒否します。PATH変更、registry変更、service install、
+admin要求、`irm ... | iex` は行いません。`-Execute` を付けた場合だけ、`pip` が
+未cacheのPython依存packageを取得する可能性があります。
 
 Python は 3.11 以上を使ってください。`python --version` が動かない場合は、
 先に Python を入れるか、自分のPCで使える Python 起動コマンドに置き換えてください。
@@ -84,7 +120,9 @@ yonerai demo --pretty
 yonerai demo --json
 yonerai doctor --pretty --lang ja
 yonerai status --pretty --lang ja
-yonerai manifest verify releases/manifest.example.json --pretty --lang ja
+yonerai manifest verify releases/manifest.v0.5.0.json --pretty --lang ja
+yonerai install plan --manifest releases/manifest.v0.5.0.json --pretty --lang ja
+yonerai update plan --manifest releases/manifest.v0.5.0.json --pretty --lang ja
 ```
 
 `yonerai quickstart` は `yonerai demo` の alias です。

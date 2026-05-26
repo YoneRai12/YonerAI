@@ -12,6 +12,20 @@ It is not just a Discord bot and not just a model router. Discord, Web, relay, A
 
 This public README describes the public contract surface. It does not publish internal operations detail, credentials, live routes, or host-specific facts.
 
+## License and distribution
+
+YonerAI is source-available and noncommercial by default. It is not OSI open
+source.
+
+- Code: PolyForm Noncommercial License 1.0.0.
+- Documentation and assets: CC BY-NC-ND 4.0 unless a file says otherwise.
+- YonerAI name, logo, product identity, domains, and brand assets: All Rights
+  Reserved.
+- Commercial use requires a separate commercial license from YoneRai12.
+
+See [LICENSE](LICENSE), [LICENSE_JP.md](LICENSE_JP.md), [NOTICE](NOTICE), and
+[License policy](docs/legal/LICENSE_POLICY.md).
+
 ## Install and start YonerAI
 
 This is the local CLI runtime path, not a production cloud installer. It installs
@@ -34,6 +48,31 @@ python -m pip install -r core/requirements.txt httpx
 python -m pip install -e clients/cli
 yonerai
 ```
+
+If the extracted archive or checkout contains `install-local.ps1`, you can use
+the local bootstrap helper instead of typing the virtual-environment steps by
+hand:
+
+```powershell
+# Show the plan only. Nothing is installed.
+.\install-local.ps1
+
+# Create .venv, install the local CLI package, then start YonerAI.
+.\install-local.ps1 -Execute -Launch
+```
+
+If PowerShell blocks local scripts, run the same helper without changing the
+machine-wide execution policy:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\install-local.ps1 -Execute -Launch
+```
+
+The helper is local-first: plan mode is the default, it refuses virtual
+environment paths outside the extracted YonerAI folder, and it does not mutate
+PATH, edit the registry, install services, request admin privileges, or run
+`irm ... | iex`. With `-Execute`, `pip` may fetch Python dependencies unless
+they are already cached.
 
 Use Python 3.11 or newer. If `python --version` does not work, install Python
 first or use the launcher command that exists on your machine.
@@ -87,14 +126,16 @@ yonerai demo --json
 yonerai doctor --pretty
 yonerai doctor --pretty --lang ja
 yonerai status --pretty
-yonerai manifest verify releases/manifest.example.json --pretty
+yonerai manifest verify releases/manifest.v0.5.0.json --pretty
+yonerai install plan --manifest releases/manifest.v0.5.0.json --pretty
+yonerai update plan --manifest releases/manifest.v0.5.0.json --pretty
 yonerai plan "summarize public docs" --json
 yonerai ask "summarize public docs" --provider mock --json
 yonerai hybrid run --pretty
 yonerai hybrid run --json
 yonerai search mock "YonerAI alpha2" --json
 yonerai ops plan git-status --json
-yonerai install plan --manifest releases/manifest.example.json --json
+yonerai install plan --manifest releases/manifest.v0.5.0.json --json
 ```
 
 ## First 5 minutes

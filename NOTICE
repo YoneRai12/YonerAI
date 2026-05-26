@@ -1,0 +1,12 @@
+YonerAI Notice
+
+YonerAI is distributed as a source-available, noncommercial local CLI runtime
+and public contract surface. It is not OSI open source and it is not full
+YonerAI production readiness.
+
+Code: PolyForm Noncommercial License 1.0.0.
+Documentation and assets: CC BY-NC-ND 4.0 unless a file states otherwise.
+Brand/name/logo/domain identity: All Rights Reserved.
+
+Third-party dependencies keep their own licenses. Dependency license metadata
+does not change the YonerAI repository license.
