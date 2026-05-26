@@ -288,7 +288,7 @@ def test_update_check_quotes_spaced_manifest_path_in_next_safe_command(tmp_path,
     report = build_update_check(str(manifest_path), current_version=_current_version())
 
     assert report["manifest"] == "My Releases/manifest.json"
-    assert report["next_safe_command"] == "yonerai update plan --manifest 'My Releases/manifest.json' --pretty"
+    assert report["next_safe_command"] == 'yonerai update plan --manifest "My Releases/manifest.json" --pretty'
     assert str(tmp_path) not in json.dumps(report)
 
 
