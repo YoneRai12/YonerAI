@@ -49,6 +49,31 @@ python -m pip install -e clients/cli
 yonerai
 ```
 
+If the extracted archive or checkout contains `install-local.ps1`, you can use
+the local bootstrap helper instead of typing the virtual-environment steps by
+hand:
+
+```powershell
+# Show the plan only. Nothing is installed.
+.\install-local.ps1
+
+# Create .venv, install the local CLI package, then start YonerAI.
+.\install-local.ps1 -Execute -Launch
+```
+
+If PowerShell blocks local scripts, run the same helper without changing the
+machine-wide execution policy:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\install-local.ps1 -Execute -Launch
+```
+
+The helper is local-first: plan mode is the default, it refuses virtual
+environment paths outside the extracted YonerAI folder, and it does not mutate
+PATH, edit the registry, install services, request admin privileges, or run
+`irm ... | iex`. With `-Execute`, `pip` may fetch Python dependencies unless
+they are already cached.
+
 Use Python 3.11 or newer. If `python --version` does not work, install Python
 first or use the launcher command that exists on your machine.
 

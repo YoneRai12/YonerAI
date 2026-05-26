@@ -44,6 +44,29 @@ python -m pip install -e clients/cli
 yonerai
 ```
 
+展開したアーカイブまたは checkout に `install-local.ps1` が入っている場合は、
+仮想環境の手順を手で全部打たずに、ローカルbootstrap helperを使えます。
+
+```powershell
+# 計画だけ表示します。インストールはしません。
+.\install-local.ps1
+
+# .venv を作り、ローカルCLI packageを入れて、YonerAIを起動します。
+.\install-local.ps1 -Execute -Launch
+```
+
+PowerShell がローカル script 実行を止める場合は、PC全体の実行ポリシーを変えずに
+次の形で実行できます。
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\install-local.ps1 -Execute -Launch
+```
+
+この helper はローカル優先です。既定は計画表示だけで、仮想環境の場所が展開した
+YonerAIフォルダの外に出る指定は拒否します。PATH変更、registry変更、service install、
+admin要求、`irm ... | iex` は行いません。`-Execute` を付けた場合だけ、`pip` が
+未cacheのPython依存packageを取得する可能性があります。
+
 Python は 3.11 以上を使ってください。`python --version` が動かない場合は、
 先に Python を入れるか、自分のPCで使える Python 起動コマンドに置き換えてください。
 

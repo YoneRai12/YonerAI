@@ -33,6 +33,30 @@ yonerai
 Use Python 3.11 or newer. If `yonerai` is not found, activate the virtual
 environment again with `.\.venv\Scripts\Activate.ps1`.
 
+## Local bootstrap helper
+
+Archives or checkouts that include `install-local.ps1` can use the plan-first
+local bootstrap helper:
+
+```powershell
+# Show the local install plan only.
+.\install-local.ps1
+
+# Explicitly create .venv, install the local CLI package, and launch YonerAI.
+.\install-local.ps1 -Execute -Launch
+```
+
+If Windows blocks local script execution, run the same helper without changing
+the machine-wide execution policy:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\install-local.ps1 -Execute -Launch
+```
+
+The helper does not mutate PATH, edit the registry, install services, request
+admin rights, run `irm ... | iex`, or execute a remote installer. With
+`-Execute`, `pip` may fetch Python dependencies unless already cached.
+
 ## Verify before planning
 
 ```powershell
