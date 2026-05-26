@@ -115,6 +115,30 @@ def test_followup_reinjects_latest_prior_image() -> None:
     asyncio.run(_run())
 
 
+def test_followup_reinjects_prior_image_when_current_turn_is_in_db_history() -> None:
+    async def _run() -> None:
+        req = MessageRequest(
+            user_identity={"provider": "discord", "id": "u-follow-current"},
+            content="続き",
+            client_history=[HistoryMessage(role="assistant", content="前の画像の説明です")],
+            idempotency_key="follow-current-001",
+            source="discord",
+        )
+        repo = _FakeRepo(
+            [
+                _msg("user", "この画像を説明して", attachments=[_image("https://example.com/1.png")]),
+                _msg("assistant", "説明しました"),
+                _msg("user", "続き"),
+            ]
+        )
+        messages = await _build_context(req, repo)
+        user_content = messages[-1]["content"]
+        assert isinstance(user_content, list)
+        assert any(part.get("type") == "image_url" for part in user_content)
+
+    asyncio.run(_run())
+
+
 def test_unrelated_followup_does_not_reinject_image() -> None:
     async def _run() -> None:
         req = MessageRequest(
@@ -126,6 +150,32 @@ def test_unrelated_followup_does_not_reinject_image() -> None:
         repo = _FakeRepo([_msg("user", "この画像を説明して", attachments=[_image("https://example.com/1.png")])])
         messages = await _build_context(req, repo)
         assert messages[-1]["content"] == "ありがとう"
+
+    asyncio.run(_run())
+
+
+def test_followup_stops_at_latest_prior_user_turn_without_image() -> None:
+    async def _run() -> None:
+        req = MessageRequest(
+            user_identity={"provider": "discord", "id": "u-stale-image"},
+            content="続き",
+            client_history=[HistoryMessage(role="assistant", content="直前のテキスト会話です")],
+            idempotency_key="stale-img-001",
+            source="discord",
+        )
+        repo = _FakeRepo(
+            [
+                _msg("user", "この画像を説明して", attachments=[_image("https://example.com/old.png")]),
+                _msg("assistant", "古い画像の説明です"),
+                _msg("user", "別の話題に変えよう"),
+                _msg("assistant", "別の話題です"),
+                _msg("user", "続き"),
+            ]
+        )
+        messages = await _build_context(req, repo)
+        assert messages[-1]["content"] == "続き"
+        joined = "\n".join(str(m.get("content") or "") for m in messages if m.get("role") == "system")
+        assert "[IMAGE FOLLOW-UP CONTRACT]" not in joined
 
     asyncio.run(_run())
 
