@@ -231,3 +231,4 @@ def test_release_archive_policy_is_hash_stable_for_manifest_recording() -> None:
 
     assert "releases/manifest.v*.json export-ignore" in attributes
     assert "HEAD^{tree}" in release_script
+    assert "--mtime=" in release_script

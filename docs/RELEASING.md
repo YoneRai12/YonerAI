@@ -27,7 +27,8 @@ cleanup.
    `releases/manifest.v<VERSION>.json`.
 9. Rebuild the ZIP and confirm the SHA256/size did not change. Release-specific
    manifests are excluded from generated source archives through `.gitattributes`
-   to avoid a manifest/hash feedback loop.
+   and archive entry mtimes are fixed by `scripts/create_release.py` to avoid a
+   manifest/hash feedback loop.
 10. Create the GitHub Release only after the release gate passes.
 
 ## Manual GitHub Release command shape
