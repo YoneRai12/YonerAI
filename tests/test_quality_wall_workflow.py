@@ -16,11 +16,17 @@ def test_quality_wall_workflow_splits_user_visible_gates() -> None:
         "provider-boundary:",
         "hybrid-zero-trust:",
         "installer-manifest:",
+        "windows-cli-smoke:",
+        "windows-installer-manifest:",
+        "macos-cli-smoke:",
+        "macos-installer-manifest:",
         "security-static:",
         "release-gate:",
     ):
         assert job_name in workflow
 
+    assert "runs-on: windows-latest" in workflow
+    assert "runs-on: macos-latest" in workflow
     assert "python scripts/ci_quality_scans.py --changed" in workflow
     assert "git diff --check" in workflow
     assert "ruff check" in workflow
