@@ -121,6 +121,19 @@ def test_v050_manifest_rejects_unversioned_artifact_and_missing_signature() -> N
     assert any("signature" in error for error in missing_signature_report["errors"])
 
 
+def test_manifest_rejects_unhashable_install_method_without_traceback() -> None:
+    _prepare_paths()
+    from yonerai_cli.release_manifest import verify_manifest
+
+    manifest = _load_v050_manifest()
+    manifest["install_methods"] = [["manual_zip_venv"]]
+
+    report = verify_manifest(manifest)
+
+    assert report["contract_valid"] is False
+    assert "install_methods is invalid." in report["errors"]
+
+
 def test_yonerai_site_install_content_is_copyable_and_non_executing() -> None:
     install_page = (ROOT / "docs" / "site" / "yonerai.com" / "install.md").read_text(encoding="utf-8")
     release_page = (ROOT / "docs" / "site" / "yonerai.com" / "releases" / "v0.5.0.md").read_text(

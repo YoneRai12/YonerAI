@@ -285,7 +285,11 @@ def validate_manifest_contract(manifest: dict[str, Any]) -> list[str]:
     if install_methods is not None:
         _expect(
             isinstance(install_methods, list)
-            and all(method in {"manual_zip_venv", "powershell_dry_run_plan", "manifest_verify_only"} for method in install_methods),
+            and all(
+                isinstance(method, str)
+                and method in {"manual_zip_venv", "powershell_dry_run_plan", "manifest_verify_only"}
+                for method in install_methods
+            ),
             "install_methods is invalid.",
             errors,
         )
