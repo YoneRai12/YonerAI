@@ -2,6 +2,29 @@
 
 This page is a public-safe index of current release notes and progress checkpoints.
 
+## v0.4.0-alpha.1 Mission Control CLI Slice
+
+- GitHub pre-release target: `v0.4.0-alpha.1`.
+- Release title: `2026.05.26 — YonerAI v0.4.0-alpha.1 Mission Control CLI Slice`.
+- Release date: `2026-05-26`.
+- Public release body: `docs/releases/0.4.0-alpha.1.md`
+- GitHub release lane: semantic alpha **pre-release** only. Do not mark this as
+  stable/latest. The normal public GitHub Release stream remains date-tagged
+  unless the owner separately approves a date-tag production release.
+- What users can try now: `yonerai`, `yonerai chat`, `/設定`, `/安全`,
+  `/エージェント`, `/履歴`, `/表示 <実行ID>`, English compatibility aliases such
+  as `/settings` and `/agents`, `yonerai ask ... --auto --json/--pretty`, and
+  `yonerai runs show ... --pretty --lang ja`.
+- Capability slice: Mission Control header, task progress timeline, redacted
+  ledger progress events, visible deterministic reviewer/subagent plan, Japanese
+  labels, and terminal-control output escaping.
+- Boundary: no production Oracle, no Official Managed Cloud runtime, no live
+  Discord, no deploy/public tunnel, no arbitrary shell/file/tool execution, no
+  default live provider calls, no production signing/trust store, and no
+  provider keys printed or stored.
+- Primary traceability range: `v0.3.0-alpha.1..v0.4.0-alpha.1`, PRs #442, #444,
+  and #445.
+
 ## v0.3.0-alpha.1 Interactive CLI Slice
 
 - GitHub pre-release target: `v0.3.0-alpha.1`.
