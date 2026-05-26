@@ -156,6 +156,7 @@ def test_cli_package_version_normalizes_pep440_prerelease() -> None:
     assert yonerai_cli._to_public_semver("0.3.0b2") == "0.3.0-beta.2"
     assert yonerai_cli._to_public_semver("0.3.0rc3") == "0.3.0-rc.3"
     assert yonerai_cli._to_public_semver("0.3.0-alpha.1") == "0.3.0-alpha.1"
+    assert yonerai_cli.__version__ == (REPO_ROOT / "VERSION").read_text(encoding="utf-8").strip()
 
 
 def test_cli_package_entry_point_exposes_yonerai_command() -> None:
@@ -241,7 +242,7 @@ def test_readmes_document_install_and_start_yonerai() -> None:
         assert "Install and start YonerAI" in text
         assert "GitHub Release" in text
         assert "Source code (zip)" in text
-        assert "YonerAI-0.5.0" in text
+        assert "YonerAI-0.5.1" in text
         assert "python --version" in text
         assert "python -m venv .venv" in text
         assert "python -m pip install -e clients/cli" in text

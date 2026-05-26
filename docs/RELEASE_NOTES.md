@@ -2,6 +2,29 @@
 
 This page is a public-safe index of current release notes and progress checkpoints.
 
+## v0.5.1 CLI Local Runtime Distribution Trust Update
+
+- GitHub release target: `v0.5.1`.
+- Release title: `2026.05.26 — YonerAI CLI Local Runtime v0.5.1 Distribution Trust Update`.
+- Release date: `2026-05-26`.
+- Public release body: `docs/releases/0.5.1.md`.
+- Distribution note: this is a stable patch release for local CLI runtime
+  distribution trust hardening, not full YonerAI cloud production and not a
+  production installer.
+- Installer manifest note: `releases/manifest.v0.5.1.json` records the v0.5.1
+  GitHub Release ZIP asset with SHA256, size, and non-production placeholder
+  signature status for local manifest verification and dry-run planning.
+- What users can try now: `.\install-local.ps1`, `.\install-local.ps1 -Execute
+  -Launch`, `yonerai`, `yonerai doctor --pretty --lang ja`, `yonerai manifest
+  verify releases/manifest.v0.5.1.json --pretty`, `yonerai install plan
+  --manifest releases/manifest.v0.5.1.json --pretty`, and `yonerai update plan
+  --manifest releases/manifest.v0.5.1.json --pretty`.
+- Boundary: no production installer, no `irm ... | iex`, no network
+  download-and-execute installer, no PATH mutation by default, no production
+  signing/trust store, no production Oracle/cloud runtime, no live Discord, no
+  npm/winget channel, and no provider keys printed or stored.
+- Primary traceability range: `v0.5.0..v0.5.1`, PRs #451, #452, and #453.
+
 ## v0.5.0 CLI Local Runtime
 
 - GitHub release target: `v0.5.0`.

@@ -34,12 +34,12 @@ the CLI from this checkout and creates the `yonerai` command locally.
 ### If you downloaded the GitHub Release ZIP
 
 Download `Source code (zip)` from the
-[v0.5.0 release](https://github.com/YoneRai12/YonerAI/releases/tag/v0.5.0),
+[v0.5.1 release](https://github.com/YoneRai12/YonerAI/releases/tag/v0.5.1),
 extract it, then run PowerShell inside the extracted folder. The extracted
 folder name can vary; change the `cd` command to match the folder you see.
 
 ```powershell
-cd "$HOME\Downloads\YonerAI-0.5.0"
+cd "$HOME\Downloads\YonerAI-0.5.1"
 python --version
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
@@ -126,16 +126,16 @@ yonerai demo --json
 yonerai doctor --pretty
 yonerai doctor --pretty --lang ja
 yonerai status --pretty
-yonerai manifest verify releases/manifest.v0.5.0.json --pretty
-yonerai install plan --manifest releases/manifest.v0.5.0.json --pretty
-yonerai update plan --manifest releases/manifest.v0.5.0.json --pretty
+yonerai manifest verify releases/manifest.v0.5.1.json --pretty
+yonerai install plan --manifest releases/manifest.v0.5.1.json --pretty
+yonerai update plan --manifest releases/manifest.v0.5.1.json --pretty
 yonerai plan "summarize public docs" --json
 yonerai ask "summarize public docs" --provider mock --json
 yonerai hybrid run --pretty
 yonerai hybrid run --json
 yonerai search mock "YonerAI alpha2" --json
 yonerai ops plan git-status --json
-yonerai install plan --manifest releases/manifest.v0.5.0.json --json
+yonerai install plan --manifest releases/manifest.v0.5.1.json --json
 ```
 
 ## First 5 minutes

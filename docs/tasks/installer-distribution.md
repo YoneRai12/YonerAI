@@ -77,8 +77,8 @@ include:
 
 `releases/manifest.schema.json` defines the future installer bootstrap release manifest. `releases/manifest.example.json` is an example contract fixture and is not a production installer manifest.
 
-`releases/manifest.v0.5.0.json` records the current v0.5.0 GitHub Release
-asset `YonerAI-0.5.0.zip` for local verification and dry-run planning. It is
+`releases/manifest.v0.5.1.json` records the current v0.5.1 GitHub Release
+asset `YonerAI-0.5.1.zip` for local verification and dry-run planning. It is
 stable-channel metadata for the CLI Local Runtime release, but it is still not
 install-ready because the public repository does not include production signing
 keys, a production trust store, or an official signing service. Its signature
@@ -138,12 +138,12 @@ production-capable installer in a future private/official lane must require
 signed manifests and fail closed when the production signature is not verified
 against the official trust source.
 
-For v0.5.0, users can run:
+For v0.5.1, users can run:
 
 ```powershell
-yonerai manifest verify releases/manifest.v0.5.0.json --pretty
-yonerai install plan --manifest releases/manifest.v0.5.0.json --pretty
-yonerai update plan --manifest releases/manifest.v0.5.0.json --pretty
+yonerai manifest verify releases/manifest.v0.5.1.json --pretty
+yonerai install plan --manifest releases/manifest.v0.5.1.json --pretty
+yonerai update plan --manifest releases/manifest.v0.5.1.json --pretty
 ```
 
 These commands validate local manifest structure, artifact naming, SHA256 field

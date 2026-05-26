@@ -2,6 +2,21 @@
 
 See also: `docs/RELEASE_NOTES.md` (curated summary, v5.0.0 -> current).
 
+## v0.5.1 (2026-05-26) - Distribution Trust Update
+- Hardened the local distribution path after v0.5.0 with a plan-first
+  `install-local.ps1` bootstrap helper for extracted archives/checkouts.
+- Added `releases/manifest.v0.5.1.json` for local manifest verification,
+  install planning, and update planning against the v0.5.1 release asset.
+- Made release archive generation content-tree based and excluded
+  release-specific manifests from generated source archives so asset hashes can
+  be recorded without a manifest/hash feedback loop.
+- Added yonerai.com install/release/press content for v0.5.1.
+- Kept the license posture source-available and noncommercial: PolyForm
+  Noncommercial code, CC BY-NC-ND docs/assets, and reserved brand identity.
+- Preserved boundaries: no production installer, no `irm ... | iex`, no remote
+  execution, no PATH mutation by default, no production signing/trust store, no
+  production Oracle/cloud runtime, no live Discord, and no npm/winget channel.
+
 ## v0.5.0 (2026-05-26) - CLI Local Runtime
 - Promoted the local CLI runtime slice to the first non-prerelease semantic
   release for `yonerai` install-and-run usage.

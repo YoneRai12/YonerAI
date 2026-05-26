@@ -4,6 +4,9 @@ import sys
 from pathlib import Path
 
 
+REPRODUCIBLE_ARCHIVE_MTIME = "2000-01-01T00:00:00Z"
+
+
 def _read_product_name(repo_root: Path) -> str:
     # Single source of truth for branding of release artifacts.
     # Keep default "ORA" for older checkouts that don't have PRODUCT_NAME.
@@ -24,10 +27,19 @@ def create_release_zip(version):
     print(f"Creating release archive for version {version}...")
     
     try:
-        # Use git archive to create a clean zip of tracked files only
-        # This automatically excludes .env, .venv, logs, etc. if they are not tracked.
+        # Use the HEAD tree rather than the commit object so the generated ZIP
+        # does not embed a commit-id archive comment. Also pin entry mtimes so
+        # the release manifest can record a stable archive hash.
         subprocess.run(
-            ["git", "archive", "--format=zip", "--output", str(output_path), "HEAD"],
+            [
+                "git",
+                "archive",
+                "--format=zip",
+                f"--mtime={REPRODUCIBLE_ARCHIVE_MTIME}",
+                "--output",
+                str(output_path),
+                "HEAD^{tree}",
+            ],
             check=True,
             cwd=str(repo_root)
         )
