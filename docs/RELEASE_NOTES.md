@@ -18,8 +18,12 @@ This page is a public-safe index of current release notes and progress checkpoin
   Discord, no deploy/public tunnel, no arbitrary shell/file/tool execution, no
   default live provider calls, no provider key output/storage, no production
   signing/trust store, and no production installer.
-- Primary traceability range: `v0.5.1..v0.6.0-alpha.1`; implementation PR:
-  #454 `feat: YonerAI CLI TUIランタイムを追加する`.
+- Primary traceability range: `v0.5.1..v0.6.0-alpha.1`; implementation PRs:
+  #454 `feat: YonerAI CLI TUIランタイムを追加する` and #455
+  `fix: v0.6 alpha manifest hashを更新する`.
+- Post-tag correction: #456 synchronizes the current-main manifest with the
+  actual GitHub Release ZIP uploaded by the release workflow. The tag is not
+  moved.
 
 ## v0.5.1 CLI Local Runtime Distribution Trust Update
 

@@ -14,6 +14,9 @@ See also: `docs/RELEASE_NOTES.md` (curated summary, v5.0.0 -> current).
 - Added `yonerai update check` and TUI `/更新` for local manifest update status
   without download, install, PATH mutation, remote execution, or admin request.
 - Added `install.ps1` as a dry-run-only future one-command installer skeleton.
+- Synchronized `releases/manifest.v0.6.0-alpha.1.json` with the actual
+  workflow-uploaded GitHub Release ZIP asset hash and size, without moving the
+  tag or changing the release asset.
 - Preserved boundaries: no production Oracle/cloud runtime, no live Discord, no
   deploy/public tunnel, no arbitrary shell/file/tool execution, no default live
   provider calls, no provider key output/storage, and no production
