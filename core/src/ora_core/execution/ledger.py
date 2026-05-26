@@ -262,16 +262,17 @@ def _write_private_text(path: Path, text: str) -> None:
     opener_flags = flags | getattr(os, "O_NOFOLLOW", 0)
     fd = os.open(path, opener_flags, 0o600)
     try:
+        if hasattr(os, "fchmod"):
+            try:
+                os.fchmod(fd, 0o600)
+            except OSError:
+                pass
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
             fd = -1
             handle.write(text)
     finally:
         if fd != -1:
             os.close(fd)
-    try:
-        os.chmod(path, 0o600)
-    except OSError:
-        pass
 
 
 def build_run_ledger_from_env(path: str | None = None) -> RunLedger:

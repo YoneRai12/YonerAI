@@ -59,7 +59,7 @@ def test_file_run_ledger_persist_enforces_private_permissions(tmp_path: Path) ->
 
     assert ledger_path.exists()
     if os.name == "nt":
-        return
+        pytest.skip("POSIX mode bits are not reliably represented on Windows")
     dir_mode = os.stat(ledger_path.parent).st_mode & 0o777
     file_mode = os.stat(ledger_path).st_mode & 0o777
     assert dir_mode & 0o077 == 0
@@ -91,7 +91,7 @@ def test_file_run_ledger_does_not_chmod_existing_parent(tmp_path: Path, monkeypa
     ledger.complete_run(run.run_id, result_summary="done")
 
     assert str(ledger_path.parent) not in chmod_calls
-    assert str(ledger_path) in chmod_calls
+    assert str(ledger_path) not in chmod_calls
 
 
 def test_safe_summary_redacts_labeled_secret_values() -> None:
