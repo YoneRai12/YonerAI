@@ -406,14 +406,9 @@ def _detect_cli_shell(*, platform: str | None = None, env: dict[str, str] | None
         return "powershell"
     if explicit in {"cmd", "cmd.exe", "command_prompt"}:
         return "cmd"
-    shell_hint = (values.get("SHELL") or "").lower()
     prompt_hint = values.get("PROMPT")
     comspec_hint = (values.get("COMSPEC") or "").lower()
     if prompt_hint and "cmd.exe" in comspec_hint:
-        return "cmd"
-    if "powershell" in shell_hint or "pwsh" in shell_hint:
-        return "powershell"
-    if "cmd.exe" in comspec_hint and not shell_hint:
         return "cmd"
     return "powershell"
 
