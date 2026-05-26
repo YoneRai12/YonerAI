@@ -41,6 +41,7 @@ def _provider_setup_entry(status: dict[str, object], env: Mapping[str, str | Non
         "available": available,
         "reason": reason,
         "env_status": env_status,
+        "capabilities": _capability_negotiation(provider_id, status),
         "setup_blockers": [],
         "live_ready": False,
         "network_probe_performed": False,
@@ -79,6 +80,48 @@ def _provider_setup_entry(status: dict[str, object], env: Mapping[str, str | Non
     entry["live_ready"] = available and _enabled(env.get(f"YONERAI_{provider_id.upper()}_LIVE"))
     entry["setup_blockers"] = blockers
     return entry
+
+
+def _capability_negotiation(provider_id: str, status: Mapping[str, object]) -> dict[str, object]:
+    raw = status.get("capabilities")
+    capabilities = raw if isinstance(raw, Mapping) else {}
+    chat = bool(capabilities.get("chat"))
+    structured_output = bool(capabilities.get("structured_output"))
+    streaming = bool(capabilities.get("streaming"))
+    vision = bool(capabilities.get("vision"))
+    tool_use = bool(capabilities.get("tool_use"))
+    available = bool(status.get("available"))
+    safe_for_subagents = bool(available and chat)
+    fallback_reason = None
+    if not chat:
+        fallback_reason = "chat_capability_missing"
+    elif not available:
+        fallback_reason = "provider_unavailable_or_not_configured"
+    elif provider_id not in {"mock", "local", "openai-compatible", "anthropic", "gemini"}:
+        fallback_reason = "provider_not_registered_for_subagents"
+        safe_for_subagents = False
+
+    return {
+        "chat": chat,
+        "streaming": streaming,
+        "json": structured_output,
+        "structured_output": structured_output,
+        "tool_calling": tool_use,
+        "tool_use": tool_use,
+        "vision": vision,
+        "search": False,
+        "embeddings": False,
+        "max_context": _capability_max_context(provider_id),
+        "safe_for_subagents": safe_for_subagents,
+        "subagent_mode": "plan_display_only",
+        "subagent_fallback_reason": fallback_reason,
+    }
+
+
+def _capability_max_context(provider_id: str) -> int | None:
+    if provider_id == "mock":
+        return 8192
+    return None
 
 
 def _local_provider_blockers(status: dict[str, object]) -> list[str]:

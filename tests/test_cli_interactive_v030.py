@@ -102,6 +102,9 @@ def test_cli_package_entry_point_exposes_yonerai_command() -> None:
     pyproject = tomllib.loads((REPO_ROOT / "clients" / "cli" / "pyproject.toml").read_text(encoding="utf-8"))
 
     assert pyproject["project"]["scripts"]["yonerai"] == "yonerai_cli.cli:main"
+    package_version = pyproject["project"]["version"]
+    public_package_version = package_version.replace("a", "-alpha.").replace("b", "-beta.")
+    assert public_package_version == (REPO_ROOT / "VERSION").read_text(encoding="utf-8").strip()
 
 
 def test_readmes_document_install_and_start_yonerai() -> None:
@@ -192,7 +195,7 @@ def test_chat_accepts_english_commands_while_showing_japanese_ui(tmp_path: Path,
     monkeypatch.setattr(
         sys,
         "stdin",
-        _PlainStringIO("/settings\n/providers\n/safety\n/runs\n/provider mock\n/quit\n"),
+        _PlainStringIO("/settings\n/providers\n/safety\n/tasks\n/local-llm\n/runs\n/live on\n/network on\n/provider mock\n/quit\n"),
     )
 
     assert cli.main(["chat", "--script", "--lang", "ja", "--config-path", str(config_path), "--color", "never"]) == 0
@@ -203,7 +206,11 @@ def test_chat_accepts_english_commands_while_showing_japanese_ui(tmp_path: Path,
     assert "履歴記録（ローカル履歴）" in output
     assert "プロバイダー" in output
     assert "安全設定" in output
+    assert "タスク" in output
+    assert "ローカルLLMセットアップ" in output
     assert "実行履歴" in output
+    assert "設定を変更しました: ライブ接続（外部/ローカル実行）=オン" in output
+    assert "設定を変更しました: ネットワーク（外部通信）=オン" in output
     assert "プロバイダー（AI接続先）=モック（テスト用）" in output
     assert "Network" not in output
     assert "Changed setting" not in output
@@ -243,7 +250,7 @@ def test_chat_numbered_settings_and_ledger_are_usable_in_japanese(tmp_path: Path
     monkeypatch.setattr(
         sys,
         "stdin",
-        _PlainStringIO("/設定\n/選択 2 モック\n/選択 5 オン\nhello\n/履歴\n/終了\n"),
+        _PlainStringIO("/設定\n/選択 2 モック\n/選択 5 オン\n/選択 6 オフ\n/選択 7 オフ\nhello\n/タスク\n/履歴\n/終了\n"),
     )
 
     assert cli.main(["chat", "--script", "--lang", "ja", "--config-path", str(config_path), "--color", "never"]) == 0
@@ -251,7 +258,10 @@ def test_chat_numbered_settings_and_ledger_are_usable_in_japanese(tmp_path: Path
 
     assert "設定を変更しました: プロバイダー（AI接続先）=モック（テスト用）" in output
     assert "設定を変更しました: 履歴記録（ローカル履歴）=オン" in output
+    assert "設定を変更しました: ライブ接続（外部/ローカル実行）=オフ" in output
+    assert "設定を変更しました: ネットワーク（外部通信）=オフ" in output
     assert "YonerAI ミッションコントロール" in output
+    assert "タスク" in output
     assert "実行履歴" in output
     assert default_ledger.exists()
     assert str(tmp_path) not in output

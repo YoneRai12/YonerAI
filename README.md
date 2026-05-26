@@ -78,12 +78,16 @@ same safe `ask --auto` path, or use slash commands.
 /settings        show language/provider/safety settings
 /providers       show mock/local/API provider readiness without printing keys
 /safety          show network/tool/file/provider boundaries
+/tasks           show current and recent task progress
 /agents          show the planned planner/researcher/reviewer roles
 /runs            list redacted local run history
 /show <run_id>   show one redacted run
+/local-llm       show loopback-only local LLM setup guidance
 /language ja|en  change UI language
 /provider auto|mock|local|openai-compatible|anthropic|gemini
 /ledger on|off   toggle redacted local run ledger
+/live on|off     toggle explicit live/local execution permission
+/network on|off  toggle explicit network permission
 /select <n> <v>  change a numbered setting from the settings screen
 /quit            exit
 ```
@@ -92,6 +96,10 @@ On first interactive launch, YonerAI asks for Japanese or English and stores
 only non-secret local preferences. Non-TTY use, for example pipes or CI, does
 not hang; it prints fallback instructions. Use `yonerai chat --script` when you
 intentionally want to feed scripted input.
+
+In Japanese mode, the primary slash commands are Japanese (`/設定`, `/タスク`,
+`/ローカルLLM`, `/安全`, `/履歴`). English aliases such as `/settings` and
+`/tasks` remain available for compatibility.
 
 `yonerai start --guided` is the guided path for a first local run. It is written
 for people who want copyable next actions, not for people already familiar with

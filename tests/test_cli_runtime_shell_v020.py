@@ -59,6 +59,9 @@ def test_cli_providers_reports_safe_runtime_setup(monkeypatch, capsys) -> None:
     assert report["network_probe_performed"] is False
     assert "no provider key output" in report["actions_not_performed"]
     assert report["recommended_first_command"] == 'yonerai ask "hello" --auto --json'
+    mock_provider = next(provider for provider in report["providers"] if provider["provider_id"] == "mock")
+    assert mock_provider["capabilities"]["chat"] is True
+    assert mock_provider["capabilities"]["safe_for_subagents"] is True
 
 
 def test_cli_providers_pretty_is_japanese_first(monkeypatch, capsys) -> None:
@@ -72,6 +75,7 @@ def test_cli_providers_pretty_is_japanese_first(monkeypatch, capsys) -> None:
     assert "YonerAI プロバイダー" in output
     assert "最初に試すコマンド" in output
     assert "local LLM" in output
+    assert "担当計画" in output
     assert "--live" in output
     assert "\x1b[" not in output
 
