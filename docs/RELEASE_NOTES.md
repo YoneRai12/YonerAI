@@ -24,6 +24,8 @@ This page is a public-safe index of current release notes and progress checkpoin
 - Post-tag correction: #456 synchronizes the current-main manifest with the
   actual GitHub Release ZIP uploaded by the release workflow. The tag is not
   moved.
+- Release body includes explicit validation evidence, release asset hash/size,
+  not-included boundaries, known limitations, and traceability.
 
 ## v0.5.1 CLI Local Runtime Distribution Trust Update
 
