@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 import io
+import importlib.util
 import json
+import os
+import shutil
+import subprocess
 import sys
 import tomllib
 from pathlib import Path
@@ -42,6 +46,62 @@ def _clear_provider_env(monkeypatch) -> None:
         "YONERAI_GEMINI_LIVE",
     ):
         monkeypatch.delenv(key, raising=False)
+
+
+def _redact_test_path(text: str | None, tmp_path: Path) -> str:
+    redacted = (text or "").replace(str(tmp_path), "<tmp>")
+    return redacted.replace(str(CLIENTS_CLI), "<repo>/clients/cli").replace(str(REPO_ROOT), "<repo>")
+
+
+def _venv_purelib(python_bin: Path) -> Path:
+    result = subprocess.run(
+        [str(python_bin), "-c", "import sysconfig; print(sysconfig.get_paths()['purelib'])"],
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+    )
+    return Path(result.stdout.strip())
+
+
+def _ensure_no_network_build_backend(python_bin: Path) -> None:
+    check = subprocess.run(
+        [str(python_bin), "-c", "import setuptools.build_meta"],
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+    )
+    if check.returncode == 0:
+        return
+
+    spec = importlib.util.find_spec("setuptools")
+    if spec is None or spec.origin is None:
+        raise AssertionError("host test environment lacks setuptools build backend")
+
+    host_site = Path(spec.origin).resolve().parent.parent
+    target_site = _venv_purelib(python_bin)
+    for package_name in ("setuptools", "pkg_resources", "_distutils_hack"):
+        source = host_site / package_name
+        if source.exists():
+            shutil.copytree(source, target_site / package_name, dirs_exist_ok=True)
+    for dist_info in host_site.glob("setuptools-*.dist-info"):
+        shutil.copytree(dist_info, target_site / dist_info.name, dirs_exist_ok=True)
+    precedence = host_site / "distutils-precedence.pth"
+    if precedence.exists():
+        shutil.copy2(precedence, target_site / precedence.name)
+
+    verify = subprocess.run(
+        [str(python_bin), "-c", "import setuptools.build_meta"],
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+    )
+    assert verify.returncode == 0, f"setuptools build backend seed failed:\n{verify.stderr}"
 
 
 def test_cli_config_show_and_set_do_not_print_paths_or_store_secrets(tmp_path: Path, monkeypatch, capsys) -> None:
@@ -105,6 +165,73 @@ def test_cli_package_entry_point_exposes_yonerai_command() -> None:
     package_version = pyproject["project"]["version"]
     public_package_version = package_version.replace("a", "-alpha.").replace("b", "-beta.")
     assert public_package_version == (REPO_ROOT / "VERSION").read_text(encoding="utf-8").strip()
+
+
+def test_install_like_entry_point_starts_yonerai(tmp_path: Path) -> None:
+    venv_dir = tmp_path / "venv"
+    subprocess.run([sys.executable, "-m", "venv", str(venv_dir)], check=True)
+
+    scripts_dir = "Scripts" if os.name == "nt" else "bin"
+    python_bin = venv_dir / scripts_dir / ("python.exe" if os.name == "nt" else "python")
+    yonerai_bin = venv_dir / scripts_dir / ("yonerai.exe" if os.name == "nt" else "yonerai")
+    _ensure_no_network_build_backend(python_bin)
+
+    env = {
+        **os.environ,
+        "PIP_DISABLE_PIP_VERSION_CHECK": "1",
+        "PYTHONIOENCODING": "utf-8",
+        "PYTHONUTF8": "1",
+        "YONERAI_CLI_CONFIG_PATH": str(tmp_path / "cli-config.json"),
+    }
+    install_result = subprocess.run(
+        [
+            str(python_bin),
+            "-m",
+            "pip",
+            "install",
+            "--no-index",
+            "--no-build-isolation",
+            "--no-deps",
+            "-e",
+            str(CLIENTS_CLI),
+        ],
+        cwd=REPO_ROOT,
+        env=env,
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+    )
+    assert install_result.returncode == 0, (
+        f"install-like setup failed with exit code {install_result.returncode}.\n"
+        f"STDOUT:\n{_redact_test_path(install_result.stdout, tmp_path)}\n"
+        f"STDERR:\n{_redact_test_path(install_result.stderr, tmp_path)}"
+    )
+
+    result = subprocess.run(
+        [str(yonerai_bin)],
+        cwd=REPO_ROOT,
+        env=env,
+        check=False,
+        input="",
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+        timeout=15,
+    )
+
+    assert result.returncode == 0, (
+        f"yonerai entry point failed with exit code {result.returncode}.\n"
+        f"STDOUT:\n{_redact_test_path(result.stdout, tmp_path)}\n"
+        f"STDERR:\n{_redact_test_path(result.stderr, tmp_path)}"
+    )
+    assert "YonerAI Interactive CLI" in result.stdout
+    assert "yonerai chat" in result.stdout
+    assert "Traceback" not in result.stderr
+    assert str(tmp_path) not in result.stdout
+    assert str(tmp_path) not in result.stderr
 
 
 def test_readmes_document_install_and_start_yonerai() -> None:
