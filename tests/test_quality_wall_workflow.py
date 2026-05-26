@@ -4,6 +4,7 @@ from pathlib import Path
 
 
 WORKFLOW = Path(".github/workflows/quality-wall.yml")
+REQUIRED_CHECKS = Path("docs/process/REQUIRED_CHECKS.md")
 
 
 def test_quality_wall_workflow_splits_user_visible_gates() -> None:
@@ -41,3 +42,23 @@ def test_release_gate_workflow_does_not_publish() -> None:
     assert "softprops/action-gh-release" not in workflow
     assert "python scripts/release_gate.py" in workflow
     assert "--github-prerelease auto" in workflow
+
+
+def test_required_checks_doc_lists_quality_wall_jobs() -> None:
+    doc = REQUIRED_CHECKS.read_text(encoding="utf-8")
+
+    for check_name in (
+        "core-unit",
+        "cli-smoke",
+        "tui-smoke",
+        "provider-boundary",
+        "hybrid-zero-trust",
+        "installer-manifest",
+        "security-static",
+        "release-gate",
+        "windows-cli-smoke",
+        "windows-installer-manifest",
+        "macos-cli-smoke",
+        "macos-installer-manifest",
+    ):
+        assert check_name in doc

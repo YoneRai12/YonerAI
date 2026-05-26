@@ -166,6 +166,23 @@ def test_release_gate_blocks_positive_production_overclaim(tmp_path: Path) -> No
     assert any("overclaims production readiness" in error for error in errors)
 
 
+def test_release_gate_allows_mid_sentence_negative_nonclaims(tmp_path: Path) -> None:
+    repo = _write_release_fixture(
+        tmp_path,
+        note=(
+            "# Release\n\n"
+            "This release does not make YonerAI production-ready.\n"
+            "No production-ready claim is made.\n"
+            "This is not official cloud complete.\n"
+            "This does not make official cloud runnable.\n"
+        ),
+    )
+
+    errors = validate_release_gate(repo_root=repo, tag="v1.2.3-alpha.1", github_prerelease="true")
+
+    assert errors == []
+
+
 def test_release_gate_allows_markdown_list_negative_nonclaims(tmp_path: Path) -> None:
     repo = _write_release_fixture(
         tmp_path,
@@ -180,3 +197,11 @@ def test_release_gate_allows_markdown_list_negative_nonclaims(tmp_path: Path) ->
     errors = validate_release_gate(repo_root=repo, tag="v1.2.3-alpha.1", github_prerelease="true")
 
     assert errors == []
+
+
+def test_release_gate_blocks_positive_cloud_overclaim(tmp_path: Path) -> None:
+    repo = _write_release_fixture(tmp_path, note="# Release\n\nThis release is official cloud complete.\n")
+
+    errors = validate_release_gate(repo_root=repo, tag="v1.2.3-alpha.1", github_prerelease="true")
+
+    assert any("official cloud complete" in error for error in errors)

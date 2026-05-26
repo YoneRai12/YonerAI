@@ -110,7 +110,7 @@ def _validate_release_note(path: Path, errors: list[str]) -> None:
         lower = line.lower()
         if BLOCKER_RE.search(line):
             errors.append(f"release note contains unresolved blocker marker at {path.name}:{index}")
-        if "production-ready" in lower and "not production-ready" not in lower and "not a production-ready" not in lower:
+        if "production-ready" in lower and not _is_negated_claim(lower, "production-ready"):
             errors.append(f"release note overclaims production readiness at {path.name}:{index}")
         positive_overclaims = (
             "official cloud runnable",
@@ -121,9 +121,24 @@ def _validate_release_note(path: Path, errors: list[str]) -> None:
             "npm/winget ready",
         )
         for phrase in positive_overclaims:
-            normalized_claim = lower.lstrip("-*+ \t")
-            if phrase in lower and not normalized_claim.startswith(("no ", "not ")):
+            if phrase in lower and not _is_negated_claim(lower, phrase):
                 errors.append(f"release note overclaims '{phrase}' at {path.name}:{index}")
+
+
+def _is_negated_claim(line: str, phrase: str) -> bool:
+    normalized = line.lstrip("-*+ \t")
+    phrase_index = normalized.find(phrase)
+    if phrase_index < 0:
+        return False
+    prefix = normalized[:phrase_index].strip()
+    if not prefix:
+        return False
+    return bool(
+        re.search(
+            r"(?:^|\b)(?:no|not|never|without|cannot|can't|do not|don't|does not|doesn't|must not)\b",
+            prefix,
+        )
+    )
 
 
 def _load_manifest(path: Path, errors: list[str], repo_root: Path) -> dict[str, Any] | None:
