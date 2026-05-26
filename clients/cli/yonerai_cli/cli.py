@@ -559,6 +559,8 @@ def _provider_entry_section_en(provider: dict[str, object]) -> CliSection:
             CliRow("available", provider.get("available"), "ok" if provider.get("available") else "warn"),
             CliRow("requires_live", provider.get("requires_live_flag", False), "warn" if provider.get("requires_live_flag") else "ok"),
             CliRow("private_context_safe", provider.get("safe_for_private_context"), "ok" if provider.get("safe_for_private_context") else "warn"),
+            CliRow("capabilities", _provider_capability_summary(provider, lang="en"), "ok"),
+            CliRow("subagents", _provider_subagent_summary(provider, lang="en"), "ok" if _provider_subagent_ready(provider) else "skipped"),
             CliRow("command", provider.get("command"), "ok"),
             CliRow("does", provider.get("does"), "ok"),
             CliRow("does_not", provider.get("does_not"), "ok"),
@@ -577,12 +579,61 @@ def _provider_entry_section_ja(provider: dict[str, object]) -> CliSection:
             CliRow("利用可能", _yes_no_ja(provider.get("available")), "ok" if provider.get("available") else "warn"),
             CliRow("--live必須", _yes_no_ja(provider.get("requires_live_flag", False)), "warn" if provider.get("requires_live_flag") else "ok"),
             CliRow("private/local file", "送らない" if provider.get("safe_for_private_context") else "送らないため自動経路ではブロック", "ok" if provider.get("safe_for_private_context") else "warn"),
+            CliRow("機能", _provider_capability_summary(provider, lang="ja"), "ok"),
+            CliRow("担当計画", _provider_subagent_summary(provider, lang="ja"), "ok" if _provider_subagent_ready(provider) else "skipped"),
             CliRow("コマンド", provider.get("command"), "ok"),
             CliRow("何をするか", _provider_does_ja(provider_id), "ok"),
             CliRow("何をしないか", _provider_does_not_ja(provider_id), "ok"),
             CliRow("次の設定", _provider_setup_hint_ja(provider_id, provider), "ok" if provider.get("available") else "warn"),
         ),
     )
+
+
+def _provider_capability_summary(provider: dict[str, object], *, lang: str) -> str:
+    capabilities = provider.get("capabilities") if isinstance(provider.get("capabilities"), dict) else {}
+    if not capabilities:
+        return "未確認" if lang == "ja" else "unknown"
+    keys = (
+        ("chat", "会話", "chat"),
+        ("json", "JSON", "json"),
+        ("streaming", "ストリーミング", "streaming"),
+        ("tool_calling", "ツール呼び出し", "tool_calling"),
+        ("vision", "画像", "vision"),
+        ("search", "検索", "search"),
+        ("embeddings", "埋め込み", "embeddings"),
+    )
+    enabled: list[str] = []
+    for key, label_ja, label_en in keys:
+        if capabilities.get(key) is True:
+            enabled.append(label_ja if lang == "ja" else label_en)
+    if not enabled:
+        return "会話なし" if lang == "ja" else "no advertised capabilities"
+    max_context = capabilities.get("max_context")
+    suffix = ""
+    if isinstance(max_context, int):
+        suffix = f" / 文脈上限={max_context}" if lang == "ja" else f" / max_context={max_context}"
+    return ", ".join(enabled) + suffix
+
+
+def _provider_subagent_ready(provider: dict[str, object]) -> bool:
+    capabilities = provider.get("capabilities") if isinstance(provider.get("capabilities"), dict) else {}
+    return capabilities.get("safe_for_subagents") is True
+
+
+def _provider_subagent_summary(provider: dict[str, object], *, lang: str) -> str:
+    capabilities = provider.get("capabilities") if isinstance(provider.get("capabilities"), dict) else {}
+    if capabilities.get("safe_for_subagents") is True:
+        return "計画表示のみで利用可" if lang == "ja" else "plan display only"
+    reason = str(capabilities.get("subagent_fallback_reason") or "provider_not_ready")
+    if lang == "ja":
+        labels = {
+            "chat_capability_missing": "会話機能がないため計画表示のみ",
+            "provider_unavailable_or_not_configured": "provider未設定のため計画表示のみ",
+            "provider_not_registered_for_subagents": "未登録providerのため計画表示のみ",
+            "provider_not_ready": "準備不足のため計画表示のみ",
+        }
+        return labels.get(reason, "準備不足のため計画表示のみ")
+    return f"fallback: {reason}"
 
 
 def _provider_entries(report: dict[str, Any]) -> tuple[dict[str, object], ...]:

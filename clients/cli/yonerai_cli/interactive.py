@@ -48,11 +48,17 @@ COMMAND_ALIASES = {
     "/providers": "/providers",
     "/履歴": "/runs",
     "/runs": "/runs",
+    "/タスク": "/tasks",
+    "/tasks": "/tasks",
     "/表示": "/show",
     "/show": "/show",
     "/エージェント": "/agents",
     "/agents": "/agents",
     "/agent": "/agents",
+    "/ローカルllm": "/local-llm",
+    "/ローカルLLM": "/local-llm",
+    "/local-llm": "/local-llm",
+    "/llm": "/local-llm",
     "/言語": "/language",
     "/language": "/language",
     "/提供元選択": "/provider",
@@ -65,6 +71,11 @@ COMMAND_ALIASES = {
     "/file-access": "/file-access",
     "/履歴記録": "/ledger",
     "/ledger": "/ledger",
+    "/ライブ接続": "/live-provider",
+    "/live": "/live-provider",
+    "/live-provider": "/live-provider",
+    "/ネットワーク": "/network",
+    "/network": "/network",
     "/選択": "/select",
     "/select": "/select",
     "/終了": "/quit",
@@ -247,11 +258,17 @@ def _handle_slash_command(
     if command == "/runs":
         _write(output_stream, _format_runs(callbacks.runs_list(ledger_path, 10, lang), lang=lang))
         return {}
+    if command == "/tasks":
+        _write(output_stream, _format_tasks(last_report, callbacks.runs_list(ledger_path, 5, lang), lang=lang))
+        return {}
     if command == "/show" and args:
         _write(output_stream, _format_run(callbacks.runs_show(args[0], ledger_path, lang), lang=lang))
         return {}
     if command == "/agents":
         _write(output_stream, _format_agents(last_report, lang=lang))
+        return {}
+    if command == "/local-llm":
+        _write(output_stream, _format_local_llm_setup(callbacks.providers(), lang=lang))
         return {}
     if command == "/select" and args:
         return _handle_numbered_selection(
@@ -324,6 +341,31 @@ def _handle_slash_command(
             return {}
         _write(output_stream, _changed_message("ledger", new_config["ledger_enabled"], lang=lang))
         return {"ledger_path": _resolve_ledger_path(new_config, options)}
+    if command == "/live-provider" and args:
+        value = _canonical_value(args[0])
+        if value not in {"on", "off", "true", "false", "1", "0", "yes", "no"}:
+            _write(output_stream, _invalid(lang))
+            return {}
+        try:
+            new_config = _set_config(config, "live_provider", value, options.config_path)
+        except ConfigError as exc:
+            _write(output_stream, _config_error(lang, exc))
+            return {}
+        new_live = bool(new_config["live_provider_enabled"])
+        _write(output_stream, _changed_message("live_provider", new_live, lang=lang))
+        return {"live": new_live}
+    if command == "/network" and args:
+        value = _canonical_value(args[0])
+        if value not in {"on", "off", "true", "false", "1", "0", "yes", "no"}:
+            _write(output_stream, _invalid(lang))
+            return {}
+        try:
+            new_config = _set_config(config, "network", value, options.config_path)
+        except ConfigError as exc:
+            _write(output_stream, _config_error(lang, exc))
+            return {}
+        _write(output_stream, _changed_message("network", new_config["network_enabled"], lang=lang))
+        return {}
     _write(output_stream, _unknown(lang))
     return {}
 
@@ -373,6 +415,23 @@ def _handle_numbered_selection(
             new_config = _set_config(config, "ledger", selected, options.config_path)
             _write(output_stream, _changed_message("ledger", new_config["ledger_enabled"], lang=lang))
             return {"ledger_path": _resolve_ledger_path(new_config, options)}
+        if number == "6":
+            selected = value or ("off" if config.get("live_provider_enabled") is True else "on")
+            if selected not in {"on", "off", "true", "false", "1", "0", "yes", "no"}:
+                _write(output_stream, _invalid(lang))
+                return {}
+            new_config = _set_config(config, "live_provider", selected, options.config_path)
+            new_live = bool(new_config["live_provider_enabled"])
+            _write(output_stream, _changed_message("live_provider", new_live, lang=lang))
+            return {"live": new_live}
+        if number == "7":
+            selected = value or ("off" if config.get("network_enabled") is True else "on")
+            if selected not in {"on", "off", "true", "false", "1", "0", "yes", "no"}:
+                _write(output_stream, _invalid(lang))
+                return {}
+            new_config = _set_config(config, "network", selected, options.config_path)
+            _write(output_stream, _changed_message("network", new_config["network_enabled"], lang=lang))
+            return {}
     except ConfigError as exc:
         _write(output_stream, _config_error(lang, exc))
         return {}
@@ -473,6 +532,54 @@ def _format_task_progress(report: dict[str, Any], *, lang: str) -> str:
     for step in steps:
         if isinstance(step, dict):
             lines.append(f"  {step.get('state')}: {_safe(step.get('id') or 'step')} - {_safe(step.get('summary') or '')}")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def _format_tasks(last_report: dict[str, Any] | None, runs_report: dict[str, Any], *, lang: str) -> str:
+    runs = runs_report.get("runs") if isinstance(runs_report.get("runs"), list) else []
+    if lang == "ja":
+        lines = ["タスク"]
+        if isinstance(last_report, dict):
+            run = last_report.get("run") if isinstance(last_report.get("run"), dict) else {}
+            lines.append(f"  現在/直近: run_id={_safe(run.get('run_id') or 'なし')}")
+            lines.append(_format_task_progress(last_report, lang="ja").rstrip())
+        else:
+            lines.append("  現在/直近: まだ実行がありません。通常文を入力すると `ask --auto` 経路でタスクを作ります。")
+        if runs:
+            lines.append("  最近の履歴")
+            for run in runs[:5]:
+                if isinstance(run, dict):
+                    lines.append(
+                        f"    run_id={_safe(run.get('run_id') or 'なし')} "
+                        f"状態={_run_status_label(run.get('status'), lang='ja')} "
+                        f"進行イベント={len(_run_progress_events(run))}"
+                    )
+        else:
+            lines.append("  最近の履歴: ローカル履歴が未設定、または記録がありません。")
+        lines.append("  サブエージェント: 実行はしません。計画表示だけです。")
+        lines.append("")
+        return "\n".join(lines)
+
+    lines = ["Tasks"]
+    if isinstance(last_report, dict):
+        run = last_report.get("run") if isinstance(last_report.get("run"), dict) else {}
+        lines.append(f"  current/recent: run_id={_safe(run.get('run_id') or 'none')}")
+        lines.append(_format_task_progress(last_report, lang="en").rstrip())
+    else:
+        lines.append("  current/recent: no run yet. Type a message to create an ask --auto task.")
+    if runs:
+        lines.append("  recent history")
+        for run in runs[:5]:
+            if isinstance(run, dict):
+                lines.append(
+                    f"    run_id={_safe(run.get('run_id') or 'none')} "
+                    f"status={_safe(run.get('status') or 'unknown')} "
+                    f"progress_events={len(_run_progress_events(run))}"
+                )
+    else:
+        lines.append("  recent history: local ledger is not configured or has no runs.")
+    lines.append("  subagents: not started; plan display only")
     lines.append("")
     return "\n".join(lines)
 
@@ -705,6 +812,10 @@ def _format_settings(
                 "     変更: /選択 4 ワークスペース内のみ または /選択 4 無効",
                 "  5. 履歴記録（ローカル履歴）: " + ("オン（秘匿済みローカルJSONL）" if values.get("ledger_enabled") else "オフ（初期値）"),
                 "     変更: /選択 5 オン または /選択 5 オフ",
+                "  6. ライブ接続（外部/ローカル実行）: " + ("オン（明示許可）" if live else "オフ（初期値）"),
+                "     変更: /選択 6 オン または /選択 6 オフ",
+                "  7. ネットワーク（外部通信）: " + ("オン（明示許可）" if values["network_enabled"] else "オフ（初期値）"),
+                "     変更: /選択 7 オン または /選択 7 オフ",
                 "",
                 "状態",
                 f"  表示言語: {_language_label(values['language'] or 'ja', lang='ja')}",
@@ -718,6 +829,7 @@ def _format_settings(
                 "  秘密情報（APIキーなど）: 保存しません",
                 "  ローカルパス（PC内の場所）: 出力しません",
                 "  操作方法: 番号で変える場合は /選択 <番号> <値> を使います",
+                "  ローカルLLM案内: /ローカルLLM",
                 "",
             )
         )
@@ -734,7 +846,7 @@ def _format_settings(
             f"  network: {'on' if values['network_enabled'] else 'off'}",
             "  secrets: not stored",
             "  path: not printed",
-            "  numbered selection: /select 1 en, /select 2 mock, /select 5 on",
+            "  numbered selection: /select 1 en, /select 2 mock, /select 5 on, /select 6 off, /select 7 off",
             "",
         )
     )
@@ -819,6 +931,35 @@ def _format_providers(report: dict[str, Any], *, lang: str) -> str:
         lines.append("  ローカルLLM: localhost / 127.0.0.1 / ::1 だけを許可します")
         lines.append("  外部API: --live と provider別env opt-in がある時だけ呼びます")
     lines.append("")
+    return "\n".join(_safe(line) for line in lines)
+
+
+def _format_local_llm_setup(report: dict[str, Any], *, lang: str) -> str:
+    local_state = _provider_state(report, "local")
+    if lang == "ja":
+        lines = (
+            "ローカルLLMセットアップ",
+            f"  現在の状態: {_state_label(local_state, lang='ja')}",
+            "  対応形態: Ollama系 / LM Studio系 / OpenAI互換のローカルHTTP API",
+            "  許可する接続先: localhost / 127.0.0.1 / ::1 のみ",
+            "  例（Ollama）: ORA_LOCAL_LLM_ENABLED=1, ORA_LOCAL_LLM_PROVIDER=ollama, ORA_LOCAL_LLM_BASE_URL=http://127.0.0.1:11434",
+            "  例（LM Studio）: ORA_LOCAL_LLM_ENABLED=1, ORA_LOCAL_LLM_PROVIDER=lmstudio, ORA_LOCAL_LLM_BASE_URL=http://127.0.0.1:1234/v1",
+            "  使う: /提供元選択 ローカル。その後、この画面で通常文を入力します。",
+            "  実行しないこと: 外部URL接続、APIキー保存、任意シェル実行、モデルの自動インストール",
+            "",
+        )
+        return "\n".join(_safe(line) for line in lines)
+    lines = (
+        "Local LLM setup",
+        f"  current_state: {local_state}",
+        "  supported: Ollama-style / LM Studio-style / local OpenAI-compatible HTTP API",
+        "  allowed_endpoint: localhost / 127.0.0.1 / ::1 only",
+        "  Ollama example: ORA_LOCAL_LLM_ENABLED=1, ORA_LOCAL_LLM_PROVIDER=ollama, ORA_LOCAL_LLM_BASE_URL=http://127.0.0.1:11434",
+        "  LM Studio example: ORA_LOCAL_LLM_ENABLED=1, ORA_LOCAL_LLM_PROVIDER=lmstudio, ORA_LOCAL_LLM_BASE_URL=http://127.0.0.1:1234/v1",
+        "  use: /provider local or yonerai ask \"hello\" --provider local --live",
+        "  not_performed: no external URL, no key storage, no arbitrary shell, no model installation",
+        "",
+    )
     return "\n".join(_safe(line) for line in lines)
 
 
@@ -915,7 +1056,7 @@ def _welcome(
                 f"  履歴: {ledger}（秘匿済みローカル履歴）",
                 f"  安全: {safety} / ネットワーク初期値オフ / 任意シェル無効",
                 f"  ライブ接続: {'オン（明示許可）' if live else 'オフ（初期値）'} / 設定={'既存' if config_exists else '初期値'}",
-                "使う: そのまま質問を書く / /設定 / /安全 / /エージェント / /履歴 / /表示 <run_id>",
+                "使う: そのまま質問を書く / /設定 / /安全 / /タスク / /エージェント / /履歴 / /表示 <run_id>",
                 "設定を変える: /選択 <番号> <値>",
                 "",
             )
@@ -926,7 +1067,7 @@ def _welcome(
             "English mode. Type /help for commands.",
             f"provider={provider} route=not_run local_node=standby ledger={ledger_en} live={'on' if live else 'off'} config={'found' if config_exists else 'created/default'}",
             "Safety: network off / tools dry-run / workspace file only / arbitrary shell disabled / live providers off by default",
-            "Use: type a message, /settings, /safety, /agents, /runs, /show <run_id>",
+            "Use: type a message, /settings, /safety, /tasks, /agents, /runs, /show <run_id>",
             "",
         )
     )
@@ -940,14 +1081,18 @@ def _help(lang: str) -> str:
                 "  /設定                 設定を見る",
                 "  /提供元               プロバイダー（AI接続先）を見る",
                 "  /安全                 安全境界を見る",
+                "  /タスク               現在/最近のタスク進行を見る",
                 "  /エージェント         計画中の担当（計画係/レビュー係など）を見る",
                 "  /履歴                 実行履歴を見る",
                 "  /表示 <実行ID>        1件の実行を見る",
+                "  /ローカルLLM          PC内モデルの接続方法を見る",
                 "  /言語 日本語|英語     表示言語を変更",
                 "  /提供元選択 自動|モック|ローカル|オープンAI互換|アンソロピック|ジェミニ",
                 "  /承認 確認|拒否       危険操作の扱いを変更",
                 "  /ファイル ワークスペース内のみ|無効",
                 "  /履歴記録 オン|オフ    秘匿済みローカル履歴の記録を変更",
+                "  /ライブ接続 オン|オフ  外部/ローカル実行の明示許可を変更",
+                "  /ネットワーク オン|オフ 外部通信の明示許可を変更",
                 "  /選択 <番号> <値>      設定画面の番号で変更",
                 "  /終了                 終了",
                 "",
@@ -959,12 +1104,16 @@ def _help(lang: str) -> str:
             "  /settings        Show settings",
             "  /providers       Show provider status",
             "  /safety          Show safety boundaries",
+            "  /tasks           Show current/recent task progress",
             "  /agents          Show planned agent/reviewer roles",
             "  /runs            Show run history",
             "  /show <run_id>   Show one run",
+            "  /local-llm       Show local LLM loopback setup",
             "  /language ja|en  Change language",
             "  /provider auto|mock|local|openai-compatible|anthropic|gemini",
             "  /ledger on|off    Toggle redacted local ledger",
+            "  /live on|off      Toggle explicit live/local execution permission",
+            "  /network on|off   Toggle explicit network permission",
             "  /select <n> <value> Change a numbered setting",
             "  /quit            Exit",
             "",
@@ -1015,10 +1164,12 @@ def _settings_selection_help(lang: str) -> str:
                 "例: /選択 1 日本語",
                 "例: /選択 2 モック",
                 "例: /選択 5 オン",
+                "例: /選択 6 オフ",
+                "例: /選択 7 オフ",
                 "",
             )
         )
-    return "Invalid numbered setting. Examples: /select 1 en, /select 2 mock, /select 5 on\n"
+    return "Invalid numbered setting. Examples: /select 1 en, /select 2 mock, /select 5 on, /select 6 off, /select 7 off\n"
 
 
 def _config_error(lang: str, exc: ConfigError) -> str:
@@ -1129,6 +1280,8 @@ def _setting_label(value: object, *, lang: str) -> str:
         "approval": "承認（危険操作）",
         "file_access": "ファイルアクセス（ファイル読み取り）",
         "ledger": "履歴記録（ローカル履歴）",
+        "live_provider": "ライブ接続（外部/ローカル実行）",
+        "network": "ネットワーク（外部通信）",
     }
     return labels.get(str(value), _safe(value))
 

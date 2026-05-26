@@ -87,8 +87,14 @@ def test_provider_setup_report_explains_local_and_openai_blockers_without_networ
     assert report["network_probe_performed"] is False
     assert report["live_call_performed"] is False
     assert providers["mock"]["setup_status"] == "ready"
+    assert providers["mock"]["capabilities"]["chat"] is True
+    assert providers["mock"]["capabilities"]["json"] is True
+    assert providers["mock"]["capabilities"]["safe_for_subagents"] is True
+    assert providers["mock"]["capabilities"]["subagent_mode"] == "plan_display_only"
     assert providers["local"]["setup_status"] == "disabled"
     assert providers["local"]["loopback_only"] is True
+    assert providers["local"]["capabilities"]["safe_for_subagents"] is False
+    assert providers["local"]["capabilities"]["subagent_fallback_reason"] == "provider_unavailable_or_not_configured"
     assert providers["openai-compatible"]["setup_status"] == "missing_configuration"
     assert "set ORA_LOCAL_LLM_ENABLED=1" in providers["local"]["setup_blockers"]
     assert "set YONERAI_OPENAI_COMPATIBLE_BASE_URL" in providers["openai-compatible"]["setup_blockers"]

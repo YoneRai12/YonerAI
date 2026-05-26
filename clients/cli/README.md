@@ -42,6 +42,7 @@ yonerai config show --pretty --lang ja
 yonerai start --guided --lang ja
 yonerai providers --pretty --lang ja
 yonerai ask "hello" --auto --pretty --lang ja
+yonerai chat --script --lang ja
 yonerai demo --pretty
 yonerai demo --json
 ```
@@ -69,12 +70,16 @@ command CLI, and exposes settings through slash commands:
 - `/settings`
 - `/providers`
 - `/safety`
+- `/tasks`
 - `/agents`
 - `/runs`
 - `/show <run_id>`
+- `/local-llm`
 - `/language ja|en`
 - `/provider auto|mock|local|openai-compatible|anthropic|gemini`
 - `/ledger on|off`
+- `/live on|off`
+- `/network on|off`
 - `/select <n> <value>`
 - `/quit`
 
@@ -82,6 +87,10 @@ First interactive launch asks for Japanese or English and stores only local
 non-secret preferences. Non-TTY execution prints fallback instructions instead
 of hanging. `yonerai chat --script` intentionally reads lines from stdin for
 tests or scripted demos.
+
+Japanese mode shows Japanese command labels such as `/設定`, `/タスク`,
+`/ローカルLLM`, `/ライブ接続`, and `/ネットワーク`. English aliases remain
+accepted for compatibility, but they are not the primary Japanese UI.
 
 The interactive CLI does not add production Oracle, Official Managed Cloud,
 live Discord, arbitrary shell/file/tool execution, or default live provider
