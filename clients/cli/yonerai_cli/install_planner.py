@@ -205,7 +205,9 @@ def build_update_check(manifest_path: str, *, current_version: str) -> dict[str,
     plan = build_update_plan(manifest_path, current_version=current_version)
     artifact = plan.get("selected_artifact") if isinstance(plan.get("selected_artifact"), dict) else {}
     manifest_display = _display_manifest_path(manifest_path)
-    next_safe_command = f"yonerai update plan --manifest {_quote_cli_path(manifest_display)} --pretty"
+    next_safe_command_shell = _detect_cli_shell()
+    next_safe_commands = _next_safe_update_commands(manifest_display)
+    next_safe_command = next_safe_commands[next_safe_command_shell]
     return {
         "schema_version": UPDATE_CHECK_SCHEMA_VERSION,
         "ok": plan["ok"],
@@ -226,6 +228,8 @@ def build_update_check(manifest_path: str, *, current_version: str) -> dict[str,
         "signature_status": plan["signature_status"],
         "rollback_plan_available": bool(plan.get("rollback_plan_available")),
         "next_safe_command": next_safe_command,
+        "next_safe_command_shell": next_safe_command_shell,
+        "next_safe_commands": next_safe_commands,
         "actions_not_performed": plan["actions_not_performed"],
         "download_performed": False,
         "install_performed": False,
@@ -385,11 +389,43 @@ def _source_repo_root() -> Path | None:
     return None
 
 
-def _quote_cli_path(path: str, *, platform: str | None = None) -> str:
+def _next_safe_update_commands(manifest_display: str) -> dict[str, str]:
+    return {
+        shell: f"yonerai update plan --manifest {_quote_cli_path(manifest_display, shell=shell)} --pretty"
+        for shell in ("powershell", "cmd", "posix")
+    }
+
+
+def _detect_cli_shell(*, platform: str | None = None, env: dict[str, str] | None = None) -> str:
+    platform_name = platform or os.name
+    if platform_name != "nt":
+        return "posix"
+    values = env if env is not None else os.environ
+    explicit = (values.get("YONERAI_CLI_SHELL") or "").lower()
+    if explicit in {"powershell", "pwsh"}:
+        return "powershell"
+    if explicit in {"cmd", "cmd.exe", "command_prompt"}:
+        return "cmd"
+    shell_hint = (values.get("SHELL") or "").lower()
+    prompt_hint = values.get("PROMPT")
+    comspec_hint = (values.get("COMSPEC") or "").lower()
+    if prompt_hint and "cmd.exe" in comspec_hint:
+        return "cmd"
+    if "powershell" in shell_hint or "pwsh" in shell_hint:
+        return "powershell"
+    if "cmd.exe" in comspec_hint and not shell_hint:
+        return "cmd"
+    return "powershell"
+
+
+def _quote_cli_path(path: str, *, platform: str | None = None, shell: str | None = None) -> str:
     if not path:
         return "''"
-    if (platform or os.name) == "nt":
+    shell_name = shell or _detect_cli_shell(platform=platform)
+    if shell_name == "powershell":
         return _quote_powershell_path(path)
+    if shell_name == "cmd":
+        return _quote_cmd_path(path)
     return shlex.quote(path)
 
 
@@ -397,6 +433,13 @@ def _quote_powershell_path(path: str) -> str:
     if re.search(r"[\s;&|<>()`$'\"\[\]{}]", path) is None:
         return path
     return "'" + path.replace("'", "''") + "'"
+
+
+def _quote_cmd_path(path: str) -> str:
+    if re.search(r'[\s&|<>()^%!"]', path) is None:
+        return path
+    escaped = path.replace("^", "^^").replace("%", "^%").replace("!", "^!").replace('"', '""')
+    return f'"{escaped}"'
 
 
 __all__ = [

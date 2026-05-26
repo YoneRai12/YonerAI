@@ -271,6 +271,10 @@ def test_cli_update_check_json_is_stable_network_free_and_path_safe(tmp_path, mo
     assert "no install" in output["actions_not_performed"]
     assert output["manifest"] == "manifest.json"
     assert output["next_safe_command"] == "yonerai update plan --manifest manifest.json --pretty"
+    assert output["next_safe_command_shell"] in {"powershell", "cmd", "posix"}
+    assert output["next_safe_commands"]["powershell"] == "yonerai update plan --manifest manifest.json --pretty"
+    assert output["next_safe_commands"]["cmd"] == "yonerai update plan --manifest manifest.json --pretty"
+    assert output["next_safe_commands"]["posix"] == "yonerai update plan --manifest manifest.json --pretty"
     assert str(tmp_path) not in raw
     assert str(ROOT) not in raw
     assert ("C:" + "\\Users") not in raw
@@ -309,7 +313,10 @@ def test_update_check_shell_quotes_metacharacters_in_manifest_path(tmp_path, mon
     report = build_update_check(str(manifest_path), current_version=_current_version())
 
     assert report["manifest"] == "poc;&$(echo hacked)/manifest.json"
-    assert report["next_safe_command"] == "yonerai update plan --manifest 'poc;&$(echo hacked)/manifest.json' --pretty"
+    assert report["next_safe_command"] == report["next_safe_commands"][report["next_safe_command_shell"]]
+    assert report["next_safe_commands"]["powershell"] == "yonerai update plan --manifest 'poc;&$(echo hacked)/manifest.json' --pretty"
+    assert report["next_safe_commands"]["cmd"] == 'yonerai update plan --manifest "poc;&$(echo hacked)/manifest.json" --pretty'
+    assert report["next_safe_commands"]["posix"] == "yonerai update plan --manifest 'poc;&$(echo hacked)/manifest.json' --pretty"
     assert str(tmp_path) not in json.dumps(report)
 
 
@@ -318,9 +325,50 @@ def test_update_check_uses_windows_safe_manifest_path_quoting() -> None:
     from yonerai_cli.install_planner import _quote_cli_path
 
     assert _quote_cli_path("manifest.json", platform="nt") == "manifest.json"
-    assert _quote_cli_path("My Releases/manifest.json", platform="nt") == "'My Releases/manifest.json'"
-    assert _quote_cli_path("poc;$(echo hacked)/manifest.json", platform="nt") == "'poc;$(echo hacked)/manifest.json'"
-    assert _quote_cli_path("release's/manifest.json", platform="nt") == "'release''s/manifest.json'"
+    assert _quote_cli_path("My Releases/manifest.json", platform="nt", shell="powershell") == "'My Releases/manifest.json'"
+    assert (
+        _quote_cli_path("poc;$(echo hacked)/manifest.json", platform="nt", shell="powershell")
+        == "'poc;$(echo hacked)/manifest.json'"
+    )
+    assert _quote_cli_path("release's/manifest.json", platform="nt", shell="powershell") == "'release''s/manifest.json'"
+    assert _quote_cli_path("My Releases/manifest.json", platform="nt", shell="cmd") == '"My Releases/manifest.json"'
+    assert _quote_cli_path("poc;&$(echo hacked)/manifest.json", platform="nt", shell="cmd") == '"poc;&$(echo hacked)/manifest.json"'
+    assert _quote_cli_path("release%USERPROFILE%!/manifest.json", platform="nt", shell="cmd") == '"release^%USERPROFILE^%^!/manifest.json"'
+
+
+def test_update_check_reports_shell_specific_next_safe_commands(tmp_path, monkeypatch) -> None:
+    _prepare_paths()
+    from yonerai_cli.install_planner import build_update_check
+
+    manifest_dir = tmp_path / "poc;&$(echo hacked)"
+    manifest_dir.mkdir()
+    manifest = _example_manifest()
+    _set_manifest_version(manifest, _current_version())
+    manifest_path = _write_manifest(manifest_dir, manifest)
+    monkeypatch.chdir(tmp_path)
+
+    report = build_update_check(str(manifest_path), current_version=_current_version())
+
+    assert report["next_safe_commands"]["powershell"] == "yonerai update plan --manifest 'poc;&$(echo hacked)/manifest.json' --pretty"
+    assert report["next_safe_commands"]["cmd"] == 'yonerai update plan --manifest "poc;&$(echo hacked)/manifest.json" --pretty'
+    assert report["next_safe_commands"]["posix"] == "yonerai update plan --manifest 'poc;&$(echo hacked)/manifest.json' --pretty"
+
+
+def test_update_check_detects_windows_shell_preference() -> None:
+    _prepare_paths()
+    from yonerai_cli.install_planner import _detect_cli_shell
+
+    assert _detect_cli_shell(platform="nt", env={"YONERAI_CLI_SHELL": "cmd"}) == "cmd"
+    assert _detect_cli_shell(platform="nt", env={"YONERAI_CLI_SHELL": "pwsh"}) == "powershell"
+    assert _detect_cli_shell(platform="nt", env={"COMSPEC": "C:\\Windows\\System32\\cmd.exe", "PROMPT": "$P$G"}) == "cmd"
+    assert (
+        _detect_cli_shell(
+            platform="nt",
+            env={"COMSPEC": "C:\\Windows\\System32\\cmd.exe", "SHELL": "C:\\Program Files\\PowerShell\\7\\pwsh.exe"},
+        )
+        == "powershell"
+    )
+    assert _detect_cli_shell(platform="posix", env={"SHELL": "/bin/bash"}) == "posix"
 
 
 def test_cli_update_check_pretty_is_readable_and_color_safe(capsys) -> None:
