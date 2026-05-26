@@ -96,9 +96,8 @@ def test_v051_manifest_validates_and_records_release_asset() -> None:
     artifact = manifest["artifacts"][0]
     assert artifact["id"] == "yonerai-0.5.1-source-archive"
     assert artifact["url"] == "https://github.com/YoneRai12/YonerAI/releases/download/v0.5.1/YonerAI-0.5.1.zip"
-    assert len(str(artifact["sha256"])) == 64
-    assert artifact["sha256"] != "0000000000000000000000000000000000000000000000000000000000000000"
-    assert isinstance(artifact["size_bytes"], int) and artifact["size_bytes"] > 1
+    assert artifact["sha256"] == "867816388565bbd748b874bbb026a858c6b6ab2b72f8216158d0682f25f32bf8"
+    assert artifact["size_bytes"] == 9047664
 
 
 def test_v050_install_and_update_plans_are_dry_run_only() -> None:
