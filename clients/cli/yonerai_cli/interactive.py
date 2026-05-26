@@ -167,7 +167,7 @@ def run_interactive_cli(
     welcome = _welcome(
         lang,
         provider=provider,
-        live=live,
+        live=_effective_live(live, config),
         config_exists=config_exists,
         config=config,
         ledger_path=ledger_path,
@@ -176,7 +176,10 @@ def run_interactive_cli(
         _write(output_stream, welcome)
     while True:
         if use_tui_prompt:
-            line = prompt_line(lang=lang, bottom_toolbar=_bottom_toolbar(lang, provider=provider, live=live, config=config))
+            line = prompt_line(
+                lang=lang,
+                bottom_toolbar=_bottom_toolbar(lang, provider=provider, live=_effective_live(live, config), config=config),
+            )
         elif _is_interactive(input_stream):
             output_stream.write("yonerai> " if lang == "en" else "yonerai> ")
             output_stream.flush()
@@ -213,11 +216,17 @@ def run_interactive_cli(
                 return 0
             continue
 
+        effective_live = _effective_live(live, config)
         if use_tui_prompt:
             status = "考え中..." if lang == "ja" else "Thinking..."
-            report = run_with_status(status, lambda: callbacks.ask_auto(text, provider, live, ledger_path, lang), stream=output_stream, color=options.color)
+            report = run_with_status(
+                status,
+                lambda: callbacks.ask_auto(text, provider, effective_live, ledger_path, lang),
+                stream=output_stream,
+                color=options.color,
+            )
         else:
-            report = callbacks.ask_auto(text, provider, live, ledger_path, lang)
+            report = callbacks.ask_auto(text, provider, effective_live, ledger_path, lang)
         last_report = report
         _write(output_stream, _format_chat_response(report, lang=lang))
 
@@ -228,6 +237,10 @@ def _can_use_prompt_toolkit(options: InteractiveOptions, *, input_stream: TextIO
     if input_stream is not sys.stdin or output_stream is not sys.stdout:
         return False
     return _is_interactive(input_stream) and _is_interactive(output_stream) and prompt_toolkit_available()
+
+
+def _effective_live(live: bool, config: dict[str, object]) -> bool:
+    return bool(live and config.get("network_enabled") is not False)
 
 
 def _bottom_toolbar(lang: str, *, provider: str, live: bool, config: dict[str, object]) -> str:
@@ -436,7 +449,8 @@ def _handle_slash_command(
         except ConfigError as exc:
             _write(output_stream, _config_error(lang, exc))
             return {}
-        _write(output_stream, _changed_message("network", new_config["network_enabled"], lang=lang))
+        new_network = bool(new_config["network_enabled"])
+        _write(output_stream, _changed_message("network", new_network, lang=lang))
         return {}
     _write(output_stream, _unknown(lang))
     return {}
