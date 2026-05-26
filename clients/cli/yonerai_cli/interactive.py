@@ -216,9 +216,9 @@ def run_interactive_cli(
                 return 0
             continue
 
+        effective_live = _effective_live(live, config)
         if use_tui_prompt:
             status = "考え中..." if lang == "ja" else "Thinking..."
-            effective_live = _effective_live(live, config)
             report = run_with_status(
                 status,
                 lambda: callbacks.ask_auto(text, provider, effective_live, ledger_path, lang),
@@ -226,7 +226,6 @@ def run_interactive_cli(
                 color=options.color,
             )
         else:
-            effective_live = _effective_live(live, config)
             report = callbacks.ask_auto(text, provider, effective_live, ledger_path, lang)
         last_report = report
         _write(output_stream, _format_chat_response(report, lang=lang))
