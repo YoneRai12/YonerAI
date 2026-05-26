@@ -56,14 +56,15 @@ jobs:
 
       - name: Classify Release Channel
         run: |
-          case "$ORA_VERSION" in
-            *-alpha|*-alpha.*|*-alpha+*|*-beta|*-beta.*|*-beta+*|*-rc|*-rc.*|*-rc+*)
-              echo "ORA_PRERELEASE=true" >> "$GITHUB_ENV"
-              ;;
-            *)
-              echo "ORA_PRERELEASE=false" >> "$GITHUB_ENV"
-              ;;
-          esac
+          ORA_PRERELEASE=$(python - <<'PY'
+          import os
+
+          version = os.environ["ORA_VERSION"]
+          core = version.split("+", 1)[0]
+          print("true" if "-" in core else "false")
+          PY
+          )
+          echo "ORA_PRERELEASE=$ORA_PRERELEASE" >> "$GITHUB_ENV"
 
       - name: Generate Release Archive
         run: |

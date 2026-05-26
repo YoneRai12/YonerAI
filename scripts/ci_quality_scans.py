@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import argparse
+import json
+import os
 import re
 import subprocess
 import sys
@@ -100,16 +102,46 @@ def _scan_line(rel: str, index: int, line: str, errors: list[str]) -> None:
 
 
 def _changed_files(repo_root: Path) -> list[Path]:
+    pushed_paths = _github_push_changed_files(repo_root)
+    if pushed_paths:
+        return pushed_paths
     refs = (
         ("git", "diff", "--name-only", "--diff-filter=ACMRT", "origin/main...HEAD"),
-        ("git", "diff", "--name-only", "--diff-filter=ACMRT", "HEAD~1...HEAD"),
         ("git", "diff", "--name-only", "--diff-filter=ACMRT"),
+        ("git", "diff", "--name-only", "--diff-filter=ACMRT", "HEAD~1...HEAD"),
     )
     for command in refs:
         result = _run_git(command, repo_root)
         if result.returncode == 0 and result.stdout.strip():
             return _with_untracked(repo_root, [Path(line.strip()) for line in result.stdout.splitlines() if line.strip()])
     return _tracked_files(repo_root)
+
+
+def _github_push_changed_files(repo_root: Path) -> list[Path]:
+    if os.environ.get("GITHUB_ACTIONS") != "true":
+        return []
+    before, after = _github_push_range()
+    if not before or not after or before == after or set(before) == {"0"}:
+        return []
+    result = _run_git(("git", "diff", "--name-only", "--diff-filter=ACMRT", f"{before}..{after}"), repo_root)
+    if result.returncode != 0 or not result.stdout.strip():
+        return []
+    return _with_untracked(repo_root, [Path(line.strip()) for line in result.stdout.splitlines() if line.strip()])
+
+
+def _github_push_range() -> tuple[str | None, str | None]:
+    before = os.environ.get("GITHUB_EVENT_BEFORE")
+    after = os.environ.get("GITHUB_SHA")
+    event_path = os.environ.get("GITHUB_EVENT_PATH")
+    if event_path:
+        try:
+            payload = json.loads(Path(event_path).read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            payload = {}
+        if isinstance(payload, dict):
+            before = str(payload.get("before") or before or "")
+            after = str(payload.get("after") or after or "")
+    return before, after
 
 
 def _tracked_files(repo_root: Path) -> list[Path]:

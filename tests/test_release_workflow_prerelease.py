@@ -3,13 +3,13 @@ from __future__ import annotations
 from pathlib import Path
 
 
-def test_release_workflow_marks_alpha_beta_rc_as_prereleases() -> None:
+def test_release_workflow_marks_any_semver_prerelease_as_prerelease() -> None:
     workflow = Path(".github/workflows/release.yml").read_text(encoding="utf-8")
 
     assert "Classify Release Channel" in workflow
-    assert "*-alpha|*-alpha.*|*-alpha+*|*-beta|*-beta.*|*-beta+*|*-rc|*-rc.*|*-rc+*)" in workflow
-    assert 'echo "ORA_PRERELEASE=true" >> "$GITHUB_ENV"' in workflow
-    assert 'echo "ORA_PRERELEASE=false" >> "$GITHUB_ENV"' in workflow
+    assert 'core = version.split("+", 1)[0]' in workflow
+    assert 'print("true" if "-" in core else "false")' in workflow
+    assert "ORA_PRERELEASE=$ORA_PRERELEASE" in workflow
     assert "prerelease: ${{ env.ORA_PRERELEASE }}" in workflow
 
 
