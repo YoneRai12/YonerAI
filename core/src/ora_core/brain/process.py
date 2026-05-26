@@ -1,4 +1,4 @@
-﻿import logging
+import logging
 import asyncio
 import time
 import os
@@ -1168,7 +1168,15 @@ class MainProcess:
                 except Exception:
                     pass
 
-            context_messages = await ContextBuilder.build_context(self.request, user.id, self.conversation_id, self.repo)
+            current_run = await self.repo.get_run(self.run_id)
+            current_message_id = getattr(current_run, "user_message_id", None)
+            context_messages = await ContextBuilder.build_context(
+                self.request,
+                user.id,
+                self.conversation_id,
+                self.repo,
+                current_message_id=current_message_id,
+            )
 
             try:
                 from pathlib import Path

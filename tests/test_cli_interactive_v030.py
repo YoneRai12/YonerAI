@@ -390,6 +390,31 @@ def test_safe_escapes_terminal_control_sequences() -> None:
     assert "\x07" not in rendered
 
 
+def test_format_runs_counts_only_task_progress_events() -> None:
+    from yonerai_cli.interactive import _format_runs
+
+    report = {
+        "runs": [
+            {
+                "run_id": "r-progress",
+                "status": "completed",
+                "task_summary": "ok",
+                "events": [
+                    {"name": "auto_runtime_decision", "status": "ok"},
+                    {"name": "task_progress_classify", "status": "ok"},
+                    {"name": "provider_response", "status": "ok"},
+                    {"name": "task_progress_result", "status": "ok"},
+                ],
+            },
+        ]
+    }
+
+    rendered = _format_runs(report, lang="en")
+
+    assert "progress_events=2" in rendered
+    assert "progress_events=4" not in rendered
+
+
 def test_format_runs_escapes_control_sequences() -> None:
     from yonerai_cli.interactive import _format_runs
 

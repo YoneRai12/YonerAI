@@ -12,7 +12,14 @@ class ContextBuilder:
     """
     
     @staticmethod
-    async def build_context(req: MessageRequest, internal_user_id: str, conversation_id: str, repo: Any) -> list[dict]:
+    async def build_context(
+        req: MessageRequest,
+        internal_user_id: str,
+        conversation_id: str,
+        repo: Any,
+        *,
+        current_message_id: str | None = None,
+    ) -> list[dict]:
         """
         Builds the 4-layer context messages for the LLM.
         L1: Session History (from DB or client-provided)
@@ -134,6 +141,7 @@ class ContextBuilder:
                 limit=3,
                 current_content=req.content or "",
                 current_attachments=current_attachments,
+                current_message_id=current_message_id,
             )
 
         semantic_intent = classify_semantic_intent(
@@ -250,6 +258,7 @@ class ContextBuilder:
         limit: int = 3,
         current_content: str = "",
         current_attachments: list[Any] | None = None,
+        current_message_id: str | None = None,
     ) -> list[Any]:
         skipped_current_turn = False
         for msg in reversed(history_msgs or []):
@@ -259,6 +268,7 @@ class ContextBuilder:
                 msg,
                 current_content=current_content,
                 current_attachments=current_attachments or [],
+                current_message_id=current_message_id,
             ):
                 skipped_current_turn = True
                 continue
@@ -270,11 +280,17 @@ class ContextBuilder:
         return []
 
     @staticmethod
-    def _looks_like_current_request_turn(msg: Any, *, current_content: str, current_attachments: list[Any]) -> bool:
-        if str(getattr(msg, "content", "") or "") != str(current_content or ""):
+    def _looks_like_current_request_turn(
+        msg: Any,
+        *,
+        current_content: str,
+        current_attachments: list[Any],
+        current_message_id: str | None,
+    ) -> bool:
+        del current_content, current_attachments
+        if not current_message_id:
             return False
-        msg_attachments = list(getattr(msg, "attachments", None) or [])
-        return len(msg_attachments) == len(current_attachments or [])
+        return str(getattr(msg, "id", "") or "") == str(current_message_id)
 
     @staticmethod
     def _generic_image_output_contract() -> str:
