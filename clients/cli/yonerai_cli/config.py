@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Mapping
 
 
-CONFIG_SCHEMA_VERSION = "yonerai-cli-config/v0.4"
+CONFIG_SCHEMA_VERSION = "yonerai-cli-config/v0.5"
 LANGUAGES = ("ja", "en")
 PROVIDER_PREFERENCES = ("auto", "mock", "local", "openai-compatible", "anthropic", "gemini")
 APPROVAL_MODES = ("prompt", "deny")
@@ -25,6 +25,8 @@ DEFAULT_CONFIG: dict[str, object] = {
     "network_enabled": False,
     "tools_mode": "dry_run",
     "ledger_enabled": False,
+    "google_auth_enabled": False,
+    "openai_data_sharing_enabled": False,
 }
 
 
@@ -108,7 +110,13 @@ def validate_cli_config(config: Mapping[str, object]) -> dict[str, object]:
         raise ConfigError("approval_mode is invalid.")
     if merged.get("file_access_mode") not in FILE_ACCESS_MODES:
         raise ConfigError("file_access_mode is invalid.")
-    for key in ("live_provider_enabled", "network_enabled", "ledger_enabled"):
+    for key in (
+        "live_provider_enabled",
+        "network_enabled",
+        "ledger_enabled",
+        "google_auth_enabled",
+        "openai_data_sharing_enabled",
+    ):
         if type(merged.get(key)) is not bool:
             raise ConfigError(f"{key} must be a boolean.")
     if merged.get("tools_mode") != "dry_run":
@@ -130,6 +138,11 @@ def normalize_config_key(key: str) -> str:
         "network": "network_enabled",
         "ledger": "ledger_enabled",
         "history": "ledger_enabled",
+        "google_auth": "google_auth_enabled",
+        "auth_google": "google_auth_enabled",
+        "openai_data_sharing": "openai_data_sharing_enabled",
+        "data_sharing": "openai_data_sharing_enabled",
+        "shared_traffic": "openai_data_sharing_enabled",
     }
     normalized = aliases.get(normalized, normalized)
     if normalized not in DEFAULT_CONFIG or normalized == "schema_version":
@@ -159,7 +172,13 @@ def parse_config_value(key: str, value: str) -> object:
         if raw not in FILE_ACCESS_MODES:
             raise ConfigError("file access mode must be workspace_only or disabled.")
         return raw
-    if key in {"live_provider_enabled", "network_enabled", "ledger_enabled"}:
+    if key in {
+        "live_provider_enabled",
+        "network_enabled",
+        "ledger_enabled",
+        "google_auth_enabled",
+        "openai_data_sharing_enabled",
+    }:
         if raw.lower() in {"true", "1", "yes", "on"}:
             return True
         if raw.lower() in {"false", "0", "no", "off"}:
@@ -186,6 +205,8 @@ def build_config_report(config: Mapping[str, object], *, exists: bool) -> dict[s
             "network_enabled": validated["network_enabled"],
             "tools_mode": validated["tools_mode"],
             "ledger_enabled": validated["ledger_enabled"],
+            "google_auth_enabled": validated["google_auth_enabled"],
+            "openai_data_sharing_enabled": validated["openai_data_sharing_enabled"],
         },
         "actions_not_performed": (
             "no provider key storage",

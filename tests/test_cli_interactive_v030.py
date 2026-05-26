@@ -113,7 +113,7 @@ def test_cli_config_show_and_set_do_not_print_paths_or_store_secrets(tmp_path: P
     assert cli.main(["config", "show", "--json"]) == 0
     report = json.loads(capsys.readouterr().out)
 
-    assert report["schema_version"] == "yonerai-cli-config/v0.4"
+    assert report["schema_version"] == "yonerai-cli-config/v0.5"
     assert report["secrets_supported"] is False
     assert report["path_persisted_in_output"] is False
     assert str(tmp_path) not in json.dumps(report)
@@ -129,6 +129,10 @@ def test_cli_config_show_and_set_do_not_print_paths_or_store_secrets(tmp_path: P
     ledger_enabled = json.loads(capsys.readouterr().out)
     assert ledger_enabled["config"]["ledger_enabled"] is True
     assert str(tmp_path) not in json.dumps(ledger_enabled)
+
+    assert cli.main(["config", "set", "openai_data_sharing", "off", "--json"]) == 0
+    privacy_flag = json.loads(capsys.readouterr().out)
+    assert privacy_flag["config"]["openai_data_sharing_enabled"] is False
 
 
 def test_cli_config_write_failure_is_controlled(tmp_path: Path, monkeypatch, capsys) -> None:

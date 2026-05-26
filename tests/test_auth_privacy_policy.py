@@ -1,0 +1,136 @@
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[1]
+CLIENTS_CLI = ROOT / "clients" / "cli"
+CORE_SRC = ROOT / "core" / "src"
+for path in (CLIENTS_CLI, CORE_SRC):
+    if str(path) not in sys.path:
+        sys.path.insert(0, str(path))
+
+
+def test_auth_status_is_contract_only_and_does_not_print_tokens(tmp_path: Path, monkeypatch, capsys) -> None:
+    from yonerai_cli import cli
+
+    monkeypatch.setenv("YONERAI_CLI_CONFIG_PATH", str(tmp_path / "cli-config.json"))
+    monkeypatch.delenv("YONERAI_GOOGLE_OAUTH_CLIENT_ID", raising=False)
+
+    assert cli.main(["auth", "status", "--json"]) == 0
+    report = json.loads(capsys.readouterr().out)
+    serialized = json.dumps(report, sort_keys=True)
+
+    assert report["schema_version"] == "yonerai-google-auth-contract/v0.1"
+    assert report["configured"] is False
+    assert report["production_login_enabled"] is False
+    assert report["live_oauth_enabled"] is False
+    assert report["client_secret_supported"] is False
+    assert report["flow"]["scopes"] == ["openid", "email", "profile"]
+    assert report["flow"]["pkce_required"] is True
+    assert report["flow"]["state_required"] is True
+    assert report["flow"]["loopback_redirect_only"] is True
+    assert report["flow"]["embedded_webview_allowed"] is False
+    assert report["token_printed"] is False
+    assert "token=" not in serialized.lower()
+    assert str(tmp_path) not in serialized
+
+
+def test_google_login_dry_run_requires_client_configuration_without_traceback(tmp_path: Path, monkeypatch, capsys) -> None:
+    from yonerai_cli import cli
+
+    monkeypatch.setenv("YONERAI_CLI_CONFIG_PATH", str(tmp_path / "cli-config.json"))
+    monkeypatch.delenv("YONERAI_GOOGLE_OAUTH_CLIENT_ID", raising=False)
+
+    assert cli.main(["auth", "google", "login", "--dry-run", "--json"]) == 1
+    report = json.loads(capsys.readouterr().out)
+
+    assert report["dry_run"] is True
+    assert report["live_oauth_started"] is False
+    assert report["browser_opened"] is False
+    assert report["token_printed"] is False
+    assert report["error"]["code"] == "google_oauth_client_not_configured"
+    assert "Traceback" not in json.dumps(report)
+
+
+def test_google_login_dry_run_accepts_loopback_pkce_contract(tmp_path: Path, monkeypatch, capsys) -> None:
+    from yonerai_cli import cli
+
+    monkeypatch.setenv("YONERAI_CLI_CONFIG_PATH", str(tmp_path / "cli-config.json"))
+    monkeypatch.setenv("YONERAI_GOOGLE_OAUTH_CLIENT_ID", "fixture-client-id.apps.googleusercontent.com")
+    monkeypatch.setenv("YONERAI_GOOGLE_OAUTH_REDIRECT_URI", "http://127.0.0.1:8765/oauth/google/callback")
+
+    assert cli.main(["auth", "google", "login", "--dry-run", "--json"]) == 0
+    report = json.loads(capsys.readouterr().out)
+
+    assert report["configured"] is True
+    assert report["state_generated"] is True
+    assert report["state_printed"] is False
+    assert report["pkce_code_challenge_generated"] is True
+    assert report["pkce_code_verifier_printed"] is False
+    assert report["flow"]["redirect_valid"] is True
+    assert report["flow"]["redirect_uri"].startswith("http://127.0.0.1:")
+    assert report["storage"]["plain_text_token_storage_allowed"] is False
+    assert "no live OAuth request" in report["actions_not_performed"]
+
+
+def test_google_login_rejects_non_loopback_redirect(tmp_path: Path, monkeypatch, capsys) -> None:
+    from yonerai_cli import cli
+
+    monkeypatch.setenv("YONERAI_CLI_CONFIG_PATH", str(tmp_path / "cli-config.json"))
+    monkeypatch.setenv("YONERAI_GOOGLE_OAUTH_CLIENT_ID", "fixture-client-id.apps.googleusercontent.com")
+    monkeypatch.setenv("YONERAI_GOOGLE_OAUTH_REDIRECT_URI", "https://yonerai.com/oauth/google/callback")
+
+    assert cli.main(["auth", "google", "login", "--dry-run", "--json"]) == 1
+    report = json.loads(capsys.readouterr().out)
+
+    assert report["configured"] is False
+    assert report["flow"]["loopback_redirect_only"] is True
+    assert report["flow"]["redirect_valid"] is False
+    assert report["error"]["code"] == "redirect_uri_must_be_loopback_http"
+
+
+def test_google_login_without_dry_run_is_rejected(capsys) -> None:
+    from yonerai_cli import cli
+
+    assert cli.main(["auth", "google", "login"]) == 2
+    captured = capsys.readouterr()
+
+    assert "requires --dry-run" in captured.err
+    assert "Traceback" not in captured.err
+
+
+def test_privacy_status_keeps_openai_shared_traffic_disabled(tmp_path: Path, monkeypatch, capsys) -> None:
+    from yonerai_cli import cli
+
+    config_path = tmp_path / "cli-config.json"
+    monkeypatch.setenv("YONERAI_CLI_CONFIG_PATH", str(config_path))
+
+    assert cli.main(["config", "set", "openai_data_sharing", "on", "--json"]) == 0
+    capsys.readouterr()
+    assert cli.main(["privacy", "status", "--json"]) == 0
+    report = json.loads(capsys.readouterr().out)
+
+    assert report["data_sharing"]["openai_shared_traffic_requested"] is True
+    assert report["data_sharing"]["openai_shared_traffic_enabled"] is False
+    assert report["data_sharing"]["requires_explicit_opt_in"] is True
+    assert report["private_content_exclusion"]["active"] is True
+    assert "workspace-local file content" in report["private_content_exclusion"]["excluded"]
+    assert report["ledger"]["shared_traffic_flag_recorded"] is True
+    assert report["ledger"]["default_shared_traffic"] is False
+    assert report["quota"]["free_usage_claimed"] is False
+    assert "no OpenAI shared traffic enabled" in report["actions_not_performed"]
+
+
+def test_auto_runtime_records_shared_traffic_disabled_in_report_and_ledger() -> None:
+    from ora_core.execution import InMemoryRunLedger, build_auto_runtime_report
+
+    report = build_auto_runtime_report("hello", ledger=InMemoryRunLedger())
+    event_names = [event["name"] for event in report["run"]["events"]]
+
+    assert report["shared_traffic"]["enabled"] is False
+    assert report["shared_traffic"]["private_content_excluded"] is True
+    assert "shared_traffic_policy" in event_names
+    assert report["boundaries"]["provider_key_output"] is False

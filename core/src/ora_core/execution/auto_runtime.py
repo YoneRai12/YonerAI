@@ -128,6 +128,7 @@ def build_auto_runtime_report(
         disabled_reason="approval_required" if decision.approval_required else None,
     )
     ledger.append_event(run.run_id, "auto_runtime_decision", "ok", _decision_summary(decision))
+    ledger.append_event(run.run_id, "shared_traffic_policy", "ok", "shared_traffic=false private_content_exclusion=true")
 
     for event in context_events or ():
         if not isinstance(event, Mapping):
@@ -734,6 +735,13 @@ def _base_report(
         "search": search_report,
         "reviewer_plan": reviewer_plan,
         "task_progress": task_progress,
+        "shared_traffic": {
+            "enabled": False,
+            "openai_shared_traffic_enabled": False,
+            "private_content_excluded": True,
+            "provider_key_shared": False,
+            "raw_prompt_shared": False,
+        },
         "boundary_checks": boundary_checks,
         "live_call_performed": live_call_performed,
         "error": error,
