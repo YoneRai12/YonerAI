@@ -2,6 +2,21 @@
 
 See also: `docs/RELEASE_NOTES.md` (curated summary, v5.0.0 -> current).
 
+## v0.4.0-alpha.1 (2026-05-26) - Mission Control CLI Slice
+- Added Mission Control status to `yonerai` and `yonerai chat`: provider, route,
+  local node, ledger, safety, live-provider state, run_id, progress, and plan.
+- Added task progress for `ask --auto` with classify/route/provider/execution/
+  review/result steps in JSON and redacted ledger events.
+- Added `/エージェント` / `/agents` to show deterministic planner/researcher/
+  implementer/tester/reviewer plans without starting uncontrolled agents.
+- Hardened interactive pretty output against terminal control characters.
+- Fixed current-main image follow-up review debt: stale prior image carryover and
+  conflicting broad/follow-up image contracts.
+- Preserved alpha runtime boundaries: no production Oracle, no Official Managed
+  Cloud runtime, no live Discord, no deploy/public tunnel, no arbitrary
+  shell/file/tool execution, no default live provider calls, and no provider key
+  output or storage.
+
 ## v0.3.0-alpha.1 (2026-05-26) - Interactive CLI Slice
 - Added `yonerai` and `yonerai chat` as a Japanese-first interactive terminal
   shell backed by the existing `ask --auto` runtime path.
