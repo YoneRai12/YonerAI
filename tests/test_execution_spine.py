@@ -57,10 +57,41 @@ def test_file_run_ledger_persist_enforces_private_permissions(tmp_path: Path) ->
     )
     ledger.complete_run(run.run_id, result_summary="done")
 
+    assert ledger_path.exists()
+    if os.name == "nt":
+        return
     dir_mode = os.stat(ledger_path.parent).st_mode & 0o777
     file_mode = os.stat(ledger_path).st_mode & 0o777
-    assert dir_mode == 0o700
+    assert dir_mode & 0o077 == 0
     assert file_mode == 0o600
+
+
+def test_file_run_ledger_does_not_chmod_existing_parent(tmp_path: Path, monkeypatch) -> None:
+    _prepare_paths()
+    from ora_core.execution.ledger import FileRunLedger
+
+    ledger_path = tmp_path / "existing" / "runs.jsonl"
+    ledger_path.parent.mkdir()
+    chmod_calls: list[str] = []
+    real_chmod = os.chmod
+
+    def record_chmod(path: str | os.PathLike[str], mode: int) -> None:
+        chmod_calls.append(str(path))
+        real_chmod(path, mode)
+
+    monkeypatch.setattr(os, "chmod", record_chmod)
+    ledger = FileRunLedger(ledger_path)
+    run = ledger.create_run(
+        task_text="hello",
+        classification={"category": "test"},
+        route_decision={"route": "managed_cloud_contract_only"},
+        provider_decision={"provider_id": "mock"},
+        approval_required=False,
+    )
+    ledger.complete_run(run.run_id, result_summary="done")
+
+    assert str(ledger_path.parent) not in chmod_calls
+    assert str(ledger_path) in chmod_calls
 
 
 def test_safe_summary_redacts_labeled_secret_values() -> None:
