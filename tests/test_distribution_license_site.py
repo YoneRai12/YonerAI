@@ -10,6 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 CLI_SRC = ROOT / "clients" / "cli"
 V050_MANIFEST = ROOT / "releases" / "manifest.v0.5.0.json"
+V051_MANIFEST = ROOT / "releases" / "manifest.v0.5.1.json"
 
 
 def _prepare_paths() -> None:
@@ -20,6 +21,10 @@ def _prepare_paths() -> None:
 
 def _load_v050_manifest() -> dict[str, object]:
     return json.loads(V050_MANIFEST.read_text(encoding="utf-8"))
+
+
+def _load_v051_manifest() -> dict[str, object]:
+    return json.loads(V051_MANIFEST.read_text(encoding="utf-8"))
 
 
 def test_license_policy_is_source_available_noncommercial() -> None:
@@ -66,6 +71,36 @@ def test_v050_manifest_validates_and_records_release_asset() -> None:
     assert artifact["size_bytes"] == 9007426
 
 
+def test_v051_manifest_validates_and_records_release_asset() -> None:
+    _prepare_paths()
+    from yonerai_cli.release_manifest import load_manifest_file, verify_manifest
+
+    report = verify_manifest(load_manifest_file(str(V051_MANIFEST)))
+
+    assert report["contract_valid"] is True
+    assert report["install_ready"] is False
+    assert report["version"] == "0.5.1"
+    assert report["release_tag"] == "v0.5.1"
+    assert report["channel"] == "stable"
+    assert report["signature_state"] == "placeholder_non_production"
+    assert report["production_signature_verified"] is False
+    assert report["install_methods"] == [
+        "manual_zip_venv",
+        "powershell_dry_run_plan",
+        "manifest_verify_only",
+    ]
+    assert any("production signature verification" in warning for warning in report["warnings"])
+    assert any("install-local.ps1" in warning for warning in report["warnings"])
+
+    manifest = _load_v051_manifest()
+    artifact = manifest["artifacts"][0]
+    assert artifact["id"] == "yonerai-0.5.1-source-archive"
+    assert artifact["url"] == "https://github.com/YoneRai12/YonerAI/releases/download/v0.5.1/YonerAI-0.5.1.zip"
+    assert len(str(artifact["sha256"])) == 64
+    assert artifact["sha256"] != "0000000000000000000000000000000000000000000000000000000000000000"
+    assert isinstance(artifact["size_bytes"], int) and artifact["size_bytes"] > 1
+
+
 def test_v050_install_and_update_plans_are_dry_run_only() -> None:
     _prepare_paths()
     from yonerai_cli.install_planner import build_install_plan, build_update_plan
@@ -86,6 +121,35 @@ def test_v050_install_and_update_plans_are_dry_run_only() -> None:
     assert update_plan["target_version"] == "0.5.0"
     assert update_plan["version_comparison"] == "same"
     assert update_plan["update_available"] is False
+    assert update_plan["sha256_present"] is True
+    assert "no download" in update_plan["actions_not_performed"]
+    assert "no install" in update_plan["actions_not_performed"]
+    assert "no PATH mutation" in update_plan["actions_not_performed"]
+    assert "no remote execution" in update_plan["actions_not_performed"]
+    assert update_plan["remote_code_executed"] is False
+
+
+def test_v051_install_and_update_plans_are_dry_run_only() -> None:
+    _prepare_paths()
+    from yonerai_cli.install_planner import build_install_plan, build_update_plan
+
+    install_plan = build_install_plan(str(V051_MANIFEST))
+    update_plan = build_update_plan(str(V051_MANIFEST), current_version="0.5.0")
+
+    assert install_plan["ok"] is True
+    assert install_plan["manifest"]["version"] == "0.5.1"
+    assert install_plan["artifacts"][0]["filename_matches"] is True
+    assert install_plan["non_actions"]["no_download"] is True
+    assert install_plan["non_actions"]["no_path_mutation"] is True
+    assert install_plan["non_actions"]["no_remote_script_execution"] is True
+    assert install_plan["download_performed"] is False
+    assert install_plan["install_performed"] is False
+
+    assert update_plan["ok"] is True
+    assert update_plan["current_version"] == "0.5.0"
+    assert update_plan["target_version"] == "0.5.1"
+    assert update_plan["version_comparison"] == "target_newer"
+    assert update_plan["update_available"] is True
     assert update_plan["sha256_present"] is True
     assert "no download" in update_plan["actions_not_performed"]
     assert "no install" in update_plan["actions_not_performed"]
@@ -134,28 +198,36 @@ def test_manifest_rejects_unhashable_install_method_without_traceback() -> None:
 
 def test_yonerai_site_install_content_is_copyable_and_non_executing() -> None:
     install_page = (ROOT / "docs" / "site" / "yonerai.com" / "install.md").read_text(encoding="utf-8")
-    release_page = (ROOT / "docs" / "site" / "yonerai.com" / "releases" / "v0.5.0.md").read_text(
+    release_page = (ROOT / "docs" / "site" / "yonerai.com" / "releases" / "v0.5.1.md").read_text(
         encoding="utf-8"
     )
-    press_card = (ROOT / "docs" / "site" / "yonerai.com" / "press" / "v0.5.0-card.md").read_text(
+    press_card = (ROOT / "docs" / "site" / "yonerai.com" / "press" / "v0.5.1-card.md").read_text(
         encoding="utf-8"
     )
 
     for text in (install_page, release_page):
         lowered = text.lower()
-        assert "YonerAI-0.5.0.zip" in text
-        assert "yonerai manifest verify releases/manifest.v0.5.0.json --pretty" in text
-        assert "yonerai install plan --manifest releases/manifest.v0.5.0.json --pretty" in text
+        assert "YonerAI-0.5.1.zip" in text
+        assert "yonerai manifest verify releases/manifest.v0.5.1.json --pretty" in text
+        assert "yonerai install plan --manifest releases/manifest.v0.5.1.json --pretty" in text
         assert "irm ... | iex" in text
         assert "production signing keys" in lowered or "production signature" in lowered
 
-    assert "https://yonerai.com/releases/v0.5.0" in press_card
+    assert "https://yonerai.com/releases/v0.5.1" in press_card
     assert "Official Managed Cloud" in press_card
 
 
-def test_readmes_point_to_v050_manifest_and_license_policy() -> None:
+def test_readmes_point_to_v051_manifest_and_license_policy() -> None:
     for relative_path in ("README.md", "README_JP.md", "clients/cli/README.md"):
         text = (ROOT / relative_path).read_text(encoding="utf-8")
 
         assert "PolyForm Noncommercial" in text
-        assert "releases/manifest.v0.5.0.json" in text
+        assert "releases/manifest.v0.5.1.json" in text
+
+
+def test_release_archive_policy_is_hash_stable_for_manifest_recording() -> None:
+    attributes = (ROOT / ".gitattributes").read_text(encoding="utf-8")
+    release_script = (ROOT / "scripts" / "create_release.py").read_text(encoding="utf-8")
+
+    assert "releases/manifest.v*.json export-ignore" in attributes
+    assert "HEAD^{tree}" in release_script

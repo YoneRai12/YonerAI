@@ -1,0 +1,4 @@
+# Release-specific manifests record release asset digests. Excluding them from
+# generated source archives prevents the manifest hash from changing the archive
+# hash it records.
+releases/manifest.v*.json export-ignore

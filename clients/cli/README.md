@@ -19,12 +19,12 @@ execute remote installer scripts.
 ### If you downloaded the GitHub Release ZIP
 
 Download `Source code (zip)` from the
-[v0.5.0 release](https://github.com/YoneRai12/YonerAI/releases/tag/v0.5.0),
+[v0.5.1 release](https://github.com/YoneRai12/YonerAI/releases/tag/v0.5.1),
 extract it, then run PowerShell inside the extracted folder. The extracted
 folder name can vary; change the `cd` command to match the folder you see.
 
 ```powershell
-cd "$HOME\Downloads\YonerAI-0.5.0"
+cd "$HOME\Downloads\YonerAI-0.5.1"
 python --version
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
@@ -33,6 +33,19 @@ python -m pip install -r core/requirements.txt httpx
 python -m pip install -e clients/cli
 yonerai
 ```
+
+If the extracted archive or checkout contains `install-local.ps1`, you can use
+the plan-first local bootstrap helper:
+
+```powershell
+.\install-local.ps1
+.\install-local.ps1 -Execute -Launch
+```
+
+The first command prints the plan only. The second command explicitly creates
+or reuses `.venv`, installs the local CLI package, and launches YonerAI. It does
+not mutate PATH, run a remote script, request admin rights, install a service,
+or enable live providers.
 
 Use Python 3.11 or newer. If `python --version` does not work, install Python
 first or use the launcher command that exists on your machine.
@@ -78,9 +91,9 @@ yonerai start --guided --lang ja
 yonerai providers --pretty --lang ja
 yonerai ask "hello" --auto --pretty --lang ja
 yonerai chat --script --lang ja
-yonerai manifest verify releases/manifest.v0.5.0.json --pretty
-yonerai install plan --manifest releases/manifest.v0.5.0.json --pretty
-yonerai update plan --manifest releases/manifest.v0.5.0.json --pretty
+yonerai manifest verify releases/manifest.v0.5.1.json --pretty
+yonerai install plan --manifest releases/manifest.v0.5.1.json --pretty
+yonerai update plan --manifest releases/manifest.v0.5.1.json --pretty
 yonerai demo --pretty
 yonerai demo --json
 ```

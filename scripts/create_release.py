@@ -24,10 +24,11 @@ def create_release_zip(version):
     print(f"Creating release archive for version {version}...")
     
     try:
-        # Use git archive to create a clean zip of tracked files only
-        # This automatically excludes .env, .venv, logs, etc. if they are not tracked.
+        # Use the HEAD tree rather than the commit object so the generated ZIP
+        # does not embed a commit-id archive comment. This keeps a given tree
+        # reproducible across a release PR squash merge.
         subprocess.run(
-            ["git", "archive", "--format=zip", "--output", str(output_path), "HEAD"],
+            ["git", "archive", "--format=zip", "--output", str(output_path), "HEAD^{tree}"],
             check=True,
             cwd=str(repo_root)
         )

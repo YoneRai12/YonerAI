@@ -34,7 +34,7 @@ PowerShell で展開後のフォルダへ移動してから以下を実行しま
 よって違うので、`cd` は実際の展開先に合わせてください。
 
 ```powershell
-cd "$HOME\Downloads\YonerAI-0.5.0"
+cd "$HOME\Downloads\YonerAI-0.5.1"
 python --version
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
@@ -120,9 +120,9 @@ yonerai demo --pretty
 yonerai demo --json
 yonerai doctor --pretty --lang ja
 yonerai status --pretty --lang ja
-yonerai manifest verify releases/manifest.v0.5.0.json --pretty --lang ja
-yonerai install plan --manifest releases/manifest.v0.5.0.json --pretty --lang ja
-yonerai update plan --manifest releases/manifest.v0.5.0.json --pretty --lang ja
+yonerai manifest verify releases/manifest.v0.5.1.json --pretty --lang ja
+yonerai install plan --manifest releases/manifest.v0.5.1.json --pretty --lang ja
+yonerai update plan --manifest releases/manifest.v0.5.1.json --pretty --lang ja
 ```
 
 `yonerai quickstart` は `yonerai demo` の alias です。

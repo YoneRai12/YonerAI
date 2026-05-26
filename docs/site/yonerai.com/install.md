@@ -6,21 +6,21 @@ installer secrets.
 
 ## Page purpose
 
-Help users install and start the YonerAI CLI Local Runtime after the v0.5.0
+Help users install and start the YonerAI CLI Local Runtime after the v0.5.1
 release without presenting a remote-execution installer as ready.
 
 ## Primary copy
 
-YonerAI CLI Local Runtime v0.5.0 runs locally from a downloaded release ZIP or
+YonerAI CLI Local Runtime v0.5.1 runs locally from a downloaded release ZIP or
 from a repository checkout. It is stable for the local CLI runtime slice. It is
 not full YonerAI cloud production.
 
 ## Safe manual install
 
 ```powershell
-# 1. Download YonerAI-0.5.0.zip from the GitHub Release.
+# 1. Download YonerAI-0.5.1.zip from the GitHub Release.
 # 2. Extract the ZIP.
-cd "$HOME\Downloads\YonerAI-0.5.0"
+cd "$HOME\Downloads\YonerAI-0.5.1"
 python --version
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
@@ -60,9 +60,9 @@ admin rights, run `irm ... | iex`, or execute a remote installer. With
 ## Verify before planning
 
 ```powershell
-yonerai manifest verify releases/manifest.v0.5.0.json --pretty
-yonerai install plan --manifest releases/manifest.v0.5.0.json --pretty
-yonerai update plan --manifest releases/manifest.v0.5.0.json --pretty
+yonerai manifest verify releases/manifest.v0.5.1.json --pretty
+yonerai install plan --manifest releases/manifest.v0.5.1.json --pretty
+yonerai update plan --manifest releases/manifest.v0.5.1.json --pretty
 ```
 
 These commands read local files and print verification or dry-run plans. They
@@ -72,9 +72,9 @@ production control plane.
 
 ## Release links
 
-- GitHub Release: https://github.com/YoneRai12/YonerAI/releases/tag/v0.5.0
-- Release asset: https://github.com/YoneRai12/YonerAI/releases/download/v0.5.0/YonerAI-0.5.0.zip
-- Manifest source: `releases/manifest.v0.5.0.json`
+- GitHub Release: https://github.com/YoneRai12/YonerAI/releases/tag/v0.5.1
+- Release asset: https://github.com/YoneRai12/YonerAI/releases/download/v0.5.1/YonerAI-0.5.1.zip
+- Manifest source: `releases/manifest.v0.5.1.json`
 
 ## Warnings
 
