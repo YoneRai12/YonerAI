@@ -2,6 +2,29 @@
 
 This page is a public-safe index of current release notes and progress checkpoints.
 
+## v0.5.0 CLI Local Runtime
+
+- GitHub release target: `v0.5.0`.
+- Release title: `2026.05.26 - YonerAI CLI Local Runtime v0.5.0`.
+- Release date: `2026-05-26`.
+- Public release body: `docs/releases/0.5.0.md`
+- GitHub release lane: non-prerelease semantic release for the local CLI runtime
+  slice only. This is not full cloud production.
+- What users can try now: `yonerai`, `yonerai chat`, first-launch language
+  selection, Japanese-first settings/safety/provider/task/agent/run-history
+  views, English slash aliases, `yonerai ask ... --auto`, `yonerai providers`,
+  `yonerai doctor --lang ja`, and explicit local run ledger commands.
+- Capability slice: installable `yonerai` console entrypoint, Mission Control
+  header, task progress timeline, deterministic reviewer/subagent plan,
+  provider capability negotiation, loopback-only local LLM readiness, redacted
+  run history, and conservative safety controls.
+- Boundary: no production Oracle, no Official Managed Cloud runtime, no live
+  Discord, no deploy/public tunnel, no arbitrary shell/file/tool execution, no
+  default live provider calls, no production signing/trust store, and no
+  provider keys printed or stored.
+- Primary traceability range: `v0.4.0-alpha.1..v0.5.0`, PRs #447, #448, #449,
+  and release-prep PR #450.
+
 ## v0.4.0-alpha.1 Mission Control CLI Slice
 
 - GitHub pre-release target: `v0.4.0-alpha.1`.

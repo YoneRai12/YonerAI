@@ -2,6 +2,22 @@
 
 See also: `docs/RELEASE_NOTES.md` (curated summary, v5.0.0 -> current).
 
+## v0.5.0 (2026-05-26) - CLI Local Runtime
+- Promoted the local CLI runtime slice to the first non-prerelease semantic
+  release for `yonerai` install-and-run usage.
+- Validated that an installed `yonerai` console script starts the interactive
+  CLI from a clean virtual environment.
+- Added v0.5 Mission Control commands for task view, Local LLM setup guidance,
+  live-provider mode, and network mode while preserving Japanese-first output
+  and English aliases.
+- Added provider capability negotiation and subagent fallback visibility.
+- Fixed post-v0.4 review debt in task progress display and image context
+  selection.
+- Preserved boundaries: no production Oracle, no Official Managed Cloud runtime,
+  no live Discord, no deploy/public tunnel, no arbitrary shell/file/tool
+  execution, no default live provider calls, no provider key output/storage, and
+  no production installer/signing/trust store.
+
 ## v0.4.0-alpha.1 (2026-05-26) - Mission Control CLI Slice
 - Added Mission Control status to `yonerai` and `yonerai chat`: provider, route,
   local node, ledger, safety, live-provider state, run_id, progress, and plan.
