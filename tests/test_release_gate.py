@@ -86,6 +86,7 @@ def test_release_gate_accepts_versioned_manifest_and_matching_asset(tmp_path: Pa
         ("1.2.3+build.1", "false"),
         ("1.2.3-alpha.1+build.2", "true"),
         ("2026.5.27", "false"),
+        ("2026.05.27", "false"),
     ),
 )
 def test_release_gate_accepts_supported_semver_forms(tmp_path: Path, version: str, github_prerelease: str) -> None:
