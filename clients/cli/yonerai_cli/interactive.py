@@ -841,7 +841,7 @@ def _format_runs(report: dict[str, Any], *, lang: str) -> str:
         if isinstance(run, dict):
             route = _run_route(run)
             provider = _run_provider(run)
-            event_count = len(run.get("events") or []) if isinstance(run.get("events"), list) else 0
+            event_count = len(_run_progress_events(run))
             if lang == "ja":
                 lines.append(
                     f"  実行ID（run_id）={run.get('run_id')}: {_run_status_label(run.get('status'), lang='ja')} "
