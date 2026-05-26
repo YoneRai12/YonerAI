@@ -8,6 +8,8 @@ import shutil
 import subprocess
 import sys
 import tomllib
+
+import pytest
 from pathlib import Path
 from typing import Any
 
@@ -65,7 +67,7 @@ def _venv_purelib(python_bin: Path) -> Path:
     return Path(result.stdout.strip())
 
 
-def _ensure_no_network_build_backend(python_bin: Path) -> None:
+def _ensure_no_network_build_backend(python_bin: Path, tmp_path: Path) -> bool:
     check = subprocess.run(
         [str(python_bin), "-c", "import setuptools.build_meta"],
         check=False,
@@ -75,11 +77,11 @@ def _ensure_no_network_build_backend(python_bin: Path) -> None:
         encoding="utf-8",
     )
     if check.returncode == 0:
-        return
+        return True
 
     spec = importlib.util.find_spec("setuptools")
     if spec is None or spec.origin is None:
-        raise AssertionError("host test environment lacks setuptools build backend")
+        return False
 
     host_site = Path(spec.origin).resolve().parent.parent
     target_site = _venv_purelib(python_bin)
@@ -101,7 +103,12 @@ def _ensure_no_network_build_backend(python_bin: Path) -> None:
         text=True,
         encoding="utf-8",
     )
-    assert verify.returncode == 0, f"setuptools build backend seed failed:\n{verify.stderr}"
+    assert verify.returncode == 0, (
+        "setuptools build backend seed failed:\n"
+        f"STDOUT:\n{_redact_test_path(verify.stdout, tmp_path)}\n"
+        f"STDERR:\n{_redact_test_path(verify.stderr, tmp_path)}"
+    )
+    return True
 
 
 def test_cli_config_show_and_set_do_not_print_paths_or_store_secrets(tmp_path: Path, monkeypatch, capsys) -> None:
@@ -179,7 +186,8 @@ def test_install_like_entry_point_starts_yonerai(tmp_path: Path) -> None:
     scripts_dir = "Scripts" if os.name == "nt" else "bin"
     python_bin = venv_dir / scripts_dir / ("python.exe" if os.name == "nt" else "python")
     yonerai_bin = venv_dir / scripts_dir / ("yonerai.exe" if os.name == "nt" else "yonerai")
-    _ensure_no_network_build_backend(python_bin)
+    if not _ensure_no_network_build_backend(python_bin, tmp_path):
+        pytest.skip("setuptools build backend is unavailable in both test host and fresh venv")
 
     env = {
         **os.environ,
