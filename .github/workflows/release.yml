@@ -70,6 +70,13 @@ jobs:
           VERSION=$(cat VERSION | tr -d '[:space:]')
           python scripts/create_release.py "$VERSION"
 
+      - name: Run Release Gate
+        run: |
+          python scripts/release_gate.py \
+            --tag "${GITHUB_REF_NAME}" \
+            --artifact "${PRODUCT_NAME}-${ORA_VERSION}.zip" \
+            --github-prerelease "${ORA_PRERELEASE}"
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:

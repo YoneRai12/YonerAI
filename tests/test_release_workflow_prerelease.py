@@ -23,3 +23,8 @@ def test_release_workflow_keeps_release_notes_and_version_guards() -> None:
     assert "name: ${{ env.RELEASE_TITLE }}" in workflow
     assert "body_path: docs/releases/${{ env.ORA_VERSION }}.md" in workflow
     assert "generate_release_notes: false" in workflow
+    assert "Run Release Gate" in workflow
+    assert 'python scripts/release_gate.py \\' in workflow
+    assert '--tag "${GITHUB_REF_NAME}"' in workflow
+    assert '--artifact "${PRODUCT_NAME}-${ORA_VERSION}.zip"' in workflow
+    assert '--github-prerelease "${ORA_PRERELEASE}"' in workflow

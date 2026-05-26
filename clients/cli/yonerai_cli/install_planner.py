@@ -357,15 +357,31 @@ def _version_from_manifest_filename(path: Path) -> str | None:
 
 def _display_manifest_path(path: str) -> str:
     normalized = Path(path)
+    resolved = normalized.resolve()
+    cwd = Path.cwd().resolve()
     try:
-        relative = normalized.resolve().relative_to(Path.cwd().resolve())
+        relative = resolved.relative_to(cwd)
         return relative.as_posix()
     except Exception:
+        repo_root = _source_repo_root()
+        if repo_root is not None:
+            try:
+                resolved.relative_to(repo_root)
+                return Path(os.path.relpath(resolved, cwd)).as_posix()
+            except Exception:
+                pass
+        return normalized.name or "<local-manifest>"
+
+
+def _source_repo_root() -> Path | None:
+    candidates = [Path(__file__).resolve().parents[3], Path.cwd().resolve()]
+    for candidate in candidates:
         try:
-            relative = os.path.relpath(normalized.resolve(), Path.cwd().resolve())
-            return Path(relative).as_posix()
+            if (candidate / "releases").is_dir() and (candidate / "VERSION").is_file():
+                return candidate
         except Exception:
-            return normalized.name or "<local-manifest>"
+            continue
+    return None
 
 
 def _quote_cli_path(path: str) -> str:

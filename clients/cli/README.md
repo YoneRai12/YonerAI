@@ -241,6 +241,9 @@ yonerai start --guided --lang ja
 yonerai start --guided --json
 yonerai providers --pretty --lang ja
 yonerai providers --json
+yonerai auth status --pretty --lang ja
+yonerai auth google login --dry-run --pretty --lang ja
+yonerai privacy status --pretty --lang ja
 yonerai health
 yonerai smoke --pretty
 yonerai doctor
@@ -273,6 +276,12 @@ yonerai install plan-windows --json
 yonerai message --mode mock "hello"
 yonerai run --mode mock "hello"
 ```
+
+`yonerai auth google login --dry-run` is a contract preview only. It checks the
+loopback-only PKCE/state requirements and never starts live OAuth, opens a
+browser, prints tokens, or stores refresh tokens. `yonerai privacy status`
+shows OpenAI shared traffic as disabled by default and confirms private/local
+file/memory/local-node content is excluded from any future shared-traffic lane.
 
 Without installing, run from `clients/cli`:
 

@@ -98,6 +98,10 @@ For delivery goals where the user explicitly authorizes PR work, use this loop f
 6. Rerun validation after fixes.
 7. Merge only when checks pass and no material review remains.
 
+The branch-protection check list lives in `docs/process/REQUIRED_CHECKS.md`.
+Treat those checks as mandatory for PRs into `main`; do not bypass them for
+routine Codex, Gemini, Dependabot, or human-authored changes.
+
 Priority definitions:
 
 - P0: critical security/correctness issue; must block merge.
