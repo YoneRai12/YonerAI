@@ -252,9 +252,27 @@ class FileRunLedger(InMemoryRunLedger):
                 self._runs[run.run_id] = run
 
     def _persist(self) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         payload = "\n".join(json.dumps(run.to_public_dict(), ensure_ascii=False, sort_keys=True) for run in self.list_runs(limit=1000))
-        self.path.write_text(payload + ("\n" if payload else ""), encoding="utf-8")
+        _write_private_text(self.path, payload + ("\n" if payload else ""))
+
+
+def _write_private_text(path: Path, text: str) -> None:
+    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
+    opener_flags = flags | getattr(os, "O_NOFOLLOW", 0)
+    fd = os.open(path, opener_flags, 0o600)
+    try:
+        if hasattr(os, "fchmod"):
+            try:
+                os.fchmod(fd, 0o600)
+            except OSError:
+                pass
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            fd = -1
+            handle.write(text)
+    finally:
+        if fd != -1:
+            os.close(fd)
 
 
 def build_run_ledger_from_env(path: str | None = None) -> RunLedger:
