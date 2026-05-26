@@ -290,7 +290,25 @@ def test_update_check_quotes_spaced_manifest_path_in_next_safe_command(tmp_path,
     report = build_update_check(str(manifest_path), current_version=_current_version())
 
     assert report["manifest"] == "My Releases/manifest.json"
-    assert report["next_safe_command"] == 'yonerai update plan --manifest "My Releases/manifest.json" --pretty'
+    assert report["next_safe_command"] == "yonerai update plan --manifest 'My Releases/manifest.json' --pretty"
+    assert str(tmp_path) not in json.dumps(report)
+
+
+def test_update_check_shell_quotes_metacharacters_in_manifest_path(tmp_path, monkeypatch) -> None:
+    _prepare_paths()
+    from yonerai_cli.install_planner import build_update_check
+
+    manifest_dir = tmp_path / "poc;$(echo hacked)>out"
+    manifest_dir.mkdir()
+    manifest = _example_manifest()
+    _set_manifest_version(manifest, _current_version())
+    manifest_path = _write_manifest(manifest_dir, manifest)
+    monkeypatch.chdir(tmp_path)
+
+    report = build_update_check(str(manifest_path), current_version=_current_version())
+
+    assert report["manifest"] == "poc;$(echo hacked)>out/manifest.json"
+    assert report["next_safe_command"] == "yonerai update plan --manifest 'poc;$(echo hacked)>out/manifest.json' --pretty"
     assert str(tmp_path) not in json.dumps(report)
 
 

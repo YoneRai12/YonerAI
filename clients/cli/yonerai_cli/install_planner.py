@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import re
+import shlex
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -385,9 +386,9 @@ def _source_repo_root() -> Path | None:
 
 
 def _quote_cli_path(path: str) -> str:
-    if not path or re.search(r"\s", path) is None:
-        return path
-    return '"' + path.replace('"', '\\"') + '"'
+    if not path:
+        return "''"
+    return shlex.quote(path)
 
 
 __all__ = [
