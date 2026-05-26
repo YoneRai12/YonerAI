@@ -184,6 +184,8 @@ def run_interactive_cli(
         else:
             line = input_stream.readline()
         if line == "":
+            if use_tui_prompt:
+                continue
             _write(output_stream, _bye(lang))
             return 0
         text = line.strip()

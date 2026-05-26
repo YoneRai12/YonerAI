@@ -480,6 +480,39 @@ def test_first_launch_language_selection_persists_choice(tmp_path: Path) -> None
     assert json.loads(config_path.read_text(encoding="utf-8"))["language"] == "en"
 
 
+def test_tui_empty_prompt_does_not_exit_session(tmp_path: Path, monkeypatch) -> None:
+    import yonerai_cli.interactive as interactive_module
+    from yonerai_cli.interactive import InteractiveCallbacks, InteractiveOptions, run_interactive_cli
+
+    prompts = iter(["", "/quit"])
+
+    def providers() -> dict[str, Any]:
+        return {"providers": []}
+
+    def ask_auto(*_args: Any) -> dict[str, Any]:
+        raise AssertionError("empty prompt must not run ask")
+
+    def runs_list(*_args: Any) -> dict[str, Any]:
+        return {"runs": []}
+
+    def runs_show(*_args: Any) -> dict[str, Any]:
+        return {"ok": False}
+
+    monkeypatch.setattr(interactive_module, "_can_use_prompt_toolkit", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(interactive_module, "prompt_line", lambda **_kwargs: next(prompts))
+
+    stdout = _TTYStringIO()
+    rc = run_interactive_cli(
+        InteractiveOptions(config_path=str(tmp_path / "cli-config.json"), lang="en"),
+        InteractiveCallbacks(providers=providers, ask_auto=ask_auto, runs_list=runs_list, runs_show=runs_show),
+        stdin=_TTYStringIO(""),
+        stdout=stdout,
+    )
+
+    assert rc == 0
+    assert "Goodbye" in stdout.getvalue()
+
+
 def test_chat_agents_and_run_show_explain_mission_control_state(tmp_path: Path, monkeypatch, capsys) -> None:
     from yonerai_cli import cli
 
