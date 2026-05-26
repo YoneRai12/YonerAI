@@ -9,7 +9,15 @@ from pathlib import Path
 from typing import Any
 
 
-VERSION_RE = re.compile(r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-(alpha|beta|rc)\.(0|[1-9][0-9]*))?$")
+SEMVER_RE = re.compile(
+    r"^(?:0|[1-9]\d*)\."
+    r"(?:0|[1-9]\d*)\."
+    r"(?:0|[1-9]\d*)"
+    r"(?:-(?:0|[1-9]\d*|(?=[0-9A-Za-z-]*[A-Za-z-])[0-9A-Za-z-]+)"
+    r"(?:\.(?:0|[1-9]\d*|(?=[0-9A-Za-z-]*[A-Za-z-])[0-9A-Za-z-]+))*)?"
+    r"(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$"
+)
+DATEVER_RE = re.compile(r"^\d{4}\.(?:0?[1-9]|1[0-2])\.(?:0?[1-9]|[12]\d|3[01])$")
 SHA256_RE = re.compile(r"^[a-f0-9]{64}$")
 BLOCKER_RE = re.compile(r"\b(UNRESOLVED_P0|UNRESOLVED_P1|SECURITY_BLOCKER|RELEASE_BLOCKER)\b", re.IGNORECASE)
 MUTABLE_ARTIFACT_RE = re.compile(r"(latest|main|source)\.zip$", re.IGNORECASE)
@@ -59,7 +67,7 @@ def validate_release_gate(
     actual_tag = tag or expected_tag
     if actual_tag != expected_tag:
         errors.append(f"VERSION/tag mismatch: VERSION={version} tag={actual_tag}")
-    if VERSION_RE.fullmatch(version) is None:
+    if not _is_supported_version(version):
         errors.append(f"VERSION is not supported by release gate: {version}")
 
     release_note = repo_root / "docs" / "releases" / f"{version}.md"
@@ -113,7 +121,8 @@ def _validate_release_note(path: Path, errors: list[str]) -> None:
             "npm/winget ready",
         )
         for phrase in positive_overclaims:
-            if phrase in lower and not lower.lstrip().startswith(("- no ", "- not ", "no ", "not ")):
+            normalized_claim = lower.lstrip("-*+ \t")
+            if phrase in lower and not normalized_claim.startswith(("no ", "not ")):
                 errors.append(f"release note overclaims '{phrase}' at {path.name}:{index}")
 
 
@@ -178,7 +187,7 @@ def _validate_artifact(
     if not artifact_path.exists():
         errors.append(f"release asset missing: {artifact_path}")
         return
-    digest = hashlib.sha256(artifact_path.read_bytes()).hexdigest()
+    digest = _sha256_file(artifact_path)
     size = artifact_path.stat().st_size
     if manifest is None:
         return
@@ -209,7 +218,19 @@ def _expected_artifact_name(product: str, version: str, kind: str, target: str) 
 
 
 def _is_prerelease(version: str) -> bool:
-    return bool(re.search(r"-(alpha|beta|rc)\.", version))
+    return "-" in version.split("+", 1)[0]
+
+
+def _is_supported_version(version: str) -> bool:
+    return bool(SEMVER_RE.fullmatch(version) or DATEVER_RE.fullmatch(version))
+
+
+def _sha256_file(path: Path) -> str:
+    sha256_hash = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(65536), b""):
+            sha256_hash.update(chunk)
+    return sha256_hash.hexdigest()
 
 
 if __name__ == "__main__":

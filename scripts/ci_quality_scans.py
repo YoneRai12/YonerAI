@@ -106,28 +106,21 @@ def _changed_files(repo_root: Path) -> list[Path]:
         ("git", "diff", "--name-only", "--diff-filter=ACMRT"),
     )
     for command in refs:
-        result = subprocess.run(command, cwd=repo_root, check=False, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+        result = _run_git(command, repo_root)
         if result.returncode == 0 and result.stdout.strip():
             return _with_untracked(repo_root, [Path(line.strip()) for line in result.stdout.splitlines() if line.strip()])
     return _tracked_files(repo_root)
 
 
 def _tracked_files(repo_root: Path) -> list[Path]:
-    result = subprocess.run(("git", "ls-files"), cwd=repo_root, check=False, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+    result = _run_git(("git", "ls-files"), repo_root)
     if result.returncode != 0:
         return []
     return [Path(line.strip()) for line in result.stdout.splitlines() if line.strip()]
 
 
 def _with_untracked(repo_root: Path, paths: list[Path]) -> list[Path]:
-    result = subprocess.run(
-        ("git", "ls-files", "--others", "--exclude-standard"),
-        cwd=repo_root,
-        check=False,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
-        text=True,
-    )
+    result = _run_git(("git", "ls-files", "--others", "--exclude-standard"), repo_root)
     if result.returncode != 0:
         return paths
     combined = {path.as_posix(): path for path in paths}
@@ -146,9 +139,23 @@ def _should_scan(path: Path) -> bool:
 
 
 def _is_allowed_local_path_fixture(rel: str, line: str) -> bool:
-    if rel.startswith("tests/") and ("C:\\Users" in line or "/Users/" in line):
+    if rel.startswith("tests/") and any(path in line for path in ("C:\\Users", "/Users/", "/home/", "/root/")):
         return True
     return "LOCAL_PATH_PATTERNS" in line or "PRIVATE_MARKERS" in line
+
+
+def _run_git(command: tuple[str, ...], repo_root: Path) -> subprocess.CompletedProcess[str]:
+    try:
+        return subprocess.run(
+            command,
+            cwd=repo_root,
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+        )
+    except OSError:
+        return subprocess.CompletedProcess(command, returncode=127, stdout="", stderr="")
 
 
 def _is_allowed_mojibake_fixture(rel: str, line: str) -> bool:

@@ -260,11 +260,13 @@ jobs:
             scripts/ci_quality_scans.py \
             scripts/release_gate.py \
             tests/test_auth_privacy_policy.py \
-            tests/test_release_gate.py
+            tests/test_release_gate.py \
+            tests/test_ci_quality_scans.py
           python -m compileall clients/cli/yonerai_cli core/src/ora_core scripts
       - name: Run security boundary tests
         run: |
           python -m pytest \
+            tests/test_ci_quality_scans.py \
             tests/test_core_api_access_security.py \
             tests/test_cloudflare_auth_security.py \
             tests/test_web_auth_loopback_security.py \

@@ -5,6 +5,8 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -77,6 +79,28 @@ def test_release_gate_accepts_versioned_manifest_and_matching_asset(tmp_path: Pa
     assert errors == []
 
 
+@pytest.mark.parametrize(
+    ("version", "github_prerelease"),
+    (
+        ("1.2.3-alpha", "true"),
+        ("1.2.3+build.1", "false"),
+        ("1.2.3-alpha.1+build.2", "true"),
+        ("2026.5.27", "false"),
+    ),
+)
+def test_release_gate_accepts_supported_semver_forms(tmp_path: Path, version: str, github_prerelease: str) -> None:
+    repo = _write_release_fixture(tmp_path, version=version)
+
+    errors = validate_release_gate(
+        repo_root=repo,
+        tag=f"v{version}",
+        artifact=repo / f"YonerAI-{version}.zip",
+        github_prerelease=github_prerelease,
+    )
+
+    assert errors == []
+
+
 def test_release_gate_blocks_tag_version_mismatch(tmp_path: Path) -> None:
     repo = _write_release_fixture(tmp_path)
 
@@ -139,3 +163,19 @@ def test_release_gate_blocks_positive_production_overclaim(tmp_path: Path) -> No
     errors = validate_release_gate(repo_root=repo, tag="v1.2.3-alpha.1", github_prerelease="true")
 
     assert any("overclaims production readiness" in error for error in errors)
+
+
+def test_release_gate_allows_markdown_list_negative_nonclaims(tmp_path: Path) -> None:
+    repo = _write_release_fixture(
+        tmp_path,
+        note=(
+            "# Release\n\n"
+            "* not official cloud complete\n"
+            "+ no npm/winget ready\n"
+            "- not full hybrid complete\n"
+        ),
+    )
+
+    errors = validate_release_gate(repo_root=repo, tag="v1.2.3-alpha.1", github_prerelease="true")
+
+    assert errors == []
