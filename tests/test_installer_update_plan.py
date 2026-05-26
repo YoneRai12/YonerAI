@@ -269,6 +269,8 @@ def test_cli_update_check_json_is_stable_network_free_and_path_safe(tmp_path, mo
     assert output["network_required"] is False
     assert "no download" in output["actions_not_performed"]
     assert "no install" in output["actions_not_performed"]
+    assert output["manifest"] == "manifest.json"
+    assert output["next_safe_command"] == "yonerai update plan --manifest manifest.json --pretty"
     assert str(tmp_path) not in raw
     assert str(ROOT) not in raw
     assert ("C:" + "\\Users") not in raw

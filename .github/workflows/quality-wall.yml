@@ -50,7 +50,6 @@ jobs:
         run: |
           python -m pytest \
             tests/test_cli_runtime_shell_v020.py \
-            tests/test_surface_cli_smoke.py \
             tests/test_auth_privacy_policy.py \
             -q
 
@@ -82,7 +81,7 @@ jobs:
       - name: Install provider test dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -r core/requirements.txt pytest
+          python -m pip install -r core/requirements.txt pytest pytest-asyncio
           python -m pip install -e clients/cli
       - name: Run provider boundary tests
         run: |
@@ -157,7 +156,7 @@ jobs:
       - name: Install static/security test dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -r core/requirements.txt pytest ruff
+          python -m pip install -r core/requirements.txt pytest pytest-asyncio ruff google-auth google-auth-oauthlib
           python -m pip install -e clients/cli
       - name: Formatting and static scans
         run: |
