@@ -143,6 +143,7 @@ For v0.5.1, users can run:
 ```powershell
 yonerai manifest verify releases/manifest.v0.5.1.json --pretty
 yonerai install plan --manifest releases/manifest.v0.5.1.json --pretty
+yonerai update check --manifest releases/manifest.v0.5.1.json --pretty
 yonerai update plan --manifest releases/manifest.v0.5.1.json --pretty
 ```
 
@@ -177,7 +178,8 @@ Until that lane exists, public manifests must clearly report
 6. Add public alpha signed-manifest verification against an explicit
    non-production/test trust fixture only. Done for local test-fixture
    verification.
-7. Add `yonerai update plan` and manifest-to-release-asset consistency checks
+7. Add `yonerai update check`, `yonerai update plan`, and
+   manifest-to-release-asset consistency checks
    without live network use by default. Done for local-manifest update planning;
    manifest-to-release-asset consistency checks remain a separate public task.
 8. Add a PowerShell local bootstrap helper only after local verification,
@@ -185,24 +187,29 @@ Until that lane exists, public manifests must clearly report
    `install-local.ps1`: plan-first by default, explicit `-Execute` for local
    `.venv` setup, no PATH mutation, no remote script execution, no service
    install, and no admin request.
-9. Future private/official lane: connect release workflow to a signing service,
+9. Add a root `install.ps1` one-command installer skeleton. Done for v0.6 TUI
+   runtime preparation: dry-run only, no remote execution, no PATH mutation, and
+   points back to `install-local.ps1` for explicit local bootstrap.
+10. Future private/official lane: connect release workflow to a signing service,
    publish a signed manifest artifact, define production trust/key rotation, and
    verify signatures against the official trust source.
-10. Future private/official lane: add npm and winget bootstrap entry points that
+11. Future private/official lane: add npm and winget bootstrap entry points that
     read the same manifest.
 
 ## Next safe milestone
 
 The dry-run Windows installer planner and release artifact naming validation now
 exist, `yonerai install plan` consumes a local manifest without installing
-anything, `yonerai update plan` compares local `VERSION` with a local manifest
-without mutating the machine, `yonerai manifest verify` can verify signed test
-manifests against an explicit non-production trust fixture, and
-`install-local.ps1` gives extracted archives/checkouts a plan-first local
-bootstrap path. The next safe milestone is manifest-to-release-asset consistency
-checks. These steps must avoid remote code execution, PATH mutation,
-auto-download, npm publishing, winget publishing, production signing key
-generation, and production trust store creation.
+anything, `yonerai update check` gives a quick non-mutating update notice,
+`yonerai update plan` compares local `VERSION` with a local manifest without
+mutating the machine, `yonerai manifest verify` can verify signed test
+manifests against an explicit non-production trust fixture, `install-local.ps1`
+gives extracted archives/checkouts a plan-first local bootstrap path, and
+`install.ps1` is a dry-run-only future one-command installer skeleton. The next
+safe milestone is manifest-to-release-asset consistency checks. These steps must
+avoid remote code execution, PATH mutation, auto-download, npm publishing,
+winget publishing, production signing key generation, and production trust store
+creation.
 
 ## Issue tracking state
 
@@ -224,6 +231,9 @@ Completed or substantially completed:
 - Windows dry-run planning foundation: PR #320, `yonerai install plan-windows`.
 - Local install dry-run planning: PR #336, `yonerai install plan`.
 - Local update dry-run planning: PR #341, `yonerai update plan`.
+- Local update quick check: this v0.6 TUI runtime branch, `yonerai update check`.
+- PowerShell future installer skeleton: this v0.6 TUI runtime branch,
+  `install.ps1` dry-run only.
 - Local non-production/test signed manifest verification:
   `yonerai manifest verify <path> --test-trust-fixture <fixture>`.
 - Release artifact naming validation foundation: PR #326.

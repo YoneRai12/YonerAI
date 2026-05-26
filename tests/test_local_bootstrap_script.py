@@ -8,6 +8,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 BOOTSTRAP = ROOT / "install-local.ps1"
+INSTALL_SKELETON = ROOT / "install.ps1"
 
 
 def test_local_bootstrap_script_is_plan_first_and_non_remote_execution() -> None:
@@ -18,6 +19,21 @@ def test_local_bootstrap_script_is_plan_first_and_non_remote_execution() -> None
     assert "[switch]$Launch" in script
     assert "Plan only. Nothing was installed." in script
     assert "remote script execution, PATH mutation, registry change, service install, admin request" in script
+    assert "Invoke-Expression" not in script
+    assert re.search(r"\biex\b", script, flags=re.IGNORECASE) is None
+    assert "Invoke-WebRequest" not in script
+    assert re.search(r"\biwr\b", script, flags=re.IGNORECASE) is None
+    assert re.search(r"\birm\b", script, flags=re.IGNORECASE) is None
+    assert "SetEnvironmentVariable" not in script
+    assert re.search(r"\bsetx\b", script, flags=re.IGNORECASE) is None
+
+
+def test_install_skeleton_is_dry_run_only_and_non_remote_execution() -> None:
+    script = INSTALL_SKELETON.read_text(encoding="utf-8")
+
+    assert "Installer skeleton" in script
+    assert "Plan only. Nothing was installed." in script
+    assert "install-local.ps1 -Execute -Launch" in script
     assert "Invoke-Expression" not in script
     assert re.search(r"\biex\b", script, flags=re.IGNORECASE) is None
     assert "Invoke-WebRequest" not in script
@@ -125,9 +141,35 @@ def test_local_bootstrap_plan_mode_does_not_install_when_powershell_available() 
         timeout=30,
     )
 
-    assert result.returncode == 0, result.stderr
+    assert result.returncode == 0, _subprocess_failure(result)
     assert "Plan only. Nothing was installed." in result.stdout
     assert ".\\install-local.ps1 -Execute" in result.stdout
+    assert "PATH mutation" in result.stdout
+
+
+def test_install_skeleton_plan_mode_does_not_install_when_powershell_available() -> None:
+    powershell = _powershell_executable()
+    if powershell is None:
+        return
+
+    result = subprocess.run(
+        [
+            str(powershell),
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            str(INSTALL_SKELETON),
+        ],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        timeout=30,
+    )
+
+    assert result.returncode == 0, _subprocess_failure(result)
+    assert "Plan only. Nothing was installed." in result.stdout
+    assert ".\\install-local.ps1" in result.stdout
     assert "PATH mutation" in result.stdout
 
 
@@ -145,3 +187,9 @@ def _which(command: str) -> Path | None:
 
     found = which(command)
     return Path(found) if found else None
+
+
+def _subprocess_failure(result: subprocess.CompletedProcess[str]) -> str:
+    stdout = result.stdout.replace(str(ROOT), "<tmp>")
+    stderr = result.stderr.replace(str(ROOT), "<tmp>")
+    return f"Subprocess failed.\nSTDOUT:\n{stdout}\nSTDERR:\n{stderr}"

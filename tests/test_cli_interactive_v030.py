@@ -480,6 +480,39 @@ def test_first_launch_language_selection_persists_choice(tmp_path: Path) -> None
     assert json.loads(config_path.read_text(encoding="utf-8"))["language"] == "en"
 
 
+def test_tui_empty_prompt_does_not_exit_session(tmp_path: Path, monkeypatch) -> None:
+    import yonerai_cli.interactive as interactive_module
+    from yonerai_cli.interactive import InteractiveCallbacks, InteractiveOptions, run_interactive_cli
+
+    prompts = iter(["", "/quit"])
+
+    def providers() -> dict[str, Any]:
+        return {"providers": []}
+
+    def ask_auto(*_args: Any) -> dict[str, Any]:
+        raise AssertionError("empty prompt must not run ask")
+
+    def runs_list(*_args: Any) -> dict[str, Any]:
+        return {"runs": []}
+
+    def runs_show(*_args: Any) -> dict[str, Any]:
+        return {"ok": False}
+
+    monkeypatch.setattr(interactive_module, "_can_use_prompt_toolkit", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(interactive_module, "prompt_line", lambda **_kwargs: next(prompts))
+
+    stdout = _TTYStringIO()
+    rc = run_interactive_cli(
+        InteractiveOptions(config_path=str(tmp_path / "cli-config.json"), lang="en"),
+        InteractiveCallbacks(providers=providers, ask_auto=ask_auto, runs_list=runs_list, runs_show=runs_show),
+        stdin=_TTYStringIO(""),
+        stdout=stdout,
+    )
+
+    assert rc == 0
+    assert "Goodbye" in stdout.getvalue()
+
+
 def test_chat_agents_and_run_show_explain_mission_control_state(tmp_path: Path, monkeypatch, capsys) -> None:
     from yonerai_cli import cli
 
@@ -573,3 +606,101 @@ def test_format_runs_escapes_control_sequences() -> None:
     assert "\\x07" in rendered
     assert "\x1b" not in rendered
     assert "\x07" not in rendered
+
+
+def test_slash_command_summary_is_japanese_first() -> None:
+    from yonerai_cli.tui import slash_command_summary, slash_command_words, tui_capability_report
+
+    words = slash_command_words("ja")
+    summary = slash_command_summary("ja")
+    report = tui_capability_report()
+
+    assert words[:9] == ["/設定", "/settings", "/モデル", "/models", "/model", "/local-llm", "/提供元", "/providers", "/安全"]
+    assert "/設定" in summary
+    assert "/モデル" in summary
+    assert "/更新" in summary
+    assert "/settings" not in summary
+    assert report["plain_fallback"] is True
+    assert report["json_ansi_output"] is False
+
+
+def test_chat_models_and_update_commands_are_usable(tmp_path: Path, monkeypatch, capsys) -> None:
+    from yonerai_cli import cli
+
+    _clear_provider_env(monkeypatch)
+    config_path = tmp_path / "cli-config.json"
+    monkeypatch.setattr(
+        sys,
+        "stdin",
+        _PlainStringIO("/\n/モデル\n/モデル llama3.1\n/更新 releases/manifest.example.json\n/終了\n"),
+    )
+
+    assert cli.main(["chat", "--script", "--lang", "ja", "--config-path", str(config_path), "--color", "never"]) == 0
+
+    output = capsys.readouterr().out
+    stored = json.loads(config_path.read_text(encoding="utf-8"))
+    assert "候補" in output
+    assert "/設定" in output
+    assert "/settings" not in output
+    assert "モデル（AIモデル）" in output
+    assert "ローカルLLM（PC内モデル）" in output
+    assert "設定を変更しました: モデル（AIモデル）=llama3.1" in output
+    assert "更新確認" in output
+    assert "実行しなかったこと" in output
+    assert "no download" in output
+    assert stored["model_preference"] == "llama3.1"
+    assert str(tmp_path) not in output
+    assert "\033[" not in output
+
+
+def test_chat_update_command_handles_missing_manifest_without_crashing(tmp_path: Path, monkeypatch, capsys) -> None:
+    from yonerai_cli import cli
+
+    _clear_provider_env(monkeypatch)
+    missing_manifest = tmp_path / "missing-manifest.json"
+    monkeypatch.setattr(sys, "stdin", _PlainStringIO(f"/更新 {missing_manifest}\n/終了\n"))
+
+    assert cli.main(["chat", "--script", "--lang", "ja", "--color", "never"]) == 0
+
+    output = capsys.readouterr().out
+    assert "更新確認に失敗しました" in output
+    assert "Traceback" not in output
+    assert str(tmp_path) not in output
+
+
+def test_chat_update_command_accepts_spaced_manifest_path(tmp_path: Path, monkeypatch, capsys) -> None:
+    from yonerai_cli import cli
+
+    _clear_provider_env(monkeypatch)
+    manifest_dir = tmp_path / "My Releases"
+    manifest_dir.mkdir()
+    source = REPO_ROOT / "releases" / "manifest.example.json"
+    manifest_path = manifest_dir / "manifest.json"
+    manifest_path.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(sys, "stdin", _PlainStringIO("/更新 My Releases/manifest.json\n/終了\n"))
+
+    assert cli.main(["chat", "--script", "--lang", "ja", "--color", "never"]) == 0
+
+    output = capsys.readouterr().out
+    assert "更新確認" in output
+    assert "no download" in output
+    assert "Traceback" not in output
+    assert str(tmp_path) not in output
+
+
+def test_config_set_model_is_supported_and_rejects_url_values(tmp_path: Path, monkeypatch, capsys) -> None:
+    from yonerai_cli import cli
+
+    config_path = tmp_path / "cli-config.json"
+    monkeypatch.setenv("YONERAI_CLI_CONFIG_PATH", str(config_path))
+
+    assert cli.main(["config", "set", "model", "llama3.1", "--json"]) == 0
+    output = json.loads(capsys.readouterr().out)
+    assert output["config"]["model_preference"] == "llama3.1"
+    assert str(tmp_path) not in json.dumps(output)
+
+    assert cli.main(["config", "set", "model", "http://127.0.0.1:11434", "--json"]) == 2
+    captured = capsys.readouterr()
+    assert "model must be auto or a simple provider model id" in captured.err
+    assert "Traceback" not in captured.err

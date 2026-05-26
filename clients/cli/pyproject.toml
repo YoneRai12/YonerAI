@@ -1,6 +1,6 @@
 [project]
 name = "yonerai-cli"
-version = "0.5.1"
+version = "0.6.0a1"
 description = "YonerAI local CLI runtime"
 requires-python = ">=3.11"
 license = { text = "PolyForm-Noncommercial-1.0.0" }
@@ -11,6 +11,8 @@ classifiers = [
 ]
 dependencies = [
     "cryptography>=42,<47",
+    "prompt_toolkit>=3.0,<4.0",
+    "rich>=13,<15",
 ]
 
 [project.scripts]

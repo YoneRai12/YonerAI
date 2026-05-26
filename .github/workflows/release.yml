@@ -36,6 +36,24 @@ jobs:
         run: |
           test -f "docs/releases/${ORA_VERSION}.md"
 
+      - name: Read Release Title
+        run: |
+          RELEASE_TITLE=$(python - <<'PY'
+          from pathlib import Path
+          import os
+
+          version = os.environ["ORA_VERSION"]
+          release_note = Path("docs/releases") / f"{version}.md"
+          title = f"YonerAI {version}"
+          for line in release_note.read_text(encoding="utf-8").splitlines():
+              if line.startswith("# "):
+                  title = line[2:].strip()
+                  break
+          print(title)
+          PY
+          )
+          echo "RELEASE_TITLE=$RELEASE_TITLE" >> "$GITHUB_ENV"
+
       - name: Classify Release Channel
         run: |
           case "$ORA_VERSION" in
@@ -59,7 +77,7 @@ jobs:
           # Publish automatically (no manual "Draft -> Publish" step in the GitHub UI).
           draft: false
           prerelease: ${{ env.ORA_PRERELEASE }}
-          name: ${{ env.PRODUCT_NAME }} ${{ env.ORA_VERSION }}
+          name: ${{ env.RELEASE_TITLE }}
           body_path: docs/releases/${{ env.ORA_VERSION }}.md
           generate_release_notes: false
         env:

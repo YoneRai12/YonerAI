@@ -2760,11 +2760,20 @@ def _build_install_report(args: argparse.Namespace) -> dict[str, Any]:
 
 def _build_update_report(args: argparse.Namespace) -> dict[str, Any]:
     try:
-        from yonerai_cli.install_planner import build_update_plan, build_update_plan_from_default
+        from yonerai_cli.install_planner import (
+            build_update_check,
+            build_update_check_from_default,
+            build_update_plan,
+            build_update_plan_from_default,
+        )
     except Exception as exc:
         raise CliError("Update planner is unavailable.", exit_code=1) from exc
     current_version = _read_repo_version() or __version__
     try:
+        if args.update_command == "check":
+            if args.manifest:
+                return build_update_check(args.manifest, current_version=current_version)
+            return build_update_check_from_default(_repo_root(), current_version=current_version)
         if args.manifest:
             return build_update_plan(args.manifest, current_version=current_version)
         return build_update_plan_from_default(_repo_root(), current_version=current_version)
@@ -2833,6 +2842,9 @@ def _update_version_comparison_level(report: dict[str, Any]) -> str:
 
 
 def _print_update_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -> None:
+    if report.get("schema_version") == "yonerai-update-check/v0.1":
+        _print_update_check_pretty(report, color=color)
+        return
     manifest = report["manifest"]
     signature = report["signature_status"]
     non_actions = report["non_actions"]
@@ -2897,6 +2909,62 @@ def _print_update_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -
     if errors:
         sections = (*sections, CliSection("Errors", errors))
     print(render_report("YonerAI update plan", sections, color=color))
+
+
+def _print_update_check_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -> None:
+    artifact = report.get("artifact_status") if isinstance(report.get("artifact_status"), dict) else {}
+    signature = report.get("signature_status") if isinstance(report.get("signature_status"), dict) else {}
+    warnings = tuple(CliRow("warning", warning, "warn") for warning in report.get("warnings", []))
+    sections = (
+        CliSection(
+            "Update check",
+            (
+                CliRow("dry_run", report["dry_run"], "ok" if report["dry_run"] else "fail"),
+                CliRow("current_version", report["current_version"], "ok"),
+                CliRow("latest_manifest_version", report["latest_manifest_version"], "ok"),
+                CliRow("update_available", report["update_available"], "warn" if report["update_available"] else "ok"),
+                CliRow("version_comparison", report["version_comparison"], _update_version_comparison_level(report)),
+                CliRow("next_safe_command", report["next_safe_command"], "ok"),
+            ),
+        ),
+        CliSection(
+            "Artifact",
+            (
+                CliRow("selected_artifact", artifact.get("selected_artifact") or "none", "ok" if artifact.get("selected_artifact") else "warn"),
+                CliRow("filename_matches", artifact.get("filename_matches"), "ok" if artifact.get("filename_matches") else "fail"),
+                CliRow("sha256_present", artifact.get("sha256_present"), "ok" if artifact.get("sha256_present") else "fail"),
+            ),
+        ),
+        CliSection(
+            "Signature",
+            (
+                CliRow("signature_state", signature.get("state"), "ok" if signature.get("state") == "signed" else "warn"),
+                CliRow("signature_verified", signature.get("verified"), "ok" if signature.get("verified") else "warn"),
+                CliRow(
+                    "verification_required_before_real_update",
+                    signature.get("verification_required_before_real_update"),
+                    "warn" if signature.get("verification_required_before_real_update") else "ok",
+                ),
+            ),
+        ),
+        CliSection(
+            "Non-actions",
+            tuple(CliRow(name, True, "ok") for name in report.get("actions_not_performed", [])),
+        ),
+        CliSection(
+            "Execution boundary",
+            (
+                CliRow("download_performed", report["download_performed"], "fail" if report["download_performed"] else "ok"),
+                CliRow("install_performed", report["install_performed"], "fail" if report["install_performed"] else "ok"),
+                CliRow("path_mutation", report["path_mutation"], "fail" if report["path_mutation"] else "ok"),
+                CliRow("remote_code_executed", report["remote_code_executed"], "fail" if report["remote_code_executed"] else "ok"),
+                CliRow("network_required", report["network_required"], "warn" if report["network_required"] else "ok"),
+            ),
+        ),
+    )
+    if warnings:
+        sections = (*sections, CliSection("Warnings", warnings))
+    print(render_report("YonerAI update check", sections, color=color))
 
 
 def _build_ops_plan_report(args: argparse.Namespace) -> dict[str, Any]:
@@ -3142,6 +3210,7 @@ def _print_config_pretty(report: dict[str, Any], *, lang: str = "ja", color: Col
         rows = (
             CliRow("language", config.get("language") or "ja", "ok"),
             CliRow("provider", config.get("provider_preference"), "ok"),
+            CliRow("model", config.get("model_preference"), "ok"),
             CliRow("approval", config.get("approval_mode"), "ok"),
             CliRow("file_access", config.get("file_access_mode"), "ok"),
             CliRow("live_provider", config.get("live_provider_enabled"), "warn" if config.get("live_provider_enabled") else "ok"),
@@ -3160,6 +3229,7 @@ def _print_config_pretty(report: dict[str, Any], *, lang: str = "ja", color: Col
         rows = (
             CliRow("language", config.get("language") or "ja", "ok"),
             CliRow("provider", config.get("provider_preference"), "ok"),
+            CliRow("model", config.get("model_preference"), "ok"),
             CliRow("approval", config.get("approval_mode"), "ok"),
             CliRow("file_access", config.get("file_access_mode"), "ok"),
             CliRow("live_provider", config.get("live_provider_enabled"), "warn" if config.get("live_provider_enabled") else "ok"),
@@ -3182,6 +3252,7 @@ def _interactive_callbacks():
         ask_auto=_interactive_ask_auto,
         runs_list=_interactive_runs_list,
         runs_show=_interactive_runs_show,
+        update_check=_interactive_update_check,
     )
 
 
@@ -3206,6 +3277,11 @@ def _interactive_runs_list(ledger_path: str | None, limit: int, _lang: str) -> d
 def _interactive_runs_show(run_id: str, ledger_path: str | None, _lang: str) -> dict[str, Any]:
     args = argparse.Namespace(runs_command="show", ledger_path=ledger_path, run_id=run_id, limit=1)
     return _build_runs_report(args)
+
+
+def _interactive_update_check(manifest_path: str | None, _lang: str) -> dict[str, Any]:
+    args = argparse.Namespace(update_command="check", manifest=manifest_path)
+    return _build_update_report(args)
 
 
 def _run_interactive_chat(args: argparse.Namespace) -> int:
@@ -3270,7 +3346,25 @@ def build_parser() -> argparse.ArgumentParser:
     config_show.add_argument("--lang", choices=LANG_CHOICES, default="ja", help="Pretty output language. Default: ja.")
     config_show.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
     config_set = config_subcommands.add_parser("set", help="Set one local CLI preference. Provider keys are not accepted.")
-    config_set.add_argument("config_key", choices=("language", "lang", "provider", "provider_preference", "approval", "approval_mode", "file_access", "file_access_mode", "live_provider", "network", "ledger", "history"))
+    config_set.add_argument(
+        "config_key",
+        choices=(
+            "language",
+            "lang",
+            "provider",
+            "provider_preference",
+            "model",
+            "model_preference",
+            "approval",
+            "approval_mode",
+            "file_access",
+            "file_access_mode",
+            "live_provider",
+            "network",
+            "ledger",
+            "history",
+        ),
+    )
     config_set.add_argument("config_value")
     config_set.add_argument("--config-path", help="Optional local CLI config path.")
     config_set_output = config_set.add_mutually_exclusive_group()
@@ -3523,6 +3617,12 @@ def build_parser() -> argparse.ArgumentParser:
     update_plan_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
     update_plan_output.add_argument("--pretty", action="store_true", help="Print a readable update plan.")
     update_plan.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
+    update_check = update_subcommands.add_parser("check", help="Check local manifest update status without downloading or installing.")
+    update_check.add_argument("--manifest", help="Local release manifest JSON path. Defaults to the newest releases/manifest.v*.json.")
+    update_check_output = update_check.add_mutually_exclusive_group()
+    update_check_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
+    update_check_output.add_argument("--pretty", action="store_true", help="Print a readable update check.")
+    update_check.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
 
     ops = subcommands.add_parser("ops", help="Plan safe diagnostic operations without arbitrary shell execution.")
     ops_subcommands = ops.add_subparsers(dest="ops_command", required=True)
@@ -3768,7 +3868,7 @@ def run(argv: list[str] | None = None) -> int:
         else:
             _print_install_pretty(report, color=args.color)
         return 0 if report["ok"] else 1
-    if args.command == "update" and args.update_command == "plan":
+    if args.command == "update" and args.update_command in {"plan", "check"}:
         report = _build_update_report(args)
         if args.json:
             _print_json(report)

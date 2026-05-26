@@ -61,6 +61,13 @@ hand:
 .\install-local.ps1 -Execute -Launch
 ```
 
+`install.ps1` is also included as a future one-command installer skeleton. It
+is dry-run only and points back to this local bootstrap path:
+
+```powershell
+.\install.ps1
+```
+
 If PowerShell blocks local scripts, run the same helper without changing the
 machine-wide execution policy:
 
@@ -104,6 +111,41 @@ selected provider, route, local node state, ledger state, safety mode, run_id,
 task progress, and the deterministic reviewer/subagent plan. It does not start
 uncontrolled agents or enable live providers by default.
 
+### Interactive CLI controls
+
+The v0.6 TUI runtime adds `prompt_toolkit` completion and Rich panels when the
+terminal supports them. If either library or terminal support is unavailable,
+YonerAI falls back to the plain line-by-line shell used by CI.
+
+In Japanese mode, type `/` to see Japanese-first command candidates. Tab and
+arrow-key selection are available when `prompt_toolkit` is active:
+
+```text
+/設定       settings
+/モデル     model and local LLM setup
+/提供元     provider/API status
+/安全       safety boundaries
+/履歴       redacted run history
+/タスク     task progress
+/エージェント reviewer/subagent plan display
+/更新       local manifest update check
+/終了       quit
+```
+
+Useful commands:
+
+```powershell
+yonerai
+yonerai chat
+yonerai update check --pretty
+yonerai update check --json
+yonerai config set model llama3.1 --pretty --lang ja
+yonerai providers --pretty --lang ja
+```
+
+`yonerai update check` only reads local VERSION and a local manifest. It does
+not download, install, mutate PATH, run remote code, or require admin rights.
+
 ## Quickstart: Public Demo
 
 After clone, the fastest public-safe way to see the current YonerAI slice is the credential-free demo command. It runs in-process and does not require a Core API server, Discord token, Oracle access, provider API key, Google login, deployment, or persistent memory.
@@ -128,6 +170,7 @@ yonerai doctor --pretty --lang ja
 yonerai status --pretty
 yonerai manifest verify releases/manifest.v0.5.1.json --pretty
 yonerai install plan --manifest releases/manifest.v0.5.1.json --pretty
+yonerai update check --manifest releases/manifest.v0.5.1.json --pretty
 yonerai update plan --manifest releases/manifest.v0.5.1.json --pretty
 yonerai plan "summarize public docs" --json
 yonerai ask "summarize public docs" --provider mock --json

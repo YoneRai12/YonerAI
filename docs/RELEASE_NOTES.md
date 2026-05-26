@@ -2,6 +2,25 @@
 
 This page is a public-safe index of current release notes and progress checkpoints.
 
+## v0.6.0-alpha.1 CLI TUI Runtime
+
+- GitHub pre-release target: `v0.6.0-alpha.1`.
+- Release title: `2026.05.27 — YonerAI v0.6.0-alpha.1 CLI TUI Runtime`.
+- Release date: `2026-05-27`.
+- Public release body: `docs/releases/0.6.0-alpha.1.md`.
+- TUI note: `yonerai` and `yonerai chat` now use `prompt_toolkit` completion
+  and Rich terminal panels/status when available, with plain fallback for
+  non-TTY and CI.
+- What users can try now: `/`, `/設定`, `/モデル`, `/提供元`, `/安全`, `/履歴`,
+  `/タスク`, `/エージェント`, `/更新`, `yonerai update check --pretty`,
+  `yonerai update check --json`, and `.\install.ps1`.
+- Boundary: alpha TUI runtime only; no production Oracle/cloud runtime, no live
+  Discord, no deploy/public tunnel, no arbitrary shell/file/tool execution, no
+  default live provider calls, no provider key output/storage, no production
+  signing/trust store, and no production installer.
+- Primary traceability range: `v0.5.1..v0.6.0-alpha.1`; implementation PR:
+  #454 `feat: YonerAI CLI TUIランタイムを追加する`.
+
 ## v0.5.1 CLI Local Runtime Distribution Trust Update
 
 - GitHub release target: `v0.5.1`.

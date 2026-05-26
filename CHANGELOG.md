@@ -2,6 +2,23 @@
 
 See also: `docs/RELEASE_NOTES.md` (curated summary, v5.0.0 -> current).
 
+## v0.6.0-alpha.1 (2026-05-27) - CLI TUI Runtime
+- Added `prompt_toolkit` slash command completion and Rich terminal panels/status
+  for the interactive `yonerai` / `yonerai chat` shell, with plain fallback for
+  non-TTY and CI.
+- Added Japanese-first slash candidates for `/設定`, `/モデル`, `/提供元`, `/安全`,
+  `/履歴`, `/タスク`, `/エージェント`, `/更新`, and `/終了` while preserving English
+  aliases.
+- Added local non-secret model preference support through `yonerai config set
+  model ...` and the interactive `/モデル` flow.
+- Added `yonerai update check` and TUI `/更新` for local manifest update status
+  without download, install, PATH mutation, remote execution, or admin request.
+- Added `install.ps1` as a dry-run-only future one-command installer skeleton.
+- Preserved boundaries: no production Oracle/cloud runtime, no live Discord, no
+  deploy/public tunnel, no arbitrary shell/file/tool execution, no default live
+  provider calls, no provider key output/storage, and no production
+  signing/trust store.
+
 ## v0.5.1 (2026-05-26) - Distribution Trust Update
 - Hardened the local distribution path after v0.5.0 with a plan-first
   `install-local.ps1` bootstrap helper for extracted archives/checkouts.

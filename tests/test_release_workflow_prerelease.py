@@ -18,5 +18,8 @@ def test_release_workflow_keeps_release_notes_and_version_guards() -> None:
 
     assert 'python scripts/verify_version.py --tag "${GITHUB_REF_NAME}"' in workflow
     assert 'test -f "docs/releases/${ORA_VERSION}.md"' in workflow
+    assert "Read Release Title" in workflow
+    assert "RELEASE_TITLE" in workflow
+    assert "name: ${{ env.RELEASE_TITLE }}" in workflow
     assert "body_path: docs/releases/${{ env.ORA_VERSION }}.md" in workflow
     assert "generate_release_notes: false" in workflow

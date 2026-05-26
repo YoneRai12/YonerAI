@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
 from typing import Any
@@ -17,6 +18,7 @@ from yonerai_cli.release_manifest import (
 INSTALL_PLAN_SCHEMA_VERSION = "yonerai-install-plan/v0.1"
 WINDOWS_INSTALL_PLAN_SCHEMA_VERSION = "yonerai-windows-install-plan/v0.1"
 UPDATE_PLAN_SCHEMA_VERSION = "yonerai-update-plan/v0.1"
+UPDATE_CHECK_SCHEMA_VERSION = "yonerai-update-check/v0.1"
 SHA256_RE = re.compile(r"^[a-f0-9]{64}$")
 
 
@@ -195,7 +197,58 @@ def build_update_plan(manifest_path: str, *, current_version: str) -> dict[str, 
 
 
 def build_update_plan_from_default(repo_root: Path, *, current_version: str) -> dict[str, Any]:
-    return build_update_plan(str(repo_root / "releases" / "manifest.example.json"), current_version=current_version)
+    return build_update_plan(str(default_update_manifest_path(repo_root)), current_version=current_version)
+
+
+def build_update_check(manifest_path: str, *, current_version: str) -> dict[str, Any]:
+    plan = build_update_plan(manifest_path, current_version=current_version)
+    artifact = plan.get("selected_artifact") if isinstance(plan.get("selected_artifact"), dict) else {}
+    manifest_display = _display_manifest_path(manifest_path)
+    next_safe_command = f"yonerai update plan --manifest {_quote_cli_path(manifest_display)} --pretty"
+    return {
+        "schema_version": UPDATE_CHECK_SCHEMA_VERSION,
+        "ok": plan["ok"],
+        "dry_run": True,
+        "command": "yonerai update check",
+        "manifest": manifest_display,
+        "current_version": plan["current_version"],
+        "latest_manifest_version": plan["target_version"],
+        "update_available": plan["update_available"],
+        "version_comparison": plan["version_comparison"],
+        "artifact_status": {
+            "selected_artifact": artifact.get("artifact_id"),
+            "filename_matches": artifact.get("filename_matches"),
+            "sha256_present": plan["sha256_present"],
+            "expected_filename": artifact.get("expected_filename"),
+            "actual_filename": artifact.get("actual_filename"),
+        },
+        "signature_status": plan["signature_status"],
+        "rollback_plan_available": bool(plan.get("rollback_plan_available")),
+        "next_safe_command": next_safe_command,
+        "actions_not_performed": plan["actions_not_performed"],
+        "download_performed": False,
+        "install_performed": False,
+        "path_mutation": False,
+        "remote_code_executed": False,
+        "network_required": False,
+        "warnings": plan["warnings"],
+    }
+
+
+def build_update_check_from_default(repo_root: Path, *, current_version: str) -> dict[str, Any]:
+    return build_update_check(str(default_update_manifest_path(repo_root)), current_version=current_version)
+
+
+def default_update_manifest_path(repo_root: Path) -> Path:
+    releases = repo_root / "releases"
+    candidates = [
+        path
+        for path in releases.glob("manifest.v*.json")
+        if _version_from_manifest_filename(path) is not None
+    ]
+    if not candidates:
+        return releases / "manifest.example.json"
+    return max(candidates, key=lambda path: _version_key(_version_from_manifest_filename(path)) or (0, 0, 0, ()))
 
 
 def _artifact_plan_rows(manifest: dict[str, Any]) -> list[dict[str, Any]]:
@@ -294,13 +347,43 @@ def _artifact_filename(url: object) -> str | None:
     return name or None
 
 
+def _version_from_manifest_filename(path: Path) -> str | None:
+    name = path.name
+    if not name.startswith("manifest.v") or not name.endswith(".json"):
+        return None
+    version = name.removeprefix("manifest.v").removesuffix(".json")
+    return version if SEMVER_RE.match(version) else None
+
+
+def _display_manifest_path(path: str) -> str:
+    normalized = Path(path)
+    try:
+        relative = normalized.resolve().relative_to(Path.cwd().resolve())
+        return relative.as_posix()
+    except Exception:
+        try:
+            relative = os.path.relpath(normalized.resolve(), Path.cwd().resolve())
+            return Path(relative).as_posix()
+        except Exception:
+            return normalized.name or "<local-manifest>"
+
+
+def _quote_cli_path(path: str) -> str:
+    if not path or re.search(r"\s", path) is None:
+        return path
+    return '"' + path.replace('"', '\\"') + '"'
+
+
 __all__ = [
     "INSTALL_PLAN_SCHEMA_VERSION",
     "UPDATE_PLAN_SCHEMA_VERSION",
+    "UPDATE_CHECK_SCHEMA_VERSION",
     "WINDOWS_INSTALL_PLAN_SCHEMA_VERSION",
     "ManifestError",
     "build_install_plan",
     "build_install_plan_from_default",
+    "build_update_check",
+    "build_update_check_from_default",
     "build_update_plan",
     "build_update_plan_from_default",
     "build_windows_install_plan",
