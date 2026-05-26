@@ -4,6 +4,19 @@ YonerAI は、公式・ローカル・self-hosted の実行環境が変わって
 
 [English README](README.md) | [Current phase](docs/CURRENT_PHASE_CONTEXT.md) | [Contracts](docs/contracts) | [Codex / contributor workflow](docs/process/YONERAI_CODEX_WORKFLOW.md) | [Release governance](docs/process/YONERAI_RELEASE_GOVERNANCE.md)
 
+## ライセンスと配布
+
+YonerAI は source-available / noncommercial を既定とします。OSI open source
+ではありません。
+
+- コード: PolyForm Noncommercial License 1.0.0。
+- ドキュメントとアセット: 各ファイルで別途指定がない限り CC BY-NC-ND 4.0。
+- YonerAI の名称、ロゴ、プロダクト識別子、ドメイン、ブランドアセット: All Rights Reserved。
+- 商用利用には YoneRai12 からの別途商用ライセンスが必要です。
+
+[LICENSE](LICENSE)、[LICENSE_JP.md](LICENSE_JP.md)、[NOTICE](NOTICE)、
+[License policy](docs/legal/LICENSE_POLICY.md) を確認してください。
+
 この public repository は public contract surface を説明します。内部運用の詳細、credential、live route、host 固有の事実は公開しません。
 
 ## YonerAI とは
@@ -84,7 +97,9 @@ yonerai demo --pretty
 yonerai demo --json
 yonerai doctor --pretty --lang ja
 yonerai status --pretty --lang ja
-yonerai manifest verify releases/manifest.example.json --pretty --lang ja
+yonerai manifest verify releases/manifest.v0.5.0.json --pretty --lang ja
+yonerai install plan --manifest releases/manifest.v0.5.0.json --pretty --lang ja
+yonerai update plan --manifest releases/manifest.v0.5.0.json --pretty --lang ja
 ```
 
 `yonerai quickstart` は `yonerai demo` の alias です。

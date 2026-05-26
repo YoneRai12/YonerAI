@@ -12,6 +12,20 @@ It is not just a Discord bot and not just a model router. Discord, Web, relay, A
 
 This public README describes the public contract surface. It does not publish internal operations detail, credentials, live routes, or host-specific facts.
 
+## License and distribution
+
+YonerAI is source-available and noncommercial by default. It is not OSI open
+source.
+
+- Code: PolyForm Noncommercial License 1.0.0.
+- Documentation and assets: CC BY-NC-ND 4.0 unless a file says otherwise.
+- YonerAI name, logo, product identity, domains, and brand assets: All Rights
+  Reserved.
+- Commercial use requires a separate commercial license from YoneRai12.
+
+See [LICENSE](LICENSE), [LICENSE_JP.md](LICENSE_JP.md), [NOTICE](NOTICE), and
+[License policy](docs/legal/LICENSE_POLICY.md).
+
 ## Install and start YonerAI
 
 This is the local CLI runtime path, not a production cloud installer. It installs
@@ -87,14 +101,16 @@ yonerai demo --json
 yonerai doctor --pretty
 yonerai doctor --pretty --lang ja
 yonerai status --pretty
-yonerai manifest verify releases/manifest.example.json --pretty
+yonerai manifest verify releases/manifest.v0.5.0.json --pretty
+yonerai install plan --manifest releases/manifest.v0.5.0.json --pretty
+yonerai update plan --manifest releases/manifest.v0.5.0.json --pretty
 yonerai plan "summarize public docs" --json
 yonerai ask "summarize public docs" --provider mock --json
 yonerai hybrid run --pretty
 yonerai hybrid run --json
 yonerai search mock "YonerAI alpha2" --json
 yonerai ops plan git-status --json
-yonerai install plan --manifest releases/manifest.example.json --json
+yonerai install plan --manifest releases/manifest.v0.5.0.json --json
 ```
 
 ## First 5 minutes

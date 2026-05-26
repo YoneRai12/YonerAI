@@ -70,6 +70,18 @@
         }
       }
     },
+    "install_methods": {
+      "type": "array",
+      "items": {
+        "enum": ["manual_zip_venv", "powershell_dry_run_plan", "manifest_verify_only"]
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
     "artifacts": {
       "type": "array",
       "minItems": 1,

@@ -159,6 +159,8 @@ def verify_manifest(
         "test_trust_fixture_used": test_trust_fixture is not None,
         "production_trust_material": False,
         "network_required": _minimum_value(manifest, "network_required"),
+        "install_methods": manifest.get("install_methods") if isinstance(manifest.get("install_methods"), list) else [],
+        "warnings": manifest.get("warnings") if isinstance(manifest.get("warnings"), list) else [],
         "artifact_count": len(artifact_list),
         "artifact_checks": [
             {
@@ -223,7 +225,7 @@ def validate_test_trust_fixture(fixture: dict[str, Any] | None) -> list[str]:
 
 def validate_manifest_contract(manifest: dict[str, Any]) -> list[str]:
     errors: list[str] = []
-    allowed_top = {
+    required_top = {
         "schema_version",
         "product",
         "channel",
@@ -234,7 +236,12 @@ def validate_manifest_contract(manifest: dict[str, Any]) -> list[str]:
         "minimum_requirements",
         "artifacts",
     }
-    _check_keys(manifest, allowed_top, allowed_top, "manifest", errors)
+    allowed_top = {
+        *required_top,
+        "install_methods",
+        "warnings",
+    }
+    _check_keys(manifest, required_top, allowed_top, "manifest", errors)
     _expect(manifest.get("schema_version") == SCHEMA_VERSION, "schema_version is invalid.", errors)
     _expect(manifest.get("product") == "YonerAI", "product must be YonerAI.", errors)
     _expect(manifest.get("channel") in CHANNELS, "channel is invalid.", errors)
@@ -273,6 +280,23 @@ def validate_manifest_contract(manifest: dict[str, Any]) -> list[str]:
     else:
         for index, artifact in enumerate(artifacts):
             _validate_artifact(artifact, index, bool(manifest.get("production_ready")), manifest.get("version"), errors)
+
+    install_methods = manifest.get("install_methods")
+    if install_methods is not None:
+        _expect(
+            isinstance(install_methods, list)
+            and all(method in {"manual_zip_venv", "powershell_dry_run_plan", "manifest_verify_only"} for method in install_methods),
+            "install_methods is invalid.",
+            errors,
+        )
+
+    warnings = manifest.get("warnings")
+    if warnings is not None:
+        _expect(
+            isinstance(warnings, list) and all(isinstance(warning, str) and warning.strip() for warning in warnings),
+            "warnings is invalid.",
+            errors,
+        )
     return errors
 
 

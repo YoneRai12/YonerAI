@@ -77,6 +77,13 @@ include:
 
 `releases/manifest.schema.json` defines the future installer bootstrap release manifest. `releases/manifest.example.json` is an example contract fixture and is not a production installer manifest.
 
+`releases/manifest.v0.5.0.json` records the current v0.5.0 GitHub Release
+asset `YonerAI-0.5.0.zip` for local verification and dry-run planning. It is
+stable-channel metadata for the CLI Local Runtime release, but it is still not
+install-ready because the public repository does not include production signing
+keys, a production trust store, or an official signing service. Its signature
+status remains `placeholder_non_production`.
+
 The existing `core/src/ora_core/distribution/release.py` sidecar models remain the current Distribution Node MVP verification implementation. The installer bootstrap manifest is the future distribution source of truth for public install entry points and should be connected to signed sidecars in a later implementation PR.
 
 ## Artifact naming policy
@@ -130,6 +137,35 @@ verification supports deterministic non-production/test trust fixtures with
 production-capable installer in a future private/official lane must require
 signed manifests and fail closed when the production signature is not verified
 against the official trust source.
+
+For v0.5.0, users can run:
+
+```powershell
+yonerai manifest verify releases/manifest.v0.5.0.json --pretty
+yonerai install plan --manifest releases/manifest.v0.5.0.json --pretty
+yonerai update plan --manifest releases/manifest.v0.5.0.json --pretty
+```
+
+These commands validate local manifest structure, artifact naming, SHA256 field
+presence and format, signature/trust status, and planned non-actions. They do
+not download the asset, execute scripts, install packages, mutate PATH, request
+admin privileges, or create services.
+
+## Future zero-trust signing path
+
+The public repository should continue to validate local manifest shape, artifact
+names, hashes, and non-production/test trust fixtures. Production distribution
+belongs to a future private/official lane:
+
+- TUF-style metadata roles for root, targets, snapshot, and timestamp.
+- SLSA provenance for release artifact build evidence.
+- Sigstore/Cosign or equivalent signing for artifact and manifest attestations.
+- Production trust material stored outside this public repository.
+- Key rotation, revocation, and incident response procedures maintained in the
+  official/private lane.
+
+Until that lane exists, public manifests must clearly report
+`production_signature_verified: false` and remain dry-run / verification-only.
 
 ## Implementation order
 

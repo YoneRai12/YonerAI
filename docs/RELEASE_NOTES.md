@@ -8,6 +8,13 @@ This page is a public-safe index of current release notes and progress checkpoin
 - Release title: `2026.05.26 - YonerAI CLI Local Runtime v0.5.0`.
 - Release date: `2026-05-26`.
 - Public release body: `docs/releases/0.5.0.md`
+- Distribution note: YonerAI is source-available and noncommercial, not OSI
+  open source. Code is under PolyForm Noncommercial License 1.0.0; docs/assets
+  are CC BY-NC-ND 4.0 unless stated otherwise; the YonerAI brand is All Rights
+  Reserved.
+- Installer manifest note: `releases/manifest.v0.5.0.json` records the v0.5.0
+  GitHub Release ZIP asset with SHA256 and non-production placeholder signature
+  status for local manifest verification and dry-run planning.
 - GitHub release lane: non-prerelease semantic release for the local CLI runtime
   slice only. This is not full cloud production.
 - What users can try now: `yonerai`, `yonerai chat`, first-launch language

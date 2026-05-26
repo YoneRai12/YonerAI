@@ -5,6 +5,11 @@ public-safe command surface for provider readiness, auto routing, local-dev
 execution, diagnostics, and release/install dry-run planning. It is not a
 deployment tool and not a live Discord/Official Managed Cloud runtime.
 
+License: YonerAI code is source-available under PolyForm Noncommercial License
+1.0.0. Documentation/assets are CC BY-NC-ND 4.0 unless stated otherwise, and
+the YonerAI brand is All Rights Reserved. This is not an OSI open-source
+package and commercial use requires a separate license.
+
 ## Install and start YonerAI
 
 From the repository root, install the local CLI runtime into a virtual
@@ -73,6 +78,9 @@ yonerai start --guided --lang ja
 yonerai providers --pretty --lang ja
 yonerai ask "hello" --auto --pretty --lang ja
 yonerai chat --script --lang ja
+yonerai manifest verify releases/manifest.v0.5.0.json --pretty
+yonerai install plan --manifest releases/manifest.v0.5.0.json --pretty
+yonerai update plan --manifest releases/manifest.v0.5.0.json --pretty
 yonerai demo --pretty
 yonerai demo --json
 ```
