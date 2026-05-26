@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import re
+import shlex
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -204,7 +205,7 @@ def build_update_check(manifest_path: str, *, current_version: str) -> dict[str,
     plan = build_update_plan(manifest_path, current_version=current_version)
     artifact = plan.get("selected_artifact") if isinstance(plan.get("selected_artifact"), dict) else {}
     manifest_display = _display_manifest_path(manifest_path)
-    next_safe_command = f"yonerai update plan --manifest {manifest_display} --pretty"
+    next_safe_command = f"yonerai update plan --manifest {_quote_cli_path(manifest_display)} --pretty"
     return {
         "schema_version": UPDATE_CHECK_SCHEMA_VERSION,
         "ok": plan["ok"],
@@ -366,6 +367,10 @@ def _display_manifest_path(path: str) -> str:
             return Path(relative).as_posix()
         except Exception:
             return normalized.name or "<local-manifest>"
+
+
+def _quote_cli_path(path: str) -> str:
+    return shlex.quote(path)
 
 
 __all__ = [

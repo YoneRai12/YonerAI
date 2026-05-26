@@ -332,7 +332,7 @@ def _handle_slash_command(
         if callbacks.update_check is None:
             _write(output_stream, _update_unavailable(lang))
             return {}
-        manifest = args[0] if args else None
+        manifest = _joined_arg_after_command(text, parts[0])
         try:
             report = callbacks.update_check(manifest, lang)
         except Exception as exc:
@@ -1121,6 +1121,13 @@ def _format_update_error(exc: Exception, *, lang: str) -> str:
     if lang == "ja":
         return f"更新確認に失敗しました: {message}\n"
     return f"Update check failed: {message}\n"
+
+
+def _joined_arg_after_command(text: str, command_token: str) -> str | None:
+    value = text[len(command_token) :].strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+        value = value[1:-1].strip()
+    return value or None
 
 
 def _format_runs(report: dict[str, Any], *, lang: str) -> str:

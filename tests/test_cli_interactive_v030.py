@@ -635,6 +635,27 @@ def test_chat_update_command_handles_missing_manifest_without_crashing(tmp_path:
     assert str(tmp_path) not in output
 
 
+def test_chat_update_command_accepts_spaced_manifest_path(tmp_path: Path, monkeypatch, capsys) -> None:
+    from yonerai_cli import cli
+
+    _clear_provider_env(monkeypatch)
+    manifest_dir = tmp_path / "My Releases"
+    manifest_dir.mkdir()
+    source = REPO_ROOT / "releases" / "manifest.example.json"
+    manifest_path = manifest_dir / "manifest.json"
+    manifest_path.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(sys, "stdin", _PlainStringIO("/更新 My Releases/manifest.json\n/終了\n"))
+
+    assert cli.main(["chat", "--script", "--lang", "ja", "--color", "never"]) == 0
+
+    output = capsys.readouterr().out
+    assert "更新確認" in output
+    assert "no download" in output
+    assert "Traceback" not in output
+    assert str(tmp_path) not in output
+
+
 def test_config_set_model_is_supported_and_rejects_url_values(tmp_path: Path, monkeypatch, capsys) -> None:
     from yonerai_cli import cli
 
