@@ -70,10 +70,8 @@ def test_v050_install_and_update_plans_are_dry_run_only() -> None:
     _prepare_paths()
     from yonerai_cli.install_planner import build_install_plan, build_update_plan
 
-    current_version = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
-
     install_plan = build_install_plan(str(V050_MANIFEST))
-    update_plan = build_update_plan(str(V050_MANIFEST), current_version=current_version)
+    update_plan = build_update_plan(str(V050_MANIFEST), current_version="0.5.0")
 
     assert install_plan["ok"] is True
     assert install_plan["manifest"]["version"] == "0.5.0"
