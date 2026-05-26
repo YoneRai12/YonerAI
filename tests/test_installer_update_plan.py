@@ -278,7 +278,7 @@ def test_cli_update_check_json_is_stable_network_free_and_path_safe(tmp_path, mo
 
 def test_update_check_quotes_spaced_manifest_path_in_next_safe_command(tmp_path, monkeypatch) -> None:
     _prepare_paths()
-    from yonerai_cli.install_planner import build_update_check
+    from yonerai_cli.install_planner import _quote_cli_path, build_update_check
 
     manifest_dir = tmp_path / "My Releases"
     manifest_dir.mkdir()
@@ -290,7 +290,8 @@ def test_update_check_quotes_spaced_manifest_path_in_next_safe_command(tmp_path,
     report = build_update_check(str(manifest_path), current_version=_current_version())
 
     assert report["manifest"] == "My Releases/manifest.json"
-    assert report["next_safe_command"] == "yonerai update plan --manifest 'My Releases/manifest.json' --pretty"
+    expected_manifest = _quote_cli_path("My Releases/manifest.json")
+    assert report["next_safe_command"] == f"yonerai update plan --manifest {expected_manifest} --pretty"
     assert str(tmp_path) not in json.dumps(report)
 
 
