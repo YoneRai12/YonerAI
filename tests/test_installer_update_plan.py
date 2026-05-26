@@ -261,7 +261,7 @@ def test_cli_update_check_json_is_stable_network_free_and_path_safe(tmp_path, mo
     assert output["update_available"] is True
     assert output["artifact_status"]["sha256_present"] is True
     assert output["signature_status"]["placeholder_non_production"] is True
-    assert output["rollback_plan_available"] is True
+    assert output["rollback_plan_available"] is False
     assert output["download_performed"] is False
     assert output["install_performed"] is False
     assert output["path_mutation"] is False
@@ -326,6 +326,30 @@ def test_update_plan_module_invocation_from_clients_cli_cwd() -> None:
     assert output["remote_code_executed"] is False
     assert ("C:" + "\\Users") not in result.stdout
     assert "Traceback" not in result.stderr
+
+
+def test_update_check_module_invocation_preserves_relative_manifest_command_from_clients_cli_cwd() -> None:
+    import subprocess
+
+    env = {**os.environ, "PYTHONPATH": str(CLI_SRC)}
+    result = subprocess.run(
+        [sys.executable, "-m", "yonerai_cli", "update", "check", "--json"],
+        cwd=CLI_SRC,
+        env=env,
+        text=True,
+        capture_output=True,
+        timeout=30,
+    )
+
+    assert result.returncode == 0, result.stderr
+    output = json.loads(result.stdout)
+    assert output["schema_version"] == "yonerai-update-check/v0.1"
+    assert output["manifest"].startswith("../../releases/manifest.v")
+    assert output["next_safe_command"].startswith("yonerai update plan --manifest ../../releases/manifest.v")
+    assert output["rollback_plan_available"] is False
+    assert ("C:" + "\\Users") not in result.stdout
+    assert "Traceback" not in result.stderr
+
 
 def test_cli_update_plan_handles_oversized_numeric_version_component(tmp_path, capsys) -> None:
     _prepare_paths()

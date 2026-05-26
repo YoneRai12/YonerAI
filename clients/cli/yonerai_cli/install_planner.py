@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
 from typing import Any
@@ -222,7 +223,7 @@ def build_update_check(manifest_path: str, *, current_version: str) -> dict[str,
             "actual_filename": artifact.get("actual_filename"),
         },
         "signature_status": plan["signature_status"],
-        "rollback_plan_available": bool(plan.get("rollback_plan")),
+        "rollback_plan_available": bool(plan.get("rollback_plan_available")),
         "next_safe_command": next_safe_command,
         "actions_not_performed": plan["actions_not_performed"],
         "download_performed": False,
@@ -360,7 +361,11 @@ def _display_manifest_path(path: str) -> str:
         relative = normalized.resolve().relative_to(Path.cwd().resolve())
         return relative.as_posix()
     except Exception:
-        return normalized.name or "<local-manifest>"
+        try:
+            relative = os.path.relpath(normalized.resolve(), Path.cwd().resolve())
+            return Path(relative).as_posix()
+        except Exception:
+            return normalized.name or "<local-manifest>"
 
 
 __all__ = [
