@@ -10,12 +10,21 @@ from yonerai_cli.config import (
     APPROVAL_MODES,
     ConfigError,
     FILE_ACCESS_MODES,
+    MODEL_RE,
     PROVIDER_PREFERENCES,
     build_config_report,
     default_config_path,
     load_cli_config,
     save_cli_config,
     set_cli_config_value,
+)
+from yonerai_cli.tui import (
+    prompt_line,
+    prompt_toolkit_available,
+    render_panel,
+    run_with_status,
+    slash_command_summary,
+    tui_capability_report,
 )
 
 
@@ -41,6 +50,9 @@ COMMAND_ALIASES = {
     "/help": "/help",
     "/設定": "/settings",
     "/settings": "/settings",
+    "/モデル": "/models",
+    "/model": "/models",
+    "/models": "/models",
     "/安全": "/safety",
     "/safety": "/safety",
     "/提供元": "/providers",
@@ -59,6 +71,8 @@ COMMAND_ALIASES = {
     "/ローカルLLM": "/local-llm",
     "/local-llm": "/local-llm",
     "/llm": "/local-llm",
+    "/更新": "/update",
+    "/update": "/update",
     "/言語": "/language",
     "/language": "/language",
     "/提供元選択": "/provider",
@@ -112,6 +126,7 @@ class InteractiveCallbacks:
     ask_auto: Callable[[str, str, bool, str | None, str], dict[str, Any]]
     runs_list: Callable[[str | None, int, str], dict[str, Any]]
     runs_show: Callable[[str, str | None, str], dict[str, Any]]
+    update_check: Callable[[str | None, str], dict[str, Any]] | None = None
 
 
 @dataclass(frozen=True)
@@ -148,22 +163,26 @@ def run_interactive_cli(
         return 0
 
     last_report: dict[str, Any] | None = None
-    _write(
-        output_stream,
-        _welcome(
-            lang,
-            provider=provider,
-            live=live,
-            config_exists=config_exists,
-            config=config,
-            ledger_path=ledger_path,
-        ),
+    use_tui_prompt = _can_use_prompt_toolkit(options, input_stream=input_stream, output_stream=output_stream)
+    welcome = _welcome(
+        lang,
+        provider=provider,
+        live=live,
+        config_exists=config_exists,
+        config=config,
+        ledger_path=ledger_path,
     )
+    if not (use_tui_prompt and render_panel(welcome, title="YonerAI", stream=output_stream, color=options.color)):
+        _write(output_stream, welcome)
     while True:
-        if _is_interactive(input_stream):
+        if use_tui_prompt:
+            line = prompt_line(lang=lang, bottom_toolbar=_bottom_toolbar(lang, provider=provider, live=live, config=config))
+        elif _is_interactive(input_stream):
             output_stream.write("yonerai> " if lang == "en" else "yonerai> ")
             output_stream.flush()
-        line = input_stream.readline()
+            line = input_stream.readline()
+        else:
+            line = input_stream.readline()
         if line == "":
             _write(output_stream, _bye(lang))
             return 0
@@ -192,9 +211,30 @@ def run_interactive_cli(
                 return 0
             continue
 
-        report = callbacks.ask_auto(text, provider, live, ledger_path, lang)
+        if use_tui_prompt:
+            status = "考え中..." if lang == "ja" else "Thinking..."
+            report = run_with_status(status, lambda: callbacks.ask_auto(text, provider, live, ledger_path, lang), stream=output_stream, color=options.color)
+        else:
+            report = callbacks.ask_auto(text, provider, live, ledger_path, lang)
         last_report = report
         _write(output_stream, _format_chat_response(report, lang=lang))
+
+
+def _can_use_prompt_toolkit(options: InteractiveOptions, *, input_stream: TextIO, output_stream: TextIO) -> bool:
+    if options.script or options.color == "never":
+        return False
+    if input_stream is not sys.stdin or output_stream is not sys.stdout:
+        return False
+    return _is_interactive(input_stream) and _is_interactive(output_stream) and prompt_toolkit_available()
+
+
+def _bottom_toolbar(lang: str, *, provider: str, live: bool, config: dict[str, object]) -> str:
+    model = _safe(config.get("model_preference") or "auto")
+    if lang == "ja":
+        live_text = "ライブ許可オン" if live else "ライブ許可オフ"
+        ledger = "履歴オン" if config.get("ledger_enabled") is True else "履歴オフ"
+        return f"Tab/矢印で候補選択 | 提供元={_provider_label(provider, lang='ja')} | モデル={model} | {live_text} | {ledger}"
+    return f"Tab/arrows complete | provider={provider} | model={model} | live={'on' if live else 'off'} | ledger={'on' if config.get('ledger_enabled') else 'off'}"
 
 
 def _select_language(
@@ -239,6 +279,9 @@ def _handle_slash_command(
     output_stream: TextIO,
 ) -> dict[str, object]:
     parts = text.split()
+    if parts[0] == "/":
+        _write(output_stream, slash_command_summary(lang))
+        return {}
     command = _canonical_command(parts[0])
     args = parts[1:]
     if command == "/quit":
@@ -248,6 +291,21 @@ def _handle_slash_command(
         return {}
     if command == "/settings":
         _write(output_stream, _format_settings(config, provider=provider, live=live, lang=lang, provider_report=callbacks.providers()))
+        return {}
+    if command == "/models":
+        if args:
+            value = args[0].strip()
+            if not MODEL_RE.fullmatch(value) or "://" in value or "\\" in value:
+                _write(output_stream, _invalid(lang))
+                return {}
+            try:
+                new_config = _set_config(config, "model", value, options.config_path)
+            except ConfigError as exc:
+                _write(output_stream, _config_error(lang, exc))
+                return {}
+            _write(output_stream, _changed_message("model", new_config["model_preference"], lang=lang))
+            return {}
+        _write(output_stream, _format_models(config, callbacks.providers(), lang=lang))
         return {}
     if command == "/safety":
         _write(output_stream, _format_safety(config, live=live, lang=lang))
@@ -269,6 +327,13 @@ def _handle_slash_command(
         return {}
     if command == "/local-llm":
         _write(output_stream, _format_local_llm_setup(callbacks.providers(), lang=lang))
+        return {}
+    if command == "/update":
+        if callbacks.update_check is None:
+            _write(output_stream, _update_unavailable(lang))
+            return {}
+        manifest = args[0] if args else None
+        _write(output_stream, _format_update_check(callbacks.update_check(manifest, lang), lang=lang))
         return {}
     if command == "/select" and args:
         return _handle_numbered_selection(
@@ -431,6 +496,10 @@ def _handle_numbered_selection(
                 return {}
             new_config = _set_config(config, "network", selected, options.config_path)
             _write(output_stream, _changed_message("network", new_config["network_enabled"], lang=lang))
+            return {}
+        if number == "8" and value and MODEL_RE.fullmatch(value) and "://" not in value and "\\" not in value:
+            new_config = _set_config(config, "model", value, options.config_path)
+            _write(output_stream, _changed_message("model", new_config["model_preference"], lang=lang))
             return {}
     except ConfigError as exc:
         _write(output_stream, _config_error(lang, exc))
@@ -806,6 +875,8 @@ def _format_settings(
                 "     変更: /選択 1 日本語 または /選択 1 英語",
                 "  2. プロバイダー（AI接続先）: " + _provider_label(provider, lang="ja"),
                 "     変更: /選択 2 自動|モック|ローカル|オープンAI互換|アンソロピック|ジェミニ",
+                "  8. モデル（AIモデル）: " + _safe(values.get("model_preference") or "auto"),
+                "     変更: /モデル auto または /選択 8 llama3.1",
                 "  3. 承認（危険操作）: " + _approval_label(values["approval_mode"], lang="ja"),
                 "     変更: /選択 3 確認 または /選択 3 拒否",
                 "  4. ファイルアクセス（ファイル読み取り）: " + _file_access_label(values["file_access_mode"], lang="ja"),
@@ -820,6 +891,7 @@ def _format_settings(
                 "状態",
                 f"  表示言語: {_language_label(values['language'] or 'ja', lang='ja')}",
                 f"  プロバイダー（AI接続先）: {_provider_label(provider, lang='ja')}",
+                f"  モデル（AIモデル）: {_safe(values.get('model_preference') or 'auto')}",
                 f"  ローカルLLM（PC内モデル）: {_state_label(local_state, lang='ja')}",
                 f"  承認（危険操作）: {_approval_label(values['approval_mode'], lang='ja')}",
                 f"  ファイルアクセス（ファイル読み取り）: {_file_access_label(values['file_access_mode'], lang='ja')}",
@@ -838,6 +910,7 @@ def _format_settings(
             "Settings",
             f"  language: {values['language'] or 'ja'}",
             f"  provider: {provider}",
+            f"  model: {values.get('model_preference') or 'auto'}",
             f"  local_llm: {local_state}",
             f"  approval: {values['approval_mode']}",
             f"  file_access: {values['file_access_mode']}",
@@ -846,7 +919,7 @@ def _format_settings(
             f"  network: {'on' if values['network_enabled'] else 'off'}",
             "  secrets: not stored",
             "  path: not printed",
-            "  numbered selection: /select 1 en, /select 2 mock, /select 5 on, /select 6 off, /select 7 off",
+            "  numbered selection: /select 1 en, /select 2 mock, /select 8 llama3.1, /select 5 on",
             "",
         )
     )
@@ -934,6 +1007,37 @@ def _format_providers(report: dict[str, Any], *, lang: str) -> str:
     return "\n".join(_safe(line) for line in lines)
 
 
+def _format_models(config: dict[str, object], report: dict[str, Any], *, lang: str) -> str:
+    model = _safe(config.get("model_preference") or "auto")
+    local_state = _provider_state(report, "local")
+    capabilities = tui_capability_report()
+    if lang == "ja":
+        lines = (
+            "モデル（AIモデル）",
+            f"  現在のモデル指定: {model}",
+            f"  ローカルLLM（PC内モデル）: {_state_label(local_state, lang='ja')}",
+            f"  補完UI: {'利用可能' if capabilities['slash_completion'] else '通常入力にフォールバック'}",
+            "  変更: /モデル auto または /モデル llama3.1 など",
+            "  ローカルLLM設定: localhost / 127.0.0.1 / ::1 のみ。非ループバックURLは拒否します。",
+            "  Ollama例: ORA_LOCAL_LLM_ENABLED=1, ORA_LOCAL_LLM_PROVIDER=ollama, ORA_LOCAL_LLM_BASE_URL=http://127.0.0.1:11434",
+            "  LM Studio例: ORA_LOCAL_LLM_ENABLED=1, ORA_LOCAL_LLM_PROVIDER=lmstudio, ORA_LOCAL_LLM_BASE_URL=http://127.0.0.1:1234/v1",
+            "  実行しないこと: モデルの自動インストール、外部URL探索、APIキー保存、プロンプト送信",
+            "",
+        )
+        return "\n".join(_safe(line) for line in lines)
+    lines = (
+        "Models",
+        f"  model_preference: {model}",
+        f"  local_llm: {local_state}",
+        f"  slash_completion: {capabilities['slash_completion']}",
+        "  change: /model auto or /model llama3.1",
+        "  local LLM endpoints: localhost / 127.0.0.1 / ::1 only",
+        "  not_performed: no model installation, no external probing, no key storage, no prompt sent",
+        "",
+    )
+    return "\n".join(_safe(line) for line in lines)
+
+
 def _format_local_llm_setup(report: dict[str, Any], *, lang: str) -> str:
     local_state = _provider_state(report, "local")
     if lang == "ja":
@@ -961,6 +1065,50 @@ def _format_local_llm_setup(report: dict[str, Any], *, lang: str) -> str:
         "",
     )
     return "\n".join(_safe(line) for line in lines)
+
+
+def _format_update_check(report: dict[str, Any], *, lang: str) -> str:
+    artifact = report.get("artifact_status") if isinstance(report.get("artifact_status"), dict) else {}
+    signature = report.get("signature_status") if isinstance(report.get("signature_status"), dict) else {}
+    actions = report.get("actions_not_performed") if isinstance(report.get("actions_not_performed"), list) else []
+    warnings = report.get("warnings") if isinstance(report.get("warnings"), list) else []
+    if lang == "ja":
+        lines = [
+            "更新確認",
+            f"  現在の版: {_safe(report.get('current_version') or '不明')}",
+            f"  manifest上の最新版: {_safe(report.get('latest_manifest_version') or '不明')}",
+            f"  更新あり: {_value_label(bool(report.get('update_available')), lang='ja')}",
+            f"  比較結果: {_safe(report.get('version_comparison') or '不明')}",
+            f"  artifact: {_safe(artifact.get('selected_artifact') or '未選択')}",
+            f"  sha256: {'あり' if artifact.get('sha256_present') else 'なし'}",
+            f"  署名/信頼: {_safe(signature.get('state') or '不明')} / 検証済み={_yes_no(signature.get('verified'), lang='ja')}",
+            f"  rollback計画: {_value_label(bool(report.get('rollback_plan_available')), lang='ja')}",
+            f"  次の安全な確認: {_safe(report.get('next_safe_command') or 'yonerai update plan --pretty')}",
+            "  実行しなかったこと:",
+        ]
+        for action in actions:
+            lines.append(f"    - {_safe(action)}")
+        if warnings:
+            lines.append("  注意:")
+            for warning in warnings[:5]:
+                lines.append(f"    - {_safe(warning)}")
+        lines.append("")
+        return "\n".join(lines)
+    lines = [
+        "Update check",
+        f"  current_version: {_safe(report.get('current_version') or 'unknown')}",
+        f"  latest_manifest_version: {_safe(report.get('latest_manifest_version') or 'unknown')}",
+        f"  update_available: {bool(report.get('update_available'))}",
+        f"  version_comparison: {_safe(report.get('version_comparison') or 'unknown')}",
+        f"  selected_artifact: {_safe(artifact.get('selected_artifact') or 'none')}",
+        f"  sha256_present: {bool(artifact.get('sha256_present'))}",
+        f"  signature: {_safe(signature.get('state') or 'unknown')} verified={bool(signature.get('verified'))}",
+        f"  rollback_plan_available: {bool(report.get('rollback_plan_available'))}",
+        f"  next_safe_command: {_safe(report.get('next_safe_command') or 'yonerai update plan --pretty')}",
+        "  actions_not_performed: " + ", ".join(_safe(action) for action in actions),
+        "",
+    ]
+    return "\n".join(lines)
 
 
 def _format_runs(report: dict[str, Any], *, lang: str) -> str:
@@ -1043,6 +1191,7 @@ def _welcome(
 ) -> str:
     ledger = "オン" if ledger_path else "オフ"
     ledger_en = "on" if ledger_path else "off"
+    model = _safe(config.get("model_preference") or "auto")
     safety = f"承認={_approval_label(config.get('approval_mode'), lang='ja')} / ファイル={_file_access_label(config.get('file_access_mode'), lang='ja')}"
     if lang == "ja":
         return "\n".join(
@@ -1051,12 +1200,13 @@ def _welcome(
                 "日本語モード。/ヘルプ でコマンドを表示します。",
                 "状態ヘッダー",
                 f"  プロバイダー（AI接続先）: {_provider_label(provider, lang='ja')}",
+                f"  モデル（AIモデル）: {model}",
                 "  経路（処理方法）: 未実行",
                 "  ローカルノード: 待機中（ローカル開発 / ループバック限定）",
                 f"  履歴: {ledger}（秘匿済みローカル履歴）",
                 f"  安全: {safety} / ネットワーク初期値オフ / 任意シェル無効",
                 f"  ライブ接続: {'オン（明示許可）' if live else 'オフ（初期値）'} / 設定={'既存' if config_exists else '初期値'}",
-                "使う: そのまま質問を書く / /設定 / /安全 / /タスク / /エージェント / /履歴 / /表示 <run_id>",
+                "使う: そのまま質問を書く / / で候補表示 / /設定 / /モデル / /提供元 / /安全 / /履歴 / /更新",
                 "設定を変える: /選択 <番号> <値>",
                 "",
             )
@@ -1065,9 +1215,9 @@ def _welcome(
         (
             "YonerAI Mission Control CLI",
             "English mode. Type /help for commands.",
-            f"provider={provider} route=not_run local_node=standby ledger={ledger_en} live={'on' if live else 'off'} config={'found' if config_exists else 'created/default'}",
+            f"provider={provider} model={model} route=not_run local_node=standby ledger={ledger_en} live={'on' if live else 'off'} config={'found' if config_exists else 'created/default'}",
             "Safety: network off / tools dry-run / workspace file only / arbitrary shell disabled / live providers off by default",
-            "Use: type a message, /settings, /safety, /tasks, /agents, /runs, /show <run_id>",
+            "Use: type a message, / for suggestions, /settings, /models, /providers, /safety, /runs, /update",
             "",
         )
     )
@@ -1079,6 +1229,7 @@ def _help(lang: str) -> str:
             (
                 "コマンド",
                 "  /設定                 設定を見る",
+                "  /モデル               モデルとローカルLLMの設定を見る",
                 "  /提供元               プロバイダー（AI接続先）を見る",
                 "  /安全                 安全境界を見る",
                 "  /タスク               現在/最近のタスク進行を見る",
@@ -1086,6 +1237,7 @@ def _help(lang: str) -> str:
                 "  /履歴                 実行履歴を見る",
                 "  /表示 <実行ID>        1件の実行を見る",
                 "  /ローカルLLM          PC内モデルの接続方法を見る",
+                "  /更新                 ローカルmanifestで更新を確認",
                 "  /言語 日本語|英語     表示言語を変更",
                 "  /提供元選択 自動|モック|ローカル|オープンAI互換|アンソロピック|ジェミニ",
                 "  /承認 確認|拒否       危険操作の扱いを変更",
@@ -1102,6 +1254,7 @@ def _help(lang: str) -> str:
         (
             "Commands",
             "  /settings        Show settings",
+            "  /models          Show model and local LLM setup",
             "  /providers       Show provider status",
             "  /safety          Show safety boundaries",
             "  /tasks           Show current/recent task progress",
@@ -1109,6 +1262,7 @@ def _help(lang: str) -> str:
             "  /runs            Show run history",
             "  /show <run_id>   Show one run",
             "  /local-llm       Show local LLM loopback setup",
+            "  /update          Check local manifest update status",
             "  /language ja|en  Change language",
             "  /provider auto|mock|local|openai-compatible|anthropic|gemini",
             "  /ledger on|off    Toggle redacted local ledger",
@@ -1163,13 +1317,14 @@ def _settings_selection_help(lang: str) -> str:
                 "番号設定の形式が不正です。",
                 "例: /選択 1 日本語",
                 "例: /選択 2 モック",
+                "例: /選択 8 llama3.1",
                 "例: /選択 5 オン",
                 "例: /選択 6 オフ",
                 "例: /選択 7 オフ",
                 "",
             )
         )
-    return "Invalid numbered setting. Examples: /select 1 en, /select 2 mock, /select 5 on, /select 6 off, /select 7 off\n"
+    return "Invalid numbered setting. Examples: /select 1 en, /select 2 mock, /select 8 llama3.1, /select 5 on\n"
 
 
 def _config_error(lang: str, exc: ConfigError) -> str:
@@ -1181,6 +1336,12 @@ def _config_error(lang: str, exc: ConfigError) -> str:
 
 def _unknown(lang: str) -> str:
     return "不明なコマンドです。/help を見てください\n" if lang == "ja" else "Unknown command. Type /help\n"
+
+
+def _update_unavailable(lang: str) -> str:
+    if lang == "ja":
+        return "更新確認はこのビルドでは利用できません。yonerai update check --pretty を試してください。\n"
+    return "Update check is unavailable in this build. Try yonerai update check --pretty.\n"
 
 
 def _bye(lang: str) -> str:
@@ -1277,6 +1438,7 @@ def _setting_label(value: object, *, lang: str) -> str:
     labels = {
         "language": "表示言語",
         "provider": "プロバイダー（AI接続先）",
+        "model": "モデル（AIモデル）",
         "approval": "承認（危険操作）",
         "file_access": "ファイルアクセス（ファイル読み取り）",
         "ledger": "履歴記録（ローカル履歴）",

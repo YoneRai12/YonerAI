@@ -573,3 +573,65 @@ def test_format_runs_escapes_control_sequences() -> None:
     assert "\\x07" in rendered
     assert "\x1b" not in rendered
     assert "\x07" not in rendered
+
+
+def test_slash_command_summary_is_japanese_first() -> None:
+    from yonerai_cli.tui import slash_command_summary, slash_command_words, tui_capability_report
+
+    words = slash_command_words("ja")
+    summary = slash_command_summary("ja")
+    report = tui_capability_report()
+
+    assert words[:9] == ["/設定", "/settings", "/モデル", "/models", "/model", "/local-llm", "/提供元", "/providers", "/安全"]
+    assert "/設定" in summary
+    assert "/モデル" in summary
+    assert "/更新" in summary
+    assert "/settings" not in summary
+    assert report["plain_fallback"] is True
+    assert report["json_ansi_output"] is False
+
+
+def test_chat_models_and_update_commands_are_usable(tmp_path: Path, monkeypatch, capsys) -> None:
+    from yonerai_cli import cli
+
+    _clear_provider_env(monkeypatch)
+    config_path = tmp_path / "cli-config.json"
+    monkeypatch.setattr(
+        sys,
+        "stdin",
+        _PlainStringIO("/\n/モデル\n/モデル llama3.1\n/更新 releases/manifest.example.json\n/終了\n"),
+    )
+
+    assert cli.main(["chat", "--script", "--lang", "ja", "--config-path", str(config_path), "--color", "never"]) == 0
+
+    output = capsys.readouterr().out
+    stored = json.loads(config_path.read_text(encoding="utf-8"))
+    assert "候補" in output
+    assert "/設定" in output
+    assert "/settings" not in output
+    assert "モデル（AIモデル）" in output
+    assert "ローカルLLM（PC内モデル）" in output
+    assert "設定を変更しました: モデル（AIモデル）=llama3.1" in output
+    assert "更新確認" in output
+    assert "実行しなかったこと" in output
+    assert "no download" in output
+    assert stored["model_preference"] == "llama3.1"
+    assert str(tmp_path) not in output
+    assert "\033[" not in output
+
+
+def test_config_set_model_is_supported_and_rejects_url_values(tmp_path: Path, monkeypatch, capsys) -> None:
+    from yonerai_cli import cli
+
+    config_path = tmp_path / "cli-config.json"
+    monkeypatch.setenv("YONERAI_CLI_CONFIG_PATH", str(config_path))
+
+    assert cli.main(["config", "set", "model", "llama3.1", "--json"]) == 0
+    output = json.loads(capsys.readouterr().out)
+    assert output["config"]["model_preference"] == "llama3.1"
+    assert str(tmp_path) not in json.dumps(output)
+
+    assert cli.main(["config", "set", "model", "http://127.0.0.1:11434", "--json"]) == 2
+    captured = capsys.readouterr()
+    assert "model must be auto or a simple provider model id" in captured.err
+    assert "Traceback" not in captured.err

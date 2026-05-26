@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from pathlib import Path
 from typing import Mapping
 
@@ -11,11 +12,13 @@ LANGUAGES = ("ja", "en")
 PROVIDER_PREFERENCES = ("auto", "mock", "local", "openai-compatible", "anthropic", "gemini")
 APPROVAL_MODES = ("prompt", "deny")
 FILE_ACCESS_MODES = ("workspace_only", "disabled")
+MODEL_RE = re.compile(r"^[A-Za-z0-9_.:+/-]{1,80}$")
 
 DEFAULT_CONFIG: dict[str, object] = {
     "schema_version": CONFIG_SCHEMA_VERSION,
     "language": None,
     "provider_preference": "auto",
+    "model_preference": "auto",
     "approval_mode": "prompt",
     "file_access_mode": "workspace_only",
     "live_provider_enabled": False,
@@ -98,6 +101,9 @@ def validate_cli_config(config: Mapping[str, object]) -> dict[str, object]:
         raise ConfigError("language must be ja or en.")
     if merged.get("provider_preference") not in PROVIDER_PREFERENCES:
         raise ConfigError("provider_preference is invalid.")
+    model = merged.get("model_preference")
+    if not isinstance(model, str) or not MODEL_RE.fullmatch(model) or "://" in model or "\\" in model:
+        raise ConfigError("model_preference is invalid.")
     if merged.get("approval_mode") not in APPROVAL_MODES:
         raise ConfigError("approval_mode is invalid.")
     if merged.get("file_access_mode") not in FILE_ACCESS_MODES:
@@ -114,6 +120,8 @@ def normalize_config_key(key: str) -> str:
     normalized = key.strip().replace("-", "_")
     aliases = {
         "provider": "provider_preference",
+        "model": "model_preference",
+        "model_preference": "model_preference",
         "language": "language",
         "lang": "language",
         "approval": "approval_mode",
@@ -138,6 +146,10 @@ def parse_config_value(key: str, value: str) -> object:
     if key == "provider_preference":
         if raw not in PROVIDER_PREFERENCES:
             raise ConfigError("provider must be auto, mock, local, openai-compatible, anthropic, or gemini.")
+        return raw
+    if key == "model_preference":
+        if not MODEL_RE.fullmatch(raw) or "://" in raw or "\\" in raw:
+            raise ConfigError("model must be auto or a simple provider model id.")
         return raw
     if key == "approval_mode":
         if raw not in APPROVAL_MODES:
@@ -167,6 +179,7 @@ def build_config_report(config: Mapping[str, object], *, exists: bool) -> dict[s
         "config": {
             "language": validated["language"],
             "provider_preference": validated["provider_preference"],
+            "model_preference": validated["model_preference"],
             "approval_mode": validated["approval_mode"],
             "file_access_mode": validated["file_access_mode"],
             "live_provider_enabled": validated["live_provider_enabled"],

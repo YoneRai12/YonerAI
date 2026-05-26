@@ -239,6 +239,57 @@ def test_cli_update_plan_json_is_stable_and_network_free(monkeypatch, capsys) ->
     assert str(ROOT) not in json.dumps(output)
 
 
+def test_cli_update_check_json_is_stable_network_free_and_path_safe(tmp_path, monkeypatch, capsys) -> None:
+    _prepare_paths()
+    from yonerai_cli import cli
+
+    def fail_urlopen(*_args: Any, **_kwargs: Any) -> None:
+        raise AssertionError("update check must not open network")
+
+    monkeypatch.setattr(cli.urllib.request, "urlopen", fail_urlopen)
+    manifest = _example_manifest()
+    _set_manifest_version(manifest, FUTURE_TEST_VERSION)
+    manifest_path = _write_manifest(tmp_path, manifest)
+
+    assert cli.main(["update", "check", "--manifest", str(manifest_path), "--json"]) == 0
+
+    raw = capsys.readouterr().out
+    output = json.loads(raw)
+    assert output["schema_version"] == "yonerai-update-check/v0.1"
+    assert output["current_version"] == _current_version()
+    assert output["latest_manifest_version"] == FUTURE_TEST_VERSION
+    assert output["update_available"] is True
+    assert output["artifact_status"]["sha256_present"] is True
+    assert output["signature_status"]["placeholder_non_production"] is True
+    assert output["rollback_plan_available"] is True
+    assert output["download_performed"] is False
+    assert output["install_performed"] is False
+    assert output["path_mutation"] is False
+    assert output["remote_code_executed"] is False
+    assert output["network_required"] is False
+    assert "no download" in output["actions_not_performed"]
+    assert "no install" in output["actions_not_performed"]
+    assert str(tmp_path) not in raw
+    assert str(ROOT) not in raw
+    assert ("C:" + "\\Users") not in raw
+
+
+def test_cli_update_check_pretty_is_readable_and_color_safe(capsys) -> None:
+    _prepare_paths()
+    from yonerai_cli import cli
+
+    assert cli.main(["update", "check", "--manifest", "releases/manifest.example.json", "--pretty", "--color", "never"]) == 0
+
+    output = capsys.readouterr().out
+    assert "YonerAI update check" in output
+    assert "Update check" in output
+    assert "latest_manifest_version" in output
+    assert "download_performed" in output
+    assert "network_required" in output
+    assert "false" in output
+    assert "\033[" not in output
+
+
 def test_cli_update_plan_pretty_is_readable(capsys) -> None:
     _prepare_paths()
     from yonerai_cli import cli

@@ -47,6 +47,14 @@ or reuses `.venv`, installs the local CLI package, and launches YonerAI. It does
 not mutate PATH, run a remote script, request admin rights, install a service,
 or enable live providers.
 
+`install.ps1` is a dry-run skeleton for a future one-command installer. It
+does not install anything; it points users back to the explicit local bootstrap
+helper:
+
+```powershell
+.\install.ps1
+```
+
 Use Python 3.11 or newer. If `python --version` does not work, install Python
 first or use the launcher command that exists on your machine.
 
@@ -77,6 +85,11 @@ node, ledger, safety mode, run_id, task progress, and the deterministic
 reviewer/subagent plan. It does not start uncontrolled agents or turn on live
 providers by default.
 
+When `prompt_toolkit` and Rich are available, the interactive shell shows
+completion candidates and colored panels. If not, it falls back to plain text.
+In Japanese mode, type `/` to see Japanese-first candidates; Tab and arrow-key
+selection are available in compatible terminals.
+
 ## Public Demo
 
 From the repository root:
@@ -93,6 +106,7 @@ yonerai ask "hello" --auto --pretty --lang ja
 yonerai chat --script --lang ja
 yonerai manifest verify releases/manifest.v0.5.1.json --pretty
 yonerai install plan --manifest releases/manifest.v0.5.1.json --pretty
+yonerai update check --manifest releases/manifest.v0.5.1.json --pretty
 yonerai update plan --manifest releases/manifest.v0.5.1.json --pretty
 yonerai demo --pretty
 yonerai demo --json
@@ -119,6 +133,7 @@ TTY. It is Japanese-first, uses the same `ask --auto` runtime path as the
 command CLI, and exposes settings through slash commands:
 
 - `/settings`
+- `/models`
 - `/providers`
 - `/safety`
 - `/tasks`
@@ -126,6 +141,7 @@ command CLI, and exposes settings through slash commands:
 - `/runs`
 - `/show <run_id>`
 - `/local-llm`
+- `/update`
 - `/language ja|en`
 - `/provider auto|mock|local|openai-compatible|anthropic|gemini`
 - `/ledger on|off`
@@ -139,9 +155,13 @@ non-secret preferences. Non-TTY execution prints fallback instructions instead
 of hanging. `yonerai chat --script` intentionally reads lines from stdin for
 tests or scripted demos.
 
-Japanese mode shows Japanese command labels such as `/設定`, `/タスク`,
-`/ローカルLLM`, `/ライブ接続`, and `/ネットワーク`. English aliases remain
+Japanese mode shows Japanese command labels such as `/設定`, `/モデル`, `/提供元`,
+`/安全`, `/履歴`, `/タスク`, `/エージェント`, `/更新`, and `/終了`. English aliases remain
 accepted for compatibility, but they are not the primary Japanese UI.
+
+`yonerai update check --pretty` reads local VERSION and a local release
+manifest, then reports whether a newer manifest target exists. It does not
+download, install, mutate PATH, execute remote code, or require admin rights.
 
 The interactive CLI does not add production Oracle, Official Managed Cloud,
 live Discord, arbitrary shell/file/tool execution, or default live provider
