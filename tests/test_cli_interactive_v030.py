@@ -139,7 +139,7 @@ def test_cli_without_args_tty_runs_first_launch_language_selection(tmp_path: Pat
     output = capsys.readouterr().out
 
     assert "YonerAI language / 表示言語" in output
-    assert "YonerAI CLI Local Runtime" in output
+    assert "YonerAI ミッションコントロール CLI" in output
     assert "日本語モード" in output
     assert json.loads(config_path.read_text(encoding="utf-8"))["language"] == "ja"
     assert str(tmp_path) not in output
@@ -172,10 +172,12 @@ def test_chat_script_runs_ask_auto_and_persists_language_without_path_leak(tmp_p
     )
     output = capsys.readouterr().out
 
-    assert "YonerAI CLI Local Runtime" in output
-    assert "YonerAI 応答" in output
+    assert "YonerAI ミッションコントロール CLI" in output
+    assert "YonerAI ミッションコントロール" in output
     assert "実行ID（run_id）" in output
     assert "プロバイダー（AI接続先）: モック（テスト用）" in output
+    assert "進行状況" in output
+    assert "エージェント計画" in output
     assert "終了します" in output
     assert config_path.exists()
     assert ledger_path.exists()
@@ -198,7 +200,7 @@ def test_chat_accepts_english_commands_while_showing_japanese_ui(tmp_path: Path,
 
     assert "設定" in output
     assert "/選択 5 オン" in output
-    assert "履歴記録（ローカルledger）" in output
+    assert "履歴記録（ローカル履歴）" in output
     assert "プロバイダー" in output
     assert "安全設定" in output
     assert "実行履歴" in output
@@ -248,8 +250,8 @@ def test_chat_numbered_settings_and_ledger_are_usable_in_japanese(tmp_path: Path
     output = capsys.readouterr().out
 
     assert "設定を変更しました: プロバイダー（AI接続先）=モック（テスト用）" in output
-    assert "設定を変更しました: 履歴記録（ローカルledger）=オン" in output
-    assert "YonerAI 応答" in output
+    assert "設定を変更しました: 履歴記録（ローカル履歴）=オン" in output
+    assert "YonerAI ミッションコントロール" in output
     assert "実行履歴" in output
     assert default_ledger.exists()
     assert str(tmp_path) not in output
@@ -270,7 +272,7 @@ def test_chat_invalid_language_and_provider_keep_shell_alive(tmp_path: Path, mon
     output = capsys.readouterr().out
 
     assert output.count("値が不正です") == 2
-    assert "YonerAI 応答" in output
+    assert "YonerAI ミッションコントロール" in output
     assert "Traceback" not in output
     assert str(tmp_path) not in output
 
@@ -333,3 +335,73 @@ def test_first_launch_language_selection_persists_choice(tmp_path: Path) -> None
     assert "YonerAI language / 表示言語" in output
     assert "English mode" in output
     assert json.loads(config_path.read_text(encoding="utf-8"))["language"] == "en"
+
+
+def test_chat_agents_and_run_show_explain_mission_control_state(tmp_path: Path, monkeypatch, capsys) -> None:
+    from yonerai_cli import cli
+
+    _clear_provider_env(monkeypatch)
+    config_path = tmp_path / "cli-config.json"
+    ledger_path = tmp_path / "runs.jsonl"
+    monkeypatch.setattr(
+        sys,
+        "stdin",
+        _PlainStringIO("/履歴記録 オン\nhard public reasoning over public API docs\n/エージェント\n/履歴\n/終了\n"),
+    )
+
+    assert (
+        cli.main(
+            [
+                "chat",
+                "--script",
+                "--lang",
+                "ja",
+                "--config-path",
+                str(config_path),
+                "--ledger",
+                str(ledger_path),
+                "--color",
+                "never",
+            ]
+        )
+        == 0
+    )
+    output = capsys.readouterr().out
+
+    assert "エージェント計画" in output
+    assert "計画係" in output
+    assert "調査係" in output
+    assert "レビュー係" in output
+    assert "実サブエージェント起動: なし" in output
+    assert "進行=" in output
+    assert "経路=クラウド候補（ローカル開発スタブ）" in output
+    assert ledger_path.exists()
+    assert str(tmp_path) not in output
+
+
+def test_safe_escapes_terminal_control_sequences() -> None:
+    from yonerai_cli.interactive import _safe
+
+    rendered = _safe("hello\x1b[31mred\x07")
+
+    assert "\\x1b" in rendered
+    assert "\\x07" in rendered
+    assert "\x1b" not in rendered
+    assert "\x07" not in rendered
+
+
+def test_format_runs_escapes_control_sequences() -> None:
+    from yonerai_cli.interactive import _format_runs
+
+    report = {
+        "runs": [
+            {"run_id": "r-1", "status": "completed", "task_summary": "ok\x1b]52;c;dGVzdA==\x07"},
+        ]
+    }
+
+    rendered = _format_runs(report, lang="en")
+
+    assert "\\x1b" in rendered
+    assert "\\x07" in rendered
+    assert "\x1b" not in rendered
+    assert "\x07" not in rendered

@@ -24,6 +24,11 @@ yonerai
 the same screen explicitly, and `yonerai ask --auto` remains the scriptable
 runtime path.
 
+This screen is the YonerAI Mission Control CLI. It shows provider, route, local
+node, ledger, safety mode, run_id, task progress, and the deterministic
+reviewer/subagent plan. It does not start uncontrolled agents or turn on live
+providers by default.
+
 ## Public Demo
 
 From the repository root:
@@ -64,6 +69,7 @@ command CLI, and exposes settings through slash commands:
 - `/settings`
 - `/providers`
 - `/safety`
+- `/agents`
 - `/runs`
 - `/show <run_id>`
 - `/language ja|en`

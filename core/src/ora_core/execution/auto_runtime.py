@@ -15,6 +15,7 @@ from .legacy_text import normalize_legacy_generated_text
 
 
 AUTO_RUNTIME_SCHEMA_VERSION = "yonerai-auto-runtime/v0.1"
+TASK_PROGRESS_SCHEMA_VERSION = "yonerai-task-progress/v0.1"
 _PUBLIC_CLOUD_CONTRACT_PREVIEW_TASK = "public reasoning over public documentation"
 
 AutoDifficulty = Literal["instant", "task", "agent"]
@@ -40,6 +41,7 @@ def build_auto_runtime_status_report() -> dict[str, object]:
         "mock_search_supported": True,
         "live_search_default": False,
         "reviewer_plan_supported": True,
+        "task_progress_supported": True,
         "ledger_supported": True,
         "network_required": False,
         "production_oracle_used": False,
@@ -153,6 +155,15 @@ def build_auto_runtime_report(
 
     if decision.route == "deny":
         run = ledger.fail_run(run.run_id, error_summary="approval_required", blocked=True)
+        run_payload, task_progress = _finalize_task_progress(
+            ledger,
+            run,
+            decision,
+            provider_decision=provider_decision,
+            reviewer_plan=reviewer_plan,
+            ok=False,
+            error_code="approval_required",
+        )
         return _base_report(
             task=task,
             decision=decision,
@@ -160,9 +171,10 @@ def build_auto_runtime_report(
             route_decision=route_decision,
             boundary_checks=boundary_checks,
             provider_decision=provider_decision,
-            run=run.to_public_dict(),
+            run=run_payload,
             search_report=search_report,
             reviewer_plan=reviewer_plan,
+            task_progress=task_progress,
             ok=False,
             live_call_performed=False,
             error={
@@ -182,6 +194,15 @@ def build_auto_runtime_report(
             run = ledger.fail_run(run.run_id, error_summary=str(response.get("disabled_reason") or "oracle_stub_denied"), blocked=True)
             ok = False
             error = {"code": "oracle_stub_denied", "message": response.get("disabled_reason") or "oracle stub denied the task"}
+        run_payload, task_progress = _finalize_task_progress(
+            ledger,
+            run,
+            decision,
+            provider_decision=provider_decision,
+            reviewer_plan=reviewer_plan,
+            ok=ok,
+            error_code=str(error.get("code")) if isinstance(error, dict) else None,
+        )
         report = _base_report(
             task=task,
             decision=decision,
@@ -189,9 +210,10 @@ def build_auto_runtime_report(
             route_decision=route_decision,
             boundary_checks=boundary_checks,
             provider_decision=provider_decision,
-            run=run.to_public_dict(),
+            run=run_payload,
             search_report=search_report,
             reviewer_plan=reviewer_plan,
+            task_progress=task_progress,
             ok=ok,
             live_call_performed=False,
             response=None,
@@ -217,6 +239,15 @@ def build_auto_runtime_report(
         assert isinstance(response, ProviderResponse)
         ledger.append_event(run.run_id, "provider_response", "ok", _response_summary(response))
         run = ledger.complete_run(run.run_id, result_summary=_response_summary(response))
+        run_payload, task_progress = _finalize_task_progress(
+            ledger,
+            run,
+            decision,
+            provider_decision=provider_decision,
+            reviewer_plan=reviewer_plan,
+            ok=True,
+            error_code=None,
+        )
         report = _base_report(
             task=task,
             decision=decision,
@@ -224,9 +255,10 @@ def build_auto_runtime_report(
             route_decision=route_decision,
             boundary_checks=boundary_checks,
             provider_decision=provider_decision,
-            run=run.to_public_dict(),
+            run=run_payload,
             search_report=search_report,
             reviewer_plan=reviewer_plan,
+            task_progress=task_progress,
             ok=True,
             live_call_performed=bool(provider_result["live_call_performed"]),
             response=response.to_public_dict(),
@@ -237,6 +269,15 @@ def build_auto_runtime_report(
         assert isinstance(error, dict)
         ledger.append_event(run.run_id, "provider_error", "failed", str(error.get("message") or error.get("code") or "provider_error"))
         run = ledger.fail_run(run.run_id, error_summary=str(error.get("message") or error.get("code") or "provider_error"))
+        run_payload, task_progress = _finalize_task_progress(
+            ledger,
+            run,
+            decision,
+            provider_decision=provider_decision,
+            reviewer_plan=reviewer_plan,
+            ok=False,
+            error_code=str(error.get("code") or "provider_error"),
+        )
         report = _base_report(
             task=task,
             decision=decision,
@@ -244,9 +285,10 @@ def build_auto_runtime_report(
             route_decision=route_decision,
             boundary_checks=boundary_checks,
             provider_decision=provider_decision,
-            run=run.to_public_dict(),
+            run=run_payload,
             search_report=search_report,
             reviewer_plan=reviewer_plan,
+            task_progress=task_progress,
             ok=False,
             live_call_performed=bool(provider_result["live_call_performed"]),
             response=None,
@@ -600,12 +642,24 @@ def _reviewer_plan(task: str, decision: AutoRuntimeDecision) -> dict[str, object
         },
         {
             "id": "T2",
-            "role": "executor",
+            "role": "researcher",
+            "goal": "Gather public-safe context and avoid private/local file or secret exposure.",
+            "success_criteria": "no private payload leaves the selected route",
+        },
+        {
+            "id": "T3",
+            "role": "implementer",
             "goal": "Run only the selected public-safe local or stub execution path.",
             "success_criteria": "run_id and ledger events are recorded",
         },
         {
-            "id": "T3",
+            "id": "T4",
+            "role": "tester",
+            "goal": "Check deterministic boundaries and result shape before final output.",
+            "success_criteria": "progress and non-actions are explicit",
+        },
+        {
+            "id": "T5",
             "role": "reviewer",
             "goal": "Check for boundary violations before presenting the result.",
             "success_criteria": "no secrets, private file content, shell, live Discord, or production cloud use",
@@ -660,6 +714,7 @@ def _base_report(
     run: dict[str, object],
     search_report: dict[str, object],
     reviewer_plan: dict[str, object],
+    task_progress: dict[str, object],
     ok: bool,
     live_call_performed: bool,
     response: dict[str, object] | None = None,
@@ -678,6 +733,7 @@ def _base_report(
         "response": response,
         "search": search_report,
         "reviewer_plan": reviewer_plan,
+        "task_progress": task_progress,
         "boundary_checks": boundary_checks,
         "live_call_performed": live_call_performed,
         "error": error,
@@ -709,6 +765,95 @@ def _base_report(
             "no private file content sent to cloud contract",
         ],
     }
+
+
+def _finalize_task_progress(
+    ledger: RunLedger,
+    run,
+    decision: AutoRuntimeDecision,
+    *,
+    provider_decision: Mapping[str, object],
+    reviewer_plan: Mapping[str, object],
+    ok: bool,
+    error_code: str | None,
+) -> tuple[dict[str, object], dict[str, object]]:
+    progress = _task_progress(decision, provider_decision=provider_decision, reviewer_plan=reviewer_plan, ok=ok, error_code=error_code)
+    current_run = run
+    for step in progress["steps"]:
+        if not isinstance(step, Mapping):
+            continue
+        current_run = ledger.append_event(
+            current_run.run_id,
+            f"task_progress_{step.get('id')}",
+            str(step.get("state") or "unknown"),
+            str(step.get("summary") or ""),
+        )
+    return current_run.to_public_dict(), progress
+
+
+def _task_progress(
+    decision: AutoRuntimeDecision,
+    *,
+    provider_decision: Mapping[str, object],
+    reviewer_plan: Mapping[str, object],
+    ok: bool,
+    error_code: str | None,
+) -> dict[str, object]:
+    result_state = "done" if ok else ("blocked" if decision.approval_required or decision.route == "deny" else "error")
+    execution_state = "skipped" if decision.route == "deny" else ("done" if ok else result_state)
+    review_enabled = bool(reviewer_plan.get("enabled"))
+    review_state = "done" if review_enabled else "skipped"
+    provider_id = str(provider_decision.get("provider_id") or decision.provider_id)
+    steps = [
+        _progress_step("classify", "done", f"difficulty={decision.difficulty} privacy={decision.privacy}"),
+        _progress_step("route", "done", f"route={decision.route} approval_required={str(decision.approval_required).lower()}"),
+        _progress_step("provider_selection", "done", f"provider={provider_id}"),
+        _progress_step("execution", execution_state, _execution_progress_summary(decision, ok=ok, error_code=error_code)),
+        _progress_step("review", review_state, _review_progress_summary(reviewer_plan)),
+        _progress_step("result", result_state, _result_progress_summary(ok=ok, result_state=result_state, error_code=error_code)),
+    ]
+    return {
+        "schema_version": TASK_PROGRESS_SCHEMA_VERSION,
+        "states_supported": ["pending", "running", "done", "skipped", "blocked", "error"],
+        "steps": steps,
+        "current_step": "result",
+        "complete": ok,
+        "blocked": result_state == "blocked",
+        "error": result_state == "error",
+        "source": "deterministic_auto_runtime",
+        "parallel_agents_started": False,
+        "provider_calls_performed_by_progress_model": False,
+    }
+
+
+def _progress_step(step_id: str, state: str, summary: str) -> dict[str, object]:
+    return {
+        "id": step_id,
+        "state": state,
+        "summary": safe_summary(summary, max_chars=220),
+    }
+
+
+def _execution_progress_summary(decision: AutoRuntimeDecision, *, ok: bool, error_code: str | None) -> str:
+    if decision.route == "deny":
+        return "execution skipped because approval or unsafe capability is required"
+    if ok:
+        return f"executed route={decision.route} provider={decision.provider_id}"
+    return f"execution stopped error={error_code or 'unknown'} route={decision.route}"
+
+
+def _review_progress_summary(reviewer_plan: Mapping[str, object]) -> str:
+    if not reviewer_plan.get("enabled"):
+        return "reviewer plan not required for this route"
+    return f"subagents_planned={reviewer_plan.get('subtask_count', 0)} reviewer_required=true"
+
+
+def _result_progress_summary(*, ok: bool, result_state: str, error_code: str | None) -> str:
+    if ok:
+        return "result returned with redacted public-safe summary"
+    if result_state == "blocked":
+        return f"blocked safely error={error_code or 'approval_required'}"
+    return f"result unavailable error={error_code or 'unknown'}"
 
 
 def _difficulty_for(classification: TaskClassification, task_text: str) -> AutoDifficulty:

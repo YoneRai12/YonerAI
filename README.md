@@ -30,6 +30,11 @@ After install, `yonerai` starts the interactive CLI when stdin is a TTY.
 `yonerai chat` starts the same screen explicitly. For CI, pipes, and scripted
 input, use `yonerai chat --script` or `yonerai ask --auto`.
 
+The interactive CLI is now the YonerAI Mission Control CLI: it shows the
+selected provider, route, local node state, ledger state, safety mode, run_id,
+task progress, and the deterministic reviewer/subagent plan. It does not start
+uncontrolled agents or enable live providers by default.
+
 ## Quickstart: Public Demo
 
 After clone, the fastest public-safe way to see the current YonerAI slice is the credential-free demo command. It runs in-process and does not require a Core API server, Discord token, Oracle access, provider API key, Google login, deployment, or persistent memory.
@@ -73,6 +78,7 @@ same safe `ask --auto` path, or use slash commands.
 /settings        show language/provider/safety settings
 /providers       show mock/local/API provider readiness without printing keys
 /safety          show network/tool/file/provider boundaries
+/agents          show the planned planner/researcher/reviewer roles
 /runs            list redacted local run history
 /show <run_id>   show one redacted run
 /language ja|en  change UI language
