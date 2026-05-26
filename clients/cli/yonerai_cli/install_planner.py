@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import re
+import shlex
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -384,10 +385,18 @@ def _source_repo_root() -> Path | None:
     return None
 
 
-def _quote_cli_path(path: str) -> str:
-    if not path or re.search(r"\s", path) is None:
+def _quote_cli_path(path: str, *, platform: str | None = None) -> str:
+    if not path:
+        return "''"
+    if (platform or os.name) == "nt":
+        return _quote_powershell_path(path)
+    return shlex.quote(path)
+
+
+def _quote_powershell_path(path: str) -> str:
+    if re.search(r"[\s;&|<>()`$'\"\[\]{}]", path) is None:
         return path
-    return '"' + path.replace('"', '\\"') + '"'
+    return "'" + path.replace("'", "''") + "'"
 
 
 __all__ = [
