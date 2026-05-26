@@ -17,6 +17,36 @@ This public README describes the public contract surface. It does not publish in
 This is the local CLI runtime path, not a production cloud installer. It installs
 the CLI from this checkout and creates the `yonerai` command locally.
 
+### If you downloaded the GitHub Release ZIP
+
+Download `Source code (zip)` from the
+[v0.5.0 release](https://github.com/YoneRai12/YonerAI/releases/tag/v0.5.0),
+extract it, then run PowerShell inside the extracted folder. The extracted
+folder name can vary; change the `cd` command to match the folder you see.
+
+```powershell
+cd "$HOME\Downloads\YonerAI-0.5.0"
+python --version
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -U pip
+python -m pip install -r core/requirements.txt httpx
+python -m pip install -e clients/cli
+yonerai
+```
+
+Use Python 3.11 or newer. If `python --version` does not work, install Python
+first or use the launcher command that exists on your machine.
+
+After `yonerai` opens, choose `日本語` or `English`, then type a normal
+message. You can open settings with `/設定` or `/settings`, check safety with
+`/安全`, see history with `/履歴`, and exit with `/終了` or `/quit`.
+
+If `yonerai` is not found, activate the virtual environment again:
+`.\.venv\Scripts\Activate.ps1`. This path does not mutate PATH permanently,
+does not run `irm ... | iex`, does not download or execute a remote installer,
+and does not enable live providers by default.
+
 ```powershell
 python -m venv .venv
 .venv\Scripts\Activate.ps1

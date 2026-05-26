@@ -14,6 +14,36 @@ YonerAI は単なる Discord bot でも、単なる model router でもありま
 
 ## Install and start YonerAI
 
+### GitHub Release の ZIP を解凍したあと
+
+GitHub Release の `Source code (zip)` をダウンロードして ZIP を展開したら、
+PowerShell で展開後のフォルダへ移動してから以下を実行します。フォルダ名は環境に
+よって違うので、`cd` は実際の展開先に合わせてください。
+
+```powershell
+cd "$HOME\Downloads\YonerAI-0.5.0"
+python --version
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -U pip
+python -m pip install -r core/requirements.txt httpx
+python -m pip install -e clients/cli
+yonerai
+```
+
+Python は 3.11 以上を使ってください。`python --version` が動かない場合は、
+先に Python を入れるか、自分のPCで使える Python 起動コマンドに置き換えてください。
+
+`yonerai` が起動したら、最初に `日本語` / `English` を選びます。その後は
+普通の文章を入力すればチャットできます。設定は `/設定`、安全設定の確認は
+`/安全`、履歴は `/履歴`、終了は `/終了` です。日本語設定でも `/settings`、
+`/safety`、`/runs`、`/quit` のような英語コマンドも使えます。
+
+`yonerai` が見つからない場合は、仮想環境が有効になっていない可能性があります。
+もう一度 `.\.venv\Scripts\Activate.ps1` を実行してから `yonerai` を実行して
+ください。この手順は本番クラウドインストーラーではありません。PATH を恒久変更せず、
+`irm ... | iex` も実行せず、リモートスクリプトのダウンロードや実行も行いません。
+
 これは YonerAI CLI Local Runtime をこの checkout から local install する手順です。
 production cloud installer ではありません。PATH 変更や remote script 実行は行いません。
 
