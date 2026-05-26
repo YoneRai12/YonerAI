@@ -156,6 +156,8 @@ def run_interactive_cli(
     if provider not in PROVIDER_PREFERENCES:
         provider = "auto"
     live = bool(options.live or config.get("live_provider_enabled") is True)
+    if config.get("network_enabled") is False:
+        live = False
     ledger_path = _resolve_ledger_path(config, options)
 
     if not options.script and not _is_interactive(input_stream):
@@ -215,9 +217,16 @@ def run_interactive_cli(
 
         if use_tui_prompt:
             status = "考え中..." if lang == "ja" else "Thinking..."
-            report = run_with_status(status, lambda: callbacks.ask_auto(text, provider, live, ledger_path, lang), stream=output_stream, color=options.color)
+            effective_live = bool(live and config.get("network_enabled") is not False)
+            report = run_with_status(
+                status,
+                lambda: callbacks.ask_auto(text, provider, effective_live, ledger_path, lang),
+                stream=output_stream,
+                color=options.color,
+            )
         else:
-            report = callbacks.ask_auto(text, provider, live, ledger_path, lang)
+            effective_live = bool(live and config.get("network_enabled") is not False)
+            report = callbacks.ask_auto(text, provider, effective_live, ledger_path, lang)
         last_report = report
         _write(output_stream, _format_chat_response(report, lang=lang))
 
@@ -436,7 +445,10 @@ def _handle_slash_command(
         except ConfigError as exc:
             _write(output_stream, _config_error(lang, exc))
             return {}
-        _write(output_stream, _changed_message("network", new_config["network_enabled"], lang=lang))
+        new_network = bool(new_config["network_enabled"])
+        _write(output_stream, _changed_message("network", new_network, lang=lang))
+        if not new_network:
+            return {"live": False}
         return {}
     _write(output_stream, _unknown(lang))
     return {}
