@@ -141,7 +141,7 @@ def test_local_bootstrap_plan_mode_does_not_install_when_powershell_available() 
         timeout=30,
     )
 
-    assert result.returncode == 0, result.stderr
+    assert result.returncode == 0, _subprocess_failure(result)
     assert "Plan only. Nothing was installed." in result.stdout
     assert ".\\install-local.ps1 -Execute" in result.stdout
     assert "PATH mutation" in result.stdout
@@ -167,7 +167,7 @@ def test_install_skeleton_plan_mode_does_not_install_when_powershell_available()
         timeout=30,
     )
 
-    assert result.returncode == 0, result.stderr
+    assert result.returncode == 0, _subprocess_failure(result)
     assert "Plan only. Nothing was installed." in result.stdout
     assert ".\\install-local.ps1" in result.stdout
     assert "PATH mutation" in result.stdout
@@ -187,3 +187,9 @@ def _which(command: str) -> Path | None:
 
     found = which(command)
     return Path(found) if found else None
+
+
+def _subprocess_failure(result: subprocess.CompletedProcess[str]) -> str:
+    stdout = result.stdout.replace(str(ROOT), "<tmp>")
+    stderr = result.stderr.replace(str(ROOT), "<tmp>")
+    return f"Subprocess failed.\nSTDOUT:\n{stdout}\nSTDERR:\n{stderr}"

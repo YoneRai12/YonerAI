@@ -130,7 +130,7 @@ def render_panel(text: str, *, title: str, stream: TextIO, color: str = "auto") 
     except Exception:
         return False
     force_terminal = None if color == "auto" else color != "never"
-    console = Console(file=stream, force_terminal=force_terminal, color_system="auto", width=100)
+    console = Console(file=stream, force_terminal=force_terminal, color_system="auto")
     console.print(Panel(text, title=title, border_style="cyan"))
     return True
 

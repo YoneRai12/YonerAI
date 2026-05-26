@@ -620,6 +620,21 @@ def test_chat_models_and_update_commands_are_usable(tmp_path: Path, monkeypatch,
     assert "\033[" not in output
 
 
+def test_chat_update_command_handles_missing_manifest_without_crashing(tmp_path: Path, monkeypatch, capsys) -> None:
+    from yonerai_cli import cli
+
+    _clear_provider_env(monkeypatch)
+    missing_manifest = tmp_path / "missing-manifest.json"
+    monkeypatch.setattr(sys, "stdin", _PlainStringIO(f"/更新 {missing_manifest}\n/終了\n"))
+
+    assert cli.main(["chat", "--script", "--lang", "ja", "--color", "never"]) == 0
+
+    output = capsys.readouterr().out
+    assert "更新確認に失敗しました" in output
+    assert "Traceback" not in output
+    assert str(tmp_path) not in output
+
+
 def test_config_set_model_is_supported_and_rejects_url_values(tmp_path: Path, monkeypatch, capsys) -> None:
     from yonerai_cli import cli
 

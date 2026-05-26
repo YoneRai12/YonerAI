@@ -333,7 +333,12 @@ def _handle_slash_command(
             _write(output_stream, _update_unavailable(lang))
             return {}
         manifest = args[0] if args else None
-        _write(output_stream, _format_update_check(callbacks.update_check(manifest, lang), lang=lang))
+        try:
+            report = callbacks.update_check(manifest, lang)
+        except Exception as exc:
+            _write(output_stream, _format_update_error(exc, lang=lang))
+            return {}
+        _write(output_stream, _format_update_check(report, lang=lang))
         return {}
     if command == "/select" and args:
         return _handle_numbered_selection(
@@ -1109,6 +1114,13 @@ def _format_update_check(report: dict[str, Any], *, lang: str) -> str:
         "",
     ]
     return "\n".join(lines)
+
+
+def _format_update_error(exc: Exception, *, lang: str) -> str:
+    message = _safe(str(exc) or exc.__class__.__name__)
+    if lang == "ja":
+        return f"更新確認に失敗しました: {message}\n"
+    return f"Update check failed: {message}\n"
 
 
 def _format_runs(report: dict[str, Any], *, lang: str) -> str:
