@@ -545,6 +545,34 @@ def test_network_off_forces_live_off_in_chat_session(tmp_path: Path, monkeypatch
     assert calls == [False]
 
 
+def test_network_on_restores_existing_live_request_in_chat_session(tmp_path: Path, monkeypatch, capsys) -> None:
+    from yonerai_cli import cli
+
+    _clear_provider_env(monkeypatch)
+    config_path = tmp_path / "cli-config.json"
+    calls: list[bool] = []
+
+    def fake_interactive_ask_auto(task: str, provider: str, live: bool, ledger_path: str | None, lang: str) -> dict[str, Any]:
+        calls.append(live)
+        return {
+            "ok": True,
+            "run": {"id": "run_test"},
+            "response": {"output_text": "ok"},
+            "auto": {"provider": provider, "mode": "safe"},
+            "live_call_performed": live,
+        }
+
+    monkeypatch.setattr(cli, "_interactive_ask_auto", fake_interactive_ask_auto)
+    monkeypatch.setattr(sys, "stdin", _PlainStringIO("/live on\n/network off\n/network on\nhello\n/quit\n"))
+
+    assert cli.main(["chat", "--script", "--lang", "en", "--config-path", str(config_path), "--color", "never"]) == 0
+    output = capsys.readouterr().out
+
+    assert "Changed setting: network=False" in output
+    assert "Changed setting: network=True" in output
+    assert calls == [True]
+
+
 def test_chat_agents_and_run_show_explain_mission_control_state(tmp_path: Path, monkeypatch, capsys) -> None:
     from yonerai_cli import cli
 
