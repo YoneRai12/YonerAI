@@ -30,6 +30,11 @@ PATH_PATTERNS = (
     re.compile(r"[A-Za-z]:[\\/]+Users[\\/]+[^,\s]+", re.IGNORECASE),
     re.compile(r"/(?:home|Users|root)/[^,\s]+"),
 )
+CONTROL_CHARACTER_TRANSLATION: dict[int, str] = {codepoint: f"\\x{codepoint:02x}" for codepoint in range(32)}
+CONTROL_CHARACTER_TRANSLATION[0x7F] = "\\x7f"
+for codepoint in range(0x80, 0xA0):
+    CONTROL_CHARACTER_TRANSLATION[codepoint] = f"\\x{codepoint:02x}"
+
 COMMAND_ALIASES = {
     "/?": "/help",
     "/ヘルプ": "/help",
@@ -45,6 +50,9 @@ COMMAND_ALIASES = {
     "/runs": "/runs",
     "/表示": "/show",
     "/show": "/show",
+    "/エージェント": "/agents",
+    "/agents": "/agents",
+    "/agent": "/agents",
     "/言語": "/language",
     "/language": "/language",
     "/提供元選択": "/provider",
@@ -128,7 +136,18 @@ def run_interactive_cli(
         _write(output_stream, _non_tty_fallback(lang))
         return 0
 
-    _write(output_stream, _welcome(lang, provider=provider, live=live, config_exists=config_exists))
+    last_report: dict[str, Any] | None = None
+    _write(
+        output_stream,
+        _welcome(
+            lang,
+            provider=provider,
+            live=live,
+            config_exists=config_exists,
+            config=config,
+            ledger_path=ledger_path,
+        ),
+    )
     while True:
         if _is_interactive(input_stream):
             output_stream.write("yonerai> " if lang == "en" else "yonerai> ")
@@ -150,6 +169,7 @@ def run_interactive_cli(
                 provider=provider,
                 live=live,
                 ledger_path=ledger_path,
+                last_report=last_report,
                 output_stream=output_stream,
             )
             provider = command_result.get("provider", provider)
@@ -162,6 +182,7 @@ def run_interactive_cli(
             continue
 
         report = callbacks.ask_auto(text, provider, live, ledger_path, lang)
+        last_report = report
         _write(output_stream, _format_chat_response(report, lang=lang))
 
 
@@ -203,6 +224,7 @@ def _handle_slash_command(
     provider: str,
     live: bool,
     ledger_path: str | None,
+    last_report: dict[str, Any] | None,
     output_stream: TextIO,
 ) -> dict[str, object]:
     parts = text.split()
@@ -227,6 +249,9 @@ def _handle_slash_command(
         return {}
     if command == "/show" and args:
         _write(output_stream, _format_run(callbacks.runs_show(args[0], ledger_path, lang), lang=lang))
+        return {}
+    if command == "/agents":
+        _write(output_stream, _format_agents(last_report, lang=lang))
         return {}
     if command == "/select" and args:
         return _handle_numbered_selection(
@@ -391,11 +416,18 @@ def _format_chat_response(report: dict[str, Any], *, lang: str) -> str:
     if lang == "ja":
         return "\n".join(
             (
-                "YonerAI 応答",
+                "YonerAI ミッションコントロール",
                 f"  実行ID（run_id）: {_safe(run.get('run_id') or 'なし')}",
                 f"  経路（処理方法）: {_route_label(auto.get('route'), lang='ja')}",
                 f"  プロバイダー（AI接続先）: {_provider_label(provider.get('provider_id') or auto.get('provider_id'), lang='ja')}",
+                f"  ローカルノード: {_local_node_state(report, lang='ja')}",
+                f"  履歴: {_ledger_state_from_report(report, lang='ja')}",
+                f"  安全: ネットワーク初期値オフ / ファイルはワークスペース内のみ / 任意シェル無効",
                 f"  承認: {'必要' if auto.get('approval_required') else '不要'}",
+                "",
+                _format_task_progress(report, lang="ja").rstrip(),
+                _format_agents(report, lang="ja").rstrip(),
+                "",
                 f"  出力: {_safe(output)}",
                 "",
             )
@@ -406,11 +438,245 @@ def _format_chat_response(report: dict[str, Any], *, lang: str) -> str:
             f"  run_id: {_safe(run.get('run_id') or 'none')}",
             f"  route: {_safe(auto.get('route') or 'unknown')}",
             f"  provider: {_safe(provider.get('provider_id') or auto.get('provider_id') or 'unknown')}",
+            f"  local_node: {_local_node_state(report, lang='en')}",
+            f"  ledger: {_ledger_state_from_report(report, lang='en')}",
+            f"  safety: network off by default / workspace file only / arbitrary shell disabled",
             f"  approval: {'required' if auto.get('approval_required') else 'not required'}",
+            "",
+            _format_task_progress(report, lang="en").rstrip(),
+            _format_agents(report, lang="en").rstrip(),
+            "",
             f"  output: {_safe(output)}",
             "",
         )
     )
+
+
+def _format_task_progress(report: dict[str, Any], *, lang: str) -> str:
+    progress = report.get("task_progress") if isinstance(report.get("task_progress"), dict) else {}
+    steps = progress.get("steps") if isinstance(progress.get("steps"), list) else []
+    if not steps:
+        return "進行状況: まだありません\n" if lang == "ja" else "Task progress: none yet\n"
+    if lang == "ja":
+        lines = ["進行状況"]
+        for step in steps:
+            if not isinstance(step, dict):
+                continue
+            lines.append(
+                f"  {_progress_state_label(step.get('state'), lang='ja')}: "
+                f"{_progress_step_label(step.get('id'), lang='ja')} - "
+                f"{_progress_summary_label(step.get('id'), step.get('summary'), lang='ja')}"
+            )
+        lines.append("")
+        return "\n".join(lines)
+    lines = ["Task progress"]
+    for step in steps:
+        if isinstance(step, dict):
+            lines.append(f"  {step.get('state')}: {_safe(step.get('id') or 'step')} - {_safe(step.get('summary') or '')}")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def _format_agents(report: dict[str, Any] | None, *, lang: str) -> str:
+    reviewer = report.get("reviewer_plan") if isinstance(report, dict) and isinstance(report.get("reviewer_plan"), dict) else {}
+    subtasks = reviewer.get("subtasks") if isinstance(reviewer.get("subtasks"), list) else []
+    if not reviewer:
+        if lang == "ja":
+            return "\n".join(
+                (
+                    "エージェント計画",
+                    "  まだ実行結果がありません。質問後に /エージェント で確認できます。",
+                    "  実サブエージェントはまだ起動しません。公開安全な計画表示だけです。",
+                    "",
+                )
+            )
+        return "Agent plan\n  No run yet. This is a public-safe plan display; no subagents are started.\n"
+    if lang == "ja":
+        lines = ["エージェント計画"]
+        if not reviewer.get("enabled"):
+            lines.append("  今回は複数担当の計画は不要です。単純なローカル/モック経路で処理します。")
+        for item in subtasks:
+            if isinstance(item, dict):
+                lines.append(
+                    f"  {_agent_role_label(item.get('role'), lang='ja')}: "
+                    f"{_safe(item.get('goal') or '')}"
+                )
+        checks = (reviewer.get("reviewer") or {}).get("checks") if isinstance(reviewer.get("reviewer"), dict) else []
+        if checks:
+            lines.append("  レビュー: " + ", ".join(_safe(check) for check in checks[:5]))
+        lines.append("  実サブエージェント起動: なし（計画表示のみ）")
+        lines.append("")
+        return "\n".join(lines)
+    lines = ["Agent plan"]
+    if not reviewer.get("enabled"):
+        lines.append("  multi-role plan: not required for this run")
+    for item in subtasks:
+        if isinstance(item, dict):
+            lines.append(f"  {item.get('role')}: {_safe(item.get('goal') or '')}")
+    lines.append("  subagents_started: false")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def _format_run_progress(run: dict[str, Any], *, lang: str) -> str:
+    progress_events = _run_progress_events(run)
+    if not progress_events:
+        return "進行状況: 記録なし\n" if lang == "ja" else "Task progress: not recorded\n"
+    if lang == "ja":
+        lines = ["進行状況"]
+        for event in progress_events:
+            step = str(event.get("name") or "").removeprefix("task_progress_")
+            lines.append(
+                f"  {_progress_state_label(event.get('status'), lang='ja')}: "
+                f"{_progress_step_label(step, lang='ja')} - {_progress_summary_label(step, event.get('summary'), lang='ja')}"
+            )
+        lines.append("")
+        return "\n".join(lines)
+    lines = ["Task progress"]
+    for event in progress_events:
+        step = str(event.get("name") or "").removeprefix("task_progress_")
+        lines.append(f"  {event.get('status')}: {_safe(step)} - {_safe(event.get('summary') or '')}")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def _format_run_agents(run: dict[str, Any], *, lang: str) -> str:
+    events = run.get("events") if isinstance(run.get("events"), list) else []
+    reviewer_event = next((event for event in events if isinstance(event, dict) and event.get("name") == "auto_reviewer_plan"), None)
+    if lang == "ja":
+        lines = ["エージェント計画"]
+        if reviewer_event:
+            lines.append(f"  レビュー計画: {_safe(reviewer_event.get('summary') or '')}")
+        else:
+            lines.append("  この履歴にはレビュー計画の記録がありません。")
+        lines.append("  実サブエージェント起動: なし（計画表示のみ）")
+        lines.append("")
+        return "\n".join(lines)
+    return "\n".join(
+        (
+            "Agent plan",
+            f"  reviewer_plan: {_safe(reviewer_event.get('summary') if isinstance(reviewer_event, dict) else 'not recorded')}",
+            "  subagents_started: false",
+            "",
+        )
+    )
+
+
+def _run_progress_events(run: dict[str, Any]) -> list[dict[str, Any]]:
+    events = run.get("events") if isinstance(run.get("events"), list) else []
+    return [event for event in events if isinstance(event, dict) and str(event.get("name") or "").startswith("task_progress_")]
+
+
+def _run_route(run: dict[str, Any]) -> object:
+    route_decision = run.get("route_decision") if isinstance(run.get("route_decision"), dict) else {}
+    auto_runtime = route_decision.get("auto_runtime") if isinstance(route_decision.get("auto_runtime"), dict) else {}
+    return route_decision.get("route_strategy") or auto_runtime.get("route") or route_decision.get("route") or "unknown"
+
+
+def _run_provider(run: dict[str, Any]) -> object:
+    provider_decision = run.get("provider_decision") if isinstance(run.get("provider_decision"), dict) else {}
+    return provider_decision.get("provider_id") or "unknown"
+
+
+def _local_node_state(report: dict[str, Any], *, lang: str) -> str:
+    local_node = report.get("local_node") if isinstance(report.get("local_node"), dict) else {}
+    if local_node.get("used"):
+        return "使用中（ローカル開発 / ループバック限定）" if lang == "ja" else "used local-dev loopback-only"
+    return "待機中（ローカル開発 / ループバック限定）" if lang == "ja" else "standby local-dev loopback-only"
+
+
+def _ledger_state_from_report(report: dict[str, Any], *, lang: str) -> str:
+    ledger = report.get("ledger") if isinstance(report.get("ledger"), dict) else {}
+    if ledger.get("file_backed"):
+        return "オン（ローカルのみ）" if lang == "ja" else "on local-only"
+    if ledger.get("enabled"):
+        return "オン（ローカルのみ）" if lang == "ja" else "on local-only"
+    return "オフ（初期値）" if lang == "ja" else "off by default"
+
+
+def _progress_step_label(value: object, *, lang: str) -> str:
+    if lang != "ja":
+        return _safe(value or "step")
+    labels = {
+        "classify": "分類",
+        "route": "経路選択",
+        "provider_selection": "提供元選択",
+        "execution": "実行",
+        "review": "レビュー",
+        "result": "結果",
+    }
+    return labels.get(str(value), _safe(value or "不明"))
+
+
+def _progress_state_label(value: object, *, lang: str) -> str:
+    if lang != "ja":
+        return _safe(value or "unknown")
+    labels = {
+        "pending": "待機",
+        "running": "実行中",
+        "done": "完了",
+        "skipped": "スキップ",
+        "blocked": "ブロック",
+        "error": "エラー",
+        "ok": "完了",
+        "failed": "エラー",
+    }
+    return labels.get(str(value), _safe(value or "不明"))
+
+
+def _progress_summary_label(step: object, summary: object, *, lang: str) -> str:
+    text = _safe(summary or "")
+    if lang != "ja":
+        return text
+    step_id = str(step)
+    if step_id == "classify" and "difficulty=" in text:
+        return text.replace("difficulty=instant", "難易度=即時").replace("difficulty=task", "難易度=タスク").replace(
+            "difficulty=agent", "難易度=複雑"
+        ).replace("privacy=public", "公開").replace("privacy=local_file", "ローカルファイル").replace("privacy=private", "非公開")
+    if step_id == "route" and "route=" in text:
+        return text.replace("route=instant_local", "経路=ローカル即時").replace("route=local_llm", "経路=ローカルLLM").replace(
+            "route=cloud_contract_candidate", "経路=クラウド候補"
+        ).replace("route=deny", "経路=拒否").replace("approval_required=false", "承認不要").replace(
+            "approval_required=true", "承認必要"
+        )
+    if step_id == "provider_selection" and "provider=" in text:
+        return text.replace("provider=mock", "提供元=モック").replace("provider=oracle-stub", "提供元=オラクルスタブ").replace(
+            "provider=local", "提供元=ローカル"
+        )
+    if step_id == "execution":
+        if text.startswith("executed route="):
+            return "選択した安全な経路で実行しました"
+        if text.startswith("execution skipped"):
+            return "安全上、実行をスキップしました"
+        if text.startswith("execution stopped"):
+            return "実行を停止しました"
+    if step_id == "review":
+        if text.startswith("reviewer plan not required"):
+            return "この経路ではレビュー計画は不要です"
+        if text.startswith("subagents_planned="):
+            return text.replace("subagents_planned=", "担当計画=").replace(" reviewer_required=true", " / レビューあり")
+    if step_id == "result":
+        if text.startswith("result returned"):
+            return "秘匿済みの安全な結果を返しました"
+        if text.startswith("blocked safely"):
+            return "安全にブロックしました"
+        if text.startswith("result unavailable"):
+            return "結果は利用できません"
+    return text
+
+
+def _agent_role_label(value: object, *, lang: str) -> str:
+    if lang != "ja":
+        return _safe(value or "agent")
+    labels = {
+        "planner": "計画係",
+        "researcher": "調査係",
+        "implementer": "実装係",
+        "tester": "テスト係",
+        "reviewer": "レビュー係",
+        "executor": "実行係",
+    }
+    return labels.get(str(value), _safe(value or "担当"))
 
 
 def _format_settings(
@@ -437,7 +703,7 @@ def _format_settings(
                 "     変更: /選択 3 確認 または /選択 3 拒否",
                 "  4. ファイルアクセス（ファイル読み取り）: " + _file_access_label(values["file_access_mode"], lang="ja"),
                 "     変更: /選択 4 ワークスペース内のみ または /選択 4 無効",
-                "  5. 履歴記録（ローカルledger）: " + ("オン（redacted local JSONL）" if values.get("ledger_enabled") else "オフ（初期値）"),
+                "  5. 履歴記録（ローカル履歴）: " + ("オン（秘匿済みローカルJSONL）" if values.get("ledger_enabled") else "オフ（初期値）"),
                 "     変更: /選択 5 オン または /選択 5 オフ",
                 "",
                 "状態",
@@ -446,7 +712,7 @@ def _format_settings(
                 f"  ローカルLLM（PC内モデル）: {_state_label(local_state, lang='ja')}",
                 f"  承認（危険操作）: {_approval_label(values['approval_mode'], lang='ja')}",
                 f"  ファイルアクセス（ファイル読み取り）: {_file_access_label(values['file_access_mode'], lang='ja')}",
-                f"  履歴記録（ローカルledger）: {ledger}",
+                f"  履歴記録（ローカル履歴）: {ledger}",
                 f"  ライブ接続（外部/ローカル実行）: {'オン（明示許可）' if live else 'オフ（初期値）'}",
                 f"  ネットワーク（外部通信）: {'オン（明示許可）' if values['network_enabled'] else 'オフ（初期値）'}",
                 "  秘密情報（APIキーなど）: 保存しません",
@@ -508,9 +774,9 @@ def _format_safety(config: dict[str, object], *, live: bool, lang: str) -> str:
                 f"{_selector('disabled', tools_selected)} 無効",
                 "",
                 f"承認（危険操作）: {_approval_label(values['approval_mode'], lang='ja')}",
-                f"履歴記録（ローカルledger）: {'オン（redacted local only）' if values.get('ledger_enabled') else 'オフ'}",
+                f"履歴記録（ローカル履歴）: {'オン（秘匿済み / ローカルのみ）' if values.get('ledger_enabled') else 'オフ'}",
                 "シェル実行（PC操作）: 任意コマンドは無効",
-                "クラウド候補: private/local fileは送りません",
+                "クラウド候補: 非公開ファイルやローカルファイルは送りません",
                 "",
             )
         )
@@ -563,8 +829,8 @@ def _format_runs(report: dict[str, Any], *, lang: str) -> str:
             return "\n".join(
                 (
                     "実行履歴: まだありません",
-                    "履歴は明示したローカルledgerだけを読みます。",
-                    "対話画面では /選択 5 オン で redacted local ledger を有効化できます。",
+                    "履歴は明示したローカル履歴だけを読みます。",
+                    "対話画面では /選択 5 オン で秘匿済みローカル履歴を有効化できます。",
                     "",
                 )
             )
@@ -573,12 +839,20 @@ def _format_runs(report: dict[str, Any], *, lang: str) -> str:
     lines = [title]
     for run in runs:
         if isinstance(run, dict):
+            route = _run_route(run)
+            provider = _run_provider(run)
+            event_count = len(run.get("events") or []) if isinstance(run.get("events"), list) else 0
             if lang == "ja":
                 lines.append(
-                    f"  実行ID（run_id）={run.get('run_id')}: {_run_status_label(run.get('status'), lang='ja')} {run.get('task_summary')}"
+                    f"  実行ID（run_id）={run.get('run_id')}: {_run_status_label(run.get('status'), lang='ja')} "
+                    f"{run.get('task_summary')} / 経路={_route_label(route, lang='ja')} / "
+                    f"提供元={_provider_label(provider, lang='ja')} / 進行={event_count}件"
                 )
             else:
-                lines.append(f"  {run.get('run_id')}: {run.get('status')} {run.get('task_summary')}")
+                lines.append(
+                    f"  {run.get('run_id')}: {run.get('status')} {run.get('task_summary')} "
+                    f"/ route={_safe(route)} / provider={_safe(provider)} / progress_events={event_count}"
+                )
     lines.append("")
     return "\n".join(_safe(line) for line in lines)
 
@@ -587,47 +861,72 @@ def _format_run(report: dict[str, Any], *, lang: str) -> str:
     if not report.get("ok"):
         return ("実行が見つかりません\n" if lang == "ja" else "Run not found\n")
     run = report.get("run") if isinstance(report.get("run"), dict) else {}
+    if lang == "ja":
+        lines = [
+            "実行",
+            f"  実行ID（run_id）: {_safe(run.get('run_id') or 'なし')}",
+            f"  状態: {_run_status_label(run.get('status'), lang='ja')}",
+            f"  経路（処理方法）: {_route_label(_run_route(run), lang='ja')}",
+            f"  プロバイダー（AI接続先）: {_provider_label(_run_provider(run), lang='ja')}",
+            f"  タスク: {_safe(run.get('task_summary') or 'なし')}",
+            "",
+            _format_run_progress(run, lang="ja").rstrip(),
+            _format_run_agents(run, lang="ja").rstrip(),
+            "",
+        ]
+        return "\n".join(lines)
     return "\n".join(
         (
-            "実行" if lang == "ja" else "Run",
-            (
-                f"  実行ID（run_id）: {_safe(run.get('run_id') or 'なし')}"
-                if lang == "ja"
-                else f"  run_id: {_safe(run.get('run_id') or 'none')}"
-            ),
-            (
-                f"  状態: {_run_status_label(run.get('status'), lang='ja')}"
-                if lang == "ja"
-                else f"  status: {_safe(run.get('status') or 'unknown')}"
-            ),
-            (
-                f"  プロバイダー（AI接続先）: {_provider_label((run.get('provider_decision') or {}).get('provider_id') if isinstance(run.get('provider_decision'), dict) else 'unknown', lang='ja')}"
-                if lang == "ja"
-                else f"  provider: {_safe((run.get('provider_decision') or {}).get('provider_id') if isinstance(run.get('provider_decision'), dict) else 'unknown')}"
-            ),
+            "Run",
+            f"  run_id: {_safe(run.get('run_id') or 'none')}",
+            f"  status: {_safe(run.get('status') or 'unknown')}",
+            f"  route: {_safe(_run_route(run))}",
+            f"  provider: {_safe(_run_provider(run))}",
+            f"  task: {_safe(run.get('task_summary') or 'none')}",
+            "",
+            _format_run_progress(run, lang="en").rstrip(),
+            _format_run_agents(run, lang="en").rstrip(),
             "",
         )
     )
 
 
-def _welcome(lang: str, *, provider: str, live: bool, config_exists: bool) -> str:
+def _welcome(
+    lang: str,
+    *,
+    provider: str,
+    live: bool,
+    config_exists: bool,
+    config: dict[str, object],
+    ledger_path: str | None,
+) -> str:
+    ledger = "オン" if ledger_path else "オフ"
+    ledger_en = "on" if ledger_path else "off"
+    safety = f"承認={_approval_label(config.get('approval_mode'), lang='ja')} / ファイル={_file_access_label(config.get('file_access_mode'), lang='ja')}"
     if lang == "ja":
         return "\n".join(
             (
-                "YonerAI CLI Local Runtime",
+                "YonerAI ミッションコントロール CLI",
                 "日本語モード。/ヘルプ でコマンドを表示します。",
-                f"プロバイダー（AI接続先）={_provider_label(provider, lang='ja')} ライブ接続={'オン' if live else 'オフ'} 設定={'既存' if config_exists else '初期値'}",
-                "安全: ネットワークは初期値オフ / ツールはドライラン / ファイルはワークスペース内のみ",
-                "設定を変える: /設定  または  /選択 <番号> <値>",
+                "状態ヘッダー",
+                f"  プロバイダー（AI接続先）: {_provider_label(provider, lang='ja')}",
+                "  経路（処理方法）: 未実行",
+                "  ローカルノード: 待機中（ローカル開発 / ループバック限定）",
+                f"  履歴: {ledger}（秘匿済みローカル履歴）",
+                f"  安全: {safety} / ネットワーク初期値オフ / 任意シェル無効",
+                f"  ライブ接続: {'オン（明示許可）' if live else 'オフ（初期値）'} / 設定={'既存' if config_exists else '初期値'}",
+                "使う: そのまま質問を書く / /設定 / /安全 / /エージェント / /履歴 / /表示 <run_id>",
+                "設定を変える: /選択 <番号> <値>",
                 "",
             )
         )
     return "\n".join(
         (
-            "YonerAI CLI Local Runtime",
+            "YonerAI Mission Control CLI",
             "English mode. Type /help for commands.",
-            f"provider={provider} live={'on' if live else 'off'} config={'found' if config_exists else 'created/default'}",
-            "Safety: network off / tools dry-run / workspace file only / live providers off by default",
+            f"provider={provider} route=not_run local_node=standby ledger={ledger_en} live={'on' if live else 'off'} config={'found' if config_exists else 'created/default'}",
+            "Safety: network off / tools dry-run / workspace file only / arbitrary shell disabled / live providers off by default",
+            "Use: type a message, /settings, /safety, /agents, /runs, /show <run_id>",
             "",
         )
     )
@@ -641,13 +940,14 @@ def _help(lang: str) -> str:
                 "  /設定                 設定を見る",
                 "  /提供元               プロバイダー（AI接続先）を見る",
                 "  /安全                 安全境界を見る",
+                "  /エージェント         計画中の担当（計画係/レビュー係など）を見る",
                 "  /履歴                 実行履歴を見る",
                 "  /表示 <実行ID>        1件の実行を見る",
                 "  /言語 日本語|英語     表示言語を変更",
                 "  /提供元選択 自動|モック|ローカル|オープンAI互換|アンソロピック|ジェミニ",
                 "  /承認 確認|拒否       危険操作の扱いを変更",
                 "  /ファイル ワークスペース内のみ|無効",
-                "  /履歴記録 オン|オフ    redacted local ledger の記録を変更",
+                "  /履歴記録 オン|オフ    秘匿済みローカル履歴の記録を変更",
                 "  /選択 <番号> <値>      設定画面の番号で変更",
                 "  /終了                 終了",
                 "",
@@ -659,6 +959,7 @@ def _help(lang: str) -> str:
             "  /settings        Show settings",
             "  /providers       Show provider status",
             "  /safety          Show safety boundaries",
+            "  /agents          Show planned agent/reviewer roles",
             "  /runs            Show run history",
             "  /show <run_id>   Show one run",
             "  /language ja|en  Change language",
@@ -741,6 +1042,7 @@ def _safe(value: object) -> str:
         text = pattern.sub("[REDACTED]", text)
     for pattern in PATH_PATTERNS:
         text = pattern.sub("[LOCAL_PATH]", text)
+    text = text.translate(CONTROL_CHARACTER_TRANSLATION)
     return text[:500]
 
 
@@ -777,7 +1079,7 @@ def _route_label(value: object, *, lang: str) -> str:
         "instant_local": "ローカルで即時実行",
         "local_llm": "ローカルLLM（PC内モデル）",
         "hybrid_node": "ハイブリッド（ローカル優先）",
-        "cloud_contract_candidate": "クラウド候補（local-dev stub）",
+        "cloud_contract_candidate": "クラウド候補（ローカル開発スタブ）",
         "deny": "拒否",
     }
     return labels.get(value, _safe(value or "不明"))
@@ -811,7 +1113,7 @@ def _state_label(value: object, *, lang: str) -> str:
         "not_configured": "未設定",
         "missing_configuration": "設定不足",
         "disabled": "無効",
-        "blocked_by_loopback_policy": "loopback以外のため拒否",
+        "blocked_by_loopback_policy": "ループバック以外のため拒否",
         "invalid_configuration": "設定が不正",
         "unknown": "不明",
     }
@@ -826,7 +1128,7 @@ def _setting_label(value: object, *, lang: str) -> str:
         "provider": "プロバイダー（AI接続先）",
         "approval": "承認（危険操作）",
         "file_access": "ファイルアクセス（ファイル読み取り）",
-        "ledger": "履歴記録（ローカルledger）",
+        "ledger": "履歴記録（ローカル履歴）",
     }
     return labels.get(str(value), _safe(value))
 

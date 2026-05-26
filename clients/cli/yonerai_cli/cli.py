@@ -2073,6 +2073,7 @@ def _format_auto_runtime_pretty(report: dict[str, Any], *, lang: str = "en", col
     response = report["response"] if isinstance(report.get("response"), dict) else {}
     search = report["search"] if isinstance(report.get("search"), dict) else {}
     reviewer = report["reviewer_plan"] if isinstance(report.get("reviewer_plan"), dict) else {}
+    task_progress = report["task_progress"] if isinstance(report.get("task_progress"), dict) else {}
     boundaries = report["boundaries"] if isinstance(report.get("boundaries"), dict) else {}
     error = report["error"] if isinstance(report.get("error"), dict) else {}
     ledger = report["ledger"] if isinstance(report.get("ledger"), dict) else {}
@@ -2086,6 +2087,7 @@ def _format_auto_runtime_pretty(report: dict[str, Any], *, lang: str = "en", col
             response=response,
             search=search,
             reviewer=reviewer,
+            task_progress=task_progress,
             boundaries=boundaries,
             error=error,
             ledger=ledger,
@@ -2125,6 +2127,18 @@ def _format_auto_runtime_pretty(report: dict[str, Any], *, lang: str = "en", col
             ),
         ),
         CliSection(
+            "Task progress",
+            tuple(
+                CliRow(
+                    str(step.get("id") or "step"),
+                    f"{step.get('state')}: {step.get('summary')}",
+                    _progress_status_for_cli(step.get("state")),
+                )
+                for step in _progress_steps(task_progress)
+            )
+            or (CliRow("progress", "not recorded", "warn"),),
+        ),
+        CliSection(
             "Search and reviewer",
             (
                 CliRow("search_mode", search.get("mode"), "ok" if search.get("mode") in {"mock", "not_requested"} else "warn"),
@@ -2160,6 +2174,7 @@ def _auto_runtime_sections_ja(
     response: dict[str, Any],
     search: dict[str, Any],
     reviewer: dict[str, Any],
+    task_progress: dict[str, Any],
     boundaries: dict[str, Any],
     error: dict[str, Any],
     ledger: dict[str, Any],
@@ -2197,12 +2212,25 @@ def _auto_runtime_sections_ja(
             ),
         ),
         CliSection(
+            "進行状況",
+            tuple(
+                CliRow(
+                    _progress_step_label_ja(step.get("id")),
+                    f"{_progress_state_label_ja(step.get('state'))}: {_progress_summary_ja(step.get('id'), step.get('summary'))}",
+                    _progress_status_for_cli(step.get("state")),
+                )
+                for step in _progress_steps(task_progress)
+            )
+            or (CliRow("進行", "記録なし", "warn"),),
+        ),
+        CliSection(
             "検索とレビュー",
             (
                 CliRow("検索", _search_mode_ja(search.get("mode")), "ok" if search.get("mode") in {"mock", "not_requested"} else "warn"),
                 CliRow("検索結果数", len(search.get("results") or []), "ok"),
-                CliRow("reviewer plan", _yes_no_ja(reviewer.get("enabled")), "ok" if reviewer.get("enabled") else "skipped"),
-                CliRow("subtasks", reviewer.get("subtask_count"), "ok" if reviewer.get("enabled") else "skipped"),
+                CliRow("レビュー計画", _yes_no_ja(reviewer.get("enabled")), "ok" if reviewer.get("enabled") else "skipped"),
+                CliRow("担当数", reviewer.get("subtask_count"), "ok" if reviewer.get("enabled") else "skipped"),
+                CliRow("実エージェント起動", "なし（計画表示のみ）", "ok"),
             ),
         ),
         CliSection(
@@ -2231,6 +2259,88 @@ def _auto_route_label_en(route: object) -> str:
         "deny": "blocked because approval or unsafe capability would be required",
     }
     return mapping.get(str(route), "unknown route")
+
+
+def _progress_steps(task_progress: dict[str, Any]) -> tuple[dict[str, Any], ...]:
+    steps = task_progress.get("steps") if isinstance(task_progress.get("steps"), list) else []
+    return tuple(step for step in steps if isinstance(step, dict))
+
+
+def _progress_status_for_cli(state: object) -> str:
+    if state == "done":
+        return "ok"
+    if state == "skipped":
+        return "skipped"
+    if state == "blocked":
+        return "warn"
+    if state == "error":
+        return "fail"
+    if state == "running":
+        return "warn"
+    return "warn"
+
+
+def _progress_step_label_ja(value: object) -> str:
+    mapping = {
+        "classify": "分類",
+        "route": "経路選択",
+        "provider_selection": "提供元選択",
+        "execution": "実行",
+        "review": "レビュー",
+        "result": "結果",
+    }
+    return mapping.get(str(value), str(value or "不明"))
+
+
+def _progress_state_label_ja(value: object) -> str:
+    mapping = {
+        "pending": "待機",
+        "running": "実行中",
+        "done": "完了",
+        "skipped": "スキップ",
+        "blocked": "ブロック",
+        "error": "エラー",
+    }
+    return mapping.get(str(value), str(value or "不明"))
+
+
+def _progress_summary_ja(step: object, summary: object) -> str:
+    text = str(summary or "")
+    step_id = str(step)
+    if step_id == "classify" and "difficulty=" in text:
+        return text.replace("difficulty=instant", "難易度=即時").replace("difficulty=task", "難易度=タスク").replace(
+            "difficulty=agent", "難易度=複雑"
+        ).replace("privacy=public", "公開").replace("privacy=local_file", "ローカルファイル").replace("privacy=private", "非公開")
+    if step_id == "route" and "route=" in text:
+        return text.replace("route=instant_local", "経路=ローカル即時").replace("route=local_llm", "経路=ローカルLLM").replace(
+            "route=cloud_contract_candidate", "経路=クラウド候補"
+        ).replace("route=deny", "経路=拒否").replace("approval_required=false", "承認不要").replace(
+            "approval_required=true", "承認必要"
+        )
+    if step_id == "provider_selection" and "provider=" in text:
+        return text.replace("provider=mock", "提供元=モック").replace("provider=oracle-stub", "提供元=オラクルスタブ").replace(
+            "provider=local", "提供元=ローカル"
+        )
+    if step_id == "execution":
+        if text.startswith("executed route="):
+            return "選択した安全な経路で実行しました"
+        if text.startswith("execution skipped"):
+            return "安全上、実行をスキップしました"
+        if text.startswith("execution stopped"):
+            return "実行を停止しました"
+    if step_id == "review":
+        if text.startswith("reviewer plan not required"):
+            return "この経路ではレビュー計画は不要です"
+        if text.startswith("subagents_planned="):
+            return text.replace("subagents_planned=", "担当計画=").replace(" reviewer_required=true", " / レビューあり")
+    if step_id == "result":
+        if text.startswith("result returned"):
+            return "秘匿済みの安全な結果を返しました"
+        if text.startswith("blocked safely"):
+            return "安全にブロックしました"
+        if text.startswith("result unavailable"):
+            return "結果は利用できません"
+    return text
 
 
 def _auto_route_label_ja(route: object) -> str:
@@ -2887,6 +2997,28 @@ def _print_run_show_pretty(report: dict[str, Any], *, lang: str = "en", color: C
     ledger = report.get("ledger") or {}
     file_backed = ledger.get("file_backed", "unknown")
     events = tuple(CliRow(event["name"], f"{event['status']} {event['summary']}", "ok" if event["status"] == "ok" else "warn") for event in run["events"])
+    progress_events = tuple(event for event in run["events"] if str(event.get("name") or "").startswith("task_progress_"))
+    if lang == "ja":
+        progress_rows = tuple(
+            CliRow(
+                _progress_step_label_ja(str(event.get("name") or "").removeprefix("task_progress_")),
+                f"{_progress_state_label_ja(event.get('status'))}: "
+                f"{_progress_summary_ja(str(event.get('name') or '').removeprefix('task_progress_'), event.get('summary'))}",
+                _progress_status_for_cli(event.get("status")),
+            )
+            for event in progress_events
+        )
+        agent_rows = _run_agent_rows_ja(run)
+    else:
+        progress_rows = tuple(
+            CliRow(
+                str(event.get("name") or "").removeprefix("task_progress_"),
+                f"{event.get('status')}: {event.get('summary')}",
+                _progress_status_for_cli(event.get("status")),
+            )
+            for event in progress_events
+        )
+        agent_rows = _run_agent_rows_en(run)
     sections = (
         CliSection(
             "履歴" if lang == "ja" else "Ledger",
@@ -2905,9 +3037,29 @@ def _print_run_show_pretty(report: dict[str, Any], *, lang: str = "en", color: C
                 CliRow("provider", run["provider_decision"].get("provider_id", "unknown"), "ok"),
             ),
         ),
+        CliSection("進行状況" if lang == "ja" else "Task progress", progress_rows or (CliRow("progress", "not recorded", "warn"),)),
+        CliSection("エージェント計画" if lang == "ja" else "Agent plan", agent_rows),
         CliSection("イベント" if lang == "ja" else "Events", events or (CliRow("events", "none", "warn"),)),
     )
     print(render_report(title, sections, color=color))
+
+
+def _run_agent_rows_ja(run: dict[str, Any]) -> tuple[CliRow, ...]:
+    events = run.get("events") if isinstance(run.get("events"), list) else []
+    reviewer_event = next((event for event in events if isinstance(event, dict) and event.get("name") == "auto_reviewer_plan"), None)
+    return (
+        CliRow("レビュー計画", reviewer_event.get("summary") if isinstance(reviewer_event, dict) else "記録なし", "ok" if reviewer_event else "skipped"),
+        CliRow("実エージェント起動", "なし（計画表示のみ）", "ok"),
+    )
+
+
+def _run_agent_rows_en(run: dict[str, Any]) -> tuple[CliRow, ...]:
+    events = run.get("events") if isinstance(run.get("events"), list) else []
+    reviewer_event = next((event for event in events if isinstance(event, dict) and event.get("name") == "auto_reviewer_plan"), None)
+    return (
+        CliRow("reviewer_plan", reviewer_event.get("summary") if isinstance(reviewer_event, dict) else "not recorded", "ok" if reviewer_event else "skipped"),
+        CliRow("subagents_started", False, "ok"),
+    )
 
 
 def _build_config_report_for_cli(args: argparse.Namespace) -> dict[str, Any]:

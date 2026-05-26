@@ -42,7 +42,16 @@ def test_auto_runtime_agent_public_task_uses_oracle_stub_and_reviewer_plan() -> 
     assert report["auto"]["difficulty"] == "agent"
     assert report["auto"]["route"] == "cloud_contract_candidate"
     assert report["reviewer_plan"]["enabled"] is True
-    assert report["reviewer_plan"]["subtask_count"] == 3
+    assert report["reviewer_plan"]["subtask_count"] == 5
+    assert [step["id"] for step in report["task_progress"]["steps"]] == [
+        "classify",
+        "route",
+        "provider_selection",
+        "execution",
+        "review",
+        "result",
+    ]
+    assert report["task_progress"]["steps"][-1]["state"] == "done"
     assert report["oracle_stub"]["response"]["status"] == "completed"
     assert report["oracle_stub"]["request"]["raw_prompt_included"] is False
     assert report["boundaries"]["private_file_content_sent_to_cloud_contract"] is False
@@ -129,6 +138,8 @@ def test_auto_runtime_dangerous_task_is_denied_without_shell_execution() -> None
     assert report["auto"]["approval_required"] is True
     assert report["run"]["status"] == "blocked"
     assert report["error"]["code"] == "approval_required"
+    assert report["task_progress"]["steps"][3]["state"] == "skipped"
+    assert report["task_progress"]["steps"][-1]["state"] == "blocked"
     assert report["boundaries"]["shell_execution_performed"] is False
 
 
