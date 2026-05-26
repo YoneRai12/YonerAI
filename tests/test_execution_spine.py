@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -41,6 +42,25 @@ def test_run_ledger_redacts_task_and_records_events() -> None:
     assert completed.to_public_dict()["persistence"]["raw_prompt_persisted"] is False
 
 
+def test_file_run_ledger_persist_enforces_private_permissions(tmp_path: Path) -> None:
+    _prepare_paths()
+    from ora_core.execution.ledger import FileRunLedger
+
+    ledger_path = tmp_path / "shared" / "runs.jsonl"
+    ledger = FileRunLedger(ledger_path)
+    run = ledger.create_run(
+        task_text="hello",
+        classification={"category": "test"},
+        route_decision={"route": "managed_cloud_contract_only"},
+        provider_decision={"provider_id": "mock"},
+        approval_required=False,
+    )
+    ledger.complete_run(run.run_id, result_summary="done")
+
+    dir_mode = os.stat(ledger_path.parent).st_mode & 0o777
+    file_mode = os.stat(ledger_path).st_mode & 0o777
+    assert dir_mode == 0o700
+    assert file_mode == 0o600
 
 
 def test_safe_summary_redacts_labeled_secret_values() -> None:
