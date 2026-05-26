@@ -23,8 +23,7 @@ This page is a public-safe index of current release notes and progress checkpoin
   download-and-execute installer, no PATH mutation by default, no production
   signing/trust store, no production Oracle/cloud runtime, no live Discord, no
   npm/winget channel, and no provider keys printed or stored.
-- Primary traceability range: `v0.5.0..v0.5.1`, PRs #451, #452, and the
-  v0.5.1 release PR.
+- Primary traceability range: `v0.5.0..v0.5.1`, PRs #451, #452, and #453.
 
 ## v0.5.0 CLI Local Runtime
 
