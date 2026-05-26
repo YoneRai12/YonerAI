@@ -298,7 +298,7 @@ def test_update_check_shell_quotes_metacharacters_in_manifest_path(tmp_path, mon
     _prepare_paths()
     from yonerai_cli.install_planner import build_update_check
 
-    manifest_dir = tmp_path / "poc;$(echo hacked)>out"
+    manifest_dir = tmp_path / "poc;&$(echo hacked)"
     manifest_dir.mkdir()
     manifest = _example_manifest()
     _set_manifest_version(manifest, _current_version())
@@ -307,9 +307,19 @@ def test_update_check_shell_quotes_metacharacters_in_manifest_path(tmp_path, mon
 
     report = build_update_check(str(manifest_path), current_version=_current_version())
 
-    assert report["manifest"] == "poc;$(echo hacked)>out/manifest.json"
-    assert report["next_safe_command"] == "yonerai update plan --manifest 'poc;$(echo hacked)>out/manifest.json' --pretty"
+    assert report["manifest"] == "poc;&$(echo hacked)/manifest.json"
+    assert report["next_safe_command"] == "yonerai update plan --manifest 'poc;&$(echo hacked)/manifest.json' --pretty"
     assert str(tmp_path) not in json.dumps(report)
+
+
+def test_update_check_uses_windows_safe_manifest_path_quoting() -> None:
+    _prepare_paths()
+    from yonerai_cli.install_planner import _quote_cli_path
+
+    assert _quote_cli_path("manifest.json", platform="nt") == "manifest.json"
+    assert _quote_cli_path("My Releases/manifest.json", platform="nt") == "'My Releases/manifest.json'"
+    assert _quote_cli_path("poc;$(echo hacked)/manifest.json", platform="nt") == "'poc;$(echo hacked)/manifest.json'"
+    assert _quote_cli_path("release's/manifest.json", platform="nt") == "'release''s/manifest.json'"
 
 
 def test_cli_update_check_pretty_is_readable_and_color_safe(capsys) -> None:
