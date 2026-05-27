@@ -6,21 +6,21 @@ installer secrets.
 
 ## Page purpose
 
-Help users install and start the YonerAI CLI Local Runtime after the v0.5.1
+Help users install and start the YonerAI CLI Local Runtime after the v0.6.0
 release without presenting a remote-execution installer as ready.
 
 ## Primary copy
 
-YonerAI CLI Local Runtime v0.5.1 runs locally from a downloaded release ZIP or
+YonerAI CLI Local Runtime v0.6.0 runs locally from a downloaded release ZIP or
 from a repository checkout. It is stable for the local CLI runtime slice. It is
 not full YonerAI cloud production.
 
 ## Safe manual install
 
 ```powershell
-# 1. Download YonerAI-0.5.1.zip from the GitHub Release.
+# 1. Download YonerAI-0.6.0.zip from the GitHub Release.
 # 2. Extract the ZIP.
-cd "$HOME\Downloads\YonerAI-0.5.1"
+cd "$HOME\Downloads\YonerAI-0.6.0"
 python --version
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
@@ -59,11 +59,23 @@ admin rights, run `irm ... | iex`, or execute a remote installer. With
 
 ## Verify before planning
 
+`releases/manifest.v0.6.0.json` is available in a repository checkout. If
+you are installing from the release ZIP, download `manifest.v0.6.0.json` from
+the same GitHub Release and save it inside the extracted folder first; release
+ZIPs intentionally do not embed versioned manifests because the manifest records
+the ZIP hash.
+
 ```powershell
-yonerai manifest verify releases/manifest.v0.5.1.json --pretty
-yonerai install plan --manifest releases/manifest.v0.5.1.json --pretty
-yonerai update plan --manifest releases/manifest.v0.5.1.json --pretty
+# Release ZIP flow: manifest.v0.6.0.json is a separate GitHub Release asset.
+$manifest = ".\manifest.v0.6.0.json"
+yonerai manifest verify $manifest --pretty
+yonerai install plan --manifest $manifest --pretty
+yonerai update check --manifest $manifest --pretty
+yonerai update plan --manifest $manifest --pretty
 ```
+
+In a repository checkout, use `$manifest = "releases\manifest.v0.6.0.json"`
+instead.
 
 These commands read local files and print verification or dry-run plans. They
 do not download the release asset, install packages, mutate PATH, execute a
@@ -72,9 +84,10 @@ production control plane.
 
 ## Release links
 
-- GitHub Release: https://github.com/YoneRai12/YonerAI/releases/tag/v0.5.1
-- Release asset: https://github.com/YoneRai12/YonerAI/releases/download/v0.5.1/YonerAI-0.5.1.zip
-- Manifest source: `releases/manifest.v0.5.1.json`
+- GitHub Release: https://github.com/YoneRai12/YonerAI/releases/tag/v0.6.0
+- Release asset: https://github.com/YoneRai12/YonerAI/releases/download/v0.6.0/YonerAI-0.6.0.zip
+- Manifest asset: https://github.com/YoneRai12/YonerAI/releases/download/v0.6.0/manifest.v0.6.0.json
+- Manifest source in a checkout: `releases/manifest.v0.6.0.json`
 
 ## Warnings
 

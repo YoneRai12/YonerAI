@@ -81,7 +81,9 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
-          files: ${{ env.PRODUCT_NAME }}-*.zip
+          files: |
+            ${{ env.PRODUCT_NAME }}-${{ env.ORA_VERSION }}.zip
+            releases/manifest.v${{ env.ORA_VERSION }}.json
           # Publish automatically (no manual "Draft -> Publish" step in the GitHub UI).
           draft: false
           prerelease: ${{ env.ORA_PRERELEASE }}

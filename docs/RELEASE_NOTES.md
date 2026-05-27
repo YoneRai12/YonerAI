@@ -2,6 +2,31 @@
 
 This page is a public-safe index of current release notes and progress checkpoints.
 
+## v0.6.0 CLI Local Runtime
+
+- GitHub release target: `v0.6.0`.
+- Release title: `2026.05.27 — YonerAI CLI Local Runtime v0.6.0`.
+- Release date: `2026-05-27`.
+- Public release body: `docs/releases/0.6.0.md`.
+- Status: stable release for the local CLI runtime slice only, not full YonerAI
+  cloud production and not a production network installer.
+- What users can try now: `yonerai`, `yonerai chat`, `/設定`, `/提供元`,
+  `/モデル`, `/ローカルLLM`, `/安全`, `/認証`, `/プライバシー`, `/履歴`, `/タスク`,
+  `/エージェント`, `/更新`, `yonerai auth status --pretty --lang ja`,
+  `yonerai privacy status --pretty --lang ja`, `yonerai update check --pretty`,
+  `yonerai manifest verify releases/manifest.v0.6.0.json --pretty`,
+  `yonerai install plan --manifest releases/manifest.v0.6.0.json --pretty`, and
+  `yonerai update plan --manifest releases/manifest.v0.6.0.json --pretty`.
+- Boundary: no production Oracle/cloud runtime, no live Discord, no
+  deploy/public tunnel, no arbitrary shell/file/tool execution, no default live
+  provider calls, no provider key output/storage, no production Google login,
+  no refresh token storage, no OpenAI shared traffic, no production
+  signing/trust store, and no production installer.
+- Primary traceability range: `v0.6.0-alpha.1..v0.6.0`; PRs #456, #457, #458,
+  #460, #461, #462, #463, #464, #465, and #466.
+- Release body includes operation-manual commands, security boundaries,
+  update/install status, known limitations, and traceability.
+
 ## v0.6.0-alpha.1 CLI TUI Runtime
 
 - GitHub pre-release target: `v0.6.0-alpha.1`.

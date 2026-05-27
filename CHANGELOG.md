@@ -2,6 +2,25 @@
 
 See also: `docs/RELEASE_NOTES.md` (curated summary, v5.0.0 -> current).
 
+## v0.6.0 (2026-05-27) - CLI Local Runtime
+- Promoted the v0.6 TUI runtime from alpha to a stable local CLI runtime slice.
+- Added post-alpha product polish for the interactive home, settings, provider,
+  local LLM, auth, privacy, history, task, agent, and update screens.
+- Added Google OAuth dry-run and OpenAI shared-traffic status visibility while
+  keeping production Google login, refresh-token storage, and shared traffic
+  disabled.
+- Added `update_notice_enabled` as a local non-secret setting; default remains
+  off.
+- Preserved Japanese-first slash suggestions while keeping English aliases
+  compatible.
+- Included post-alpha Quality Wall/security hardening: network-off live
+  suppression, ledger permission hardening, update-check manifest path safety,
+  PowerShell shell detection, and CI review fixes.
+- Preserved boundaries: no production Oracle/cloud runtime, no live Discord, no
+  deploy/public tunnel, no arbitrary shell/file/tool execution, no default live
+  provider calls, no provider key output/storage, no production Google login,
+  no OpenAI shared traffic, and no production signing/trust store.
+
 ## v0.6.0-alpha.1 (2026-05-27) - CLI TUI Runtime
 - Added `prompt_toolkit` slash command completion and Rich terminal panels/status
   for the interactive `yonerai` / `yonerai chat` shell, with plain fallback for

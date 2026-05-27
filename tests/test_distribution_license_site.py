@@ -198,31 +198,37 @@ def test_manifest_rejects_unhashable_install_method_without_traceback() -> None:
 
 def test_yonerai_site_install_content_is_copyable_and_non_executing() -> None:
     install_page = (ROOT / "docs" / "site" / "yonerai.com" / "install.md").read_text(encoding="utf-8")
-    release_page = (ROOT / "docs" / "site" / "yonerai.com" / "releases" / "v0.5.1.md").read_text(
+    release_page = (ROOT / "docs" / "site" / "yonerai.com" / "releases" / "v0.6.0.md").read_text(
         encoding="utf-8"
     )
-    press_card = (ROOT / "docs" / "site" / "yonerai.com" / "press" / "v0.5.1-card.md").read_text(
+    press_card = (ROOT / "docs" / "site" / "yonerai.com" / "press" / "v0.6.0-card.md").read_text(
         encoding="utf-8"
     )
 
     for text in (install_page, release_page):
         lowered = text.lower()
-        assert "YonerAI-0.5.1.zip" in text
-        assert "yonerai manifest verify releases/manifest.v0.5.1.json --pretty" in text
-        assert "yonerai install plan --manifest releases/manifest.v0.5.1.json --pretty" in text
+        assert "YonerAI-0.6.0.zip" in text
+        assert 'manifest = ".\\manifest.v0.6.0.json"' in text
+        assert "yonerai manifest verify $manifest --pretty" in text
+        assert "yonerai install plan --manifest $manifest --pretty" in text
+        assert "yonerai update check --manifest $manifest --pretty" in text
+        assert "yonerai update plan --manifest $manifest --pretty" in text
+        assert "manifest.v0.6.0.json" in text
+        assert "releases\\manifest.v0.6.0.json" in text
+        assert "separate GitHub Release asset" in text or "Manifest asset:" in text
         assert "irm ... | iex" in text
         assert "production signing keys" in lowered or "production signature" in lowered
 
-    assert "https://yonerai.com/releases/v0.5.1" in press_card
+    assert "https://github.com/YoneRai12/YonerAI/releases/tag/v0.6.0" in press_card
     assert "Official Managed Cloud" in press_card
 
 
-def test_readmes_point_to_v051_manifest_and_license_policy() -> None:
+def test_readmes_point_to_current_stable_manifest_and_license_policy() -> None:
     for relative_path in ("README.md", "README_JP.md", "clients/cli/README.md"):
         text = (ROOT / relative_path).read_text(encoding="utf-8")
 
         assert "PolyForm Noncommercial" in text
-        assert "releases/manifest.v0.5.1.json" in text
+        assert "releases/manifest.v0.6.0.json" in text
 
 
 def test_release_archive_policy_is_hash_stable_for_manifest_recording() -> None:
@@ -230,5 +236,13 @@ def test_release_archive_policy_is_hash_stable_for_manifest_recording() -> None:
     release_script = (ROOT / "scripts" / "create_release.py").read_text(encoding="utf-8")
 
     assert "releases/manifest.v*.json export-ignore" in attributes
-    assert "HEAD^{tree}" in release_script
-    assert "--mtime=" in release_script
+    assert "ls-tree" in release_script
+    assert "cat-file" in release_script
+    assert "ZIP_STORED" in release_script
+
+
+def test_release_workflow_uploads_manifest_separately_from_zip() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+
+    assert "${{ env.PRODUCT_NAME }}-${{ env.ORA_VERSION }}.zip" in workflow
+    assert "releases/manifest.v${{ env.ORA_VERSION }}.json" in workflow
