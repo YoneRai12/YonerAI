@@ -340,7 +340,9 @@ def test_chat_accepts_english_commands_while_showing_japanese_ui(tmp_path: Path,
     monkeypatch.setattr(
         sys,
         "stdin",
-        _PlainStringIO("/settings\n/providers\n/safety\n/tasks\n/local-llm\n/runs\n/live on\n/network on\n/provider mock\n/quit\n"),
+        _PlainStringIO(
+            "/settings\n/providers\n/safety\n/tasks\n/local-llm\n/auth\n/privacy\n/runs\n/live on\n/network on\n/update-notice on\n/provider mock\n/quit\n"
+        ),
     )
 
     assert cli.main(["chat", "--script", "--lang", "ja", "--config-path", str(config_path), "--color", "never"]) == 0
@@ -350,12 +352,23 @@ def test_chat_accepts_english_commands_while_showing_japanese_ui(tmp_path: Path,
     assert "/選択 5 オン" in output
     assert "履歴記録（ローカル履歴）" in output
     assert "プロバイダー" in output
+    assert "次に試す" in output
+    assert "キーの値は表示・保存しません" in output
     assert "安全設定" in output
     assert "タスク" in output
     assert "ローカルLLMセットアップ" in output
+    assert "検出状態" in output
+    assert "確認した候補" in output
+    assert "\n  検出状態" in output
+    assert "\n    - Ollama" in output
+    assert "認証" in output
+    assert "プライバシー" in output
+    assert "Google OAuth" in output
+    assert "OpenAI共有トラフィック" in output
     assert "実行履歴" in output
     assert "設定を変更しました: ライブ接続（外部/ローカル実行）=オン" in output
     assert "設定を変更しました: ネットワーク（外部通信）=オン" in output
+    assert "設定を変更しました: 更新通知（ローカルmanifest確認）=オン" in output
     assert "プロバイダー（AI接続先）=モック（テスト用）" in output
     assert "Network" not in output
     assert "Changed setting" not in output
@@ -370,7 +383,7 @@ def test_chat_japanese_commands_and_values_are_accepted(tmp_path: Path, monkeypa
     monkeypatch.setattr(
         sys,
         "stdin",
-        _PlainStringIO("/ヘルプ\n/設定\n/安全\n/提供元選択 モック\n/言語 日本語\n/終了\n"),
+        _PlainStringIO("/ヘルプ\n/設定\n/安全\n/認証\n/プライバシー\n/提供元選択 モック\n/言語 日本語\n/終了\n"),
     )
 
     assert cli.main(["chat", "--script", "--lang", "ja", "--config-path", str(config_path), "--color", "never"]) == 0
@@ -381,6 +394,8 @@ def test_chat_japanese_commands_and_values_are_accepted(tmp_path: Path, monkeypa
     assert "ネットワーク（外部通信）" in output
     assert "ファイルアクセス（ファイル読み取り）" in output
     assert "ツール（操作機能）" in output
+    assert "本番Googleログインはまだ有効にしていません" in output
+    assert "private/local内容の除外" in output
     assert "プロバイダー（AI接続先）=モック（テスト用）" in output
     assert "言語=日本語" in output
     assert str(tmp_path) not in output
@@ -395,7 +410,7 @@ def test_chat_numbered_settings_and_ledger_are_usable_in_japanese(tmp_path: Path
     monkeypatch.setattr(
         sys,
         "stdin",
-        _PlainStringIO("/設定\n/選択 2 モック\n/選択 5 オン\n/選択 6 オフ\n/選択 7 オフ\nhello\n/タスク\n/履歴\n/終了\n"),
+        _PlainStringIO("/設定\n/選択 2 モック\n/選択 5 オン\n/選択 6 オフ\n/選択 7 オフ\n/選択 9 オン\nhello\n/タスク\n/履歴\n/終了\n"),
     )
 
     assert cli.main(["chat", "--script", "--lang", "ja", "--config-path", str(config_path), "--color", "never"]) == 0
@@ -405,6 +420,7 @@ def test_chat_numbered_settings_and_ledger_are_usable_in_japanese(tmp_path: Path
     assert "設定を変更しました: 履歴記録（ローカル履歴）=オン" in output
     assert "設定を変更しました: ライブ接続（外部/ローカル実行）=オフ" in output
     assert "設定を変更しました: ネットワーク（外部通信）=オフ" in output
+    assert "設定を変更しました: 更新通知（ローカルmanifest確認）=オン" in output
     assert "YonerAI ミッションコントロール" in output
     assert "タスク" in output
     assert "実行履歴" in output
@@ -683,10 +699,24 @@ def test_slash_command_summary_is_japanese_first() -> None:
     summary = slash_command_summary("ja")
     report = tui_capability_report()
 
-    assert words[:9] == ["/設定", "/settings", "/モデル", "/models", "/model", "/local-llm", "/提供元", "/providers", "/安全"]
+    assert words[:10] == [
+        "/設定",
+        "/モデル",
+        "/提供元",
+        "/安全",
+        "/履歴",
+        "/表示",
+        "/タスク",
+        "/エージェント",
+        "/認証",
+        "/プライバシー",
+    ]
     assert "/設定" in summary
     assert "/モデル" in summary
+    assert "/認証" in summary
+    assert "/プライバシー" in summary
     assert "/更新" in summary
+    assert "/settings" not in words
     assert "/settings" not in summary
     assert report["plain_fallback"] is True
     assert report["json_ansi_output"] is False

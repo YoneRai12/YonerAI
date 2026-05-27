@@ -25,6 +25,7 @@ DEFAULT_CONFIG: dict[str, object] = {
     "network_enabled": False,
     "tools_mode": "dry_run",
     "ledger_enabled": False,
+    "update_notice_enabled": False,
     "google_auth_enabled": False,
     "openai_data_sharing_enabled": False,
 }
@@ -114,6 +115,7 @@ def validate_cli_config(config: Mapping[str, object]) -> dict[str, object]:
         "live_provider_enabled",
         "network_enabled",
         "ledger_enabled",
+        "update_notice_enabled",
         "google_auth_enabled",
         "openai_data_sharing_enabled",
     ):
@@ -138,6 +140,8 @@ def normalize_config_key(key: str) -> str:
         "network": "network_enabled",
         "ledger": "ledger_enabled",
         "history": "ledger_enabled",
+        "update_notice": "update_notice_enabled",
+        "updates": "update_notice_enabled",
         "google_auth": "google_auth_enabled",
         "auth_google": "google_auth_enabled",
         "openai_data_sharing": "openai_data_sharing_enabled",
@@ -176,6 +180,7 @@ def parse_config_value(key: str, value: str) -> object:
         "live_provider_enabled",
         "network_enabled",
         "ledger_enabled",
+        "update_notice_enabled",
         "google_auth_enabled",
         "openai_data_sharing_enabled",
     }:
@@ -205,6 +210,7 @@ def build_config_report(config: Mapping[str, object], *, exists: bool) -> dict[s
             "network_enabled": validated["network_enabled"],
             "tools_mode": validated["tools_mode"],
             "ledger_enabled": validated["ledger_enabled"],
+            "update_notice_enabled": validated["update_notice_enabled"],
             "google_auth_enabled": validated["google_auth_enabled"],
             "openai_data_sharing_enabled": validated["openai_data_sharing_enabled"],
         },

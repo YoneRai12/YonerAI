@@ -79,8 +79,9 @@ Python は 3.11 以上を使ってください。`python --version` が動かな
 
 `yonerai` が起動したら、最初に `日本語` / `English` を選びます。その後は
 普通の文章を入力すればチャットできます。設定は `/設定`、安全設定の確認は
-`/安全`、履歴は `/履歴`、終了は `/終了` です。日本語設定でも `/settings`、
-`/safety`、`/runs`、`/quit` のような英語コマンドも使えます。
+`/安全`、認証は `/認証`、共有状態は `/プライバシー`、履歴は `/履歴`、
+終了は `/終了` です。日本語設定でも `/settings`、`/safety`、`/auth`、
+`/privacy`、`/runs`、`/quit` のような英語コマンドも使えます。
 
 `yonerai` が見つからない場合は、仮想環境が有効になっていない可能性があります。
 もう一度 `.\.venv\Scripts\Activate.ps1` を実行してから `yonerai` を実行して
@@ -125,7 +126,10 @@ pipe入力では従来の1行入力に戻ります。
 /履歴       履歴
 /タスク     進行状況
 /エージェント 担当計画
+/認証       Google認証のドライラン状態
+/プライバシー 共有と秘匿境界
 /更新       更新確認
+/更新通知   起動時の更新案内設定
 /終了       終了
 ```
 
@@ -136,6 +140,8 @@ yonerai
 yonerai chat
 yonerai update check --pretty
 yonerai update check --json
+yonerai auth status --pretty --lang ja
+yonerai privacy status --pretty --lang ja
 yonerai config set model llama3.1 --pretty --lang ja
 yonerai providers --pretty --lang ja
 ```
@@ -173,8 +179,8 @@ yonerai update plan --manifest releases/manifest.v0.5.1.json --pretty --lang ja
 ## 最初の5分
 
 `yonerai` は local interactive terminal を起動します。明示したい場合は
-`yonerai chat` を使います。これは full-screen GUI ではなく、標準ライブラリ
-だけで動く安全な対話 shell です。文章を入力すると `ask --auto` と同じ安全
+`yonerai chat` を使います。これは full-screen GUI ではなく、通常入力にも
+fallbackできる安全な対話 shell です。文章を入力すると `ask --auto` と同じ安全
 経路で実行し、slash command で設定や履歴を見られます。
 
 ```text
@@ -186,6 +192,10 @@ yonerai update plan --manifest releases/manifest.v0.5.1.json --pretty --lang ja
 /履歴                 実行履歴（redacted local run history）を見る
 /表示 <実行ID>        1件の実行を見る
 /ローカルLLM          PC内モデルの接続方法を見る
+/認証                 Google OAuth のドライラン状態を見る。本番ログインはしません
+/プライバシー         OpenAI共有トラフィックと非公開/ローカル内容の共有境界を見る
+/更新                 ローカルmanifestで更新を確認
+/更新通知 オン|オフ   起動時の更新案内設定を変更
 /言語 日本語|英語     表示言語を変更
 /提供元選択 自動|モック|ローカル|オープンAI互換|アンソロピック|ジェミニ
 /承認 確認|拒否       危険操作の扱いを変更
@@ -197,7 +207,7 @@ yonerai update plan --manifest releases/manifest.v0.5.1.json --pretty --lang ja
 /終了                 終了
 ```
 
-日本語モードでも `/settings`、`/providers`、`/safety`、`/tasks`、`/runs`、`/local-llm`、
+日本語モードでも `/settings`、`/providers`、`/safety`、`/auth`、`/privacy`、`/tasks`、`/runs`、`/local-llm`、
 `/provider mock`、`/quit` のような英語 slash command は互換 alias として使えます。ただし、画面に
 出す説明は日本語優先です。
 

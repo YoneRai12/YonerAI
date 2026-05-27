@@ -31,7 +31,10 @@ SLASH_COMMANDS: tuple[SlashCommandSpec, ...] = (
     SlashCommandSpec("/表示", "/show", "実行IDを表示", "Show one run", ("/show",)),
     SlashCommandSpec("/タスク", "/tasks", "タスク進行を見る", "Task progress", ("/tasks",)),
     SlashCommandSpec("/エージェント", "/agents", "担当計画を見る", "Agent/reviewer plan", ("/agents",)),
+    SlashCommandSpec("/認証", "/auth", "Google認証のdry-run状態", "Auth dry-run status", ("/auth",)),
+    SlashCommandSpec("/プライバシー", "/privacy", "共有と秘匿境界を見る", "Privacy status", ("/privacy",)),
     SlashCommandSpec("/更新", "/update", "更新確認", "Update check", ("/update",)),
+    SlashCommandSpec("/更新通知", "/update-notice", "更新通知設定", "Update notice setting", ("/update-notice",)),
     SlashCommandSpec("/ヘルプ", "/help", "コマンド一覧", "Help", ("/help", "/?")),
     SlashCommandSpec("/終了", "/quit", "終了", "Quit", ("/quit", "/exit", "/q")),
 )
@@ -42,7 +45,6 @@ def slash_command_words(lang: str) -> list[str]:
     for spec in SLASH_COMMANDS:
         if lang == "ja":
             words.append(spec.command)
-            words.extend(spec.aliases)
         else:
             words.extend(spec.aliases)
             words.append(spec.command)
@@ -104,9 +106,9 @@ def prompt_line(*, lang: str, bottom_toolbar: str | None = None) -> str:
         }
     )
     toolbar_text = bottom_toolbar or (
-        "Tab/矢印で候補を選択: /設定 /モデル /提供元 /安全 /履歴 /更新"
+        "Tab/矢印で候補を選択: /設定 /モデル /提供元 /安全 /履歴 /認証 /更新"
         if lang == "ja"
-        else "Use Tab/arrows for suggestions: /settings /models /providers /safety /runs /update"
+        else "Use Tab/arrows for suggestions: /settings /models /providers /safety /runs /auth /update"
     )
     prompt = HTML("<prompt>yonerai</prompt> > ")
     session = PromptSession(
