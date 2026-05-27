@@ -141,7 +141,10 @@ command CLI, and exposes settings through slash commands:
 - `/runs`
 - `/show <run_id>`
 - `/local-llm`
+- `/auth`
+- `/privacy`
 - `/update`
+- `/update-notice on|off`
 - `/language ja|en`
 - `/provider auto|mock|local|openai-compatible|anthropic|gemini`
 - `/ledger on|off`
@@ -156,7 +159,7 @@ of hanging. `yonerai chat --script` intentionally reads lines from stdin for
 tests or scripted demos.
 
 Japanese mode shows Japanese command labels such as `/設定`, `/モデル`, `/提供元`,
-`/安全`, `/履歴`, `/タスク`, `/エージェント`, `/更新`, and `/終了`. English aliases remain
+`/安全`, `/履歴`, `/タスク`, `/エージェント`, `/認証`, `/プライバシー`, `/更新`, and `/終了`. English aliases remain
 accepted for compatibility, but they are not the primary Japanese UI.
 
 `yonerai update check --pretty` reads local VERSION and a local release

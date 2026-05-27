@@ -86,7 +86,8 @@ first or use the launcher command that exists on your machine.
 
 After `yonerai` opens, choose `日本語` or `English`, then type a normal
 message. You can open settings with `/設定` or `/settings`, check safety with
-`/安全`, see history with `/履歴`, and exit with `/終了` or `/quit`.
+`/安全`, see auth/privacy state with `/認証` and `/プライバシー`, see history
+with `/履歴`, and exit with `/終了` or `/quit`.
 
 If `yonerai` is not found, activate the virtual environment again:
 `.\.venv\Scripts\Activate.ps1`. This path does not mutate PATH permanently,
@@ -128,7 +129,10 @@ arrow-key selection are available when `prompt_toolkit` is active:
 /履歴       redacted run history
 /タスク     task progress
 /エージェント reviewer/subagent plan display
+/認証       Google OAuth dry-run status
+/プライバシー shared-traffic/privacy status
 /更新       local manifest update check
+/更新通知   startup update notice setting
 /終了       quit
 ```
 
@@ -139,6 +143,8 @@ yonerai
 yonerai chat
 yonerai update check --pretty
 yonerai update check --json
+yonerai auth status --pretty --lang ja
+yonerai privacy status --pretty --lang ja
 yonerai config set model llama3.1 --pretty --lang ja
 yonerai providers --pretty --lang ja
 ```
@@ -185,8 +191,8 @@ yonerai install plan --manifest releases/manifest.v0.5.1.json --json
 
 `yonerai` opens the local interactive terminal when stdin is a TTY.
 Use `yonerai chat` for the same screen explicitly. The interactive shell is a
-standard-library terminal app, not a full-screen GUI: type a message to run the
-same safe `ask --auto` path, or use slash commands.
+terminal app with plain fallback, not a full-screen GUI: type a message to run
+the same safe `ask --auto` path, or use slash commands.
 
 ```text
 /settings        show language/provider/safety settings
@@ -197,6 +203,10 @@ same safe `ask --auto` path, or use slash commands.
 /runs            list redacted local run history
 /show <run_id>   show one redacted run
 /local-llm       show loopback-only local LLM setup guidance
+/auth            show Google OAuth dry-run contract status
+/privacy         show OpenAI shared-traffic and private-content policy
+/update          check local manifest update status
+/update-notice on|off toggle startup update notice setting
 /language ja|en  change UI language
 /provider auto|mock|local|openai-compatible|anthropic|gemini
 /ledger on|off   toggle redacted local run ledger
@@ -212,8 +222,9 @@ not hang; it prints fallback instructions. Use `yonerai chat --script` when you
 intentionally want to feed scripted input.
 
 In Japanese mode, the primary slash commands are Japanese (`/設定`, `/タスク`,
-`/ローカルLLM`, `/安全`, `/履歴`). English aliases such as `/settings` and
-`/tasks` remain available for compatibility.
+`/ローカルLLM`, `/安全`, `/履歴`, `/認証`, `/プライバシー`, `/更新`). English
+aliases such as `/settings`, `/auth`, and `/tasks` remain available for
+compatibility.
 
 `yonerai start --guided` is the guided path for a first local run. It is written
 for people who want copyable next actions, not for people already familiar with
