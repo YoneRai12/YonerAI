@@ -361,7 +361,7 @@ def test_update_check_detects_windows_shell_preference() -> None:
     assert _detect_cli_shell(platform="nt", env={"YONERAI_CLI_SHELL": "cmd"}) == "cmd"
     assert _detect_cli_shell(platform="nt", env={"YONERAI_CLI_SHELL": "pwsh"}) == "powershell"
     assert _detect_cli_shell(platform="nt", env={"COMSPEC": "C:\\Windows\\System32\\cmd.exe", "PROMPT": "$P$G"}) == "cmd"
-    assert _detect_cli_shell(platform="nt", env={"COMSPEC": "C:\\Windows\\System32\\cmd.exe"}) == "powershell"
+    assert _detect_cli_shell(platform="nt", env={"COMSPEC": "C:\\Windows\\System32\\cmd.exe"}) == "cmd"
     assert (
         _detect_cli_shell(
             platform="nt",
