@@ -2,6 +2,25 @@
 
 See also: `docs/RELEASE_NOTES.md` (curated summary, v5.0.0 -> current).
 
+## v0.11.0-alpha.1 (2026-05-31) - Account Sync and Oracle API Foundation
+- Added public account identity, Google auth dry-run, cloud/local sync,
+  sync-decision, sync-audit, Official API fixture, and rate-limit policy
+  contracts.
+- Added `yonerai sync status`, `yonerai sync preview`,
+  `yonerai sync approve --dry-run`, `yonerai sync api-contract`, and
+  `yonerai sync rate-limit`.
+- Added `/同期` and `/sync` interactive entries so Japanese-first users can
+  inspect the cloud/local sync boundary without enabling production cloud.
+- Added a sanitized private YonerAIOracle handoff for future official backend
+  alignment without committing private backend code to the public repository.
+- Added v0.11 manifest, release note, and yonerai.com release/press/install
+  content foundations for account sync and Official API contract testing.
+- Preserved boundaries: no production Oracle/cloud runtime, no production
+  Google login, no OpenAI shared traffic runtime, no live Discord, no
+  automatic local-to-cloud private upload, no deploy/public tunnel, no
+  arbitrary shell/file/tool execution, no provider key output/storage, no
+  production signing/trust store, and no production network installer.
+
 ## v0.10.0-alpha.1 (2026-06-01) - Public Orchestration Boundary
 - Added the `/状態` and `/ホーム` interactive entries so Japanese-first users
   can re-open the Mission Control status/header without remembering English

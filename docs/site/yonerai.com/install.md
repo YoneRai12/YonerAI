@@ -107,9 +107,32 @@ The v0.7 prerelease path keeps the same non-actions: no download by default, no
 install by default, no PATH mutation, no remote script execution, no service
 install, and no production signing/trust material.
 
+## v0.11 alpha account sync and Oracle API foundation prerelease
+
+v0.11.0-alpha.1 is the current prerelease path for public account sync
+contracts, `/同期`, `yonerai sync ...`, Official API fixture, and private
+YonerAIOracle handoff alignment. Use it only when explicitly testing the v0.11
+alpha. Use v0.6.0 for the stable CLI Local Runtime path.
+
+```powershell
+$manifest = ".\manifest.v0.11.0-alpha.1.json"
+yonerai manifest verify $manifest --pretty
+yonerai sync status --pretty --lang ja
+yonerai sync preview --direction cloud-to-local --json
+yonerai sync approve --dry-run --direction local-to-cloud --json
+yonerai install plan --manifest $manifest --pretty
+yonerai update check --manifest $manifest --pretty
+.\install.ps1 -Manifest $manifest -Artifact YonerAI-0.11.0-alpha.1.zip
+```
+
+`install.ps1` stays plan-only. It may read a local v0.11 manifest and print
+artifact, SHA256, signature, and trust status. It does not download, install,
+mutate PATH, execute remote code, request admin, edit registry, or install
+services. Account sync remains contract/fixture only in the public repo.
+
 ## v0.10 alpha public orchestration boundary prerelease
 
-v0.10.0-alpha.1 is the current prerelease path for Japanese-first Mission
+v0.10.0-alpha.1 is the previous prerelease path for Japanese-first Mission
 Control status/navigation, public Google auth dry-run boundary hardening,
 Quality Wall scan hardening, and the plan-only installer manifest default. Use
 it only when explicitly testing the v0.10 alpha. Use v0.6.0 for the stable CLI
@@ -133,7 +156,7 @@ services.
 v0.9.0-alpha.1 is the previous prerelease path for Japanese-first TUI value
 completion, stronger public Quality Wall checks, and the plan-only installer
 manifest default. Use it only when explicitly testing the v0.9 alpha. Use
-v0.10.0-alpha.1 for the current prerelease path or v0.6.0 for the stable CLI
+v0.11.0-alpha.1 for the current prerelease path or v0.6.0 for the stable CLI
 Local Runtime path.
 
 ```powershell

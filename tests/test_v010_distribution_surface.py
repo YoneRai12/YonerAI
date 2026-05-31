@@ -7,22 +7,16 @@ ROOT = Path(__file__).resolve().parents[1]
 MOJIBAKE_MARKERS = tuple(chr(codepoint) for codepoint in (0xFFFD, 0x7E5D, 0x8B41, 0x96B1, 0x87FE, 0x9A3E, 0x87B3, 0x8B20))
 
 
-def test_install_skeleton_defaults_to_v010_manifest_and_artifact() -> None:
+def test_install_skeleton_no_longer_points_to_older_v09_defaults() -> None:
     script = (ROOT / "install.ps1").read_text(encoding="utf-8")
 
-    assert 'releases\\manifest.v0.10.0-alpha.1.json' in script
-    assert "YonerAI-0.10.0-alpha.1.zip" in script
     assert "manifest.v0.9.0-alpha.1.json" not in script
     assert "YonerAI-0.9.0-alpha.1.zip" not in script
 
 
-def test_v010_manifest_and_package_versions_are_consistent() -> None:
-    version = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
-    pyproject = (ROOT / "clients" / "cli" / "pyproject.toml").read_text(encoding="utf-8")
+def test_v010_manifest_keeps_historical_version_and_artifact() -> None:
     manifest = (ROOT / "releases" / "manifest.v0.10.0-alpha.1.json").read_text(encoding="utf-8")
 
-    assert version == "0.10.0-alpha.1"
-    assert 'version = "0.10.0a1"' in pyproject
     assert '"version": "0.10.0-alpha.1"' in manifest
     assert "YonerAI-0.10.0-alpha.1.zip" in manifest
 
