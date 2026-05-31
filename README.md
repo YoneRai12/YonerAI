@@ -121,6 +121,12 @@ YonerAI falls back to the plain line-by-line shell used by CI.
 In Japanese mode, type `/` to see Japanese-first command candidates. Tab and
 arrow-key selection are available when `prompt_toolkit` is active:
 
+Readable Japanese aliases are accepted for the primary actions: `/設定`,
+`/モデル`, `/提供元`, `/安全`, `/履歴`, `/タスク`, `/認証`, `/プライバシー`,
+`/自己進化`, `/更新`, `/更新通知`, and `/終了`. Compatibility aliases remain
+accepted, but they do not enable production cloud, live Discord, provider keys,
+arbitrary shell/tool execution, or Google login.
+
 ```text
 /設定       settings
 /モデル     model and local LLM setup

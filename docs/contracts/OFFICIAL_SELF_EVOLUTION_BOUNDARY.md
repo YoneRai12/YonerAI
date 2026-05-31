@@ -57,6 +57,38 @@ Every public self-evolution report must preserve these non-actions:
 - no raw prompt persistence
 - no provider key storage
 
+## Public Input Guard
+
+Public proposal-loop summaries are treated as unsafe when they contain local
+machine paths, live URLs, secret-shaped values, raw prompt/completion markers,
+stable account/user identifiers, email-shaped values, chain-of-thought markers,
+or private runtime inventory markers. Those summaries must be redacted and
+converted into owner-review guardrail proposals before any public output is
+returned.
+
+This guard is still not telemetry ingestion. It is a public-safe simulator
+boundary for synthetic or local fixture input only.
+
+## Approval Console Contract
+
+The production YonerAIOracle approval console is private/official and is not
+implemented by this public repository. Any future private console must keep
+approval separate from scoring and validation.
+
+Minimum public-safe contract:
+
+- allowed states: `owner_review_required`, `approved`, `rejected`, `deferred`
+- required evidence: evidence summary, affected capability, test plan, rollback
+  plan, privacy risk, hype debt, provider-independence score, same-experience
+  score
+- approval cannot create a branch, PR, merge, release, deploy, or mutate code by
+  itself
+- every state transition must emit an audit event that excludes secrets, raw
+  prompts, raw completions, chain-of-thought, local paths, and private runtime
+  inventory
+- private implementation may hand a public-safe proposal summary back to this
+  repository only after redaction and owner-approved publication
+
 ## Private/Official Lane Responsibilities
 
 The real official self-evolution system belongs outside this public repo. It

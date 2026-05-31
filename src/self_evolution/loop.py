@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from dataclasses import asdict, dataclass
 from collections.abc import Mapping
 from typing import Literal
@@ -8,6 +9,22 @@ from .context import SafeRouteTrustContext, normalize_route_trust_context
 
 
 SELF_EVOLUTION_LOOP_VERSION = "proposal-only-self-evolution-loop-0.1"
+SUMMARY_LOCAL_PATH_PATTERN = re.compile(
+    r"([A-Za-z]:[\\/]|\\\\|/Users/|/home/|/root/|/etc/|/var/|/tmp/)",
+    re.IGNORECASE,
+)
+SUMMARY_URL_PATTERN = re.compile(r"https?://", re.IGNORECASE)
+SUMMARY_SECRET_PATTERN = re.compile(
+    r"(sk-[A-Za-z0-9_-]{10,}|ghp_[A-Za-z0-9_]{10,}|AIza[0-9A-Za-z_-]{10,}|"
+    r"(?i:api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret|password|private[_-]?key))"
+)
+SUMMARY_PII_PATTERN = re.compile(
+    r"([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}|"
+    r"\b(raw[_\s-]?prompt|raw[_\s-]?completion|raw[_\s-]?conversation|"
+    r"chain[_\s-]?of[_\s-]?thought|discord[_\s-]?user[_\s-]?id|"
+    r"account[_\s-]?id|user[_\s-]?id|private[_\s-]?runtime[_\s-]?inventory)\b)",
+    re.IGNORECASE,
+)
 
 SyntheticEventType = Literal[
     "feature_used",
@@ -171,6 +188,29 @@ def _redact_summary(summary: str, privacy_classification: PrivacyClassification)
     return cleaned[:180] or "Synthetic event summary unavailable."
 
 
+def _summary_requires_redaction(summary: str) -> bool:
+    return any(
+        pattern.search(summary)
+        for pattern in (
+            SUMMARY_LOCAL_PATH_PATTERN,
+            SUMMARY_URL_PATTERN,
+            SUMMARY_SECRET_PATTERN,
+            SUMMARY_PII_PATTERN,
+        )
+    )
+
+
+def _normalize_privacy_classification(
+    summary: str,
+    privacy_classification: object,
+) -> PrivacyClassification:
+    if privacy_classification not in {"synthetic", "public_fixture", "privacy_sensitive"}:
+        return "privacy_sensitive"
+    if privacy_classification == "privacy_sensitive" or _summary_requires_redaction(summary):
+        return "privacy_sensitive"
+    return privacy_classification  # type: ignore[return-value]
+
+
 def generate_evolution_proposal(
     event: SyntheticEvolutionEvent,
     route_trust_context: Mapping[str, object] | SafeRouteTrustContext | None = None,
@@ -180,7 +220,7 @@ def generate_evolution_proposal(
         summary=event.summary,
         severity=_bounded_severity(event.severity),
         confidence=_bounded_confidence(event.confidence),
-        privacy_classification=event.privacy_classification,
+        privacy_classification=_normalize_privacy_classification(event.summary, event.privacy_classification),
     )
     classification = classify_synthetic_event(normalized_event)
     summary = _redact_summary(normalized_event.summary, normalized_event.privacy_classification)

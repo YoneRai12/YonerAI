@@ -100,6 +100,12 @@ def test_build_local_llm_config_defaults_disabled_without_explicit_opt_in() -> N
     assert config.enabled is False
 
 
+def test_build_local_llm_config_rejects_ambiguous_enabled_value() -> None:
+    config = build_local_llm_config({"ORA_LOCAL_LLM_ENABLED": "maybe"})
+
+    assert config.enabled is False
+
+
 def test_generate_local_llm_reply_uses_ollama_chat_shape() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/api/chat"

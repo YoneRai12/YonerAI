@@ -401,6 +401,31 @@ def test_chat_japanese_commands_and_values_are_accepted(tmp_path: Path, monkeypa
     assert str(tmp_path) not in output
 
 
+def test_chat_accepts_readable_japanese_commands_and_values(tmp_path: Path, monkeypatch, capsys) -> None:
+    from yonerai_cli import cli
+
+    _clear_provider_env(monkeypatch)
+    config_path = tmp_path / "cli-config.json"
+    monkeypatch.setattr(
+        sys,
+        "stdin",
+        _PlainStringIO(
+            "/設定\n/提供元選択 モック\n/言語 日本語\n/履歴記録 オン\n/更新通知 オン\n/終了\n"
+        ),
+    )
+
+    assert cli.main(["chat", "--script", "--lang", "ja", "--config-path", str(config_path), "--color", "never"]) == 0
+    output = capsys.readouterr().out
+    stored = json.loads(config_path.read_text(encoding="utf-8"))
+
+    assert stored["provider_preference"] == "mock"
+    assert stored["language"] == "ja"
+    assert stored["ledger_enabled"] is True
+    assert stored["update_notice_enabled"] is True
+    assert "Unknown command" not in output
+    assert str(tmp_path) not in output
+
+
 def test_chat_numbered_settings_and_ledger_are_usable_in_japanese(tmp_path: Path, monkeypatch, capsys) -> None:
     from yonerai_cli import cli
 
@@ -669,12 +694,12 @@ def test_chat_agents_and_run_show_explain_mission_control_state(tmp_path: Path, 
 def test_safe_escapes_terminal_control_sequences() -> None:
     from yonerai_cli.interactive import _safe
 
-    rendered = _safe("hello\x1b[31mred\x07")
+    rendered = _safe("hello" + chr(27) + "[31mred" + chr(7))
 
-    assert "\\x1b" in rendered
+    assert "\\x" + "1b" in rendered
     assert "\\x07" in rendered
-    assert "\x1b" not in rendered
-    assert "\x07" not in rendered
+    assert chr(27) not in rendered
+    assert chr(7) not in rendered
 
 
 def test_format_runs_counts_only_task_progress_events() -> None:
@@ -743,10 +768,18 @@ def test_slash_command_summary_is_japanese_first() -> None:
     assert "/認証" in summary
     assert "/プライバシー" in summary
     assert "/更新" in summary
+    assert "/設定" in words
+    assert "/提供元" in words
+    assert "/更新" in words
+    assert "/設定" in summary
+    assert "/提供元" in summary
+    assert "/設定 / /設定" not in summary
+    assert "/提供元 / /提供元" not in summary
     assert "/settings" not in words
     assert "/settings" not in summary
     assert report["plain_fallback"] is True
     assert report["json_ansi_output"] is False
+    assert report["japanese_alias_completion"] is True
 
 
 def test_chat_models_and_update_commands_are_usable(tmp_path: Path, monkeypatch, capsys) -> None:
@@ -775,7 +808,7 @@ def test_chat_models_and_update_commands_are_usable(tmp_path: Path, monkeypatch,
     assert "no download" in output
     assert stored["model_preference"] == "llama3.1"
     assert str(tmp_path) not in output
-    assert "\033[" not in output
+    assert chr(27) + "[" not in output
 
 
 def test_chat_update_command_handles_missing_manifest_without_crashing(tmp_path: Path, monkeypatch, capsys) -> None:

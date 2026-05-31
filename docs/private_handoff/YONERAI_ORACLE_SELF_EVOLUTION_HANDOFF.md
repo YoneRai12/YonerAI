@@ -33,6 +33,33 @@ official release/social drafting must stay in the private/official lane.
    - Require owner approval before patch generation, branch creation, PR
      creation, release notes, social drafts, or deployment preparation.
    - Preserve an auditable approval record.
+   - Keep scoring, signature validation, and owner approval as separate states.
+
+## Approval Console Contract
+
+The private YonerAIOracle approval console must be the only place where
+production self-evolution proposals move from review to implementation
+preparation. The public repository may expose only redacted proposal summaries
+and synthetic fixture behavior.
+
+Required private console behavior:
+
+- Accept proposal records only after signal ingestion and redaction policy pass.
+- Show the evidence summary, affected capability, test plan, rollback plan,
+  privacy risk, hype debt, provider-independence score, and same-experience
+  score before any decision.
+- Use explicit states: `owner_review_required`, `approved`, `rejected`,
+  `deferred`.
+- Record approver reference, decision timestamp bucket, decision reason, and
+  audit event reference without exporting raw sensitive evidence.
+- Treat `approved` as permission to prepare a private staging patch candidate
+  only; it must not automatically create branches, PRs, merges, tags, releases,
+  deployments, or production config changes.
+- Require a second explicit owner action for any GitHub write, release draft,
+  social post draft publication, or deployment preparation.
+- Export to the public repository only low-resolution summaries that contain no
+  raw prompts, completions, chain-of-thought, user identifiers, local paths,
+  secrets, private runtime inventory, live routes, or break-glass detail.
 
 5. Patch candidate
    - Generate candidate changes only in private staging.

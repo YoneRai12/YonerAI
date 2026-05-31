@@ -94,6 +94,7 @@ COMMAND_ALIASES = {
     "/file-access": "/file-access",
     "/履歴記録": "/ledger",
     "/ledger": "/ledger",
+    "/ライブ": "/live-provider",
     "/ライブ接続": "/live-provider",
     "/live": "/live-provider",
     "/live-provider": "/live-provider",

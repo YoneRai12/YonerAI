@@ -142,6 +142,7 @@ jobs:
             tests/test_installer_update_plan.py \
             tests/test_distribution_license_site.py \
             tests/test_local_bootstrap_script.py \
+            tests/test_v080_install_auth_boundary.py \
             -q
 
   windows-cli-smoke:
@@ -191,6 +192,7 @@ jobs:
             tests/test_installer_install_plan.py `
             tests/test_installer_update_plan.py `
             tests/test_local_bootstrap_script.py `
+            tests/test_v080_install_auth_boundary.py `
             -q
 
   macos-cli-smoke:
@@ -232,6 +234,7 @@ jobs:
             tests/test_installer_install_plan.py \
             tests/test_installer_update_plan.py \
             tests/test_local_bootstrap_script.py \
+            tests/test_v080_install_auth_boundary.py \
             -q
 
   security-static:

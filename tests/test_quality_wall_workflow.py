@@ -34,6 +34,7 @@ def test_quality_wall_workflow_splits_user_visible_gates() -> None:
     assert "python -m compileall" in workflow
     assert "tests/test_auth_privacy_policy.py" in workflow
     assert "tests/test_release_gate.py" in workflow
+    assert "tests/test_v080_install_auth_boundary.py" in workflow
 
 
 def test_release_gate_workflow_does_not_publish() -> None:

@@ -147,13 +147,21 @@ def _loopback_redirect_report(redirect_uri: str) -> dict[str, object]:
         return {"valid": False, "uri": DEFAULT_GOOGLE_LOOPBACK_REDIRECT, "reason": "redirect_uri_invalid"}
     host = (parsed.hostname or "").lower()
     valid_host = host in {"127.0.0.1", "localhost", "::1"}
-    valid = parsed.scheme == "http" and valid_host and bool(parsed.path)
+    unsafe_components = bool(parsed.username or parsed.password or parsed.query or parsed.fragment)
+    valid = parsed.scheme == "http" and valid_host and bool(parsed.path) and not unsafe_components
+    reason = None
+    if not valid:
+        reason = (
+            "redirect_uri_must_not_include_credentials_query_or_fragment"
+            if unsafe_components
+            else "redirect_uri_must_be_loopback_http"
+        )
     return {
         "valid": valid,
         "uri": redirect_uri if valid else DEFAULT_GOOGLE_LOOPBACK_REDIRECT,
         "loopback_only": valid_host,
         "scheme": parsed.scheme,
-        "reason": None if valid else "redirect_uri_must_be_loopback_http",
+        "reason": reason,
     }
 
 

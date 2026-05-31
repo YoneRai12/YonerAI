@@ -4,6 +4,8 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[1]
 CLIENTS_CLI = ROOT / "clients" / "cli"
@@ -90,6 +92,39 @@ def test_google_login_rejects_non_loopback_redirect(tmp_path: Path, monkeypatch,
     assert report["flow"]["loopback_redirect_only"] is True
     assert report["flow"]["redirect_valid"] is False
     assert report["error"]["code"] == "redirect_uri_must_be_loopback_http"
+
+
+@pytest.mark.parametrize(
+    "redirect_uri",
+    [
+        "http://user:pass@127.0.0.1:8765/oauth/google/callback",
+        "http://127.0.0.1:8765/oauth/google/callback?code=secret",
+        "http://127.0.0.1:8765/oauth/google/callback#token",
+    ],
+)
+def test_google_login_rejects_loopback_redirect_with_unsafe_components(
+    redirect_uri: str,
+    tmp_path: Path,
+    monkeypatch,
+    capsys,
+) -> None:
+    from yonerai_cli import cli
+
+    monkeypatch.setenv("YONERAI_CLI_CONFIG_PATH", str(tmp_path / "cli-config.json"))
+    monkeypatch.setenv("YONERAI_GOOGLE_OAUTH_CLIENT_ID", "fixture-client-id.apps.googleusercontent.com")
+    monkeypatch.setenv("YONERAI_GOOGLE_OAUTH_REDIRECT_URI", redirect_uri)
+
+    assert cli.main(["auth", "google", "login", "--dry-run", "--json"]) == 1
+    report = json.loads(capsys.readouterr().out)
+    serialized = json.dumps(report)
+
+    assert report["configured"] is False
+    assert report["flow"]["redirect_valid"] is False
+    assert report["flow"]["redirect_uri"] == "http://127.0.0.1:8765/oauth/google/callback"
+    assert report["error"]["code"] == "redirect_uri_must_not_include_credentials_query_or_fragment"
+    assert "user:pass" not in serialized
+    assert "code=secret" not in serialized
+    assert "#token" not in serialized
 
 
 def test_google_login_without_dry_run_is_rejected(capsys) -> None:

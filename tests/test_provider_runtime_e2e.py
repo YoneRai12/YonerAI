@@ -165,6 +165,7 @@ def test_cli_ask_openai_compatible_live_e2e_records_redacted_ledger(
     assert pseudo_key not in captured.out
     assert pseudo_key not in captured.err
     assert pseudo_key not in ledger_text
+    assert "shared_traffic_policy" in ledger_text
     assert str(tmp_path) not in captured.out
     assert len(server.requests) == 1
 

@@ -26,6 +26,22 @@ Enable these contexts as required status checks for `main`:
 `core-test` and `build-and-test (3.11)` are the existing baseline checks.
 The other contexts come from `.github/workflows/quality-wall.yml`.
 
+## Quality Wall Coverage Notes
+
+- `security-static` runs `git diff --check`, `scripts/ci_quality_scans.py --changed`,
+  `ruff`, `compileall`, and focused security boundary tests for auth,
+  redaction, Cloudflare Access, MCP/tool deny policy, workspace file access, and
+  CLI output formatting.
+- `cli-smoke`, `windows-cli-smoke`, and `macos-cli-smoke` include dry-run auth
+  and shell/terminal-output contracts, including Google OAuth PKCE/state
+  reporting without token or verifier output.
+- `installer-manifest`, `windows-installer-manifest`, and
+  `macos-installer-manifest` include manifest/schema/trust, install/update plan,
+  local bootstrap, and v0.8 install/auth boundary tests.
+- `release-gate` blocks tag/version/manifest mismatch, mutable or unversioned
+  release assets, SHA256 mismatch, prerelease flag mismatch, unresolved blocker
+  markers, and public release overclaim phrasing.
+
 ## GitHub UI Setup
 
 Use GitHub repository settings:

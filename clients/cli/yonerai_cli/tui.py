@@ -47,6 +47,25 @@ SLASH_COMMANDS: tuple[SlashCommandSpec, ...] = (
 )
 
 
+JAPANESE_SLASH_ALIASES: dict[str, tuple[str, ...]] = {
+    "/settings": ("/設定",),
+    "/models": ("/モデル",),
+    "/providers": ("/提供元", "/プロバイダー"),
+    "/safety": ("/安全",),
+    "/runs": ("/履歴",),
+    "/show": ("/表示",),
+    "/tasks": ("/タスク",),
+    "/agents": ("/エージェント",),
+    "/auth": ("/認証",),
+    "/privacy": ("/プライバシー",),
+    "/evolve": ("/自己進化",),
+    "/update": ("/更新",),
+    "/update-notice": ("/更新通知",),
+    "/help": ("/ヘルプ",),
+    "/quit": ("/終了",),
+}
+
+
 def slash_command_words(lang: str) -> list[str]:
     words: list[str] = []
     for spec in SLASH_COMMANDS:
@@ -55,6 +74,9 @@ def slash_command_words(lang: str) -> list[str]:
         else:
             words.extend(spec.aliases)
             words.append(spec.command)
+    if lang == "ja":
+        for spec in SLASH_COMMANDS:
+            words.extend(JAPANESE_SLASH_ALIASES.get(spec.canonical, ()))
     seen: set[str] = set()
     deduped: list[str] = []
     for word in words:
@@ -64,11 +86,30 @@ def slash_command_words(lang: str) -> list[str]:
     return deduped
 
 
+def slash_command_meta(lang: str) -> dict[str, str]:
+    meta: dict[str, str] = {}
+    for spec in SLASH_COMMANDS:
+        description = spec.description_ja if lang == "ja" else spec.description_en
+        if lang == "ja":
+            meta[spec.command] = description
+            for alias in JAPANESE_SLASH_ALIASES.get(spec.canonical, ()):
+                meta[alias] = description
+        else:
+            meta[spec.command] = description
+            for alias in spec.aliases:
+                meta[alias] = description
+    return meta
+
+
 def slash_command_summary(lang: str) -> str:
     lines = ["候補:" if lang == "ja" else "Suggestions:"]
     for spec in SLASH_COMMANDS:
         if lang == "ja":
-            lines.append(f"  {spec.command:<10} {spec.description_ja}")
+            aliases = ", ".join(
+                alias for alias in JAPANESE_SLASH_ALIASES.get(spec.canonical, ()) if alias != spec.command
+            )
+            alias_text = f" / {aliases}" if aliases else ""
+            lines.append(f"  {spec.command:<10} {spec.description_ja}{alias_text}")
         else:
             primary = spec.aliases[0] if spec.aliases else spec.command
             lines.append(f"  {primary:<10} {spec.description_en}")
@@ -101,6 +142,7 @@ def prompt_line(*, lang: str, bottom_toolbar: str | None = None) -> str:
     completer = WordCompleter(
         slash_command_words(lang),
         ignore_case=True,
+        meta_dict=slash_command_meta(lang),
         match_middle=True,
         sentence=True,
     )
@@ -163,6 +205,8 @@ def tui_capability_report() -> dict[str, object]:
         "prompt_toolkit_available": prompt_ready,
         "rich_available": rich_ready,
         "slash_completion": prompt_ready,
+        "japanese_alias_completion": True,
+        "completion_descriptions": prompt_ready,
         "tab_completion": prompt_ready,
         "arrow_selection": prompt_ready,
         "rich_panels": rich_ready,

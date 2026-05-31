@@ -90,6 +90,13 @@ completion candidates and colored panels. If not, it falls back to plain text.
 In Japanese mode, type `/` to see Japanese-first candidates; Tab and arrow-key
 selection are available in compatible terminals.
 
+Readable Japanese aliases are accepted for the main TUI actions, including
+`/設定`, `/モデル`, `/提供元`, `/安全`, `/履歴`, `/タスク`, `/認証`,
+`/プライバシー`, `/自己進化`, `/更新`, `/更新通知`, and `/終了`. Legacy
+aliases remain accepted for compatibility. The interactive shell is still a
+local terminal surface: it does not enable live providers, arbitrary shell/tool
+execution, production cloud, Google login, or live Discord.
+
 ## Public Demo
 
 From the repository root:
