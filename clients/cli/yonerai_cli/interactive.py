@@ -29,7 +29,7 @@ from yonerai_cli.tui import (
 )
 
 
-INTERACTIVE_SCHEMA_VERSION = "yonerai-interactive-cli/v0.4"
+INTERACTIVE_SCHEMA_VERSION = "yonerai-interactive-cli/v0.8"
 SECRET_PATTERNS = (
     re.compile(r"sk-[A-Za-z0-9_-]{8,}"),
     re.compile(r"github_pat_[A-Za-z0-9_]+"),
@@ -112,7 +112,7 @@ VALUE_ALIASES = {
     "自動": "auto",
     "モック": "mock",
     "ローカル": "local",
-    "オープンai互換": "openai-compatible",
+    "OpenAI互換": "openai-compatible",
     "openai互換": "openai-compatible",
     "アンソロピック": "anthropic",
     "ジェミニ": "gemini",
@@ -120,12 +120,13 @@ VALUE_ALIASES = {
     "毎回確認": "prompt",
     "拒否": "deny",
     "ワークスペース内のみ": "workspace_only",
+    "ワークスペースのみ": "workspace_only",
     "無効": "disabled",
     "オン": "on",
     "有効": "on",
-    "記録オン": "on",
+    "履歴オン": "on",
     "オフ": "off",
-    "記録オフ": "off",
+    "履歴オフ": "off",
 }
 
 
@@ -184,6 +185,7 @@ def run_interactive_cli(
     )
     if not (use_tui_prompt and render_panel(welcome, title="YonerAI", stream=output_stream, color=options.color)):
         _write(output_stream, welcome)
+
     while True:
         if use_tui_prompt:
             line = prompt_line(
@@ -191,7 +193,7 @@ def run_interactive_cli(
                 bottom_toolbar=_bottom_toolbar(lang, provider=provider, live=_effective_live(live, config), config=config),
             )
         elif _is_interactive(input_stream):
-            output_stream.write("yonerai> " if lang == "en" else "yonerai> ")
+            output_stream.write("yonerai> ")
             output_stream.flush()
             line = input_stream.readline()
         else:
@@ -217,10 +219,10 @@ def run_interactive_cli(
                 last_report=last_report,
                 output_stream=output_stream,
             )
-            provider = command_result.get("provider", provider)
-            lang = command_result.get("lang", lang)
+            provider = str(command_result.get("provider", provider))
+            lang = str(command_result.get("lang", lang))
             live = bool(command_result.get("live", live))
-            ledger_path = command_result.get("ledger_path", ledger_path)
+            ledger_path = command_result.get("ledger_path", ledger_path)  # type: ignore[assignment]
             if command_result.get("exit"):
                 _write(output_stream, _bye(lang))
                 return 0
@@ -228,9 +230,8 @@ def run_interactive_cli(
 
         effective_live = _effective_live(live, config)
         if use_tui_prompt:
-            status = "考え中..." if lang == "ja" else "Thinking..."
             report = run_with_status(
-                status,
+                "考え中..." if lang == "ja" else "Thinking...",
                 lambda: callbacks.ask_auto(text, provider, effective_live, ledger_path, lang),
                 stream=output_stream,
                 color=options.color,
@@ -256,9 +257,9 @@ def _effective_live(live: bool, config: dict[str, object]) -> bool:
 def _bottom_toolbar(lang: str, *, provider: str, live: bool, config: dict[str, object]) -> str:
     model = _safe(config.get("model_preference") or "auto")
     if lang == "ja":
-        live_text = "ライブ許可オン" if live else "ライブ許可オフ"
+        live_text = "ライブ接続オン" if live else "ライブ接続オフ"
         ledger = "履歴オン" if config.get("ledger_enabled") is True else "履歴オフ"
-        return f"Tab/矢印で候補選択 | 提供元={_provider_label(provider, lang='ja')} | モデル={model} | {live_text} | {ledger}"
+        return f"Tab/矢印で候補を選択 | 提供元={_provider_label(provider, lang='ja')} | モデル={model} | {live_text} | {ledger}"
     return f"Tab/arrows complete | provider={provider} | model={model} | live={'on' if live else 'off'} | ledger={'on' if config.get('ledger_enabled') else 'off'}"
 
 
@@ -323,13 +324,10 @@ def _handle_slash_command(
             if not MODEL_RE.fullmatch(value) or "://" in value or "\\" in value:
                 _write(output_stream, _invalid(lang))
                 return {}
-            try:
-                new_config = _set_config(config, "model", value, options.config_path)
-            except ConfigError as exc:
-                _write(output_stream, _config_error(lang, exc))
+            success, result = _set_and_report("model", value, config, options, lang, output_stream)
+            if not success:
                 return {}
-            _write(output_stream, _changed_message("model", new_config["model_preference"], lang=lang))
-            return {}
+            return result
         _write(output_stream, _format_models(config, callbacks.providers(), lang=lang))
         return {}
     if command == "/safety":
@@ -369,9 +367,8 @@ def _handle_slash_command(
         if callbacks.update_check is None:
             _write(output_stream, _update_unavailable(lang))
             return {}
-        manifest = _joined_arg_after_command(text, parts[0])
         try:
-            report = callbacks.update_check(manifest, lang)
+            report = callbacks.update_check(_joined_arg_after_command(text, parts[0]), lang)
         except Exception as exc:
             _write(output_stream, _format_update_error(exc, lang=lang))
             return {}
@@ -393,101 +390,106 @@ def _handle_slash_command(
             _write(output_stream, _invalid(lang))
             return {}
         try:
-            new_lang = _set_config(config, "language", value, options.config_path)
+            new_config = _set_config(config, "language", value, options.config_path)
         except ConfigError as exc:
             _write(output_stream, _config_error(lang, exc))
             return {}
-        _write(output_stream, _changed_message("language", new_lang["language"], lang=str(new_lang["language"])))
-        return {"lang": str(new_lang["language"])}
+        _write(output_stream, _changed_message("language", new_config["language"], lang=str(new_config["language"])))
+        return {"lang": str(new_config["language"])}
     if command == "/provider" and args:
         value = _canonical_value(args[0])
         if value not in PROVIDER_PREFERENCES:
             _write(output_stream, _invalid(lang))
             return {}
-        try:
-            new_config = _set_config(config, "provider", value, options.config_path)
-        except ConfigError as exc:
-            _write(output_stream, _config_error(lang, exc))
-            return {}
-        new_provider = str(new_config["provider_preference"])
-        _write(output_stream, _changed_message("provider", new_provider, lang=lang))
-        return {"provider": new_provider}
+        success, result = _set_and_report("provider", value, config, options, lang, output_stream)
+        return result if success else {}
     if command == "/approval" and args:
         value = _canonical_value(args[0])
         if value not in APPROVAL_MODES:
             _write(output_stream, _invalid(lang))
             return {}
-        try:
-            new_config = _set_config(config, "approval", value, options.config_path)
-        except ConfigError as exc:
-            _write(output_stream, _config_error(lang, exc))
+        success, result = _set_and_report("approval", value, config, options, lang, output_stream)
+        if not success:
             return {}
-        _write(output_stream, _changed_message("approval", new_config["approval_mode"], lang=lang))
-        return {}
+        return result
     if command == "/file-access" and args:
         value = _canonical_value(args[0])
         if value not in FILE_ACCESS_MODES:
             _write(output_stream, _invalid(lang))
             return {}
-        try:
-            new_config = _set_config(config, "file_access", value, options.config_path)
-        except ConfigError as exc:
-            _write(output_stream, _config_error(lang, exc))
+        success, result = _set_and_report("file_access", value, config, options, lang, output_stream)
+        if not success:
             return {}
-        _write(output_stream, _changed_message("file_access", new_config["file_access_mode"], lang=lang))
-        return {}
+        return result
     if command == "/ledger" and args:
         value = _canonical_value(args[0])
         if value not in {"on", "off", "true", "false", "1", "0", "yes", "no"}:
             _write(output_stream, _invalid(lang))
             return {}
-        try:
-            new_config = _set_config(config, "ledger", value, options.config_path)
-        except ConfigError as exc:
-            _write(output_stream, _config_error(lang, exc))
+        success, result = _set_and_report("ledger", value, config, options, lang, output_stream)
+        if not success:
             return {}
-        _write(output_stream, _changed_message("ledger", new_config["ledger_enabled"], lang=lang))
-        return {"ledger_path": _resolve_ledger_path(new_config, options)}
+        result["ledger_path"] = _resolve_ledger_path(config, options)
+        return result
     if command == "/live-provider" and args:
         value = _canonical_value(args[0])
         if value not in {"on", "off", "true", "false", "1", "0", "yes", "no"}:
             _write(output_stream, _invalid(lang))
             return {}
-        try:
-            new_config = _set_config(config, "live_provider", value, options.config_path)
-        except ConfigError as exc:
-            _write(output_stream, _config_error(lang, exc))
+        success, result = _set_and_report("live_provider", value, config, options, lang, output_stream)
+        if not success:
             return {}
-        new_live = bool(new_config["live_provider_enabled"])
-        _write(output_stream, _changed_message("live_provider", new_live, lang=lang))
-        return {"live": new_live}
+        result["live"] = bool(config["live_provider_enabled"])
+        return result
     if command == "/network" and args:
         value = _canonical_value(args[0])
         if value not in {"on", "off", "true", "false", "1", "0", "yes", "no"}:
             _write(output_stream, _invalid(lang))
             return {}
-        try:
-            new_config = _set_config(config, "network", value, options.config_path)
-        except ConfigError as exc:
-            _write(output_stream, _config_error(lang, exc))
+        success, result = _set_and_report("network", value, config, options, lang, output_stream)
+        if not success:
             return {}
-        new_network = bool(new_config["network_enabled"])
-        _write(output_stream, _changed_message("network", new_network, lang=lang))
-        return {}
+        return result
     if command == "/update-notice" and args:
         value = _canonical_value(args[0])
         if value not in {"on", "off", "true", "false", "1", "0", "yes", "no"}:
             _write(output_stream, _invalid(lang))
             return {}
-        try:
-            new_config = _set_config(config, "update_notice", value, options.config_path)
-        except ConfigError as exc:
-            _write(output_stream, _config_error(lang, exc))
+        success, result = _set_and_report("update_notice", value, config, options, lang, output_stream)
+        if not success:
             return {}
-        _write(output_stream, _changed_message("update_notice", new_config["update_notice_enabled"], lang=lang))
-        return {}
+        return result
     _write(output_stream, _unknown(lang))
     return {}
+
+
+def _set_and_report(
+    key: str,
+    value: str,
+    config: dict[str, object],
+    options: InteractiveOptions,
+    lang: str,
+    output_stream: TextIO,
+) -> tuple[bool, dict[str, object]]:
+    try:
+        new_config = _set_config(config, key, value, options.config_path)
+    except ConfigError as exc:
+        _write(output_stream, _config_error(lang, exc))
+        return False, {}
+    setting_key = {
+        "provider": "provider_preference",
+        "model": "model_preference",
+        "approval": "approval_mode",
+        "file_access": "file_access_mode",
+        "ledger": "ledger_enabled",
+        "live_provider": "live_provider_enabled",
+        "network": "network_enabled",
+        "update_notice": "update_notice_enabled",
+    }.get(key, key)
+    _write(output_stream, _changed_message(key, new_config[setting_key], lang=lang))
+    if key == "provider":
+        return True, {"provider": str(new_config["provider_preference"])}
+    return True, {}
 
 
 def _set_config(config: dict[str, object], key: str, value: str, config_path: str | None) -> dict[str, object]:
@@ -529,26 +531,17 @@ def _handle_numbered_selection(
             return {}
         if number == "5":
             selected = value or ("off" if config.get("ledger_enabled") is True else "on")
-            if selected not in {"on", "off", "true", "false", "1", "0", "yes", "no"}:
-                _write(output_stream, _invalid(lang))
-                return {}
             new_config = _set_config(config, "ledger", selected, options.config_path)
             _write(output_stream, _changed_message("ledger", new_config["ledger_enabled"], lang=lang))
             return {"ledger_path": _resolve_ledger_path(new_config, options)}
         if number == "6":
             selected = value or ("off" if config.get("live_provider_enabled") is True else "on")
-            if selected not in {"on", "off", "true", "false", "1", "0", "yes", "no"}:
-                _write(output_stream, _invalid(lang))
-                return {}
             new_config = _set_config(config, "live_provider", selected, options.config_path)
             new_live = bool(new_config["live_provider_enabled"])
             _write(output_stream, _changed_message("live_provider", new_live, lang=lang))
             return {"live": new_live}
         if number == "7":
             selected = value or ("off" if config.get("network_enabled") is True else "on")
-            if selected not in {"on", "off", "true", "false", "1", "0", "yes", "no"}:
-                _write(output_stream, _invalid(lang))
-                return {}
             new_config = _set_config(config, "network", selected, options.config_path)
             _write(output_stream, _changed_message("network", new_config["network_enabled"], lang=lang))
             return {}
@@ -558,9 +551,6 @@ def _handle_numbered_selection(
             return {}
         if number == "9":
             selected = value or ("off" if config.get("update_notice_enabled") is True else "on")
-            if selected not in {"on", "off", "true", "false", "1", "0", "yes", "no"}:
-                _write(output_stream, _invalid(lang))
-                return {}
             new_config = _set_config(config, "update_notice", selected, options.config_path)
             _write(output_stream, _changed_message("update_notice", new_config["update_notice_enabled"], lang=lang))
             return {}
@@ -604,16 +594,18 @@ def _format_chat_response(report: dict[str, Any], *, lang: str) -> str:
     response = report.get("response") if isinstance(report.get("response"), dict) else {}
     error = report.get("error") if isinstance(report.get("error"), dict) else {}
     output = response.get("output_text") or error.get("message") or "no output"
+    run_id = run.get("run_id") or run.get("id") or "none"
+    provider_id = provider.get("provider_id") or auto.get("provider_id") or auto.get("provider") or "unknown"
     if lang == "ja":
         return "\n".join(
             (
                 "YonerAI ミッションコントロール",
-                f"  実行ID（run_id）: {_safe(run.get('run_id') or 'なし')}",
+                f"  実行ID（run_id）: {_safe(run_id)}",
                 f"  経路（処理方法）: {_route_label(auto.get('route'), lang='ja')}",
-                f"  プロバイダー（AI接続先）: {_provider_label(provider.get('provider_id') or auto.get('provider_id'), lang='ja')}",
+                f"  提供元（AI接続元）: {_provider_label(provider_id, lang='ja')}",
                 f"  ローカルノード: {_local_node_state(report, lang='ja')}",
                 f"  履歴: {_ledger_state_from_report(report, lang='ja')}",
-                f"  安全: ネットワーク初期値オフ / ファイルはワークスペース内のみ / 任意シェル無効",
+                "  安全: ネットワーク初期値オフ / ファイルはワークスペース内のみ / 任意シェル無効",
                 f"  承認: {'必要' if auto.get('approval_required') else '不要'}",
                 "",
                 _format_task_progress(report, lang="ja").rstrip(),
@@ -626,12 +618,12 @@ def _format_chat_response(report: dict[str, Any], *, lang: str) -> str:
     return "\n".join(
         (
             "YonerAI response",
-            f"  run_id: {_safe(run.get('run_id') or 'none')}",
+            f"  run_id: {_safe(run_id)}",
             f"  route: {_safe(auto.get('route') or 'unknown')}",
-            f"  provider: {_safe(provider.get('provider_id') or auto.get('provider_id') or 'unknown')}",
+            f"  provider: {_safe(provider_id)}",
             f"  local_node: {_local_node_state(report, lang='en')}",
             f"  ledger: {_ledger_state_from_report(report, lang='en')}",
-            f"  safety: network off by default / workspace file only / arbitrary shell disabled",
+            "  safety: network off by default / workspace file only / arbitrary shell disabled",
             f"  approval: {'required' if auto.get('approval_required') else 'not required'}",
             "",
             _format_task_progress(report, lang="en").rstrip(),
@@ -648,21 +640,17 @@ def _format_task_progress(report: dict[str, Any], *, lang: str) -> str:
     steps = progress.get("steps") if isinstance(progress.get("steps"), list) else []
     if not steps:
         return "進行状況: まだありません\n" if lang == "ja" else "Task progress: none yet\n"
-    if lang == "ja":
-        lines = ["進行状況"]
-        for step in steps:
-            if not isinstance(step, dict):
-                continue
+    lines = ["進行状況" if lang == "ja" else "Task progress"]
+    for step in steps:
+        if not isinstance(step, dict):
+            continue
+        if lang == "ja":
             lines.append(
                 f"  {_progress_state_label(step.get('state'), lang='ja')}: "
                 f"{_progress_step_label(step.get('id'), lang='ja')} - "
                 f"{_progress_summary_label(step.get('id'), step.get('summary'), lang='ja')}"
             )
-        lines.append("")
-        return "\n".join(lines)
-    lines = ["Task progress"]
-    for step in steps:
-        if isinstance(step, dict):
+        else:
             lines.append(f"  {step.get('state')}: {_safe(step.get('id') or 'step')} - {_safe(step.get('summary') or '')}")
     lines.append("")
     return "\n".join(lines)
@@ -674,43 +662,31 @@ def _format_tasks(last_report: dict[str, Any] | None, runs_report: dict[str, Any
         lines = ["タスク"]
         if isinstance(last_report, dict):
             run = last_report.get("run") if isinstance(last_report.get("run"), dict) else {}
-            lines.append(f"  現在/直近: run_id={_safe(run.get('run_id') or 'なし')}")
+            lines.append(f"  現在/直近: run_id={_safe(run.get('run_id') or run.get('id') or 'none')}")
             lines.append(_format_task_progress(last_report, lang="ja").rstrip())
         else:
-            lines.append("  現在/直近: まだ実行がありません。通常文を入力すると `ask --auto` 経路でタスクを作ります。")
+            lines.append("  現在/直近: まだ実行がありません。通常文を入力すると ask --auto 経路でタスクを作ります。")
         if runs:
             lines.append("  最近の履歴")
             for run in runs[:5]:
                 if isinstance(run, dict):
                     lines.append(
-                        f"    run_id={_safe(run.get('run_id') or 'なし')} "
+                        f"    run_id={_safe(run.get('run_id') or 'none')} "
                         f"状態={_run_status_label(run.get('status'), lang='ja')} "
                         f"進行イベント={len(_run_progress_events(run))}"
                     )
         else:
             lines.append("  最近の履歴: ローカル履歴が未設定、または記録がありません。")
-        lines.append("  サブエージェント: 実行はしません。計画表示だけです。")
+        lines.append("  サブエージェント: まだ実行しません。計画表示のみです。")
         lines.append("")
         return "\n".join(lines)
-
     lines = ["Tasks"]
     if isinstance(last_report, dict):
         run = last_report.get("run") if isinstance(last_report.get("run"), dict) else {}
-        lines.append(f"  current/recent: run_id={_safe(run.get('run_id') or 'none')}")
+        lines.append(f"  current/recent: run_id={_safe(run.get('run_id') or run.get('id') or 'none')}")
         lines.append(_format_task_progress(last_report, lang="en").rstrip())
     else:
         lines.append("  current/recent: no run yet. Type a message to create an ask --auto task.")
-    if runs:
-        lines.append("  recent history")
-        for run in runs[:5]:
-            if isinstance(run, dict):
-                lines.append(
-                    f"    run_id={_safe(run.get('run_id') or 'none')} "
-                    f"status={_safe(run.get('status') or 'unknown')} "
-                    f"progress_events={len(_run_progress_events(run))}"
-                )
-    else:
-        lines.append("  recent history: local ledger is not configured or has no runs.")
     lines.append("  subagents: not started; plan display only")
     lines.append("")
     return "\n".join(lines)
@@ -725,34 +701,21 @@ def _format_agents(report: dict[str, Any] | None, *, lang: str) -> str:
                 (
                     "エージェント計画",
                     "  まだ実行結果がありません。質問後に /エージェント で確認できます。",
-                    "  実サブエージェントはまだ起動しません。公開安全な計画表示だけです。",
+                    "  実サブエージェントはまだ起動しません。安全な計画表示だけです。",
                     "",
                 )
             )
         return "Agent plan\n  No run yet. This is a public-safe plan display; no subagents are started.\n"
-    if lang == "ja":
-        lines = ["エージェント計画"]
-        if not reviewer.get("enabled"):
-            lines.append("  今回は複数担当の計画は不要です。単純なローカル/モック経路で処理します。")
-        for item in subtasks:
-            if isinstance(item, dict):
-                lines.append(
-                    f"  {_agent_role_label(item.get('role'), lang='ja')}: "
-                    f"{_safe(item.get('goal') or '')}"
-                )
-        checks = (reviewer.get("reviewer") or {}).get("checks") if isinstance(reviewer.get("reviewer"), dict) else []
-        if checks:
-            lines.append("  レビュー: " + ", ".join(_safe(check) for check in checks[:5]))
-        lines.append("  実サブエージェント起動: なし（計画表示のみ）")
-        lines.append("")
-        return "\n".join(lines)
-    lines = ["Agent plan"]
+    lines = ["エージェント計画" if lang == "ja" else "Agent plan"]
     if not reviewer.get("enabled"):
-        lines.append("  multi-role plan: not required for this run")
+        lines.append("  今回は複数担当の計画は不要です。" if lang == "ja" else "  multi-role plan: not required for this run")
     for item in subtasks:
         if isinstance(item, dict):
-            lines.append(f"  {item.get('role')}: {_safe(item.get('goal') or '')}")
-    lines.append("  subagents_started: false")
+            if lang == "ja":
+                lines.append(f"  {_agent_role_label(item.get('role'), lang='ja')}: {_safe(item.get('goal') or '')}")
+            else:
+                lines.append(f"  {item.get('role')}: {_safe(item.get('goal') or '')}")
+    lines.append("  実サブエージェント起動: なし（計画表示のみ）" if lang == "ja" else "  subagents_started: false")
     lines.append("")
     return "\n".join(lines)
 
@@ -761,20 +724,16 @@ def _format_run_progress(run: dict[str, Any], *, lang: str) -> str:
     progress_events = _run_progress_events(run)
     if not progress_events:
         return "進行状況: 記録なし\n" if lang == "ja" else "Task progress: not recorded\n"
-    if lang == "ja":
-        lines = ["進行状況"]
-        for event in progress_events:
-            step = str(event.get("name") or "").removeprefix("task_progress_")
+    lines = ["進行状況" if lang == "ja" else "Task progress"]
+    for event in progress_events:
+        step = str(event.get("name") or "").removeprefix("task_progress_")
+        if lang == "ja":
             lines.append(
                 f"  {_progress_state_label(event.get('status'), lang='ja')}: "
                 f"{_progress_step_label(step, lang='ja')} - {_progress_summary_label(step, event.get('summary'), lang='ja')}"
             )
-        lines.append("")
-        return "\n".join(lines)
-    lines = ["Task progress"]
-    for event in progress_events:
-        step = str(event.get("name") or "").removeprefix("task_progress_")
-        lines.append(f"  {event.get('status')}: {_safe(step)} - {_safe(event.get('summary') or '')}")
+        else:
+            lines.append(f"  {event.get('status')}: {_safe(step)} - {_safe(event.get('summary') or '')}")
     lines.append("")
     return "\n".join(lines)
 
@@ -826,9 +785,7 @@ def _local_node_state(report: dict[str, Any], *, lang: str) -> str:
 
 def _ledger_state_from_report(report: dict[str, Any], *, lang: str) -> str:
     ledger = report.get("ledger") if isinstance(report.get("ledger"), dict) else {}
-    if ledger.get("file_backed"):
-        return "オン（ローカルのみ）" if lang == "ja" else "on local-only"
-    if ledger.get("enabled"):
+    if ledger.get("file_backed") or ledger.get("enabled"):
         return "オン（ローカルのみ）" if lang == "ja" else "on local-only"
     return "オフ（初期値）" if lang == "ja" else "off by default"
 
@@ -836,21 +793,20 @@ def _ledger_state_from_report(report: dict[str, Any], *, lang: str) -> str:
 def _progress_step_label(value: object, *, lang: str) -> str:
     if lang != "ja":
         return _safe(value or "step")
-    labels = {
+    return {
         "classify": "分類",
         "route": "経路選択",
         "provider_selection": "提供元選択",
         "execution": "実行",
         "review": "レビュー",
         "result": "結果",
-    }
-    return labels.get(str(value), _safe(value or "不明"))
+    }.get(str(value), _safe(value or "不明"))
 
 
 def _progress_state_label(value: object, *, lang: str) -> str:
     if lang != "ja":
         return _safe(value or "unknown")
-    labels = {
+    return {
         "pending": "待機",
         "running": "実行中",
         "done": "完了",
@@ -859,63 +815,43 @@ def _progress_state_label(value: object, *, lang: str) -> str:
         "error": "エラー",
         "ok": "完了",
         "failed": "エラー",
-    }
-    return labels.get(str(value), _safe(value or "不明"))
+    }.get(str(value), _safe(value or "不明"))
 
 
 def _progress_summary_label(step: object, summary: object, *, lang: str) -> str:
     text = _safe(summary or "")
     if lang != "ja":
         return text
-    step_id = str(step)
-    if step_id == "classify" and "difficulty=" in text:
-        return text.replace("difficulty=instant", "難易度=即時").replace("difficulty=task", "難易度=タスク").replace(
-            "difficulty=agent", "難易度=複雑"
-        ).replace("privacy=public", "公開").replace("privacy=local_file", "ローカルファイル").replace("privacy=private", "非公開")
-    if step_id == "route" and "route=" in text:
-        return text.replace("route=instant_local", "経路=ローカル即時").replace("route=local_llm", "経路=ローカルLLM").replace(
-            "route=cloud_contract_candidate", "経路=クラウド候補"
-        ).replace("route=deny", "経路=拒否").replace("approval_required=false", "承認不要").replace(
-            "approval_required=true", "承認必要"
-        )
-    if step_id == "provider_selection" and "provider=" in text:
-        return text.replace("provider=mock", "提供元=モック").replace("provider=oracle-stub", "提供元=オラクルスタブ").replace(
-            "provider=local", "提供元=ローカル"
-        )
-    if step_id == "execution":
-        if text.startswith("executed route="):
-            return "選択した安全な経路で実行しました"
-        if text.startswith("execution skipped"):
-            return "安全上、実行をスキップしました"
-        if text.startswith("execution stopped"):
-            return "実行を停止しました"
-    if step_id == "review":
-        if text.startswith("reviewer plan not required"):
-            return "この経路ではレビュー計画は不要です"
-        if text.startswith("subagents_planned="):
-            return text.replace("subagents_planned=", "担当計画=").replace(" reviewer_required=true", " / レビューあり")
-    if step_id == "result":
-        if text.startswith("result returned"):
-            return "秘匿済みの安全な結果を返しました"
-        if text.startswith("blocked safely"):
-            return "安全にブロックしました"
-        if text.startswith("result unavailable"):
-            return "結果は利用できません"
-    return text
+    return (
+        text.replace("difficulty=instant", "難易度=即時")
+        .replace("difficulty=task", "難易度=タスク")
+        .replace("difficulty=agent", "難易度=複雑")
+        .replace("privacy=public", "公開")
+        .replace("privacy=local_file", "ローカルファイル")
+        .replace("privacy=private", "非公開")
+        .replace("route=instant_local", "経路=ローカル即時")
+        .replace("route=local_llm", "経路=ローカルLLM")
+        .replace("route=cloud_contract_candidate", "経路=クラウド候補")
+        .replace("route=deny", "経路=拒否")
+        .replace("approval_required=false", "承認不要")
+        .replace("approval_required=true", "承認必要")
+        .replace("provider=mock", "提供元=モック")
+        .replace("provider=oracle-stub", "提供元=オラクルスタブ")
+        .replace("provider=local", "提供元=ローカル")
+    )
 
 
 def _agent_role_label(value: object, *, lang: str) -> str:
     if lang != "ja":
         return _safe(value or "agent")
-    labels = {
-        "planner": "計画係",
-        "researcher": "調査係",
-        "implementer": "実装係",
-        "tester": "テスト係",
-        "reviewer": "レビュー係",
-        "executor": "実行係",
-    }
-    return labels.get(str(value), _safe(value or "担当"))
+    return {
+        "planner": "計画担当",
+        "researcher": "調査担当",
+        "implementer": "実装担当",
+        "tester": "テスト担当",
+        "reviewer": "レビュー担当",
+        "executor": "実行担当",
+    }.get(str(value), _safe(value or "担当"))
 
 
 def _format_settings(
@@ -926,8 +862,7 @@ def _format_settings(
     lang: str,
     provider_report: dict[str, Any] | None = None,
 ) -> str:
-    report = build_config_report(config, exists=True)
-    values = report["config"]
+    values = build_config_report(config, exists=True)["config"]
     local_state = _provider_state(provider_report or {}, "local")
     ledger = "on" if values.get("ledger_enabled") else "off"
     update_notice = "on" if values.get("update_notice_enabled") else "off"
@@ -937,8 +872,8 @@ def _format_settings(
                 "設定",
                 "  1. 表示言語: " + _language_label(values["language"] or "ja", lang="ja"),
                 "     変更: /選択 1 日本語 または /選択 1 英語",
-                "  2. プロバイダー（AI接続先）: " + _provider_label(provider, lang="ja"),
-                "     変更: /選択 2 自動|モック|ローカル|オープンAI互換|アンソロピック|ジェミニ",
+                "  2. 提供元（AI接続元）: " + _provider_label(provider, lang="ja"),
+                "     変更: /選択 2 自動|モック|ローカル|OpenAI互換|Anthropic|Gemini",
                 "  8. モデル（AIモデル）: " + _safe(values.get("model_preference") or "auto"),
                 "     変更: /モデル auto または /選択 8 llama3.1",
                 "  3. 承認（危険操作）: " + _approval_label(values["approval_mode"], lang="ja"),
@@ -956,7 +891,7 @@ def _format_settings(
                 "",
                 "状態",
                 f"  表示言語: {_language_label(values['language'] or 'ja', lang='ja')}",
-                f"  プロバイダー（AI接続先）: {_provider_label(provider, lang='ja')}",
+                f"  提供元（AI接続元）: {_provider_label(provider, lang='ja')}",
                 f"  モデル（AIモデル）: {_safe(values.get('model_preference') or 'auto')}",
                 f"  ローカルLLM（PC内モデル）: {_state_label(local_state, lang='ja')}",
                 f"  承認（危険操作）: {_approval_label(values['approval_mode'], lang='ja')}",
@@ -1018,7 +953,7 @@ def _format_safety(config: dict[str, object], *, live: bool, lang: str) -> str:
                 "",
                 "ネットワーク（外部通信）",
                 f"{_selector('off', network_selected)} オフ（初期値）",
-                f"{_selector('provider', network_selected)} プロバイダーだけ許可（--liveで明示した時だけ）",
+                f"{_selector('provider', network_selected)} 提供元のみ許可（--liveで明示した時だけ）",
                 f"{_selector('search', network_selected)} 検索を許可（未実装）",
                 "",
                 "ファイルアクセス（ファイル読み取り）",
@@ -1035,6 +970,7 @@ def _format_safety(config: dict[str, object], *, live: bool, lang: str) -> str:
                 f"履歴記録（ローカル履歴）: {'オン（秘匿済み / ローカルのみ）' if values.get('ledger_enabled') else 'オフ'}",
                 "シェル実行（PC操作）: 任意コマンドは無効",
                 "クラウド候補: 非公開ファイルやローカルファイルは送りません",
+                "ライブ提供元: 明示許可と provider 別 env opt-in が必要です",
                 "",
             )
         )
@@ -1056,13 +992,11 @@ def _format_safety(config: dict[str, object], *, live: bool, lang: str) -> str:
 
 def _format_providers(report: dict[str, Any], *, lang: str) -> str:
     providers = report.get("providers") if isinstance(report.get("providers"), list) else []
-    title = "プロバイダー（AI接続先）" if lang == "ja" else "Providers"
-    lines = [title]
+    lines = ["提供元（AI接続元）" if lang == "ja" else "Providers"]
     for item in providers:
         if not isinstance(item, dict):
             continue
         capabilities = item.get("capabilities") if isinstance(item.get("capabilities"), dict) else {}
-        capability_text = _capability_summary(capabilities, lang=lang)
         command = _safe(item.get("command") or 'yonerai ask "hello" --auto --json')
         if lang == "ja":
             lines.append(
@@ -1072,7 +1006,7 @@ def _format_providers(report: dict[str, Any], *, lang: str) -> str:
             )
             lines.append(f"    次に試す: {command}")
             lines.append(f"    セットアップ: {_provider_hint_ja(item)}")
-            lines.append(f"    できること: {capability_text}")
+            lines.append(f"    できること: {_capability_summary(capabilities, lang=lang)}")
             lines.append(f"    しないこと: {_safe(item.get('does_not') or 'キー表示、既定のlive呼び出し、任意操作はしません')}")
         else:
             lines.append(
@@ -1081,12 +1015,12 @@ def _format_providers(report: dict[str, Any], *, lang: str) -> str:
             )
             lines.append(f"    next: {command}")
             lines.append(f"    setup: {_safe(item.get('setup_hint') or 'No setup hint.')}")
-            lines.append(f"    capabilities: {capability_text}")
+            lines.append(f"    capabilities: {_capability_summary(capabilities, lang=lang)}")
             lines.append(f"    does_not: {_safe(item.get('does_not') or '')}")
     lines.append("  キー（秘密情報）: 表示しません。設定にも保存しません" if lang == "ja" else "  keys: redacted / not printed")
     if lang == "ja":
         lines.append("  ローカルLLM: localhost / 127.0.0.1 / ::1 だけを許可します")
-        lines.append("  外部API: --live と provider別env opt-in がある時だけ呼びます")
+        lines.append("  外部API: --live と provider別 env opt-in がある時だけ呼びます")
     lines.append("")
     return "\n".join(_safe(line) for line in lines)
 
@@ -1096,30 +1030,32 @@ def _format_models(config: dict[str, object], report: dict[str, Any], *, lang: s
     local_state = _provider_state(report, "local")
     capabilities = tui_capability_report()
     if lang == "ja":
-        lines = (
-            "モデル（AIモデル）",
-            f"  現在のモデル指定: {model}",
-            f"  ローカルLLM（PC内モデル）: {_state_label(local_state, lang='ja')}",
-            f"  補完UI: {'利用可能' if capabilities['slash_completion'] else '通常入力にフォールバック'}",
-            "  変更: /モデル auto または /モデル llama3.1 など",
-            "  ローカルLLM設定: localhost / 127.0.0.1 / ::1 のみ。非ループバックURLは拒否します。",
-            "  Ollama例: ORA_LOCAL_LLM_ENABLED=1, ORA_LOCAL_LLM_PROVIDER=ollama, ORA_LOCAL_LLM_BASE_URL=http://127.0.0.1:11434",
-            "  LM Studio例: ORA_LOCAL_LLM_ENABLED=1, ORA_LOCAL_LLM_PROVIDER=lmstudio, ORA_LOCAL_LLM_BASE_URL=http://127.0.0.1:1234/v1",
-            "  実行しないこと: モデルの自動インストール、外部URL探索、APIキー保存、プロンプト送信",
+        return "\n".join(
+            (
+                "モデル（AIモデル）",
+                f"  現在のモデル指定: {model}",
+                f"  ローカルLLM（PC内モデル）: {_state_label(local_state, lang='ja')}",
+                f"  補完UI: {'利用可能' if capabilities['slash_completion'] else '通常入力にフォールバック'}",
+                "  変更: /モデル auto または /モデル llama3.1 など",
+                "  ローカルLLM設定: localhost / 127.0.0.1 / ::1 のみ。非ループバックURLは拒否します。",
+                "  Ollama例: ORA_LOCAL_LLM_ENABLED=1, ORA_LOCAL_LLM_PROVIDER=ollama, ORA_LOCAL_LLM_BASE_URL=http://127.0.0.1:11434",
+                "  LM Studio例: ORA_LOCAL_LLM_ENABLED=1, ORA_LOCAL_LLM_PROVIDER=lmstudio, ORA_LOCAL_LLM_BASE_URL=http://127.0.0.1:1234/v1",
+                "  実行しないこと: モデルの自動インストール、外部URL探索、APIキー保存、プロンプト送信",
+                "",
+            )
+        )
+    return "\n".join(
+        (
+            "Models",
+            f"  model_preference: {model}",
+            f"  local_llm: {local_state}",
+            f"  slash_completion: {capabilities['slash_completion']}",
+            "  change: /model auto or /model llama3.1",
+            "  local LLM endpoints: localhost / 127.0.0.1 / ::1 only",
+            "  not_performed: no model installation, no external probing, no key storage, no prompt sent",
             "",
         )
-        return "\n".join(_safe(line) for line in lines)
-    lines = (
-        "Models",
-        f"  model_preference: {model}",
-        f"  local_llm: {local_state}",
-        f"  slash_completion: {capabilities['slash_completion']}",
-        "  change: /model auto or /model llama3.1",
-        "  local LLM endpoints: localhost / 127.0.0.1 / ::1 only",
-        "  not_performed: no model installation, no external probing, no key storage, no prompt sent",
-        "",
     )
-    return "\n".join(_safe(line) for line in lines)
 
 
 def _format_local_llm_setup(report: dict[str, Any], *, lang: str) -> str:
@@ -1128,8 +1064,6 @@ def _format_local_llm_setup(report: dict[str, Any], *, lang: str) -> str:
     probes = local_llm.get("probes") if isinstance(local_llm.get("probes"), list) else []
     detected = str(local_llm.get("status") or "unknown")
     endpoint_label = _safe(local_llm.get("endpoint_label") or local_llm.get("detected_label") or "未検出")
-    safe_local_state = _safe(local_state)
-    safe_detected = _safe(detected)
     if lang == "ja":
         lines = [
             "ローカルLLMセットアップ",
@@ -1149,25 +1083,26 @@ def _format_local_llm_setup(report: dict[str, Any], *, lang: str) -> str:
                 if isinstance(probe, dict):
                     lines.append(
                         f"    - {_safe(probe.get('label') or probe.get('provider') or 'local')}: "
-                        f"{_local_llm_status_label(probe.get('status'), lang='ja')} / {_safe(probe.get('reason') or 'reasonなし')}"
+                        f"{_local_llm_status_label(probe.get('status'), lang='ja')} / {_safe(probe.get('reason') or '理由なし')}"
                     )
-        lines.append("  次に試す: 先に Ollama または LM Studio を起動し、必要なら上の env を設定してから /提供元選択 ローカル")
+        lines.append("  次に試す: 先に Ollama または LM Studio を起動し、必要な env を設定してから /提供元選択 ローカル")
         lines.append("")
         return "\n".join(lines)
-    lines = (
-        "Local LLM setup",
-        f"  current_state: {safe_local_state}",
-        f"  detection_status: {safe_detected}",
-        f"  endpoint: {endpoint_label}",
-        "  supported: Ollama-style / LM Studio-style / local OpenAI-compatible HTTP API",
-        "  allowed_endpoint: localhost / 127.0.0.1 / ::1 only",
-        "  Ollama example: ORA_LOCAL_LLM_ENABLED=1, ORA_LOCAL_LLM_PROVIDER=ollama, ORA_LOCAL_LLM_BASE_URL=http://127.0.0.1:11434",
-        "  LM Studio example: ORA_LOCAL_LLM_ENABLED=1, ORA_LOCAL_LLM_PROVIDER=lmstudio, ORA_LOCAL_LLM_BASE_URL=http://127.0.0.1:1234/v1",
-        "  use: /provider local or yonerai ask \"hello\" --provider local --live",
-        "  not_performed: no external URL, no key storage, no arbitrary shell, no model installation",
-        "",
+    return "\n".join(
+        (
+            "Local LLM setup",
+            f"  current_state: {_safe(local_state)}",
+            f"  detection_status: {_safe(detected)}",
+            f"  endpoint: {endpoint_label}",
+            "  supported: Ollama-style / LM Studio-style / local OpenAI-compatible HTTP API",
+            "  allowed_endpoint: localhost / 127.0.0.1 / ::1 only",
+            "  Ollama example: ORA_LOCAL_LLM_ENABLED=1, ORA_LOCAL_LLM_PROVIDER=ollama, ORA_LOCAL_LLM_BASE_URL=http://127.0.0.1:11434",
+            "  LM Studio example: ORA_LOCAL_LLM_ENABLED=1, ORA_LOCAL_LLM_PROVIDER=lmstudio, ORA_LOCAL_LLM_BASE_URL=http://127.0.0.1:1234/v1",
+            "  use: /provider local or yonerai ask \"hello\" --provider local --live",
+            "  not_performed: no external URL, no key storage, no arbitrary shell, no model installation",
+            "",
+        )
     )
-    return "\n".join(lines)
 
 
 def _format_auth_status(config: dict[str, object], *, lang: str) -> str:
@@ -1195,19 +1130,20 @@ def _format_auth_status(config: dict[str, object], *, lang: str) -> str:
             lines.append(f"    - {_safe(action)}")
         lines.append("")
         return "\n".join(lines)
-    lines = [
-        "Auth",
-        f"  google_auth: {'configured' if report.get('configured') else 'not configured'}",
-        "  mode: dry-run contract only; production Google login is disabled",
-        f"  loopback_redirect_only: {bool(flow.get('loopback_redirect_only'))}",
-        f"  pkce_required: {bool(flow.get('pkce_required'))}",
-        f"  state_required: {bool(flow.get('state_required'))}",
-        f"  token_storage: {_safe(storage.get('refresh_token_storage') or 'disabled_by_default')}",
-        "  next: yonerai auth google login --dry-run --pretty",
-        "  actions_not_performed: " + ", ".join(_safe(action) for action in actions[:8]),
-        "",
-    ]
-    return "\n".join(lines)
+    return "\n".join(
+        (
+            "Auth",
+            f"  google_auth: {'configured' if report.get('configured') else 'not configured'}",
+            "  mode: dry-run contract only; production Google login is disabled",
+            f"  loopback_redirect_only: {bool(flow.get('loopback_redirect_only'))}",
+            f"  pkce_required: {bool(flow.get('pkce_required'))}",
+            f"  state_required: {bool(flow.get('state_required'))}",
+            f"  token_storage: {_safe(storage.get('refresh_token_storage') or 'disabled_by_default')}",
+            "  next: yonerai auth google login --dry-run --pretty",
+            "  actions_not_performed: " + ", ".join(_safe(action) for action in actions[:8]),
+            "",
+        )
+    )
 
 
 def _format_privacy_status(config: dict[str, object], *, lang: str) -> str:
@@ -1221,7 +1157,7 @@ def _format_privacy_status(config: dict[str, object], *, lang: str) -> str:
         lines = [
             "プライバシー",
             f"  OpenAI共有トラフィック: {'オン' if sharing.get('openai_shared_traffic_enabled') else 'オフ'}",
-            f"  ユーザーopt-in要求: {_yes_no(sharing.get('requires_explicit_opt_in'), lang='ja')}",
+            f"  ユーザーopt-in必要: {_yes_no(sharing.get('requires_explicit_opt_in'), lang='ja')}",
             f"  private/local内容の除外: {_yes_no(exclusion.get('active'), lang='ja')}",
             f"  ledger shared_traffic既定値: {_value_label(bool(ledger.get('default_shared_traffic')), lang='ja')}",
             f"  raw prompt保存: {_value_label(bool(ledger.get('raw_prompt_persisted')), lang='ja')}",
@@ -1234,18 +1170,19 @@ def _format_privacy_status(config: dict[str, object], *, lang: str) -> str:
             lines.append(f"    - {_safe(action)}")
         lines.append("")
         return "\n".join(lines)
-    lines = [
-        "Privacy",
-        f"  openai_shared_traffic_enabled: {bool(sharing.get('openai_shared_traffic_enabled'))}",
-        f"  requires_explicit_opt_in: {bool(sharing.get('requires_explicit_opt_in'))}",
-        f"  private_content_exclusion_active: {bool(exclusion.get('active'))}",
-        f"  ledger_default_shared_traffic: {bool(ledger.get('default_shared_traffic'))}",
-        f"  raw_prompt_persisted: {bool(ledger.get('raw_prompt_persisted'))}",
-        "  excluded: " + ", ".join(_safe(item) for item in excluded[:6]),
-        "  actions_not_performed: " + ", ".join(_safe(action) for action in actions[:8]),
-        "",
-    ]
-    return "\n".join(lines)
+    return "\n".join(
+        (
+            "Privacy",
+            f"  openai_shared_traffic_enabled: {bool(sharing.get('openai_shared_traffic_enabled'))}",
+            f"  requires_explicit_opt_in: {bool(sharing.get('requires_explicit_opt_in'))}",
+            f"  private_content_exclusion_active: {bool(exclusion.get('active'))}",
+            f"  ledger_default_shared_traffic: {bool(ledger.get('default_shared_traffic'))}",
+            f"  raw_prompt_persisted: {bool(ledger.get('raw_prompt_persisted'))}",
+            "  excluded: " + ", ".join(_safe(item) for item in excluded[:6]),
+            "  actions_not_performed: " + ", ".join(_safe(action) for action in actions[:8]),
+            "",
+        )
+    )
 
 
 def _format_evolve_status(report: dict[str, Any], *, lang: str) -> str:
@@ -1268,20 +1205,21 @@ def _format_evolve_status(report: dict[str, Any], *, lang: str) -> str:
         lines.append("  試す: yonerai evolve simulate --pretty --lang ja")
         lines.append("")
         return "\n".join(lines)
-    lines = [
-        "Self-evolution proposals",
-        f"  status: {_safe(report.get('status') or 'unknown')}",
-        f"  proposal_only: {bool(report.get('proposal_only'))}",
-        f"  default_signal_count: {_safe(report.get('default_signal_count') or 0)}",
-        "  input: synthetic low-resolution signals only",
-        f"  raw_prompt_allowed: {bool(policy.get('raw_prompt_allowed'))}",
-        f"  pii_allowed: {bool(policy.get('pii_allowed'))}",
-        f"  stable_user_tracking_allowed: {bool(policy.get('stable_user_tracking_allowed'))}",
-        "  actions_not_performed: " + ", ".join(_safe(action) for action in actions[:8]),
-        "  try: yonerai evolve simulate --pretty --lang en",
-        "",
-    ]
-    return "\n".join(lines)
+    return "\n".join(
+        (
+            "Self-evolution proposals",
+            f"  status: {_safe(report.get('status') or 'unknown')}",
+            f"  proposal_only: {bool(report.get('proposal_only'))}",
+            f"  default_signal_count: {_safe(report.get('default_signal_count') or 0)}",
+            "  input: synthetic low-resolution signals only",
+            f"  raw_prompt_allowed: {bool(policy.get('raw_prompt_allowed'))}",
+            f"  pii_allowed: {bool(policy.get('pii_allowed'))}",
+            f"  stable_user_tracking_allowed: {bool(policy.get('stable_user_tracking_allowed'))}",
+            "  actions_not_performed: " + ", ".join(_safe(action) for action in actions[:8]),
+            "  try: yonerai evolve simulate --pretty --lang en",
+            "",
+        )
+    )
 
 
 def _format_evolve_unavailable(lang: str) -> str:
@@ -1317,21 +1255,22 @@ def _format_update_check(report: dict[str, Any], *, lang: str) -> str:
                 lines.append(f"    - {_safe(warning)}")
         lines.append("")
         return "\n".join(lines)
-    lines = [
-        "Update check",
-        f"  current_version: {_safe(report.get('current_version') or 'unknown')}",
-        f"  latest_manifest_version: {_safe(report.get('latest_manifest_version') or 'unknown')}",
-        f"  update_available: {bool(report.get('update_available'))}",
-        f"  version_comparison: {_safe(report.get('version_comparison') or 'unknown')}",
-        f"  selected_artifact: {_safe(artifact.get('selected_artifact') or 'none')}",
-        f"  sha256_present: {bool(artifact.get('sha256_present'))}",
-        f"  signature: {_safe(signature.get('state') or 'unknown')} verified={bool(signature.get('verified'))}",
-        f"  rollback_plan_available: {bool(report.get('rollback_plan_available'))}",
-        f"  next_safe_command: {_safe(report.get('next_safe_command') or 'yonerai update plan --pretty')}",
-        "  actions_not_performed: " + ", ".join(_safe(action) for action in actions),
-        "",
-    ]
-    return "\n".join(lines)
+    return "\n".join(
+        (
+            "Update check",
+            f"  current_version: {_safe(report.get('current_version') or 'unknown')}",
+            f"  latest_manifest_version: {_safe(report.get('latest_manifest_version') or 'unknown')}",
+            f"  update_available: {bool(report.get('update_available'))}",
+            f"  version_comparison: {_safe(report.get('version_comparison') or 'unknown')}",
+            f"  selected_artifact: {_safe(artifact.get('selected_artifact') or 'none')}",
+            f"  sha256_present: {bool(artifact.get('sha256_present'))}",
+            f"  signature: {_safe(signature.get('state') or 'unknown')} verified={bool(signature.get('verified'))}",
+            f"  rollback_plan_available: {bool(report.get('rollback_plan_available'))}",
+            f"  next_safe_command: {_safe(report.get('next_safe_command') or 'yonerai update plan --pretty')}",
+            "  actions_not_performed: " + ", ".join(_safe(action) for action in actions),
+            "",
+        )
+    )
 
 
 def _format_update_error(exc: Exception, *, lang: str) -> str:
@@ -1361,8 +1300,7 @@ def _format_runs(report: dict[str, Any], *, lang: str) -> str:
                 )
             )
         return "Runs: none yet\nLedger is opt-in and local-only.\n"
-    title = "実行履歴" if lang == "ja" else "Runs"
-    lines = [title]
+    lines = ["実行履歴" if lang == "ja" else "Runs"]
     for run in runs:
         if isinstance(run, dict):
             route = _run_route(run)
@@ -1370,7 +1308,7 @@ def _format_runs(report: dict[str, Any], *, lang: str) -> str:
             event_count = len(_run_progress_events(run))
             if lang == "ja":
                 lines.append(
-                    f"  実行ID（run_id）={run.get('run_id')}: {_run_status_label(run.get('status'), lang='ja')} "
+                    f"  実行ID（run_id）{run.get('run_id')}: {_run_status_label(run.get('status'), lang='ja')} "
                     f"{run.get('task_summary')} / 経路={_route_label(route, lang='ja')} / "
                     f"提供元={_provider_label(provider, lang='ja')} / 進行={event_count}件"
                 )
@@ -1385,22 +1323,23 @@ def _format_runs(report: dict[str, Any], *, lang: str) -> str:
 
 def _format_run(report: dict[str, Any], *, lang: str) -> str:
     if not report.get("ok"):
-        return ("実行が見つかりません\n" if lang == "ja" else "Run not found\n")
+        return "実行が見つかりません\n" if lang == "ja" else "Run not found\n"
     run = report.get("run") if isinstance(report.get("run"), dict) else {}
     if lang == "ja":
-        lines = [
-            "実行",
-            f"  実行ID（run_id）: {_safe(run.get('run_id') or 'なし')}",
-            f"  状態: {_run_status_label(run.get('status'), lang='ja')}",
-            f"  経路（処理方法）: {_route_label(_run_route(run), lang='ja')}",
-            f"  プロバイダー（AI接続先）: {_provider_label(_run_provider(run), lang='ja')}",
-            f"  タスク: {_safe(run.get('task_summary') or 'なし')}",
-            "",
-            _format_run_progress(run, lang="ja").rstrip(),
-            _format_run_agents(run, lang="ja").rstrip(),
-            "",
-        ]
-        return "\n".join(lines)
+        return "\n".join(
+            (
+                "実行",
+                f"  実行ID（run_id）: {_safe(run.get('run_id') or 'none')}",
+                f"  状態: {_run_status_label(run.get('status'), lang='ja')}",
+                f"  経路（処理方法）: {_route_label(_run_route(run), lang='ja')}",
+                f"  提供元（AI接続元）: {_provider_label(_run_provider(run), lang='ja')}",
+                f"  タスク: {_safe(run.get('task_summary') or 'なし')}",
+                "",
+                _format_run_progress(run, lang="ja").rstrip(),
+                _format_run_agents(run, lang="ja").rstrip(),
+                "",
+            )
+        )
     return "\n".join(
         (
             "Run",
@@ -1429,16 +1368,16 @@ def _welcome(
     ledger = "オン" if ledger_path else "オフ"
     ledger_en = "on" if ledger_path else "off"
     model = _safe(config.get("model_preference") or "auto")
-    safety = f"承認={_approval_label(config.get('approval_mode'), lang='ja')} / ファイル={_file_access_label(config.get('file_access_mode'), lang='ja')}"
     update_notice = "オン" if config.get("update_notice_enabled") else "オフ"
     update_notice_en = "on" if config.get("update_notice_enabled") else "off"
     if lang == "ja":
+        safety = f"承認={_approval_label(config.get('approval_mode'), lang='ja')} / ファイル={_file_access_label(config.get('file_access_mode'), lang='ja')}"
         return "\n".join(
             (
                 "YonerAI ミッションコントロール CLI",
                 "日本語モード。/ヘルプ でコマンドを表示します。",
                 "状態ヘッダー",
-                f"  プロバイダー（AI接続先）: {_provider_label(provider, lang='ja')}",
+                f"  提供元（AI接続元）: {_provider_label(provider, lang='ja')}",
                 f"  モデル（AIモデル）: {model}",
                 "  経路（処理方法）: 未実行",
                 "  ローカルノード: 待機中（ローカル開発 / ループバック限定）",
@@ -1474,24 +1413,24 @@ def _help(lang: str) -> str:
                 "コマンド",
                 "  /設定                 設定を見る",
                 "  /モデル               モデルとローカルLLMの設定を見る",
-                "  /提供元               プロバイダー（AI接続先）を見る",
+                "  /提供元               提供元（AI接続元）を見る",
                 "  /安全                 安全境界を見る",
                 "  /タスク               現在/最近のタスク進行を見る",
-                "  /エージェント         計画中の担当（計画係/レビュー係など）を見る",
+                "  /エージェント         計画中の担当（計画担当・レビュー担当など）を見る",
                 "  /履歴                 実行履歴を見る",
                 "  /表示 <実行ID>        1件の実行を見る",
                 "  /ローカルLLM          PC内モデルの接続方法を見る",
                 "  /認証                 Google OAuthドライラン状態を見る",
-                "  /プライバシー         共有と秘匿境界を見る",
+                "  /プライバシー         共有とプライバシー境界を見る",
                 "  /自己進化             proposal-only自己進化キューを見る",
                 "  /更新                 ローカルmanifestで更新を確認",
                 "  /更新通知 オン|オフ   起動時の更新案内設定を変更",
                 "  /言語 日本語|英語     表示言語を変更",
-                "  /提供元選択 自動|モック|ローカル|オープンAI互換|アンソロピック|ジェミニ",
+                "  /提供元選択 自動|モック|ローカル|OpenAI互換|Anthropic|Gemini",
                 "  /承認 確認|拒否       危険操作の扱いを変更",
                 "  /ファイル ワークスペース内のみ|無効",
-                "  /履歴記録 オン|オフ    秘匿済みローカル履歴の記録を変更",
-                "  /ライブ接続 オン|オフ  外部/ローカル実行の明示許可を変更",
+                "  /履歴記録 オン|オフ   秘匿済みローカル履歴の記録を変更",
+                "  /ライブ接続 オン|オフ 外部/ローカル実行の明示許可を変更",
                 "  /ネットワーク オン|オフ 外部通信の明示許可を変更",
                 "  /選択 <番号> <値>      設定画面の番号で変更",
                 "  /終了                 終了",
@@ -1559,14 +1498,14 @@ def _changed_message(key: str, value: object, *, lang: str) -> str:
 
 
 def _invalid(lang: str) -> str:
-    return "値が不正です\n" if lang == "ja" else "Invalid value\n"
+    return "値が正しくありません\n" if lang == "ja" else "Invalid value\n"
 
 
 def _settings_selection_help(lang: str) -> str:
     if lang == "ja":
         return "\n".join(
             (
-                "番号設定の形式が不正です。",
+                "番号設定の形式が正しくありません。",
                 "例: /選択 1 日本語",
                 "例: /選択 2 モック",
                 "例: /選択 8 llama3.1",
@@ -1587,7 +1526,7 @@ def _config_error(lang: str, exc: ConfigError) -> str:
 
 
 def _unknown(lang: str) -> str:
-    return "不明なコマンドです。/help を見てください\n" if lang == "ja" else "Unknown command. Type /help\n"
+    return "不明なコマンドです。/ヘルプ を見てください\n" if lang == "ja" else "Unknown command. Type /help\n"
 
 
 def _update_unavailable(lang: str) -> str:
@@ -1597,7 +1536,7 @@ def _update_unavailable(lang: str) -> str:
 
 
 def _bye(lang: str) -> str:
-    return "終了します\n" if lang == "ja" else "Goodbye\n"
+    return "終了しました\n" if lang == "ja" else "Goodbye\n"
 
 
 def _safe(value: object) -> str:
@@ -1627,9 +1566,9 @@ def _provider_label(value: object, *, lang: str) -> str:
         "auto": "自動（安全に選択）",
         "mock": "モック（テスト用）",
         "local": "ローカル（PC内モデル）",
-        "openai-compatible": "オープンAI互換（外部API）",
-        "anthropic": "アンソロピック（外部API）",
-        "gemini": "ジェミニ（外部API）",
+        "openai-compatible": "OpenAI互換（外部API）",
+        "anthropic": "Anthropic（外部API）",
+        "gemini": "Gemini（外部API）",
         "unknown": "不明",
         None: "不明",
     }
@@ -1711,9 +1650,7 @@ def _capability_summary(capabilities: dict[str, Any], *, lang: str) -> str:
     ]
     if lang == "ja":
         enabled = [label for key, label in names if capabilities.get(key)]
-        if not enabled:
-            return "公開できるcapabilityは未設定"
-        return " / ".join(enabled)
+        return " / ".join(enabled) if enabled else "公開できるcapabilityは未設定"
     enabled_en = [key for key, _label in names if capabilities.get(key)]
     return ", ".join(enabled_en) if enabled_en else "none"
 
@@ -1735,7 +1672,7 @@ def _setting_label(value: object, *, lang: str) -> str:
         return _safe(value)
     labels = {
         "language": "表示言語",
-        "provider": "プロバイダー（AI接続先）",
+        "provider": "提供元（AI接続元）",
         "model": "モデル（AIモデル）",
         "approval": "承認（危険操作）",
         "file_access": "ファイルアクセス（ファイル読み取り）",

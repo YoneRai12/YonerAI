@@ -2,6 +2,26 @@
 
 This page is a public-safe index of current release notes and progress checkpoints.
 
+## v0.8.0-alpha.1 Official Install/Auth Boundary
+
+- GitHub pre-release target: `v0.8.0-alpha.1`.
+- Release title: `2026.05.31 - YonerAI v0.8.0-alpha.1 Official Install/Auth Boundary`.
+- Release date: `2026-05-31`.
+- Public release body: `docs/releases/0.8.0-alpha.1.md`.
+- Status: prerelease boundary after v0.7.0-alpha.1.
+- What users can try now: `yonerai`, `/認証`, `/プライバシー`, `/自己進化`,
+  `/更新`, `yonerai auth status --pretty --lang ja`,
+  `yonerai auth google login --dry-run --pretty --lang ja`,
+  `yonerai privacy status --pretty --lang ja`,
+  `yonerai evolve status --pretty --lang ja`, `.\install.ps1`, and local
+  manifest dry-run commands against `releases/manifest.v0.8.0-alpha.1.json`.
+- Boundary: plan-only installer, Google OAuth dry-run/contract only, OpenAI
+  shared traffic disabled by default, self-evolution proposal-only, no
+  production Oracle/cloud runtime, no live Discord, no deploy/public tunnel, no
+  arbitrary shell/file/tool execution, no production signing/trust store, and
+  no production network installer.
+- Primary traceability range: `v0.7.0-alpha.1..v0.8.0-alpha.1`; PR #470.
+
 ## v0.7.0-alpha.1 Official Bridge Foundation
 
 - GitHub pre-release target: `v0.7.0-alpha.1`.
