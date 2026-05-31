@@ -90,6 +90,40 @@ def test_ci_quality_scan_blocks_common_unlabeled_token_prefixes(tmp_path: Path) 
     assert sum("possible secret or token literal" in error for error in errors) == 5
 
 
+def test_ci_quality_scan_allows_safe_env_and_property_references(tmp_path: Path) -> None:
+    source = tmp_path / "clients" / "web" / "auth.ts"
+    source.parent.mkdir(parents=True)
+    env_ref = "process" + ".env" + ".DISCORD_CLIENT_SECRET"
+    access_token = "access" + "Token"
+    account_access_token = "account.access" + "_token"
+    token_access_token = "token.access" + "Token"
+    source.write_text(
+        "\n".join(
+            (
+                f"clientSecret: {env_ref},",
+                f"token.{access_token} = {account_access_token}",
+                f"session.{access_token} = {token_access_token}",
+            )
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    errors = ci_quality_scans.scan_paths(tmp_path, [Path("clients/web/auth.ts")])
+
+    assert errors == []
+
+
+def test_ci_quality_scan_still_blocks_literal_token_assigned_to_access_token(tmp_path: Path) -> None:
+    source = tmp_path / "clients" / "web" / "auth.ts"
+    source.parent.mkdir(parents=True)
+    source.write_text("token.accessToken = 'sk-" + "A" * 24 + "'\n", encoding="utf-8")
+
+    errors = ci_quality_scans.scan_paths(tmp_path, [Path("clients/web/auth.ts")])
+
+    assert any("possible secret or token literal" in error for error in errors)
+
+
 def test_ci_quality_scan_blocks_bidi_markers_and_question_mark_mojibake(tmp_path: Path) -> None:
     source = tmp_path / "docs" / "public.md"
     source.parent.mkdir()
@@ -123,6 +157,15 @@ def test_ci_quality_scan_blocks_escaped_terminal_sequence_literals(tmp_path: Pat
     errors = ci_quality_scans.scan_paths(tmp_path, [Path("src/terminal.py")])
 
     assert any("terminal escape sequence literal" in error for error in errors)
+
+
+def test_ci_quality_scan_allows_existing_shell_color_variables(tmp_path: Path) -> None:
+    source = tmp_path / "start.sh"
+    source.write_text("GREEN='\\033[0;32m'\nCYAN='\\033[0;36m'\nNC='\\033[0m'\n", encoding="utf-8")
+
+    errors = ci_quality_scans.scan_paths(tmp_path, [Path("start.sh")])
+
+    assert errors == []
 
 
 def test_ci_quality_scan_git_fallback_handles_missing_git(tmp_path: Path, monkeypatch) -> None:

@@ -119,7 +119,7 @@ def scan_paths(repo_root: Path, paths: list[Path]) -> list[str]:
 
 def _scan_line(rel: str, index: int, line: str, errors: list[str]) -> None:
     for pattern in SECRET_PATTERNS:
-        if pattern.search(line):
+        if pattern.search(line) and not _is_allowed_secret_reference(rel, line):
             errors.append(f"{rel}:{index}: possible secret or token literal")
             break
     for pattern in LOCAL_PATH_PATTERNS:
@@ -217,6 +217,25 @@ def _is_allowed_local_path_fixture(rel: str, line: str) -> bool:
     return "LOCAL_PATH_PATTERNS" in line or "PRIVATE_MARKERS" in line
 
 
+def _is_allowed_secret_reference(rel: str, line: str) -> bool:
+    if rel.startswith("tests/"):
+        return False
+    if re.search(r"\b(?:sk-|gh[pousr]_|github_pat_|xox[baprs]-|AKIA|ASIA|AIza)", line):
+        return False
+    if re.search(r"(?i)\bbearer\s+[A-Za-z0-9_.+/=-]{20,}", line):
+        return False
+    if "PRIVATE KEY" in line:
+        return False
+    if "process.env." in line:
+        return True
+    if re.search(
+        r"\b(?:token|session)\.accessToken\s*=\s*(?:account\.access_token|token\.accessToken|session\.accessToken)\b",
+        line,
+    ):
+        return True
+    return False
+
+
 def _run_git(command: tuple[str, ...], repo_root: Path) -> subprocess.CompletedProcess[str]:
     try:
         return subprocess.run(
@@ -242,7 +261,11 @@ def _has_question_mark_mojibake(line: str) -> bool:
 
 
 def _is_allowed_terminal_escape_fixture(rel: str, line: str) -> bool:
-    return rel.endswith("ci_quality_scans.py") or rel.startswith("tests/")
+    if rel.endswith("ci_quality_scans.py") or rel.startswith("tests/"):
+        return True
+    if rel == "start.sh" and re.match(r"^[A-Z_]+='\\033\[[0-9;]*m'", line):
+        return True
+    return False
 
 
 if __name__ == "__main__":

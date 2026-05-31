@@ -287,6 +287,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v4
         with:
           python-version: ${{ env.PYTHON_VERSION }}
@@ -307,7 +309,7 @@ jobs:
           VERSION=$(cat VERSION | tr -d '[:space:]')
           PRODUCT_NAME=$(cat PRODUCT_NAME | tr -d '[:space:]')
           BASE_REF="${GITHUB_BASE_REF:-main}"
-          git fetch --no-tags --depth=1 origin "${BASE_REF}" || true
+          git fetch --no-tags origin "${BASE_REF}" || true
           if git diff --name-only "origin/${BASE_REF}...HEAD" 2>/dev/null | grep -E '^(VERSION|PRODUCT_NAME|docs/releases/|releases/manifest)' >/dev/null; then
             python scripts/create_release.py "${VERSION}"
             python scripts/release_gate.py \
