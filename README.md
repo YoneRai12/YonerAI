@@ -136,6 +136,7 @@ arbitrary shell/tool execution, or Google login.
 /タスク     task progress
 /エージェント reviewer/subagent plan display
 /認証       Google OAuth dry-run status
+/同期       cloud/local sync boundary
 /プライバシー shared-traffic/privacy status
 /更新       local manifest update check
 /更新通知   startup update notice setting
@@ -150,6 +151,9 @@ yonerai chat
 yonerai update check --pretty
 yonerai update check --json
 yonerai auth status --pretty --lang ja
+yonerai sync status --pretty --lang ja
+yonerai sync preview --direction cloud-to-local --json
+yonerai sync approve --dry-run --direction local-to-cloud --json
 yonerai privacy status --pretty --lang ja
 yonerai config set model llama3.1 --pretty --lang ja
 yonerai providers --pretty --lang ja
@@ -210,6 +214,7 @@ the same safe `ask --auto` path, or use slash commands.
 /show <run_id>   show one redacted run
 /local-llm       show loopback-only local LLM setup guidance
 /auth            show Google OAuth dry-run contract status
+/sync            show cloud/local sync boundary
 /privacy         show OpenAI shared-traffic and private-content policy
 /update          check local manifest update status
 /update-notice on|off toggle startup update notice setting

@@ -341,7 +341,7 @@ def test_chat_accepts_english_commands_while_showing_japanese_ui(tmp_path: Path,
         sys,
         "stdin",
         _PlainStringIO(
-            "/settings\n/providers\n/safety\n/tasks\n/local-llm\n/auth\n/privacy\n/runs\n/live on\n/network on\n/update-notice on\n/provider mock\n/quit\n"
+            "/settings\n/providers\n/safety\n/tasks\n/local-llm\n/auth\n/sync\n/privacy\n/runs\n/live on\n/network on\n/update-notice on\n/provider mock\n/quit\n"
         ),
     )
 
@@ -362,8 +362,10 @@ def test_chat_accepts_english_commands_while_showing_japanese_ui(tmp_path: Path,
     assert "\n  検出状態" in output
     assert "\n    - Ollama" in output
     assert "認証" in output
+    assert "同期" in output
     assert "プライバシー" in output
     assert "Google OAuth" in output
+    assert "local -> cloud" in output
     assert "OpenAI共有トラフィック" in output
     assert "実行履歴" in output
     assert "設定を変更しました: ライブ接続（外部/ローカル実行）=オン" in output
@@ -383,7 +385,7 @@ def test_chat_japanese_commands_and_values_are_accepted(tmp_path: Path, monkeypa
     monkeypatch.setattr(
         sys,
         "stdin",
-        _PlainStringIO("/ヘルプ\n/設定\n/安全\n/認証\n/プライバシー\n/提供元選択 モック\n/言語 日本語\n/終了\n"),
+        _PlainStringIO("/ヘルプ\n/設定\n/安全\n/認証\n/同期\n/プライバシー\n/提供元選択 モック\n/言語 日本語\n/終了\n"),
     )
 
     assert cli.main(["chat", "--script", "--lang", "ja", "--config-path", str(config_path), "--color", "never"]) == 0
@@ -395,6 +397,7 @@ def test_chat_japanese_commands_and_values_are_accepted(tmp_path: Path, monkeypa
     assert "ファイルアクセス（ファイル読み取り）" in output
     assert "ツール（操作機能）" in output
     assert "本番Googleログインはまだ有効にしていません" in output
+    assert "local->cloud自動同期なし" in output
     assert "private/local内容の除外" in output
     assert "提供元（AI接続元）=モック（テスト用）" in output
     assert "言語=日本語" in output
@@ -752,7 +755,7 @@ def test_slash_command_summary_is_japanese_first() -> None:
     summary = slash_command_summary("ja")
     report = tui_capability_report()
 
-    assert words[:11] == [
+    assert words[:12] == [
         "/状態",
         "/設定",
         "/モデル",
@@ -763,6 +766,7 @@ def test_slash_command_summary_is_japanese_first() -> None:
         "/タスク",
         "/エージェント",
         "/認証",
+        "/同期",
         "/プライバシー",
     ]
     assert "/設定" in summary
@@ -770,6 +774,7 @@ def test_slash_command_summary_is_japanese_first() -> None:
     assert "/ホーム" in summary
     assert "/モデル" in summary
     assert "/認証" in summary
+    assert "/同期" in summary
     assert "/プライバシー" in summary
     assert "/更新" in summary
     assert "/設定" in words

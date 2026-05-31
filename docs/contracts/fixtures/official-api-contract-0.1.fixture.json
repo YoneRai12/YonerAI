@@ -1,0 +1,89 @@
+{
+  "auth": {
+    "google_pkce_loopback_required": true,
+    "minimal_scopes": [
+      "openid",
+      "email",
+      "profile"
+    ],
+    "production_login_enabled_in_public_repo": false,
+    "refresh_token_plaintext_allowed": false
+  },
+  "base_path": "/v1",
+  "endpoints": [
+    {
+      "fixture_available": true,
+      "implemented_in_public_repo": false,
+      "method": "GET",
+      "path": "/v1/account/me",
+      "summary": "return the linked account summary"
+    },
+    {
+      "fixture_available": true,
+      "implemented_in_public_repo": false,
+      "method": "GET",
+      "path": "/v1/conversations",
+      "summary": "list user-selected cloud conversation refs"
+    },
+    {
+      "fixture_available": true,
+      "implemented_in_public_repo": false,
+      "method": "POST",
+      "path": "/v1/sync/preview",
+      "summary": "preview sync decision and audit reason"
+    },
+    {
+      "fixture_available": true,
+      "implemented_in_public_repo": false,
+      "method": "POST",
+      "path": "/v1/sync/approve",
+      "summary": "record explicit sync approval in official backend"
+    },
+    {
+      "fixture_available": true,
+      "implemented_in_public_repo": false,
+      "method": "POST",
+      "path": "/v1/oracle/runs",
+      "summary": "enqueue official Oracle run request"
+    },
+    {
+      "fixture_available": true,
+      "implemented_in_public_repo": false,
+      "method": "GET",
+      "path": "/v1/oracle/runs/{id}",
+      "summary": "read official Oracle run result envelope"
+    },
+    {
+      "fixture_available": true,
+      "implemented_in_public_repo": false,
+      "method": "GET",
+      "path": "/v1/rate-limit",
+      "summary": "read quota and local fallback state"
+    },
+    {
+      "fixture_available": true,
+      "implemented_in_public_repo": false,
+      "method": "GET",
+      "path": "/v1/status",
+      "summary": "read official service status"
+    }
+  ],
+  "ok": true,
+  "privacy_rules": [
+    "cloud-to-local sync requires linked account and user-selected cloud conversation",
+    "local-to-cloud sync is disabled by default",
+    "local-to-cloud sync requires explicit approval and audit reason",
+    "private file, local memory, local node payload, secrets, and provider keys are excluded by default",
+    "public fixtures must not contain raw user conversation bodies"
+  ],
+  "production_backend_included": false,
+  "public_repo_mode": "fixture_only",
+  "schema_version": "yonerai-official-api-contract/v0.1",
+  "self_evolution_boundary": {
+    "auto_pr_merge_deploy_allowed": false,
+    "official_backend": "private_future_lane",
+    "pii_allowed_in_public_repo": false,
+    "public_repo": "proposal_only_synthetic_signals",
+    "raw_prompts_allowed_in_public_repo": false
+  }
+}

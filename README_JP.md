@@ -79,9 +79,9 @@ Python は 3.11 以上を使ってください。`python --version` が動かな
 
 `yonerai` が起動したら、最初に `日本語` / `English` を選びます。その後は
 普通の文章を入力すればチャットできます。設定は `/設定`、安全設定の確認は
-`/安全`、認証は `/認証`、共有状態は `/プライバシー`、履歴は `/履歴`、
+`/安全`、認証は `/認証`、同期境界は `/同期`、共有状態は `/プライバシー`、履歴は `/履歴`、
 終了は `/終了` です。日本語設定でも `/settings`、`/safety`、`/auth`、
-`/privacy`、`/runs`、`/quit` のような英語コマンドも使えます。
+`/sync`、`/privacy`、`/runs`、`/quit` のような英語コマンドも使えます。
 
 `yonerai` が見つからない場合は、仮想環境が有効になっていない可能性があります。
 もう一度 `.\.venv\Scripts\Activate.ps1` を実行してから `yonerai` を実行して
@@ -127,6 +127,7 @@ pipe入力では従来の1行入力に戻ります。
 /タスク     進行状況
 /エージェント 担当計画
 /認証       Google認証のドライラン状態
+/同期       cloud/local同期境界
 /プライバシー 共有と秘匿境界
 /更新       更新確認
 /更新通知   起動時の更新案内設定
@@ -141,6 +142,9 @@ yonerai chat
 yonerai update check --pretty
 yonerai update check --json
 yonerai auth status --pretty --lang ja
+yonerai sync status --pretty --lang ja
+yonerai sync preview --direction cloud-to-local --json
+yonerai sync approve --dry-run --direction local-to-cloud --json
 yonerai privacy status --pretty --lang ja
 yonerai config set model llama3.1 --pretty --lang ja
 yonerai providers --pretty --lang ja
@@ -193,6 +197,7 @@ fallbackできる安全な対話 shell です。文章を入力すると `ask --
 /表示 <実行ID>        1件の実行を見る
 /ローカルLLM          PC内モデルの接続方法を見る
 /認証                 Google OAuth のドライラン状態を見る。本番ログインはしません
+/同期                 cloudからlocalへの選択同期とlocalからcloudへの明示承認境界を見る
 /プライバシー         OpenAI共有トラフィックと非公開/ローカル内容の共有境界を見る
 /更新                 ローカルmanifestで更新を確認
 /更新通知 オン|オフ   起動時の更新案内設定を変更

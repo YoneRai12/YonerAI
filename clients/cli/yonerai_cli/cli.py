@@ -42,6 +42,8 @@ PRIVATE_MARKERS = (
 LANG_CHOICES = ("en", "ja")
 COLOR_CHOICES = ("auto", "never", "always")
 PLAN_PROVIDER_CHOICES = ("auto", "mock", "openai-compatible", "local", "anthropic", "gemini")
+SYNC_AUTH_STATE_CHOICES = ("unauthenticated", "dry_run", "pending", "linked", "expired", "revoked")
+SYNC_DIRECTION_CHOICES = ("cloud-to-local", "local-to-cloud")
 PROVIDERS_SCHEMA_VERSION = "yonerai-providers/v0.2"
 PLAN_MODE_CHOICES = (
     "managed-contract",
@@ -3279,6 +3281,69 @@ def _build_privacy_status_report_for_cli(args: argparse.Namespace) -> dict[str, 
     return build_privacy_status(_load_config_for_policy(args))
 
 
+def _sync_direction_for_core(value: str) -> str:
+    normalized = value.replace("-", "_")
+    if normalized not in {"cloud_to_local", "local_to_cloud"}:
+        raise CliError(f"unsupported sync direction: {value}", exit_code=2)
+    return normalized
+
+
+def _load_official_contract_builders() -> dict[str, Any]:
+    _prepare_trusted_cli_import_paths()
+    from ora_core.official import (
+        build_account_status_report,
+        build_official_api_contract_fixture,
+        build_rate_limit_policy_report,
+        build_sync_approval_dry_run_report,
+        build_sync_preview_report,
+        build_sync_status_report,
+    )
+
+    return {
+        "account": build_account_status_report,
+        "api": build_official_api_contract_fixture,
+        "rate_limit": build_rate_limit_policy_report,
+        "approve": build_sync_approval_dry_run_report,
+        "preview": build_sync_preview_report,
+        "status": build_sync_status_report,
+    }
+
+
+def _build_sync_report_for_cli(args: argparse.Namespace) -> dict[str, Any]:
+    builders = _load_official_contract_builders()
+    auth_state = getattr(args, "auth_state", getattr(args, "fixture_auth_state", "dry_run"))
+    selected = bool(getattr(args, "selected", False))
+    try:
+        if args.sync_command == "status":
+            return builders["status"](auth_state=auth_state, selected=selected)
+        if args.sync_command == "preview":
+            return builders["preview"](
+                direction=_sync_direction_for_core(args.direction),
+                auth_state=auth_state,
+                selected=selected,
+                explicit_approval=bool(getattr(args, "explicit_approval", False)),
+                contains_private_file_content=bool(getattr(args, "include_private_file", False)),
+                contains_local_memory=bool(getattr(args, "include_local_memory", False)),
+                contains_local_node_payload=bool(getattr(args, "include_local_node_payload", False)),
+            )
+        if args.sync_command == "approve":
+            if not args.dry_run:
+                raise CliError("sync approve requires --dry-run in the public repo.", exit_code=2)
+            return builders["approve"](
+                direction=_sync_direction_for_core(args.direction),
+                auth_state=auth_state,
+                selected=selected,
+                explicit_approval=bool(getattr(args, "explicit_approval", False)),
+            )
+        if args.sync_command == "api-contract":
+            return builders["api"]()
+        if args.sync_command == "rate-limit":
+            return builders["rate_limit"]()
+    except ValueError as exc:
+        raise CliError(str(exc), exit_code=2) from exc
+    raise CliError("unknown sync command", exit_code=2)
+
+
 def _load_evolve_signals_for_cli(args: argparse.Namespace) -> list[Any] | None:
     fixture = getattr(args, "fixture", None)
     if not fixture:
@@ -3479,6 +3544,122 @@ def _print_privacy_pretty(report: dict[str, Any], *, lang: str = "ja", color: Co
     )
 
 
+def _print_sync_pretty(report: dict[str, Any], *, lang: str = "ja", color: ColorMode = "auto") -> None:
+    decision = report.get("decision") if isinstance(report.get("decision"), dict) else {}
+    cloud = report.get("cloud_link") if isinstance(report.get("cloud_link"), dict) else {}
+    directions = report.get("directions") if isinstance(report.get("directions"), dict) else {}
+    exclusion = report.get("private_content_exclusion") if isinstance(report.get("private_content_exclusion"), dict) else {}
+    if lang == "ja":
+        title = "YonerAI 同期境界"
+        status_title = "状態"
+        decision_title = "判断"
+        boundary_title = "実行しないこと"
+    else:
+        title = "YonerAI sync boundary"
+        status_title = "Status"
+        decision_title = "Decision"
+        boundary_title = "Non-actions"
+    status_rows = [
+        CliRow("schema_version", report.get("schema_version"), "ok"),
+        CliRow("ok", report.get("ok"), "ok" if report.get("ok") else "fail"),
+    ]
+    for key in (
+        "auth_state",
+        "direction",
+        "preview_only",
+        "dry_run",
+        "sync_performed",
+        "shared_traffic_enabled",
+        "official_cloud_runtime_enabled",
+        "production_oracle_enabled",
+    ):
+        if key in report:
+            status_rows.append(CliRow(key, report.get(key), _sync_pretty_state(key, report.get(key))))
+    if cloud:
+        status_rows.append(CliRow("can_sync_cloud_to_local", cloud.get("can_sync_cloud_to_local"), "ok"))
+        status_rows.append(CliRow("local_to_cloud_default", cloud.get("can_sync_local_to_cloud_by_default"), "ok"))
+    for direction_name, direction_report in directions.items():
+        if isinstance(direction_report, dict):
+            status_rows.append(
+                CliRow(
+                    direction_name,
+                    f"enabled={direction_report.get('enabled_now', direction_report.get('enabled_by_default'))}",
+                    "ok",
+                )
+            )
+    endpoints = report.get("endpoints") if isinstance(report.get("endpoints"), list) else []
+    if endpoints:
+        status_rows.append(CliRow("production_backend_included", report.get("production_backend_included"), "ok"))
+        status_rows.append(CliRow("endpoint_count", len(endpoints), "ok"))
+    quotas = report.get("quotas") if isinstance(report.get("quotas"), dict) else {}
+    if quotas:
+        status_rows.append(CliRow("policy_state", report.get("policy_state"), "ok"))
+        status_rows.append(CliRow("quota_categories", ", ".join(str(key) for key in quotas), "ok"))
+    shared_traffic = report.get("shared_traffic") if isinstance(report.get("shared_traffic"), dict) else {}
+    if shared_traffic:
+        status_rows.append(
+            CliRow(
+                "openai_shared_traffic_enabled",
+                shared_traffic.get("openai_shared_traffic_enabled"),
+                "fail" if shared_traffic.get("openai_shared_traffic_enabled") else "ok",
+            )
+        )
+    decision_rows = []
+    if decision:
+        decision_state = str(decision.get("state") or "unknown")
+        decision_rows.extend(
+            [
+                CliRow("state", decision_state, _sync_decision_state(decision_state)),
+                CliRow("reason", decision.get("reason"), "ok"),
+                CliRow(
+                    "requires_explicit_approval",
+                    decision.get("requires_explicit_approval"),
+                    "warn" if decision.get("requires_explicit_approval") else "ok",
+                ),
+                CliRow(
+                    "private_content_excluded",
+                    decision.get("private_content_excluded"),
+                    "ok" if decision.get("private_content_excluded") else "fail",
+                ),
+            ]
+        )
+    if exclusion:
+        for key, value in exclusion.items():
+            decision_rows.append(CliRow(key, value, "ok" if value else "fail"))
+    non_action_rows = tuple(CliRow(item, True, "ok") for item in report.get("actions_not_performed", []))
+    sections = [CliSection(status_title, tuple(status_rows))]
+    if decision_rows:
+        sections.append(CliSection(decision_title, tuple(decision_rows)))
+    if non_action_rows:
+        sections.append(CliSection(boundary_title, non_action_rows))
+    print(render_report(title, tuple(sections), color=color))
+
+
+def _sync_pretty_state(key: str, value: object) -> str:
+    if key == "auth_state":
+        return {
+            "linked": "ok",
+            "dry_run": "warn",
+            "pending": "warn",
+            "unauthenticated": "warn",
+            "expired": "fail",
+            "revoked": "fail",
+        }.get(str(value), "warn")
+    if key in {"official_cloud_runtime_enabled", "production_oracle_enabled", "shared_traffic_enabled"}:
+        return "fail" if value else "ok"
+    if key == "sync_performed":
+        return "warn" if value else "ok"
+    return "ok"
+
+
+def _sync_decision_state(state: str) -> str:
+    if state == "allowed":
+        return "ok"
+    if state == "approval_required":
+        return "warn"
+    return "fail"
+
+
 def _interactive_callbacks():
     from yonerai_cli.interactive import InteractiveCallbacks
 
@@ -3489,6 +3670,7 @@ def _interactive_callbacks():
         runs_show=_interactive_runs_show,
         update_check=_interactive_update_check,
         evolve_status=_interactive_evolve_status,
+        sync_status=_interactive_sync_status,
     )
 
 
@@ -3523,6 +3705,11 @@ def _interactive_update_check(manifest_path: str | None, _lang: str) -> dict[str
 def _interactive_evolve_status(_lang: str) -> dict[str, Any]:
     args = argparse.Namespace(evolve_command="status")
     return _build_evolve_report_for_cli(args)
+
+
+def _interactive_sync_status(_lang: str) -> dict[str, Any]:
+    args = argparse.Namespace(sync_command="status", auth_state="dry_run", selected=False)
+    return _build_sync_report_for_cli(args)
 
 
 def _run_interactive_chat(args: argparse.Namespace) -> int:
@@ -3648,6 +3835,53 @@ def build_parser() -> argparse.ArgumentParser:
     privacy_status_output.add_argument("--pretty", action="store_true", help="Print a readable privacy status.")
     privacy_status.add_argument("--lang", choices=LANG_CHOICES, default="ja", help="Pretty output language. Default: ja.")
     privacy_status.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
+
+    sync = subcommands.add_parser("sync", help="Preview official account sync contracts without contacting cloud.")
+    sync_subcommands = sync.add_subparsers(dest="sync_command", required=True)
+    sync_status = sync_subcommands.add_parser("status", help="Show cloud/local sync state and boundaries.")
+    sync_status.add_argument("--auth-state", choices=SYNC_AUTH_STATE_CHOICES, default="dry_run")
+    sync_status.add_argument("--selected", action="store_true", help="Fixture: cloud conversation is user-selected.")
+    sync_status_output = sync_status.add_mutually_exclusive_group()
+    sync_status_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
+    sync_status_output.add_argument("--pretty", action="store_true", help="Print readable sync status.")
+    sync_status.add_argument("--lang", choices=LANG_CHOICES, default="ja", help="Pretty output language. Default: ja.")
+    sync_status.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
+    sync_preview = sync_subcommands.add_parser("preview", help="Preview a sync decision. No sync is performed.")
+    sync_preview.add_argument("--direction", choices=SYNC_DIRECTION_CHOICES, default="cloud-to-local")
+    sync_preview.add_argument("--fixture-auth-state", choices=SYNC_AUTH_STATE_CHOICES, default="dry_run")
+    sync_preview.add_argument("--selected", action="store_true", help="Fixture: cloud conversation is user-selected.")
+    sync_preview.add_argument("--explicit-approval", action="store_true", help="Fixture: local-to-cloud approval exists.")
+    sync_preview.add_argument("--include-private-file", action="store_true", help="Fixture flag; content is still excluded.")
+    sync_preview.add_argument("--include-local-memory", action="store_true", help="Fixture flag; content is still excluded.")
+    sync_preview.add_argument("--include-local-node-payload", action="store_true", help="Fixture flag; content is still excluded.")
+    sync_preview_output = sync_preview.add_mutually_exclusive_group()
+    sync_preview_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
+    sync_preview_output.add_argument("--pretty", action="store_true", help="Print readable sync preview.")
+    sync_preview.add_argument("--lang", choices=LANG_CHOICES, default="ja", help="Pretty output language. Default: ja.")
+    sync_preview.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
+    sync_approve = sync_subcommands.add_parser("approve", help="Dry-run explicit sync approval. No approval is recorded.")
+    sync_approve.add_argument("--dry-run", action="store_true", help="Required; do not call official backend.")
+    sync_approve.add_argument("--direction", choices=SYNC_DIRECTION_CHOICES, default="local-to-cloud")
+    sync_approve.add_argument("--fixture-auth-state", choices=SYNC_AUTH_STATE_CHOICES, default="dry_run")
+    sync_approve.add_argument("--selected", action="store_true", help="Fixture: cloud conversation is user-selected.")
+    sync_approve.add_argument("--explicit-approval", action="store_true", help="Fixture: approval would be present.")
+    sync_approve_output = sync_approve.add_mutually_exclusive_group()
+    sync_approve_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
+    sync_approve_output.add_argument("--pretty", action="store_true", help="Print readable dry-run approval.")
+    sync_approve.add_argument("--lang", choices=LANG_CHOICES, default="ja", help="Pretty output language. Default: ja.")
+    sync_approve.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
+    sync_api = sync_subcommands.add_parser("api-contract", help="Show official API fixture contract.")
+    sync_api_output = sync_api.add_mutually_exclusive_group()
+    sync_api_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
+    sync_api_output.add_argument("--pretty", action="store_true", help="Print readable API contract summary.")
+    sync_api.add_argument("--lang", choices=LANG_CHOICES, default="ja", help="Pretty output language. Default: ja.")
+    sync_api.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
+    sync_rate = sync_subcommands.add_parser("rate-limit", help="Show official rate-limit policy contract.")
+    sync_rate_output = sync_rate.add_mutually_exclusive_group()
+    sync_rate_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
+    sync_rate_output.add_argument("--pretty", action="store_true", help="Print readable rate-limit contract summary.")
+    sync_rate.add_argument("--lang", choices=LANG_CHOICES, default="ja", help="Pretty output language. Default: ja.")
+    sync_rate.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
 
     evolve = subcommands.add_parser("evolve", help="Inspect proposal-only self-evolution queue fixtures.")
     evolve_subcommands = evolve.add_subparsers(dest="evolve_command", required=True)
@@ -4047,6 +4281,13 @@ def run(argv: list[str] | None = None) -> int:
             _print_json(report)
         else:
             _print_privacy_pretty(report, lang=args.lang, color=args.color)
+        return 0 if report["ok"] else 1
+    if args.command == "sync":
+        report = _build_sync_report_for_cli(args)
+        if args.json:
+            _print_json(report)
+        else:
+            _print_sync_pretty(report, lang=args.lang, color=args.color)
         return 0 if report["ok"] else 1
     if args.command == "evolve":
         report = _build_evolve_report_for_cli(args)
