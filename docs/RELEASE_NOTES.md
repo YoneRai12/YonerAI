@@ -20,8 +20,7 @@ This page is a public-safe index of current release notes and progress checkpoin
   production Oracle/cloud runtime, no live Discord, no deploy/public tunnel, no
   arbitrary shell/file/tool execution, no production signing/trust store, and
   no production network installer.
-- Primary traceability range: `v0.7.0-alpha.1..v0.8.0-alpha.1`; release
-  candidate branch `codex/v08-official-install-auth-boundary`.
+- Primary traceability range: `v0.7.0-alpha.1..v0.8.0-alpha.1`; PR #470.
 
 ## v0.7.0-alpha.1 Official Bridge Foundation
 
