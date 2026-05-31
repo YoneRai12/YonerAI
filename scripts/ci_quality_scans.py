@@ -119,9 +119,13 @@ def scan_paths(repo_root: Path, paths: list[Path]) -> list[str]:
 
 def _scan_line(rel: str, index: int, line: str, errors: list[str]) -> None:
     for pattern in SECRET_PATTERNS:
-        if pattern.search(line) and not _is_allowed_secret_reference(rel, line):
-            errors.append(f"{rel}:{index}: possible secret or token literal")
-            break
+        for match in pattern.finditer(line):
+            if not _is_allowed_secret_reference(rel, line, match):
+                errors.append(f"{rel}:{index}: possible secret or token literal")
+                break
+        else:
+            continue
+        break
     for pattern in LOCAL_PATH_PATTERNS:
         if pattern.search(line) and not _is_allowed_local_path_fixture(rel, line):
             errors.append(f"{rel}:{index}: possible local absolute path leak")
@@ -217,16 +221,17 @@ def _is_allowed_local_path_fixture(rel: str, line: str) -> bool:
     return "LOCAL_PATH_PATTERNS" in line or "PRIVATE_MARKERS" in line
 
 
-def _is_allowed_secret_reference(rel: str, line: str) -> bool:
+def _is_allowed_secret_reference(rel: str, line: str, match: re.Match[str]) -> bool:
     if rel.startswith("tests/"):
         return False
-    if re.search(r"\b(?:sk-|gh[pousr]_|github_pat_|xox[baprs]-|AKIA|ASIA|AIza)", line):
+    matched_text = match.group(0)
+    if re.search(r"\b(?:sk-|gh[pousr]_|github_pat_|xox[baprs]-|AKIA|ASIA|AIza)", matched_text):
         return False
-    if re.search(r"(?i)\bbearer\s+[A-Za-z0-9_.+/=-]{20,}", line):
+    if re.search(r"(?i)\bbearer\s+[A-Za-z0-9_.+/=-]{20,}", matched_text):
         return False
-    if "PRIVATE KEY" in line:
+    if "PRIVATE KEY" in matched_text:
         return False
-    if _is_safe_env_reference(line):
+    if _is_safe_env_reference(line, match):
         return True
     if re.search(
         r"\b(?:token|session)\.accessToken\s*=\s*(?:account\.access_token|token\.accessToken|session\.accessToken)\s*;?\s*$",
@@ -236,9 +241,9 @@ def _is_allowed_secret_reference(rel: str, line: str) -> bool:
     return False
 
 
-def _is_safe_env_reference(line: str) -> bool:
-    match = re.search(r"\bprocess\.env\.[A-Z0-9_]+\b", line)
-    if not match:
+def _is_safe_env_reference(line: str, match: re.Match[str]) -> bool:
+    env_match = re.search(r"\bprocess\.env\.[A-Z0-9_]+\b", match.group(0))
+    if not env_match:
         return False
     tail = line[match.end() :]
     if "||" in tail or "??" in tail or "'" in tail or '"' in tail:
