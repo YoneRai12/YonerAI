@@ -1,0 +1,145 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://yonerai.com/contracts/official-api-contract-0.1.schema.json",
+  "title": "YonerAI Official API Contract Fixture 0.1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "ok",
+    "public_repo_mode",
+    "production_backend_included",
+    "base_path",
+    "auth",
+    "endpoints",
+    "privacy_rules",
+    "self_evolution_boundary"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "yonerai-official-api-contract/v0.1"
+    },
+    "ok": {
+      "type": "boolean"
+    },
+    "public_repo_mode": {
+      "const": "fixture_only"
+    },
+    "production_backend_included": {
+      "const": false
+    },
+    "base_path": {
+      "const": "/v1"
+    },
+    "auth": {
+      "type": "object",
+      "required": [
+        "google_pkce_loopback_required",
+        "minimal_scopes",
+        "refresh_token_plaintext_allowed",
+        "production_login_enabled_in_public_repo"
+      ],
+      "properties": {
+        "google_pkce_loopback_required": {
+          "const": true
+        },
+        "minimal_scopes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "prefixItems": [
+            {
+              "const": "openid"
+            },
+            {
+              "const": "email"
+            },
+            {
+              "const": "profile"
+            }
+          ],
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "refresh_token_plaintext_allowed": {
+          "const": false
+        },
+        "production_login_enabled_in_public_repo": {
+          "const": false
+        }
+      },
+      "additionalProperties": true
+    },
+    "endpoints": {
+      "type": "array",
+      "minItems": 8,
+      "items": {
+        "type": "object",
+        "required": [
+          "method",
+          "path",
+          "summary",
+          "implemented_in_public_repo",
+          "fixture_available"
+        ],
+        "properties": {
+          "method": {
+            "enum": [
+              "GET",
+              "POST"
+            ]
+          },
+          "path": {
+            "type": "string",
+            "pattern": "^/v1/"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "implemented_in_public_repo": {
+            "const": false
+          },
+          "fixture_available": {
+            "const": true
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "privacy_rules": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "self_evolution_boundary": {
+      "type": "object",
+      "required": [
+        "public_repo",
+        "official_backend",
+        "raw_prompts_allowed_in_public_repo",
+        "pii_allowed_in_public_repo",
+        "auto_pr_merge_deploy_allowed"
+      ],
+      "properties": {
+        "public_repo": {
+          "const": "proposal_only_synthetic_signals"
+        },
+        "official_backend": {
+          "const": "private_future_lane"
+        },
+        "raw_prompts_allowed_in_public_repo": {
+          "const": false
+        },
+        "pii_allowed_in_public_repo": {
+          "const": false
+        },
+        "auto_pr_merge_deploy_allowed": {
+          "const": false
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

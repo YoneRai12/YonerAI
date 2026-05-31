@@ -74,6 +74,8 @@ COMMAND_ALIASES = {
     "/agent": "/agents",
     "/認証": "/auth",
     "/auth": "/auth",
+    "/同期": "/sync",
+    "/sync": "/sync",
     "/プライバシー": "/privacy",
     "/privacy": "/privacy",
     "/自己進化": "/evolve",
@@ -143,6 +145,7 @@ class InteractiveCallbacks:
     runs_show: Callable[[str, str | None, str], dict[str, Any]]
     update_check: Callable[[str | None, str], dict[str, Any]] | None = None
     evolve_status: Callable[[str], dict[str, Any]] | None = None
+    sync_status: Callable[[str], dict[str, Any]] | None = None
 
 
 @dataclass(frozen=True)
@@ -371,6 +374,12 @@ def _handle_slash_command(
         return {}
     if command == "/privacy":
         _write(output_stream, _format_privacy_status(config, lang=lang))
+        return {}
+    if command == "/sync":
+        if callbacks.sync_status is None:
+            _write(output_stream, _format_sync_unavailable(lang))
+            return {}
+        _write(output_stream, _format_sync_status(callbacks.sync_status(lang), lang=lang))
         return {}
     if command == "/evolve":
         if callbacks.evolve_status is None:
@@ -1203,6 +1212,54 @@ def _format_privacy_status(config: dict[str, object], *, lang: str) -> str:
     )
 
 
+def _format_sync_status(report: dict[str, Any], *, lang: str) -> str:
+    cloud_link = report.get("cloud_link") if isinstance(report.get("cloud_link"), dict) else {}
+    directions = report.get("directions") if isinstance(report.get("directions"), dict) else {}
+    cloud_to_local = directions.get("cloud_to_local") if isinstance(directions.get("cloud_to_local"), dict) else {}
+    local_to_cloud = directions.get("local_to_cloud") if isinstance(directions.get("local_to_cloud"), dict) else {}
+    actions = report.get("actions_not_performed") if isinstance(report.get("actions_not_performed"), list) else []
+    if lang == "ja":
+        lines = [
+            "同期",
+            f"  認証状態: {_safe(report.get('auth_state') or cloud_link.get('auth_state') or 'dry_run')}",
+            "  cloud -> local: ログイン済み + 選択したcloud会話だけ同期downできます",
+            f"    現在有効: {_yes_no(cloud_to_local.get('enabled_now'), lang='ja')}",
+            "  local -> cloud: 初期値では無効。明示承認とaudit理由が必要です",
+            f"    初期値有効: {_yes_no(local_to_cloud.get('enabled_by_default'), lang='ja')}",
+            f"    明示承認必須: {_yes_no(local_to_cloud.get('requires_explicit_approval'), lang='ja')}",
+            "  除外: private file / local memory / local node payload / provider keys",
+            f"  共有トラフィック: {'オン' if report.get('shared_traffic_enabled') else 'オフ'}",
+            "  public repo: contract/fixtureのみ。本番Official Cloud/Oracleには接続しません",
+            "  試す: yonerai sync preview --direction cloud-to-local --json",
+            "  実行しないこと:",
+        ]
+        for action in actions[:8]:
+            lines.append(f"    - {_safe(action)}")
+        lines.append("")
+        return "\n".join(lines)
+    return "\n".join(
+        (
+            "Sync",
+            f"  auth_state: {_safe(report.get('auth_state') or cloud_link.get('auth_state') or 'dry_run')}",
+            f"  cloud_to_local_enabled: {bool(cloud_to_local.get('enabled_now'))}",
+            f"  local_to_cloud_enabled_by_default: {bool(local_to_cloud.get('enabled_by_default'))}",
+            f"  local_to_cloud_requires_approval: {bool(local_to_cloud.get('requires_explicit_approval'))}",
+            "  excluded: private file, local memory, local node payload, provider keys",
+            f"  shared_traffic_enabled: {bool(report.get('shared_traffic_enabled'))}",
+            "  public_repo: contract/fixture only; no production Official Cloud or Oracle call",
+            "  try: yonerai sync preview --direction cloud-to-local --json",
+            "  actions_not_performed: " + ", ".join(_safe(action) for action in actions[:8]),
+            "",
+        )
+    )
+
+
+def _format_sync_unavailable(lang: str) -> str:
+    if lang == "ja":
+        return "同期状態はこのビルドでは利用できません。\n"
+    return "Sync status is unavailable in this build.\n"
+
+
 def _format_evolve_status(report: dict[str, Any], *, lang: str) -> str:
     actions = report.get("actions_not_performed") if isinstance(report.get("actions_not_performed"), list) else []
     policy = report.get("input_policy") if isinstance(report.get("input_policy"), dict) else {}
@@ -1403,9 +1460,9 @@ def _welcome(
                 f"  安全: {safety} / ネットワーク初期値オフ / 任意シェル無効",
                 f"  ライブ接続: {'オン（明示許可）' if live else 'オフ（初期値）'} / 設定={'既存' if config_exists else '初期値'}",
                 f"  更新通知: {update_notice}（ローカルmanifest確認のみ）",
-                "  認証/プライバシー: Google OAuthドライランのみ / OpenAI共有トラフィックオフ",
+                "  認証/同期/プライバシー: Google OAuthドライランのみ / local->cloud自動同期なし / 共有トラフィックオフ",
                 "  自己進化: proposal-only / 合成signalだけ / 自動PR・deployなし",
-                "使う: そのまま質問を書く / / で候補表示 / /設定 / /モデル / /提供元 / /安全 / /履歴 / /認証 / /自己進化 / /更新",
+                "使う: そのまま質問を書く / / で候補表示 / /設定 / /モデル / /提供元 / /安全 / /履歴 / /認証 / /同期 / /自己進化 / /更新",
                 "設定を変える: /選択 <番号> <値>",
                 "",
             )
@@ -1416,9 +1473,9 @@ def _welcome(
             "English mode. Type /help for commands.",
             f"provider={provider} model={model} route=not_run local_node=standby ledger={ledger_en} live={'on' if live else 'off'} update_notice={update_notice_en} config={'found' if config_exists else 'created/default'}",
             "Safety: network off / tools dry-run / workspace file only / arbitrary shell disabled / live providers off by default",
-            "Auth/privacy: Google OAuth dry-run only / OpenAI shared traffic off",
+            "Auth/sync/privacy: Google OAuth dry-run only / no automatic local-to-cloud sync / shared traffic off",
             "Self-evolution: proposal-only, synthetic signals only, no PR/deploy/mutation",
-            "Use: type a message, / for suggestions, /settings, /models, /providers, /safety, /runs, /auth, /evolve, /update",
+            "Use: type a message, / for suggestions, /settings, /models, /providers, /safety, /runs, /auth, /sync, /evolve, /update",
             "",
         )
     )
@@ -1441,6 +1498,7 @@ def _help(lang: str) -> str:
                 "  /表示 <実行ID>        1件の実行を見る",
                 "  /ローカルLLM          PC内モデルの接続方法を見る",
                 "  /認証                 Google OAuthドライラン状態を見る",
+                "  /同期                 cloud/local同期境界を見る",
                 "  /プライバシー         共有とプライバシー境界を見る",
                 "  /自己進化             proposal-only自己進化キューを見る",
                 "  /更新                 ローカルmanifestで更新を確認",
@@ -1472,6 +1530,7 @@ def _help(lang: str) -> str:
             "  /show <run_id>   Show one run",
             "  /local-llm       Show local LLM loopback setup",
             "  /auth            Show Google OAuth dry-run status",
+            "  /sync            Show cloud/local sync boundaries",
             "  /privacy         Show shared-traffic and private-content policy",
             "  /evolve          Show proposal-only self-evolution queue",
             "  /update          Check local manifest update status",

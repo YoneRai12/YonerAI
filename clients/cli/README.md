@@ -166,12 +166,19 @@ of hanging. `yonerai chat --script` intentionally reads lines from stdin for
 tests or scripted demos.
 
 Japanese mode shows Japanese command labels such as `/設定`, `/モデル`, `/提供元`,
-`/安全`, `/履歴`, `/タスク`, `/エージェント`, `/認証`, `/プライバシー`, `/更新`, and `/終了`. English aliases remain
+`/安全`, `/履歴`, `/タスク`, `/エージェント`, `/認証`, `/同期`, `/プライバシー`, `/更新`, and `/終了`. English aliases remain
 accepted for compatibility, but they are not the primary Japanese UI.
 
 `yonerai update check --pretty` reads local VERSION and a local release
 manifest, then reports whether a newer manifest target exists. It does not
 download, install, mutate PATH, execute remote code, or require admin rights.
+
+`yonerai sync status --pretty --lang ja` shows the public account-sync
+contract. Cloud conversation sync down requires a linked account and
+user-selected cloud conversation. Local private conversation sync up is
+disabled by default and requires explicit approval plus audit reason. The public
+repo command is fixture/contract only; it does not contact Official Cloud or
+production Oracle.
 
 The interactive CLI does not add production Oracle, Official Managed Cloud,
 live Discord, arbitrary shell/file/tool execution, or default live provider
@@ -253,6 +260,9 @@ yonerai providers --pretty --lang ja
 yonerai providers --json
 yonerai auth status --pretty --lang ja
 yonerai auth google login --dry-run --pretty --lang ja
+yonerai sync status --pretty --lang ja
+yonerai sync preview --direction cloud-to-local --json
+yonerai sync approve --dry-run --direction local-to-cloud --json
 yonerai privacy status --pretty --lang ja
 yonerai health
 yonerai smoke --pretty
