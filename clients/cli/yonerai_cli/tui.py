@@ -26,6 +26,7 @@ class SlashValueSpec:
 
 
 SLASH_COMMANDS: tuple[SlashCommandSpec, ...] = (
+    SlashCommandSpec("/状態", "/status", "状態ヘッダーを再表示", "Show mission-control status", ("/status", "/home")),
     SlashCommandSpec("/設定", "/settings", "設定を開く", "Open settings", ("/settings",)),
     SlashCommandSpec(
         "/モデル",
@@ -33,6 +34,7 @@ SLASH_COMMANDS: tuple[SlashCommandSpec, ...] = (
         "モデルとローカルLLM設定",
         "Model and local LLM setup",
         ("/models", "/model", "/local-llm"),
+        "model",
     ),
     SlashCommandSpec("/提供元", "/providers", "AI接続元の状態", "Provider status", ("/providers",)),
     SlashCommandSpec("/安全", "/safety", "安全境界を見る", "Safety boundaries", ("/safety",)),
@@ -80,6 +82,7 @@ SLASH_COMMANDS: tuple[SlashCommandSpec, ...] = (
 
 
 JAPANESE_SLASH_ALIASES: dict[str, tuple[str, ...]] = {
+    "/status": ("/状態", "/ホーム"),
     "/settings": ("/設定",),
     "/models": ("/モデル",),
     "/providers": ("/提供元", "/プロバイダー"),
@@ -120,6 +123,11 @@ SLASH_VALUE_GROUPS: dict[str, tuple[SlashValueSpec, ...]] = {
         SlashValueSpec("アンソロピック", "明示許可時だけ使うAnthropic", "Anthropic", ("anthropic", "Anthropic")),
         SlashValueSpec("ジェミニ", "明示許可時だけ使うGemini", "Gemini", ("gemini", "Gemini")),
     ),
+    "model": (
+        SlashValueSpec("自動", "設定済みの提供元に任せる", "Auto model", ("auto",)),
+        SlashValueSpec("llama3.1", "ローカルLLMでよく使う例", "Common local LLM example"),
+        SlashValueSpec("qwen2.5-coder", "ローカル coding model の例", "Local coding model example"),
+    ),
     "approval": (
         SlashValueSpec("毎回確認", "危険操作は確認待ち", "Ask before risky actions", ("prompt", "確認")),
         SlashValueSpec("拒否", "危険操作を拒否", "Deny risky actions", ("deny",)),
@@ -154,6 +162,7 @@ NUMBERED_VALUE_GROUPS: dict[str, str] = {
     "5": "toggle",
     "6": "toggle",
     "7": "toggle",
+    "8": "model",
     "9": "toggle",
 }
 
@@ -402,6 +411,7 @@ def tui_capability_report() -> dict[str, object]:
         "completion_descriptions": prompt_ready,
         "tab_completion": prompt_ready,
         "arrow_selection": prompt_ready,
+        "status_screen": True,
         "rich_panels": rich_ready,
         "rich_status_spinner": rich_ready,
         "plain_fallback": True,
