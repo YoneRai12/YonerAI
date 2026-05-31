@@ -12,6 +12,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 CLIENTS_CLI = ROOT / "clients" / "cli"
 FIXTURE = ROOT / "tests" / "fixtures" / "self_evolution" / "queue_signals.json"
+EMPTY_FIXTURE = ROOT / "tests" / "fixtures" / "self_evolution" / "empty_queue_signals.json"
 for path in (CLIENTS_CLI, ROOT):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
@@ -94,6 +95,17 @@ def test_evolve_simulate_json_contains_required_candidate_fields(capsys) -> None
         "social_post_draft",
     } <= set(candidate)
     assert str(FIXTURE.parent) not in raw
+
+
+def test_evolve_simulate_preserves_explicit_empty_signal_fixture(capsys) -> None:
+    from yonerai_cli import cli
+
+    assert cli.main(["evolve", "simulate", "--fixture", str(EMPTY_FIXTURE), "--json"]) == 0
+    output = json.loads(capsys.readouterr().out)
+
+    assert output["signal_count"] == 0
+    assert output["proposal_count"] == 0
+    assert output["proposals"] == []
 
 
 def test_evolve_proposals_list_and_show_are_stable(capsys) -> None:

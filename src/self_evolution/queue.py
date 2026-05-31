@@ -267,7 +267,8 @@ def build_queue_status_report() -> dict[str, object]:
 
 
 def build_queue_simulation_report(signals: list[dict[str, Any] | QueueSignal] | None = None) -> dict[str, object]:
-    normalized = [normalize_queue_signal(item) for item in (signals or list(DEFAULT_QUEUE_SIGNALS))]
+    source_signals = list(DEFAULT_QUEUE_SIGNALS) if signals is None else signals
+    normalized = [normalize_queue_signal(item) for item in source_signals]
     proposals = [build_queue_item(signal).to_public_dict() for signal in normalized]
     return {
         "schema_version": SELF_EVOLUTION_QUEUE_SCHEMA_VERSION,
