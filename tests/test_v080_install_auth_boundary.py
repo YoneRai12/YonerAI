@@ -133,7 +133,7 @@ def test_install_skeleton_rejects_absolute_manifest_path_when_powershell_availab
         timeout=30,
     )
 
-    assert result.returncode != 0
+    assert result.returncode != 0, _subprocess_failure(result)
     assert "Manifest must be a relative local path" in (result.stdout + result.stderr)
 
 
@@ -160,6 +160,16 @@ def _powershell_executable() -> Path | None:
 
 
 def _subprocess_failure(result: subprocess.CompletedProcess[str]) -> str:
-    stdout = result.stdout.replace(str(ROOT), "<repo>")
-    stderr = result.stderr.replace(str(ROOT), "<repo>")
+    stdout = _redact_subprocess_output(result.stdout)
+    stderr = _redact_subprocess_output(result.stderr)
     return f"Subprocess failed.\nSTDOUT:\n{stdout}\nSTDERR:\n{stderr}"
+
+
+def _redact_subprocess_output(text: str) -> str:
+    redacted = text.replace(str(ROOT), "<repo>")
+    redacted = re.sub(
+        r"[A-Za-z]:[\\/]+Users[\\/]+[^\\/\s]+[\\/]+AppData[\\/]+Local[\\/]+Temp[\\/]+[^,\s]+",
+        "<tmp>",
+        redacted,
+    )
+    return redacted

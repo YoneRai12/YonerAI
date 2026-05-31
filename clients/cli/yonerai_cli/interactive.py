@@ -324,7 +324,10 @@ def _handle_slash_command(
             if not MODEL_RE.fullmatch(value) or "://" in value or "\\" in value:
                 _write(output_stream, _invalid(lang))
                 return {}
-            return _set_and_report("model", value, config, options, lang, output_stream)
+            success, result = _set_and_report("model", value, config, options, lang, output_stream)
+            if not success:
+                return {}
+            return result
         _write(output_stream, _format_models(config, callbacks.providers(), lang=lang))
         return {}
     if command == "/safety":
@@ -398,28 +401,34 @@ def _handle_slash_command(
         if value not in PROVIDER_PREFERENCES:
             _write(output_stream, _invalid(lang))
             return {}
-        result = _set_and_report("provider", value, config, options, lang, output_stream)
-        if "provider" in result:
-            return result
-        return {"provider": str(config.get("provider_preference") or provider)}
+        success, result = _set_and_report("provider", value, config, options, lang, output_stream)
+        return result if success else {}
     if command == "/approval" and args:
         value = _canonical_value(args[0])
         if value not in APPROVAL_MODES:
             _write(output_stream, _invalid(lang))
             return {}
-        return _set_and_report("approval", value, config, options, lang, output_stream)
+        success, result = _set_and_report("approval", value, config, options, lang, output_stream)
+        if not success:
+            return {}
+        return result
     if command == "/file-access" and args:
         value = _canonical_value(args[0])
         if value not in FILE_ACCESS_MODES:
             _write(output_stream, _invalid(lang))
             return {}
-        return _set_and_report("file_access", value, config, options, lang, output_stream)
+        success, result = _set_and_report("file_access", value, config, options, lang, output_stream)
+        if not success:
+            return {}
+        return result
     if command == "/ledger" and args:
         value = _canonical_value(args[0])
         if value not in {"on", "off", "true", "false", "1", "0", "yes", "no"}:
             _write(output_stream, _invalid(lang))
             return {}
-        result = _set_and_report("ledger", value, config, options, lang, output_stream)
+        success, result = _set_and_report("ledger", value, config, options, lang, output_stream)
+        if not success:
+            return {}
         result["ledger_path"] = _resolve_ledger_path(config, options)
         return result
     if command == "/live-provider" and args:
@@ -427,7 +436,9 @@ def _handle_slash_command(
         if value not in {"on", "off", "true", "false", "1", "0", "yes", "no"}:
             _write(output_stream, _invalid(lang))
             return {}
-        result = _set_and_report("live_provider", value, config, options, lang, output_stream)
+        success, result = _set_and_report("live_provider", value, config, options, lang, output_stream)
+        if not success:
+            return {}
         result["live"] = bool(config["live_provider_enabled"])
         return result
     if command == "/network" and args:
@@ -435,13 +446,19 @@ def _handle_slash_command(
         if value not in {"on", "off", "true", "false", "1", "0", "yes", "no"}:
             _write(output_stream, _invalid(lang))
             return {}
-        return _set_and_report("network", value, config, options, lang, output_stream)
+        success, result = _set_and_report("network", value, config, options, lang, output_stream)
+        if not success:
+            return {}
+        return result
     if command == "/update-notice" and args:
         value = _canonical_value(args[0])
         if value not in {"on", "off", "true", "false", "1", "0", "yes", "no"}:
             _write(output_stream, _invalid(lang))
             return {}
-        return _set_and_report("update_notice", value, config, options, lang, output_stream)
+        success, result = _set_and_report("update_notice", value, config, options, lang, output_stream)
+        if not success:
+            return {}
+        return result
     _write(output_stream, _unknown(lang))
     return {}
 
@@ -453,12 +470,12 @@ def _set_and_report(
     options: InteractiveOptions,
     lang: str,
     output_stream: TextIO,
-) -> dict[str, object]:
+) -> tuple[bool, dict[str, object]]:
     try:
         new_config = _set_config(config, key, value, options.config_path)
     except ConfigError as exc:
         _write(output_stream, _config_error(lang, exc))
-        return {}
+        return False, {}
     setting_key = {
         "provider": "provider_preference",
         "model": "model_preference",
@@ -471,8 +488,8 @@ def _set_and_report(
     }.get(key, key)
     _write(output_stream, _changed_message(key, new_config[setting_key], lang=lang))
     if key == "provider":
-        return {"provider": str(new_config["provider_preference"])}
-    return {}
+        return True, {"provider": str(new_config["provider_preference"])}
+    return True, {}
 
 
 def _set_config(config: dict[str, object], key: str, value: str, config_path: str | None) -> dict[str, object]:

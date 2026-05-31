@@ -448,29 +448,58 @@ def test_chat_invalid_language_and_provider_keep_shell_alive(tmp_path: Path, mon
     assert str(tmp_path) not in output
 
 
-def test_chat_setting_write_failure_is_not_reported_as_invalid_input(tmp_path: Path, monkeypatch, capsys) -> None:
-    from yonerai_cli import cli
+def test_chat_setting_write_failure_is_not_reported_as_invalid_input(tmp_path: Path, monkeypatch) -> None:
     from yonerai_cli import interactive as interactive_module
     from yonerai_cli.config import ConfigError, DEFAULT_CONFIG, save_cli_config
+    from yonerai_cli.interactive import InteractiveCallbacks, InteractiveOptions, run_interactive_cli
 
     _clear_provider_env(monkeypatch)
     config_path = tmp_path / "cli-config.json"
     config = dict(DEFAULT_CONFIG)
     config["language"] = "en"
     save_cli_config(config, config_path)
+    providers_used: list[str] = []
 
     def fail_set_config(*_args: Any, **_kwargs: Any) -> dict[str, object]:
         raise ConfigError("fixture write failure")
 
+    def providers() -> dict[str, Any]:
+        return {"providers": []}
+
+    def ask_auto(task: str, provider: str, live: bool, ledger_path: str | None, lang: str) -> dict[str, Any]:
+        providers_used.append(provider)
+        return {
+            "ok": True,
+            "run": {"id": "run_test"},
+            "response": {"output_text": f"handled {task}"},
+            "auto": {"provider": provider, "route": "local_llm"},
+            "live_call_performed": live,
+            "ledger": {"path": ledger_path, "enabled": bool(ledger_path)},
+        }
+
+    def runs_list(*_args: Any) -> dict[str, Any]:
+        return {"runs": []}
+
+    def runs_show(*_args: Any) -> dict[str, Any]:
+        return {"ok": False}
+
     monkeypatch.setattr(interactive_module, "set_cli_config_value", fail_set_config)
-    monkeypatch.setattr(sys, "stdin", _PlainStringIO("/provider mock\nhello\n/quit\n"))
+    stdout = _PlainStringIO()
 
-    assert cli.main(["chat", "--script", "--config-path", str(config_path), "--color", "never"]) == 0
-    output = capsys.readouterr().out
+    rc = run_interactive_cli(
+        InteractiveOptions(config_path=str(config_path), provider="local", script=True, color="never"),
+        InteractiveCallbacks(providers=providers, ask_auto=ask_auto, runs_list=runs_list, runs_show=runs_show),
+        stdin=_PlainStringIO("/provider mock\nhello\n/quit\n"),
+        stdout=stdout,
+    )
+    output = stdout.getvalue()
 
+    assert rc == 0
     assert "Could not save config: fixture write failure" in output
+    assert "Changed setting: provider=mock" not in output
     assert "Invalid value" not in output
     assert "YonerAI response" in output
+    assert providers_used == ["local"]
     assert "Traceback" not in output
     assert str(tmp_path) not in output
 
