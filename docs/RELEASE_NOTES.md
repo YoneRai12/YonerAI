@@ -21,8 +21,7 @@ This page is a public-safe index of current release notes and progress checkpoin
   runtime, no live Discord, no deploy/public tunnel, no arbitrary
   shell/file/tool execution, no production signing/trust store, and no
   production network installer.
-- Primary traceability range: `v0.6.0..v0.7.0-alpha.1`; final GitHub PR number
-  must be recorded before publishing the public prerelease.
+- Primary traceability range: `v0.6.0..v0.7.0-alpha.1`; PR #469.
 
 ## v0.6.0 CLI Local Runtime
 
