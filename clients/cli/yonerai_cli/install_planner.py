@@ -20,6 +20,9 @@ INSTALL_PLAN_SCHEMA_VERSION = "yonerai-install-plan/v0.1"
 WINDOWS_INSTALL_PLAN_SCHEMA_VERSION = "yonerai-windows-install-plan/v0.1"
 UPDATE_PLAN_SCHEMA_VERSION = "yonerai-update-plan/v0.1"
 UPDATE_CHECK_SCHEMA_VERSION = "yonerai-update-check/v0.1"
+INSTALL_STATUS_SCHEMA_VERSION = "yonerai-install-status/v0.1"
+INSTALL_CHANNELS = ("stable", "alpha")
+GITHUB_LATEST_INSTALL_PS1 = "https://github.com/YoneRai12/YonerAI/releases/latest/download/install.ps1"
 SHA256_RE = re.compile(r"^[a-f0-9]{64}$")
 
 
@@ -90,12 +93,89 @@ def build_windows_install_plan(manifest_path: str) -> dict[str, Any]:
     return {**report, "schema_version": WINDOWS_INSTALL_PLAN_SCHEMA_VERSION}
 
 
-def build_windows_install_plan_from_default(repo_root: Path) -> dict[str, Any]:
-    return build_windows_install_plan(str(repo_root / "releases" / "manifest.example.json"))
+def build_windows_install_plan_from_default(repo_root: Path, *, channel: str = "stable") -> dict[str, Any]:
+    return build_windows_install_plan(str(default_channel_manifest_path(repo_root, channel=channel)))
 
 
-def build_install_plan_from_default(repo_root: Path) -> dict[str, Any]:
-    return build_install_plan(str(repo_root / "releases" / "manifest.example.json"))
+def build_install_plan_from_default(repo_root: Path, *, channel: str = "stable") -> dict[str, Any]:
+    return build_install_plan(str(default_channel_manifest_path(repo_root, channel=channel)))
+
+
+def build_install_status(repo_root: Path, *, channel: str = "stable") -> dict[str, Any]:
+    selected_channel = _normalize_channel(channel)
+    manifest_path = default_channel_manifest_path(repo_root, channel=selected_channel)
+    try:
+        manifest = load_manifest_file(str(manifest_path))
+        verification = verify_manifest(manifest)
+    except ManifestError as exc:
+        verification = {
+            "contract_valid": False,
+            "install_ready": False,
+            "version": None,
+            "release_tag": None,
+            "channel": selected_channel,
+            "signature_state": "unknown",
+            "signature_verified": False,
+            "errors": [str(exc)],
+        }
+        manifest = {}
+    selected_artifact = _selected_artifact_row(_artifact_plan_rows(manifest))
+    selected_version = str(verification.get("version") or _expected_channel_version(selected_channel))
+    selected_tag = str(verification.get("release_tag") or f"v{selected_version}")
+    return {
+        "schema_version": INSTALL_STATUS_SCHEMA_VERSION,
+        "ok": bool(verification.get("contract_valid")),
+        "channel": selected_channel,
+        "selected_version": selected_version,
+        "selected_tag": selected_tag,
+        "manifest": _display_manifest_path(str(manifest_path)),
+        "selected_artifact": selected_artifact,
+        "signature_status": {
+            "state": verification.get("signature_state"),
+            "verified": bool(verification.get("signature_verified")),
+            "production_signature_available": False,
+            "production_trust_store_included": False,
+        },
+        "source_policy": {
+            "install_page": "https://yonerai.com/install",
+            "install_script_source": "github_latest_release_asset_redirect",
+            "manifest_source": "github_release_asset_only",
+            "artifact_source": "github_release_asset_only",
+            "yonerai_com_serves_install_script": False,
+            "yonerai_com_serves_manifest_or_zip": False,
+            "local_file_source_allowed": False,
+            "custom_manifest_allowed_by_bootstrap": False,
+            "alpha_requires_explicit_channel": True,
+        },
+        "recommended_commands": {
+            "stable": f"& ([scriptblock]::Create((irm {GITHUB_LATEST_INSTALL_PS1}))) -Execute -Launch",
+            "alpha": f"& ([scriptblock]::Create((irm {GITHUB_LATEST_INSTALL_PS1}))) -Channel alpha -Execute -Launch",
+            "verify_first": (
+                "$b='https://github.com/YoneRai12/YonerAI/releases/latest/download'; "
+                "irm \"$b/install.ps1\" -OutFile install.ps1; "
+                "irm \"$b/install.ps1.sha256\" -OutFile install.ps1.sha256; "
+                "if ((Get-FileHash .\\install.ps1 -Algorithm SHA256).Hash.ToLowerInvariant() "
+                "-ne ((Get-Content .\\install.ps1.sha256).Split()[0].ToLowerInvariant())) { throw 'install.ps1 hash mismatch' }; "
+                ".\\install.ps1 -Execute -Launch"
+            ),
+        },
+        "non_actions": {
+            "no_yonerai_com_installer_bytes": True,
+            "no_local_custom_manifest": True,
+            "no_custom_artifact": True,
+            "no_path_mutation_by_default": True,
+            "no_registry_modification": True,
+            "no_service_install": True,
+            "no_admin_request": True,
+            "no_provider_key_storage": True,
+        },
+        "warnings": [
+            "yonerai.com is an install guide only; GitHub Release assets are the install source",
+            "production signing and production trust stores are not included in the public repo",
+            "alpha installs require -Channel alpha",
+        ],
+        "errors": verification.get("errors", []),
+    }
 
 
 def build_update_plan(manifest_path: str, *, current_version: str) -> dict[str, Any]:
@@ -197,8 +277,8 @@ def build_update_plan(manifest_path: str, *, current_version: str) -> dict[str, 
     }
 
 
-def build_update_plan_from_default(repo_root: Path, *, current_version: str) -> dict[str, Any]:
-    return build_update_plan(str(default_update_manifest_path(repo_root)), current_version=current_version)
+def build_update_plan_from_default(repo_root: Path, *, current_version: str, channel: str = "stable") -> dict[str, Any]:
+    return build_update_plan(str(default_channel_manifest_path(repo_root, channel=channel)), current_version=current_version)
 
 
 def build_update_check(manifest_path: str, *, current_version: str) -> dict[str, Any]:
@@ -240,8 +320,24 @@ def build_update_check(manifest_path: str, *, current_version: str) -> dict[str,
     }
 
 
-def build_update_check_from_default(repo_root: Path, *, current_version: str) -> dict[str, Any]:
-    return build_update_check(str(default_update_manifest_path(repo_root)), current_version=current_version)
+def build_update_check_from_default(repo_root: Path, *, current_version: str, channel: str = "stable") -> dict[str, Any]:
+    return build_update_check(str(default_channel_manifest_path(repo_root, channel=channel)), current_version=current_version)
+
+
+def default_channel_manifest_path(repo_root: Path, *, channel: str = "stable") -> Path:
+    selected_channel = _normalize_channel(channel)
+    candidates: list[Path] = []
+    releases = repo_root / "releases"
+    for path in releases.glob("manifest.v*.json"):
+        version = _version_from_manifest_filename(path)
+        if version is None:
+            continue
+        if _manifest_filename_channel(version) == selected_channel:
+            candidates.append(path)
+    if candidates:
+        return max(candidates, key=lambda path: _version_key(_version_from_manifest_filename(path)) or (0, 0, 0, ()))
+    fallback = _expected_channel_version(selected_channel)
+    return releases / f"manifest.v{fallback}.json"
 
 
 def default_update_manifest_path(repo_root: Path) -> Path:
@@ -254,6 +350,20 @@ def default_update_manifest_path(repo_root: Path) -> Path:
     if not candidates:
         return releases / "manifest.example.json"
     return max(candidates, key=lambda path: _version_key(_version_from_manifest_filename(path)) or (0, 0, 0, ()))
+
+
+def _normalize_channel(channel: str) -> str:
+    if channel not in INSTALL_CHANNELS:
+        raise ManifestError("install channel must be stable or alpha.")
+    return channel
+
+
+def _manifest_filename_channel(version: str) -> str:
+    return "alpha" if "-alpha." in version else "stable"
+
+
+def _expected_channel_version(channel: str) -> str:
+    return "0.11.0-alpha.1" if channel == "alpha" else "0.6.1"
 
 
 def _artifact_plan_rows(manifest: dict[str, Any]) -> list[dict[str, Any]]:
@@ -439,12 +549,14 @@ def _quote_cmd_path(path: str) -> str:
 
 __all__ = [
     "INSTALL_PLAN_SCHEMA_VERSION",
+    "INSTALL_STATUS_SCHEMA_VERSION",
     "UPDATE_PLAN_SCHEMA_VERSION",
     "UPDATE_CHECK_SCHEMA_VERSION",
     "WINDOWS_INSTALL_PLAN_SCHEMA_VERSION",
     "ManifestError",
     "build_install_plan",
     "build_install_plan_from_default",
+    "build_install_status",
     "build_update_check",
     "build_update_check_from_default",
     "build_update_plan",

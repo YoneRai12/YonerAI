@@ -2,6 +2,21 @@
 
 See also: `docs/RELEASE_NOTES.md` (curated summary, v5.0.0 -> current).
 
+## v0.6.1 (2026-06-01) - One-Command Install
+- Added a stable-default one-command PowerShell bootstrap that downloads
+  `install.ps1`, the release manifest, and the release ZIP from GitHub Release
+  assets only.
+- Kept `yonerai.com/install` as command-only content. It must not serve
+  installer scripts, manifests, ZIPs, or any local PC installable files.
+- Added `yonerai install status` to show source policy, stable/alpha channel
+  state, signature/trust warnings, and safe install commands.
+- Added `install.ps1` and `install.ps1.sha256` to the release workflow asset
+  plan.
+- Preserved boundaries: no production cloud runtime, no production Oracle, no
+  live Discord, no provider key storage, no PATH mutation by default, no
+  registry/service/admin install behavior, and no production signing/trust
+  store.
+
 ## v0.6.0 (2026-05-27) - CLI Local Runtime
 - Promoted the v0.6 TUI runtime from alpha to a stable local CLI runtime slice.
 - Added post-alpha product polish for the interactive home, settings, provider,

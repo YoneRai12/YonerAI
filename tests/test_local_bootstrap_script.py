@@ -28,17 +28,17 @@ def test_local_bootstrap_script_is_plan_first_and_non_remote_execution() -> None
     assert re.search(r"\bsetx\b", script, flags=re.IGNORECASE) is None
 
 
-def test_install_skeleton_is_dry_run_only_and_non_remote_execution() -> None:
+def test_install_bootstrap_uses_github_release_only_and_rejects_custom_sources() -> None:
     script = INSTALL_SKELETON.read_text(encoding="utf-8")
 
-    assert "Installer skeleton" in script
+    assert "GitHub Release installer" in script
     assert "Plan only. Nothing was installed." in script
-    assert "install-local.ps1 -Execute -Launch" in script
+    assert "Local or custom manifest/artifact inputs are not accepted" in script
+    assert "https://github.com/YoneRai12/YonerAI/releases/latest/download/install.ps1" in script
+    assert "https://github.com/YoneRai12/YonerAI/releases/download" in script
+    assert "https://yonerai.com" not in script
     assert "Invoke-Expression" not in script
     assert re.search(r"\biex\b", script, flags=re.IGNORECASE) is None
-    assert "Invoke-WebRequest" not in script
-    assert re.search(r"\biwr\b", script, flags=re.IGNORECASE) is None
-    assert re.search(r"\birm\b", script, flags=re.IGNORECASE) is None
     assert "SetEnvironmentVariable" not in script
     assert re.search(r"\bsetx\b", script, flags=re.IGNORECASE) is None
 
@@ -169,7 +169,7 @@ def test_install_skeleton_plan_mode_does_not_install_when_powershell_available()
 
     assert result.returncode == 0, _subprocess_failure(result)
     assert "Plan only. Nothing was installed." in result.stdout
-    assert ".\\install-local.ps1" in result.stdout
+    assert "GitHub Release assets" in result.stdout
     assert "PATH mutation" in result.stdout
 
 

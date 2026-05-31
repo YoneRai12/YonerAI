@@ -77,12 +77,13 @@ include:
 
 `releases/manifest.schema.json` defines the future installer bootstrap release manifest. `releases/manifest.example.json` is an example contract fixture and is not a production installer manifest.
 
-`releases/manifest.v0.5.1.json` records the current v0.5.1 GitHub Release
-asset `YonerAI-0.5.1.zip` for local verification and dry-run planning. It is
-stable-channel metadata for the CLI Local Runtime release, but it is still not
-install-ready because the public repository does not include production signing
-keys, a production trust store, or an official signing service. Its signature
-status remains `placeholder_non_production`.
+`releases/manifest.v0.6.1.json` records the current v0.6.1 GitHub Release
+asset `YonerAI-0.6.1.zip` for GitHub-asset-only one-command install,
+local verification, and dry-run planning. It is stable-channel metadata for the
+CLI Local Runtime release, but it is still not a production-signed installer
+because the public repository does not include production signing keys, a
+production trust store, or an official signing service. Its signature status
+remains `placeholder_non_production`.
 
 The existing `core/src/ora_core/distribution/release.py` sidecar models remain the current Distribution Node MVP verification implementation. The installer bootstrap manifest is the future distribution source of truth for public install entry points and should be connected to signed sidecars in a later implementation PR.
 
@@ -187,9 +188,11 @@ Until that lane exists, public manifests must clearly report
    `install-local.ps1`: plan-first by default, explicit `-Execute` for local
    `.venv` setup, no PATH mutation, no remote script execution, no service
    install, and no admin request.
-9. Add a root `install.ps1` one-command installer skeleton. Done for v0.6 TUI
-   runtime preparation: dry-run only, no remote execution, no PATH mutation, and
-   points back to `install-local.ps1` for explicit local bootstrap.
+9. Add a root `install.ps1` one-command GitHub Release bootstrap. Done for
+   v0.6.1: stable by default, alpha only by explicit `-Channel alpha`, rejects
+   local/custom manifest or ZIP paths, verifies the release ZIP SHA256 from the
+   manifest before extraction, and never uses `yonerai.com` as the installer
+   file source.
 10. Future private/official lane: connect release workflow to a signing service,
    publish a signed manifest artifact, define production trust/key rotation, and
    verify signatures against the official trust source.
@@ -205,9 +208,9 @@ anything, `yonerai update check` gives a quick non-mutating update notice,
 mutating the machine, `yonerai manifest verify` can verify signed test
 manifests against an explicit non-production trust fixture, `install-local.ps1`
 gives extracted archives/checkouts a plan-first local bootstrap path, and
-`install.ps1` is a dry-run-only future one-command installer skeleton. The next
-safe milestone is manifest-to-release-asset consistency checks. These steps must
-avoid remote code execution, PATH mutation, auto-download, npm publishing,
+`install.ps1` provides a GitHub Release asset-only one-command bootstrap. The
+next safe milestone is production-signature design and rollback/uninstall
+coverage. These steps must avoid PATH mutation by default, npm publishing,
 winget publishing, production signing key generation, and production trust store
 creation.
 
@@ -231,9 +234,9 @@ Completed or substantially completed:
 - Windows dry-run planning foundation: PR #320, `yonerai install plan-windows`.
 - Local install dry-run planning: PR #336, `yonerai install plan`.
 - Local update dry-run planning: PR #341, `yonerai update plan`.
-- Local update quick check: this v0.6 TUI runtime branch, `yonerai update check`.
-- PowerShell future installer skeleton: this v0.6 TUI runtime branch,
-  `install.ps1` dry-run only.
+- Local update quick check: v0.6 TUI runtime, `yonerai update check`.
+- One-command GitHub Release bootstrap: v0.6.1, `install.ps1` and
+  `install.ps1.sha256` as GitHub Release assets only.
 - Local non-production/test signed manifest verification:
   `yonerai manifest verify <path> --test-trust-fixture <fixture>`.
 - Release artifact naming validation foundation: PR #326.
@@ -249,7 +252,8 @@ Remaining tasks are tracked directly in #436:
 - Public documentation that separates non-production/test trust fixtures from
   future private/official production signing, trust source, key rotation, and
   release signing service work.
-- Future install.yonerai.com / yonerai.com/install onboarding copy that does not present remote execution as ready-to-run behavior.
+- Future install.yonerai.com / yonerai.com/install onboarding copy must remain
+  command-only and must not host installable local PC files.
 
 The parent issue should stay open until the checklist in #436 is complete or
 the owner explicitly approves a different tracking model. See

@@ -1,4 +1,4 @@
-# yonerai.com/install content foundation
+# yonerai.com/install command page
 
 Status: public content contract for the future `https://yonerai.com/install`
 page. This repository does not deploy the site and does not include production
@@ -6,95 +6,110 @@ installer secrets.
 
 ## Page purpose
 
-Help users install and start the YonerAI CLI Local Runtime after the v0.6.0
-release without presenting a remote-execution installer as ready.
+Show the one-command YonerAI CLI Local Runtime install command. `yonerai.com`
+is only the guide page. It must not be an installer file source.
 
-## Primary copy
+It does not read installer bytes from `yonerai.com`. The bootstrap script,
+release manifest, and ZIP artifact must come from GitHub Release assets.
 
-YonerAI CLI Local Runtime v0.6.0 runs locally from a downloaded release ZIP or
-from a repository checkout. It is stable for the local CLI runtime slice. It is
-not full YonerAI cloud production.
-
-## Safe manual install
+## Recommended command
 
 ```powershell
-# 1. Download YonerAI-0.6.0.zip from the GitHub Release.
-# 2. Extract the ZIP.
-cd "$HOME\Downloads\YonerAI-0.6.0"
-python --version
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -U pip
-python -m pip install -r core/requirements.txt httpx
-python -m pip install -e clients/cli
-yonerai
+& ([scriptblock]::Create((irm https://github.com/YoneRai12/YonerAI/releases/latest/download/install.ps1))) -Execute -Launch
 ```
 
-Use Python 3.11 or newer. If `yonerai` is not found, activate the virtual
-environment again with `.\.venv\Scripts\Activate.ps1`.
+What this does:
 
-## Local bootstrap helper
+- downloads `install.ps1` from the latest stable GitHub Release asset redirect
+- downloads the versioned release manifest from GitHub Release assets
+- downloads the versioned YonerAI ZIP from GitHub Release assets
+- verifies the ZIP SHA256 from the manifest before extraction
+- runs `install-local.ps1` only after it is found inside the verified archive
 
-Archives or checkouts that include `install-local.ps1` can use the plan-first
-local bootstrap helper:
+What this does not do:
+
+- does not fetch installer files, manifests, or ZIPs from `yonerai.com`
+- does not accept local/custom manifest or artifact paths
+- does not mutate PATH by default
+- does not edit the registry
+- does not install services
+- does not request admin rights
+- does not store provider keys
+- does not enable production Oracle, Official Managed Cloud, live Discord, or
+  production Google login
+- does not include production signing keys or a production trust store
+
+## Verify the bootstrap before running
+
+If you want a hash check before script execution, use the GitHub Release
+`.sha256` sidecar:
 
 ```powershell
-# Show the local install plan only.
-.\install-local.ps1
-
-# Explicitly create .venv, install the local CLI package, and launch YonerAI.
-.\install-local.ps1 -Execute -Launch
+$b = "https://github.com/YoneRai12/YonerAI/releases/latest/download"
+irm "$b/install.ps1" -OutFile install.ps1
+irm "$b/install.ps1.sha256" -OutFile install.ps1.sha256
+if ((Get-FileHash .\install.ps1 -Algorithm SHA256).Hash.ToLowerInvariant() -ne ((Get-Content .\install.ps1.sha256).Split()[0].ToLowerInvariant())) { throw "install.ps1 hash mismatch" }
+.\install.ps1 -Execute -Launch
 ```
 
-If Windows blocks local script execution, run the same helper without changing
-the machine-wide execution policy:
+## Alpha channel
+
+Stable is the default. Alpha requires an explicit channel flag:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\install-local.ps1 -Execute -Launch
+& ([scriptblock]::Create((irm https://github.com/YoneRai12/YonerAI/releases/latest/download/install.ps1))) -Channel alpha -Execute -Launch
 ```
 
-The helper does not mutate PATH, edit the registry, install services, request
-admin rights, run `irm ... | iex`, or execute a remote installer. With
-`-Execute`, `pip` may fetch Python dependencies unless already cached.
+## Local status commands
 
-## Verify before planning
-
-`releases/manifest.v0.6.0.json` is available in a repository checkout. If
-you are installing from the release ZIP, download `manifest.v0.6.0.json` from
-the same GitHub Release and save it inside the extracted folder first; release
-ZIPs intentionally do not embed versioned manifests because the manifest records
-the ZIP hash.
+After install or in a checkout:
 
 ```powershell
-# Release ZIP flow: manifest.v0.6.0.json is a separate GitHub Release asset.
-$manifest = ".\manifest.v0.6.0.json"
-yonerai manifest verify $manifest --pretty
-yonerai install plan --manifest $manifest --pretty
-yonerai update check --manifest $manifest --pretty
-yonerai update plan --manifest $manifest --pretty
+yonerai install status --pretty
+yonerai update check --channel stable --pretty
+yonerai update check --channel alpha --pretty
 ```
 
-In a repository checkout, use `$manifest = "releases\manifest.v0.6.0.json"`
-instead.
+These commands show source policy and dry-run update state. They do not
+download or install updates.
 
-These commands read local files and print verification or dry-run plans. They
-do not download the release asset, install packages, mutate PATH, execute a
-remote script, request admin privileges, write services, or connect to a
-production control plane.
+## Source separation
 
-## Release links
+`yonerai.com` is hosted separately as a Zero Trust site and must remain outside
+the install trust chain. To protect the hosting PC, the site content tree must
+not contain:
 
-- GitHub Release: https://github.com/YoneRai12/YonerAI/releases/tag/v0.6.0
-- Release asset: https://github.com/YoneRai12/YonerAI/releases/download/v0.6.0/YonerAI-0.6.0.zip
-- Manifest asset: https://github.com/YoneRai12/YonerAI/releases/download/v0.6.0/manifest.v0.6.0.json
-- Manifest source in a checkout: `releases/manifest.v0.6.0.json`
+- `install.ps1`
+- `install.ps1.sha256`
+- `manifest.v*.json`
+- release ZIP files
 
-## Warnings
+The install source of truth is GitHub Releases:
 
-- No `irm ... | iex` install flow is provided.
-- No production signature or production trust store is included in the public
-  repo.
-- No npm or winget channel is ready.
+- latest stable bootstrap:
+  `https://github.com/YoneRai12/YonerAI/releases/latest/download/install.ps1`
+- stable release:
+  `https://github.com/YoneRai12/YonerAI/releases/tag/v0.6.1`
+- stable ZIP:
+  `https://github.com/YoneRai12/YonerAI/releases/download/v0.6.1/YonerAI-0.6.1.zip`
+- stable manifest:
+  `https://github.com/YoneRai12/YonerAI/releases/download/v0.6.1/manifest.v0.6.1.json`
+
+## Publish blocker
+
+Do not publish the one-command install page as live-ready until the latest
+stable GitHub Release contains all required assets:
+
+- `install.ps1`
+- `install.ps1.sha256`
+- `manifest.v0.6.1.json`
+- `YonerAI-0.6.1.zip`
+
+## Non-claims
+
+- This is not full YonerAI cloud production.
+- This is not a production-signed installer.
+- npm, winget, Microsoft Store, and production installer channels are not ready.
 - Official Managed Cloud remains external/contract-only.
 - Production Oracle/control-plane runtime is not included.
 - Live Discord is not restored.

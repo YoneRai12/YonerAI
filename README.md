@@ -28,18 +28,41 @@ See [LICENSE](LICENSE), [LICENSE_JP.md](LICENSE_JP.md), [NOTICE](NOTICE), and
 
 ## Install and start YonerAI
 
-This is the local CLI runtime path, not a production cloud installer. It installs
-the CLI from this checkout and creates the `yonerai` command locally.
+This is the local CLI runtime path, not full YonerAI cloud production. For
+v0.6.1, the one-command path downloads installable bytes from GitHub Release
+assets only. `yonerai.com/install` is a command page, not an installer file
+host.
+
+### One-command Windows install
+
+```powershell
+& ([scriptblock]::Create((irm https://github.com/YoneRai12/YonerAI/releases/latest/download/install.ps1))) -Execute -Launch
+```
+
+The bootstrap rejects local/custom manifest or ZIP paths. It does not fetch
+installer files from `yonerai.com`, mutate PATH by default, edit the registry,
+install services, request admin rights, store provider keys, or enable
+production cloud behavior.
+
+To verify the bootstrap script hash before running it:
+
+```powershell
+$b = "https://github.com/YoneRai12/YonerAI/releases/latest/download"
+irm "$b/install.ps1" -OutFile install.ps1
+irm "$b/install.ps1.sha256" -OutFile install.ps1.sha256
+if ((Get-FileHash .\install.ps1 -Algorithm SHA256).Hash.ToLowerInvariant() -ne ((Get-Content .\install.ps1.sha256).Split()[0].ToLowerInvariant())) { throw "install.ps1 hash mismatch" }
+.\install.ps1 -Execute -Launch
+```
 
 ### If you downloaded the GitHub Release ZIP
 
 Download `Source code (zip)` from the
-[v0.6.0 release](https://github.com/YoneRai12/YonerAI/releases/tag/v0.6.0),
+[v0.6.1 release](https://github.com/YoneRai12/YonerAI/releases/tag/v0.6.1),
 extract it, then run PowerShell inside the extracted folder. The extracted
 folder name can vary; change the `cd` command to match the folder you see.
 
 ```powershell
-cd "$HOME\Downloads\YonerAI-0.6.0"
+cd "$HOME\Downloads\YonerAI-0.6.1"
 python --version
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
@@ -61,8 +84,8 @@ hand:
 .\install-local.ps1 -Execute -Launch
 ```
 
-`install.ps1` is also included as a future one-command installer skeleton. It
-is dry-run only and points back to this local bootstrap path:
+`install.ps1` is also included as the GitHub Release bootstrap. Without
+`-Execute`, it prints the plan and performs no download or install:
 
 ```powershell
 .\install.ps1
@@ -174,17 +197,17 @@ yonerai demo --json
 yonerai doctor --pretty
 yonerai doctor --pretty --lang ja
 yonerai status --pretty
-yonerai manifest verify releases/manifest.v0.6.0.json --pretty
-yonerai install plan --manifest releases/manifest.v0.6.0.json --pretty
-yonerai update check --manifest releases/manifest.v0.6.0.json --pretty
-yonerai update plan --manifest releases/manifest.v0.6.0.json --pretty
+yonerai manifest verify releases/manifest.v0.6.1.json --pretty
+yonerai install plan --manifest releases/manifest.v0.6.1.json --pretty
+yonerai update check --manifest releases/manifest.v0.6.1.json --pretty
+yonerai update plan --manifest releases/manifest.v0.6.1.json --pretty
 yonerai plan "summarize public docs" --json
 yonerai ask "summarize public docs" --provider mock --json
 yonerai hybrid run --pretty
 yonerai hybrid run --json
 yonerai search mock "YonerAI alpha2" --json
 yonerai ops plan git-status --json
-yonerai install plan --manifest releases/manifest.v0.6.0.json --json
+yonerai install plan --manifest releases/manifest.v0.6.1.json --json
 ```
 
 ## First 5 minutes

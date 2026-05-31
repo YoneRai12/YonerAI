@@ -259,6 +259,21 @@ def _build_doctor_report(*, command: str = "yonerai doctor") -> dict[str, Any]:
             "production_oracle_used": False,
             "official_cloud_runtime_implemented": False,
         }
+    try:
+        from yonerai_cli.install_planner import build_install_status
+
+        install_source = build_install_status(_repo_root(), channel="stable")
+    except Exception:
+        install_source = {
+            "schema_version": "yonerai-install-status/v0.1",
+            "ok": False,
+            "source_policy": {
+                "install_script_source": "github_release_asset_only",
+                "yonerai_com_serves_install_script": False,
+                "yonerai_com_serves_manifest_or_zip": False,
+                "local_file_source_allowed": False,
+            },
+        }
     python_supported = sys.version_info >= (3, 11)
     manifest_contract_valid = bool(manifest_report.get("contract_valid", manifest_report.get("ok")))
     system_checks = {
@@ -325,6 +340,7 @@ def _build_doctor_report(*, command: str = "yonerai doctor") -> dict[str, Any]:
         "oracle_stub": oracle_stub,
         "hybrid_execution_slice": hybrid_execution_slice,
         "auto_runtime": auto_runtime,
+        "install_source": install_source,
         "provider_runtime_e2e_fixtures": _provider_runtime_e2e_fixture_report(),
         "system_checks": system_checks,
         "errors": manifest_report.get("errors", []),
@@ -2742,19 +2758,22 @@ def _build_install_report(args: argparse.Namespace) -> dict[str, Any]:
         from yonerai_cli.install_planner import (
             build_install_plan,
             build_install_plan_from_default,
+            build_install_status,
             build_windows_install_plan,
             build_windows_install_plan_from_default,
         )
     except Exception as exc:
         raise CliError("Install planner is unavailable.", exit_code=1) from exc
     try:
+        if args.install_command == "status":
+            return build_install_status(_repo_root(), channel=args.channel)
         if args.install_command == "plan":
             if args.manifest:
                 return build_install_plan(args.manifest)
-            return build_install_plan_from_default(_repo_root())
+            return build_install_plan_from_default(_repo_root(), channel=args.channel)
         if args.manifest:
             return build_windows_install_plan(args.manifest)
-        return build_windows_install_plan_from_default(_repo_root())
+        return build_windows_install_plan_from_default(_repo_root(), channel=args.channel)
     except ManifestError as exc:
         raise CliError(str(exc), exit_code=2) from exc
 
@@ -2774,15 +2793,18 @@ def _build_update_report(args: argparse.Namespace) -> dict[str, Any]:
         if args.update_command == "check":
             if args.manifest:
                 return build_update_check(args.manifest, current_version=current_version)
-            return build_update_check_from_default(_repo_root(), current_version=current_version)
+            return build_update_check_from_default(_repo_root(), current_version=current_version, channel=args.channel)
         if args.manifest:
             return build_update_plan(args.manifest, current_version=current_version)
-        return build_update_plan_from_default(_repo_root(), current_version=current_version)
+        return build_update_plan_from_default(_repo_root(), current_version=current_version, channel=args.channel)
     except ManifestError as exc:
         raise CliError(str(exc), exit_code=2) from exc
 
 
 def _print_install_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -> None:
+    if report.get("schema_version") == "yonerai-install-status/v0.1":
+        _print_install_status_pretty(report, color=color)
+        return
     manifest = report["manifest"]
     non_actions = report["non_actions"]
     errors = tuple(CliRow("error", error, "fail") for error in manifest["errors"])
@@ -2831,6 +2853,30 @@ def _print_install_pretty(report: dict[str, Any], *, color: ColorMode = "auto") 
     if errors:
         sections = (*sections, CliSection("Errors", errors))
     print(render_report("YonerAI install plan", sections, color=color))
+
+
+def _print_install_status_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -> None:
+    source = report["source_policy"]
+    signature = report["signature_status"]
+    non_actions = report["non_actions"]
+    rows = (
+        CliRow("channel", report["channel"], "ok"),
+        CliRow("selected_version", report["selected_version"], "ok"),
+        CliRow("install_script_source", source["install_script_source"], "ok"),
+        CliRow("artifact_source", source["artifact_source"], "ok"),
+        CliRow("yonerai.com_installer_bytes", source["yonerai_com_serves_install_script"], "fail" if source["yonerai_com_serves_install_script"] else "ok"),
+        CliRow("yonerai.com_manifest_or_zip", source["yonerai_com_serves_manifest_or_zip"], "fail" if source["yonerai_com_serves_manifest_or_zip"] else "ok"),
+        CliRow("local_file_source_allowed", source["local_file_source_allowed"], "fail" if source["local_file_source_allowed"] else "ok"),
+        CliRow("signature_state", signature["state"], "ok" if signature["state"] == "signed" else "warn"),
+        CliRow("production_trust_store", signature["production_trust_store_included"], "fail" if signature["production_trust_store_included"] else "ok"),
+    )
+    command_rows = tuple(CliRow(name, value, "ok") for name, value in report["recommended_commands"].items())
+    sections = (
+        CliSection("Install source", rows),
+        CliSection("Recommended commands", command_rows),
+        CliSection("Non-actions", tuple(CliRow(name, value, "ok" if value else "fail") for name, value in non_actions.items())),
+    )
+    print(render_report("YonerAI install status", sections, color=color))
 
 
 def _update_version_comparison_level(report: dict[str, Any]) -> str:
@@ -3761,14 +3807,22 @@ def build_parser() -> argparse.ArgumentParser:
 
     install = subcommands.add_parser("install", help="Plan installer actions without downloading or installing.")
     install_subcommands = install.add_subparsers(dest="install_command", required=True)
+    install_status = install_subcommands.add_parser("status", help="Show one-command install source policy.")
+    install_status.add_argument("--channel", choices=("stable", "alpha"), default="stable", help="Install channel to inspect. Default: stable.")
+    install_status_output = install_status.add_mutually_exclusive_group()
+    install_status_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
+    install_status_output.add_argument("--pretty", action="store_true", help="Print a readable installer source summary.")
+    install_status.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
     install_plan = install_subcommands.add_parser("plan", help="Build a local manifest install dry-run plan.")
     install_plan.add_argument("--manifest", help="Local release manifest JSON path. Defaults to releases/manifest.example.json.")
+    install_plan.add_argument("--channel", choices=("stable", "alpha"), default="stable", help="Default manifest channel when --manifest is omitted. Default: stable.")
     install_plan_output = install_plan.add_mutually_exclusive_group()
     install_plan_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
     install_plan_output.add_argument("--pretty", action="store_true", help="Print a readable installer plan.")
     install_plan.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
     install_plan_windows = install_subcommands.add_parser("plan-windows", help="Build a Windows installer dry-run plan.")
     install_plan_windows.add_argument("--manifest", help="Local release manifest JSON path. Defaults to releases/manifest.example.json.")
+    install_plan_windows.add_argument("--channel", choices=("stable", "alpha"), default="stable", help="Default manifest channel when --manifest is omitted. Default: stable.")
     install_plan_windows_output = install_plan_windows.add_mutually_exclusive_group()
     install_plan_windows_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
     install_plan_windows_output.add_argument("--pretty", action="store_true", help="Print a readable installer plan.")
@@ -3778,12 +3832,14 @@ def build_parser() -> argparse.ArgumentParser:
     update_subcommands = update.add_subparsers(dest="update_command", required=True)
     update_plan = update_subcommands.add_parser("plan", help="Build a local manifest update dry-run plan.")
     update_plan.add_argument("--manifest", help="Local release manifest JSON path. Defaults to releases/manifest.example.json.")
+    update_plan.add_argument("--channel", choices=("stable", "alpha"), default="stable", help="Default manifest channel when --manifest is omitted. Default: stable.")
     update_plan_output = update_plan.add_mutually_exclusive_group()
     update_plan_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
     update_plan_output.add_argument("--pretty", action="store_true", help="Print a readable update plan.")
     update_plan.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
     update_check = update_subcommands.add_parser("check", help="Check local manifest update status without downloading or installing.")
     update_check.add_argument("--manifest", help="Local release manifest JSON path. Defaults to the newest releases/manifest.v*.json.")
+    update_check.add_argument("--channel", choices=("stable", "alpha"), default="stable", help="Default manifest channel when --manifest is omitted. Default: stable.")
     update_check_output = update_check.add_mutually_exclusive_group()
     update_check_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
     update_check_output.add_argument("--pretty", action="store_true", help="Print a readable update check.")
@@ -4045,7 +4101,7 @@ def run(argv: list[str] | None = None) -> int:
         else:
             _print_discord_pretty(report, color=args.color)
         return 0 if report["ok"] else 1
-    if args.command == "install" and args.install_command in {"plan", "plan-windows"}:
+    if args.command == "install" and args.install_command in {"status", "plan", "plan-windows"}:
         report = _build_install_report(args)
         if args.json:
             _print_json(report)

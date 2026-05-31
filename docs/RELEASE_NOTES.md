@@ -2,6 +2,23 @@
 
 This page is a public-safe index of current release notes and progress checkpoints.
 
+## v0.6.1 One-Command Install
+
+- GitHub release target: `v0.6.1`.
+- Release title: `2026.06.01 - YonerAI CLI Local Runtime v0.6.1 One-Command Install`.
+- Release date: `2026-06-01`.
+- Public release body: `docs/releases/0.6.1.md`.
+- Distribution note: stable remains the default channel. Alpha requires an
+  explicit `-Channel alpha`.
+- What users can try after the release assets are published:
+  `& ([scriptblock]::Create((irm https://github.com/YoneRai12/YonerAI/releases/latest/download/install.ps1))) -Execute -Launch`,
+  `yonerai install status --pretty`,
+  `yonerai update check --channel stable --pretty`, and `yonerai`.
+- Boundary: `yonerai.com` is a guide/command page only. It does not serve
+  `install.ps1`, manifests, ZIPs, or any local PC installer file. Installable
+  bytes come from GitHub Release assets only.
+- Primary traceability range: `v0.6.0..v0.6.1`.
+
 ## v0.6.0 CLI Local Runtime
 
 - GitHub release target: `v0.6.0`.

@@ -12,19 +12,31 @@ package and commercial use requires a separate license.
 
 ## Install and start YonerAI
 
-From the repository root, install the local CLI runtime into a virtual
-environment. This is not the production installer path and does not download or
-execute remote installer scripts.
+This is the local CLI runtime path, not full YonerAI cloud production.
+v0.6.1 adds a one-command Windows path that downloads installable bytes from
+GitHub Release assets only. `yonerai.com/install` is a command page, not an
+installer file host.
+
+### One-command Windows install
+
+```powershell
+& ([scriptblock]::Create((irm https://github.com/YoneRai12/YonerAI/releases/latest/download/install.ps1))) -Execute -Launch
+```
+
+The bootstrap rejects local/custom manifest or ZIP paths. It does not fetch
+installer files from `yonerai.com`, mutate PATH by default, edit the registry,
+install services, request admin rights, store provider keys, or enable
+production cloud behavior.
 
 ### If you downloaded the GitHub Release ZIP
 
 Download `Source code (zip)` from the
-[v0.6.0 release](https://github.com/YoneRai12/YonerAI/releases/tag/v0.6.0),
+[v0.6.1 release](https://github.com/YoneRai12/YonerAI/releases/tag/v0.6.1),
 extract it, then run PowerShell inside the extracted folder. The extracted
 folder name can vary; change the `cd` command to match the folder you see.
 
 ```powershell
-cd "$HOME\Downloads\YonerAI-0.6.0"
+cd "$HOME\Downloads\YonerAI-0.6.1"
 python --version
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
@@ -47,9 +59,8 @@ or reuses `.venv`, installs the local CLI package, and launches YonerAI. It does
 not mutate PATH, run a remote script, request admin rights, install a service,
 or enable live providers.
 
-`install.ps1` is a dry-run skeleton for a future one-command installer. It
-does not install anything; it points users back to the explicit local bootstrap
-helper:
+`install.ps1` is the GitHub Release bootstrap. Without `-Execute`, it prints
+the plan and performs no download or install:
 
 ```powershell
 .\install.ps1
@@ -104,10 +115,10 @@ yonerai start --guided --lang ja
 yonerai providers --pretty --lang ja
 yonerai ask "hello" --auto --pretty --lang ja
 yonerai chat --script --lang ja
-yonerai manifest verify releases/manifest.v0.6.0.json --pretty
-yonerai install plan --manifest releases/manifest.v0.6.0.json --pretty
-yonerai update check --manifest releases/manifest.v0.6.0.json --pretty
-yonerai update plan --manifest releases/manifest.v0.6.0.json --pretty
+yonerai manifest verify releases/manifest.v0.6.1.json --pretty
+yonerai install plan --manifest releases/manifest.v0.6.1.json --pretty
+yonerai update check --manifest releases/manifest.v0.6.1.json --pretty
+yonerai update plan --manifest releases/manifest.v0.6.1.json --pretty
 yonerai demo --pretty
 yonerai demo --json
 ```

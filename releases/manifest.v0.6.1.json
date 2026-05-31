@@ -1,0 +1,52 @@
+{
+  "schema_version": "yonerai-installer-bootstrap-manifest/v1",
+  "product": "YonerAI",
+  "channel": "stable",
+  "version": "0.6.1",
+  "published_at": "2026-06-01T00:00:00Z",
+  "production_ready": false,
+  "release": {
+    "tag": "v0.6.1",
+    "github_release_url": "https://github.com/YoneRai12/YonerAI/releases/tag/v0.6.1",
+    "manifest_status": "unsigned_example"
+  },
+  "minimum_requirements": {
+    "python": ">=3.11",
+    "windows": "10 or newer for the documented PowerShell local CLI path",
+    "network_required": true
+  },
+  "install_methods": [
+    "powershell_github_release_bootstrap",
+    "manual_zip_venv",
+    "manifest_verify_only"
+  ],
+  "warnings": [
+    "stable local CLI runtime manifest; not a production cloud runtime",
+    "install.ps1 is served only as a GitHub Release asset, not from yonerai.com",
+    "GitHub latest/download is the stable bootstrap entry and resolves to versioned GitHub Release assets",
+    "release ZIP SHA256 must match this manifest before extraction",
+    "production signature verification is not available in this public manifest",
+    "no production signing key or production trust store is included",
+    "install-local.ps1 runs only from the verified GitHub Release archive",
+    "no PATH mutation is performed by default",
+    "yonerai.com/install is a command page only and must not serve local PC installer files"
+  ],
+  "artifacts": [
+    {
+      "id": "yonerai-0.6.1-source-archive",
+      "kind": "source_archive",
+      "target": "source-any",
+      "os": "any",
+      "arch": "any",
+      "url": "https://github.com/YoneRai12/YonerAI/releases/download/v0.6.1/YonerAI-0.6.1.zip",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "size_bytes": 1,
+      "signature": {
+        "status": "placeholder_non_production",
+        "algorithm": "none",
+        "key_id": "PLACEHOLDER_NON_PRODUCTION_KEY",
+        "signature": "PLACEHOLDER_NON_PRODUCTION_SIGNATURE"
+      }
+    }
+  ]
+}

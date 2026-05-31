@@ -287,7 +287,13 @@ def validate_manifest_contract(manifest: dict[str, Any]) -> list[str]:
             isinstance(install_methods, list)
             and all(
                 isinstance(method, str)
-                and method in {"manual_zip_venv", "powershell_dry_run_plan", "manifest_verify_only"}
+                and method
+                in {
+                    "manual_zip_venv",
+                    "powershell_dry_run_plan",
+                    "powershell_github_release_bootstrap",
+                    "manifest_verify_only",
+                }
                 for method in install_methods
             ),
             "install_methods is invalid.",
