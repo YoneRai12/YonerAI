@@ -2,6 +2,26 @@
 
 This page is a public-safe index of current release notes and progress checkpoints.
 
+## v0.10.0-alpha.1 Public Orchestration Boundary
+
+- GitHub pre-release target: `v0.10.0-alpha.1`.
+- Release title: `2026.06.01 - YonerAI v0.10.0-alpha.1 Public Orchestration Boundary`.
+- Release date: `2026-06-01`.
+- Public release body: `docs/releases/0.10.0-alpha.1.md`.
+- Status: prerelease boundary/orchestration update after v0.9.0-alpha.1.
+- What users can try now: `yonerai`, `/ホーム`, `/状態`, `/設定`, `/モデル`,
+  `/ローカルLLM`, `/提供元選択`, `/安全`, `/認証`, `/プライバシー`,
+  `/自己進化`, `/更新`, Google auth dry-run/privacy status commands, and local
+  manifest dry-run commands against `releases/manifest.v0.10.0-alpha.1.json`.
+- Boundary: TUI orientation, auth/privacy boundary hardening, Quality Wall
+  hardening, and plan-only installer/site alignment only; no production
+  Oracle/cloud runtime, no live Discord, no production Google login, no OpenAI
+  shared traffic runtime, no deploy/public tunnel, no arbitrary shell/file/tool
+  execution, no production signing/trust store, and no production network
+  installer.
+- Primary traceability range: `v0.9.0-alpha.1..v0.10.0-alpha.1`; PRs #474,
+  #475, #476, #477, and #478.
+
 ## v0.9.0-alpha.1 TUI Value Completion and Quality Wall
 
 - GitHub pre-release target: `v0.9.0-alpha.1`.
