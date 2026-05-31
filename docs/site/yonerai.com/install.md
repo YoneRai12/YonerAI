@@ -107,6 +107,29 @@ The v0.7 prerelease path keeps the same non-actions: no download by default, no
 install by default, no PATH mutation, no remote script execution, no service
 install, and no production signing/trust material.
 
+## v0.8 alpha install/auth boundary candidate
+
+v0.8.0-alpha.1 is the next candidate boundary for the plan-first installer,
+Google OAuth dry-run contract, OpenAI shared-traffic OFF policy, and
+proposal-only self-evolution visibility. Until the GitHub prerelease exists,
+this section is a content contract, not a live download promise and not a
+production network installer.
+
+```powershell
+$manifest = ".\manifest.v0.8.0-alpha.1.json"
+yonerai manifest verify $manifest --pretty
+yonerai install plan --manifest $manifest --pretty
+yonerai update check --manifest $manifest --pretty
+.\install.ps1 -Manifest $manifest -Artifact YonerAI-0.8.0-alpha.1.zip
+```
+
+`install.ps1` stays plan-only. It may read a local manifest and print artifact,
+SHA256, signature, and trust status. It does not download, install, mutate
+PATH, execute remote code, request admin, edit registry, or install services.
+OpenAI shared traffic remains OFF by default and private/local content is
+excluded from any future shared-traffic policy.
+Google auth remains a dry-run contract; this is not production Google login.
+
 ## Warnings
 
 - No `irm ... | iex` install flow is provided.

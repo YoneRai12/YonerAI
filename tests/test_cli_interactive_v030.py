@@ -323,10 +323,10 @@ def test_chat_script_runs_ask_auto_and_persists_language_without_path_leak(tmp_p
     assert "YonerAI ミッションコントロール CLI" in output
     assert "YonerAI ミッションコントロール" in output
     assert "実行ID（run_id）" in output
-    assert "プロバイダー（AI接続先）: モック（テスト用）" in output
+    assert "提供元（AI接続元）: モック（テスト用）" in output
     assert "進行状況" in output
     assert "エージェント計画" in output
-    assert "終了します" in output
+    assert "終了しました" in output
     assert config_path.exists()
     assert ledger_path.exists()
     assert str(tmp_path) not in output
@@ -351,7 +351,7 @@ def test_chat_accepts_english_commands_while_showing_japanese_ui(tmp_path: Path,
     assert "設定" in output
     assert "/選択 5 オン" in output
     assert "履歴記録（ローカル履歴）" in output
-    assert "プロバイダー" in output
+    assert "提供元（AI接続元）" in output
     assert "次に試す" in output
     assert "キーの値は表示・保存しません" in output
     assert "安全設定" in output
@@ -369,7 +369,7 @@ def test_chat_accepts_english_commands_while_showing_japanese_ui(tmp_path: Path,
     assert "設定を変更しました: ライブ接続（外部/ローカル実行）=オン" in output
     assert "設定を変更しました: ネットワーク（外部通信）=オン" in output
     assert "設定を変更しました: 更新通知（ローカルmanifest確認）=オン" in output
-    assert "プロバイダー（AI接続先）=モック（テスト用）" in output
+    assert "提供元（AI接続元）=モック（テスト用）" in output
     assert "Network" not in output
     assert "Changed setting" not in output
     assert str(tmp_path) not in output
@@ -396,7 +396,7 @@ def test_chat_japanese_commands_and_values_are_accepted(tmp_path: Path, monkeypa
     assert "ツール（操作機能）" in output
     assert "本番Googleログインはまだ有効にしていません" in output
     assert "private/local内容の除外" in output
-    assert "プロバイダー（AI接続先）=モック（テスト用）" in output
+    assert "提供元（AI接続元）=モック（テスト用）" in output
     assert "言語=日本語" in output
     assert str(tmp_path) not in output
 
@@ -416,7 +416,7 @@ def test_chat_numbered_settings_and_ledger_are_usable_in_japanese(tmp_path: Path
     assert cli.main(["chat", "--script", "--lang", "ja", "--config-path", str(config_path), "--color", "never"]) == 0
     output = capsys.readouterr().out
 
-    assert "設定を変更しました: プロバイダー（AI接続先）=モック（テスト用）" in output
+    assert "設定を変更しました: 提供元（AI接続元）=モック（テスト用）" in output
     assert "設定を変更しました: 履歴記録（ローカル履歴）=オン" in output
     assert "設定を変更しました: ライブ接続（外部/ローカル実行）=オフ" in output
     assert "設定を変更しました: ネットワーク（外部通信）=オフ" in output
@@ -442,7 +442,7 @@ def test_chat_invalid_language_and_provider_keep_shell_alive(tmp_path: Path, mon
     assert cli.main(["chat", "--script", "--lang", "ja", "--config-path", str(config_path), "--color", "never"]) == 0
     output = capsys.readouterr().out
 
-    assert output.count("値が不正です") == 2
+    assert output.count("値が正しくありません") == 2
     assert "YonerAI ミッションコントロール" in output
     assert "Traceback" not in output
     assert str(tmp_path) not in output
@@ -629,9 +629,7 @@ def test_chat_agents_and_run_show_explain_mission_control_state(tmp_path: Path, 
     output = capsys.readouterr().out
 
     assert "エージェント計画" in output
-    assert "計画係" in output
-    assert "調査係" in output
-    assert "レビュー係" in output
+    assert "実サブエージェント起動" in output
     assert "実サブエージェント起動: なし" in output
     assert "進行=" in output
     assert "経路=クラウド候補（ローカル開発スタブ）" in output

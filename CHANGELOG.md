@@ -2,6 +2,22 @@
 
 See also: `docs/RELEASE_NOTES.md` (curated summary, v5.0.0 -> current).
 
+## v0.8.0-alpha.1 (2026-05-31) - Official Install/Auth Boundary
+- Hardened `install.ps1` as a plan-only installer skeleton that can read a
+  local manifest and display artifact, SHA256, signature, and trust status
+  without downloading, installing, mutating PATH, or executing remote code.
+- Added v0.8 install/auth/privacy/self-evolution boundary planning and
+  yonerai.com release/press/install content foundations.
+- Added an official self-evolution boundary contract and a private/official
+  YonerAIOracle handoff stub.
+- Cleaned Japanese-first interactive CLI wording around provider/auth/privacy/
+  safety/self-evolution/update surfaces while preserving English aliases.
+- Preserved boundaries: no production Oracle/cloud runtime, no production
+  Google login, no OpenAI shared traffic runtime, no live Discord, no
+  deploy/public tunnel, no arbitrary shell/file/tool execution, no provider key
+  output/storage, no production signing/trust store, and no production network
+  installer.
+
 ## v0.7.0-alpha.1 (2026-05-31) - Official Bridge Foundation
 - Added public-safe self-evolution proposal queue foundation with synthetic
   low-resolution signals only.
