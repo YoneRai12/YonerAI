@@ -752,9 +752,8 @@ def test_slash_command_summary_is_japanese_first() -> None:
     summary = slash_command_summary("ja")
     report = tui_capability_report()
 
-    assert words[:12] == [
+    assert words[:11] == [
         "/状態",
-        "/ホーム",
         "/設定",
         "/モデル",
         "/提供元",
@@ -776,6 +775,8 @@ def test_slash_command_summary_is_japanese_first() -> None:
     assert "/設定" in words
     assert "/状態" in words
     assert "/ホーム" in words
+    assert words.count("/状態") == 1
+    assert words.count("/ホーム") == 1
     assert "/提供元" in words
     assert "/更新" in words
     assert "/提供元選択" in words

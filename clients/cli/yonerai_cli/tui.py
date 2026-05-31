@@ -27,7 +27,6 @@ class SlashValueSpec:
 
 SLASH_COMMANDS: tuple[SlashCommandSpec, ...] = (
     SlashCommandSpec("/状態", "/status", "状態ヘッダーを再表示", "Show mission-control status", ("/status", "/home")),
-    SlashCommandSpec("/ホーム", "/status", "状態ヘッダーを再表示", "Show mission-control status", ("/home",)),
     SlashCommandSpec("/設定", "/settings", "設定を開く", "Open settings", ("/settings",)),
     SlashCommandSpec(
         "/モデル",
