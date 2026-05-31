@@ -2,6 +2,26 @@
 
 This page is a public-safe index of current release notes and progress checkpoints.
 
+## v0.9.0-alpha.1 TUI Value Completion and Quality Wall
+
+- GitHub pre-release target: `v0.9.0-alpha.1`.
+- Release title: `2026.05.31 - YonerAI v0.9.0-alpha.1 TUI Value Completion and Quality Wall`.
+- Release date: `2026-05-31`.
+- Public release body: `docs/releases/0.9.0-alpha.1.md`.
+- Status: prerelease TUI usability and safety-gate update after
+  v0.8.0-alpha.1.
+- What users can try now: `yonerai`, `/`, `/提供元選択`, `/選択 2`,
+  `/選択 5`, `/ライブ`, `/更新通知`, `/設定`, `/モデル`, `/ローカルLLM`,
+  `/安全`, `/認証`, `/プライバシー`, `/自己進化`, `/更新`, and local manifest
+  dry-run commands against `releases/manifest.v0.9.0-alpha.1.json`.
+- Boundary: Japanese-first TUI value completion and quality-wall hardening
+  only; no production Oracle/cloud runtime, no live Discord, no production
+  Google login, no OpenAI shared traffic runtime, no deploy/public tunnel, no
+  arbitrary shell/file/tool execution, no production signing/trust store, and
+  no production network installer.
+- Primary traceability range: `v0.8.0-alpha.1..v0.9.0-alpha.1`; PRs #471 and
+  #472.
+
 ## v0.8.0-alpha.1 Official Install/Auth Boundary
 
 - GitHub pre-release target: `v0.8.0-alpha.1`.
