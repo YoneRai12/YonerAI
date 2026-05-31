@@ -20,7 +20,7 @@ This page is a public-safe index of current release notes and progress checkpoin
   execution, no production signing/trust store, and no production network
   installer.
 - Primary traceability range: `v0.9.0-alpha.1..v0.10.0-alpha.1`; PRs #474,
-  #475, #476, #477, and #TBD.
+  #475, #476, #477, and #478.
 
 ## v0.9.0-alpha.1 TUI Value Completion and Quality Wall
 
