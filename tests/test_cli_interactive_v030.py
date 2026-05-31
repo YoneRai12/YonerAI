@@ -410,7 +410,7 @@ def test_chat_accepts_readable_japanese_commands_and_values(tmp_path: Path, monk
         sys,
         "stdin",
         _PlainStringIO(
-            "/設定\n/提供元選択 モック\n/言語 日本語\n/履歴記録 オン\n/更新通知 オン\n/終了\n"
+            "/状態\n/ホーム\n/設定\n/提供元選択 モック\n/言語 日本語\n/履歴記録 オン\n/更新通知 オン\n/終了\n"
         ),
     )
 
@@ -422,6 +422,7 @@ def test_chat_accepts_readable_japanese_commands_and_values(tmp_path: Path, monk
     assert stored["language"] == "ja"
     assert stored["ledger_enabled"] is True
     assert stored["update_notice_enabled"] is True
+    assert output.count("YonerAI ミッションコントロール CLI") >= 2
     assert "Unknown command" not in output
     assert str(tmp_path) not in output
 
@@ -751,7 +752,9 @@ def test_slash_command_summary_is_japanese_first() -> None:
     summary = slash_command_summary("ja")
     report = tui_capability_report()
 
-    assert words[:10] == [
+    assert words[:12] == [
+        "/状態",
+        "/ホーム",
         "/設定",
         "/モデル",
         "/提供元",
@@ -764,11 +767,15 @@ def test_slash_command_summary_is_japanese_first() -> None:
         "/プライバシー",
     ]
     assert "/設定" in summary
+    assert "/状態" in summary
+    assert "/ホーム" in summary
     assert "/モデル" in summary
     assert "/認証" in summary
     assert "/プライバシー" in summary
     assert "/更新" in summary
     assert "/設定" in words
+    assert "/状態" in words
+    assert "/ホーム" in words
     assert "/提供元" in words
     assert "/更新" in words
     assert "/提供元選択" in words
@@ -785,6 +792,7 @@ def test_slash_command_summary_is_japanese_first() -> None:
     assert report["json_ansi_output"] is False
     assert report["japanese_alias_completion"] is True
     assert report["japanese_value_completion"] is True
+    assert report["status_screen"] is True
 
 
 def test_slash_value_completion_is_context_aware_and_japanese_first() -> None:
@@ -805,6 +813,8 @@ def test_slash_value_completion_is_context_aware_and_japanese_first() -> None:
     assert slash_value_words("/選択 1 ", "ja") == ["日本語", "英語"]
     assert slash_value_words("/選択 2 ", "ja")[:3] == ["自動", "モック", "ローカル"]
     assert slash_value_words("/選択 5 ", "ja") == ["オン", "オフ"]
+    assert slash_value_words("/モデル ", "ja")[:2] == ["自動", "llama3.1"]
+    assert slash_value_words("/選択 8 ", "ja")[:2] == ["自動", "llama3.1"]
     assert slash_value_words("/ライブ ", "ja") == ["オン", "オフ"]
     assert slash_value_words("/更新通知 ", "ja") == ["オン", "オフ"]
     assert "Anthropic" in slash_value_words("/provider ", "en")
@@ -846,7 +856,7 @@ def test_chat_models_and_update_commands_are_usable(tmp_path: Path, monkeypatch,
     monkeypatch.setattr(
         sys,
         "stdin",
-        _PlainStringIO("/\n/モデル\n/モデル llama3.1\n/更新 releases/manifest.example.json\n/終了\n"),
+        _PlainStringIO("/\n/モデル\n/モデル 自動\n/モデル llama3.1\n/更新 releases/manifest.example.json\n/終了\n"),
     )
 
     assert cli.main(["chat", "--script", "--lang", "ja", "--config-path", str(config_path), "--color", "never"]) == 0

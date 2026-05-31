@@ -47,6 +47,10 @@ for codepoint in range(0x80, 0xA0):
 
 COMMAND_ALIASES = {
     "/?": "/help",
+    "/状態": "/status",
+    "/ホーム": "/status",
+    "/status": "/status",
+    "/home": "/status",
     "/ヘルプ": "/help",
     "/help": "/help",
     "/設定": "/settings",
@@ -313,6 +317,19 @@ def _handle_slash_command(
     args = parts[1:]
     if command == "/quit":
         return {"exit": True}
+    if command == "/status":
+        _write(
+            output_stream,
+            _welcome(
+                lang,
+                provider=provider,
+                live=_effective_live(live, config),
+                config_exists=_config_exists(options.config_path),
+                config=config,
+                ledger_path=ledger_path,
+            ),
+        )
+        return {}
     if command == "/help":
         _write(output_stream, _help(lang))
         return {}
@@ -321,7 +338,7 @@ def _handle_slash_command(
         return {}
     if command == "/models":
         if args:
-            value = args[0].strip()
+            value = _canonical_value(args[0])
             if not MODEL_RE.fullmatch(value) or "://" in value or "\\" in value:
                 _write(output_stream, _invalid(lang))
                 return {}
@@ -1412,6 +1429,8 @@ def _help(lang: str) -> str:
         return "\n".join(
             (
                 "コマンド",
+                "  /状態                 状態ヘッダーをもう一度表示する",
+                "  /ホーム               状態ヘッダーをもう一度表示する",
                 "  /設定                 設定を見る",
                 "  /モデル               モデルとローカルLLMの設定を見る",
                 "  /提供元               提供元（AI接続元）を見る",
@@ -1441,6 +1460,8 @@ def _help(lang: str) -> str:
     return "\n".join(
         (
             "Commands",
+            "  /status          Show the Mission Control status header again",
+            "  /home            Show the Mission Control status header again",
             "  /settings        Show settings",
             "  /models          Show model and local LLM setup",
             "  /providers       Show provider status",
