@@ -33,6 +33,7 @@ SLASH_COMMANDS: tuple[SlashCommandSpec, ...] = (
     SlashCommandSpec("/エージェント", "/agents", "担当計画を見る", "Agent/reviewer plan", ("/agents",)),
     SlashCommandSpec("/認証", "/auth", "Google認証のdry-run状態", "Auth dry-run status", ("/auth",)),
     SlashCommandSpec("/プライバシー", "/privacy", "共有と秘匿境界を見る", "Privacy status", ("/privacy",)),
+    SlashCommandSpec("/自己進化", "/evolve", "proposal-only自己進化キュー", "Self-evolution proposal queue", ("/evolve",)),
     SlashCommandSpec("/更新", "/update", "更新確認", "Update check", ("/update",)),
     SlashCommandSpec("/更新通知", "/update-notice", "更新通知設定", "Update notice setting", ("/update-notice",)),
     SlashCommandSpec("/ヘルプ", "/help", "コマンド一覧", "Help", ("/help", "/?")),
@@ -106,9 +107,9 @@ def prompt_line(*, lang: str, bottom_toolbar: str | None = None) -> str:
         }
     )
     toolbar_text = bottom_toolbar or (
-        "Tab/矢印で候補を選択: /設定 /モデル /提供元 /安全 /履歴 /認証 /更新"
+        "Tab/矢印で候補を選択: /設定 /モデル /提供元 /安全 /履歴 /認証 /自己進化 /更新"
         if lang == "ja"
-        else "Use Tab/arrows for suggestions: /settings /models /providers /safety /runs /auth /update"
+        else "Use Tab/arrows for suggestions: /settings /models /providers /safety /runs /auth /evolve /update"
     )
     prompt = HTML("<prompt>yonerai</prompt> > ")
     session = PromptSession(
