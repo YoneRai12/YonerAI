@@ -1,6 +1,5 @@
 # ruff: noqa: E402, F401, B023, B007, B008
 import os
-from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
 
@@ -30,19 +29,46 @@ def test_config_limits_endpoint_requires_token(monkeypatch):
         assert isinstance(data, dict)
 
 
-def test_auth_link_code_happy_path(monkeypatch):
-    # Avoid reading google_client_secrets.json by mocking Flow.
+def test_auth_link_code_is_public_disabled_contract(monkeypatch):
     with TestClient(app) as client:
-        with patch("src.web.endpoints.Flow") as MockFlow:
-            mock_flow = MagicMock()
-            MockFlow.from_client_secrets_file.return_value = mock_flow
-            mock_flow.authorization_url.return_value = ("http://google.com/auth", "state")
+        resp = client.post("/api/auth/link-code", json={"user_id": "123456789"})
 
-            resp = client.post("/api/auth/link-code", json={"user_id": "123456789"})
-            assert resp.status_code == 200
-            data = resp.json()
-            assert "url" in data
-            assert "code" in data
+    assert resp.status_code == 501
+    data = resp.json()
+
+    assert data["schema_version"] == "yonerai-public-google-auth/v0.1"
+    assert data["status"] == "disabled"
+    assert data["live_oauth_enabled"] is False
+    assert data["dry_run_contract_only"] is True
+    assert data["required_future_flow"]["pkce_required"] is True
+    assert data["required_future_flow"]["state_required"] is True
+    assert data["required_future_flow"]["loopback_redirect_only"] is True
+    assert data["required_future_flow"]["minimal_scopes"] == ["openid", "email", "profile"]
+    assert "no live OAuth redirect" in data["actions_not_performed"]
+    assert "no Google token exchange" in data["actions_not_performed"]
+    assert "no credential storage" in data["actions_not_performed"]
+    assert "no refresh token storage" in data["actions_not_performed"]
+    assert "no Drive scope request" in data["actions_not_performed"]
+    assert "url" not in data
+    assert "code" not in data
+    assert "google.com" not in resp.text
+    assert "drive.file" not in resp.text
+
+
+def test_google_auth_routes_do_not_redirect_or_exchange_tokens(monkeypatch):
+    with TestClient(app) as client:
+        start = client.get("/api/auth/discord?discord_user_id=123456789", follow_redirects=False)
+        callback = client.get("/api/auth/google/callback?code=fake-code&state=fake-state", follow_redirects=False)
+
+    for resp in (start, callback):
+        assert resp.status_code == 501
+        data = resp.json()
+        assert data["status"] == "disabled"
+        assert data["live_oauth_enabled"] is False
+        assert "location" not in {key.lower() for key in resp.headers}
+        assert "no Google token exchange" in data["actions_not_performed"]
+        assert "google.com" not in resp.text
+        assert "drive.file" not in resp.text
 
 
 def teardown_module():

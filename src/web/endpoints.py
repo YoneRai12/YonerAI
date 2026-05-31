@@ -12,11 +12,8 @@ from typing import Any, List, Mapping
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request, Response, WebSocket, WebSocketDisconnect, Depends, Header, Query
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
-from google.auth.transport import requests as g_requests
-from google.oauth2 import id_token
-from google_auth_oauthlib.flow import Flow
 from sse_starlette.sse import EventSourceResponse
 
 from src.config import COST_LIMITS
@@ -976,99 +973,61 @@ async def websocket_endpoint(websocket: WebSocket, token: str | None = Query(Non
         manager.disconnect(websocket)
 
 
-GOOGLE_CLIENT_SECRETS_FILE = "google_client_secrets.json"
-GOOGLE_SCOPES = ["openid", "https://www.googleapis.com/auth/drive.file", "email", "profile"]
-GOOGLE_REDIRECT_URI = "http://localhost:8000/api/auth/google/callback"  # Update with actual domain in prod
+GOOGLE_PUBLIC_AUTH_SCOPE_CONTRACT = ["openid", "email", "profile"]
+GOOGLE_PUBLIC_AUTH_ACTIONS_NOT_PERFORMED = [
+    "no live OAuth redirect",
+    "no Google token exchange",
+    "no credential storage",
+    "no refresh token storage",
+    "no Drive scope request",
+    "no production account link",
+]
 
 
-def build_flow(state: str | None = None) -> Flow:
-    return Flow.from_client_secrets_file(
-        GOOGLE_CLIENT_SECRETS_FILE,
-        scopes=GOOGLE_SCOPES,
-        redirect_uri=GOOGLE_REDIRECT_URI,
-        state=state,
-    )
+def _google_oauth_public_disabled_contract(route: str) -> dict[str, Any]:
+    return {
+        "schema_version": "yonerai-public-google-auth/v0.1",
+        "status": "disabled",
+        "route": route,
+        "reason": "production Google login is not implemented in the public repository",
+        "live_oauth_enabled": False,
+        "dry_run_contract_only": True,
+        "required_future_flow": {
+            "pkce_required": True,
+            "state_required": True,
+            "loopback_redirect_only": True,
+            "minimal_scopes": GOOGLE_PUBLIC_AUTH_SCOPE_CONTRACT,
+            "embedded_webview_allowed": False,
+            "token_printing_allowed": False,
+            "refresh_token_plaintext_storage_allowed": False,
+        },
+        "actions_not_performed": GOOGLE_PUBLIC_AUTH_ACTIONS_NOT_PERFORMED,
+    }
 
 
 @router.get("/auth/discord")
 async def auth_discord(request: Request, code: str | None = None, state: str | None = None):
-    # If no code, redirect to Google
-    if code is None:
-        discord_user_id = request.query_params.get("discord_user_id")
-        flow = build_flow(state=discord_user_id or "")
-        auth_url, _ = flow.authorization_url(prompt="consent", include_granted_scopes="true")
-        return RedirectResponse(auth_url)
-
-    # If code exists, handle Discord auth (not implemented yet per instructions)
-    return {"message": "Discord auth flow not fully implemented yet."}
+    return JSONResponse(
+        status_code=501,
+        content=_google_oauth_public_disabled_contract("/api/auth/discord"),
+    )
 
 
 @router.get("/auth/google/callback")
-async def auth_google_callback(request: Request, code: str, state: str | None = None):
-    # We need the store. Since we can't import from app easily due to circular deps,
-    # we will access it via the app instance attached to the request, or import it inside.
-    from src.web.app import get_store
-
-    store = get_store()
-
-    flow = build_flow(state=state)
-    flow.fetch_token(code=code)
-
-    creds = flow.credentials
-    request_adapter = g_requests.Request()
-    idinfo = id_token.verify_oauth2_token(
-        creds.id_token,
-        request_adapter,
-        flow.client_config["client_id"],
+async def auth_google_callback(request: Request, code: str | None = None, state: str | None = None):
+    return JSONResponse(
+        status_code=501,
+        content=_google_oauth_public_disabled_contract("/api/auth/google/callback"),
     )
-
-    google_sub = idinfo["sub"]
-    email = idinfo.get("email")
-
-    # Update DB
-    await store.upsert_google_user(google_sub=google_sub, email=email, credentials=creds)
-
-    # Link Discord User
-    discord_user_id = state
-    if discord_user_id:
-        # Validate discord_user_id is int-like
-        if discord_user_id.isdigit():
-            await store.link_discord_google(int(discord_user_id), google_sub)
-
-    return RedirectResponse(url="/linked")  # Redirect to a success page (to be created)
 
 
 @router.post("/auth/link-code")
 async def request_link_code(request: Request):
-    """Generate a temporary link code for a Discord user."""
-    try:
-        data = await request.json()
-        discord_user_id = data.get("user_id")
-        if not discord_user_id:
-            raise HTTPException(status_code=400, detail="Missing user_id")
-
-        store = get_store()
-        # Create a unique state/code
-        code = str(uuid.uuid4())
-
-        # Store it with expiration (e.g., 15 minutes)
-        await store.start_login_state(code, discord_user_id, ttl_sec=900)
-
-        # Return the auth URL that the user should visit
-        # In a real app, this might be a short link or just the code
-        # For ORA, we return the full URL to the web auth endpoint with state
-        auth_url = f"{GOOGLE_REDIRECT_URI}?state={code}"  # Wait, this is callback.
-        # We need to point to the start of the flow
-        # Actually, the user should visit /api/auth/discord?discord_user_id=...
-        # But we want to use the code as state.
-
-        # Let's construct the Google Auth URL directly or via our endpoint
-        flow = build_flow(state=code)
-        auth_url, _ = flow.authorization_url(prompt="consent", include_granted_scopes="true")
-
-        return {"url": auth_url, "code": code}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    """Return the public disabled contract for legacy account-link requests."""
+    return JSONResponse(
+        status_code=501,
+        content=_google_oauth_public_disabled_contract("/api/auth/link-code"),
+    )
 
 
 @router.post("/ocr")
