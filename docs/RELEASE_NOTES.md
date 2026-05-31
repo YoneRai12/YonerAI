@@ -2,6 +2,27 @@
 
 This page is a public-safe index of current release notes and progress checkpoints.
 
+## v0.7.0-alpha.1 Official Bridge Foundation
+
+- GitHub pre-release target: `v0.7.0-alpha.1`.
+- Release title: `2026.05.31 - YonerAI v0.7.0-alpha.1 Official Bridge Foundation`.
+- Release date: `2026-05-31`.
+- Public release body: `docs/releases/0.7.0-alpha.1.md`.
+- Status: prerelease bridge foundation after v0.6.0 stable CLI Local Runtime.
+- What users can try now: `yonerai evolve status --pretty --lang ja`,
+  `yonerai evolve simulate --fixture tests/fixtures/self_evolution/queue_signals.json --pretty --lang ja`,
+  `yonerai evolve proposals list/show`, `/自己進化`, `/evolve`,
+  `yonerai auth status --pretty --lang ja`,
+  `yonerai auth google login --dry-run --pretty --lang ja`,
+  `yonerai privacy status --pretty --lang ja`, and local manifest dry-run
+  commands against `releases/manifest.v0.7.0-alpha.1.json`.
+- Boundary: proposal-only self-evolution, Google OAuth dry-run/contract only,
+  OpenAI shared traffic disabled by default, no production Oracle/cloud
+  runtime, no live Discord, no deploy/public tunnel, no arbitrary
+  shell/file/tool execution, no production signing/trust store, and no
+  production network installer.
+- Primary traceability range: `v0.6.0..v0.7.0-alpha.1`; PR #469.
+
 ## v0.6.0 CLI Local Runtime
 
 - GitHub release target: `v0.6.0`.

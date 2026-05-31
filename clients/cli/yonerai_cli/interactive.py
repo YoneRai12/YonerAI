@@ -72,6 +72,8 @@ COMMAND_ALIASES = {
     "/auth": "/auth",
     "/プライバシー": "/privacy",
     "/privacy": "/privacy",
+    "/自己進化": "/evolve",
+    "/evolve": "/evolve",
     "/ローカルllm": "/local-llm",
     "/ローカルLLM": "/local-llm",
     "/local-llm": "/local-llm",
@@ -134,6 +136,7 @@ class InteractiveCallbacks:
     runs_list: Callable[[str | None, int, str], dict[str, Any]]
     runs_show: Callable[[str, str | None, str], dict[str, Any]]
     update_check: Callable[[str | None, str], dict[str, Any]] | None = None
+    evolve_status: Callable[[str], dict[str, Any]] | None = None
 
 
 @dataclass(frozen=True)
@@ -352,6 +355,12 @@ def _handle_slash_command(
         return {}
     if command == "/privacy":
         _write(output_stream, _format_privacy_status(config, lang=lang))
+        return {}
+    if command == "/evolve":
+        if callbacks.evolve_status is None:
+            _write(output_stream, _format_evolve_unavailable(lang))
+            return {}
+        _write(output_stream, _format_evolve_status(callbacks.evolve_status(lang), lang=lang))
         return {}
     if command == "/local-llm":
         _write(output_stream, _format_local_llm_setup(callbacks.providers(), lang=lang))
@@ -1239,6 +1248,48 @@ def _format_privacy_status(config: dict[str, object], *, lang: str) -> str:
     return "\n".join(lines)
 
 
+def _format_evolve_status(report: dict[str, Any], *, lang: str) -> str:
+    actions = report.get("actions_not_performed") if isinstance(report.get("actions_not_performed"), list) else []
+    policy = report.get("input_policy") if isinstance(report.get("input_policy"), dict) else {}
+    if lang == "ja":
+        lines = [
+            "自己進化プロポーザル",
+            f"  状態: {_safe(report.get('status') or '不明')}",
+            f"  proposal-only: {_yes_no(report.get('proposal_only'), lang='ja')}",
+            f"  既定signal数: {_safe(report.get('default_signal_count') or 0)}",
+            "  入力: 合成/低解像度signalだけ",
+            f"  raw prompt許可: {_yes_no(policy.get('raw_prompt_allowed'), lang='ja')}",
+            f"  PII許可: {_yes_no(policy.get('pii_allowed'), lang='ja')}",
+            f"  安定ユーザー追跡: {_yes_no(policy.get('stable_user_tracking_allowed'), lang='ja')}",
+            "  実行しないこと:",
+        ]
+        for action in actions[:8]:
+            lines.append(f"    - {_safe(action)}")
+        lines.append("  試す: yonerai evolve simulate --pretty --lang ja")
+        lines.append("")
+        return "\n".join(lines)
+    lines = [
+        "Self-evolution proposals",
+        f"  status: {_safe(report.get('status') or 'unknown')}",
+        f"  proposal_only: {bool(report.get('proposal_only'))}",
+        f"  default_signal_count: {_safe(report.get('default_signal_count') or 0)}",
+        "  input: synthetic low-resolution signals only",
+        f"  raw_prompt_allowed: {bool(policy.get('raw_prompt_allowed'))}",
+        f"  pii_allowed: {bool(policy.get('pii_allowed'))}",
+        f"  stable_user_tracking_allowed: {bool(policy.get('stable_user_tracking_allowed'))}",
+        "  actions_not_performed: " + ", ".join(_safe(action) for action in actions[:8]),
+        "  try: yonerai evolve simulate --pretty --lang en",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def _format_evolve_unavailable(lang: str) -> str:
+    if lang == "ja":
+        return "自己進化プロポーザルキューはこのビルドでは利用できません。\n"
+    return "Self-evolution proposal queue is unavailable in this build.\n"
+
+
 def _format_update_check(report: dict[str, Any], *, lang: str) -> str:
     artifact = report.get("artifact_status") if isinstance(report.get("artifact_status"), dict) else {}
     signature = report.get("signature_status") if isinstance(report.get("signature_status"), dict) else {}
@@ -1396,7 +1447,8 @@ def _welcome(
                 f"  ライブ接続: {'オン（明示許可）' if live else 'オフ（初期値）'} / 設定={'既存' if config_exists else '初期値'}",
                 f"  更新通知: {update_notice}（ローカルmanifest確認のみ）",
                 "  認証/プライバシー: Google OAuthドライランのみ / OpenAI共有トラフィックオフ",
-                "使う: そのまま質問を書く / / で候補表示 / /設定 / /モデル / /提供元 / /安全 / /履歴 / /認証 / /更新",
+                "  自己進化: proposal-only / 合成signalだけ / 自動PR・deployなし",
+                "使う: そのまま質問を書く / / で候補表示 / /設定 / /モデル / /提供元 / /安全 / /履歴 / /認証 / /自己進化 / /更新",
                 "設定を変える: /選択 <番号> <値>",
                 "",
             )
@@ -1408,7 +1460,8 @@ def _welcome(
             f"provider={provider} model={model} route=not_run local_node=standby ledger={ledger_en} live={'on' if live else 'off'} update_notice={update_notice_en} config={'found' if config_exists else 'created/default'}",
             "Safety: network off / tools dry-run / workspace file only / arbitrary shell disabled / live providers off by default",
             "Auth/privacy: Google OAuth dry-run only / OpenAI shared traffic off",
-            "Use: type a message, / for suggestions, /settings, /models, /providers, /safety, /runs, /auth, /update",
+            "Self-evolution: proposal-only, synthetic signals only, no PR/deploy/mutation",
+            "Use: type a message, / for suggestions, /settings, /models, /providers, /safety, /runs, /auth, /evolve, /update",
             "",
         )
     )
@@ -1430,6 +1483,7 @@ def _help(lang: str) -> str:
                 "  /ローカルLLM          PC内モデルの接続方法を見る",
                 "  /認証                 Google OAuthドライラン状態を見る",
                 "  /プライバシー         共有と秘匿境界を見る",
+                "  /自己進化             proposal-only自己進化キューを見る",
                 "  /更新                 ローカルmanifestで更新を確認",
                 "  /更新通知 オン|オフ   起動時の更新案内設定を変更",
                 "  /言語 日本語|英語     表示言語を変更",
@@ -1458,6 +1512,7 @@ def _help(lang: str) -> str:
             "  /local-llm       Show local LLM loopback setup",
             "  /auth            Show Google OAuth dry-run status",
             "  /privacy         Show shared-traffic and private-content policy",
+            "  /evolve          Show proposal-only self-evolution queue",
             "  /update          Check local manifest update status",
             "  /update-notice on|off Toggle startup update notice setting",
             "  /language ja|en  Change language",

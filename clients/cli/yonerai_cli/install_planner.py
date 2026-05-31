@@ -198,7 +198,10 @@ def build_update_plan(manifest_path: str, *, current_version: str) -> dict[str, 
 
 
 def build_update_plan_from_default(repo_root: Path, *, current_version: str) -> dict[str, Any]:
-    return build_update_plan(str(default_update_manifest_path(repo_root)), current_version=current_version)
+    return build_update_plan(
+        str(default_update_manifest_path(repo_root, include_prerelease=_is_prerelease_version(current_version))),
+        current_version=current_version,
+    )
 
 
 def build_update_check(manifest_path: str, *, current_version: str) -> dict[str, Any]:
@@ -241,15 +244,19 @@ def build_update_check(manifest_path: str, *, current_version: str) -> dict[str,
 
 
 def build_update_check_from_default(repo_root: Path, *, current_version: str) -> dict[str, Any]:
-    return build_update_check(str(default_update_manifest_path(repo_root)), current_version=current_version)
+    return build_update_check(
+        str(default_update_manifest_path(repo_root, include_prerelease=_is_prerelease_version(current_version))),
+        current_version=current_version,
+    )
 
 
-def default_update_manifest_path(repo_root: Path) -> Path:
+def default_update_manifest_path(repo_root: Path, *, include_prerelease: bool = False) -> Path:
     releases = repo_root / "releases"
     candidates = [
         path
         for path in releases.glob("manifest.v*.json")
-        if _version_from_manifest_filename(path) is not None
+        if (version := _version_from_manifest_filename(path)) is not None
+        and (include_prerelease or not _is_prerelease_version(version))
     ]
     if not candidates:
         return releases / "manifest.example.json"
@@ -358,6 +365,10 @@ def _version_from_manifest_filename(path: Path) -> str | None:
         return None
     version = name.removeprefix("manifest.v").removesuffix(".json")
     return version if SEMVER_RE.match(version) else None
+
+
+def _is_prerelease_version(version: str) -> bool:
+    return "-" in version.split("+", 1)[0]
 
 
 def _display_manifest_path(path: str) -> str:

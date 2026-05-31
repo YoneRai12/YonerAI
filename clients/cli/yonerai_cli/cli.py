@@ -3278,6 +3278,110 @@ def _build_privacy_status_report_for_cli(args: argparse.Namespace) -> dict[str, 
     return build_privacy_status(_load_config_for_policy(args))
 
 
+def _load_evolve_signals_for_cli(args: argparse.Namespace) -> list[Any] | None:
+    fixture = getattr(args, "fixture", None)
+    if not fixture:
+        return None
+    try:
+        fixture_path = Path(fixture).expanduser().resolve()
+        allowed_roots = (_repo_root().resolve(), Path.cwd().resolve())
+        if not any(fixture_path.is_relative_to(root) for root in allowed_roots):
+            raise CliError("self-evolution fixture must be inside the current workspace.", exit_code=2)
+        _prepare_repo_import_path()
+        from src.self_evolution import load_queue_signal_fixture
+
+        return list(load_queue_signal_fixture(fixture_path))
+    except CliError:
+        raise
+    except Exception as exc:
+        raise CliError(f"self-evolution fixture is unavailable: {exc}", exit_code=2) from exc
+
+
+def _build_evolve_report_for_cli(args: argparse.Namespace) -> dict[str, Any]:
+    try:
+        _prepare_repo_import_path()
+        from src.self_evolution import (
+            UnsafeSignalError,
+            build_queue_list_report,
+            build_queue_show_report,
+            build_queue_simulation_report,
+            build_queue_status_report,
+        )
+    except Exception as exc:
+        raise CliError("self-evolution proposal queue is unavailable.", exit_code=1) from exc
+
+    try:
+        if args.evolve_command == "status":
+            return build_queue_status_report()
+        signals = _load_evolve_signals_for_cli(args)
+        if args.evolve_command == "simulate":
+            return build_queue_simulation_report(signals)
+        if args.evolve_command == "proposals" and args.evolve_proposals_command == "list":
+            return build_queue_list_report(signals)
+        if args.evolve_command == "proposals" and args.evolve_proposals_command == "show":
+            return build_queue_show_report(args.proposal_id, signals)
+    except UnsafeSignalError as exc:
+        raise CliError(str(exc), exit_code=2) from exc
+    raise CliError("unknown evolve command", exit_code=2)
+
+
+def _print_evolve_pretty(report: dict[str, Any], *, lang: str = "ja", color: ColorMode = "auto") -> None:
+    if lang == "ja":
+        title = "YonerAI自己進化プロポーザルキュー"
+        status_title = "状態"
+        boundary_title = "実行しないこと"
+        proposal_title = "候補"
+    else:
+        title = "YonerAI self-evolution proposal queue"
+        status_title = "Status"
+        boundary_title = "Non-actions"
+        proposal_title = "Proposals"
+    rows = [
+        CliRow("schema_version", report.get("schema_version"), "ok"),
+        CliRow("ok", report.get("ok"), "ok" if report.get("ok") else "fail"),
+    ]
+    for key in ("status", "proposal_only", "dry_run", "source", "signal_count", "proposal_count"):
+        if key in report:
+            rows.append(CliRow(key, report.get(key), "ok"))
+    proposals = report.get("proposals")
+    proposal_rows: list[CliRow] = []
+    if isinstance(proposals, list):
+        for item in proposals[:8]:
+            if not isinstance(item, dict):
+                continue
+            signal = item.get("signal") if isinstance(item.get("signal"), dict) else {}
+            proposal_rows.append(
+                CliRow(
+                    str(item.get("proposal_id") or signal.get("feature_id") or "proposal"),
+                    f"{item.get('approval_state') or 'unknown'} / {signal.get('surface') or 'unknown'}",
+                    "warn" if item.get("approval_state") == "needs_owner" else "ok",
+                )
+            )
+    proposal = report.get("proposal")
+    if isinstance(proposal, dict):
+        signal = proposal.get("signal") if isinstance(proposal.get("signal"), dict) else {}
+        candidate = proposal.get("candidate") if isinstance(proposal.get("candidate"), dict) else {}
+        proposal_rows.extend(
+            [
+                CliRow("proposal_id", proposal.get("proposal_id"), "ok"),
+                CliRow("approval_state", proposal.get("approval_state"), "warn"),
+                CliRow("feature_id", signal.get("feature_id"), "ok"),
+                CliRow("surface", signal.get("surface"), "ok"),
+                CliRow("user_impact", candidate.get("user_impact"), "ok"),
+                CliRow("privacy_risk", candidate.get("privacy_risk"), "ok"),
+                CliRow("test_plan", candidate.get("test_plan"), "ok"),
+                CliRow("rollback_plan", candidate.get("rollback_plan"), "ok"),
+            ]
+        )
+    non_action_rows = tuple(CliRow(item, True, "ok") for item in report.get("actions_not_performed", []))
+    sections = [CliSection(status_title, tuple(rows))]
+    if proposal_rows:
+        sections.append(CliSection(proposal_title, tuple(proposal_rows)))
+    if non_action_rows:
+        sections.append(CliSection(boundary_title, non_action_rows))
+    print(render_report(title, tuple(sections), color=color))
+
+
 def _print_auth_pretty(report: dict[str, Any], *, lang: str = "ja", color: ColorMode = "auto") -> None:
     flow = report.get("flow") if isinstance(report.get("flow"), dict) else {}
     storage = report.get("storage") if isinstance(report.get("storage"), dict) else {}
@@ -3383,6 +3487,7 @@ def _interactive_callbacks():
         runs_list=_interactive_runs_list,
         runs_show=_interactive_runs_show,
         update_check=_interactive_update_check,
+        evolve_status=_interactive_evolve_status,
     )
 
 
@@ -3412,6 +3517,11 @@ def _interactive_runs_show(run_id: str, ledger_path: str | None, _lang: str) -> 
 def _interactive_update_check(manifest_path: str | None, _lang: str) -> dict[str, Any]:
     args = argparse.Namespace(update_command="check", manifest=manifest_path)
     return _build_update_report(args)
+
+
+def _interactive_evolve_status(_lang: str) -> dict[str, Any]:
+    args = argparse.Namespace(evolve_command="status")
+    return _build_evolve_report_for_cli(args)
 
 
 def _run_interactive_chat(args: argparse.Namespace) -> int:
@@ -3537,6 +3647,39 @@ def build_parser() -> argparse.ArgumentParser:
     privacy_status_output.add_argument("--pretty", action="store_true", help="Print a readable privacy status.")
     privacy_status.add_argument("--lang", choices=LANG_CHOICES, default="ja", help="Pretty output language. Default: ja.")
     privacy_status.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
+
+    evolve = subcommands.add_parser("evolve", help="Inspect proposal-only self-evolution queue fixtures.")
+    evolve_subcommands = evolve.add_subparsers(dest="evolve_command", required=True)
+    evolve_status = evolve_subcommands.add_parser("status", help="Show proposal-only queue boundaries.")
+    evolve_status_output = evolve_status.add_mutually_exclusive_group()
+    evolve_status_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
+    evolve_status_output.add_argument("--pretty", action="store_true", help="Print a readable queue status.")
+    evolve_status.add_argument("--lang", choices=LANG_CHOICES, default="ja", help="Pretty output language. Default: ja.")
+    evolve_status.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
+    evolve_simulate = evolve_subcommands.add_parser("simulate", help="Generate owner-reviewable proposals from synthetic low-resolution signals.")
+    evolve_simulate.add_argument("--fixture", help="Optional local public-safe queue signal fixture JSON.")
+    evolve_simulate_output = evolve_simulate.add_mutually_exclusive_group()
+    evolve_simulate_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
+    evolve_simulate_output.add_argument("--pretty", action="store_true", help="Print a readable simulation report.")
+    evolve_simulate.add_argument("--lang", choices=LANG_CHOICES, default="ja", help="Pretty output language. Default: ja.")
+    evolve_simulate.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
+    evolve_proposals = evolve_subcommands.add_parser("proposals", help="List or show proposal-only queue items.")
+    evolve_proposals_subcommands = evolve_proposals.add_subparsers(dest="evolve_proposals_command", required=True)
+    evolve_proposals_list = evolve_proposals_subcommands.add_parser("list", help="List synthetic proposal queue items.")
+    evolve_proposals_list.add_argument("--fixture", help="Optional local public-safe queue signal fixture JSON.")
+    evolve_proposals_list_output = evolve_proposals_list.add_mutually_exclusive_group()
+    evolve_proposals_list_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
+    evolve_proposals_list_output.add_argument("--pretty", action="store_true", help="Print a readable proposal list.")
+    evolve_proposals_list.add_argument("--lang", choices=LANG_CHOICES, default="ja", help="Pretty output language. Default: ja.")
+    evolve_proposals_list.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
+    evolve_proposals_show = evolve_proposals_subcommands.add_parser("show", help="Show one synthetic proposal queue item.")
+    evolve_proposals_show.add_argument("proposal_id")
+    evolve_proposals_show.add_argument("--fixture", help="Optional local public-safe queue signal fixture JSON.")
+    evolve_proposals_show_output = evolve_proposals_show.add_mutually_exclusive_group()
+    evolve_proposals_show_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
+    evolve_proposals_show_output.add_argument("--pretty", action="store_true", help="Print a readable proposal detail.")
+    evolve_proposals_show.add_argument("--lang", choices=LANG_CHOICES, default="ja", help="Pretty output language. Default: ja.")
+    evolve_proposals_show.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
 
     subcommands.add_parser("health", parents=[shared], help="Check the local Core API health endpoint.")
 
@@ -3903,6 +4046,13 @@ def run(argv: list[str] | None = None) -> int:
             _print_json(report)
         else:
             _print_privacy_pretty(report, lang=args.lang, color=args.color)
+        return 0 if report["ok"] else 1
+    if args.command == "evolve":
+        report = _build_evolve_report_for_cli(args)
+        if args.json:
+            _print_json(report)
+        else:
+            _print_evolve_pretty(report, lang=args.lang, color=args.color)
         return 0 if report["ok"] else 1
     if args.command == "health":
         _print_json(request_json("GET", args.api_origin, "/health"))

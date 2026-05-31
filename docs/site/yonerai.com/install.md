@@ -89,6 +89,24 @@ production control plane.
 - Manifest asset: https://github.com/YoneRai12/YonerAI/releases/download/v0.6.0/manifest.v0.6.0.json
 - Manifest source in a checkout: `releases/manifest.v0.6.0.json`
 
+## Prerelease bridge preview
+
+v0.7.0-alpha.1 is a prerelease bridge foundation, not the stable install
+recommendation. Use v0.6.0 for the current stable CLI Local Runtime unless you
+are explicitly testing the official-bridge alpha.
+
+```powershell
+$manifest = ".\manifest.v0.7.0-alpha.1.json"
+yonerai manifest verify $manifest --pretty
+yonerai install plan --manifest $manifest --pretty
+yonerai update check --manifest $manifest --pretty
+yonerai update plan --manifest $manifest --pretty
+```
+
+The v0.7 prerelease path keeps the same non-actions: no download by default, no
+install by default, no PATH mutation, no remote script execution, no service
+install, and no production signing/trust material.
+
 ## Warnings
 
 - No `irm ... | iex` install flow is provided.
