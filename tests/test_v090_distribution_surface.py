@@ -34,6 +34,8 @@ def test_v090_site_content_exists_and_keeps_boundaries() -> None:
 
     assert "releases\\manifest.v0.9.0-alpha.1.json" in release_page
     assert "YonerAI-0.9.0-alpha.1.zip" in install_page
+    assert "/設定" in release_page
+    assert "/状態" in release_page
 
 
 def test_v090_release_note_and_index_section_are_readable() -> None:
@@ -47,3 +49,6 @@ def test_v090_release_note_and_index_section_are_readable() -> None:
         assert "/自己進化" in text
         assert "Quality Wall" in text
         assert not any(marker in text for marker in MOJIBAKE_MARKERS)
+
+    assert "/設定" in v090_index_section
+    assert "/状態" in v090_index_section
