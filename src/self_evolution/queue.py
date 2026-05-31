@@ -232,6 +232,7 @@ def load_queue_signal_fixture(path: str | Path) -> list[QueueSignal]:
     if not fixture_path.is_file():
         raise UnsafeSignalError("queue fixture path must be a local file")
     payload = json.loads(fixture_path.read_text(encoding="utf-8"))
+    _walk_queue_safe(payload)
     signals = payload.get("signals") if isinstance(payload, dict) else payload
     if not isinstance(signals, list):
         raise UnsafeSignalError("queue fixture must contain a list of signals")

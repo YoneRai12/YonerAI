@@ -81,6 +81,21 @@ def test_v070_install_and_update_plans_are_dry_run_only() -> None:
     assert update_plan["remote_code_executed"] is False
 
 
+def test_default_update_manifest_keeps_stable_users_on_stable_channel() -> None:
+    _prepare_paths()
+    from yonerai_cli.install_planner import build_update_check_from_default, default_update_manifest_path
+
+    stable_default = default_update_manifest_path(ROOT)
+    stable_report = build_update_check_from_default(ROOT, current_version="0.6.0")
+    alpha_report = build_update_check_from_default(ROOT, current_version="0.7.0-alpha.1")
+
+    assert stable_default.name == "manifest.v0.6.0.json"
+    assert stable_report["latest_manifest_version"] == "0.6.0"
+    assert stable_report["update_available"] is False
+    assert alpha_report["latest_manifest_version"] == "0.7.0-alpha.1"
+    assert alpha_report["update_available"] is False
+
+
 def test_v070_site_and_release_docs_explain_bridge_boundaries() -> None:
     release_note = (ROOT / "docs" / "releases" / "0.7.0-alpha.1.md").read_text(encoding="utf-8")
     site_release = (ROOT / "docs" / "site" / "yonerai.com" / "releases" / "v0.7.0-alpha.1.md").read_text(

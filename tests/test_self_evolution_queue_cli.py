@@ -50,6 +50,16 @@ def test_queue_signal_rejects_private_or_action_taking_fields() -> None:
         normalize_queue_signal(unsafe_path)
 
 
+def test_queue_fixture_rejects_forbidden_root_metadata(tmp_path: Path) -> None:
+    from src.self_evolution import UnsafeSignalError, load_queue_signal_fixture
+
+    fixture = tmp_path / "unsafe_root_queue_signals.json"
+    fixture.write_text('{"api_key": "fixture", "signals": []}', encoding="utf-8")
+
+    with pytest.raises(UnsafeSignalError):
+        load_queue_signal_fixture(fixture)
+
+
 def test_evolve_status_json_is_proposal_only(capsys) -> None:
     from yonerai_cli import cli
 
