@@ -44,7 +44,7 @@ def test_v010_release_and_site_content_keep_boundaries() -> None:
         assert "v0.10.0-alpha.1" in text
         assert "production oracle" in normalized
         assert "network installer" in normalized
-        assert "OpenAI shared traffic" in text
+        assert "openai shared traffic" in normalized
         assert not any(marker in text for marker in MOJIBAKE_MARKERS)
 
     for command in ("/ホーム", "/状態", "/設定", "/モデル", "/提供元選択", "/認証", "/プライバシー", "/自己進化"):
