@@ -29,7 +29,7 @@ See [LICENSE](LICENSE), [LICENSE_JP.md](LICENSE_JP.md), [NOTICE](NOTICE), and
 ## Install and start YonerAI
 
 This is the local CLI runtime path, not full YonerAI cloud production. For
-v0.6.2, the one-command path downloads installable bytes from GitHub Release
+v0.6.3, the one-command path downloads installable bytes from GitHub Release
 assets only. `yonerai.com/install` is a command page, not an installer file
 host.
 
@@ -47,22 +47,34 @@ production cloud behavior.
 To verify the bootstrap script hash before running it:
 
 ```powershell
-$b = "https://github.com/YoneRai12/YonerAI/releases/latest/download"
-irm "$b/install.ps1" -OutFile install.ps1
-irm "$b/install.ps1.sha256" -OutFile install.ps1.sha256
-if ((Get-FileHash .\install.ps1 -Algorithm SHA256).Hash.ToLowerInvariant() -ne ((Get-Content .\install.ps1.sha256).Split()[0].ToLowerInvariant())) { throw "install.ps1 hash mismatch" }
-.\install.ps1 -Execute -Launch
+$ErrorActionPreference = "Stop"
+$base = "https://github.com/YoneRai12/YonerAI/releases/latest/download"
+$tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("yonerai-bootstrap-" + [guid]::NewGuid().ToString("N"))
+New-Item -ItemType Directory -Path $tmp | Out-Null
+try {
+  $script = Join-Path $tmp "install.ps1"
+  $sidecar = Join-Path $tmp "install.ps1.sha256"
+  irm "$base/install.ps1" -OutFile $script
+  irm "$base/install.ps1.sha256" -OutFile $sidecar
+  $expected = ((Get-Content -LiteralPath $sidecar -Raw).Split()[0]).ToLowerInvariant()
+  if ($expected -notmatch "^[a-f0-9]{64}$") { throw "install.ps1 sidecar SHA256 is invalid" }
+  $actual = (Get-FileHash -LiteralPath $script -Algorithm SHA256).Hash.ToLowerInvariant()
+  if ($actual -ne $expected) { throw "install.ps1 hash mismatch" }
+  & powershell -NoProfile -ExecutionPolicy Bypass -File $script -Execute -Launch
+} finally {
+  if (Test-Path -LiteralPath $tmp) { Remove-Item -LiteralPath $tmp -Recurse -Force }
+}
 ```
 
 ### If you downloaded the GitHub Release ZIP
 
 Download `Source code (zip)` from the
-[v0.6.2 release](https://github.com/YoneRai12/YonerAI/releases/tag/v0.6.2),
+[v0.6.3 release](https://github.com/YoneRai12/YonerAI/releases/tag/v0.6.3),
 extract it, then run PowerShell inside the extracted folder. The extracted
 folder name can vary; change the `cd` command to match the folder you see.
 
 ```powershell
-cd "$HOME\Downloads\YonerAI-0.6.2"
+cd "$HOME\Downloads\YonerAI-0.6.3"
 python --version
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
@@ -197,17 +209,17 @@ yonerai demo --json
 yonerai doctor --pretty
 yonerai doctor --pretty --lang ja
 yonerai status --pretty
-yonerai manifest verify releases/manifest.v0.6.2.json --pretty
-yonerai install plan --manifest releases/manifest.v0.6.2.json --pretty
-yonerai update check --manifest releases/manifest.v0.6.2.json --pretty
-yonerai update plan --manifest releases/manifest.v0.6.2.json --pretty
+yonerai manifest verify releases/manifest.v0.6.3.json --pretty
+yonerai install plan --manifest releases/manifest.v0.6.3.json --pretty
+yonerai update check --manifest releases/manifest.v0.6.3.json --pretty
+yonerai update plan --manifest releases/manifest.v0.6.3.json --pretty
 yonerai plan "summarize public docs" --json
 yonerai ask "summarize public docs" --provider mock --json
 yonerai hybrid run --pretty
 yonerai hybrid run --json
 yonerai search mock "YonerAI alpha2" --json
 yonerai ops plan git-status --json
-yonerai install plan --manifest releases/manifest.v0.6.2.json --json
+yonerai install plan --manifest releases/manifest.v0.6.3.json --json
 ```
 
 ## First 5 minutes

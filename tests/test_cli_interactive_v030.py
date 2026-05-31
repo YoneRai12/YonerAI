@@ -254,7 +254,7 @@ def test_readmes_document_install_and_start_yonerai() -> None:
         assert "Install and start YonerAI" in text
         assert "GitHub Release" in text
         assert "Source code (zip)" in text
-        assert "YonerAI-0.6.0" in text
+        assert "YonerAI-0.6.3" in text
         assert "python --version" in text
         assert "python -m venv .venv" in text
         assert "python -m pip install -e clients/cli" in text

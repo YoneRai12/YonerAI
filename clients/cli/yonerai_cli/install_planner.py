@@ -151,12 +151,23 @@ def build_install_status(repo_root: Path, *, channel: str = "stable") -> dict[st
             "stable": f"& ([scriptblock]::Create((irm {GITHUB_LATEST_INSTALL_PS1}))) -Execute -Launch",
             "alpha": f"& ([scriptblock]::Create((irm {GITHUB_LATEST_INSTALL_PS1}))) -Channel alpha -Execute -Launch",
             "verify_first": (
-                "$b='https://github.com/YoneRai12/YonerAI/releases/latest/download'; "
-                "irm \"$b/install.ps1\" -OutFile install.ps1; "
-                "irm \"$b/install.ps1.sha256\" -OutFile install.ps1.sha256; "
-                "if ((Get-FileHash .\\install.ps1 -Algorithm SHA256).Hash.ToLowerInvariant() "
-                "-ne ((Get-Content .\\install.ps1.sha256).Split()[0].ToLowerInvariant())) { throw 'install.ps1 hash mismatch' }; "
-                ".\\install.ps1 -Execute -Launch"
+                "$ErrorActionPreference='Stop'; "
+                "$base='https://github.com/YoneRai12/YonerAI/releases/latest/download'; "
+                "$tmp=Join-Path ([System.IO.Path]::GetTempPath()) ('yonerai-bootstrap-' + [guid]::NewGuid().ToString('N')); "
+                "New-Item -ItemType Directory -Path $tmp | Out-Null; "
+                "try { "
+                "$script=Join-Path $tmp 'install.ps1'; "
+                "$sidecar=Join-Path $tmp 'install.ps1.sha256'; "
+                "irm \"$base/install.ps1\" -OutFile $script; "
+                "irm \"$base/install.ps1.sha256\" -OutFile $sidecar; "
+                "$expected=((Get-Content -LiteralPath $sidecar -Raw).Split()[0]).ToLowerInvariant(); "
+                "if ($expected -notmatch '^[a-f0-9]{64}$') { throw 'install.ps1 sidecar SHA256 is invalid' }; "
+                "$actual=(Get-FileHash -LiteralPath $script -Algorithm SHA256).Hash.ToLowerInvariant(); "
+                "if ($actual -ne $expected) { throw 'install.ps1 hash mismatch' }; "
+                "& powershell -NoProfile -ExecutionPolicy Bypass -File $script -Execute -Launch "
+                "} finally { "
+                "if (Test-Path -LiteralPath $tmp) { Remove-Item -LiteralPath $tmp -Recurse -Force } "
+                "}"
             ),
         },
         "non_actions": {
@@ -203,6 +214,7 @@ def build_update_plan(manifest_path: str, *, current_version: str) -> dict[str, 
         "command": "yonerai update plan",
         "current_version": current_version,
         "target_version": target_version,
+        "channel": verification["channel"],
         "update_available": comparison == "target_newer",
         "version_comparison": comparison,
         "selected_artifact": selected_artifact,
@@ -296,6 +308,7 @@ def build_update_check(manifest_path: str, *, current_version: str) -> dict[str,
         "manifest": manifest_display,
         "current_version": plan["current_version"],
         "latest_manifest_version": plan["target_version"],
+        "channel": plan["channel"],
         "update_available": plan["update_available"],
         "version_comparison": plan["version_comparison"],
         "artifact_status": {
@@ -363,7 +376,7 @@ def _manifest_filename_channel(version: str) -> str:
 
 
 def _expected_channel_version(channel: str) -> str:
-    return "0.11.0-alpha.1" if channel == "alpha" else "0.6.2"
+    return "0.11.0-alpha.1" if channel == "alpha" else "0.6.3"
 
 
 def _artifact_plan_rows(manifest: dict[str, Any]) -> list[dict[str, Any]]:

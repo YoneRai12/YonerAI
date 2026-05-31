@@ -110,6 +110,31 @@ def test_cli_update_plan_rejects_invalid_artifact_name(tmp_path, capsys) -> None
     assert "Traceback" not in captured.err
 
 
+def test_cli_update_plan_rejects_mutable_main_and_source_artifact_names(tmp_path, capsys) -> None:
+    _prepare_paths()
+    from yonerai_cli import cli
+
+    for mutable_name in ("YonerAI-main.zip", "YonerAI-source.zip"):
+        manifest = _example_manifest()
+        _set_manifest_version(manifest, FUTURE_TEST_VERSION)
+        manifest["artifacts"][0]["url"] = (
+            "https://github.com/YoneRai12/YonerAI/releases/download/"
+            f"v{FUTURE_TEST_VERSION}/{mutable_name}"
+        )
+        manifest_path = tmp_path / f"{mutable_name}.json"
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+        exit_code = cli.main(["update", "plan", "--manifest", str(manifest_path), "--json"])
+
+        captured = capsys.readouterr()
+        output = json.loads(captured.out)
+        assert exit_code == 1
+        assert output["ok"] is False
+        assert output["selected_artifact"]["filename_matches"] is False
+        assert any("filename" in error for error in output["manifest"]["errors"])
+        assert "Traceback" not in captured.err
+
+
 def test_cli_update_plan_rejects_missing_sha256(tmp_path, capsys) -> None:
     _prepare_paths()
     from yonerai_cli import cli
@@ -258,8 +283,10 @@ def test_cli_update_check_json_is_stable_network_free_and_path_safe(tmp_path, mo
     assert output["schema_version"] == "yonerai-update-check/v0.1"
     assert output["current_version"] == _current_version()
     assert output["latest_manifest_version"] == FUTURE_TEST_VERSION
+    assert output["channel"] == "alpha"
     assert output["update_available"] is True
     assert output["artifact_status"]["sha256_present"] is True
+    assert output["artifact_status"]["actual_filename"] == f"YonerAI-{FUTURE_TEST_VERSION}.zip"
     assert output["signature_status"]["placeholder_non_production"] is True
     assert output["rollback_plan_available"] is False
     assert output["download_performed"] is False
@@ -381,7 +408,9 @@ def test_cli_update_check_pretty_is_readable_and_color_safe(capsys) -> None:
     output = capsys.readouterr().out
     assert "YonerAI update check" in output
     assert "Update check" in output
+    assert "channel" in output
     assert "latest_manifest_version" in output
+    assert "artifact_filename" in output
     assert "download_performed" in output
     assert "network_required" in output
     assert "false" in output
@@ -398,6 +427,8 @@ def test_cli_update_plan_pretty_is_readable(capsys) -> None:
     assert "YonerAI update plan" in output
     assert "Dry-run update plan" in output
     assert "current_version" in output
+    assert "channel" in output
+    assert "artifact_filename" in output
     assert "[WARN] version_comparison" in output
     assert "rollback_plan_available" in output
     assert "remote_code_executed: false" in output

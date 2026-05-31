@@ -2,6 +2,21 @@
 
 This page is a public-safe index of current release notes and progress checkpoints.
 
+## v0.6.3 Verified Installer Hardening
+
+- GitHub release target: `v0.6.3`.
+- Release title: `2026.06.01 - YonerAI CLI Local Runtime v0.6.3 Verified Installer Hardening`.
+- Release date: `2026-06-01`.
+- Public release body: `docs/releases/0.6.3.md`.
+- `yonerai.com/install` now includes a quick GitHub Release bootstrap and a
+  verified bootstrap block that checks `install.ps1.sha256` before execution.
+- `install.ps1` remains GitHub Release only, plan-first unless `-Execute`, and
+  verifies manifest, channel, versioned artifact name, ZIP SHA256, and size
+  before install-like actions.
+- `yonerai update check --pretty`, `yonerai update plan --pretty`, and TUI
+  `/更新` show channel, artifact, SHA256, trust, and next safe command.
+- This is not a production-signed installer and does not add auto-update/apply.
+
 ## v0.6.2 Install Channel Alignment
 
 - GitHub release target: `v0.6.2`.

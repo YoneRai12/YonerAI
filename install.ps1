@@ -18,10 +18,10 @@ $GitHubReleaseBase = "https://github.com/YoneRai12/YonerAI/releases/download"
 $GitHubLatestInstallScript = "https://github.com/YoneRai12/YonerAI/releases/latest/download/install.ps1"
 $KnownReleases = @{
     stable = @{
-        Version = "0.6.2"
-        Tag = "v0.6.2"
-        ManifestUrl = "$GitHubReleaseBase/v0.6.2/manifest.v0.6.2.json"
-        ArtifactName = "YonerAI-0.6.2.zip"
+        Version = "0.6.3"
+        Tag = "v0.6.3"
+        ManifestUrl = "$GitHubReleaseBase/v0.6.3/manifest.v0.6.3.json"
+        ArtifactName = "YonerAI-0.6.3.zip"
     }
     alpha = @{
         Version = "0.11.0-alpha.1"
@@ -63,6 +63,19 @@ function Assert-GitHubReleaseUrl {
     $prefix = "$GitHubReleaseBase/$Tag/"
     if (-not $Url.StartsWith($prefix, [System.StringComparison]::Ordinal)) {
         throw "$Label must be a pinned YoneRai12/YonerAI GitHub Release asset URL."
+    }
+}
+
+function Assert-VersionedArtifactName {
+    param(
+        [string]$ArtifactName,
+        [hashtable]$Spec
+    )
+    if ($ArtifactName -ne $Spec.ArtifactName) {
+        throw "Artifact filename must be the pinned versioned asset $($Spec.ArtifactName)."
+    }
+    if ($ArtifactName -match "(?i)(latest|main|source)\.zip$") {
+        throw "Artifact filename must not use latest, main, or source aliases."
     }
 }
 
@@ -156,6 +169,7 @@ function Get-ManifestArtifact {
     if (-not $artifact) {
         throw "Manifest does not contain the pinned GitHub artifact."
     }
+    Assert-VersionedArtifactName -ArtifactName ([System.IO.Path]::GetFileName([string]$artifact.url)) -Spec $Spec
     Assert-GitHubReleaseUrl -Url ([string]$artifact.url) -Tag $Spec.Tag -Label "Artifact"
     if ([string]$artifact.sha256 -notmatch "^[a-f0-9]{64}$") {
         throw "Artifact SHA256 in manifest is invalid."

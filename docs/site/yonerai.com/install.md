@@ -12,7 +12,7 @@ is only the guide page. It must not be an installer file source.
 It does not read installer bytes from `yonerai.com`. The bootstrap script,
 release manifest, and ZIP artifact must come from GitHub Release assets.
 
-## Recommended command
+## Quick install command
 
 ```powershell
 & ([scriptblock]::Create((irm https://github.com/YoneRai12/YonerAI/releases/latest/download/install.ps1))) -Execute -Launch
@@ -39,18 +39,36 @@ What this does not do:
   production Google login
 - does not include production signing keys or a production trust store
 
-## Verify the bootstrap before running
+## Verified install command
 
-If you want a hash check before script execution, use the GitHub Release
-`.sha256` sidecar:
+Use this when you want to verify the bootstrap script before execution. It
+downloads `install.ps1` and `install.ps1.sha256` from GitHub Releases, checks
+the SHA256 sidecar, and fails closed before execution if the sidecar is missing,
+malformed, or mismatched.
 
 ```powershell
-$b = "https://github.com/YoneRai12/YonerAI/releases/latest/download"
-irm "$b/install.ps1" -OutFile install.ps1
-irm "$b/install.ps1.sha256" -OutFile install.ps1.sha256
-if ((Get-FileHash .\install.ps1 -Algorithm SHA256).Hash.ToLowerInvariant() -ne ((Get-Content .\install.ps1.sha256).Split()[0].ToLowerInvariant())) { throw "install.ps1 hash mismatch" }
-.\install.ps1 -Execute -Launch
+$ErrorActionPreference = "Stop"
+$base = "https://github.com/YoneRai12/YonerAI/releases/latest/download"
+$tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("yonerai-bootstrap-" + [guid]::NewGuid().ToString("N"))
+New-Item -ItemType Directory -Path $tmp | Out-Null
+try {
+  $script = Join-Path $tmp "install.ps1"
+  $sidecar = Join-Path $tmp "install.ps1.sha256"
+  irm "$base/install.ps1" -OutFile $script
+  irm "$base/install.ps1.sha256" -OutFile $sidecar
+  $expected = ((Get-Content -LiteralPath $sidecar -Raw).Split()[0]).ToLowerInvariant()
+  if ($expected -notmatch "^[a-f0-9]{64}$") { throw "install.ps1 sidecar SHA256 is invalid" }
+  $actual = (Get-FileHash -LiteralPath $script -Algorithm SHA256).Hash.ToLowerInvariant()
+  if ($actual -ne $expected) { throw "install.ps1 hash mismatch" }
+  & powershell -NoProfile -ExecutionPolicy Bypass -File $script -Execute -Launch
+} finally {
+  if (Test-Path -LiteralPath $tmp) { Remove-Item -LiteralPath $tmp -Recurse -Force }
+}
 ```
+
+日本語で言うと、この verified command は「GitHub Release から取得した
+install.ps1 が sidecar の SHA256 と一致した場合だけ実行する」ための手順です。
+hash が一致しない場合はその場で止まり、インストール処理へ進みません。
 
 ## Alpha channel
 
@@ -89,11 +107,11 @@ The install source of truth is GitHub Releases:
 - latest stable bootstrap:
   `https://github.com/YoneRai12/YonerAI/releases/latest/download/install.ps1`
 - stable release:
-  `https://github.com/YoneRai12/YonerAI/releases/tag/v0.6.2`
+  `https://github.com/YoneRai12/YonerAI/releases/tag/v0.6.3`
 - stable ZIP:
-  `https://github.com/YoneRai12/YonerAI/releases/download/v0.6.2/YonerAI-0.6.2.zip`
+  `https://github.com/YoneRai12/YonerAI/releases/download/v0.6.3/YonerAI-0.6.3.zip`
 - stable manifest:
-  `https://github.com/YoneRai12/YonerAI/releases/download/v0.6.2/manifest.v0.6.2.json`
+  `https://github.com/YoneRai12/YonerAI/releases/download/v0.6.3/manifest.v0.6.3.json`
 
 ## Publish blocker
 
@@ -102,8 +120,8 @@ stable GitHub Release contains all required assets:
 
 - `install.ps1`
 - `install.ps1.sha256`
-- `manifest.v0.6.2.json`
-- `YonerAI-0.6.2.zip`
+- `manifest.v0.6.3.json`
+- `YonerAI-0.6.3.zip`
 
 ## Non-claims
 

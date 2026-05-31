@@ -1,16 +1,33 @@
-PowerShell:
+YonerAI install
+
+Quick install:
 & ([scriptblock]::Create((irm https://github.com/YoneRai12/YonerAI/releases/latest/download/install.ps1))) -Execute -Launch
 
-Hash check first:
+Verified install:
+$ErrorActionPreference = "Stop"
 $base = "https://github.com/YoneRai12/YonerAI/releases/latest/download"
-irm "$base/install.ps1" -OutFile install.ps1
-irm "$base/install.ps1.sha256" -OutFile install.ps1.sha256
-$actual = (Get-FileHash .\install.ps1 -Algorithm SHA256).Hash.ToLowerInvariant()
-$expected = ((Get-Content .\install.ps1.sha256).Split()[0]).ToLowerInvariant()
-if ($actual -ne $expected) { throw "install.ps1 hash mismatch" }
-.\install.ps1 -Execute -Launch
+$tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("yonerai-bootstrap-" + [guid]::NewGuid().ToString("N"))
+New-Item -ItemType Directory -Path $tmp | Out-Null
+try {
+  $script = Join-Path $tmp "install.ps1"
+  $sidecar = Join-Path $tmp "install.ps1.sha256"
+  irm "$base/install.ps1" -OutFile $script
+  irm "$base/install.ps1.sha256" -OutFile $sidecar
+  $expected = ((Get-Content -LiteralPath $sidecar -Raw).Split()[0]).ToLowerInvariant()
+  if ($expected -notmatch "^[a-f0-9]{64}$") { throw "install.ps1 sidecar SHA256 is invalid" }
+  $actual = (Get-FileHash -LiteralPath $script -Algorithm SHA256).Hash.ToLowerInvariant()
+  if ($actual -ne $expected) { throw "install.ps1 hash mismatch" }
+  & powershell -NoProfile -ExecutionPolicy Bypass -File $script -Execute -Launch
+} finally {
+  if (Test-Path -LiteralPath $tmp) { Remove-Item -LiteralPath $tmp -Recurse -Force }
+}
 
-Source:
+日本語:
+Quick install は GitHub Releases の latest install.ps1 を直接実行します。
+Verified install は install.ps1.sha256 を先に確認し、hash が一致した時だけ実行します。
+hash が違う、sidecar がない、sidecar が壊れている場合は失敗して止まります。
+
+Install source:
 GitHub Releases only.
 
 Not served from yonerai.com:

@@ -2,6 +2,19 @@
 
 See also: `docs/RELEASE_NOTES.md` (curated summary, v5.0.0 -> current).
 
+## v0.6.3 (2026-06-01) - Verified Installer Hardening
+- Added a verified install command for `yonerai.com/install` that downloads
+  `install.ps1` and `install.ps1.sha256`, verifies the bootstrap SHA256, and
+  fails closed before execution on mismatch.
+- Kept the quick one-command GitHub Release bootstrap available for users who
+  accept executing the latest stable release script directly.
+- Updated the stable bootstrap target and manifest to `v0.6.3`.
+- Improved `yonerai update check --pretty`, `yonerai update plan --pretty`, and
+  TUI `/更新` output so users can see channel, artifact, SHA256, trust status,
+  and the next safe command.
+- Reconfirmed `yonerai.com` remains command text only and must not serve
+  installer scripts, sidecars, manifests, ZIPs, or local PC installer files.
+
 ## v0.6.2 (2026-06-01) - Install Channel Alignment
 - Kept the one-command installer stable by default while aligning alpha-channel
   CLI visibility with `v0.11.0-alpha.1`.

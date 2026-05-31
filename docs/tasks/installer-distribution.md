@@ -77,8 +77,8 @@ include:
 
 `releases/manifest.schema.json` defines the future installer bootstrap release manifest. `releases/manifest.example.json` is an example contract fixture and is not a production installer manifest.
 
-`releases/manifest.v0.6.2.json` records the current v0.6.2 GitHub Release
-asset `YonerAI-0.6.2.zip` for GitHub-asset-only one-command install,
+`releases/manifest.v0.6.3.json` records the current v0.6.3 GitHub Release
+asset `YonerAI-0.6.3.zip` for GitHub-asset-only one-command install,
 local verification, and dry-run planning. It is stable-channel metadata for the
 CLI Local Runtime release, but it is still not a production-signed installer
 because the public repository does not include production signing keys, a
@@ -189,7 +189,7 @@ Until that lane exists, public manifests must clearly report
    `.venv` setup, no PATH mutation, no remote script execution, no service
    install, and no admin request.
 9. Add a root `install.ps1` one-command GitHub Release bootstrap. Done for
-   v0.6.2: stable by default, alpha only by explicit `-Channel alpha`, rejects
+   v0.6.3: stable by default, alpha only by explicit `-Channel alpha`, rejects
    local/custom manifest or ZIP paths, verifies the release ZIP SHA256 from the
    manifest before extraction, and never uses `yonerai.com` as the installer
    file source.
@@ -209,7 +209,8 @@ mutating the machine, `yonerai manifest verify` can verify signed test
 manifests against an explicit non-production trust fixture, `install-local.ps1`
 gives extracted archives/checkouts a plan-first local bootstrap path, and
 `install.ps1` provides a GitHub Release asset-only one-command bootstrap. The
-next safe milestone is production-signature design and rollback/uninstall
+verified command on `yonerai.com/install` checks `install.ps1.sha256` before
+executing the bootstrap. The next safe milestone is production-signature design and rollback/uninstall
 coverage. These steps must avoid PATH mutation by default, npm publishing,
 winget publishing, production signing key generation, and production trust store
 creation.
@@ -235,7 +236,7 @@ Completed or substantially completed:
 - Local install dry-run planning: PR #336, `yonerai install plan`.
 - Local update dry-run planning: PR #341, `yonerai update plan`.
 - Local update quick check: v0.6 TUI runtime, `yonerai update check`.
-- One-command GitHub Release bootstrap: v0.6.2, `install.ps1` and
+- One-command GitHub Release bootstrap: v0.6.3, `install.ps1` and
   `install.ps1.sha256` as GitHub Release assets only.
 - Local non-production/test signed manifest verification:
   `yonerai manifest verify <path> --test-trust-fixture <fixture>`.

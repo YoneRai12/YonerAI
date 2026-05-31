@@ -21,6 +21,11 @@ def test_install_page_is_plain_command_text_and_points_to_github_release_assets(
     assert response.status_code == 200
     assert response.headers.get("content-type", "").startswith("text/plain")
     assert "https://github.com/YoneRai12/YonerAI/releases/latest/download/install.ps1" in response.text
+    assert "Quick install" in response.text
+    assert "Verified install" in response.text
+    assert "install.ps1.sha256" in response.text
+    assert "sidecar SHA256 is invalid" in response.text
+    assert "install.ps1 hash mismatch" in response.text
     assert "<!doctype" not in response.text.lower()
     assert "<html" not in response.text.lower()
     assert "<style" not in response.text.lower()
@@ -37,12 +42,12 @@ def test_yonerai_com_does_not_serve_local_installer_artifact_paths():
     blocked_paths = [
         "/install.ps1",
         "/install.ps1.sha256",
-        "/YonerAI-0.6.2.zip",
-        "/manifest.v0.6.2.json",
+        "/YonerAI-0.6.3.zip",
+        "/manifest.v0.6.3.json",
         "/static/install.ps1",
         "/static/install.ps1.sha256",
-        "/static/YonerAI-0.6.2.zip",
-        "/static/manifest.v0.6.2.json",
+        "/static/YonerAI-0.6.3.zip",
+        "/static/manifest.v0.6.3.json",
     ]
 
     with TestClient(app) as client:

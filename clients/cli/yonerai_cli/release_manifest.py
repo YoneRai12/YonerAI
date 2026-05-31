@@ -291,6 +291,7 @@ def validate_manifest_contract(manifest: dict[str, Any]) -> list[str]:
                 in {
                     "manual_zip_venv",
                     "powershell_dry_run_plan",
+                    "powershell_verified_github_release_bootstrap",
                     "powershell_github_release_bootstrap",
                     "manifest_verify_only",
                 }
