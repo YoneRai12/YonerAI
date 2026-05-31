@@ -11,13 +11,21 @@ from pathlib import Path
 
 TEXT_SUFFIXES = {
     ".cfg",
+    ".cjs",
     ".css",
+    ".cmd",
     ".html",
     ".ini",
+    ".js",
+    ".jsx",
     ".json",
     ".md",
+    ".mjs",
     ".ps1",
     ".py",
+    ".sh",
+    ".ts",
+    ".tsx",
     ".toml",
     ".txt",
     ".yml",
@@ -50,7 +58,26 @@ MOJIBAKE_PATTERNS = (
     re.compile("\ufffd"),
     re.compile(r"(繝|縺|荳|譁|蜿|螳|險|豁ｴ|邂)"),
 )
-HIDDEN_UNICODE = tuple(chr(codepoint) for codepoint in (0x200B, 0x200C, 0x200D, 0x2060, 0xFEFF))
+QUESTION_MARK_MOJIBAKE_RE = re.compile(r"\?{4,}")
+HIDDEN_UNICODE = tuple(
+    chr(codepoint)
+    for codepoint in (
+        0x200B,
+        0x200C,
+        0x200D,
+        0x202A,
+        0x202B,
+        0x202C,
+        0x202D,
+        0x202E,
+        0x2060,
+        0x2066,
+        0x2067,
+        0x2068,
+        0x2069,
+        0xFEFF,
+    )
+)
 CONTROL_CHAR_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 TERMINAL_ESCAPE_PATTERNS = (
     re.compile(r"(?i)(?:\\x1b|\\u001b|\\u009b|\\033|\\e)\[[0-?]*[ -/]*[@-~]"),
@@ -81,7 +108,7 @@ def scan_paths(repo_root: Path, paths: list[Path]) -> list[str]:
             continue
         full_path = repo_root / path
         try:
-            text = full_path.read_text(encoding="utf-8")
+            text = full_path.read_text(encoding="utf-8-sig")
         except (OSError, UnicodeDecodeError):
             continue
         rel = path.as_posix()
@@ -92,9 +119,13 @@ def scan_paths(repo_root: Path, paths: list[Path]) -> list[str]:
 
 def _scan_line(rel: str, index: int, line: str, errors: list[str]) -> None:
     for pattern in SECRET_PATTERNS:
-        if pattern.search(line):
-            errors.append(f"{rel}:{index}: possible secret or token literal")
-            break
+        for match in pattern.finditer(line):
+            if not _is_allowed_secret_reference(rel, line, match):
+                errors.append(f"{rel}:{index}: possible secret or token literal")
+                break
+        else:
+            continue
+        break
     for pattern in LOCAL_PATH_PATTERNS:
         if pattern.search(line) and not _is_allowed_local_path_fixture(rel, line):
             errors.append(f"{rel}:{index}: possible local absolute path leak")
@@ -103,6 +134,8 @@ def _scan_line(rel: str, index: int, line: str, errors: list[str]) -> None:
         if pattern.search(line) and not _is_allowed_mojibake_fixture(rel, line):
             errors.append(f"{rel}:{index}: possible mojibake")
             break
+    if _has_question_mark_mojibake(line) and not _is_allowed_mojibake_fixture(rel, line):
+        errors.append(f"{rel}:{index}: possible mojibake")
     if any(char in line for char in HIDDEN_UNICODE):
         errors.append(f"{rel}:{index}: hidden unicode marker")
     if CONTROL_CHAR_RE.search(line):
@@ -188,6 +221,36 @@ def _is_allowed_local_path_fixture(rel: str, line: str) -> bool:
     return "LOCAL_PATH_PATTERNS" in line or "PRIVATE_MARKERS" in line
 
 
+def _is_allowed_secret_reference(rel: str, line: str, match: re.Match[str]) -> bool:
+    if rel.startswith("tests/"):
+        return False
+    matched_text = match.group(0)
+    if re.search(r"\b(?:sk-|gh[pousr]_|github_pat_|xox[baprs]-|AKIA|ASIA|AIza)", matched_text):
+        return False
+    if re.search(r"(?i)\bbearer\s+[A-Za-z0-9_.+/=-]{20,}", matched_text):
+        return False
+    if "PRIVATE KEY" in matched_text:
+        return False
+    if _is_safe_env_reference(line, match):
+        return True
+    if re.search(
+        r"\b(?:token|session)\.accessToken\s*=\s*(?:account\.access_token|token\.accessToken|session\.accessToken)\s*;?\s*$",
+        line,
+    ):
+        return True
+    return False
+
+
+def _is_safe_env_reference(line: str, match: re.Match[str]) -> bool:
+    env_match = re.search(r"\bprocess\.env\.[A-Z0-9_]+\b", match.group(0))
+    if not env_match:
+        return False
+    value_tail = re.split(r"[,;]", line[match.end() :], maxsplit=1)[0]
+    if "||" in value_tail or "??" in value_tail or "'" in value_tail or '"' in value_tail:
+        return False
+    return True
+
+
 def _run_git(command: tuple[str, ...], repo_root: Path) -> subprocess.CompletedProcess[str]:
     try:
         return subprocess.run(
@@ -206,8 +269,18 @@ def _is_allowed_mojibake_fixture(rel: str, line: str) -> bool:
     return rel.endswith("ci_quality_scans.py")
 
 
+def _has_question_mark_mojibake(line: str) -> bool:
+    if not QUESTION_MARK_MOJIBAKE_RE.search(line):
+        return False
+    return any(ord(char) > 127 for char in line)
+
+
 def _is_allowed_terminal_escape_fixture(rel: str, line: str) -> bool:
-    return rel.endswith("ci_quality_scans.py") or rel.startswith("tests/")
+    if rel.endswith("ci_quality_scans.py") or rel.startswith("tests/"):
+        return True
+    if rel == "start.sh" and re.match(r"^[A-Z_]+='\\033\[[0-9;]*m'", line):
+        return True
+    return False
 
 
 if __name__ == "__main__":

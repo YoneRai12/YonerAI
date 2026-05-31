@@ -287,6 +287,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v4
         with:
           python-version: ${{ env.PYTHON_VERSION }}
@@ -305,6 +307,23 @@ jobs:
       - name: Run source release gate checks
         run: |
           VERSION=$(cat VERSION | tr -d '[:space:]')
-          python scripts/release_gate.py \
-            --tag "v${VERSION}" \
-            --github-prerelease auto
+          PRODUCT_NAME=$(cat PRODUCT_NAME | tr -d '[:space:]')
+          BASE_REF="${GITHUB_BASE_REF:-main}"
+          PUSH_BEFORE="${{ github.event.before }}"
+          if [ "${GITHUB_EVENT_NAME:-}" = "push" ] && [ -n "${PUSH_BEFORE}" ] && ! echo "${PUSH_BEFORE}" | grep -Eq '^0+$'; then
+            RELEASE_DIFF_RANGE="${PUSH_BEFORE}..HEAD"
+          else
+            git fetch --no-tags origin "${BASE_REF}" || true
+            RELEASE_DIFF_RANGE="origin/${BASE_REF}...HEAD"
+          fi
+          if git diff --name-only "${RELEASE_DIFF_RANGE}" 2>/dev/null | grep -E '^(VERSION|PRODUCT_NAME|docs/releases/|releases/manifest)' >/dev/null; then
+            python scripts/create_release.py "${VERSION}"
+            python scripts/release_gate.py \
+              --tag "v${VERSION}" \
+              --artifact "${PRODUCT_NAME}-${VERSION}.zip" \
+              --github-prerelease auto
+          else
+            python scripts/release_gate.py \
+              --tag "v${VERSION}" \
+              --github-prerelease auto
+          fi
