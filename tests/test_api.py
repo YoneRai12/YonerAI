@@ -29,7 +29,7 @@ def test_config_limits_endpoint_requires_token(monkeypatch):
         assert isinstance(data, dict)
 
 
-def test_auth_link_code_is_public_disabled_contract(monkeypatch):
+def test_auth_link_code_is_public_disabled_contract():
     with TestClient(app) as client:
         resp = client.post("/api/auth/link-code", json={"user_id": "123456789"})
 
@@ -55,7 +55,7 @@ def test_auth_link_code_is_public_disabled_contract(monkeypatch):
     assert "drive.file" not in resp.text
 
 
-def test_google_auth_routes_do_not_redirect_or_exchange_tokens(monkeypatch):
+def test_google_auth_routes_do_not_redirect_or_exchange_tokens():
     with TestClient(app) as client:
         start = client.get("/api/auth/discord?discord_user_id=123456789", follow_redirects=False)
         callback = client.get("/api/auth/google/callback?code=fake-code&state=fake-state", follow_redirects=False)
