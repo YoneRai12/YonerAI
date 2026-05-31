@@ -87,7 +87,7 @@ def test_v011_release_docs_are_operation_manual_style() -> None:
         assert command in release_note
 
     assert "#479" in release_note
-    assert "Release gate PR for v0.11.0-alpha.1" in release_note
+    assert "#480" in release_note
 
 
 def test_v011_sync_manifest_install_and_update_commands_are_documented() -> None:

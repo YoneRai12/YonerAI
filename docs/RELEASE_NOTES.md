@@ -25,8 +25,8 @@ This page is a public-safe index of current release notes and progress checkpoin
   traffic runtime, no live Discord, no automatic local-to-cloud private upload,
   no deploy/public tunnel, no arbitrary shell/file/tool execution, no
   production signing/trust store, and no production network installer.
-- Primary traceability range: `v0.10.0-alpha.1..v0.11.0-alpha.1`; PR #479 and
-  the v0.11 release gate PR.
+- Primary traceability range: `v0.10.0-alpha.1..v0.11.0-alpha.1`; PRs #479
+  and #480.
 
 ## v0.10.0-alpha.1 Public Orchestration Boundary
 
