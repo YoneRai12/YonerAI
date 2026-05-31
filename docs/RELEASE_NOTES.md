@@ -2,6 +2,32 @@
 
 This page is a public-safe index of current release notes and progress checkpoints.
 
+## v0.11.0-alpha.1 Account Sync and Oracle API Foundation
+
+- GitHub pre-release target: `v0.11.0-alpha.1`.
+- Release title: `2026.06.01 - YonerAI v0.11.0-alpha.1 Account Sync and Oracle API Foundation`.
+- Release date: `2026-06-01`.
+- Public release body: `docs/releases/0.11.0-alpha.1.md`.
+- Status: prerelease account-sync and Official API contract foundation after
+  v0.10.0-alpha.1.
+- What users can try now: `yonerai`, `/認証`, `/同期`, `/プライバシー`,
+  `yonerai auth status --pretty --lang ja`,
+  `yonerai privacy status --pretty --lang ja`,
+  `yonerai sync status --pretty --lang ja`,
+  `yonerai sync preview --direction cloud-to-local --json`,
+  `yonerai sync approve --dry-run --direction local-to-cloud --json`,
+  `yonerai sync api-contract --json`, `yonerai sync rate-limit --json`, and
+  local manifest dry-run commands against
+  `releases/manifest.v0.11.0-alpha.1.json`.
+- Boundary: account/sync/API/rate-limit contracts, fixtures, conformance tests,
+  CLI/TUI visibility, and sanitized private YonerAIOracle handoff only; no
+  production Oracle/cloud runtime, no production Google login, no OpenAI shared
+  traffic runtime, no live Discord, no automatic local-to-cloud private upload,
+  no deploy/public tunnel, no arbitrary shell/file/tool execution, no
+  production signing/trust store, and no production network installer.
+- Primary traceability range: `v0.10.0-alpha.1..v0.11.0-alpha.1`; PR #479 and
+  the v0.11 release gate PR.
+
 ## v0.10.0-alpha.1 Public Orchestration Boundary
 
 - GitHub pre-release target: `v0.10.0-alpha.1`.
