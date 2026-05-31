@@ -226,14 +226,24 @@ def _is_allowed_secret_reference(rel: str, line: str) -> bool:
         return False
     if "PRIVATE KEY" in line:
         return False
-    if "process.env." in line:
+    if _is_safe_env_reference(line):
         return True
     if re.search(
-        r"\b(?:token|session)\.accessToken\s*=\s*(?:account\.access_token|token\.accessToken|session\.accessToken)\b",
+        r"\b(?:token|session)\.accessToken\s*=\s*(?:account\.access_token|token\.accessToken|session\.accessToken)\s*;?\s*$",
         line,
     ):
         return True
     return False
+
+
+def _is_safe_env_reference(line: str) -> bool:
+    match = re.search(r"\bprocess\.env\.[A-Z0-9_]+\b", line)
+    if not match:
+        return False
+    tail = line[match.end() :]
+    if "||" in tail or "??" in tail or "'" in tail or '"' in tail:
+        return False
+    return True
 
 
 def _run_git(command: tuple[str, ...], repo_root: Path) -> subprocess.CompletedProcess[str]:
