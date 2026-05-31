@@ -2,6 +2,22 @@
 
 See also: `docs/RELEASE_NOTES.md` (curated summary, v5.0.0 -> current).
 
+## v0.9.0-alpha.1 (2026-05-31) - TUI Value Completion and Quality Wall
+- Added context-aware slash-command value completion for the Japanese-first
+  interactive TUI, including provider, language, approval, workspace file
+  access, ledger, live-provider, network, update-notice, and numbered settings.
+- Kept English slash aliases compatible while keeping Japanese mode visually
+  Japanese-first.
+- Fixed provider value completion so suggested Anthropic/Gemini choices are
+  accepted through the existing value canonicalization path.
+- Hardened pre-v0.9 provider/local LLM/auth/privacy/hybrid/self-evolution/
+  release-gate boundaries and expanded Quality Wall coverage.
+- Preserved boundaries: no production Oracle/cloud runtime, no production
+  Google login, no OpenAI shared traffic runtime, no live Discord, no
+  deploy/public tunnel, no arbitrary shell/file/tool execution, no provider key
+  output/storage, no production signing/trust store, and no production network
+  installer.
+
 ## v0.8.0-alpha.1 (2026-05-31) - Official Install/Auth Boundary
 - Hardened `install.ps1` as a plan-only installer skeleton that can read a
   local manifest and display artifact, SHA256, signature, and trust status
