@@ -8,6 +8,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 INSTALL_SKELETON = ROOT / "install.ps1"
 V070_MANIFEST = ROOT / "releases" / "manifest.v0.7.0-alpha.1.json"
+V080_MANIFEST = ROOT / "releases" / "manifest.v0.8.0-alpha.1.json"
 
 
 def test_v080_boundary_docs_exist_and_keep_public_private_split() -> None:
@@ -52,6 +53,26 @@ def test_v080_site_content_is_candidate_not_deployed_or_production_claim() -> No
     assert "not a live download promise" in install_page
     assert "does not download, install, mutate" in install_page
     assert "/自己進化" in release_page
+
+
+def test_v080_manifest_validates_as_non_production_alpha_manifest() -> None:
+    import sys
+
+    cli_src = ROOT / "clients" / "cli"
+    if str(cli_src) not in sys.path:
+        sys.path.insert(0, str(cli_src))
+    from yonerai_cli.release_manifest import load_manifest_file, verify_manifest
+
+    report = verify_manifest(load_manifest_file(str(V080_MANIFEST)))
+
+    assert report["contract_valid"] is True
+    assert report["install_ready"] is False
+    assert report["version"] == "0.8.0-alpha.1"
+    assert report["release_tag"] == "v0.8.0-alpha.1"
+    assert report["channel"] == "alpha"
+    assert report["signature_state"] == "placeholder_non_production"
+    assert report["production_signature_verified"] is False
+    assert report["production_trust_material"] is False
 
 
 def test_install_skeleton_reads_local_manifest_plan_without_actions_when_powershell_available() -> None:
