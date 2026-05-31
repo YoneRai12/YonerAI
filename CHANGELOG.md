@@ -2,6 +2,24 @@
 
 See also: `docs/RELEASE_NOTES.md` (curated summary, v5.0.0 -> current).
 
+## v0.10.0-alpha.1 (2026-06-01) - Public Orchestration Boundary
+- Added the `/状態` and `/ホーム` interactive entries so Japanese-first users
+  can re-open the Mission Control status/header without remembering English
+  aliases.
+- Improved model/provider value completion while preserving loopback-only local
+  LLM guidance and explicit live-provider opt-in.
+- Fixed public Google OAuth web routes to return a dry-run contract response
+  instead of attempting a production OAuth redirect or token exchange.
+- Hardened Quality Wall scans across push/PR ranges, release-gate checks,
+  local-path scanning, hidden Unicode/mojibake detection, and secret allowlists.
+- Added v0.9/v0.10 yonerai.com release/press content foundations and moved the
+  plan-only `install.ps1` default manifest/artifact to the current prerelease.
+- Preserved boundaries: no production Oracle/cloud runtime, no production
+  Google login, no OpenAI shared traffic runtime, no live Discord, no
+  deploy/public tunnel, no arbitrary shell/file/tool execution, no provider key
+  output/storage, no production signing/trust store, and no production network
+  installer.
+
 ## v0.9.0-alpha.1 (2026-05-31) - TUI Value Completion and Quality Wall
 - Added context-aware slash-command value completion for the Japanese-first
   interactive TUI, including provider, language, approval, workspace file

@@ -92,7 +92,7 @@ def test_default_update_manifest_keeps_stable_users_on_stable_channel() -> None:
     assert stable_default.name == "manifest.v0.6.0.json"
     assert stable_report["latest_manifest_version"] == "0.6.0"
     assert stable_report["update_available"] is False
-    assert alpha_report["latest_manifest_version"] == "0.9.0-alpha.1"
+    assert alpha_report["latest_manifest_version"] == "0.10.0-alpha.1"
     assert alpha_report["update_available"] is True
 
 

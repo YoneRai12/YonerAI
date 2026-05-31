@@ -7,15 +7,6 @@ ROOT = Path(__file__).resolve().parents[1]
 MOJIBAKE_MARKERS = tuple(chr(codepoint) for codepoint in (0xFFFD, 0x7E5D, 0x8B41, 0x96B1, 0x87FE, 0x9A3E, 0x87B3, 0x8B20))
 
 
-def test_install_skeleton_defaults_to_v090_manifest_and_artifact() -> None:
-    script = (ROOT / "install.ps1").read_text(encoding="utf-8")
-
-    assert 'releases\\manifest.v0.9.0-alpha.1.json' in script
-    assert "YonerAI-0.9.0-alpha.1.zip" in script
-    assert "manifest.v0.8.0-alpha.1.json" not in script
-    assert "YonerAI-0.8.0-alpha.1.zip" not in script
-
-
 def test_v090_site_content_exists_and_keeps_boundaries() -> None:
     release_page = (ROOT / "docs" / "site" / "yonerai.com" / "releases" / "v0.9.0-alpha.1.md").read_text(
         encoding="utf-8"
