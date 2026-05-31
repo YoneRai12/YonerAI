@@ -79,6 +79,7 @@ def execute_task(
         client_type=client_type,
     )
     ledger.append_event(run.run_id, "boundary_checks", "ok", "web_search_and_tool_boundaries_disabled")
+    ledger.append_event(run.run_id, "shared_traffic_policy", "ok", "shared_traffic=false private_content_exclusion=true")
     for event in context_events or ():
         name = str(event.get("name") or "context")
         status = str(event.get("status") or "ok")

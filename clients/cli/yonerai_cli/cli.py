@@ -630,6 +630,7 @@ def _provider_subagent_summary(provider: dict[str, object], *, lang: str) -> str
         labels = {
             "chat_capability_missing": "会話機能がないため計画表示のみ",
             "provider_unavailable_or_not_configured": "provider未設定のため計画表示のみ",
+            "live_opt_in_required": "live opt-in未設定のため計画表示のみ",
             "provider_not_registered_for_subagents": "未登録providerのため計画表示のみ",
             "provider_not_ready": "準備不足のため計画表示のみ",
         }

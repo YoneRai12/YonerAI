@@ -33,9 +33,13 @@ function Test-RelativeInput {
 }
 
 function Write-ManifestPlan {
-    param([string]$ManifestPath)
+    param(
+        [string]$ManifestPath,
+        [string]$ArtifactPath
+    )
 
     Test-RelativeInput -Value $ManifestPath -Label "Manifest"
+    Test-RelativeInput -Value $ArtifactPath -Label "Artifact"
     Write-Host "  manifest: $ManifestPath"
     if (-not (Test-Path -LiteralPath $ManifestPath -PathType Leaf)) {
         Write-Host "  manifest status: not found locally; download it from the matching GitHub Release before a future verified install"
@@ -46,13 +50,29 @@ function Write-ManifestPlan {
     $manifestData = $manifestJson | ConvertFrom-Json
     $version = [string]$manifestData.version
     $tag = [string]$manifestData.release.tag
+    $localArtifactName = [System.IO.Path]::GetFileName($ArtifactPath)
     $signatureState = "missing"
     $artifactName = "missing"
+    $expectedSha256 = $null
+    $expectedSizeBytes = $null
     $sha256Valid = $false
-    if ($manifestData.artifacts -and $manifestData.artifacts.Count -gt 0) {
-        $artifact = $manifestData.artifacts[0]
+    $artifactNameMatches = $false
+    $manifestArtifacts = @($manifestData.artifacts)
+    if ($manifestArtifacts.Count -gt 0) {
+        $artifact = $manifestArtifacts | Where-Object {
+            [System.IO.Path]::GetFileName([string]$_.url) -eq $localArtifactName
+        } | Select-Object -First 1
+        if (-not $artifact) {
+            $artifact = $manifestArtifacts[0]
+        } else {
+            $artifactNameMatches = $true
+        }
         $artifactName = [System.IO.Path]::GetFileName([string]$artifact.url)
-        $sha256Valid = ([string]$artifact.sha256) -match "^[a-f0-9]{64}$"
+        $expectedSha256 = [string]$artifact.sha256
+        $sha256Valid = $expectedSha256 -match "^[a-f0-9]{64}$"
+        if ($artifact.size_bytes -is [int] -or $artifact.size_bytes -is [long]) {
+            $expectedSizeBytes = [int64]$artifact.size_bytes
+        }
         if ($artifact.signature) {
             $signatureState = [string]$artifact.signature.status
         }
@@ -61,12 +81,38 @@ function Write-ManifestPlan {
     Write-Host "  manifest version: $version"
     Write-Host "  release tag: $tag"
     Write-Host "  artifact name: $artifactName"
+    Write-Host "  local artifact: $ArtifactPath"
+    Write-Host "  artifact name matches manifest: $artifactNameMatches"
     Write-Host "  sha256 format valid: $sha256Valid"
     Write-Host "  signature status: $signatureState"
     Write-Host "  production trust: not present in public repo"
-}
 
-Test-RelativeInput -Value $Artifact -Label "Artifact"
+    if (-not $artifactNameMatches) {
+        throw "Artifact filename is not present in manifest artifacts: $localArtifactName"
+    }
+
+    if (-not (Test-Path -LiteralPath $ArtifactPath -PathType Leaf)) {
+        Write-Host "  local artifact status: not found; hash not checked"
+        return
+    }
+
+    $actualHash = (Get-FileHash -LiteralPath $ArtifactPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    $actualSizeBytes = [int64](Get-Item -LiteralPath $ArtifactPath).Length
+    $hashMatches = $sha256Valid -and $actualHash -eq $expectedSha256
+    $sizeMatches = $null -ne $expectedSizeBytes -and $actualSizeBytes -eq $expectedSizeBytes
+
+    Write-Host "  local artifact sha256: $actualHash"
+    Write-Host "  local artifact sha256 matches manifest: $hashMatches"
+    Write-Host "  local artifact size bytes: $actualSizeBytes"
+    Write-Host "  local artifact size matches manifest: $sizeMatches"
+
+    if (-not $hashMatches) {
+        throw "Artifact SHA256 mismatch. Refusing to continue even in plan mode."
+    }
+    if (-not $sizeMatches) {
+        throw "Artifact size mismatch. Refusing to continue even in plan mode."
+    }
+}
 
 Write-YonerAI "Installer skeleton"
 Write-Host "  purpose: future one-command local CLI bootstrap"
@@ -74,7 +120,7 @@ Write-Host "  default: dry-run plan only"
 Write-Host "  install page: https://yonerai.com/install"
 Write-Host "  release source: GitHub Release assets remain the distribution source"
 Write-Host "  artifact: $Artifact"
-Write-ManifestPlan -ManifestPath $Manifest
+Write-ManifestPlan -ManifestPath $Manifest -ArtifactPath $Artifact
 Write-Host "  planned local command after manual extraction: .\install-local.ps1 -Execute -Launch"
 Write-Host "  not performed: network download, remote script execution, download-and-execute, PATH mutation, registry change, service install, admin request"
 

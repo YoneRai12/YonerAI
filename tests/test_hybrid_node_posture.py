@@ -44,6 +44,24 @@ def test_verified_posture_exposes_declared_known_capabilities() -> None:
     assert assert_public_safe_wire_payload(payload) == ()
 
 
+def test_verified_posture_denies_dangerous_capabilities_by_default() -> None:
+    posture = evaluate_local_node_posture(
+        node_id="local-node-1",
+        manifest_verified=True,
+        session_state="active",
+        declared_capabilities=("mock_search", "ledger", "dangerous_operation", "dangerous_operations"),
+    )
+
+    payload = posture.to_public_dict()
+    assert payload["state"] == "VERIFIED"
+    assert payload["exposed_capabilities"] == ["mock_search", "ledger"]
+    assert "dangerous_operation" in payload["denied_capabilities"]
+    assert "dangerous_operations" in payload["denied_capabilities"]
+    assert payload["local_work_preview_allowed"] is True
+    assert payload["owner_approval_required"] is True
+    assert "dangerous_capability_denied_by_default" in payload["reasons"]
+
+
 def test_limited_posture_reduces_unknown_extensions_to_safe_capabilities() -> None:
     posture = evaluate_local_node_posture(
         node_id="local-node-1",

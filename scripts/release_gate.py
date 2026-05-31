@@ -21,6 +21,30 @@ DATEVER_RE = re.compile(r"^\d{4}\.(?:0?[1-9]|1[0-2])\.(?:0?[1-9]|[12]\d|3[01])$"
 SHA256_RE = re.compile(r"^[a-f0-9]{64}$")
 BLOCKER_RE = re.compile(r"\b(UNRESOLVED_P0|UNRESOLVED_P1|SECURITY_BLOCKER|RELEASE_BLOCKER)\b", re.IGNORECASE)
 MUTABLE_ARTIFACT_RE = re.compile(r"(latest|main|source)\.zip$", re.IGNORECASE)
+PRODUCTION_READY_PHRASES = (
+    "production-ready",
+    "production ready",
+)
+POSITIVE_RELEASE_OVERCLAIMS = (
+    "official cloud runnable",
+    "official cloud complete",
+    "official-cloud complete",
+    "full hybrid complete",
+    "shipping-complete",
+    "shipping complete",
+    "discord restored",
+    "discord gateway complete",
+    "persistent memory complete",
+    "google login complete",
+    "final web ui complete",
+    "tools/mcp complete",
+    "installer ready",
+    "npm/winget ready",
+    "broad ora rename complete",
+    "src/cogs/ora.py solved",
+    "src/cogs/ora.py resolved",
+    "v7.8 started",
+)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -110,17 +134,10 @@ def _validate_release_note(path: Path, errors: list[str]) -> None:
         lower = line.lower()
         if BLOCKER_RE.search(line):
             errors.append(f"release note contains unresolved blocker marker at {path.name}:{index}")
-        if "production-ready" in lower and not _is_negated_claim(lower, "production-ready"):
-            errors.append(f"release note overclaims production readiness at {path.name}:{index}")
-        positive_overclaims = (
-            "official cloud runnable",
-            "official cloud complete",
-            "full hybrid complete",
-            "discord restored",
-            "installer ready",
-            "npm/winget ready",
-        )
-        for phrase in positive_overclaims:
+        for phrase in PRODUCTION_READY_PHRASES:
+            if phrase in lower and not _is_negated_claim(lower, phrase):
+                errors.append(f"release note overclaims production readiness at {path.name}:{index}")
+        for phrase in POSITIVE_RELEASE_OVERCLAIMS:
             if phrase in lower and not _is_negated_claim(lower, phrase):
                 errors.append(f"release note overclaims '{phrase}' at {path.name}:{index}")
 
@@ -133,10 +150,23 @@ def _is_negated_claim(line: str, phrase: str) -> bool:
     prefix = normalized[:phrase_index].strip()
     if not prefix:
         return False
+    clause_prefix = re.split(r"(?:[.;:!?,]|\b(?:but|however|yet)\b)", prefix)[-1].strip()
+    if not clause_prefix:
+        return False
+    if re.search(
+        r"(?:\b(?:do not|don't|does not|doesn't|must not|cannot|can't|never)\s+"
+        r"(?:claim|make|include|enable|restore|complete)\b|"
+        r"\b(?:no|not)\b.{0,40}\bclaim\b|\bwithout\s+claiming\b)",
+        clause_prefix,
+    ):
+        return True
+    immediate_prefix = re.split(r"\b(?:and|or)\b", clause_prefix)[-1].strip()
+    if not immediate_prefix:
+        return False
     return bool(
         re.search(
             r"(?:^|\b)(?:no|not|never|without|cannot|can't|do not|don't|does not|doesn't|must not)\b",
-            prefix,
+            immediate_prefix,
         )
     )
 
@@ -157,6 +187,8 @@ def _load_manifest(path: Path, errors: list[str], repo_root: Path) -> dict[str, 
 
 
 def _validate_manifest(version: str, product: str, manifest: dict[str, Any], errors: list[str]) -> None:
+    if manifest.get("product") != product:
+        errors.append(f"manifest product mismatch: {manifest.get('product')} != {product}")
     if manifest.get("version") != version:
         errors.append(f"manifest version mismatch: {manifest.get('version')} != {version}")
     release = manifest.get("release") if isinstance(manifest.get("release"), dict) else {}

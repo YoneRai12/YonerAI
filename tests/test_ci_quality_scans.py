@@ -30,6 +30,54 @@ def test_ci_quality_scan_blocks_linux_path_leak_outside_tests(tmp_path: Path) ->
     assert any("possible local absolute path leak" in error for error in errors)
 
 
+def test_ci_quality_scan_blocks_windows_forward_slash_path_leak_outside_tests(tmp_path: Path) -> None:
+    source = tmp_path / "src" / "leak.py"
+    source.parent.mkdir()
+    source.write_text('LEAK = "C:/Users/runner/project"\n', encoding="utf-8")
+
+    errors = ci_quality_scans.scan_paths(tmp_path, [Path("src/leak.py")])
+
+    assert any("possible local absolute path leak" in error for error in errors)
+
+
+def test_ci_quality_scan_blocks_common_unlabeled_token_prefixes(tmp_path: Path) -> None:
+    source = tmp_path / "src" / "leak.py"
+    source.parent.mkdir()
+    github_pat = "github_pat_" + "A" * 24
+    slack_token = "xoxb-" + "B" * 24
+    aws_key = "AKIA" + "C" * 16
+    google_key = "AIza" + "D" * 35
+    bearer = "Authorization: Bearer " + "E" * 24
+    source.write_text(
+        "\n".join(
+            (
+                f"GITHUB = {github_pat!r}",
+                f"SLACK = {slack_token!r}",
+                f"AWS = {aws_key!r}",
+                f"GOOGLE = {google_key!r}",
+                f"HEADER = {bearer!r}",
+            )
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    errors = ci_quality_scans.scan_paths(tmp_path, [Path("src/leak.py")])
+
+    assert sum("possible secret or token literal" in error for error in errors) == 5
+
+
+def test_ci_quality_scan_blocks_escaped_terminal_sequence_literals(tmp_path: Path) -> None:
+    source = tmp_path / "src" / "terminal.py"
+    source.parent.mkdir()
+    escaped_csi = "\\" + "x1b[31m"
+    source.write_text(f'print("{escaped_csi}red")\n', encoding="utf-8")
+
+    errors = ci_quality_scans.scan_paths(tmp_path, [Path("src/terminal.py")])
+
+    assert any("terminal escape sequence literal" in error for error in errors)
+
+
 def test_ci_quality_scan_git_fallback_handles_missing_git(tmp_path: Path, monkeypatch) -> None:
     def raise_os_error(*_args: object, **_kwargs: object) -> subprocess.CompletedProcess[str]:
         raise FileNotFoundError("git")

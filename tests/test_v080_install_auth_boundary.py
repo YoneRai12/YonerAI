@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import re
 import subprocess
 from pathlib import Path
@@ -9,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 INSTALL_SKELETON = ROOT / "install.ps1"
 V070_MANIFEST = ROOT / "releases" / "manifest.v0.7.0-alpha.1.json"
 V080_MANIFEST = ROOT / "releases" / "manifest.v0.8.0-alpha.1.json"
+MOJIBAKE_MARKERS = ("\ufffd", "\u7e5d", "\u87fe", "\u8b8c", "\u87f9")
 
 
 def test_v080_boundary_docs_exist_and_keep_public_private_split() -> None:
@@ -43,16 +46,18 @@ def test_v080_site_content_is_candidate_not_deployed_or_production_claim() -> No
     )
     install_page = (ROOT / "docs" / "site" / "yonerai.com" / "install.md").read_text(encoding="utf-8")
 
-    for text in (release_page, press_card, install_page):
-        assert "v0.8.0-alpha.1" in text
-        assert "not" in text.lower()
-        assert "production network installer" in text
-        assert "OpenAI shared traffic" in text
-        assert "production Google login" in text
+    for page_text in (release_page, press_card, install_page):
+        assert "v0.8.0-alpha.1" in page_text
+        assert "not" in page_text.lower()
+        assert "production network installer" in page_text
+        assert "OpenAI shared traffic" in page_text
+        assert "production Google login" in page_text
+        assert not any(marker in page_text for marker in MOJIBAKE_MARKERS)
 
     assert "not a live download promise" in install_page
     assert "does not download, install, mutate" in install_page
-    assert "/自己進化" in release_page
+    assert "/\u81ea\u5df1\u9032\u5316" in release_page
+    assert "/\u81ea\u5df1\u9032\u5316 stays proposal-only" in press_card
 
 
 def test_v080_manifest_validates_as_non_production_alpha_manifest() -> None:
@@ -105,10 +110,119 @@ def test_install_skeleton_reads_local_manifest_plan_without_actions_when_powersh
     assert "manifest version: 0.7.0-alpha.1" in output
     assert "artifact name: YonerAI-0.7.0-alpha.1.zip" in output
     assert "sha256 format valid: True" in output
+    assert "artifact name matches manifest: True" in output
+    assert "local artifact status: not found; hash not checked" in output
     assert "production trust: not present in public repo" in output
     assert "not performed: network download" in output
     assert "PATH mutation" in output
     assert "remote script execution" in output
+
+
+def test_install_skeleton_rejects_tampered_local_artifact_when_powershell_available() -> None:
+    powershell = _powershell_executable()
+    if powershell is None:
+        return
+
+    artifact_dir = ROOT / ".installer-tamper-test"
+    artifact_path = artifact_dir / "YonerAI-0.7.0-alpha.1.zip"
+    artifact_dir.mkdir(exist_ok=True)
+    artifact_path.write_bytes(b"tampered artifact")
+    try:
+        result = subprocess.run(
+            [
+                str(powershell),
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                str(INSTALL_SKELETON),
+                "-Manifest",
+                str(V070_MANIFEST.relative_to(ROOT)),
+                "-Artifact",
+                str(artifact_path.relative_to(ROOT)),
+            ],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+            timeout=30,
+        )
+    finally:
+        artifact_path.unlink(missing_ok=True)
+        try:
+            artifact_dir.rmdir()
+        except OSError:
+            pass
+
+    output = result.stdout + result.stderr
+    assert result.returncode != 0, _subprocess_failure(result)
+    assert "local artifact sha256 matches manifest: False" in output
+    assert "Artifact SHA256 mismatch" in output
+    assert "Plan only. Nothing was installed." not in output
+
+
+def test_install_skeleton_selects_matching_artifact_when_manifest_has_multiple_entries() -> None:
+    powershell = _powershell_executable()
+    if powershell is None:
+        return
+
+    artifact_dir = ROOT / ".installer-multi-artifact-test"
+    manifest_path = artifact_dir / "manifest.json"
+    artifact_path = artifact_dir / "YonerAI-0.7.0-alpha.1-windows-x64.zip"
+    artifact_bytes = b"fixture windows artifact"
+    artifact_dir.mkdir(exist_ok=True)
+    artifact_path.write_bytes(artifact_bytes)
+    manifest = json.loads(V070_MANIFEST.read_text(encoding="utf-8"))
+    manifest["artifacts"].append(
+        {
+            "id": "yonerai-0.7.0-alpha.1-windows-x64",
+            "kind": "windows_zip",
+            "target": "windows-x64",
+            "os": "windows",
+            "arch": "x64",
+            "url": (
+                "https://github.com/YoneRai12/YonerAI/releases/download/"
+                "v0.7.0-alpha.1/YonerAI-0.7.0-alpha.1-windows-x64.zip"
+            ),
+            "sha256": hashlib.sha256(artifact_bytes).hexdigest(),
+            "size_bytes": len(artifact_bytes),
+            "signature": {"status": "placeholder_non_production"},
+        }
+    )
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    try:
+        result = subprocess.run(
+            [
+                str(powershell),
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                str(INSTALL_SKELETON),
+                "-Manifest",
+                str(manifest_path.relative_to(ROOT)),
+                "-Artifact",
+                str(artifact_path.relative_to(ROOT)),
+            ],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+            timeout=30,
+        )
+    finally:
+        artifact_path.unlink(missing_ok=True)
+        manifest_path.unlink(missing_ok=True)
+        try:
+            artifact_dir.rmdir()
+        except OSError:
+            pass
+
+    output = result.stdout + result.stderr
+    assert result.returncode == 0, _subprocess_failure(result)
+    assert "artifact name: YonerAI-0.7.0-alpha.1-windows-x64.zip" in output
+    assert "artifact name matches manifest: True" in output
+    assert "local artifact sha256 matches manifest: True" in output
+    assert "local artifact size matches manifest: True" in output
+    assert "Plan only. Nothing was installed." in output
 
 
 def test_install_skeleton_rejects_absolute_manifest_path_when_powershell_available() -> None:

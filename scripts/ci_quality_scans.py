@@ -34,11 +34,16 @@ EXCLUDED_PARTS = {
 }
 SECRET_PATTERNS = (
     re.compile(r"sk-[A-Za-z0-9_-]{20,}"),
+    re.compile(r"\b(?:gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,})\b"),
+    re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{20,}\b"),
+    re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b"),
+    re.compile(r"\bAIza[0-9A-Za-z_-]{35}\b"),
+    re.compile(r"(?i)\b(?:authorization|proxy-authorization)\s*[:=]\s*bearer\s+[A-Za-z0-9_.+/=-]{20,}"),
     re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
     re.compile(r"(?i)(api[_-]?key|access[_-]?token|refresh[_-]?token|discord[_-]?token|client[_-]?secret)\s*[:=]\s*['\"]?[A-Za-z0-9_.:/+=-]{16,}"),
 )
 LOCAL_PATH_PATTERNS = (
-    re.compile(r"[A-Za-z]:\\Users\\[A-Za-z0-9_.-]+\\"),
+    re.compile(r"[A-Za-z]:[\\/]Users[\\/][A-Za-z0-9_.-]+[\\/]"),
     re.compile(r"/(?:home|Users|root)/[A-Za-z0-9_.-]+/"),
 )
 MOJIBAKE_PATTERNS = (
@@ -47,6 +52,9 @@ MOJIBAKE_PATTERNS = (
 )
 HIDDEN_UNICODE = tuple(chr(codepoint) for codepoint in (0x200B, 0x200C, 0x200D, 0x2060, 0xFEFF))
 CONTROL_CHAR_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+TERMINAL_ESCAPE_PATTERNS = (
+    re.compile(r"(?i)(?:\\x1b|\\u001b|\\u009b|\\033|\\e)\[[0-?]*[ -/]*[@-~]"),
+)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -99,6 +107,10 @@ def _scan_line(rel: str, index: int, line: str, errors: list[str]) -> None:
         errors.append(f"{rel}:{index}: hidden unicode marker")
     if CONTROL_CHAR_RE.search(line):
         errors.append(f"{rel}:{index}: raw terminal control character")
+    for pattern in TERMINAL_ESCAPE_PATTERNS:
+        if pattern.search(line) and not _is_allowed_terminal_escape_fixture(rel, line):
+            errors.append(f"{rel}:{index}: terminal escape sequence literal")
+            break
 
 
 def _changed_files(repo_root: Path) -> list[Path]:
@@ -171,7 +183,7 @@ def _should_scan(path: Path) -> bool:
 
 
 def _is_allowed_local_path_fixture(rel: str, line: str) -> bool:
-    if rel.startswith("tests/") and any(path in line for path in ("C:\\Users", "/Users/", "/home/", "/root/")):
+    if rel.startswith("tests/") and any(path in line for path in ("C:\\Users", "C:/Users", "/Users/", "/home/", "/root/")):
         return True
     return "LOCAL_PATH_PATTERNS" in line or "PRIVATE_MARKERS" in line
 
@@ -192,6 +204,10 @@ def _run_git(command: tuple[str, ...], repo_root: Path) -> subprocess.CompletedP
 
 def _is_allowed_mojibake_fixture(rel: str, line: str) -> bool:
     return rel.endswith("ci_quality_scans.py")
+
+
+def _is_allowed_terminal_escape_fixture(rel: str, line: str) -> bool:
+    return rel.endswith("ci_quality_scans.py") or rel.startswith("tests/")
 
 
 if __name__ == "__main__":

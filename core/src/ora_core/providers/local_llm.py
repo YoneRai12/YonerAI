@@ -93,7 +93,7 @@ class LocalLLMReply:
 def _env_enabled(raw: str | None) -> bool:
     if raw is None:
         return False
-    return raw.strip().lower() not in {"0", "false", "no", "off"}
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _parse_timeout(raw: str | None) -> float:

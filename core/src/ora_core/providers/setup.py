@@ -41,7 +41,7 @@ def _provider_setup_entry(status: dict[str, object], env: Mapping[str, str | Non
         "available": available,
         "reason": reason,
         "env_status": env_status,
-        "capabilities": _capability_negotiation(provider_id, status),
+        "capabilities": _capability_negotiation(provider_id, status, env),
         "setup_blockers": [],
         "live_ready": False,
         "network_probe_performed": False,
@@ -82,7 +82,11 @@ def _provider_setup_entry(status: dict[str, object], env: Mapping[str, str | Non
     return entry
 
 
-def _capability_negotiation(provider_id: str, status: Mapping[str, object]) -> dict[str, object]:
+def _capability_negotiation(
+    provider_id: str,
+    status: Mapping[str, object],
+    env: Mapping[str, str | None],
+) -> dict[str, object]:
     raw = status.get("capabilities")
     capabilities = raw if isinstance(raw, Mapping) else {}
     chat = bool(capabilities.get("chat"))
@@ -97,6 +101,11 @@ def _capability_negotiation(provider_id: str, status: Mapping[str, object]) -> d
         fallback_reason = "chat_capability_missing"
     elif not available:
         fallback_reason = "provider_unavailable_or_not_configured"
+    elif provider_id in {"openai-compatible", "anthropic", "gemini"} and not _enabled(
+        env.get(f"YONERAI_{_provider_env_prefix(provider_id)}_LIVE")
+    ):
+        fallback_reason = "live_opt_in_required"
+        safe_for_subagents = False
     elif provider_id not in {"mock", "local", "openai-compatible", "anthropic", "gemini"}:
         fallback_reason = "provider_not_registered_for_subagents"
         safe_for_subagents = False

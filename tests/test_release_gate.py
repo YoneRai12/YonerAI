@@ -145,6 +145,18 @@ def test_release_gate_blocks_sha256_mismatch(tmp_path: Path) -> None:
     assert any("sha256 mismatch" in error for error in errors)
 
 
+def test_release_gate_blocks_manifest_product_mismatch(tmp_path: Path) -> None:
+    repo = _write_release_fixture(tmp_path)
+    manifest_path = repo / "releases" / "manifest.v1.2.3-alpha.1.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["product"] = "ORA"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    errors = validate_release_gate(repo_root=repo, tag="v1.2.3-alpha.1", github_prerelease="true")
+
+    assert any("manifest product mismatch" in error for error in errors)
+
+
 def test_release_gate_blocks_prerelease_flag_mismatch(tmp_path: Path) -> None:
     repo = _write_release_fixture(tmp_path)
 
@@ -166,6 +178,44 @@ def test_release_gate_blocks_positive_production_overclaim(tmp_path: Path) -> No
     assert any("overclaims production readiness" in error for error in errors)
 
 
+@pytest.mark.parametrize(
+    "phrase",
+    (
+        "production ready",
+        "shipping-complete",
+        "Google login complete",
+        "persistent memory complete",
+        "final Web UI complete",
+        "Tools/MCP complete",
+        "src/cogs/ora.py solved",
+        "v7.8 started",
+    ),
+)
+def test_release_gate_blocks_public_nonclaim_overclaim_phrases(tmp_path: Path, phrase: str) -> None:
+    repo = _write_release_fixture(tmp_path, note=f"# Release\n\nYonerAI is {phrase}.\n")
+
+    errors = validate_release_gate(repo_root=repo, tag="v1.2.3-alpha.1", github_prerelease="true")
+
+    assert any("overclaims" in error for error in errors)
+
+
+@pytest.mark.parametrize(
+    "note",
+    (
+        "# Release\n\nNot production-ready; shipping complete.\n",
+        "# Release\n\nNo production-ready claim; Google login complete.\n",
+        "# Release\n\nNot production-ready but Google login complete.\n",
+        "# Release\n\nNot production-ready and shipping complete.\n",
+    ),
+)
+def test_release_gate_blocks_positive_claim_after_unrelated_negation(tmp_path: Path, note: str) -> None:
+    repo = _write_release_fixture(tmp_path, note=note)
+
+    errors = validate_release_gate(repo_root=repo, tag="v1.2.3-alpha.1", github_prerelease="true")
+
+    assert any("overclaims" in error for error in errors)
+
+
 def test_release_gate_allows_mid_sentence_negative_nonclaims(tmp_path: Path) -> None:
     repo = _write_release_fixture(
         tmp_path,
@@ -175,6 +225,8 @@ def test_release_gate_allows_mid_sentence_negative_nonclaims(tmp_path: Path) -> 
             "No production-ready claim is made.\n"
             "This is not official cloud complete.\n"
             "This does not make official cloud runnable.\n"
+            "This release does not claim production-ready or Google login complete.\n"
+            "This release does not make production-ready or persistent memory complete.\n"
         ),
     )
 

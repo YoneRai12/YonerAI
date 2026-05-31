@@ -16,10 +16,12 @@ KNOWN_POSTURE_CAPABILITIES = frozenset(
         "tool_boundary",
         "ledger",
         "dangerous_operation",
+        "dangerous_operations",
     }
 )
 LIMITED_POSTURE_CAPABILITIES = frozenset({"mock_search", "ledger"})
 RECOVERY_POSTURE_CAPABILITIES = frozenset({"ledger"})
+DANGEROUS_POSTURE_CAPABILITIES = frozenset({"dangerous_operation", "dangerous_operations"})
 
 
 @dataclass(frozen=True)
@@ -73,6 +75,9 @@ def evaluate_local_node_posture(
     known_capabilities = tuple(
         capability for capability in normalized_capabilities if capability in KNOWN_POSTURE_CAPABILITIES
     )
+    dangerous_capabilities = tuple(
+        capability for capability in known_capabilities if capability in DANGEROUS_POSTURE_CAPABILITIES
+    )
     reasons: list[str] = []
     normalized_session_state = str(session_state or "missing").strip().lower().replace("-", "_") or "missing"
 
@@ -107,6 +112,8 @@ def evaluate_local_node_posture(
 
     exposed_capabilities = _exposed_capabilities(state=state, known_capabilities=known_capabilities)
     denied_capabilities = tuple(capability for capability in normalized_capabilities if capability not in exposed_capabilities)
+    if dangerous_capabilities:
+        reasons.append("dangerous_capability_denied_by_default")
 
     return LocalNodePostureDecision(
         schema_version=NODE_POSTURE_SCHEMA_VERSION,
@@ -124,7 +131,7 @@ def evaluate_local_node_posture(
         revoked=revoked or normalized_session_state == "revoked",
         production_trust_material=production_trust_material,
         local_work_preview_allowed=state == "VERIFIED",
-        owner_approval_required=state != "VERIFIED",
+        owner_approval_required=state != "VERIFIED" or bool(dangerous_capabilities),
         reasons=tuple(dict.fromkeys(reasons)),
     )
 
@@ -135,7 +142,7 @@ def _exposed_capabilities(
     known_capabilities: tuple[str, ...],
 ) -> tuple[str, ...]:
     if state == "VERIFIED":
-        allowed = set(KNOWN_POSTURE_CAPABILITIES)
+        allowed = set(KNOWN_POSTURE_CAPABILITIES) - set(DANGEROUS_POSTURE_CAPABILITIES)
     elif state == "LIMITED":
         allowed = set(LIMITED_POSTURE_CAPABILITIES)
     elif state == "RECOVERY":
