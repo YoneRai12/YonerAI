@@ -5,8 +5,8 @@ This page is a public-safe index of current release notes and progress checkpoin
 ## v0.11.0-alpha.1 Account Sync and Oracle API Foundation
 
 - GitHub pre-release target: `v0.11.0-alpha.1`.
-- Release title: `2026.06.01 - YonerAI v0.11.0-alpha.1 Account Sync and Oracle API Foundation`.
-- Release date: `2026-06-01`.
+- Release title: `2026.05.31 - YonerAI v0.11.0-alpha.1 Account Sync and Oracle API Foundation`.
+- Release date: `2026-05-31`.
 - Public release body: `docs/releases/0.11.0-alpha.1.md`.
 - Status: prerelease account-sync and Official API contract foundation after
   v0.10.0-alpha.1.

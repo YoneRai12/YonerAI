@@ -2,7 +2,7 @@
 
 See also: `docs/RELEASE_NOTES.md` (curated summary, v5.0.0 -> current).
 
-## v0.11.0-alpha.1 (2026-06-01) - Account Sync and Oracle API Foundation
+## v0.11.0-alpha.1 (2026-05-31) - Account Sync and Oracle API Foundation
 - Added public account identity, Google auth dry-run, cloud/local sync,
   sync-decision, sync-audit, Official API fixture, and rate-limit policy
   contracts.

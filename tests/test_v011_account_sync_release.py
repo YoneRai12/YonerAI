@@ -10,11 +10,8 @@ CLI_SRC = ROOT / "clients" / "cli"
 VERSION = "0.11.0-alpha.1"
 PYPROJECT_VERSION = "0.11.0a1"
 
-
-def _prepare_paths() -> None:
-    text = str(CLI_SRC)
-    if text not in sys.path:
-        sys.path.insert(0, text)
+if str(CLI_SRC) not in sys.path:
+    sys.path.insert(0, str(CLI_SRC))
 
 
 def _load_manifest() -> dict[str, object]:
@@ -36,7 +33,6 @@ def test_v011_versions_and_installer_defaults_are_consistent() -> None:
 
 
 def test_v011_manifest_validates_with_cli_contract() -> None:
-    _prepare_paths()
     from yonerai_cli.release_manifest import verify_manifest
 
     report = verify_manifest(_load_manifest())

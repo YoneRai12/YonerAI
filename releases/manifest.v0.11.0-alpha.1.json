@@ -3,7 +3,7 @@
   "product": "YonerAI",
   "channel": "alpha",
   "version": "0.11.0-alpha.1",
-  "published_at": "2026-06-01T00:00:00Z",
+  "published_at": "2026-05-31T20:30:00Z",
   "production_ready": false,
   "release": {
     "tag": "v0.11.0-alpha.1",
@@ -42,8 +42,8 @@
       "os": "any",
       "arch": "any",
       "url": "https://github.com/YoneRai12/YonerAI/releases/download/v0.11.0-alpha.1/YonerAI-0.11.0-alpha.1.zip",
-      "sha256": "527a9573bf416f80f4f91938de61984abcc167f8eddba99b0d45ed2d97f259f6",
-      "size_bytes": 15319309,
+      "sha256": "f7ae180da1be12a4f659ba83fc8ae5989e13ca2ad916223ec97a34e5f6080bd2",
+      "size_bytes": 15319241,
       "signature": {
         "status": "placeholder_non_production",
         "algorithm": "none",
