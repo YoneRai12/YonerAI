@@ -11,7 +11,7 @@ This page is a public-safe index of current release notes and progress checkpoin
 - Status: prerelease TUI usability and safety-gate update after
   v0.8.0-alpha.1.
 - What users can try now: `yonerai`, `/`, `/提供元選択`, `/選択 2`,
-  `/選択 5`, `/ライブ`, `/更新通知`, `/設定`, `/モデル`, `/ローカルLLM`,
+  `/選択 5`, `/ライブ`, `/更新通知`, `/設定`, `/状態`, `/モデル`, `/ローカルLLM`,
   `/安全`, `/認証`, `/プライバシー`, `/自己進化`, `/更新`, and local manifest
   dry-run commands against `releases/manifest.v0.9.0-alpha.1.json`.
 - Boundary: Japanese-first TUI value completion and quality-wall hardening

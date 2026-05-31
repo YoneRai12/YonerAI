@@ -2,8 +2,8 @@ param(
     [switch]$Plan,
     [switch]$Execute,
     [switch]$Launch,
-    [string]$Manifest = "releases\manifest.v0.8.0-alpha.1.json",
-    [string]$Artifact = "YonerAI-0.8.0-alpha.1.zip"
+    [string]$Manifest = "releases\manifest.v0.9.0-alpha.1.json",
+    [string]$Artifact = "YonerAI-0.9.0-alpha.1.zip"
 )
 
 $ErrorActionPreference = "Stop"
