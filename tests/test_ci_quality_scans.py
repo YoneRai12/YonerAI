@@ -40,6 +40,29 @@ def test_ci_quality_scan_blocks_windows_forward_slash_path_leak_outside_tests(tm
     assert any("possible local absolute path leak" in error for error in errors)
 
 
+def test_ci_quality_scan_scans_typescript_and_launcher_files(tmp_path: Path) -> None:
+    tsx_source = tmp_path / "clients" / "web" / "app" / "page.tsx"
+    tsx_source.parent.mkdir(parents=True)
+    tsx_source.write_text('const leak = "C:/Users/runner/project";\n', encoding="utf-8")
+    cmd_source = tmp_path / "scripts" / "start.cmd"
+    cmd_source.parent.mkdir()
+    cmd_source.write_text("set " + "API_KEY" + "=" + "abcdefghijklmnopqrstuvwxyz\n", encoding="utf-8")
+    shell_source = tmp_path / "scripts" / "start.sh"
+    shell_source.write_text("export " + "DISCORD_TOKEN" + "=" + "abcdefghijklmnopqrstuvwxyz\n", encoding="utf-8")
+
+    errors = ci_quality_scans.scan_paths(
+        tmp_path,
+        [
+            Path("clients/web/app/page.tsx"),
+            Path("scripts/start.cmd"),
+            Path("scripts/start.sh"),
+        ],
+    )
+
+    assert any("possible local absolute path leak" in error for error in errors)
+    assert sum("possible secret or token literal" in error for error in errors) == 2
+
+
 def test_ci_quality_scan_blocks_common_unlabeled_token_prefixes(tmp_path: Path) -> None:
     source = tmp_path / "src" / "leak.py"
     source.parent.mkdir()
@@ -65,6 +88,20 @@ def test_ci_quality_scan_blocks_common_unlabeled_token_prefixes(tmp_path: Path) 
     errors = ci_quality_scans.scan_paths(tmp_path, [Path("src/leak.py")])
 
     assert sum("possible secret or token literal" in error for error in errors) == 5
+
+
+def test_ci_quality_scan_blocks_bidi_markers_and_question_mark_mojibake(tmp_path: Path) -> None:
+    source = tmp_path / "docs" / "public.md"
+    source.parent.mkdir()
+    source.write_text(
+        "safe" + chr(0x202E) + "hidden\n" + "broken " + "?" * 4 + " text\n",
+        encoding="utf-8",
+    )
+
+    errors = ci_quality_scans.scan_paths(tmp_path, [Path("docs/public.md")])
+
+    assert any("hidden unicode marker" in error for error in errors)
+    assert any("possible mojibake" in error for error in errors)
 
 
 def test_ci_quality_scan_blocks_escaped_terminal_sequence_literals(tmp_path: Path) -> None:

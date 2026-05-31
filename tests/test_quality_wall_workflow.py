@@ -43,6 +43,9 @@ def test_release_gate_workflow_does_not_publish() -> None:
     assert "softprops/action-gh-release" not in workflow
     assert "python scripts/release_gate.py" in workflow
     assert "--github-prerelease auto" in workflow
+    assert "python scripts/create_release.py \"${VERSION}\"" in workflow
+    assert '--artifact "${PRODUCT_NAME}-${VERSION}.zip"' in workflow
+    assert "git diff --name-only \"origin/${BASE_REF}...HEAD\"" in workflow
 
 
 def test_required_checks_doc_lists_quality_wall_jobs() -> None:

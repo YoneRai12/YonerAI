@@ -11,13 +11,21 @@ from pathlib import Path
 
 TEXT_SUFFIXES = {
     ".cfg",
+    ".cjs",
     ".css",
+    ".cmd",
     ".html",
     ".ini",
+    ".js",
+    ".jsx",
     ".json",
     ".md",
+    ".mjs",
     ".ps1",
     ".py",
+    ".sh",
+    ".ts",
+    ".tsx",
     ".toml",
     ".txt",
     ".yml",
@@ -48,9 +56,28 @@ LOCAL_PATH_PATTERNS = (
 )
 MOJIBAKE_PATTERNS = (
     re.compile("\ufffd"),
+    re.compile(r"\?{4,}"),
     re.compile(r"(繝|縺|荳|譁|蜿|螳|險|豁ｴ|邂)"),
 )
-HIDDEN_UNICODE = tuple(chr(codepoint) for codepoint in (0x200B, 0x200C, 0x200D, 0x2060, 0xFEFF))
+HIDDEN_UNICODE = tuple(
+    chr(codepoint)
+    for codepoint in (
+        0x200B,
+        0x200C,
+        0x200D,
+        0x202A,
+        0x202B,
+        0x202C,
+        0x202D,
+        0x202E,
+        0x2060,
+        0x2066,
+        0x2067,
+        0x2068,
+        0x2069,
+        0xFEFF,
+    )
+)
 CONTROL_CHAR_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 TERMINAL_ESCAPE_PATTERNS = (
     re.compile(r"(?i)(?:\\x1b|\\u001b|\\u009b|\\033|\\e)\[[0-?]*[ -/]*[@-~]"),
