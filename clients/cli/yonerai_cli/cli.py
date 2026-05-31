@@ -3301,6 +3301,7 @@ def _build_evolve_report_for_cli(args: argparse.Namespace) -> dict[str, Any]:
     try:
         _prepare_repo_import_path()
         from src.self_evolution import (
+            UnsafeSignalError,
             build_queue_list_report,
             build_queue_show_report,
             build_queue_simulation_report,
@@ -3309,15 +3310,18 @@ def _build_evolve_report_for_cli(args: argparse.Namespace) -> dict[str, Any]:
     except Exception as exc:
         raise CliError("self-evolution proposal queue is unavailable.", exit_code=1) from exc
 
-    if args.evolve_command == "status":
-        return build_queue_status_report()
-    signals = _load_evolve_signals_for_cli(args)
-    if args.evolve_command == "simulate":
-        return build_queue_simulation_report(signals)
-    if args.evolve_command == "proposals" and args.evolve_proposals_command == "list":
-        return build_queue_list_report(signals)
-    if args.evolve_command == "proposals" and args.evolve_proposals_command == "show":
-        return build_queue_show_report(args.proposal_id, signals)
+    try:
+        if args.evolve_command == "status":
+            return build_queue_status_report()
+        signals = _load_evolve_signals_for_cli(args)
+        if args.evolve_command == "simulate":
+            return build_queue_simulation_report(signals)
+        if args.evolve_command == "proposals" and args.evolve_proposals_command == "list":
+            return build_queue_list_report(signals)
+        if args.evolve_command == "proposals" and args.evolve_proposals_command == "show":
+            return build_queue_show_report(args.proposal_id, signals)
+    except UnsafeSignalError as exc:
+        raise CliError(str(exc), exit_code=2) from exc
     raise CliError("unknown evolve command", exit_code=2)
 
 

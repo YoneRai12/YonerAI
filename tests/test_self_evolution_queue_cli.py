@@ -179,6 +179,12 @@ def test_tui_slash_completion_includes_evolve_without_english_alias_in_japanese(
 def test_cli_evolve_rejects_missing_or_private_fixture_without_traceback(tmp_path: Path, capsys) -> None:
     from yonerai_cli import cli
 
+    assert cli.main(["evolve", "proposals", "show", "../x", "--fixture", str(FIXTURE), "--json"]) == 2
+    captured = capsys.readouterr()
+
+    assert "proposal_id must be a safe local identifier" in captured.err
+    assert "Traceback" not in captured.err
+
     missing = FIXTURE.parent / "missing.json"
     assert cli.main(["evolve", "simulate", "--fixture", str(missing), "--json"]) == 2
     captured = capsys.readouterr()
