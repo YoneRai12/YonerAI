@@ -77,8 +77,8 @@ include:
 
 `releases/manifest.schema.json` defines the future installer bootstrap release manifest. `releases/manifest.example.json` is an example contract fixture and is not a production installer manifest.
 
-`releases/manifest.v0.6.1.json` records the current v0.6.1 GitHub Release
-asset `YonerAI-0.6.1.zip` for GitHub-asset-only one-command install,
+`releases/manifest.v0.6.2.json` records the current v0.6.2 GitHub Release
+asset `YonerAI-0.6.2.zip` for GitHub-asset-only one-command install,
 local verification, and dry-run planning. It is stable-channel metadata for the
 CLI Local Runtime release, but it is still not a production-signed installer
 because the public repository does not include production signing keys, a
@@ -189,7 +189,7 @@ Until that lane exists, public manifests must clearly report
    `.venv` setup, no PATH mutation, no remote script execution, no service
    install, and no admin request.
 9. Add a root `install.ps1` one-command GitHub Release bootstrap. Done for
-   v0.6.1: stable by default, alpha only by explicit `-Channel alpha`, rejects
+   v0.6.2: stable by default, alpha only by explicit `-Channel alpha`, rejects
    local/custom manifest or ZIP paths, verifies the release ZIP SHA256 from the
    manifest before extraction, and never uses `yonerai.com` as the installer
    file source.
@@ -235,7 +235,7 @@ Completed or substantially completed:
 - Local install dry-run planning: PR #336, `yonerai install plan`.
 - Local update dry-run planning: PR #341, `yonerai update plan`.
 - Local update quick check: v0.6 TUI runtime, `yonerai update check`.
-- One-command GitHub Release bootstrap: v0.6.1, `install.ps1` and
+- One-command GitHub Release bootstrap: v0.6.2, `install.ps1` and
   `install.ps1.sha256` as GitHub Release assets only.
 - Local non-production/test signed manifest verification:
   `yonerai manifest verify <path> --test-trust-fixture <fixture>`.

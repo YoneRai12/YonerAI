@@ -1,11 +1,12 @@
 import os
 import asyncio
+import re
 
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import Request, Query, Header
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse
 
 from src.config import resolve_bot_db_path
 from src.storage import Store
@@ -64,6 +65,19 @@ if not os.path.exists(static_dir):
     os.makedirs(static_dir)
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
+_LOCAL_INSTALL_ARTIFACT_RE = re.compile(
+    r"^/(?:static/)?(?:install[^/]*\.ps1|[^/]+\.sha256|manifest[^/]*\.json|YonerAI-[^/]+\.zip)$",
+    re.IGNORECASE,
+)
+
+
+@app.middleware("http")
+async def block_local_install_artifact_serving(request: Request, call_next):
+    if _LOCAL_INSTALL_ARTIFACT_RE.search(request.url.path):
+        return HTMLResponse("<h1>Not found</h1>", status_code=404)
+    return await call_next(request)
+
+
 @app.get("/")
 async def read_index():
     """Serve the Remote Loader at the root."""
@@ -71,6 +85,16 @@ async def read_index():
     if os.path.exists(index_path):
         return FileResponse(index_path)
     return {"detail": "ORA Web API is running, but index.html is missing."}
+
+
+@app.get("/install", response_class=PlainTextResponse)
+@app.get("/install/", response_class=PlainTextResponse)
+async def install_page():
+    install_path = os.path.join(static_dir, "install.txt")
+    if os.path.exists(install_path):
+        with open(install_path, encoding="utf-8") as handle:
+            return PlainTextResponse(handle.read())
+    return HTMLResponse("<h1>Not found</h1>", status_code=404)
 
 
 @app.get("/setup", response_class=HTMLResponse)

@@ -13,7 +13,7 @@ package and commercial use requires a separate license.
 ## Install and start YonerAI
 
 This is the local CLI runtime path, not full YonerAI cloud production.
-v0.6.1 adds a one-command Windows path that downloads installable bytes from
+v0.6.2 keeps the one-command Windows path downloading installable bytes from
 GitHub Release assets only. `yonerai.com/install` is a command page, not an
 installer file host.
 
@@ -31,12 +31,12 @@ production cloud behavior.
 ### If you downloaded the GitHub Release ZIP
 
 Download `Source code (zip)` from the
-[v0.6.1 release](https://github.com/YoneRai12/YonerAI/releases/tag/v0.6.1),
+[v0.6.2 release](https://github.com/YoneRai12/YonerAI/releases/tag/v0.6.2),
 extract it, then run PowerShell inside the extracted folder. The extracted
 folder name can vary; change the `cd` command to match the folder you see.
 
 ```powershell
-cd "$HOME\Downloads\YonerAI-0.6.1"
+cd "$HOME\Downloads\YonerAI-0.6.2"
 python --version
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
@@ -115,10 +115,10 @@ yonerai start --guided --lang ja
 yonerai providers --pretty --lang ja
 yonerai ask "hello" --auto --pretty --lang ja
 yonerai chat --script --lang ja
-yonerai manifest verify releases/manifest.v0.6.1.json --pretty
-yonerai install plan --manifest releases/manifest.v0.6.1.json --pretty
-yonerai update check --manifest releases/manifest.v0.6.1.json --pretty
-yonerai update plan --manifest releases/manifest.v0.6.1.json --pretty
+yonerai manifest verify releases/manifest.v0.6.2.json --pretty
+yonerai install plan --manifest releases/manifest.v0.6.2.json --pretty
+yonerai update check --manifest releases/manifest.v0.6.2.json --pretty
+yonerai update plan --manifest releases/manifest.v0.6.2.json --pretty
 yonerai demo --pretty
 yonerai demo --json
 ```

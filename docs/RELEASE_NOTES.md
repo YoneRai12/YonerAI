@@ -2,6 +2,20 @@
 
 This page is a public-safe index of current release notes and progress checkpoints.
 
+## v0.6.2 Install Channel Alignment
+
+- GitHub release target: `v0.6.2`.
+- Release title: `2026.06.01 - YonerAI CLI Local Runtime v0.6.2 Install Channel Alignment`.
+- Release date: `2026-06-01`.
+- Public release body: `docs/releases/0.6.2.md`.
+- Stable one-command install still uses
+  `https://github.com/YoneRai12/YonerAI/releases/latest/download/install.ps1`.
+- `yonerai install status --channel alpha` now has the current public alpha
+  manifest available locally.
+- `yonerai.com/install` is plain command text only and does not serve installer
+  artifacts.
+- Primary traceability range: `v0.6.1..v0.6.2`.
+
 ## v0.6.1 One-Command Install
 
 - GitHub release target: `v0.6.1`.

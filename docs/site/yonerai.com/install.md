@@ -89,11 +89,11 @@ The install source of truth is GitHub Releases:
 - latest stable bootstrap:
   `https://github.com/YoneRai12/YonerAI/releases/latest/download/install.ps1`
 - stable release:
-  `https://github.com/YoneRai12/YonerAI/releases/tag/v0.6.1`
+  `https://github.com/YoneRai12/YonerAI/releases/tag/v0.6.2`
 - stable ZIP:
-  `https://github.com/YoneRai12/YonerAI/releases/download/v0.6.1/YonerAI-0.6.1.zip`
+  `https://github.com/YoneRai12/YonerAI/releases/download/v0.6.2/YonerAI-0.6.2.zip`
 - stable manifest:
-  `https://github.com/YoneRai12/YonerAI/releases/download/v0.6.1/manifest.v0.6.1.json`
+  `https://github.com/YoneRai12/YonerAI/releases/download/v0.6.2/manifest.v0.6.2.json`
 
 ## Publish blocker
 
@@ -102,8 +102,8 @@ stable GitHub Release contains all required assets:
 
 - `install.ps1`
 - `install.ps1.sha256`
-- `manifest.v0.6.1.json`
-- `YonerAI-0.6.1.zip`
+- `manifest.v0.6.2.json`
+- `YonerAI-0.6.2.zip`
 
 ## Non-claims
 

@@ -76,7 +76,7 @@ def test_install_status_reports_github_release_only_source_policy() -> None:
 
     assert report["schema_version"] == "yonerai-install-status/v0.1"
     assert report["channel"] == "stable"
-    assert report["selected_version"] == "0.6.1"
+    assert report["selected_version"] == "0.6.2"
     assert report["source_policy"]["install_script_source"] == "github_latest_release_asset_redirect"
     assert report["source_policy"]["artifact_source"] == "github_release_asset_only"
     assert report["source_policy"]["yonerai_com_serves_install_script"] is False
@@ -85,6 +85,20 @@ def test_install_status_reports_github_release_only_source_policy() -> None:
     assert report["recommended_commands"]["stable"].startswith("& ([scriptblock]::Create((irm ")
     assert LATEST_INSTALL_URL in report["recommended_commands"]["stable"]
     assert "-Channel alpha" in report["recommended_commands"]["alpha"]
+
+
+def test_alpha_install_status_matches_current_public_alpha_manifest() -> None:
+    _prepare_paths()
+    from yonerai_cli.install_planner import build_install_status
+
+    report = build_install_status(ROOT, channel="alpha")
+
+    assert report["ok"] is True
+    assert report["channel"] == "alpha"
+    assert report["selected_version"] == "0.11.0-alpha.1"
+    assert report["selected_tag"] == "v0.11.0-alpha.1"
+    assert report["selected_artifact"]["actual_filename"] == "YonerAI-0.11.0-alpha.1.zip"
+    assert report["source_policy"]["alpha_requires_explicit_channel"] is True
 
 
 def test_install_status_cli_json_is_stable_and_redacted() -> None:

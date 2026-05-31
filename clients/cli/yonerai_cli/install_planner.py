@@ -363,7 +363,7 @@ def _manifest_filename_channel(version: str) -> str:
 
 
 def _expected_channel_version(channel: str) -> str:
-    return "0.11.0-alpha.1" if channel == "alpha" else "0.6.1"
+    return "0.11.0-alpha.1" if channel == "alpha" else "0.6.2"
 
 
 def _artifact_plan_rows(manifest: dict[str, Any]) -> list[dict[str, Any]]:

@@ -2,6 +2,15 @@
 
 See also: `docs/RELEASE_NOTES.md` (curated summary, v5.0.0 -> current).
 
+## v0.6.2 (2026-06-01) - Install Channel Alignment
+- Kept the one-command installer stable by default while aligning alpha-channel
+  CLI visibility with `v0.11.0-alpha.1`.
+- Added `releases/manifest.v0.11.0-alpha.1.json` to the source tree for
+  explicit alpha install/update status.
+- Changed the live `/install` route contract to plain command text and added
+  tests proving `yonerai.com` does not serve installer artifacts.
+- Preserved GitHub Release assets as the only installable-byte source.
+
 ## v0.6.1 (2026-06-01) - One-Command Install
 - Added a stable-default one-command PowerShell bootstrap that downloads
   `install.ps1`, the release manifest, and the release ZIP from GitHub Release

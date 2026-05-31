@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CLI_SRC = ROOT / "clients" / "cli"
 V050_MANIFEST = ROOT / "releases" / "manifest.v0.5.0.json"
 V051_MANIFEST = ROOT / "releases" / "manifest.v0.5.1.json"
-V061_MANIFEST = ROOT / "releases" / "manifest.v0.6.1.json"
+V062_MANIFEST = ROOT / "releases" / "manifest.v0.6.2.json"
 
 
 def _prepare_paths() -> None:
@@ -28,8 +28,8 @@ def _load_v051_manifest() -> dict[str, object]:
     return json.loads(V051_MANIFEST.read_text(encoding="utf-8"))
 
 
-def _load_v061_manifest() -> dict[str, object]:
-    return json.loads(V061_MANIFEST.read_text(encoding="utf-8"))
+def _load_v062_manifest() -> dict[str, object]:
+    return json.loads(V062_MANIFEST.read_text(encoding="utf-8"))
 
 
 def test_license_policy_is_source_available_noncommercial() -> None:
@@ -106,16 +106,16 @@ def test_v051_manifest_validates_and_records_release_asset() -> None:
     assert isinstance(artifact["size_bytes"], int) and artifact["size_bytes"] > 1
 
 
-def test_v061_manifest_validates_github_release_bootstrap_source() -> None:
+def test_v062_manifest_validates_github_release_bootstrap_source() -> None:
     _prepare_paths()
     from yonerai_cli.release_manifest import load_manifest_file, verify_manifest
 
-    report = verify_manifest(load_manifest_file(str(V061_MANIFEST)))
+    report = verify_manifest(load_manifest_file(str(V062_MANIFEST)))
 
     assert report["contract_valid"] is True
     assert report["install_ready"] is False
-    assert report["version"] == "0.6.1"
-    assert report["release_tag"] == "v0.6.1"
+    assert report["version"] == "0.6.2"
+    assert report["release_tag"] == "v0.6.2"
     assert report["channel"] == "stable"
     assert report["signature_state"] == "placeholder_non_production"
     assert report["production_signature_verified"] is False
@@ -127,10 +127,10 @@ def test_v061_manifest_validates_github_release_bootstrap_source() -> None:
     assert any("GitHub Release asset" in warning for warning in report["warnings"])
     assert any("yonerai.com" in warning for warning in report["warnings"])
 
-    manifest = _load_v061_manifest()
+    manifest = _load_v062_manifest()
     artifact = manifest["artifacts"][0]
-    assert artifact["id"] == "yonerai-0.6.1-source-archive"
-    assert artifact["url"] == "https://github.com/YoneRai12/YonerAI/releases/download/v0.6.1/YonerAI-0.6.1.zip"
+    assert artifact["id"] == "yonerai-0.6.2-source-archive"
+    assert artifact["url"] == "https://github.com/YoneRai12/YonerAI/releases/download/v0.6.2/YonerAI-0.6.2.zip"
     assert len(str(artifact["sha256"])) == 64
     assert artifact["sha256"] != "0000000000000000000000000000000000000000000000000000000000000000"
     assert isinstance(artifact["size_bytes"], int) and artifact["size_bytes"] > 1
@@ -233,23 +233,23 @@ def test_manifest_rejects_unhashable_install_method_without_traceback() -> None:
 
 def test_yonerai_site_install_content_is_copyable_and_non_executing() -> None:
     install_page = (ROOT / "docs" / "site" / "yonerai.com" / "install.md").read_text(encoding="utf-8")
-    release_page = (ROOT / "docs" / "site" / "yonerai.com" / "releases" / "v0.6.1.md").read_text(
+    release_page = (ROOT / "docs" / "site" / "yonerai.com" / "releases" / "v0.6.2.md").read_text(
         encoding="utf-8"
     )
-    press_card = (ROOT / "docs" / "site" / "yonerai.com" / "press" / "v0.6.1-card.md").read_text(
+    press_card = (ROOT / "docs" / "site" / "yonerai.com" / "press" / "v0.6.2-card.md").read_text(
         encoding="utf-8"
     )
 
     for text in (install_page, release_page):
         lowered = text.lower()
-        assert "YonerAI-0.6.1.zip" in text
+        assert "YonerAI-0.6.2.zip" in text
         assert "GitHub Release assets" in text
-        assert "https://github.com/YoneRai12/YonerAI/releases/latest/download/install.ps1" in text or "v0.6.1" in text
+        assert "https://github.com/YoneRai12/YonerAI/releases/latest/download/install.ps1" in text or "v0.6.2" in text
         assert "https://yonerai.com/install.ps1" not in text
         assert "https://yonerai.com/releases/download" not in text
         assert "production signing keys" in lowered or "production signature" in lowered
 
-    assert "https://github.com/YoneRai12/YonerAI/releases/tag/v0.6.1" in press_card
+    assert "https://github.com/YoneRai12/YonerAI/releases/tag/v0.6.2" in press_card
     assert "cloud production" in press_card
 
 
@@ -258,7 +258,7 @@ def test_readmes_point_to_current_stable_manifest_and_license_policy() -> None:
         text = (ROOT / relative_path).read_text(encoding="utf-8")
 
         assert "PolyForm Noncommercial" in text
-        assert "releases/manifest.v0.6.1.json" in text or "manifest.v0.6.1.json" in text
+        assert "releases/manifest.v0.6.2.json" in text or "manifest.v0.6.2.json" in text
 
 
 def test_release_archive_policy_is_hash_stable_for_manifest_recording() -> None:

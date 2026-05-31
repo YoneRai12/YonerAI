@@ -18,10 +18,10 @@ $GitHubReleaseBase = "https://github.com/YoneRai12/YonerAI/releases/download"
 $GitHubLatestInstallScript = "https://github.com/YoneRai12/YonerAI/releases/latest/download/install.ps1"
 $KnownReleases = @{
     stable = @{
-        Version = "0.6.1"
-        Tag = "v0.6.1"
-        ManifestUrl = "$GitHubReleaseBase/v0.6.1/manifest.v0.6.1.json"
-        ArtifactName = "YonerAI-0.6.1.zip"
+        Version = "0.6.2"
+        Tag = "v0.6.2"
+        ManifestUrl = "$GitHubReleaseBase/v0.6.2/manifest.v0.6.2.json"
+        ArtifactName = "YonerAI-0.6.2.zip"
     }
     alpha = @{
         Version = "0.11.0-alpha.1"

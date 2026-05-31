@@ -1,0 +1,20 @@
+PowerShell:
+& ([scriptblock]::Create((irm https://github.com/YoneRai12/YonerAI/releases/latest/download/install.ps1))) -Execute -Launch
+
+Hash check first:
+$base = "https://github.com/YoneRai12/YonerAI/releases/latest/download"
+irm "$base/install.ps1" -OutFile install.ps1
+irm "$base/install.ps1.sha256" -OutFile install.ps1.sha256
+$actual = (Get-FileHash .\install.ps1 -Algorithm SHA256).Hash.ToLowerInvariant()
+$expected = ((Get-Content .\install.ps1.sha256).Split()[0]).ToLowerInvariant()
+if ($actual -ne $expected) { throw "install.ps1 hash mismatch" }
+.\install.ps1 -Execute -Launch
+
+Source:
+GitHub Releases only.
+
+Not served from yonerai.com:
+install.ps1
+*.zip
+*.sha256
+manifest*.json
