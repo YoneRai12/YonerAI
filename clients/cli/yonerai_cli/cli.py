@@ -1456,14 +1456,6 @@ def _repo_root() -> Path:
     return Path(__file__).resolve().parents[3]
 
 
-def _is_relative_to(path: Path, root: Path) -> bool:
-    try:
-        path.relative_to(root)
-    except ValueError:
-        return False
-    return True
-
-
 def _preview_route(args: argparse.Namespace) -> dict[str, Any]:
     try:
         _prepare_trusted_cli_import_paths()
@@ -3293,7 +3285,7 @@ def _load_evolve_signals_for_cli(args: argparse.Namespace) -> list[Any] | None:
     try:
         fixture_path = Path(fixture).expanduser().resolve()
         allowed_roots = (_repo_root().resolve(), Path.cwd().resolve())
-        if not any(_is_relative_to(fixture_path, root) for root in allowed_roots):
+        if not any(fixture_path.is_relative_to(root) for root in allowed_roots):
             raise CliError("self-evolution fixture must be inside the current workspace.", exit_code=2)
         _prepare_repo_import_path()
         from src.self_evolution import load_queue_signal_fixture
@@ -3357,7 +3349,7 @@ def _print_evolve_pretty(report: dict[str, Any], *, lang: str = "ja", color: Col
             proposal_rows.append(
                 CliRow(
                     str(item.get("proposal_id") or signal.get("feature_id") or "proposal"),
-                    f"{item.get('approval_state', 'unknown')} / {signal.get('surface', 'unknown')}",
+                    f"{item.get('approval_state') or 'unknown'} / {signal.get('surface') or 'unknown'}",
                     "warn" if item.get("approval_state") == "needs_owner" else "ok",
                 )
             )

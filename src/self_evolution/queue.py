@@ -51,7 +51,7 @@ ALLOWED_COMPLAINT_CLASSES = {
 ALLOWED_PROVIDER_CLASSES = {"none", "mock", "local_llm", "openai_compatible", "anthropic", "gemini", "unknown"}
 ALLOWED_LATENCY_BUCKETS = {"none", "lt_1s", "1_5s", "5_30s", "gt_30s", "unknown"}
 
-SAFE_ID_RE = re.compile(r"^[a-z0-9][a-z0-9_.-]{0,63}$")
+SAFE_ID_RE = re.compile(r"^[a-z0-9][a-z0-9_.-]{0,120}$")
 LOCAL_PATH_RE = re.compile(r"([A-Za-z]:[\\/]|\\\\|/Users/|/home/|/root/|/etc/|/var/|/tmp/)", re.IGNORECASE)
 URL_RE = re.compile(r"https?://", re.IGNORECASE)
 SECRET_RE = re.compile(

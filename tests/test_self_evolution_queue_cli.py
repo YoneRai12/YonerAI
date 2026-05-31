@@ -113,6 +113,29 @@ def test_evolve_proposals_list_and_show_are_stable(capsys) -> None:
     assert shown["proposal"]["candidate"]["rollback_plan"].startswith("Reject or archive")
 
 
+def test_queue_show_accepts_bounded_long_feature_ids() -> None:
+    from src.self_evolution import build_queue_show_report, normalize_queue_signal
+
+    feature_id = "a" * 80
+    signal = normalize_queue_signal(
+        {
+            "feature_id": feature_id,
+            "surface": "tui",
+            "mode": "local_cli",
+            "outcome": "confused",
+            "dropoff_stage": "settings",
+            "complaint_class": "missing_guidance",
+            "provider_class": "mock",
+            "latency_bucket": "lt_1s",
+        }
+    )
+
+    report = build_queue_show_report(f"proposal-{feature_id}", [signal])
+
+    assert report["ok"] is True
+    assert report["proposal"]["proposal_id"] == f"proposal-{feature_id}"
+
+
 def test_tui_evolve_command_is_available_in_japanese_mode(tmp_path: Path, monkeypatch, capsys) -> None:
     from yonerai_cli import cli
 
