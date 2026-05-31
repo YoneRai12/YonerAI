@@ -245,8 +245,8 @@ def _is_safe_env_reference(line: str, match: re.Match[str]) -> bool:
     env_match = re.search(r"\bprocess\.env\.[A-Z0-9_]+\b", match.group(0))
     if not env_match:
         return False
-    tail = line[match.end() :]
-    if "||" in tail or "??" in tail or "'" in tail or '"' in tail:
+    value_tail = re.split(r"[,;]", line[match.end() :], maxsplit=1)[0]
+    if "||" in value_tail or "??" in value_tail or "'" in value_tail or '"' in value_tail:
         return False
     return True
 

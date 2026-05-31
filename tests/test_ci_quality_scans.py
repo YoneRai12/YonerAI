@@ -160,6 +160,17 @@ def test_ci_quality_scan_blocks_literal_before_safe_env_reference_on_same_line(t
     assert any("possible secret or token literal" in error for error in errors)
 
 
+def test_ci_quality_scan_allows_safe_env_reference_before_other_string_field(tmp_path: Path) -> None:
+    source = tmp_path / "clients" / "web" / "auth.ts"
+    source.parent.mkdir(parents=True)
+    env_ref = "process" + ".env" + ".DISCORD_CLIENT_SECRET"
+    source.write_text(f"clientSecret: {env_ref}, callbackUrl: \"http://localhost:3000\"\n", encoding="utf-8")
+
+    errors = ci_quality_scans.scan_paths(tmp_path, [Path("clients/web/auth.ts")])
+
+    assert errors == []
+
+
 def test_ci_quality_scan_blocks_bidi_markers_and_question_mark_mojibake(tmp_path: Path) -> None:
     source = tmp_path / "docs" / "public.md"
     source.parent.mkdir()
