@@ -94,7 +94,7 @@ def test_ci_quality_scan_blocks_bidi_markers_and_question_mark_mojibake(tmp_path
     source = tmp_path / "docs" / "public.md"
     source.parent.mkdir()
     source.write_text(
-        "safe" + chr(0x202E) + "hidden\n" + "broken " + "?" * 4 + " text\n",
+        "safe" + chr(0x202E) + "hidden\n" + "broken 日本語" + "?" * 4 + " text\n",
         encoding="utf-8",
     )
 
@@ -102,6 +102,16 @@ def test_ci_quality_scan_blocks_bidi_markers_and_question_mark_mojibake(tmp_path
 
     assert any("hidden unicode marker" in error for error in errors)
     assert any("possible mojibake" in error for error in errors)
+
+
+def test_ci_quality_scan_allows_ascii_question_mark_runs_and_initial_bom(tmp_path: Path) -> None:
+    source = tmp_path / "docs" / "public.md"
+    source.parent.mkdir()
+    source.write_text("\ufeffwhy????\n", encoding="utf-8")
+
+    errors = ci_quality_scans.scan_paths(tmp_path, [Path("docs/public.md")])
+
+    assert errors == []
 
 
 def test_ci_quality_scan_blocks_escaped_terminal_sequence_literals(tmp_path: Path) -> None:

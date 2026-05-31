@@ -56,9 +56,9 @@ LOCAL_PATH_PATTERNS = (
 )
 MOJIBAKE_PATTERNS = (
     re.compile("\ufffd"),
-    re.compile(r"\?{4,}"),
     re.compile(r"(繝|縺|荳|譁|蜿|螳|險|豁ｴ|邂)"),
 )
+QUESTION_MARK_MOJIBAKE_RE = re.compile(r"\?{4,}")
 HIDDEN_UNICODE = tuple(
     chr(codepoint)
     for codepoint in (
@@ -108,7 +108,7 @@ def scan_paths(repo_root: Path, paths: list[Path]) -> list[str]:
             continue
         full_path = repo_root / path
         try:
-            text = full_path.read_text(encoding="utf-8")
+            text = full_path.read_text(encoding="utf-8-sig")
         except (OSError, UnicodeDecodeError):
             continue
         rel = path.as_posix()
@@ -130,6 +130,8 @@ def _scan_line(rel: str, index: int, line: str, errors: list[str]) -> None:
         if pattern.search(line) and not _is_allowed_mojibake_fixture(rel, line):
             errors.append(f"{rel}:{index}: possible mojibake")
             break
+    if _has_question_mark_mojibake(line) and not _is_allowed_mojibake_fixture(rel, line):
+        errors.append(f"{rel}:{index}: possible mojibake")
     if any(char in line for char in HIDDEN_UNICODE):
         errors.append(f"{rel}:{index}: hidden unicode marker")
     if CONTROL_CHAR_RE.search(line):
@@ -231,6 +233,12 @@ def _run_git(command: tuple[str, ...], repo_root: Path) -> subprocess.CompletedP
 
 def _is_allowed_mojibake_fixture(rel: str, line: str) -> bool:
     return rel.endswith("ci_quality_scans.py")
+
+
+def _has_question_mark_mojibake(line: str) -> bool:
+    if not QUESTION_MARK_MOJIBAKE_RE.search(line):
+        return False
+    return any(ord(char) > 127 for char in line)
 
 
 def _is_allowed_terminal_escape_fixture(rel: str, line: str) -> bool:
