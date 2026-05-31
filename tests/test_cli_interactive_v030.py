@@ -771,15 +771,71 @@ def test_slash_command_summary_is_japanese_first() -> None:
     assert "/設定" in words
     assert "/提供元" in words
     assert "/更新" in words
+    assert "/提供元選択" in words
+    assert "/ファイルアクセス" in words
+    assert "/ネットワーク" in words
     assert "/設定" in summary
     assert "/提供元" in summary
     assert "/設定 / /設定" not in summary
     assert "/提供元 / /提供元" not in summary
     assert "/settings" not in words
     assert "/settings" not in summary
+    assert "/provider" not in words
     assert report["plain_fallback"] is True
     assert report["json_ansi_output"] is False
     assert report["japanese_alias_completion"] is True
+    assert report["japanese_value_completion"] is True
+
+
+def test_slash_value_completion_is_context_aware_and_japanese_first() -> None:
+    from yonerai_cli.tui import slash_command_value_group, slash_value_meta, slash_value_words
+
+    provider_words = slash_value_words("/提供元選択 ", "ja")
+    provider_meta = slash_value_meta("/提供元選択 ", "ja")
+
+    assert slash_command_value_group("/提供元選択 ") == "provider"
+    assert provider_words[:4] == ["自動", "モック", "ローカル", "OpenAI互換"]
+    assert provider_words[-2:] == ["アンソロピック", "ジェミニ"]
+    assert "auto" not in provider_words
+    assert "mock" not in provider_words
+    assert "Anthropic" not in provider_words
+    assert "Gemini" not in provider_words
+    assert provider_meta["モック"] == "既定のテスト用提供元"
+
+    assert slash_value_words("/選択 1 ", "ja") == ["日本語", "英語"]
+    assert slash_value_words("/選択 2 ", "ja")[:3] == ["自動", "モック", "ローカル"]
+    assert slash_value_words("/選択 5 ", "ja") == ["オン", "オフ"]
+    assert slash_value_words("/ライブ ", "ja") == ["オン", "オフ"]
+    assert slash_value_words("/更新通知 ", "ja") == ["オン", "オフ"]
+    assert "Anthropic" in slash_value_words("/provider ", "en")
+    assert "Gemini" in slash_value_words("/provider ", "en")
+    assert slash_value_words("/file-access ", "en")[:4] == [
+        "workspace_only",
+        "ワークスペース内のみ",
+        "disabled",
+        "無効",
+    ]
+
+
+def test_prompt_completer_switches_to_value_candidates_when_available() -> None:
+    pytest.importorskip("prompt_toolkit")
+    from prompt_toolkit.completion import CompleteEvent
+    from prompt_toolkit.document import Document
+    from yonerai_cli.tui import _build_prompt_completer
+
+    completer = _build_prompt_completer("ja")
+    provider_candidates = [
+        completion.text for completion in completer.get_completions(Document("/提供元選択 "), CompleteEvent())
+    ]
+    toggle_candidates = [
+        completion.text for completion in completer.get_completions(Document("/選択 5 "), CompleteEvent())
+    ]
+
+    assert provider_candidates[:3] == ["自動", "モック", "ローカル"]
+    assert "mock" not in provider_candidates
+    assert "Anthropic" not in provider_candidates
+    assert "アンソロピック" in provider_candidates
+    assert toggle_candidates == ["オン", "オフ"]
 
 
 def test_chat_models_and_update_commands_are_usable(tmp_path: Path, monkeypatch, capsys) -> None:
