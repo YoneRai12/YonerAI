@@ -583,6 +583,13 @@ def _memory_sync_decision(
             reason="secret_like_or_local_only_memory_never_syncs",
             requires_explicit_approval=True,
         )
+    if any(record.sync_policy not in {"local_to_cloud_requires_approval", "shared_allowed"} for record in records):
+        return MemorySyncDecision(
+            direction=direction,
+            state="blocked",
+            reason="record_sync_policy_does_not_allow_local_to_cloud",
+            requires_explicit_approval=True,
+        )
     if not explicit_approval:
         return MemorySyncDecision(
             direction=direction,

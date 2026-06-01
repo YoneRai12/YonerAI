@@ -210,6 +210,36 @@ def test_local_path_memory_is_local_only_and_never_syncs(tmp_path: Path) -> None
     assert preview["decision"]["reason"] == "secret_like_or_local_only_memory_never_syncs"
 
 
+def test_memory_sync_preview_honors_per_record_sync_policy(tmp_path: Path) -> None:
+    _prepare_paths()
+    from ora_core.memory import LocalMemoryStore, build_memory_sync_preview
+
+    store = LocalMemoryStore(tmp_path / "memory.jsonl")
+    record = store.add("low resolution feature signal", scope="self_evolution_signal")
+    preview = build_memory_sync_preview(store.list(), direction="local_to_cloud", explicit_approval=True)
+
+    assert record.sync_policy == "never_sync"
+    assert preview["decision"]["state"] == "blocked"
+    assert preview["decision"]["reason"] == "record_sync_policy_does_not_allow_local_to_cloud"
+    assert preview["sync_allowed"] is False
+
+
+def test_cli_memory_store_read_error_is_controlled(tmp_path: Path, capsys) -> None:
+    _prepare_paths()
+    from yonerai_cli import cli
+
+    directory = tmp_path / "memory-dir"
+    directory.mkdir()
+
+    result = cli.main(["ask", "hello", "--auto", "--memory-store", str(directory), "--json"])
+    captured = capsys.readouterr()
+
+    assert result == 1
+    assert "failed to read local memory store" in captured.err
+    assert captured.out == ""
+    assert str(tmp_path) not in captured.err
+
+
 def test_self_evolution_signal_memory_is_low_resolution_only() -> None:
     _prepare_paths()
     from ora_core.memory import MemoryStoreError, build_self_evolution_signal_memory

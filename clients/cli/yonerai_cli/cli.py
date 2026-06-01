@@ -2185,7 +2185,13 @@ def _execute_auto_ask_report(args: argparse.Namespace) -> dict[str, Any]:
     memory_records = None
     memory_store_path = getattr(args, "memory_store", None)
     if memory_store_path:
-        memory_records = select_allowed_memory_for_ask(LocalMemoryStore(memory_store_path).list())
+        try:
+            memory_records = select_allowed_memory_for_ask(LocalMemoryStore(memory_store_path).list())
+        except Exception as exc:
+            raise CliError(
+                "failed to read local memory store; verify store permissions and JSONL format.",
+                exit_code=1,
+            ) from exc
     if args.file:
         if not args.workspace:
             raise CliError("--workspace is required when --file is used.", exit_code=2)
@@ -3186,70 +3192,79 @@ def _build_memory_report(args: argparse.Namespace) -> dict[str, Any]:
     try:
         _prepare_trusted_cli_import_paths()
         from ora_core.memory import LocalMemoryStore, build_memory_sync_preview, default_memory_store_path
+
+        store_path = args.store or str(default_memory_store_path())
+        store = LocalMemoryStore(store_path)
     except Exception as exc:
         raise CliError("local memory store is unavailable.", exit_code=1) from exc
-    store_path = args.store or str(default_memory_store_path())
-    store = LocalMemoryStore(store_path)
     schema_version = "yonerai-memory-boundary-cli/v0.1"
     scope = getattr(args, "scope", None) or None
-    if args.memory_command == "add":
-        explicit_local_scope = scope in {"local", "local_private"}
-        if not args.confirm_local and not explicit_local_scope:
-            raise CliError("memory add requires --confirm-local or explicit --scope local.", exit_code=2)
-        record = store.add(_prompt_from_args(args.text), tags=tuple(args.tag or ()), scope=scope or "local_private")
-        return {
-            "schema_version": schema_version,
-            "ok": True,
-            "operation": "add",
-            "record": record.to_public_dict(),
-            "cloud_synced": False,
-            "store_path_output": False,
-            "raw_prompt_persisted": False,
-        }
-    if args.memory_command == "status":
-        return store.status()
-    if args.memory_command == "list":
-        records = [record.to_public_dict() for record in store.list(scope=scope)]
-        return {
-            "schema_version": schema_version,
-            "ok": True,
-            "operation": "list",
-            "records": records,
-            "count": len(records),
-            "cloud_synced": False,
-            "store_path_output": False,
-        }
-    if args.memory_command == "forget":
-        forgotten = store.forget(args.memory_id)
-        return {
-            "schema_version": schema_version,
-            "ok": forgotten,
-            "operation": "forget",
-            "memory_id": args.memory_id,
-            "forgotten": forgotten,
-            "cloud_synced": False,
-            "store_path_output": False,
-        }
-    if args.memory_command == "delete":
-        deleted = store.delete(args.memory_id)
-        return {
-            "schema_version": schema_version,
-            "ok": deleted,
-            "operation": "delete",
-            "memory_id": args.memory_id,
-            "deleted": deleted,
-            "cloud_synced": False,
-            "store_path_output": False,
-        }
-    if args.memory_command == "export":
-        return store.export() | {"operation": "export"}
-    if args.memory_command == "sync" and getattr(args, "memory_sync_command", None) == "preview":
-        direction = str(args.direction).replace("-", "_")
-        return build_memory_sync_preview(
-            store.list(include_inactive=True),
-            direction=direction,  # type: ignore[arg-type]
-            explicit_approval=bool(getattr(args, "approve", False)),
-        )
+    try:
+        if args.memory_command == "add":
+            explicit_local_scope = scope in {"local", "local_private"}
+            if not args.confirm_local and not explicit_local_scope:
+                raise CliError("memory add requires --confirm-local or explicit --scope local.", exit_code=2)
+            record = store.add(_prompt_from_args(args.text), tags=tuple(args.tag or ()), scope=scope or "local_private")
+            return {
+                "schema_version": schema_version,
+                "ok": True,
+                "operation": "add",
+                "record": record.to_public_dict(),
+                "cloud_synced": False,
+                "store_path_output": False,
+                "raw_prompt_persisted": False,
+            }
+        if args.memory_command == "status":
+            return store.status()
+        if args.memory_command == "list":
+            records = [record.to_public_dict() for record in store.list(scope=scope)]
+            return {
+                "schema_version": schema_version,
+                "ok": True,
+                "operation": "list",
+                "records": records,
+                "count": len(records),
+                "cloud_synced": False,
+                "store_path_output": False,
+            }
+        if args.memory_command == "forget":
+            forgotten = store.forget(args.memory_id)
+            return {
+                "schema_version": schema_version,
+                "ok": forgotten,
+                "operation": "forget",
+                "memory_id": args.memory_id,
+                "forgotten": forgotten,
+                "cloud_synced": False,
+                "store_path_output": False,
+            }
+        if args.memory_command == "delete":
+            deleted = store.delete(args.memory_id)
+            return {
+                "schema_version": schema_version,
+                "ok": deleted,
+                "operation": "delete",
+                "memory_id": args.memory_id,
+                "deleted": deleted,
+                "cloud_synced": False,
+                "store_path_output": False,
+            }
+        if args.memory_command == "export":
+            return store.export() | {"operation": "export"}
+        if args.memory_command == "sync" and getattr(args, "memory_sync_command", None) == "preview":
+            direction = str(args.direction).replace("-", "_")
+            return build_memory_sync_preview(
+                store.list(include_inactive=True),
+                direction=direction,  # type: ignore[arg-type]
+                explicit_approval=bool(getattr(args, "approve", False)),
+            )
+    except CliError:
+        raise
+    except Exception as exc:
+        raise CliError(
+            "local memory operation failed; verify store permissions and JSONL format.",
+            exit_code=1,
+        ) from exc
     raise CliError("unknown memory command", exit_code=2)
 
 
