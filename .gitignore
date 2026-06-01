@@ -60,6 +60,7 @@ dist/
 .mypy_cache/
 .pytest_cache/
 .ruff_cache/
+.wrangler/
 /src/data/cache/
 state/
 local_state/
@@ -90,6 +91,7 @@ src/web/static/*
 !src/web/static/index.html
 !src/web/static/operator.html
 !src/web/static/remote.html
+!src/web/static/install.txt
 !src/web/static/setup.html
 !src/web/static/setup.css
 !src/web/static/setup.js

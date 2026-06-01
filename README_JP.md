@@ -27,14 +27,75 @@ YonerAI は単なる Discord bot でも、単なる model router でもありま
 
 ## Install and start YonerAI
 
+これは YonerAI CLI Local Runtime のインストール手順です。full YonerAI cloud
+production ではありません。最新 stable は `v0.6.3` です。stable channel が既定で、
+alpha を試す場合だけ `-Channel alpha` を明示します。install 後は `yonerai` だけで
+対話 CLI が起動します。
+
+### Quick install
+
+```powershell
+irm https://install.yonerai.com | iex
+```
+
+Quick install は `install.yonerai.com` の静的Cloudflare wrapperを取得します。
+そのwrapperが GitHub Release asset の latest `install.ps1` と `install.ps1.sha256`
+を取得し、script hash が一致した場合だけ bootstrap を実行します。その後
+`install.ps1` が release manifest、channel、versioned artifact name、release ZIP
+の SHA256 を確認してから install-like step に進みます。`yonerai.com` から
+ZIP/manifest/sidecar hash を取得しません。PATH 変更、registry 変更、service install、
+admin 要求、provider key 保存、本番 cloud 有効化も既定では行いません。
+
+GitHub Release fallback:
+
+```powershell
+iex "& { $(irm https://github.com/YoneRai12/YonerAI/releases/latest/download/install.ps1) } -Execute -Launch"
+```
+
+### Verified install
+
+実行前に bootstrap script の hash を確認したい場合はこちらを使います。GitHub
+Releases から `install.ps1` と `install.ps1.sha256` を取得し、sidecar SHA256 を
+確認します。sidecar がない、壊れている、hash が一致しない場合は失敗して止まります。
+
+```powershell
+$ErrorActionPreference = "Stop"
+$base = "https://github.com/YoneRai12/YonerAI/releases/latest/download"
+$tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("yonerai-bootstrap-" + [guid]::NewGuid().ToString("N"))
+New-Item -ItemType Directory -Path $tmp | Out-Null
+try {
+  $script = Join-Path $tmp "install.ps1"
+  $sidecar = Join-Path $tmp "install.ps1.sha256"
+  irm "$base/install.ps1" -OutFile $script
+  irm "$base/install.ps1.sha256" -OutFile $sidecar
+  $expected = ((Get-Content -LiteralPath $sidecar -Raw) -split '\s+')[0].ToLowerInvariant()
+  if ($expected -notmatch "^[a-f0-9]{64}$") { throw "install.ps1 sidecar SHA256 is invalid" }
+  $actual = (Get-FileHash -LiteralPath $script -Algorithm SHA256).Hash.ToLowerInvariant()
+  if ($actual -ne $expected) { throw "install.ps1 hash mismatch" }
+  $scriptText = Get-Content -LiteralPath $script -Raw
+  if ($scriptText -notmatch "Invoke-VerifiedLocalBootstrap" -or $scriptText -match "install.ps1 is still plan-only") {
+    throw "install.ps1 is not an executable bootstrap. Refusing to launch."
+  }
+  & powershell -NoProfile -ExecutionPolicy Bypass -File $script -Execute -Launch
+} finally {
+  if (Test-Path -LiteralPath $tmp) { Remove-Item -LiteralPath $tmp -Recurse -Force }
+}
+```
+
+alpha channel を明示して試す場合:
+
+```powershell
+iex "& { $(irm https://github.com/YoneRai12/YonerAI/releases/latest/download/install.ps1) } -Channel alpha -Execute -Launch"
+```
+
 ### GitHub Release の ZIP を解凍したあと
 
-GitHub Release の `Source code (zip)` をダウンロードして ZIP を展開したら、
+GitHub Release の `YonerAI-0.6.3.zip` をダウンロードして ZIP を展開したら、
 PowerShell で展開後のフォルダへ移動してから以下を実行します。フォルダ名は環境に
 よって違うので、`cd` は実際の展開先に合わせてください。
 
 ```powershell
-cd "$HOME\Downloads\YonerAI-0.6.0"
+cd "$HOME\Downloads\YonerAI-0.6.3"
 python --version
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
@@ -55,8 +116,8 @@ yonerai
 .\install-local.ps1 -Execute -Launch
 ```
 
-`install.ps1` は将来の one-command installer 用の skeleton です。現時点では
-dry-run 専用で、実際のlocal bootstrapは `install-local.ps1` に戻します。
+`install.ps1` は GitHub Release bootstrap です。`-Execute` を付けない場合は
+計画だけを表示し、install は行いません。
 
 ```powershell
 .\install.ps1
@@ -151,7 +212,8 @@ yonerai providers --pretty --lang ja
 ```
 
 `yonerai update check` はローカルの `VERSION` とローカルmanifestだけを読みます。
-download、install、PATH変更、remote code実行、admin要求は行いません。
+download、install、PATH変更、remote code実行、forced update、auto-apply、
+admin要求は行いません。
 
 ## Quickstart: public demo
 
@@ -172,10 +234,10 @@ yonerai demo --pretty
 yonerai demo --json
 yonerai doctor --pretty --lang ja
 yonerai status --pretty --lang ja
-yonerai manifest verify releases/manifest.v0.6.0.json --pretty --lang ja
-yonerai install plan --manifest releases/manifest.v0.6.0.json --pretty
-yonerai update check --manifest releases/manifest.v0.6.0.json --pretty
-yonerai update plan --manifest releases/manifest.v0.6.0.json --pretty
+yonerai manifest verify manifest.v0.6.3.json --pretty --lang ja
+yonerai install plan --manifest manifest.v0.6.3.json --pretty
+yonerai update check --manifest manifest.v0.6.3.json --pretty
+yonerai update plan --manifest manifest.v0.6.3.json --pretty
 ```
 
 `yonerai quickstart` は `yonerai demo` の alias です。

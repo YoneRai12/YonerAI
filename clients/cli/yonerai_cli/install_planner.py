@@ -21,6 +21,59 @@ WINDOWS_INSTALL_PLAN_SCHEMA_VERSION = "yonerai-windows-install-plan/v0.1"
 UPDATE_PLAN_SCHEMA_VERSION = "yonerai-update-plan/v0.1"
 UPDATE_CHECK_SCHEMA_VERSION = "yonerai-update-check/v0.1"
 SHA256_RE = re.compile(r"^[a-f0-9]{64}$")
+LATEST_STABLE_VERSION = "0.6.3"
+YONERAI_INSTALL_PAGE = "https://yonerai.com/install"
+GITHUB_LATEST_INSTALL_BASE_URL = "https://github.com/YoneRai12/YonerAI/releases/latest/download"
+QUICK_INSTALL_COMMAND = "irm https://install.yonerai.com | iex"
+GITHUB_INSTALL_FALLBACK_COMMAND = (
+    'iex "& { $(irm https://github.com/YoneRai12/YonerAI/releases/latest/download/install.ps1) } '
+    '-Execute -Launch"'
+)
+VERIFIED_INSTALL_COMMAND = (
+    "$ErrorActionPreference='Stop'; "
+    "$base='https://github.com/YoneRai12/YonerAI/releases/latest/download'; "
+    "$tmp=Join-Path ([System.IO.Path]::GetTempPath()) "
+    "('yonerai-bootstrap-'+[System.Guid]::NewGuid().ToString('N')); "
+    "New-Item -ItemType Directory -Path $tmp | Out-Null; "
+    "try { "
+    "$script=Join-Path $tmp 'install.ps1'; "
+    "$sidecar=Join-Path $tmp 'install.ps1.sha256'; "
+    'irm "$base/install.ps1" -OutFile $script; '
+    'irm "$base/install.ps1.sha256" -OutFile $sidecar; '
+    "$expected=((Get-Content -LiteralPath $sidecar -Raw) -split '\\s+')[0].ToLowerInvariant(); "
+    "if ($expected -notmatch '^[a-f0-9]{64}$') { throw 'install.ps1 sidecar SHA256 is invalid' }; "
+    "$actual=(Get-FileHash -LiteralPath $script -Algorithm SHA256).Hash.ToLowerInvariant(); "
+    "if ($actual -ne $expected) { throw 'install.ps1 hash mismatch' }; "
+    "$scriptText=Get-Content -LiteralPath $script -Raw; "
+    "if ($scriptText -notmatch 'Invoke-VerifiedLocalBootstrap' -or "
+    "$scriptText -match 'install.ps1 is still plan-only') { "
+    "throw 'install.ps1 is not an executable bootstrap. Refusing to launch.' "
+    "}; "
+    "& powershell -NoProfile -ExecutionPolicy Bypass -File $script -Execute -Launch "
+    "} finally { "
+    "if (Test-Path -LiteralPath $tmp) { Remove-Item -LiteralPath $tmp -Recurse -Force } "
+    "}"
+)
+FORCED_UPDATE_ENABLED = False
+AUTO_UPDATE_APPLY_ENABLED = False
+
+
+def build_install_update_status() -> dict[str, Any]:
+    return {
+        "latest_stable": LATEST_STABLE_VERSION,
+        "stable_channel_default": True,
+        "alpha_requires_explicit_channel": True,
+        "quick_install_command": QUICK_INSTALL_COMMAND,
+        "github_install_fallback_command": GITHUB_INSTALL_FALLBACK_COMMAND,
+        "verified_install_command": VERIFIED_INSTALL_COMMAND,
+        "verified_install_page": YONERAI_INSTALL_PAGE,
+        "github_latest_install_base_url": GITHUB_LATEST_INSTALL_BASE_URL,
+        "forced_update_enabled": FORCED_UPDATE_ENABLED,
+        "auto_update_apply_enabled": AUTO_UPDATE_APPLY_ENABLED,
+        "forced_update_policy": "disabled",
+        "no_forced_update": not FORCED_UPDATE_ENABLED,
+        "no_auto_update_apply": not AUTO_UPDATE_APPLY_ENABLED,
+    }
 
 
 def build_install_plan(manifest_path: str, *, target_category: str = "windows-user") -> dict[str, Any]:
@@ -121,6 +174,8 @@ def build_update_plan(manifest_path: str, *, current_version: str) -> dict[str, 
         "ok": verification["contract_valid"] and comparison != "unknown",
         "dry_run": True,
         "command": "yonerai update plan",
+        "channel": verification["channel"],
+        "latest_stable": LATEST_STABLE_VERSION,
         "current_version": current_version,
         "target_version": target_version,
         "update_available": comparison == "target_newer",
@@ -169,6 +224,8 @@ def build_update_plan(manifest_path: str, *, current_version: str) -> dict[str, 
             "no registry modification",
             "no service install",
             "no admin request",
+            "no forced update",
+            "no auto-apply update",
         ],
         "rollback_plan": [
             "record current installed version before a future real update",
@@ -193,6 +250,13 @@ def build_update_plan(manifest_path: str, *, current_version: str) -> dict[str, 
         "remote_code_executed": False,
         "network_required": False,
         "admin_required": False,
+        "quick_install_command": QUICK_INSTALL_COMMAND,
+        "github_install_fallback_command": GITHUB_INSTALL_FALLBACK_COMMAND,
+        "verified_install_command": VERIFIED_INSTALL_COMMAND,
+        "verified_install_page": YONERAI_INSTALL_PAGE,
+        "forced_update_enabled": FORCED_UPDATE_ENABLED,
+        "auto_update_apply_enabled": AUTO_UPDATE_APPLY_ENABLED,
+        "forced_update_policy": "disabled",
         "warnings": warnings,
     }
 
@@ -217,6 +281,8 @@ def build_update_check(manifest_path: str, *, current_version: str) -> dict[str,
         "dry_run": True,
         "command": "yonerai update check",
         "manifest": manifest_display,
+        "channel": plan["channel"],
+        "latest_stable": LATEST_STABLE_VERSION,
         "current_version": plan["current_version"],
         "latest_manifest_version": plan["target_version"],
         "update_available": plan["update_available"],
@@ -239,6 +305,13 @@ def build_update_check(manifest_path: str, *, current_version: str) -> dict[str,
         "path_mutation": False,
         "remote_code_executed": False,
         "network_required": False,
+        "quick_install_command": QUICK_INSTALL_COMMAND,
+        "github_install_fallback_command": GITHUB_INSTALL_FALLBACK_COMMAND,
+        "verified_install_command": VERIFIED_INSTALL_COMMAND,
+        "verified_install_page": YONERAI_INSTALL_PAGE,
+        "forced_update_enabled": FORCED_UPDATE_ENABLED,
+        "auto_update_apply_enabled": AUTO_UPDATE_APPLY_ENABLED,
+        "forced_update_policy": "disabled",
         "warnings": plan["warnings"],
     }
 
@@ -454,6 +527,7 @@ __all__ = [
     "UPDATE_CHECK_SCHEMA_VERSION",
     "WINDOWS_INSTALL_PLAN_SCHEMA_VERSION",
     "ManifestError",
+    "build_install_update_status",
     "build_install_plan",
     "build_install_plan_from_default",
     "build_update_check",

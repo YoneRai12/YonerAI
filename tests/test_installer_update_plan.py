@@ -56,6 +56,8 @@ def test_build_update_plan_reports_no_update_needed_for_matching_version(tmp_pat
     assert report["dry_run"] is True
     assert report["current_version"] == _current_version()
     assert report["target_version"] == _current_version()
+    assert report["latest_stable"] == "0.6.3"
+    assert report["channel"] == manifest["channel"]
     assert report["update_available"] is False
     assert report["version_comparison"] == "same"
     assert report["selected_artifact"]["filename_matches"] is True
@@ -63,6 +65,10 @@ def test_build_update_plan_reports_no_update_needed_for_matching_version(tmp_pat
     assert report["rollback_plan_available"] is False
     assert "no download" in report["actions_not_performed"]
     assert "no install" in report["actions_not_performed"]
+    assert "no forced update" in report["actions_not_performed"]
+    assert "no auto-apply update" in report["actions_not_performed"]
+    assert report["forced_update_enabled"] is False
+    assert report["auto_update_apply_enabled"] is False
 
 
 def test_cli_update_plan_reports_update_available(tmp_path, capsys) -> None:
@@ -79,12 +85,21 @@ def test_cli_update_plan_reports_update_available(tmp_path, capsys) -> None:
     assert output["schema_version"] == "yonerai-update-plan/v0.1"
     assert output["current_version"] == _current_version()
     assert output["target_version"] == FUTURE_TEST_VERSION
+    assert output["latest_stable"] == "0.6.3"
+    assert output["channel"] == manifest["channel"]
     assert output["update_available"] is True
     assert output["version_comparison"] == "target_newer"
     assert output["download_performed"] is False
     assert output["install_performed"] is False
     assert output["path_mutation"] is False
     assert output["remote_code_executed"] is False
+    assert output["quick_install_command"] == "irm https://install.yonerai.com | iex"
+    assert output["github_install_fallback_command"].startswith(
+        'iex "& { $(irm https://github.com/YoneRai12/YonerAI/releases/latest/download/install.ps1)'
+    )
+    assert output["verified_install_page"] == "https://yonerai.com/install"
+    assert output["forced_update_enabled"] is False
+    assert output["auto_update_apply_enabled"] is False
 
 
 def test_cli_update_plan_rejects_invalid_artifact_name(tmp_path, capsys) -> None:
@@ -213,6 +228,8 @@ def test_cli_update_plan_json_is_stable_and_network_free(monkeypatch, capsys) ->
     expected_fields = {
         "current_version",
         "target_version",
+        "latest_stable",
+        "channel",
         "update_available",
         "selected_artifact",
         "sha256_present",
@@ -220,6 +237,11 @@ def test_cli_update_plan_json_is_stable_and_network_free(monkeypatch, capsys) ->
         "rollback_plan_available",
         "actions_that_would_run",
         "actions_not_performed",
+        "quick_install_command",
+        "github_install_fallback_command",
+        "verified_install_command",
+        "forced_update_enabled",
+        "auto_update_apply_enabled",
     }
     assert expected_fields <= set(output)
     assert output["actions_not_performed"][:5] == [
@@ -229,6 +251,8 @@ def test_cli_update_plan_json_is_stable_and_network_free(monkeypatch, capsys) ->
         "no remote execution",
         "no package install",
     ]
+    assert "no forced update" in output["actions_not_performed"]
+    assert "no auto-apply update" in output["actions_not_performed"]
     assert output["non_actions"]["no_download"] is True
     assert output["non_actions"]["no_install"] is True
     assert output["non_actions"]["no_path_mutation"] is True
@@ -258,6 +282,8 @@ def test_cli_update_check_json_is_stable_network_free_and_path_safe(tmp_path, mo
     assert output["schema_version"] == "yonerai-update-check/v0.1"
     assert output["current_version"] == _current_version()
     assert output["latest_manifest_version"] == FUTURE_TEST_VERSION
+    assert output["latest_stable"] == "0.6.3"
+    assert output["channel"] == manifest["channel"]
     assert output["update_available"] is True
     assert output["artifact_status"]["sha256_present"] is True
     assert output["signature_status"]["placeholder_non_production"] is True
@@ -269,6 +295,16 @@ def test_cli_update_check_json_is_stable_network_free_and_path_safe(tmp_path, mo
     assert output["network_required"] is False
     assert "no download" in output["actions_not_performed"]
     assert "no install" in output["actions_not_performed"]
+    assert "no forced update" in output["actions_not_performed"]
+    assert "no auto-apply update" in output["actions_not_performed"]
+    assert output["quick_install_command"] == "irm https://install.yonerai.com | iex"
+    assert output["github_install_fallback_command"].startswith(
+        'iex "& { $(irm https://github.com/YoneRai12/YonerAI/releases/latest/download/install.ps1)'
+    )
+    assert "install.ps1.sha256" in output["verified_install_command"]
+    assert output["verified_install_page"] == "https://yonerai.com/install"
+    assert output["forced_update_enabled"] is False
+    assert output["auto_update_apply_enabled"] is False
     assert output["manifest"] == "manifest.json"
     assert output["next_safe_command"] == "yonerai update plan --manifest manifest.json --pretty"
     assert output["next_safe_command_shell"] in {"powershell", "cmd", "posix"}
@@ -382,6 +418,11 @@ def test_cli_update_check_pretty_is_readable_and_color_safe(capsys) -> None:
     assert "YonerAI update check" in output
     assert "Update check" in output
     assert "latest_manifest_version" in output
+    assert "latest_stable" in output
+    assert "channel" in output
+    assert "quick_install_command" in output
+    assert "forced_update_enabled" in output
+    assert "auto_update_apply_enabled" in output
     assert "download_performed" in output
     assert "network_required" in output
     assert "false" in output
@@ -398,6 +439,11 @@ def test_cli_update_plan_pretty_is_readable(capsys) -> None:
     assert "YonerAI update plan" in output
     assert "Dry-run update plan" in output
     assert "current_version" in output
+    assert "latest_stable" in output
+    assert "channel" in output
+    assert "quick_install_command" in output
+    assert "forced_update_enabled" in output
+    assert "auto_update_apply_enabled" in output
     assert "[WARN] version_comparison" in output
     assert "rollback_plan_available" in output
     assert "remote_code_executed: false" in output

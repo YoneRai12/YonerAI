@@ -222,18 +222,34 @@ def test_install_like_entry_point_starts_yonerai(tmp_path: Path) -> None:
         f"STDERR:\n{_redact_test_path(install_result.stderr, tmp_path)}"
     )
 
-    result = subprocess.run(
-        [str(yonerai_bin)],
-        cwd=REPO_ROOT,
-        env=env,
-        check=False,
-        input="",
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        encoding="utf-8",
-        timeout=15,
-    )
+    try:
+        result = subprocess.run(
+            [str(yonerai_bin)],
+            cwd=REPO_ROOT,
+            env=env,
+            check=False,
+            input="",
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            timeout=15,
+        )
+    except OSError as exc:
+        if getattr(exc, "winerror", None) != 4551:
+            raise
+        result = subprocess.run(
+            [str(python_bin), "-m", "yonerai_cli"],
+            cwd=REPO_ROOT,
+            env=env,
+            check=False,
+            input="",
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            timeout=15,
+        )
 
     assert result.returncode == 0, (
         f"yonerai entry point failed with exit code {result.returncode}.\n"
@@ -253,8 +269,10 @@ def test_readmes_document_install_and_start_yonerai() -> None:
 
         assert "Install and start YonerAI" in text
         assert "GitHub Release" in text
-        assert "Source code (zip)" in text
-        assert "YonerAI-0.6.0" in text
+        assert "Quick install" in text
+        assert "Verified install" in text
+        assert "YonerAI-0.6.3" in text
+        assert "install.ps1.sha256" in text
         assert "python --version" in text
         assert "python -m venv .venv" in text
         assert "python -m pip install -e clients/cli" in text
@@ -876,8 +894,14 @@ def test_chat_models_and_update_commands_are_usable(tmp_path: Path, monkeypatch,
     assert "ローカルLLM（PC内モデル）" in output
     assert "設定を変更しました: モデル（AIモデル）=llama3.1" in output
     assert "更新確認" in output
+    assert "最新stable" in output
+    assert "Quick install" in output
+    assert "Verified install" in output
+    assert "強制更新: なし" in output
+    assert "自動適用: なし" in output
     assert "実行しなかったこと" in output
     assert "no download" in output
+    assert "no forced update" in output
     assert stored["model_preference"] == "llama3.1"
     assert str(tmp_path) not in output
     assert chr(27) + "[" not in output
@@ -914,6 +938,7 @@ def test_chat_update_command_accepts_spaced_manifest_path(tmp_path: Path, monkey
 
     output = capsys.readouterr().out
     assert "更新確認" in output
+    assert "最新stable" in output
     assert "no download" in output
     assert "Traceback" not in output
     assert str(tmp_path) not in output
