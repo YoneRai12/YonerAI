@@ -3538,6 +3538,10 @@ def _sync_direction_for_core(value: str) -> str:
 
 def _load_official_contract_builders() -> dict[str, Any]:
     _prepare_trusted_cli_import_paths()
+    core_available = importlib.util.find_spec("ora_core") is not None
+    official_available = core_available and importlib.util.find_spec("ora_core.official") is not None
+    if not official_available:
+        raise CliError("official sync contract fixtures are unavailable.", exit_code=1)
     from ora_core.official import (
         build_account_status_report,
         build_official_api_contract_fixture,

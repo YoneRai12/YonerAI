@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -143,3 +145,28 @@ def test_sync_api_contract_and_rate_limit_are_exposed_as_fixtures(capsys) -> Non
     rate_report = json.loads(capsys.readouterr().out)
     assert rate_report["shared_traffic"]["openai_shared_traffic_enabled"] is False
     assert rate_report["fallback"]["cloud_quota_exceeded"] == "local_mock_or_loopback_provider"
+
+
+def test_sync_status_standalone_cli_reports_controlled_unavailable_error(tmp_path) -> None:
+    package_root = tmp_path / "standalone_cli"
+    shutil.copytree(CLIENTS_CLI / "yonerai_cli", package_root / "yonerai_cli")
+
+    script = (
+        "from yonerai_cli import cli\n"
+        "rc = cli.main(['sync', 'status', '--json'])\n"
+        "print(f'rc={rc}')\n"
+    )
+    completed = subprocess.run(
+        [sys.executable, "-S", "-c", script],
+        cwd=tmp_path,
+        env={"PYTHONPATH": str(package_root)},
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode == 0
+    assert "rc=1" in completed.stdout
+    assert "official sync contract fixtures are unavailable" in completed.stderr
+    assert "Traceback" not in completed.stderr
+    assert "ModuleNotFoundError" not in completed.stderr
