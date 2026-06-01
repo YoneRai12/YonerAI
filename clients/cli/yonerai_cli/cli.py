@@ -11,7 +11,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from yonerai_cli import __version__
 from yonerai_cli.auth_policy import build_google_auth_status, build_google_login_dry_run, build_privacy_status
@@ -3191,7 +3191,7 @@ def _print_ops_plan_pretty(report: dict[str, Any], *, color: ColorMode = "auto")
 def _build_memory_report(args: argparse.Namespace) -> dict[str, Any]:
     try:
         _prepare_trusted_cli_import_paths()
-        from ora_core.memory import LocalMemoryStore, build_memory_sync_preview, default_memory_store_path
+        from ora_core.memory import LocalMemoryStore, build_memory_sync_preview, default_memory_store_path, memory_sync_non_actions
 
         store_path = args.store or str(default_memory_store_path())
         store = LocalMemoryStore(store_path)
@@ -3217,7 +3217,12 @@ def _build_memory_report(args: argparse.Namespace) -> dict[str, Any]:
         if args.memory_command == "status":
             report = store.status()
             all_records = store.list()
-            cloud_to_local_preview = build_memory_sync_preview(all_records, direction="cloud_to_local")
+            config = _load_memory_cli_config()
+            cloud_to_local_preview = (
+                _memory_cloud_to_local_disabled_report(memory_sync_non_actions)
+                if config.get("memory_cloud_to_local_preview_enabled") is not True
+                else build_memory_sync_preview(all_records, direction="cloud_to_local")
+            )
             local_to_cloud_preview = build_memory_sync_preview(all_records, direction="local_to_cloud")
             for preview in (cloud_to_local_preview, local_to_cloud_preview):
                 local_refs = preview.pop("local_memory", [])
@@ -3267,6 +3272,10 @@ def _build_memory_report(args: argparse.Namespace) -> dict[str, Any]:
             return store.export() | {"operation": "export"}
         if args.memory_command == "sync" and getattr(args, "memory_sync_command", None) == "preview":
             direction = str(args.direction).replace("-", "_")
+            if direction == "cloud_to_local":
+                config = _load_memory_cli_config()
+                if config.get("memory_cloud_to_local_preview_enabled") is not True:
+                    return _memory_cloud_to_local_disabled_report(memory_sync_non_actions)
             return build_memory_sync_preview(
                 store.list(include_inactive=True),
                 direction=direction,  # type: ignore[arg-type]
@@ -3280,6 +3289,55 @@ def _build_memory_report(args: argparse.Namespace) -> dict[str, Any]:
             exit_code=1,
         ) from exc
     raise CliError("unknown memory command", exit_code=2)
+
+
+def _load_memory_cli_config() -> dict[str, object]:
+    try:
+        return load_cli_config()
+    except ConfigError as exc:
+        raise CliError("YonerAI CLI config is invalid.", exit_code=2) from exc
+
+
+def _memory_cloud_to_local_disabled_report(non_actions: Callable[[], list[str]]) -> dict[str, Any]:
+    return {
+        "schema_version": "yonerai-memory-sync-boundary/v0.1",
+        "ok": True,
+        "operation": "sync_preview",
+        "direction": "cloud_to_local",
+        "preview_only": True,
+        "sync_allowed": False,
+        "official_backend_called": False,
+        "sync_performed": False,
+        "cloud_memory": {"selected_by_user": False, "raw_body_included": False},
+        "local_memory_refs_included": False,
+        "local_memory_ref_count": 0,
+        "decision": {
+            "direction": "cloud_to_local",
+            "state": "blocked",
+            "reason": "cloud_to_local_preview_disabled_by_config",
+            "requires_explicit_approval": False,
+            "private_content_excluded": True,
+            "sync_performed": False,
+        },
+        "audit": {
+            "schema_version": "yonerai-memory-sync-boundary/v0.1",
+            "audit_reason": "cloud_to_local_preview_disabled_by_config",
+            "actor": "local_user",
+            "dry_run": True,
+            "raw_private_content_logged": False,
+            "pii_logged": False,
+            "provider_keys_logged": False,
+            "local_absolute_paths_logged": False,
+        },
+        "private_content_exclusion": {
+            "local_private_excluded": True,
+            "secret_like_excluded": True,
+            "private_file_content_excluded": True,
+            "local_node_payload_excluded": True,
+            "raw_prompt_excluded": True,
+        },
+        "actions_not_performed": [*non_actions(), "cloud-to-local memory preview disabled by CLI config"],
+    }
 
 
 def _print_memory_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -> None:

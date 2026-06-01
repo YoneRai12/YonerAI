@@ -183,6 +183,33 @@ def test_cli_memory_status_add_list_forget_and_sync_preview(tmp_path: Path, caps
     assert str(tmp_path) not in json.dumps(forgotten)
 
 
+def test_cli_memory_cloud_preview_config_blocks_standalone_sync(tmp_path: Path, capsys, monkeypatch) -> None:
+    _prepare_paths()
+    from yonerai_cli import cli
+    from yonerai_cli.config import DEFAULT_CONFIG, save_cli_config
+
+    config_path = tmp_path / "cli-config.json"
+    config = dict(DEFAULT_CONFIG)
+    config["memory_cloud_to_local_preview_enabled"] = False
+    save_cli_config(config, config_path)
+    monkeypatch.setenv("YONERAI_CLI_CONFIG_PATH", str(config_path))
+    monkeypatch.setenv("YONERAI_MEMORY_STORE_PATH", str(tmp_path / "memory.jsonl"))
+
+    assert cli.main(["memory", "sync", "preview", "--direction", "cloud-to-local", "--json"]) == 0
+    preview = json.loads(capsys.readouterr().out)
+    assert preview["decision"]["state"] == "blocked"
+    assert preview["decision"]["reason"] == "cloud_to_local_preview_disabled_by_config"
+    assert preview["sync_allowed"] is False
+    assert preview["sync_performed"] is False
+    assert "cloud-to-local memory preview disabled by CLI config" in preview["actions_not_performed"]
+
+    assert cli.main(["memory", "status", "--json"]) == 0
+    status = json.loads(capsys.readouterr().out)
+    assert status["sync_previews"]["cloud_to_local"]["decision"]["state"] == "blocked"
+    assert status["sync_previews"]["cloud_to_local"]["decision"]["reason"] == "cloud_to_local_preview_disabled_by_config"
+    assert str(tmp_path) not in json.dumps(status)
+
+
 def test_secret_like_memory_is_redacted_and_never_syncs(tmp_path: Path) -> None:
     _prepare_paths()
     from ora_core.memory import LocalMemoryStore, build_memory_sync_preview
