@@ -44,6 +44,17 @@ COLOR_CHOICES = ("auto", "never", "always")
 PLAN_PROVIDER_CHOICES = ("auto", "mock", "openai-compatible", "local", "anthropic", "gemini")
 SYNC_AUTH_STATE_CHOICES = ("unauthenticated", "dry_run", "pending", "linked", "expired", "revoked")
 SYNC_DIRECTION_CHOICES = ("cloud-to-local", "local-to-cloud")
+MEMORY_SCOPE_CHOICES = (
+    "local",
+    "session",
+    "local_private",
+    "cloud_account",
+    "shared_preference",
+    "project",
+    "procedural",
+    "self_evolution_signal",
+)
+MEMORY_SYNC_DIRECTION_CHOICES = ("cloud-to-local", "local-to-cloud")
 PROVIDERS_SCHEMA_VERSION = "yonerai-providers/v0.2"
 PLAN_MODE_CHOICES = (
     "managed-contract",
@@ -274,6 +285,20 @@ def _build_doctor_report(*, command: str = "yonerai doctor") -> dict[str, Any]:
             "production_oracle_used": False,
             "official_cloud_runtime_implemented": False,
         }
+    try:
+        from ora_core.memory import LocalMemoryStore, default_memory_store_path
+
+        memory_boundary = LocalMemoryStore(default_memory_store_path()).status()
+    except Exception:
+        memory_boundary = {
+            "schema_version": "yonerai-memory-boundary/v0.1",
+            "ok": False,
+            "store_path_output": False,
+            "local_to_cloud_enabled_by_default": False,
+            "cloud_sync_enabled": False,
+            "raw_prompt_persisted": False,
+            "local_absolute_path_persisted": False,
+        }
     python_supported = sys.version_info >= (3, 11)
     manifest_contract_valid = bool(manifest_report.get("contract_valid", manifest_report.get("ok")))
     system_checks = {
@@ -287,6 +312,7 @@ def _build_doctor_report(*, command: str = "yonerai doctor") -> dict[str, Any]:
     oracle_stub_ok = bool(oracle_stub.get("ok"))
     hybrid_execution_slice_ok = bool(hybrid_execution_slice.get("ok"))
     auto_runtime_ok = bool(auto_runtime.get("ok"))
+    memory_boundary_ok = bool(memory_boundary.get("ok"))
     return {
         "ok": (
             manifest_contract_valid
@@ -298,6 +324,7 @@ def _build_doctor_report(*, command: str = "yonerai doctor") -> dict[str, Any]:
             and oracle_stub_ok
             and hybrid_execution_slice_ok
             and auto_runtime_ok
+            and memory_boundary_ok
         ),
         "command": command,
         "schema_version": "yonerai-doctor/v1",
@@ -341,6 +368,7 @@ def _build_doctor_report(*, command: str = "yonerai doctor") -> dict[str, Any]:
         "oracle_stub": oracle_stub,
         "hybrid_execution_slice": hybrid_execution_slice,
         "auto_runtime": auto_runtime,
+        "memory_boundary": memory_boundary,
         "provider_runtime_e2e_fixtures": _provider_runtime_e2e_fixture_report(),
         "system_checks": system_checks,
         "errors": manifest_report.get("errors", []),
@@ -367,6 +395,7 @@ def _build_start_report(*, guided: bool = False) -> dict[str, Any]:
     return build_first_run_report(
         provider_setup=doctor_report.get("providers"),
         repo_version=doctor_report.get("cli", {}).get("repo_version"),
+        memory_boundary=doctor_report.get("memory_boundary") if isinstance(doctor_report.get("memory_boundary"), dict) else None,
         env=os.environ,
         guided=guided,
     )
@@ -1001,6 +1030,7 @@ def _doctor_sections_en(report: dict[str, Any]) -> tuple[CliSection, ...]:
     relay_rows = _relay_status_rows(report, lang="en")
     oracle_rows = _oracle_stub_rows(report)
     auto_runtime_rows = _auto_runtime_rows(report)
+    memory_boundary = report.get("memory_boundary") if isinstance(report.get("memory_boundary"), dict) else {}
     install_update_rows = _install_update_rows(report, lang="en")
     return (
         CliSection(
@@ -1040,6 +1070,19 @@ def _doctor_sections_en(report: dict[str, Any]) -> tuple[CliSection, ...]:
         CliSection("Relay local-dev", relay_rows),
         CliSection("Oracle stub", oracle_rows),
         CliSection("Auto runtime", auto_runtime_rows),
+        CliSection(
+            "Memory boundary",
+            (
+                CliRow("local_memory", "available" if memory_boundary.get("ok") else "unavailable", "ok" if memory_boundary.get("ok") else "fail"),
+                CliRow(
+                    "local_to_cloud_default",
+                    memory_boundary.get("local_to_cloud_enabled_by_default"),
+                    "fail" if memory_boundary.get("local_to_cloud_enabled_by_default") else "ok",
+                ),
+                CliRow("cloud_sync", memory_boundary.get("cloud_sync_enabled"), "warn" if memory_boundary.get("cloud_sync_enabled") else "ok"),
+                CliRow("raw_prompt_persisted", memory_boundary.get("raw_prompt_persisted"), "fail" if memory_boundary.get("raw_prompt_persisted") else "ok"),
+            ),
+        ),
         CliSection("Provider runtime", provider_rows),
         CliSection("Provider runtime E2E fixtures", provider_e2e_rows),
         CliSection("Install/update", install_update_rows),
@@ -1073,6 +1116,7 @@ def _doctor_sections_ja(report: dict[str, Any]) -> tuple[CliSection, ...]:
     relay_rows = _relay_status_rows(report, lang="ja")
     oracle_rows = _oracle_stub_rows(report)
     auto_runtime_rows = _auto_runtime_rows(report)
+    memory_boundary = report.get("memory_boundary") if isinstance(report.get("memory_boundary"), dict) else {}
     install_update_rows = _install_update_rows(report, lang="ja")
     return (
         CliSection(
@@ -1112,6 +1156,19 @@ def _doctor_sections_ja(report: dict[str, Any]) -> tuple[CliSection, ...]:
         CliSection("Relay local-dev", relay_rows),
         CliSection("Oracle stub", oracle_rows),
         CliSection("Auto runtime", auto_runtime_rows),
+        CliSection(
+            "記憶境界",
+            (
+                CliRow("ローカル記憶", "利用可能" if memory_boundary.get("ok") else "利用不可", "ok" if memory_boundary.get("ok") else "fail"),
+                CliRow(
+                    "local→cloud初期値",
+                    memory_boundary.get("local_to_cloud_enabled_by_default"),
+                    "fail" if memory_boundary.get("local_to_cloud_enabled_by_default") else "ok",
+                ),
+                CliRow("cloud同期", memory_boundary.get("cloud_sync_enabled"), "warn" if memory_boundary.get("cloud_sync_enabled") else "ok"),
+                CliRow("raw prompt保存", memory_boundary.get("raw_prompt_persisted"), "fail" if memory_boundary.get("raw_prompt_persisted") else "ok"),
+            ),
+        ),
         CliSection("プロバイダー実行環境", provider_rows),
         CliSection("プロバイダー実行環境 E2E フィクスチャ", provider_e2e_rows),
         CliSection("インストール/更新", install_update_rows),
@@ -2116,6 +2173,7 @@ def _execute_auto_ask_report(args: argparse.Namespace) -> dict[str, Any]:
             read_workspace_text_file,
         )
         from ora_core.execution.ledger import build_run_ledger_from_env
+        from ora_core.memory import LocalMemoryStore, select_allowed_memory_for_ask
     except Exception as exc:
         raise CliError("auto runtime is unavailable.", exit_code=1) from exc
 
@@ -2124,6 +2182,10 @@ def _execute_auto_ask_report(args: argparse.Namespace) -> dict[str, Any]:
     provider_prompt = prompt
     file_context = None
     context_events = []
+    memory_records = None
+    memory_store_path = getattr(args, "memory_store", None)
+    if memory_store_path:
+        memory_records = select_allowed_memory_for_ask(LocalMemoryStore(memory_store_path).list())
     if args.file:
         if not args.workspace:
             raise CliError("--workspace is required when --file is used.", exit_code=2)
@@ -2156,6 +2218,7 @@ def _execute_auto_ask_report(args: argparse.Namespace) -> dict[str, Any]:
             live=args.live,
             ledger=build_run_ledger_from_env(args.ledger_path),
             context_events=context_events,
+            memory_records=memory_records,
             local_file_context=file_context is not None,
         )
     except ValueError as exc:
@@ -2163,6 +2226,12 @@ def _execute_auto_ask_report(args: argparse.Namespace) -> dict[str, Any]:
     report["ledger"] = ledger_status
     if file_context is not None:
         report["file_context"] = file_context.to_public_dict()
+    if memory_store_path:
+        report["memory_store"] = {
+            "configured": True,
+            "path_output": False,
+            "used_ids": [record.id for record in memory_records or ()],
+        }
     return report
 
 
@@ -2913,6 +2982,7 @@ def _print_update_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -
     signature = report["signature_status"]
     non_actions = report["non_actions"]
     selected = report["selected_artifact"] or {}
+    policy = report.get("update_policy") if isinstance(report.get("update_policy"), dict) else {}
     errors = tuple(CliRow("error", error, "fail") for error in manifest["errors"])
     warnings = tuple(CliRow("warning", warning, "warn") for warning in report["warnings"])
     sections = (
@@ -2946,6 +3016,8 @@ def _print_update_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -
                 CliRow("quick_install_command", report.get("quick_install_command", "unavailable"), "ok"),
                 CliRow("github_install_fallback_command", report.get("github_install_fallback_command", "unavailable"), "ok"),
                 CliRow("verified_install_page", report.get("verified_install_page", "unavailable"), "ok"),
+                CliRow("security_update", bool(report.get("security_update")), "warn" if report.get("security_update") else "ok"),
+                CliRow("critical_update", bool(report.get("critical_update")), "fail" if report.get("critical_update") else "ok"),
                 CliRow(
                     "forced_update_enabled",
                     bool(report.get("forced_update_enabled")),
@@ -2956,6 +3028,9 @@ def _print_update_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -
                     bool(report.get("auto_update_apply_enabled")),
                     "fail" if report.get("auto_update_apply_enabled") else "ok",
                 ),
+                CliRow("active_session_behavior", policy.get("active_session_behavior", "warn_only_do_not_interrupt"), "ok"),
+                CliRow("next_startup_behavior", policy.get("next_startup_behavior", "show_update_screen_first_only_if_critical"), "ok"),
+                CliRow("basic_local_mock_chat_allowed", bool(policy.get("basic_local_mock_chat_allowed", True)), "ok"),
             ),
         ),
         CliSection(
@@ -2999,6 +3074,7 @@ def _print_update_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -
 def _print_update_check_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -> None:
     artifact = report.get("artifact_status") if isinstance(report.get("artifact_status"), dict) else {}
     signature = report.get("signature_status") if isinstance(report.get("signature_status"), dict) else {}
+    policy = report.get("update_policy") if isinstance(report.get("update_policy"), dict) else {}
     warnings = tuple(CliRow("warning", warning, "warn") for warning in report.get("warnings", []))
     sections = (
         CliSection(
@@ -3029,6 +3105,8 @@ def _print_update_check_pretty(report: dict[str, Any], *, color: ColorMode = "au
                 CliRow("quick_install_command", report.get("quick_install_command", "unavailable"), "ok"),
                 CliRow("github_install_fallback_command", report.get("github_install_fallback_command", "unavailable"), "ok"),
                 CliRow("verified_install_page", report.get("verified_install_page", "unavailable"), "ok"),
+                CliRow("security_update", bool(report.get("security_update")), "warn" if report.get("security_update") else "ok"),
+                CliRow("critical_update", bool(report.get("critical_update")), "fail" if report.get("critical_update") else "ok"),
                 CliRow(
                     "forced_update_enabled",
                     bool(report.get("forced_update_enabled")),
@@ -3039,6 +3117,9 @@ def _print_update_check_pretty(report: dict[str, Any], *, color: ColorMode = "au
                     bool(report.get("auto_update_apply_enabled")),
                     "fail" if report.get("auto_update_apply_enabled") else "ok",
                 ),
+                CliRow("active_session_behavior", policy.get("active_session_behavior", "warn_only_do_not_interrupt"), "ok"),
+                CliRow("next_startup_behavior", policy.get("next_startup_behavior", "show_update_screen_first_only_if_critical"), "ok"),
+                CliRow("basic_local_mock_chat_allowed", bool(policy.get("basic_local_mock_chat_allowed", True)), "ok"),
             ),
         ),
         CliSection(
@@ -3104,50 +3185,100 @@ def _print_ops_plan_pretty(report: dict[str, Any], *, color: ColorMode = "auto")
 def _build_memory_report(args: argparse.Namespace) -> dict[str, Any]:
     try:
         _prepare_trusted_cli_import_paths()
-        from ora_core.memory import LocalMemoryStore
+        from ora_core.memory import LocalMemoryStore, build_memory_sync_preview, default_memory_store_path
     except Exception as exc:
         raise CliError("local memory store is unavailable.", exit_code=1) from exc
-    if not args.store:
-        raise CliError("--store is required for explicit local memory v0.1.", exit_code=2)
-    store = LocalMemoryStore(args.store)
+    store_path = args.store or str(default_memory_store_path())
+    store = LocalMemoryStore(store_path)
+    schema_version = "yonerai-memory-boundary-cli/v0.1"
+    scope = getattr(args, "scope", None) or None
     if args.memory_command == "add":
-        if not args.confirm_local:
-            raise CliError("memory add requires --confirm-local.", exit_code=2)
-        record = store.add(_prompt_from_args(args.text), tags=tuple(args.tag or ()))
+        explicit_local_scope = scope in {"local", "local_private"}
+        if not args.confirm_local and not explicit_local_scope:
+            raise CliError("memory add requires --confirm-local or explicit --scope local.", exit_code=2)
+        record = store.add(_prompt_from_args(args.text), tags=tuple(args.tag or ()), scope=scope or "local_private")
         return {
-            "schema_version": "yonerai-local-memory-cli/v0.1",
+            "schema_version": schema_version,
             "ok": True,
             "operation": "add",
             "record": record.to_public_dict(),
             "cloud_synced": False,
+            "store_path_output": False,
             "raw_prompt_persisted": False,
         }
+    if args.memory_command == "status":
+        return store.status()
     if args.memory_command == "list":
-        records = [record.to_public_dict() for record in store.list()]
+        records = [record.to_public_dict() for record in store.list(scope=scope)]
         return {
-            "schema_version": "yonerai-local-memory-cli/v0.1",
+            "schema_version": schema_version,
             "ok": True,
             "operation": "list",
             "records": records,
             "count": len(records),
             "cloud_synced": False,
+            "store_path_output": False,
+        }
+    if args.memory_command == "forget":
+        forgotten = store.forget(args.memory_id)
+        return {
+            "schema_version": schema_version,
+            "ok": forgotten,
+            "operation": "forget",
+            "memory_id": args.memory_id,
+            "forgotten": forgotten,
+            "cloud_synced": False,
+            "store_path_output": False,
         }
     if args.memory_command == "delete":
         deleted = store.delete(args.memory_id)
         return {
-            "schema_version": "yonerai-local-memory-cli/v0.1",
+            "schema_version": schema_version,
             "ok": deleted,
             "operation": "delete",
             "memory_id": args.memory_id,
             "deleted": deleted,
             "cloud_synced": False,
+            "store_path_output": False,
         }
     if args.memory_command == "export":
         return store.export() | {"operation": "export"}
+    if args.memory_command == "sync" and getattr(args, "memory_sync_command", None) == "preview":
+        direction = str(args.direction).replace("-", "_")
+        return build_memory_sync_preview(
+            store.list(include_inactive=True),
+            direction=direction,  # type: ignore[arg-type]
+            explicit_approval=bool(getattr(args, "approve", False)),
+        )
     raise CliError("unknown memory command", exit_code=2)
 
 
 def _print_memory_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -> None:
+    if report.get("operation") == "status":
+        rows = (
+            CliRow("records", report.get("record_count", 0), "ok"),
+            CliRow("cloud_sync_enabled", report.get("cloud_sync_enabled"), "warn" if report.get("cloud_sync_enabled") else "ok"),
+            CliRow(
+                "local_to_cloud_default",
+                report.get("local_to_cloud_enabled_by_default"),
+                "fail" if report.get("local_to_cloud_enabled_by_default") else "ok",
+            ),
+            CliRow("raw_prompt_persisted", report.get("raw_prompt_persisted"), "fail" if report.get("raw_prompt_persisted") else "ok"),
+            CliRow("store_path_output", report.get("store_path_output"), "fail" if report.get("store_path_output") else "ok"),
+        )
+        print(render_report("YonerAI memory boundary", (CliSection("Status", rows),), color=color))
+        return
+    if report.get("operation") == "sync_preview":
+        decision = report.get("decision") if isinstance(report.get("decision"), dict) else {}
+        rows = (
+            CliRow("direction", report.get("direction"), "ok"),
+            CliRow("decision", decision.get("state", "unknown"), "warn" if decision.get("state") == "approval_required" else ("fail" if decision.get("state") == "blocked" else "ok")),
+            CliRow("reason", decision.get("reason", "none"), "ok"),
+            CliRow("sync_allowed", report.get("sync_allowed"), "warn" if not report.get("sync_allowed") else "ok"),
+            CliRow("sync_performed", report.get("sync_performed"), "fail" if report.get("sync_performed") else "ok"),
+        )
+        print(render_report("YonerAI memory sync preview", (CliSection("Decision", rows),), color=color))
+        return
     if report.get("operation") == "list":
         rows = tuple(CliRow(record["memory_id"], record["text"], "ok") for record in report["records"]) or (
             CliRow("records", "none", "warn"),
@@ -3773,6 +3904,7 @@ def _interactive_callbacks():
         update_check=_interactive_update_check,
         evolve_status=_interactive_evolve_status,
         sync_status=_interactive_sync_status,
+        memory_status=_interactive_memory_status,
     )
 
 
@@ -3782,6 +3914,7 @@ def _interactive_ask_auto(task: str, provider: str, live: bool, ledger_path: str
         provider=provider,
         live=live,
         ledger_path=ledger_path,
+        memory_store=None,
         file=None,
         workspace=None,
         file_max_bytes=65536,
@@ -3807,6 +3940,11 @@ def _interactive_update_check(manifest_path: str | None, _lang: str) -> dict[str
 def _interactive_evolve_status(_lang: str) -> dict[str, Any]:
     args = argparse.Namespace(evolve_command="status")
     return _build_evolve_report_for_cli(args)
+
+
+def _interactive_memory_status(_lang: str) -> dict[str, Any]:
+    args = argparse.Namespace(memory_command="status", store=None)
+    return _build_memory_report(args)
 
 
 def _interactive_sync_status(_lang: str) -> dict[str, Any]:
@@ -4209,6 +4347,7 @@ def build_parser() -> argparse.ArgumentParser:
     ask.add_argument("--dry-run", action="store_true", help="Preview only; no provider call is made.")
     ask.add_argument("--live", action="store_true", help="Allow explicitly gated local or external live provider execution.")
     ask.add_argument("--ledger-path", "--ledger", dest="ledger_path", help="Optional redacted JSONL run ledger path. Disabled by default.")
+    ask.add_argument("--memory-store", help="Optional local memory JSONL path. Only allowed memory ids are recorded in the run ledger.")
     ask.add_argument("--file", help="Optional workspace-local UTF-8 text file to summarize or use as ask context.")
     ask.add_argument("--workspace", help="Required workspace root when --file is used.")
     ask.add_argument("--file-max-bytes", type=int, default=65536, help="Maximum file bytes to read. Default: 65536.")
@@ -4278,11 +4417,19 @@ def build_parser() -> argparse.ArgumentParser:
     ops_plan_output.add_argument("--pretty", action="store_true", help="Print a readable operation plan.")
     ops_plan.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
 
-    memory = subcommands.add_parser("memory", help="Manage explicit opt-in local memory v0.1 records.")
+    memory = subcommands.add_parser("memory", help="Manage local-only memory boundary records.")
     memory_subcommands = memory.add_subparsers(dest="memory_command", required=True)
+    memory_status = memory_subcommands.add_parser("status", help="Show local/cloud/sync memory boundary status.")
+    memory_status.add_argument("--store", help="Local JSONL memory store path. Defaults to the local YonerAI data path.")
+    memory_status_output = memory_status.add_mutually_exclusive_group()
+    memory_status_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
+    memory_status_output.add_argument("--pretty", action="store_true", help="Print a readable memory status.")
+    memory_status.add_argument("--lang", choices=LANG_CHOICES, default="en", help="Pretty output language. Default: en.")
+    memory_status.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
     memory_add = memory_subcommands.add_parser("add", help="Add a redacted local-only memory record.")
     memory_add.add_argument("text", nargs="+")
-    memory_add.add_argument("--store", required=True, help="Local JSONL memory store path.")
+    memory_add.add_argument("--store", help="Local JSONL memory store path. Defaults to the local YonerAI data path.")
+    memory_add.add_argument("--scope", choices=MEMORY_SCOPE_CHOICES, help="Memory scope. Use 'local' for local-private memory.")
     memory_add.add_argument("--confirm-local", action="store_true", help="Confirm this is explicit local-only memory.")
     memory_add.add_argument("--tag", action="append", help="Optional simple tag. Repeatable.")
     memory_add_output = memory_add.add_mutually_exclusive_group()
@@ -4290,24 +4437,42 @@ def build_parser() -> argparse.ArgumentParser:
     memory_add_output.add_argument("--pretty", action="store_true", help="Print a readable memory summary.")
     memory_add.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
     memory_list = memory_subcommands.add_parser("list", help="List redacted local-only memory records.")
-    memory_list.add_argument("--store", required=True, help="Local JSONL memory store path.")
+    memory_list.add_argument("--store", help="Local JSONL memory store path. Defaults to the local YonerAI data path.")
+    memory_list.add_argument("--scope", choices=MEMORY_SCOPE_CHOICES, help="Filter by memory scope.")
     memory_list_output = memory_list.add_mutually_exclusive_group()
     memory_list_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
     memory_list_output.add_argument("--pretty", action="store_true", help="Print a readable memory list.")
     memory_list.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
+    memory_forget = memory_subcommands.add_parser("forget", help="Forget one local memory record without uploading it.")
+    memory_forget.add_argument("memory_id")
+    memory_forget.add_argument("--store", help="Local JSONL memory store path. Defaults to the local YonerAI data path.")
+    memory_forget_output = memory_forget.add_mutually_exclusive_group()
+    memory_forget_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
+    memory_forget_output.add_argument("--pretty", action="store_true", help="Print a readable memory summary.")
+    memory_forget.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
     memory_delete = memory_subcommands.add_parser("delete", help="Delete one local-only memory record.")
     memory_delete.add_argument("memory_id")
-    memory_delete.add_argument("--store", required=True, help="Local JSONL memory store path.")
+    memory_delete.add_argument("--store", help="Local JSONL memory store path. Defaults to the local YonerAI data path.")
     memory_delete_output = memory_delete.add_mutually_exclusive_group()
     memory_delete_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
     memory_delete_output.add_argument("--pretty", action="store_true", help="Print a readable memory summary.")
     memory_delete.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
     memory_export = memory_subcommands.add_parser("export", help="Export redacted local-only memory records.")
-    memory_export.add_argument("--store", required=True, help="Local JSONL memory store path.")
+    memory_export.add_argument("--store", help="Local JSONL memory store path. Defaults to the local YonerAI data path.")
     memory_export_output = memory_export.add_mutually_exclusive_group()
     memory_export_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
     memory_export_output.add_argument("--pretty", action="store_true", help="Print a readable memory summary.")
     memory_export.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
+    memory_sync = memory_subcommands.add_parser("sync", help="Preview memory sync boundaries without calling production cloud.")
+    memory_sync_subcommands = memory_sync.add_subparsers(dest="memory_sync_command", required=True)
+    memory_sync_preview = memory_sync_subcommands.add_parser("preview", help="Preview cloud/local memory sync decisions.")
+    memory_sync_preview.add_argument("--store", help="Local JSONL memory store path. Defaults to the local YonerAI data path.")
+    memory_sync_preview.add_argument("--direction", choices=MEMORY_SYNC_DIRECTION_CHOICES, required=True)
+    memory_sync_preview.add_argument("--approve", action="store_true", help="Dry-run explicit approval flag; no sync is performed.")
+    memory_sync_preview_output = memory_sync_preview.add_mutually_exclusive_group()
+    memory_sync_preview_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
+    memory_sync_preview_output.add_argument("--pretty", action="store_true", help="Print a readable sync decision.")
+    memory_sync_preview.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
 
     runs = subcommands.add_parser("runs", help="Inspect opt-in redacted local run ledger history.")
     runs_subcommands = runs.add_subparsers(dest="runs_command", required=True)

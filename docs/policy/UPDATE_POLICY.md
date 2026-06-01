@@ -13,6 +13,27 @@ command. They do not download, install, mutate PATH, execute remote code,
 request admin rights, edit the registry, install services, or auto-apply an
 update.
 
+## Deferred update classes
+
+YonerAI surfaces update state as policy metadata so the TUI can explain what
+will happen without installing anything.
+
+| class | behavior during an active session | behavior after the current task | next startup behavior |
+| --- | --- | --- | --- |
+| normal update | Show a notice only. | Show the next safe command if update notice is enabled. | Continue normally. |
+| recommended update | Show a stronger notice only. | Show the update prompt if update notice is enabled. | Continue normally. |
+| security update | Warn, but do not interrupt an active task. | Show the update prompt after the task completes. | Show the update screen early, then allow local-safe use. |
+| critical update | Warn, but do not silently update. | Show the update prompt after the task completes. | Show the update screen first. Basic local mock chat remains available. |
+
+Critical policy may restrict only risky live/cloud/provider-sensitive features
+when an explicit minimum-safe-version policy exists. It must not block basic
+local mock chat, and it must always explain the reason.
+
+The public repo currently emits `security_update=false` and
+`critical_update=false` from local manifest checks. Production advisory policy,
+minimum-safe-version enforcement, and signed advisory feeds are future
+official/private-lane work.
+
 ## Security advisories
 
 A future security advisory can recommend that users update. The CLI may display

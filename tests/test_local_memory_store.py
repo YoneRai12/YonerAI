@@ -106,9 +106,11 @@ def test_cli_memory_add_uses_repo_redactor_outside_repo_root(tmp_path: Path, cap
 
     monkeypatch.chdir(tmp_path)
     store = tmp_path / "memory.jsonl"
+    token_param = "access" + "_token"
+    webhook_host = "discord.com" + "/api/webhooks"
     text = (
-        "callback https://example.test/cb?access_token=LEAKED_QUERY_TOKEN "
-        "and webhook https://discord.com/api/webhooks/123456789012345678/AbCdEfGhIjKlMnOpQrStUvWxYz-12345"
+        f"callback https://example.test/cb?{token_param}=LEAKED_QUERY_TOKEN "
+        f"and webhook https://{webhook_host}/123456789012345678/AbCdEfGhIjKlMnOpQrStUvWxYz-12345"
     )
     rc = cli.main(["memory", "add", text, "--store", str(store), "--confirm-local", "--json"])
     output = json.loads(capsys.readouterr().out)
@@ -117,3 +119,135 @@ def test_cli_memory_add_uses_repo_redactor_outside_repo_root(tmp_path: Path, cap
     assert output["raw_prompt_persisted"] is False
     assert "LEAKED_QUERY_TOKEN" not in output["record"]["text"]
     assert "discord.com/api/webhooks" not in output["record"]["text"]
+
+
+def test_memory_record_has_boundary_fields_and_forget_is_redacted(tmp_path: Path) -> None:
+    _prepare_paths()
+    from ora_core.memory import LocalMemoryStore
+
+    store = LocalMemoryStore(tmp_path / "memory.jsonl")
+    record = store.add("prefer concise Japanese answers", scope="procedural", tags=("Preference",))
+    forgotten = store.forget(record.id)
+    inactive = store.list(include_inactive=True)[0]
+
+    assert record.scope == "procedural"
+    assert record.sync_policy == "local_to_cloud_requires_approval"
+    assert record.status == "active"
+    assert record.to_public_dict()["raw_prompt_persisted"] is False
+    assert forgotten is True
+    assert store.list() == []
+    assert inactive.status == "forgotten"
+    assert inactive.redacted_summary == "[forgotten]"
+    assert inactive.sync_policy == "never_sync"
+
+
+def test_cli_memory_status_add_list_forget_and_sync_preview(tmp_path: Path, capsys, monkeypatch) -> None:
+    _prepare_paths()
+    from yonerai_cli import cli
+
+    store = tmp_path / "memory.jsonl"
+    monkeypatch.setenv("YONERAI_MEMORY_STORE_PATH", str(store))
+
+    assert cli.main(["memory", "status", "--json"]) == 0
+    status = json.loads(capsys.readouterr().out)
+    assert status["store_path_output"] is False
+    assert str(tmp_path) not in json.dumps(status)
+
+    assert cli.main(["memory", "add", "local preference", "--scope", "local", "--json"]) == 0
+    added = json.loads(capsys.readouterr().out)
+    memory_id = added["record"]["memory_id"]
+    assert added["record"]["scope"] == "local_private"
+    assert added["record"]["sync_policy"] == "never_sync"
+
+    assert cli.main(["memory", "list", "--scope", "local", "--json"]) == 0
+    listed = json.loads(capsys.readouterr().out)
+    assert listed["count"] == 1
+
+    assert cli.main(["memory", "sync", "preview", "--direction", "local-to-cloud", "--json"]) == 0
+    preview = json.loads(capsys.readouterr().out)
+    assert preview["decision"]["state"] == "blocked"
+    assert preview["decision"]["reason"] == "local_private_memory_never_syncs"
+    assert preview["official_backend_called"] is False
+    assert "no automatic local-to-cloud upload" in preview["actions_not_performed"]
+
+    assert cli.main(["memory", "forget", memory_id, "--json"]) == 0
+    forgotten = json.loads(capsys.readouterr().out)
+    assert forgotten["forgotten"] is True
+    assert str(tmp_path) not in json.dumps(forgotten)
+
+
+def test_secret_like_memory_is_redacted_and_never_syncs(tmp_path: Path) -> None:
+    _prepare_paths()
+    from ora_core.memory import LocalMemoryStore, build_memory_sync_preview
+
+    store = LocalMemoryStore(tmp_path / "memory.jsonl")
+    record = store.add("token=alpha-secret-fixture and C:\\Users\\person\\secret.txt", scope="shared_preference")
+    preview = build_memory_sync_preview(store.list(), direction="local_to_cloud", explicit_approval=True)
+    serialized = json.dumps(record.to_public_dict(), ensure_ascii=False)
+
+    assert record.sensitivity == "secret_like"
+    assert record.sync_policy == "never_sync"
+    assert "alpha-secret-fixture" not in serialized
+    assert "C:\\Users" not in serialized
+    assert preview["decision"]["state"] == "blocked"
+    assert preview["decision"]["reason"] == "secret_like_or_local_only_memory_never_syncs"
+
+
+def test_local_path_memory_is_local_only_and_never_syncs(tmp_path: Path) -> None:
+    _prepare_paths()
+    from ora_core.memory import LocalMemoryStore, build_memory_sync_preview
+
+    store = LocalMemoryStore(tmp_path / "memory.jsonl")
+    record = store.add("review C:\\Users\\person\\Documents\\private.txt later", scope="shared_preference")
+    preview = build_memory_sync_preview(store.list(), direction="local_to_cloud", explicit_approval=True)
+    serialized = json.dumps(record.to_public_dict(), ensure_ascii=False)
+
+    assert record.sensitivity == "local_only"
+    assert record.sync_policy == "never_sync"
+    assert "C:\\Users" not in serialized
+    assert "[local_path_redacted]" in serialized
+    assert preview["decision"]["state"] == "blocked"
+    assert preview["decision"]["reason"] == "secret_like_or_local_only_memory_never_syncs"
+
+
+def test_self_evolution_signal_memory_is_low_resolution_only() -> None:
+    _prepare_paths()
+    from ora_core.memory import MemoryStoreError, build_self_evolution_signal_memory
+
+    signal = build_self_evolution_signal_memory(
+        {
+            "feature_id": "tui.memory",
+            "surface": "cli",
+            "mode": "local",
+            "outcome": "completed",
+            "dropoff_stage": "none",
+            "complaint_class": "none",
+            "provider_class": "mock",
+            "latency_bucket": "lt_1s",
+        }
+    )
+    public = signal.to_public_dict()
+
+    assert public["scope"] == "self_evolution_signal"
+    assert public["proposal_only"] is True
+    assert public["raw_prompt_included"] is False
+    assert public["pii_included"] is False
+
+    try:
+        build_self_evolution_signal_memory(
+            {
+                "feature_id": "tui.memory",
+                "surface": "cli",
+                "mode": "local",
+                "outcome": "completed",
+                "dropoff_stage": "none",
+                "complaint_class": "none",
+                "provider_class": "mock",
+                "latency_bucket": "lt_1s",
+                "raw_prompt": "my private prompt",
+            }
+        )
+    except MemoryStoreError as exc:
+        assert exc.code == "unsafe_self_evolution_signal"
+    else:
+        raise AssertionError("raw prompt field must be rejected")

@@ -2,6 +2,31 @@
 
 This page is a public-safe index of current release notes and progress checkpoints.
 
+## v0.12.0-alpha.1 Memory Boundary Runtime
+
+- GitHub pre-release target: `v0.12.0-alpha.1`.
+- Release title: `2026.06.01 - YonerAI v0.12.0-alpha.1 Memory Boundary Runtime`.
+- Release date: `2026-06-01`.
+- Public release body: `docs/releases/0.12.0-alpha.1.md`.
+- Status: prerelease local memory boundary runtime after
+  v0.11.0-alpha.1.
+- What users can try now: `yonerai memory status --pretty --lang ja`,
+  `yonerai memory add "..." --scope local --pretty --lang ja`,
+  `yonerai memory list --scope local --pretty --lang ja`,
+  `yonerai memory forget <memory_id> --pretty --lang ja`,
+  `yonerai memory sync preview --direction cloud-to-local --pretty --lang ja`,
+  `yonerai memory sync preview --direction local-to-cloud --pretty --lang ja`,
+  `yonerai ask "hello" --auto --memory-store <local.jsonl> --json`, TUI
+  `/記憶`, `/メモリ`, `/設定`, `/設定 記憶`, and `/設定 更新`.
+- Boundary: local JSONL memory store, redacted summaries, memory-id-only ledger
+  integration, sync preview contracts, TUI visibility, and low-resolution
+  self-evolution signal validation only; no production cloud memory, no
+  production Oracle/cloud runtime, no production Google login, no OpenAI shared
+  traffic runtime, no live Discord, no automatic local-to-cloud private upload,
+  no deploy/public tunnel, no arbitrary shell/file/tool execution, no
+  production signing/trust store, and no production network installer.
+- Primary traceability range: `v0.11.0-alpha.1..v0.12.0-alpha.1`; PR TBD.
+
 ## v0.11.0-alpha.1 Account Sync and Oracle API Foundation
 
 - GitHub pre-release target: `v0.11.0-alpha.1`.
