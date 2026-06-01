@@ -233,12 +233,26 @@ def _is_allowed_secret_reference(rel: str, line: str, match: re.Match[str]) -> b
         return False
     if _is_safe_env_reference(line, match):
         return True
-    if re.search(
-        r"\b(?:token|session)\.accessToken\s*=\s*(?:account\.access_token|token\.accessToken|session\.accessToken)\s*;?\s*$",
-        line,
-    ):
+    if _is_safe_access_token_reference(line, match):
         return True
     return False
+
+
+def _is_safe_access_token_reference(line: str, match: re.Match[str]) -> bool:
+    access_token_match = re.search(
+        r"\b(?:token|session)\.(accessToken\s*=\s*(?:account\.access_token|token\.accessToken|session\.accessToken))\b",
+        line,
+    )
+    if not (
+        access_token_match
+        and access_token_match.start(1) == match.start()
+        and access_token_match.end(1) == match.end()
+    ):
+        return False
+    tail_before_terminator = re.split(r";|//", line[access_token_match.end(1) :], maxsplit=1)[0]
+    return bool(
+        tail_before_terminator.strip() == ""
+    )
 
 
 def _is_safe_env_reference(line: str, match: re.Match[str]) -> bool:
