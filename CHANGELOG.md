@@ -2,6 +2,23 @@
 
 See also: `docs/RELEASE_NOTES.md` (curated summary, v5.0.0 -> current).
 
+## v0.13.0-alpha.1 (2026-06-01) - Agent Console Runtime
+- Added a Codex/opencode-style interaction layer through PR #492: command
+  palette (`/コマンド`, `/パレット`, `/palette`), agent modes, planning/review
+  screens, approval profile display, and documented English aliases.
+- Added public-safe `@planner`, `@reviewer`, and `@researcher` previews. They
+  show role/task framing and safety reminders without spawning autonomous
+  workers, browsing, executing shell commands, pushing GitHub changes, creating
+  releases, deploying, or calling live providers by default.
+- Added regression coverage for `/mode plan`, `/mode build`, read-only aliases,
+  hyphenated `/permissions` aliases, and read-only -> dry-run-only approval
+  reset behavior.
+- Preserved boundaries: no production Oracle/cloud runtime, no production
+  Google login, no OpenAI shared traffic runtime, no live Discord, no
+  automatic local-to-cloud private upload, no deploy/public tunnel, no
+  arbitrary shell/file/tool execution, no provider key output/storage, no
+  production signing/trust store, and no production network installer.
+
 ## v0.12.0-alpha.2 (2026-06-01) - Memory UX and Update Notice
 - Published the recovered memory UX work through PR #488: `/記憶`,
   `/メモリ`, `/memory`, focused `/設定 記憶`, memory add/list/forget/sync
