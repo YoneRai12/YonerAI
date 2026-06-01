@@ -128,6 +128,12 @@ def test_evolve_proposals_list_and_show_are_stable(capsys) -> None:
     assert proposal_id == "proposal-tui.slash_help"
     assert listed["proposals"][0]["feature_id"] == "tui.slash_help"
 
+    assert cli.main(["evolve", "proposals", "list", "--fixture", str(FIXTURE), "--pretty", "--color", "never"]) == 0
+    pretty = capsys.readouterr().out
+    assert "proposed / tui" in pretty
+    assert "proposed / privacy" in pretty
+    assert "proposed / unknown" not in pretty
+
     assert cli.main(["evolve", "proposals", "show", proposal_id, "--fixture", str(FIXTURE), "--json"]) == 0
     shown = json.loads(capsys.readouterr().out)
     assert shown["proposal"]["proposal_id"] == proposal_id
