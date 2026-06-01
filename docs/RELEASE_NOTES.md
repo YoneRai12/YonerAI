@@ -2,6 +2,26 @@
 
 This page is a public-safe index of current release notes and progress checkpoints.
 
+## v0.13.0-alpha.2 Agent Console Dogfood Patch
+
+- GitHub pre-release target: `v0.13.0-alpha.2`.
+- Release title: `2026.06.02 - YonerAI v0.13.0-alpha.2 Agent Console Dogfood Patch`.
+- Release date: `2026-06-02`.
+- Public release body: `docs/releases/0.13.0-alpha.2.md`.
+- Status: prerelease dogfood patch after v0.13.0-alpha.1.
+- What users can try now: `yonerai`, `yonerai chat --lang ja`,
+  `/コマンド`, `/パレット`, `/設定`, `/設定 記憶`, `/記憶`, `/メモリ`,
+  `/更新`, `/モード`, `/計画 <task>`, `/レビュー <text>`,
+  `/権限 read-only`, `/権限 dry-run-only`, `@planner <task>`,
+  `@reviewer <task>`, and `@researcher <task>`.
+- Boundary: alpha dogfood stabilization only; no stable v0.7.0 promotion, no
+  uncontrolled autonomous agents, no production cloud memory, no production
+  Oracle/cloud runtime, no production Google login, no OpenAI shared traffic
+  runtime, no live Discord, no automatic local-to-cloud private upload, no
+  deploy/public tunnel, no arbitrary shell/file/tool execution, no production
+  signing/trust store, and no production network installer.
+- Primary traceability range: `v0.13.0-alpha.1..v0.13.0-alpha.2`; PR #494.
+
 ## v0.13.0-alpha.1 Agent Console Runtime
 
 - GitHub pre-release target: `v0.13.0-alpha.1`.
