@@ -268,6 +268,8 @@ def run_interactive_cli(
             lang = str(command_result.get("lang", lang))
             live = bool(command_result.get("live", live))
             ledger_path = command_result.get("ledger_path", ledger_path)  # type: ignore[assignment]
+            if command_result.get("update_notice_changed"):
+                update_notice_report = _read_update_notice_report(config, callbacks, lang)
             if command_result.get("exit"):
                 _write(output_stream, _bye(lang))
                 return 0
@@ -286,7 +288,8 @@ def run_interactive_cli(
             report = _invoke_ask_auto(callbacks.ask_auto, text, provider, effective_live, ledger_path, lang, memory_store_path)
         last_report = report
         _write(output_stream, _format_chat_response(report, lang=lang))
-        after_task_notice = _format_update_notice(update_notice_report, lang, phase="after_task")
+        report_for_notice = update_notice_report if config.get("update_notice_enabled") is True else None
+        after_task_notice = _format_update_notice(report_for_notice, lang, phase="after_task")
         if after_task_notice:
             _write(output_stream, after_task_notice)
 
@@ -610,6 +613,7 @@ def _handle_slash_command(
         success, result = _set_and_report("update_notice", value, config, options, lang, output_stream)
         if not success:
             return {}
+        result["update_notice_changed"] = True
         return result
     _write(output_stream, _unknown(lang))
     return {}
@@ -830,7 +834,7 @@ def _handle_numbered_selection(
             selected = value or ("off" if config.get("update_notice_enabled") is True else "on")
             new_config = _set_config(config, "update_notice", selected, options.config_path)
             _write(output_stream, _changed_message("update_notice", new_config["update_notice_enabled"], lang=lang))
-            return {}
+            return {"update_notice_changed": True}
     except ConfigError as exc:
         _write(output_stream, _config_error(lang, exc))
         return {}

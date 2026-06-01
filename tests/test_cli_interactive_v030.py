@@ -886,6 +886,71 @@ def test_startup_update_notice_is_non_blocking_and_repeated_after_task(tmp_path:
     assert str(tmp_path) not in output
 
 
+def test_update_notice_off_takes_effect_without_restart(tmp_path: Path) -> None:
+    from yonerai_cli.config import DEFAULT_CONFIG, save_cli_config
+    from yonerai_cli.interactive import InteractiveCallbacks, InteractiveOptions, run_interactive_cli
+
+    config_path = tmp_path / "cli-config.json"
+    config = dict(DEFAULT_CONFIG)
+    config["language"] = "en"
+    config["update_notice_enabled"] = True
+    save_cli_config(config, config_path)
+    update_checks = 0
+
+    def providers() -> dict[str, Any]:
+        return {"providers": []}
+
+    def ask_auto(task: str, provider: str, live: bool, ledger_path: str | None, lang: str) -> dict[str, Any]:
+        return {
+            "ok": True,
+            "run": {"id": "run_update_notice_off"},
+            "response": {"output_text": "ok"},
+            "auto": {"provider": provider, "route": "instant_local"},
+            "live_call_performed": live,
+            "ledger": {"path": ledger_path, "enabled": bool(ledger_path)},
+        }
+
+    def runs_list(*_args: Any) -> dict[str, Any]:
+        return {"runs": []}
+
+    def runs_show(*_args: Any) -> dict[str, Any]:
+        return {"ok": False}
+
+    def update_check(*_args: Any) -> dict[str, Any]:
+        nonlocal update_checks
+        update_checks += 1
+        return {
+            "update_available": True,
+            "current_version": "0.6.4",
+            "latest_stable": "0.6.5",
+            "critical_update": True,
+            "update_policy": {"active_session_behavior": "warn_only_do_not_interrupt"},
+            "next_safe_command": "yonerai update check --pretty",
+        }
+
+    stdout = _PlainStringIO()
+    rc = run_interactive_cli(
+        InteractiveOptions(config_path=str(config_path), lang="en", script=True, color="never"),
+        InteractiveCallbacks(
+            providers=providers,
+            ask_auto=ask_auto,
+            runs_list=runs_list,
+            runs_show=runs_show,
+            update_check=update_check,
+        ),
+        stdin=_PlainStringIO("/update-notice off\nhello\n/quit\n"),
+        stdout=stdout,
+    )
+    output = stdout.getvalue()
+
+    assert rc == 0
+    assert update_checks == 1
+    assert "Startup update notice" in output
+    assert "Changed setting: update_notice=False" in output
+    assert "Post-task update notice" not in output
+    assert str(tmp_path) not in output
+
+
 def test_network_off_forces_live_off_in_chat_session(tmp_path: Path, monkeypatch, capsys) -> None:
     from yonerai_cli import cli
 
