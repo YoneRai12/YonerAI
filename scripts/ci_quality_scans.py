@@ -240,7 +240,7 @@ def _is_allowed_secret_reference(rel: str, line: str, match: re.Match[str]) -> b
 
 def _is_safe_access_token_reference(line: str, match: re.Match[str]) -> bool:
     access_token_match = re.search(
-        r"\b(?:token|session)\.(accessToken\s*=\s*(?:account\.access_token|token\.accessToken|session\.accessToken))\s*;?\s*$",
+        r"\b(?:token|session)\.(accessToken\s*=\s*(?:account\.access_token|token\.accessToken|session\.accessToken))\s*;?\s*(?://.*)?$",
         line,
     )
     return bool(

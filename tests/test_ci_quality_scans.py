@@ -175,6 +175,18 @@ def test_ci_quality_scan_blocks_literal_before_safe_access_token_reference_on_sa
     assert any("possible secret or token literal" in error for error in errors)
 
 
+def test_ci_quality_scan_allows_safe_access_token_reference_with_comment(tmp_path: Path) -> None:
+    source = tmp_path / "clients" / "web" / "auth.ts"
+    source.parent.mkdir(parents=True)
+    access_token = "access" + "Token"
+    account_access_token = "account.access" + "_token"
+    source.write_text(f"token.{access_token} = {account_access_token}; // provider callback\n", encoding="utf-8")
+
+    errors = ci_quality_scans.scan_paths(tmp_path, [Path("clients/web/auth.ts")])
+
+    assert errors == []
+
+
 def test_ci_quality_scan_allows_safe_env_reference_before_other_string_field(tmp_path: Path) -> None:
     source = tmp_path / "clients" / "web" / "auth.ts"
     source.parent.mkdir(parents=True)
