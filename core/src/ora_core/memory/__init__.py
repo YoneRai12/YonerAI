@@ -14,6 +14,7 @@ from .local_store import (
     build_self_evolution_signal_memory,
     default_memory_store_path,
     memory_context_event,
+    memory_sync_non_actions,
     select_allowed_memory_for_ask,
 )
 
@@ -33,5 +34,6 @@ __all__ = [
     "build_self_evolution_signal_memory",
     "default_memory_store_path",
     "memory_context_event",
+    "memory_sync_non_actions",
     "select_allowed_memory_for_ask",
 ]

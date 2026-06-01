@@ -7,11 +7,12 @@ from pathlib import Path
 from typing import Mapping
 
 
-CONFIG_SCHEMA_VERSION = "yonerai-cli-config/v0.5"
+CONFIG_SCHEMA_VERSION = "yonerai-cli-config/v0.6"
 LANGUAGES = ("ja", "en")
 PROVIDER_PREFERENCES = ("auto", "mock", "local", "openai-compatible", "anthropic", "gemini")
 APPROVAL_MODES = ("prompt", "deny")
 FILE_ACCESS_MODES = ("workspace_only", "disabled")
+MEMORY_DEFAULT_SCOPES = ("local", "local_private", "procedural", "shared_preference", "project", "session")
 MODEL_RE = re.compile(r"^[A-Za-z0-9_.:+/-]{1,80}$")
 
 DEFAULT_CONFIG: dict[str, object] = {
@@ -25,6 +26,11 @@ DEFAULT_CONFIG: dict[str, object] = {
     "network_enabled": False,
     "tools_mode": "dry_run",
     "ledger_enabled": False,
+    "memory_enabled": True,
+    "memory_default_scope": "local_private",
+    "memory_cloud_to_local_preview_enabled": True,
+    "memory_local_to_cloud_approval_required": True,
+    "memory_self_evolution_signal_enabled": False,
     "update_notice_enabled": False,
     "google_auth_enabled": False,
     "openai_data_sharing_enabled": False,
@@ -115,12 +121,20 @@ def validate_cli_config(config: Mapping[str, object]) -> dict[str, object]:
         "live_provider_enabled",
         "network_enabled",
         "ledger_enabled",
+        "memory_enabled",
+        "memory_cloud_to_local_preview_enabled",
+        "memory_local_to_cloud_approval_required",
+        "memory_self_evolution_signal_enabled",
         "update_notice_enabled",
         "google_auth_enabled",
         "openai_data_sharing_enabled",
     ):
         if type(merged.get(key)) is not bool:
             raise ConfigError(f"{key} must be a boolean.")
+    if merged.get("memory_default_scope") not in MEMORY_DEFAULT_SCOPES:
+        raise ConfigError("memory_default_scope is invalid.")
+    if merged.get("memory_local_to_cloud_approval_required") is not True:
+        raise ConfigError("memory_local_to_cloud_approval_required must stay true in the public runtime.")
     if merged.get("tools_mode") != "dry_run":
         raise ConfigError("tools_mode must be dry_run in the public alpha.")
     return merged
@@ -140,6 +154,15 @@ def normalize_config_key(key: str) -> str:
         "network": "network_enabled",
         "ledger": "ledger_enabled",
         "history": "ledger_enabled",
+        "memory": "memory_enabled",
+        "memory_enabled": "memory_enabled",
+        "memory_default_scope": "memory_default_scope",
+        "memory_scope": "memory_default_scope",
+        "memory_cloud_to_local_preview": "memory_cloud_to_local_preview_enabled",
+        "memory_cloud_preview": "memory_cloud_to_local_preview_enabled",
+        "memory_local_to_cloud_approval_required": "memory_local_to_cloud_approval_required",
+        "memory_self_evolution_signal": "memory_self_evolution_signal_enabled",
+        "self_evolution_memory": "memory_self_evolution_signal_enabled",
         "update_notice": "update_notice_enabled",
         "updates": "update_notice_enabled",
         "google_auth": "google_auth_enabled",
@@ -176,10 +199,23 @@ def parse_config_value(key: str, value: str) -> object:
         if raw not in FILE_ACCESS_MODES:
             raise ConfigError("file access mode must be workspace_only or disabled.")
         return raw
+    if key == "memory_default_scope":
+        if raw not in MEMORY_DEFAULT_SCOPES:
+            raise ConfigError(
+                "memory default scope must be local, local_private, procedural, shared_preference, project, or session."
+            )
+        return raw
+    if key == "memory_local_to_cloud_approval_required":
+        if raw.lower() in {"true", "1", "yes", "on"}:
+            return True
+        raise ConfigError("local-to-cloud memory approval cannot be disabled in the public runtime.")
     if key in {
         "live_provider_enabled",
         "network_enabled",
         "ledger_enabled",
+        "memory_enabled",
+        "memory_cloud_to_local_preview_enabled",
+        "memory_self_evolution_signal_enabled",
         "update_notice_enabled",
         "google_auth_enabled",
         "openai_data_sharing_enabled",
@@ -210,6 +246,11 @@ def build_config_report(config: Mapping[str, object], *, exists: bool) -> dict[s
             "network_enabled": validated["network_enabled"],
             "tools_mode": validated["tools_mode"],
             "ledger_enabled": validated["ledger_enabled"],
+            "memory_enabled": validated["memory_enabled"],
+            "memory_default_scope": validated["memory_default_scope"],
+            "memory_cloud_to_local_preview_enabled": validated["memory_cloud_to_local_preview_enabled"],
+            "memory_local_to_cloud_approval_required": validated["memory_local_to_cloud_approval_required"],
+            "memory_self_evolution_signal_enabled": validated["memory_self_evolution_signal_enabled"],
             "update_notice_enabled": validated["update_notice_enabled"],
             "google_auth_enabled": validated["google_auth_enabled"],
             "openai_data_sharing_enabled": validated["openai_data_sharing_enabled"],

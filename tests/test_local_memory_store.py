@@ -159,6 +159,13 @@ def test_cli_memory_status_add_list_forget_and_sync_preview(tmp_path: Path, caps
     assert added["record"]["scope"] == "local_private"
     assert added["record"]["sync_policy"] == "never_sync"
 
+    assert cli.main(["memory", "status", "--json"]) == 0
+    status_after_add = json.loads(capsys.readouterr().out)
+    serialized_status = json.dumps(status_after_add, ensure_ascii=False)
+    assert status_after_add["recent_records_included"] is False
+    assert "local preference" not in serialized_status
+    assert memory_id not in serialized_status
+
     assert cli.main(["memory", "list", "--scope", "local", "--json"]) == 0
     listed = json.loads(capsys.readouterr().out)
     assert listed["count"] == 1
@@ -174,6 +181,33 @@ def test_cli_memory_status_add_list_forget_and_sync_preview(tmp_path: Path, caps
     forgotten = json.loads(capsys.readouterr().out)
     assert forgotten["forgotten"] is True
     assert str(tmp_path) not in json.dumps(forgotten)
+
+
+def test_cli_memory_cloud_preview_config_blocks_standalone_sync(tmp_path: Path, capsys, monkeypatch) -> None:
+    _prepare_paths()
+    from yonerai_cli import cli
+    from yonerai_cli.config import DEFAULT_CONFIG, save_cli_config
+
+    config_path = tmp_path / "cli-config.json"
+    config = dict(DEFAULT_CONFIG)
+    config["memory_cloud_to_local_preview_enabled"] = False
+    save_cli_config(config, config_path)
+    monkeypatch.setenv("YONERAI_CLI_CONFIG_PATH", str(config_path))
+    monkeypatch.setenv("YONERAI_MEMORY_STORE_PATH", str(tmp_path / "memory.jsonl"))
+
+    assert cli.main(["memory", "sync", "preview", "--direction", "cloud-to-local", "--json"]) == 0
+    preview = json.loads(capsys.readouterr().out)
+    assert preview["decision"]["state"] == "blocked"
+    assert preview["decision"]["reason"] == "cloud_to_local_preview_disabled_by_config"
+    assert preview["sync_allowed"] is False
+    assert preview["sync_performed"] is False
+    assert "cloud-to-local memory preview disabled by CLI config" in preview["actions_not_performed"]
+
+    assert cli.main(["memory", "status", "--json"]) == 0
+    status = json.loads(capsys.readouterr().out)
+    assert status["sync_previews"]["cloud_to_local"]["decision"]["state"] == "blocked"
+    assert status["sync_previews"]["cloud_to_local"]["decision"]["reason"] == "cloud_to_local_preview_disabled_by_config"
+    assert str(tmp_path) not in json.dumps(status)
 
 
 def test_secret_like_memory_is_redacted_and_never_syncs(tmp_path: Path) -> None:
@@ -208,6 +242,39 @@ def test_local_path_memory_is_local_only_and_never_syncs(tmp_path: Path) -> None
     assert "[local_path_redacted]" in serialized
     assert preview["decision"]["state"] == "blocked"
     assert preview["decision"]["reason"] == "secret_like_or_local_only_memory_never_syncs"
+
+
+def test_unix_local_path_memory_roots_are_redacted_without_slash_command_false_positive(tmp_path: Path) -> None:
+    _prepare_paths()
+    from ora_core.memory import LocalMemoryStore, build_memory_sync_preview
+
+    unix_paths = (
+        "/workspace/YonerAI/.env",
+        "/opt/app/secret.txt",
+        "/mnt/c/Users/person/private.txt",
+        "/srv/data/key",
+    )
+    for index, local_path in enumerate(unix_paths):
+        store = LocalMemoryStore(tmp_path / f"memory-{index}.jsonl")
+        record = store.add(f"review {local_path} later", scope="shared_preference")
+        preview = build_memory_sync_preview(store.list(), direction="local_to_cloud", explicit_approval=True)
+        serialized = json.dumps(record.to_public_dict(), ensure_ascii=False)
+
+        assert record.sensitivity == "local_only"
+        assert record.sync_policy == "never_sync"
+        assert local_path not in serialized
+        assert "[local_path_redacted]" in serialized
+        assert record.to_public_dict()["local_absolute_path_persisted"] is False
+        assert preview["decision"]["state"] == "blocked"
+        assert preview["decision"]["reason"] == "secret_like_or_local_only_memory_never_syncs"
+
+    command_store = LocalMemoryStore(tmp_path / "command-memory.jsonl")
+    command_record = command_store.add("remember /help and /api/v1/status routes", scope="shared_preference")
+    command_serialized = json.dumps(command_record.to_public_dict(), ensure_ascii=False)
+
+    assert command_record.sensitivity != "local_only"
+    assert "/help" in command_serialized
+    assert "/api/v1/status" in command_serialized
 
 
 def test_memory_sync_preview_honors_per_record_sync_policy(tmp_path: Path) -> None:
