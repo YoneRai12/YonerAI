@@ -226,7 +226,8 @@ def run_interactive_cli(
     )
     if not (use_tui_prompt and render_panel(welcome, title="YonerAI", stream=output_stream, color=options.color)):
         _write(output_stream, welcome)
-    startup_update_notice = _maybe_update_notice(config, callbacks, lang, phase="startup")
+    update_notice_report = _read_update_notice_report(config, callbacks, lang)
+    startup_update_notice = _format_update_notice(update_notice_report, lang, phase="startup")
     if startup_update_notice:
         _write(output_stream, startup_update_notice)
 
@@ -285,7 +286,7 @@ def run_interactive_cli(
             report = _invoke_ask_auto(callbacks.ask_auto, text, provider, effective_live, ledger_path, lang, memory_store_path)
         last_report = report
         _write(output_stream, _format_chat_response(report, lang=lang))
-        after_task_notice = _maybe_update_notice(config, callbacks, lang, phase="after_task")
+        after_task_notice = _format_update_notice(update_notice_report, lang, phase="after_task")
         if after_task_notice:
             _write(output_stream, after_task_notice)
 
@@ -2227,13 +2228,11 @@ def _unknown(lang: str) -> str:
     return "不明なコマンドです。/ヘルプ を見てください\n" if lang == "ja" else "Unknown command. Type /help\n"
 
 
-def _maybe_update_notice(
+def _read_update_notice_report(
     config: dict[str, object],
     callbacks: InteractiveCallbacks,
     lang: str,
-    *,
-    phase: str,
-) -> str | None:
+) -> dict[str, Any] | None:
     if config.get("update_notice_enabled") is not True or callbacks.update_check is None:
         return None
     try:
@@ -2241,6 +2240,12 @@ def _maybe_update_notice(
     except Exception:
         return None
     if not (report.get("update_available") or report.get("security_update") or report.get("critical_update")):
+        return None
+    return report
+
+
+def _format_update_notice(report: dict[str, Any] | None, lang: str, *, phase: str) -> str | None:
+    if report is None:
         return None
     policy = report.get("update_policy") if isinstance(report.get("update_policy"), dict) else {}
     if lang == "ja":

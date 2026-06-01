@@ -3216,12 +3216,13 @@ def _build_memory_report(args: argparse.Namespace) -> dict[str, Any]:
             }
         if args.memory_command == "status":
             report = store.status()
-            recent_records = [record.to_public_dict() for record in store.list()[:5]]
+            all_records = store.list()
+            recent_records = [record.to_public_dict() for record in all_records[:5]]
             report["recent_records"] = recent_records
             report["recent_count"] = len(recent_records)
             report["sync_previews"] = {
-                "cloud_to_local": build_memory_sync_preview(store.list(), direction="cloud_to_local"),
-                "local_to_cloud": build_memory_sync_preview(store.list(), direction="local_to_cloud"),
+                "cloud_to_local": build_memory_sync_preview(all_records, direction="cloud_to_local"),
+                "local_to_cloud": build_memory_sync_preview(all_records, direction="local_to_cloud"),
             }
             return report
         if args.memory_command == "list":

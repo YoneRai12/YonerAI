@@ -780,6 +780,7 @@ def test_startup_update_notice_is_non_blocking_and_repeated_after_task(tmp_path:
     config["update_notice_enabled"] = True
     save_cli_config(config, config_path)
     asked: list[str] = []
+    update_checks = 0
 
     def providers() -> dict[str, Any]:
         return {"providers": []}
@@ -802,6 +803,8 @@ def test_startup_update_notice_is_non_blocking_and_repeated_after_task(tmp_path:
         return {"ok": False}
 
     def update_check(*_args: Any) -> dict[str, Any]:
+        nonlocal update_checks
+        update_checks += 1
         return {
             "update_available": True,
             "current_version": "0.6.4",
@@ -828,6 +831,7 @@ def test_startup_update_notice_is_non_blocking_and_repeated_after_task(tmp_path:
 
     assert rc == 0
     assert asked == ["hello"]
+    assert update_checks == 1
     assert "Startup update notice" in output
     assert "Post-task update notice" in output
     assert "critical_update: True" in output
