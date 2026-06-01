@@ -544,12 +544,20 @@ def _handle_slash_command(
         if not success:
             return {}
         _write(output_stream, _format_mode_state(config, lang=lang))
+        if args:
+            preview = _format_agent_mention_preview("@planner " + " ".join(args), config=config, lang=lang)
+            if preview is not None:
+                _write(output_stream, preview)
         return result
     if command == "/review":
         success, result = _set_and_report("agent_mode", "review", config, options, lang, output_stream)
         if not success:
             return {}
         _write(output_stream, _format_mode_state(config, lang=lang))
+        if args:
+            preview = _format_agent_mention_preview("@reviewer " + " ".join(args), config=config, lang=lang)
+            if preview is not None:
+                _write(output_stream, preview)
         return result
     if command == "/permissions":
         if args:
@@ -730,6 +738,19 @@ def _set_config(config: dict[str, object], key: str, value: str, config_path: st
     config.clear()
     config.update(updated)
     return updated
+
+
+def _set_config_values(
+    config: dict[str, object],
+    values: dict[str, object],
+    config_path: str | None,
+) -> dict[str, object]:
+    updated = load_cli_config(config_path)
+    updated.update(values)
+    saved = save_cli_config(updated, config_path)
+    config.clear()
+    config.update(saved)
+    return saved
 
 
 def _handle_memory_setting(
@@ -938,19 +959,44 @@ def _handle_permission_profile(
     output_stream: TextIO,
 ) -> dict[str, object]:
     profile = _canonical_value(args[0]) if args else ""
+    force_live_off = False
     try:
         if profile == "read_only":
-            _set_config(config, "agent_mode", "plan_readonly", options.config_path)
-            new_config = _set_config(config, "approval", "deny", options.config_path)
+            new_config = _set_config_values(
+                config,
+                {
+                    "agent_mode": "plan_readonly",
+                    "approval_mode": "deny",
+                    "live_provider_enabled": False,
+                    "network_enabled": False,
+                },
+                options.config_path,
+            )
+            force_live_off = True
         elif profile == "auto_safe":
-            _set_config(config, "agent_mode", "build_safe", options.config_path)
-            new_config = _set_config(config, "approval", "prompt", options.config_path)
+            new_config = _set_config_values(
+                config,
+                {"agent_mode": "build_safe", "approval_mode": "prompt"},
+                options.config_path,
+            )
         elif profile == "ask_before_risky":
-            _set_config(config, "agent_mode", "review", options.config_path)
-            new_config = _set_config(config, "approval", "prompt", options.config_path)
+            new_config = _set_config_values(
+                config,
+                {"agent_mode": "review", "approval_mode": "prompt"},
+                options.config_path,
+            )
         elif profile == "dry_run_only":
-            _set_config(config, "agent_mode", "plan_readonly", options.config_path)
-            new_config = _set_config(config, "approval", "prompt", options.config_path)
+            new_config = _set_config_values(
+                config,
+                {
+                    "agent_mode": "plan_readonly",
+                    "approval_mode": "prompt",
+                    "live_provider_enabled": False,
+                    "network_enabled": False,
+                },
+                options.config_path,
+            )
+            force_live_off = True
         else:
             _write(output_stream, _invalid(lang))
             return {}
@@ -961,7 +1007,7 @@ def _handle_permission_profile(
     config.update(new_config)
     _write(output_stream, _changed_message("permissions", profile, lang=lang))
     _write(output_stream, _format_permissions(config, live=bool(config.get("live_provider_enabled")), lang=lang))
-    return {}
+    return {"live": False} if force_live_off else {}
 
 
 def _resolve_ledger_path(config: dict[str, object], options: InteractiveOptions) -> str | None:
