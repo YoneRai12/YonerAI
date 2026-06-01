@@ -265,21 +265,30 @@ def test_install_like_entry_point_starts_yonerai(tmp_path: Path) -> None:
 
 
 def test_readmes_document_install_and_start_yonerai() -> None:
-    for relative_path in ("README.md", "README_JP.md", "clients/cli/README.md"):
+    from yonerai_cli.install_planner import LATEST_STABLE_VERSION, TRUSTED_INSTALL_SCRIPT_SHA256
+
+    for relative_path in ("README.md", "clients/cli/README.md"):
         text = (REPO_ROOT / relative_path).read_text(encoding="utf-8")
 
         assert "Install and start YonerAI" in text
         assert "GitHub Release" in text
         assert "Quick install" in text
         assert "Verified install" in text
-        assert "YonerAI-0.6.3" in text
+        assert f"YonerAI-{LATEST_STABLE_VERSION}" in text
         assert "install.ps1.sha256" in text
+        assert TRUSTED_INSTALL_SCRIPT_SHA256 in text
         assert "python --version" in text
         assert "python -m venv .venv" in text
         assert "python -m pip install -e clients/cli" in text
         assert "yonerai" in text
         assert "yonerai chat" in text
         assert "yonerai ask --auto" in text
+
+    readme_jp = (REPO_ROOT / "README_JP.md").read_text(encoding="utf-8")
+    assert "GitHub Release" in readme_jp
+    assert "Quick install" in readme_jp
+    assert "Verified install" in readme_jp
+    assert "install.ps1.sha256" in readme_jp
 
 
 def test_cli_without_args_has_non_tty_interactive_fallback(tmp_path: Path, monkeypatch, capsys) -> None:

@@ -197,6 +197,9 @@ def test_manifest_rejects_unhashable_install_method_without_traceback() -> None:
 
 
 def test_yonerai_site_install_content_is_copyable_and_non_executing() -> None:
+    _prepare_paths()
+    from yonerai_cli.install_planner import LATEST_STABLE_VERSION, TRUSTED_INSTALL_SCRIPT_SHA256
+
     install_page = (ROOT / "docs" / "site" / "yonerai.com" / "install.md").read_text(encoding="utf-8")
     release_page = (ROOT / "docs" / "site" / "yonerai.com" / "releases" / "v0.6.3.md").read_text(
         encoding="utf-8"
@@ -212,14 +215,23 @@ def test_yonerai_site_install_content_is_copyable_and_non_executing() -> None:
         assert "Quick install" in text
         assert "Verified install" in text
         assert "install.yonerai.com" in text
-        assert "latest/download/install.ps1" in text
         assert "install.ps1.sha256" in text
         assert "yonerai.com" in text
         assert "github release" in lowered or "github releases" in lowered
 
+    assert '$(irm https://github.com/YoneRai12/YonerAI/releases/latest/download/install.ps1)' not in install_page
+    assert "latest/download/install.ps1" not in static_install
+    assert f"releases/download/v{LATEST_STABLE_VERSION}" in install_page
+    assert f"releases/download/v{LATEST_STABLE_VERSION}" in static_install
+    assert TRUSTED_INSTALL_SCRIPT_SHA256 in install_page
+    assert TRUSTED_INSTALL_SCRIPT_SHA256 in static_install
+
+    assert f"YonerAI-{LATEST_STABLE_VERSION}.zip" in install_page
+    assert f"manifest.v{LATEST_STABLE_VERSION}.json" in install_page
+    assert "YonerAI-0.6.3.zip" in release_page
+    assert "manifest.v0.6.3.json" in release_page
+
     for text in (install_page, release_page):
-        assert "YonerAI-0.6.3.zip" in text
-        assert "manifest.v0.6.3.json" in text
         assert "yonerai update check --manifest $manifest --pretty" in text
         assert "production signing keys" in text.lower() or "production signature" in text.lower()
         assert "YonerAI-0.6.0.zip" not in text
@@ -231,18 +243,27 @@ def test_yonerai_site_install_content_is_copyable_and_non_executing() -> None:
 
 
 def test_readmes_point_to_current_stable_manifest_and_license_policy() -> None:
-    for relative_path in ("README.md", "README_JP.md", "clients/cli/README.md"):
+    _prepare_paths()
+    from yonerai_cli.install_planner import LATEST_STABLE_VERSION, TRUSTED_INSTALL_SCRIPT_SHA256
+
+    for relative_path in ("README.md", "clients/cli/README.md"):
         text = (ROOT / relative_path).read_text(encoding="utf-8")
 
         assert "PolyForm Noncommercial" in text
-        assert "v0.6.3" in text
+        assert f"v{LATEST_STABLE_VERSION}" in text
         assert "irm https://install.yonerai.com | iex" in text
-        assert "latest/download/install.ps1" in text
+        assert f"releases/download/v{LATEST_STABLE_VERSION}" in text
         assert "install.ps1.sha256" in text
+        assert TRUSTED_INSTALL_SCRIPT_SHA256 in text
         assert "YonerAI-0.6.0.zip" not in text
         assert "[IO.Path]" not in text
         assert ".Split()" not in text
         assert "-split" in text
+
+    readme_jp = (ROOT / "README_JP.md").read_text(encoding="utf-8")
+    assert "PolyForm Noncommercial" in readme_jp
+    assert "irm https://install.yonerai.com | iex" in readme_jp
+    assert "YonerAI-0.6.0.zip" not in readme_jp
 
 
 def test_release_archive_policy_is_hash_stable_for_manifest_recording() -> None:

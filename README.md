@@ -29,7 +29,7 @@ See [LICENSE](LICENSE), [LICENSE_JP.md](LICENSE_JP.md), [NOTICE](NOTICE), and
 ## Install and start YonerAI
 
 This is the local CLI runtime path, not full YonerAI cloud production. The
-latest stable CLI Local Runtime is `v0.6.3`. Stable is the default channel;
+latest stable CLI Local Runtime is `v0.6.4`. Stable is the default channel;
 alpha releases require an explicit `-Channel alpha` flag. After install,
 `yonerai` launches the interactive CLI.
 
@@ -40,30 +40,29 @@ irm https://install.yonerai.com | iex
 ```
 
 Quick install downloads a static Cloudflare wrapper from `install.yonerai.com`.
-That wrapper downloads the latest stable `install.ps1` and `install.ps1.sha256`
-from GitHub Release assets, verifies the script hash, and runs the bootstrap
-only after the hash matches. `install.ps1` then verifies the release manifest,
-selected channel, versioned artifact name, and release ZIP SHA256 before
-install-like steps. It does not fetch ZIPs, manifests, or sidecar hashes from
-`yonerai.com`, mutate PATH by default, edit the registry, install services,
-request admin rights, store provider keys, or enable production cloud behavior.
+That wrapper downloads `install.ps1` and `install.ps1.sha256` from the currently
+embedded trusted stable release tag, checks the sidecar against the embedded
+SHA256, and runs the bootstrap only after the downloaded script hash matches. It
+does not call the GitHub API from the user's terminal, fetch ZIPs, manifests, or
+sidecar hashes from `yonerai.com`, mutate PATH by default, edit the registry,
+install services, request admin rights, store provider keys, or enable
+production cloud behavior.
 
-GitHub Release fallback:
-
-```powershell
-iex "& { $(irm https://github.com/YoneRai12/YonerAI/releases/latest/download/install.ps1) } -Execute -Launch"
-```
+Do not pipe `releases/latest/download/install.ps1` directly into
+`Invoke-Expression`; the short command goes through the trust-mapped wrapper.
 
 ### Verified install
 
 Use this when you want to verify the bootstrap script hash before execution.
-It downloads `install.ps1` and `install.ps1.sha256` from GitHub Releases, checks
-the SHA256 sidecar, and fails closed before execution if the sidecar is missing,
-malformed, or mismatched.
+It downloads `install.ps1` and `install.ps1.sha256` from the current trusted
+stable release tag and checks the sidecar against the embedded SHA256 before
+execution. It fails closed if the sidecar is missing, malformed, not trusted, or
+mismatched.
 
 ```powershell
 $ErrorActionPreference = "Stop"
-$base = "https://github.com/YoneRai12/YonerAI/releases/latest/download"
+$base = "https://github.com/YoneRai12/YonerAI/releases/download/v0.6.4"
+$expected = "f33681434ee33d100970f65a160accbc506ee3547f9322be2662b780d24f9de5"
 $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("yonerai-bootstrap-" + [guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory -Path $tmp | Out-Null
 try {
@@ -71,35 +70,33 @@ try {
   $sidecar = Join-Path $tmp "install.ps1.sha256"
   irm "$base/install.ps1" -OutFile $script
   irm "$base/install.ps1.sha256" -OutFile $sidecar
-  $expected = ((Get-Content -LiteralPath $sidecar -Raw) -split '\s+')[0].ToLowerInvariant()
-  if ($expected -notmatch "^[a-f0-9]{64}$") { throw "install.ps1 sidecar SHA256 is invalid" }
+  $sidecarExpected = ((Get-Content -LiteralPath $sidecar -Raw) -split '\s+')[0].ToLowerInvariant()
+  if ($sidecarExpected -notmatch "^[a-f0-9]{64}$") { throw "install.ps1 sidecar SHA256 is invalid" }
+  if ($sidecarExpected -ne $expected) { throw "install.ps1 sidecar does not match trusted digest" }
   $actual = (Get-FileHash -LiteralPath $script -Algorithm SHA256).Hash.ToLowerInvariant()
   if ($actual -ne $expected) { throw "install.ps1 hash mismatch" }
   $scriptText = Get-Content -LiteralPath $script -Raw
   if ($scriptText -notmatch "Invoke-VerifiedLocalBootstrap" -or $scriptText -match "install.ps1 is still plan-only") {
     throw "install.ps1 is not an executable bootstrap. Refusing to launch."
   }
-  & powershell -NoProfile -ExecutionPolicy Bypass -File $script -Execute -Launch
+  & (Get-Process -Id $PID).Path -NoProfile -ExecutionPolicy Bypass -File $script -Execute -Launch
 } finally {
   if (Test-Path -LiteralPath $tmp) { Remove-Item -LiteralPath $tmp -Recurse -Force }
 }
 ```
 
-Explicit alpha channel:
-
-```powershell
-iex "& { $(irm https://github.com/YoneRai12/YonerAI/releases/latest/download/install.ps1) } -Channel alpha -Execute -Launch"
-```
+Explicit alpha one-command remote execution is not advertised. Use the manual
+ZIP flow for explicit release selection.
 
 ### If you downloaded the GitHub Release ZIP
 
-Download `YonerAI-0.6.3.zip` from the
-[v0.6.3 release](https://github.com/YoneRai12/YonerAI/releases/tag/v0.6.3),
+Download `YonerAI-0.6.4.zip` from the
+[v0.6.4 release](https://github.com/YoneRai12/YonerAI/releases/tag/v0.6.4),
 extract it, then run PowerShell inside the extracted folder. The extracted
 folder name can vary; change the `cd` command to match the folder you see.
 
 ```powershell
-cd "$HOME\Downloads\YonerAI-0.6.3"
+cd "$HOME\Downloads\YonerAI-0.6.4"
 python --version
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
@@ -245,17 +242,17 @@ yonerai demo --json
 yonerai doctor --pretty
 yonerai doctor --pretty --lang ja
 yonerai status --pretty
-yonerai manifest verify manifest.v0.6.3.json --pretty
-yonerai install plan --manifest manifest.v0.6.3.json --pretty
-yonerai update check --manifest manifest.v0.6.3.json --pretty
-yonerai update plan --manifest manifest.v0.6.3.json --pretty
+yonerai manifest verify manifest.v0.6.4.json --pretty
+yonerai install plan --manifest manifest.v0.6.4.json --pretty
+yonerai update check --manifest manifest.v0.6.4.json --pretty
+yonerai update plan --manifest manifest.v0.6.4.json --pretty
 yonerai plan "summarize public docs" --json
 yonerai ask "summarize public docs" --provider mock --json
 yonerai hybrid run --pretty
 yonerai hybrid run --json
 yonerai search mock "YonerAI alpha2" --json
 yonerai ops plan git-status --json
-yonerai install plan --manifest manifest.v0.6.3.json --json
+yonerai install plan --manifest manifest.v0.6.4.json --json
 ```
 
 ## First 5 minutes

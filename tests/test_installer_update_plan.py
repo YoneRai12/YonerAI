@@ -43,7 +43,7 @@ def _write_manifest(tmp_path: Path, manifest: dict[str, Any]) -> Path:
 
 def test_build_update_plan_reports_no_update_needed_for_matching_version(tmp_path) -> None:
     _prepare_paths()
-    from yonerai_cli.install_planner import build_update_plan
+    from yonerai_cli.install_planner import LATEST_STABLE_VERSION, build_update_plan
 
     manifest = _example_manifest()
     _set_manifest_version(manifest, _current_version())
@@ -56,7 +56,7 @@ def test_build_update_plan_reports_no_update_needed_for_matching_version(tmp_pat
     assert report["dry_run"] is True
     assert report["current_version"] == _current_version()
     assert report["target_version"] == _current_version()
-    assert report["latest_stable"] == "0.6.3"
+    assert report["latest_stable"] == LATEST_STABLE_VERSION
     assert report["channel"] == manifest["channel"]
     assert report["update_available"] is False
     assert report["version_comparison"] == "same"
@@ -78,6 +78,7 @@ def test_build_update_plan_reports_no_update_needed_for_matching_version(tmp_pat
 def test_cli_update_plan_reports_update_available(tmp_path, capsys) -> None:
     _prepare_paths()
     from yonerai_cli import cli
+    from yonerai_cli.install_planner import LATEST_STABLE_VERSION, TRUSTED_INSTALL_SCRIPT_SHA256
 
     manifest = _example_manifest()
     _set_manifest_version(manifest, FUTURE_TEST_VERSION)
@@ -89,7 +90,7 @@ def test_cli_update_plan_reports_update_available(tmp_path, capsys) -> None:
     assert output["schema_version"] == "yonerai-update-plan/v0.1"
     assert output["current_version"] == _current_version()
     assert output["target_version"] == FUTURE_TEST_VERSION
-    assert output["latest_stable"] == "0.6.3"
+    assert output["latest_stable"] == LATEST_STABLE_VERSION
     assert output["channel"] == manifest["channel"]
     assert output["update_available"] is True
     assert output["version_comparison"] == "target_newer"
@@ -98,9 +99,9 @@ def test_cli_update_plan_reports_update_available(tmp_path, capsys) -> None:
     assert output["path_mutation"] is False
     assert output["remote_code_executed"] is False
     assert output["quick_install_command"] == "irm https://install.yonerai.com | iex"
-    assert output["github_install_fallback_command"].startswith(
-        'iex "& { $(irm https://github.com/YoneRai12/YonerAI/releases/latest/download/install.ps1)'
-    )
+    assert f"releases/download/v{LATEST_STABLE_VERSION}" in output["github_install_fallback_command"]
+    assert TRUSTED_INSTALL_SCRIPT_SHA256 in output["github_install_fallback_command"]
+    assert "(Get-Process -Id $PID).Path" in output["github_install_fallback_command"]
     assert output["verified_install_page"] == "https://yonerai.com/install"
     assert output["forced_update_enabled"] is False
     assert output["auto_update_apply_enabled"] is False
@@ -165,6 +166,26 @@ def test_cli_update_plan_reports_non_production_signature_warning(capsys) -> Non
     assert output["signature_status"]["placeholder_non_production"] is True
     assert output["signature_status"]["verification_required_before_real_update"] is True
     assert any("non-production placeholder signature" in warning for warning in output["warnings"])
+
+
+def test_install_update_status_keeps_latest_base_separate_from_trusted_digest() -> None:
+    _prepare_paths()
+    from yonerai_cli.install_planner import (
+        LATEST_STABLE_VERSION,
+        TRUSTED_INSTALL_SCRIPT_SHA256,
+        build_install_update_status,
+    )
+
+    report = build_install_update_status()
+
+    assert report["github_latest_install_base_url"] == (
+        "https://github.com/YoneRai12/YonerAI/releases/latest/download"
+    )
+    assert report["github_trusted_install_base_url"] == (
+        f"https://github.com/YoneRai12/YonerAI/releases/download/v{LATEST_STABLE_VERSION}"
+    )
+    assert report["trusted_install_release_tag"] == f"v{LATEST_STABLE_VERSION}"
+    assert report["trusted_install_script_sha256"] == TRUSTED_INSTALL_SCRIPT_SHA256
 
 
 def test_cli_update_plan_rejects_empty_prerelease_identifier(tmp_path, capsys) -> None:
@@ -277,6 +298,7 @@ def test_cli_update_plan_json_is_stable_and_network_free(monkeypatch, capsys) ->
 def test_cli_update_check_json_is_stable_network_free_and_path_safe(tmp_path, monkeypatch, capsys) -> None:
     _prepare_paths()
     from yonerai_cli import cli
+    from yonerai_cli.install_planner import LATEST_STABLE_VERSION, TRUSTED_INSTALL_SCRIPT_SHA256
 
     def fail_urlopen(*_args: Any, **_kwargs: Any) -> None:
         raise AssertionError("update check must not open network")
@@ -293,7 +315,7 @@ def test_cli_update_check_json_is_stable_network_free_and_path_safe(tmp_path, mo
     assert output["schema_version"] == "yonerai-update-check/v0.1"
     assert output["current_version"] == _current_version()
     assert output["latest_manifest_version"] == FUTURE_TEST_VERSION
-    assert output["latest_stable"] == "0.6.3"
+    assert output["latest_stable"] == LATEST_STABLE_VERSION
     assert output["channel"] == manifest["channel"]
     assert output["update_available"] is True
     assert output["artifact_status"]["sha256_present"] is True
@@ -309,10 +331,11 @@ def test_cli_update_check_json_is_stable_network_free_and_path_safe(tmp_path, mo
     assert "no forced update" in output["actions_not_performed"]
     assert "no auto-apply update" in output["actions_not_performed"]
     assert output["quick_install_command"] == "irm https://install.yonerai.com | iex"
-    assert output["github_install_fallback_command"].startswith(
-        'iex "& { $(irm https://github.com/YoneRai12/YonerAI/releases/latest/download/install.ps1)'
-    )
+    assert f"releases/download/v{LATEST_STABLE_VERSION}" in output["github_install_fallback_command"]
+    assert TRUSTED_INSTALL_SCRIPT_SHA256 in output["github_install_fallback_command"]
+    assert "(Get-Process -Id $PID).Path" in output["github_install_fallback_command"]
     assert "install.ps1.sha256" in output["verified_install_command"]
+    assert "sidecar does not match trusted digest" in output["verified_install_command"]
     assert output["verified_install_page"] == "https://yonerai.com/install"
     assert output["forced_update_enabled"] is False
     assert output["auto_update_apply_enabled"] is False

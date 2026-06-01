@@ -3,12 +3,10 @@ YonerAI install
 Quick install:
 irm https://install.yonerai.com | iex
 
-GitHub Release fallback:
-iex "& { $(irm https://github.com/YoneRai12/YonerAI/releases/latest/download/install.ps1) } -Execute -Launch"
-
 Verified install:
 $ErrorActionPreference = "Stop"
-$base = "https://github.com/YoneRai12/YonerAI/releases/latest/download"
+$base = "https://github.com/YoneRai12/YonerAI/releases/download/v0.6.4"
+$expected = "f33681434ee33d100970f65a160accbc506ee3547f9322be2662b780d24f9de5"
 $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("yonerai-bootstrap-" + [guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory -Path $tmp | Out-Null
 try {
@@ -16,24 +14,25 @@ try {
   $sidecar = Join-Path $tmp "install.ps1.sha256"
   irm "$base/install.ps1" -OutFile $script
   irm "$base/install.ps1.sha256" -OutFile $sidecar
-  $expected = ((Get-Content -LiteralPath $sidecar -Raw) -split '\s+')[0].ToLowerInvariant()
-  if ($expected -notmatch "^[a-f0-9]{64}$") { throw "install.ps1 sidecar SHA256 is invalid" }
+  $sidecarExpected = ((Get-Content -LiteralPath $sidecar -Raw) -split '\s+')[0].ToLowerInvariant()
+  if ($sidecarExpected -notmatch "^[a-f0-9]{64}$") { throw "install.ps1 sidecar SHA256 is invalid" }
+  if ($sidecarExpected -ne $expected) { throw "install.ps1 sidecar does not match trusted digest" }
   $actual = (Get-FileHash -LiteralPath $script -Algorithm SHA256).Hash.ToLowerInvariant()
   if ($actual -ne $expected) { throw "install.ps1 hash mismatch" }
   $scriptText = Get-Content -LiteralPath $script -Raw
   if ($scriptText -notmatch "Invoke-VerifiedLocalBootstrap" -or $scriptText -match "install.ps1 is still plan-only") {
     throw "install.ps1 is not an executable bootstrap. Refusing to launch."
   }
-  & powershell -NoProfile -ExecutionPolicy Bypass -File $script -Execute -Launch
+  & (Get-Process -Id $PID).Path -NoProfile -ExecutionPolicy Bypass -File $script -Execute -Launch
 } finally {
   if (Test-Path -LiteralPath $tmp) { Remove-Item -LiteralPath $tmp -Recurse -Force }
 }
 
 日本語:
-Quick install は install.yonerai.com の静的Cloudflare wrapperを実行します。
-そのwrapperが GitHub Releases の latest install.ps1 と install.ps1.sha256 を取得して検証します。
-Verified install は install.ps1.sha256 を先に確認し、hash が一致した時だけ実行します。
-hash が違う、sidecar がない、sidecar が壊れている場合は失敗して止まります。
+Quick install は install.yonerai.com の静的 Cloudflare wrapper を実行します。
+wrapper は埋め込み済みの信頼タグから install.ps1 と install.ps1.sha256 だけを取得します。
+sidecar は wrapper に埋め込まれた SHA256 と一致する必要があります。
+どれかの hash check が失敗した場合、インストールへ進まず停止します。
 
 Install source:
 GitHub Releases only.

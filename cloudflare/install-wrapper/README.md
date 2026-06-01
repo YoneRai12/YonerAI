@@ -8,10 +8,11 @@ irm https://install.yonerai.com | iex
 
 The Worker returns a static PowerShell wrapper. The wrapper:
 
-- downloads `install.ps1` from GitHub Release `latest/download`
-- downloads `install.ps1.sha256` from GitHub Release `latest/download`
+- downloads `install.ps1` and `install.ps1.sha256` from the currently embedded
+  trusted stable GitHub Release tag
+- verifies the sidecar against the embedded trusted SHA256
 - verifies `install.ps1` with SHA256 before execution
-- fails closed if the sidecar is missing, malformed, or mismatched
+- fails closed if the sidecar is missing, malformed, or either hash check fails
 - executes the verified bootstrap with `-Execute -Launch`
 
 It does not serve `install.ps1`, `install.ps1.sha256`, release manifests, ZIP

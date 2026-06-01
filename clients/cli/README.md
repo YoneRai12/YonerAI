@@ -13,7 +13,7 @@ package and commercial use requires a separate license.
 ## Install and start YonerAI
 
 This is the CLI Local Runtime path, not full YonerAI cloud production. The
-latest stable is `v0.6.3`. Stable is the default channel; alpha requires an
+latest stable is `v0.6.4`. Stable is the default channel; alpha requires an
 explicit `-Channel alpha` flag.
 
 ### Quick install
@@ -23,18 +23,16 @@ irm https://install.yonerai.com | iex
 ```
 
 Quick install runs a static Cloudflare wrapper from `install.yonerai.com`. The
-wrapper verifies the GitHub Release `install.ps1` sidecar hash before execution.
-The GitHub Release bootstrap then validates the manifest, channel, versioned
-artifact name, and release ZIP SHA256 before install-like steps. It does not
-fetch ZIPs, manifests, or sidecar hashes from `yonerai.com`, mutate PATH by
-default, request admin rights, edit the registry, install a service, store
-provider keys, or enable live providers.
+wrapper downloads `install.ps1` and `install.ps1.sha256` from the currently
+embedded trusted stable release tag, checks the sidecar against the embedded
+SHA256, and runs the bootstrap only after the downloaded script hash matches. It
+does not call the GitHub API from the user's terminal, fetch ZIPs, manifests, or
+sidecar hashes from `yonerai.com`, mutate PATH by default, request admin rights,
+edit the registry, install a service, store provider keys, or enable live
+providers.
 
-GitHub Release fallback:
-
-```powershell
-iex "& { $(irm https://github.com/YoneRai12/YonerAI/releases/latest/download/install.ps1) } -Execute -Launch"
-```
+Do not pipe `releases/latest/download/install.ps1` directly into
+`Invoke-Expression`; the short command goes through the trust-mapped wrapper.
 
 ### Verified install
 
@@ -42,7 +40,8 @@ Use this when you want to verify `install.ps1` before execution:
 
 ```powershell
 $ErrorActionPreference = "Stop"
-$base = "https://github.com/YoneRai12/YonerAI/releases/latest/download"
+$base = "https://github.com/YoneRai12/YonerAI/releases/download/v0.6.4"
+$expected = "f33681434ee33d100970f65a160accbc506ee3547f9322be2662b780d24f9de5"
 $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("yonerai-bootstrap-" + [guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory -Path $tmp | Out-Null
 try {
@@ -50,15 +49,16 @@ try {
   $sidecar = Join-Path $tmp "install.ps1.sha256"
   irm "$base/install.ps1" -OutFile $script
   irm "$base/install.ps1.sha256" -OutFile $sidecar
-  $expected = ((Get-Content -LiteralPath $sidecar -Raw) -split '\s+')[0].ToLowerInvariant()
-  if ($expected -notmatch "^[a-f0-9]{64}$") { throw "install.ps1 sidecar SHA256 is invalid" }
+  $sidecarExpected = ((Get-Content -LiteralPath $sidecar -Raw) -split '\s+')[0].ToLowerInvariant()
+  if ($sidecarExpected -notmatch "^[a-f0-9]{64}$") { throw "install.ps1 sidecar SHA256 is invalid" }
+  if ($sidecarExpected -ne $expected) { throw "install.ps1 sidecar does not match trusted digest" }
   $actual = (Get-FileHash -LiteralPath $script -Algorithm SHA256).Hash.ToLowerInvariant()
   if ($actual -ne $expected) { throw "install.ps1 hash mismatch" }
   $scriptText = Get-Content -LiteralPath $script -Raw
   if ($scriptText -notmatch "Invoke-VerifiedLocalBootstrap" -or $scriptText -match "install.ps1 is still plan-only") {
     throw "install.ps1 is not an executable bootstrap. Refusing to launch."
   }
-  & powershell -NoProfile -ExecutionPolicy Bypass -File $script -Execute -Launch
+  & (Get-Process -Id $PID).Path -NoProfile -ExecutionPolicy Bypass -File $script -Execute -Launch
 } finally {
   if (Test-Path -LiteralPath $tmp) { Remove-Item -LiteralPath $tmp -Recurse -Force }
 }
@@ -66,13 +66,13 @@ try {
 
 ### If you downloaded the GitHub Release ZIP
 
-Download `YonerAI-0.6.3.zip` from the
-[v0.6.3 release](https://github.com/YoneRai12/YonerAI/releases/tag/v0.6.3),
+Download `YonerAI-0.6.4.zip` from the
+[v0.6.4 release](https://github.com/YoneRai12/YonerAI/releases/tag/v0.6.4),
 extract it, then run PowerShell inside the extracted folder. The extracted
 folder name can vary; change the `cd` command to match the folder you see.
 
 ```powershell
-cd "$HOME\Downloads\YonerAI-0.6.3"
+cd "$HOME\Downloads\YonerAI-0.6.4"
 python --version
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
@@ -158,10 +158,10 @@ yonerai start --guided --lang ja
 yonerai providers --pretty --lang ja
 yonerai ask "hello" --auto --pretty --lang ja
 yonerai chat --script --lang ja
-yonerai manifest verify manifest.v0.6.3.json --pretty
-yonerai install plan --manifest manifest.v0.6.3.json --pretty
-yonerai update check --manifest manifest.v0.6.3.json --pretty
-yonerai update plan --manifest manifest.v0.6.3.json --pretty
+yonerai manifest verify manifest.v0.6.4.json --pretty
+yonerai install plan --manifest manifest.v0.6.4.json --pretty
+yonerai update check --manifest manifest.v0.6.4.json --pretty
+yonerai update plan --manifest manifest.v0.6.4.json --pretty
 yonerai demo --pretty
 yonerai demo --json
 ```

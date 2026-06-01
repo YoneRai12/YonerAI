@@ -21,17 +21,21 @@ WINDOWS_INSTALL_PLAN_SCHEMA_VERSION = "yonerai-windows-install-plan/v0.1"
 UPDATE_PLAN_SCHEMA_VERSION = "yonerai-update-plan/v0.1"
 UPDATE_CHECK_SCHEMA_VERSION = "yonerai-update-check/v0.1"
 SHA256_RE = re.compile(r"^[a-f0-9]{64}$")
-LATEST_STABLE_VERSION = "0.6.3"
+LATEST_STABLE_VERSION = "0.6.4"
 YONERAI_INSTALL_PAGE = "https://yonerai.com/install"
 GITHUB_LATEST_INSTALL_BASE_URL = "https://github.com/YoneRai12/YonerAI/releases/latest/download"
+GITHUB_RELEASE_DOWNLOAD_BASE_URL = "https://github.com/YoneRai12/YonerAI/releases/download"
+TRUSTED_INSTALL_RELEASE_TAG = f"v{LATEST_STABLE_VERSION}"
+TRUSTED_INSTALL_SCRIPT_SHA256 = "f33681434ee33d100970f65a160accbc506ee3547f9322be2662b780d24f9de5"
+TRUSTED_INSTALL_SCRIPT_SHA256_BY_TAG = {
+    TRUSTED_INSTALL_RELEASE_TAG: TRUSTED_INSTALL_SCRIPT_SHA256,
+}
+GITHUB_TRUSTED_INSTALL_BASE_URL = f"{GITHUB_RELEASE_DOWNLOAD_BASE_URL}/{TRUSTED_INSTALL_RELEASE_TAG}"
 QUICK_INSTALL_COMMAND = "irm https://install.yonerai.com | iex"
 GITHUB_INSTALL_FALLBACK_COMMAND = (
-    'iex "& { $(irm https://github.com/YoneRai12/YonerAI/releases/latest/download/install.ps1) } '
-    '-Execute -Launch"'
-)
-VERIFIED_INSTALL_COMMAND = (
     "$ErrorActionPreference='Stop'; "
-    "$base='https://github.com/YoneRai12/YonerAI/releases/latest/download'; "
+    f"$base='{GITHUB_TRUSTED_INSTALL_BASE_URL}'; "
+    f"$expected='{TRUSTED_INSTALL_SCRIPT_SHA256}'; "
     "$tmp=Join-Path ([System.IO.Path]::GetTempPath()) "
     "('yonerai-bootstrap-'+[System.Guid]::NewGuid().ToString('N')); "
     "New-Item -ItemType Directory -Path $tmp | Out-Null; "
@@ -40,8 +44,9 @@ VERIFIED_INSTALL_COMMAND = (
     "$sidecar=Join-Path $tmp 'install.ps1.sha256'; "
     'irm "$base/install.ps1" -OutFile $script; '
     'irm "$base/install.ps1.sha256" -OutFile $sidecar; '
-    "$expected=((Get-Content -LiteralPath $sidecar -Raw) -split '\\s+')[0].ToLowerInvariant(); "
-    "if ($expected -notmatch '^[a-f0-9]{64}$') { throw 'install.ps1 sidecar SHA256 is invalid' }; "
+    "$sidecarExpected=((Get-Content -LiteralPath $sidecar -Raw) -split '\\s+')[0].ToLowerInvariant(); "
+    "if ($sidecarExpected -notmatch '^[a-f0-9]{64}$') { throw 'install.ps1 sidecar SHA256 is invalid' }; "
+    "if ($sidecarExpected -ne $expected) { throw 'install.ps1 sidecar does not match trusted digest' }; "
     "$actual=(Get-FileHash -LiteralPath $script -Algorithm SHA256).Hash.ToLowerInvariant(); "
     "if ($actual -ne $expected) { throw 'install.ps1 hash mismatch' }; "
     "$scriptText=Get-Content -LiteralPath $script -Raw; "
@@ -49,7 +54,34 @@ VERIFIED_INSTALL_COMMAND = (
     "$scriptText -match 'install.ps1 is still plan-only') { "
     "throw 'install.ps1 is not an executable bootstrap. Refusing to launch.' "
     "}; "
-    "& powershell -NoProfile -ExecutionPolicy Bypass -File $script -Execute -Launch "
+    "& (Get-Process -Id $PID).Path -NoProfile -ExecutionPolicy Bypass -File $script -Execute -Launch "
+    "} finally { "
+    "if (Test-Path -LiteralPath $tmp) { Remove-Item -LiteralPath $tmp -Recurse -Force } "
+    "}"
+)
+VERIFIED_INSTALL_COMMAND = (
+    "$ErrorActionPreference='Stop'; "
+    f"$base='{GITHUB_TRUSTED_INSTALL_BASE_URL}'; "
+    f"$expected='{TRUSTED_INSTALL_SCRIPT_SHA256}'; "
+    "$tmp=Join-Path ([System.IO.Path]::GetTempPath()) "
+    "('yonerai-bootstrap-'+[System.Guid]::NewGuid().ToString('N')); "
+    "New-Item -ItemType Directory -Path $tmp | Out-Null; "
+    "try { "
+    "$script=Join-Path $tmp 'install.ps1'; "
+    "$sidecar=Join-Path $tmp 'install.ps1.sha256'; "
+    'irm "$base/install.ps1" -OutFile $script; '
+    'irm "$base/install.ps1.sha256" -OutFile $sidecar; '
+    "$sidecarExpected=((Get-Content -LiteralPath $sidecar -Raw) -split '\\s+')[0].ToLowerInvariant(); "
+    "if ($sidecarExpected -notmatch '^[a-f0-9]{64}$') { throw 'install.ps1 sidecar SHA256 is invalid' }; "
+    "if ($sidecarExpected -ne $expected) { throw 'install.ps1 sidecar does not match trusted digest' }; "
+    "$actual=(Get-FileHash -LiteralPath $script -Algorithm SHA256).Hash.ToLowerInvariant(); "
+    "if ($actual -ne $expected) { throw 'install.ps1 hash mismatch' }; "
+    "$scriptText=Get-Content -LiteralPath $script -Raw; "
+    "if ($scriptText -notmatch 'Invoke-VerifiedLocalBootstrap' -or "
+    "$scriptText -match 'install.ps1 is still plan-only') { "
+    "throw 'install.ps1 is not an executable bootstrap. Refusing to launch.' "
+    "}; "
+    "& (Get-Process -Id $PID).Path -NoProfile -ExecutionPolicy Bypass -File $script -Execute -Launch "
     "} finally { "
     "if (Test-Path -LiteralPath $tmp) { Remove-Item -LiteralPath $tmp -Recurse -Force } "
     "}"
@@ -100,6 +132,10 @@ def build_install_update_status() -> dict[str, Any]:
         "verified_install_command": VERIFIED_INSTALL_COMMAND,
         "verified_install_page": YONERAI_INSTALL_PAGE,
         "github_latest_install_base_url": GITHUB_LATEST_INSTALL_BASE_URL,
+        "github_trusted_install_base_url": GITHUB_TRUSTED_INSTALL_BASE_URL,
+        "trusted_install_release_tag": TRUSTED_INSTALL_RELEASE_TAG,
+        "trusted_install_script_sha256": TRUSTED_INSTALL_SCRIPT_SHA256,
+        "trusted_install_script_sha256_by_tag": dict(TRUSTED_INSTALL_SCRIPT_SHA256_BY_TAG),
         "forced_update_enabled": FORCED_UPDATE_ENABLED,
         "auto_update_apply_enabled": AUTO_UPDATE_APPLY_ENABLED,
         "security_update": False,
