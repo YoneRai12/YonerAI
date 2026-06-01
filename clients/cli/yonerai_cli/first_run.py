@@ -52,6 +52,7 @@ def build_first_run_report(
     provider_setup: Mapping[str, object] | None = None,
     repo_version: str | None = None,
     env: Mapping[str, str | None] | None = None,
+    memory_boundary: Mapping[str, object] | None = None,
     local_llm_candidates: tuple[LocalLLMProbeCandidate, ...] | None = None,
     guided: bool = False,
 ) -> dict[str, object]:
@@ -72,6 +73,7 @@ def build_first_run_report(
         "steps": _first_run_steps(first_ask),
         "local_llm": local_llm,
         "provider_setup": setup,
+        "memory_boundary": _memory_boundary_summary(memory_boundary),
         "current_capabilities": _current_capabilities(),
         "limitations": _limitations(),
         "actions_not_performed": _actions_not_performed(),
@@ -519,8 +521,21 @@ def _current_capabilities() -> list[str]:
         "OpenAI-compatible provider path behind explicit --live and environment opt-in.",
         "Auto runtime ask path that classifies privacy/difficulty and routes safe local/stub execution.",
         "Optional redacted local run ledger via --ledger.",
+        "Local memory boundary runtime with local-only storage and sync preview.",
         "Local-dev Hybrid execution slice through route preview, in-memory relay, mock provider, and Oracle stub envelopes.",
     ]
+
+
+def _memory_boundary_summary(memory_boundary: Mapping[str, object] | None) -> dict[str, object]:
+    report = dict(memory_boundary or {})
+    return {
+        "available": bool(report.get("ok")),
+        "local_to_cloud_enabled_by_default": bool(report.get("local_to_cloud_enabled_by_default")),
+        "cloud_sync_enabled": bool(report.get("cloud_sync_enabled")),
+        "raw_prompt_persisted": bool(report.get("raw_prompt_persisted")),
+        "local_absolute_path_persisted": bool(report.get("local_absolute_path_persisted")),
+        "store_path_output": bool(report.get("store_path_output")),
+    }
 
 
 def _limitations() -> list[str]:
@@ -563,6 +578,7 @@ def _local_llm_message(status: str) -> str:
 def _first_run_sections_en(report: Mapping[str, object]) -> tuple[CliSection, ...]:
     local_llm = report["local_llm"] if isinstance(report.get("local_llm"), Mapping) else {}
     provider_setup = report["provider_setup"] if isinstance(report.get("provider_setup"), Mapping) else {}
+    memory_boundary = report["memory_boundary"] if isinstance(report.get("memory_boundary"), Mapping) else {}
     first_ask = report["recommended_first_ask"] if isinstance(report.get("recommended_first_ask"), Mapping) else {}
     sections = (
         CliSection(
@@ -594,6 +610,15 @@ def _first_run_sections_en(report: Mapping[str, object]) -> tuple[CliSection, ..
                 CliRow("why", first_ask.get("why", "Works without provider keys."), "ok"),
             ),
         ),
+        CliSection(
+            "Memory boundary",
+            (
+                CliRow("local_memory", "available" if memory_boundary.get("available") else "unavailable", "ok" if memory_boundary.get("available") else "warn"),
+                CliRow("local_to_cloud_default", memory_boundary.get("local_to_cloud_enabled_by_default"), "fail" if memory_boundary.get("local_to_cloud_enabled_by_default") else "ok"),
+                CliRow("cloud_sync", memory_boundary.get("cloud_sync_enabled"), "warn" if memory_boundary.get("cloud_sync_enabled") else "ok"),
+                CliRow("raw_prompt_persisted", memory_boundary.get("raw_prompt_persisted"), "fail" if memory_boundary.get("raw_prompt_persisted") else "ok"),
+            ),
+        ),
         CliSection("Still unavailable", _list_rows(report.get("limitations", []), prefix="limit")),
     )
     if report.get("guided"):
@@ -606,6 +631,7 @@ def _first_run_sections_en(report: Mapping[str, object]) -> tuple[CliSection, ..
 def _first_run_sections_ja(report: Mapping[str, object]) -> tuple[CliSection, ...]:
     local_llm = report["local_llm"] if isinstance(report.get("local_llm"), Mapping) else {}
     provider_setup = report["provider_setup"] if isinstance(report.get("provider_setup"), Mapping) else {}
+    memory_boundary = report["memory_boundary"] if isinstance(report.get("memory_boundary"), Mapping) else {}
     first_ask = report["recommended_first_ask"] if isinstance(report.get("recommended_first_ask"), Mapping) else {}
     sections = (
         CliSection(
@@ -644,6 +670,16 @@ def _first_run_sections_ja(report: Mapping[str, object]) -> tuple[CliSection, ..
                 CliRow("run_id", "mock ask は公開してよい run_id を返します", "ok"),
                 CliRow("ファイル", "ワークスペース内ファイルアクセス制御のみです", "ok"),
                 CliRow("ledger", "--ledger 指定時だけローカルに redacted 履歴を書きます", "ok"),
+                CliRow("記憶", "local→cloud は初期値オフ、同期は preview のみです", "ok"),
+            ),
+        ),
+        CliSection(
+            "記憶境界",
+            (
+                CliRow("ローカル記憶", "利用可能" if memory_boundary.get("available") else "利用不可", "ok" if memory_boundary.get("available") else "warn"),
+                CliRow("local→cloud初期値", memory_boundary.get("local_to_cloud_enabled_by_default"), "fail" if memory_boundary.get("local_to_cloud_enabled_by_default") else "ok"),
+                CliRow("cloud同期", memory_boundary.get("cloud_sync_enabled"), "warn" if memory_boundary.get("cloud_sync_enabled") else "ok"),
+                CliRow("raw prompt保存", memory_boundary.get("raw_prompt_persisted"), "fail" if memory_boundary.get("raw_prompt_persisted") else "ok"),
             ),
         ),
         CliSection("まだ使えないもの", _list_rows_ja(report.get("limitations", []))),

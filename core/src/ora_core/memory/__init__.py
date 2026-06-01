@@ -1,7 +1,37 @@
-from .local_store import LocalMemoryRecord, LocalMemoryStore, MemoryStoreError
+from .local_store import (
+    CloudMemoryRef,
+    LocalMemoryRecord,
+    LocalMemoryRef,
+    LocalMemoryStore,
+    MemoryRecord,
+    MemoryStoreError,
+    MemorySyncAudit,
+    MemorySyncDecision,
+    MemorySyncEnvelope,
+    SelfEvolutionSignalMemory,
+    build_memory_sync_preview,
+    build_memory_usage_report,
+    build_self_evolution_signal_memory,
+    default_memory_store_path,
+    memory_context_event,
+    select_allowed_memory_for_ask,
+)
 
 __all__ = [
+    "CloudMemoryRef",
     "LocalMemoryRecord",
+    "LocalMemoryRef",
     "LocalMemoryStore",
+    "MemoryRecord",
     "MemoryStoreError",
+    "MemorySyncAudit",
+    "MemorySyncDecision",
+    "MemorySyncEnvelope",
+    "SelfEvolutionSignalMemory",
+    "build_memory_sync_preview",
+    "build_memory_usage_report",
+    "build_self_evolution_signal_memory",
+    "default_memory_store_path",
+    "memory_context_event",
+    "select_allowed_memory_for_ask",
 ]

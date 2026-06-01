@@ -46,6 +46,7 @@ def _clear_provider_env(monkeypatch) -> None:
         "YONERAI_GEMINI_API_KEY",
         "YONERAI_GEMINI_BASE_URL",
         "YONERAI_GEMINI_LIVE",
+        "YONERAI_MEMORY_STORE_PATH",
     ):
         monkeypatch.delenv(key, raising=False)
 
@@ -367,8 +368,9 @@ def test_chat_accepts_english_commands_while_showing_japanese_ui(tmp_path: Path,
     output = capsys.readouterr().out
 
     assert "設定" in output
-    assert "/選択 5 オン" in output
-    assert "履歴記録（ローカル履歴）" in output
+    assert "カテゴリ" in output
+    assert "/設定 記憶" in output
+    assert "/選択 5 オン|オフ" in output
     assert "提供元（AI接続元）" in output
     assert "次に試す" in output
     assert "キーの値は表示・保存しません" in output
@@ -392,6 +394,25 @@ def test_chat_accepts_english_commands_while_showing_japanese_ui(tmp_path: Path,
     assert "提供元（AI接続元）=モック（テスト用）" in output
     assert "Network" not in output
     assert "Changed setting" not in output
+    assert str(tmp_path) not in output
+
+
+def test_chat_memory_screen_is_available_in_japanese(tmp_path: Path, monkeypatch, capsys) -> None:
+    from yonerai_cli import cli
+
+    _clear_provider_env(monkeypatch)
+    config_path = tmp_path / "cli-config.json"
+    monkeypatch.setenv("YONERAI_MEMORY_STORE_PATH", str(tmp_path / "memory.jsonl"))
+    monkeypatch.setattr(sys, "stdin", _PlainStringIO("/記憶\n/メモリ\n/memory\n/quit\n"))
+
+    assert cli.main(["chat", "--script", "--lang", "ja", "--config-path", str(config_path), "--color", "never"]) == 0
+    output = capsys.readouterr().out
+
+    assert output.count("記憶") >= 3
+    assert "local -> cloud自動同期: オフ" in output
+    assert "cloud同期: オフ" in output
+    assert "raw prompt保存: オフ" in output
+    assert "yonerai memory add" in output
     assert str(tmp_path) not in output
 
 
@@ -472,6 +493,37 @@ def test_chat_numbered_settings_and_ledger_are_usable_in_japanese(tmp_path: Path
     assert "タスク" in output
     assert "実行履歴" in output
     assert default_ledger.exists()
+    assert str(tmp_path) not in output
+
+
+def test_chat_settings_category_screens_are_individual_and_japanese(tmp_path: Path, monkeypatch, capsys) -> None:
+    from yonerai_cli import cli
+
+    _clear_provider_env(monkeypatch)
+    config_path = tmp_path / "cli-config.json"
+    monkeypatch.setenv("YONERAI_MEMORY_STORE_PATH", str(tmp_path / "memory.jsonl"))
+    monkeypatch.setattr(
+        sys,
+        "stdin",
+        _PlainStringIO(
+            "/設定\n/設定 言語\n/設定 安全\n/設定 記憶\n/設定 更新\n/設定 認証\n/設定 プライバシー\n/終了\n"
+        ),
+    )
+
+    assert cli.main(["chat", "--script", "--lang", "ja", "--config-path", str(config_path), "--color", "never"]) == 0
+    output = capsys.readouterr().out
+
+    assert "まとめて全設定を流しません" in output
+    assert "設定: 言語" in output
+    assert "安全設定" in output
+    assert "記憶" in output
+    assert "local -> cloud自動同期: オフ" in output
+    assert "設定: 更新" in output
+    assert "通常更新: 通知だけ" in output
+    assert "クリティカル更新" in output
+    assert "本番Googleログインはまだ有効にしていません" in output
+    assert "OpenAI共有トラフィック" in output
+    assert "Settings" not in output
     assert str(tmp_path) not in output
 
 
@@ -794,6 +846,10 @@ def test_slash_command_summary_is_japanese_first() -> None:
     assert "/認証" in summary
     assert "/同期" in summary
     assert "/プライバシー" in summary
+    assert "/記憶" in summary
+    assert "/記憶" in words
+    assert "/メモリ" in words
+    assert "/memory" not in words
     assert "/更新" in summary
     assert "/設定" in words
     assert "/状態" in words
@@ -841,6 +897,9 @@ def test_slash_value_completion_is_context_aware_and_japanese_first() -> None:
     assert slash_value_words("/選択 8 ", "ja")[:2] == ["自動", "llama3.1"]
     assert slash_value_words("/ライブ ", "ja") == ["オン", "オフ"]
     assert slash_value_words("/更新通知 ", "ja") == ["オン", "オフ"]
+    assert slash_command_value_group("/設定 ") == "settings_category"
+    assert slash_value_words("/設定 ", "ja")[:4] == ["言語", "提供元", "モデル", "安全"]
+    assert "memory" not in slash_value_words("/設定 ", "ja")
     assert "Anthropic" in slash_value_words("/provider ", "en")
     assert "Gemini" in slash_value_words("/provider ", "en")
     assert slash_value_words("/file-access ", "en")[:4] == [
@@ -899,6 +958,9 @@ def test_chat_models_and_update_commands_are_usable(tmp_path: Path, monkeypatch,
     assert "Verified install" in output
     assert "強制更新: なし" in output
     assert "自動適用: なし" in output
+    assert "セキュリティ更新: なし" in output
+    assert "クリティカル更新: なし" in output
+    assert "基本ローカルmockチャット: 利用可" in output
     assert "実行しなかったこと" in output
     assert "no download" in output
     assert "no forced update" in output

@@ -128,6 +128,35 @@ def test_auto_runtime_private_file_context_stays_local_and_records_redacted_ledg
     assert "hybrid_node_route" in persisted
 
 
+def test_auto_runtime_records_memory_ids_only_in_ledger(tmp_path: Path) -> None:
+    build_report, _InMemoryRunLedger, FileRunLedger = _load_auto_runtime()
+    from ora_core.memory import LocalMemoryStore
+
+    memory_store = LocalMemoryStore(tmp_path / "memory.jsonl")
+    memory = memory_store.add("prefer concise responses", scope="procedural")
+    memory_store.add("token=hidden-fixture", scope="procedural")
+    ledger_path = tmp_path / "runs.jsonl"
+
+    report = build_report(
+        "hello",
+        ledger=FileRunLedger(ledger_path),
+        memory_records=memory_store.list(),
+    )
+    persisted = ledger_path.read_text(encoding="utf-8")
+    serialized = json.dumps(report, ensure_ascii=False, sort_keys=True)
+
+    assert report["ok"] is True
+    assert report["memory"]["enabled"] is True
+    assert report["memory"]["used_ids"] == [memory.id]
+    assert report["run"]["memory_used"] == [memory.id]
+    assert memory.id in persisted
+    assert "prefer concise responses" not in persisted
+    assert "hidden-fixture" not in persisted
+    assert "prefer concise responses" not in serialized
+    assert report["memory"]["raw_memory_content_in_ledger"] is False
+    assert report["memory"]["content_sent_to_cloud_contract"] is False
+
+
 def test_auto_runtime_dangerous_task_is_denied_without_shell_execution() -> None:
     build_report, InMemoryRunLedger, _FileRunLedger = _load_auto_runtime()
 

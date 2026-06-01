@@ -2,6 +2,31 @@
 
 See also: `docs/RELEASE_NOTES.md` (curated summary, v5.0.0 -> current).
 
+## v0.12.0-alpha.1 (2026-06-01) - Memory Boundary Runtime
+- Added the first public local memory boundary runtime with `MemoryRecord`,
+  local JSONL storage, redacted summaries, local-private defaults, forget/delete
+  support, and explicit audit reasons.
+- Added `yonerai memory status`, `yonerai memory add`, `yonerai memory list`,
+  `yonerai memory forget`, and `yonerai memory sync preview` for local memory
+  inspection and contract-only sync decisions.
+- Connected `ask --auto` and the redacted run ledger to memory ids only, so
+  allowed procedural/shared preference memory can influence local runtime
+  decisions without persisting raw memory content in the ledger.
+- Added Japanese TUI memory commands `/記憶` and `/メモリ`.
+- Redesigned `/設定` into focused category screens for language, provider,
+  model, safety, memory, update, auth, and privacy instead of dumping every
+  setting at once.
+- Added deferred update policy fields for normal, recommended, security, and
+  critical update notices while keeping auto-apply and forced silent update
+  disabled.
+- Added low-resolution self-evolution signal memory validation that rejects raw
+  prompts, PII-like/private path data, and extra fields.
+- Preserved boundaries: no production Oracle/cloud runtime, no production
+  Google login, no OpenAI shared traffic runtime, no live Discord, no automatic
+  local-to-cloud private memory upload, no deploy/public tunnel, no arbitrary
+  shell/file/tool execution, no provider key output/storage, no production
+  signing/trust store, and no production network installer.
+
 ## v0.11.0-alpha.1 (2026-05-31) - Account Sync and Oracle API Foundation
 - Added public account identity, Google auth dry-run, cloud/local sync,
   sync-decision, sync-audit, Official API fixture, and rate-limit policy

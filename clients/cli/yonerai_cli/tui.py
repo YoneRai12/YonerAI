@@ -27,7 +27,7 @@ class SlashValueSpec:
 
 SLASH_COMMANDS: tuple[SlashCommandSpec, ...] = (
     SlashCommandSpec("/状態", "/status", "状態ヘッダーを再表示", "Show mission-control status", ("/status", "/home")),
-    SlashCommandSpec("/設定", "/settings", "設定を開く", "Open settings", ("/settings",)),
+    SlashCommandSpec("/設定", "/settings", "設定カテゴリを開く", "Open settings categories", ("/settings",), "settings_category"),
     SlashCommandSpec(
         "/モデル",
         "/models",
@@ -45,6 +45,7 @@ SLASH_COMMANDS: tuple[SlashCommandSpec, ...] = (
     SlashCommandSpec("/認証", "/auth", "Google認証のdry-run状態", "Auth dry-run status", ("/auth",)),
     SlashCommandSpec("/同期", "/sync", "cloud/local同期境界", "Cloud/local sync boundary", ("/sync",)),
     SlashCommandSpec("/プライバシー", "/privacy", "共有とプライバシー境界を見る", "Privacy status", ("/privacy",)),
+    SlashCommandSpec("/記憶", "/memory", "ローカル記憶と同期境界を見る", "Memory boundary status", ("/memory", "/メモリ")),
     SlashCommandSpec(
         "/自己進化",
         "/evolve",
@@ -95,6 +96,7 @@ JAPANESE_SLASH_ALIASES: dict[str, tuple[str, ...]] = {
     "/auth": ("/認証",),
     "/sync": ("/同期",),
     "/privacy": ("/プライバシー",),
+    "/memory": ("/記憶", "/メモリ"),
     "/evolve": ("/自己進化",),
     "/update": ("/更新",),
     "/update-notice": ("/更新通知",),
@@ -152,6 +154,17 @@ SLASH_VALUE_GROUPS: dict[str, tuple[SlashValueSpec, ...]] = {
         SlashValueSpec("7", "ネットワーク", "Network"),
         SlashValueSpec("8", "モデル", "Model"),
         SlashValueSpec("9", "更新通知", "Update notice"),
+    ),
+    "settings_category": (
+        SlashValueSpec("言語", "表示言語", "Language", ("language",)),
+        SlashValueSpec("提供元", "AI接続元", "Providers", ("providers", "provider")),
+        SlashValueSpec("モデル", "AIモデル", "Models", ("models", "model")),
+        SlashValueSpec("安全", "安全境界", "Safety", ("safety",)),
+        SlashValueSpec("記憶", "ローカル記憶と同期境界", "Memory", ("memory", "メモリ")),
+        SlashValueSpec("更新", "更新通知とdry-run確認", "Update", ("update",)),
+        SlashValueSpec("認証", "Google OAuth dry-run状態", "Auth", ("auth",)),
+        SlashValueSpec("プライバシー", "共有と非公開データ境界", "Privacy", ("privacy",)),
+        SlashValueSpec("戻る", "カテゴリ一覧へ戻る", "Back", ("back",)),
     ),
 }
 
@@ -414,6 +427,7 @@ def tui_capability_report() -> dict[str, object]:
         "tab_completion": prompt_ready,
         "arrow_selection": prompt_ready,
         "status_screen": True,
+        "memory_screen": True,
         "rich_panels": rich_ready,
         "rich_status_spinner": rich_ready,
         "plain_fallback": True,

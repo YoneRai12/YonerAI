@@ -60,6 +60,7 @@ class ExecutionRun:
     disabled_reason: str | None = None
     error_summary: str | None = None
     result_summary: str | None = None
+    memory_used: list[str] = field(default_factory=list)
 
     def to_public_dict(self) -> dict[str, object]:
         return {
@@ -77,11 +78,13 @@ class ExecutionRun:
             "disabled_reason": self.disabled_reason,
             "error_summary": self.error_summary,
             "result_summary": self.result_summary,
+            "memory_used": list(self.memory_used),
             "persistence": {
                 "raw_prompt_persisted": False,
                 "raw_completion_persisted": False,
                 "provider_key_persisted": False,
-                "memory_persisted": False,
+                "memory_persisted": bool(self.memory_used),
+                "raw_memory_content_persisted": False,
             },
         }
 
@@ -116,6 +119,7 @@ class ExecutionRun:
             disabled_reason=_optional_text(payload.get("disabled_reason")),
             error_summary=_optional_text(payload.get("error_summary")),
             result_summary=_optional_text(payload.get("result_summary")),
+            memory_used=_safe_memory_ids(payload.get("memory_used")),
         )
 
 
@@ -133,6 +137,9 @@ class RunLedger(Protocol):
         ...
 
     def append_event(self, run_id: RunId, name: str, status: str, summary: str) -> ExecutionRun:
+        ...
+
+    def record_memory_usage(self, run_id: RunId, memory_ids: list[str]) -> ExecutionRun:
         ...
 
     def complete_run(self, run_id: RunId, *, result_summary: str | None = None) -> ExecutionRun:
@@ -193,6 +200,13 @@ class InMemoryRunLedger:
         run.updated_at = _now()
         if run.status == "created":
             run.status = "running"
+        self._persist()
+        return run
+
+    def record_memory_usage(self, run_id: RunId, memory_ids: list[str]) -> ExecutionRun:
+        run = self._require_run(run_id)
+        run.memory_used = _safe_memory_ids(memory_ids)
+        run.updated_at = _now()
         self._persist()
         return run
 
@@ -327,3 +341,16 @@ def _optional_text(value: object) -> str | None:
         return None
     text = safe_summary(value)
     return text or None
+
+
+def _safe_memory_ids(value: object) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    ids: list[str] = []
+    for item in value:
+        text = safe_summary(item, max_chars=80)
+        if not re.fullmatch(r"mem_[A-Za-z0-9_-]{6,40}", text):
+            continue
+        if text not in ids:
+            ids.append(text)
+    return ids[:20]

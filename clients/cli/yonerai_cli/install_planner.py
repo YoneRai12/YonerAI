@@ -58,6 +58,38 @@ FORCED_UPDATE_ENABLED = False
 AUTO_UPDATE_APPLY_ENABLED = False
 
 
+def build_deferred_update_policy(*, update_available: bool = False) -> dict[str, Any]:
+    update_class = "normal" if update_available else "none"
+    return {
+        "schema_version": "yonerai-deferred-update-policy/v0.1",
+        "update_class": update_class,
+        "normal_update": bool(update_available),
+        "recommended_update": bool(update_available),
+        "security_update": False,
+        "critical_update": False,
+        "active_session_behavior": "warn_only_do_not_interrupt",
+        "after_task_behavior": "show_update_prompt_if_notice_enabled",
+        "next_startup_behavior": "show_update_screen_first_only_if_critical",
+        "basic_local_mock_chat_allowed": True,
+        "auto_apply_enabled": False,
+        "forced_silent_update_enabled": False,
+        "risk_feature_restrictions_if_critical": [
+            "live_external_provider",
+            "cloud_contract_candidate",
+            "shared_traffic",
+        ],
+        "actions_not_performed": [
+            "no silent update",
+            "no auto-apply update",
+            "no forced update",
+            "no PATH mutation",
+            "no service install",
+            "no registry modification",
+            "no admin request",
+        ],
+    }
+
+
 def build_install_update_status() -> dict[str, Any]:
     return {
         "latest_stable": LATEST_STABLE_VERSION,
@@ -70,6 +102,9 @@ def build_install_update_status() -> dict[str, Any]:
         "github_latest_install_base_url": GITHUB_LATEST_INSTALL_BASE_URL,
         "forced_update_enabled": FORCED_UPDATE_ENABLED,
         "auto_update_apply_enabled": AUTO_UPDATE_APPLY_ENABLED,
+        "security_update": False,
+        "critical_update": False,
+        "update_policy": build_deferred_update_policy(update_available=False),
         "forced_update_policy": "disabled",
         "no_forced_update": not FORCED_UPDATE_ENABLED,
         "no_auto_update_apply": not AUTO_UPDATE_APPLY_ENABLED,
@@ -169,6 +204,7 @@ def build_update_plan(manifest_path: str, *, current_version: str) -> dict[str, 
         placeholder_non_production=placeholder_non_production,
         contract_valid=verification["contract_valid"],
     )
+    update_available = comparison == "target_newer"
     return {
         "schema_version": UPDATE_PLAN_SCHEMA_VERSION,
         "ok": verification["contract_valid"] and comparison != "unknown",
@@ -178,7 +214,7 @@ def build_update_plan(manifest_path: str, *, current_version: str) -> dict[str, 
         "latest_stable": LATEST_STABLE_VERSION,
         "current_version": current_version,
         "target_version": target_version,
-        "update_available": comparison == "target_newer",
+        "update_available": update_available,
         "version_comparison": comparison,
         "selected_artifact": selected_artifact,
         "sha256_present": sha256_present,
@@ -256,6 +292,9 @@ def build_update_plan(manifest_path: str, *, current_version: str) -> dict[str, 
         "verified_install_page": YONERAI_INSTALL_PAGE,
         "forced_update_enabled": FORCED_UPDATE_ENABLED,
         "auto_update_apply_enabled": AUTO_UPDATE_APPLY_ENABLED,
+        "security_update": False,
+        "critical_update": False,
+        "update_policy": build_deferred_update_policy(update_available=update_available),
         "forced_update_policy": "disabled",
         "warnings": warnings,
     }
@@ -311,6 +350,9 @@ def build_update_check(manifest_path: str, *, current_version: str) -> dict[str,
         "verified_install_page": YONERAI_INSTALL_PAGE,
         "forced_update_enabled": FORCED_UPDATE_ENABLED,
         "auto_update_apply_enabled": AUTO_UPDATE_APPLY_ENABLED,
+        "security_update": False,
+        "critical_update": False,
+        "update_policy": build_deferred_update_policy(update_available=bool(plan["update_available"])),
         "forced_update_policy": "disabled",
         "warnings": plan["warnings"],
     }

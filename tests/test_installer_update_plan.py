@@ -69,6 +69,10 @@ def test_build_update_plan_reports_no_update_needed_for_matching_version(tmp_pat
     assert "no auto-apply update" in report["actions_not_performed"]
     assert report["forced_update_enabled"] is False
     assert report["auto_update_apply_enabled"] is False
+    assert report["security_update"] is False
+    assert report["critical_update"] is False
+    assert report["update_policy"]["active_session_behavior"] == "warn_only_do_not_interrupt"
+    assert report["update_policy"]["basic_local_mock_chat_allowed"] is True
 
 
 def test_cli_update_plan_reports_update_available(tmp_path, capsys) -> None:
@@ -100,6 +104,10 @@ def test_cli_update_plan_reports_update_available(tmp_path, capsys) -> None:
     assert output["verified_install_page"] == "https://yonerai.com/install"
     assert output["forced_update_enabled"] is False
     assert output["auto_update_apply_enabled"] is False
+    assert output["security_update"] is False
+    assert output["critical_update"] is False
+    assert output["update_policy"]["auto_apply_enabled"] is False
+    assert output["update_policy"]["forced_silent_update_enabled"] is False
 
 
 def test_cli_update_plan_rejects_invalid_artifact_name(tmp_path, capsys) -> None:
@@ -242,6 +250,9 @@ def test_cli_update_plan_json_is_stable_and_network_free(monkeypatch, capsys) ->
         "verified_install_command",
         "forced_update_enabled",
         "auto_update_apply_enabled",
+        "security_update",
+        "critical_update",
+        "update_policy",
     }
     assert expected_fields <= set(output)
     assert output["actions_not_performed"][:5] == [
@@ -305,6 +316,10 @@ def test_cli_update_check_json_is_stable_network_free_and_path_safe(tmp_path, mo
     assert output["verified_install_page"] == "https://yonerai.com/install"
     assert output["forced_update_enabled"] is False
     assert output["auto_update_apply_enabled"] is False
+    assert output["security_update"] is False
+    assert output["critical_update"] is False
+    assert output["update_policy"]["active_session_behavior"] == "warn_only_do_not_interrupt"
+    assert output["update_policy"]["basic_local_mock_chat_allowed"] is True
     assert output["manifest"] == "manifest.json"
     assert output["next_safe_command"] == "yonerai update plan --manifest manifest.json --pretty"
     assert output["next_safe_command_shell"] in {"powershell", "cmd", "posix"}
@@ -423,6 +438,9 @@ def test_cli_update_check_pretty_is_readable_and_color_safe(capsys) -> None:
     assert "quick_install_command" in output
     assert "forced_update_enabled" in output
     assert "auto_update_apply_enabled" in output
+    assert "security_update" in output
+    assert "critical_update" in output
+    assert "basic_local_mock_chat_allowed" in output
     assert "download_performed" in output
     assert "network_required" in output
     assert "false" in output
@@ -444,6 +462,9 @@ def test_cli_update_plan_pretty_is_readable(capsys) -> None:
     assert "quick_install_command" in output
     assert "forced_update_enabled" in output
     assert "auto_update_apply_enabled" in output
+    assert "security_update" in output
+    assert "critical_update" in output
+    assert "basic_local_mock_chat_allowed" in output
     assert "[WARN] version_comparison" in output
     assert "rollback_plan_available" in output
     assert "remote_code_executed: false" in output

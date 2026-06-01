@@ -78,6 +78,9 @@ COMMAND_ALIASES = {
     "/sync": "/sync",
     "/プライバシー": "/privacy",
     "/privacy": "/privacy",
+    "/記憶": "/memory",
+    "/メモリ": "/memory",
+    "/memory": "/memory",
     "/自己進化": "/evolve",
     "/evolve": "/evolve",
     "/ローカルllm": "/local-llm",
@@ -135,6 +138,32 @@ VALUE_ALIASES = {
     "オフ": "off",
     "履歴オフ": "off",
 }
+SETTINGS_CATEGORY_ALIASES = {
+    "言語": "language",
+    "language": "language",
+    "lang": "language",
+    "提供元": "providers",
+    "提供元選択": "providers",
+    "プロバイダー": "providers",
+    "providers": "providers",
+    "provider": "providers",
+    "モデル": "models",
+    "model": "models",
+    "models": "models",
+    "安全": "safety",
+    "safety": "safety",
+    "記憶": "memory",
+    "メモリ": "memory",
+    "memory": "memory",
+    "更新": "update",
+    "update": "update",
+    "認証": "auth",
+    "auth": "auth",
+    "プライバシー": "privacy",
+    "privacy": "privacy",
+    "戻る": "back",
+    "back": "back",
+}
 
 
 @dataclass(frozen=True)
@@ -146,6 +175,7 @@ class InteractiveCallbacks:
     update_check: Callable[[str | None, str], dict[str, Any]] | None = None
     evolve_status: Callable[[str], dict[str, Any]] | None = None
     sync_status: Callable[[str], dict[str, Any]] | None = None
+    memory_status: Callable[[str], dict[str, Any]] | None = None
 
 
 @dataclass(frozen=True)
@@ -337,7 +367,37 @@ def _handle_slash_command(
         _write(output_stream, _help(lang))
         return {}
     if command == "/settings":
-        _write(output_stream, _format_settings(config, provider=provider, live=live, lang=lang, provider_report=callbacks.providers()))
+        provider_report = callbacks.providers()
+        category = _settings_category_from_args(args)
+        if category is None:
+            _write(
+                output_stream,
+                _format_settings(
+                    config,
+                    provider=provider,
+                    live=live,
+                    lang=lang,
+                    provider_report=provider_report,
+                ),
+            )
+            return {}
+        if category == "memory" and callbacks.memory_status is not None:
+            _write(output_stream, _format_memory_status(callbacks.memory_status(lang), lang=lang))
+            return {}
+        if category == "update" and callbacks.update_check is not None:
+            _write(output_stream, _format_settings_update(config, lang=lang))
+            return {}
+        _write(
+            output_stream,
+            _format_settings_category(
+                category,
+                config,
+                provider=provider,
+                live=live,
+                lang=lang,
+                provider_report=provider_report,
+            ),
+        )
         return {}
     if command == "/models":
         if args:
@@ -374,6 +434,12 @@ def _handle_slash_command(
         return {}
     if command == "/privacy":
         _write(output_stream, _format_privacy_status(config, lang=lang))
+        return {}
+    if command == "/memory":
+        if callbacks.memory_status is None:
+            _write(output_stream, _format_memory_unavailable(lang))
+            return {}
+        _write(output_stream, _format_memory_status(callbacks.memory_status(lang), lang=lang))
         return {}
     if command == "/sync":
         if callbacks.sync_status is None:
@@ -897,64 +963,152 @@ def _format_settings(
         return "\n".join(
             (
                 "設定",
-                "  1. 表示言語: " + _language_label(values["language"] or "ja", lang="ja"),
-                "     変更: /選択 1 日本語 または /選択 1 英語",
-                "  2. 提供元（AI接続元）: " + _provider_label(provider, lang="ja"),
-                "     変更: /選択 2 自動|モック|ローカル|OpenAI互換|Anthropic|Gemini",
-                "  8. モデル（AIモデル）: " + _safe(values.get("model_preference") or "auto"),
-                "     変更: /モデル auto または /選択 8 llama3.1",
-                "  3. 承認（危険操作）: " + _approval_label(values["approval_mode"], lang="ja"),
-                "     変更: /選択 3 確認 または /選択 3 拒否",
-                "  4. ファイルアクセス（ファイル読み取り）: " + _file_access_label(values["file_access_mode"], lang="ja"),
-                "     変更: /選択 4 ワークスペース内のみ または /選択 4 無効",
-                "  5. 履歴記録（ローカル履歴）: " + ("オン（秘匿済みローカルJSONL）" if values.get("ledger_enabled") else "オフ（初期値）"),
-                "     変更: /選択 5 オン または /選択 5 オフ",
-                "  6. ライブ接続（外部/ローカル実行）: " + ("オン（明示許可）" if live else "オフ（初期値）"),
-                "     変更: /選択 6 オン または /選択 6 オフ",
-                "  7. ネットワーク（外部通信）: " + ("オン（明示許可）" if values["network_enabled"] else "オフ（初期値）"),
-                "     変更: /選択 7 オン または /選択 7 オフ",
-                "  9. 更新通知（ローカルmanifest確認）: " + ("オン（起動時に案内）" if values.get("update_notice_enabled") else "オフ（初期値）"),
-                "     変更: /選択 9 オン または /選択 9 オフ",
+                "  まとめて全設定を流しません。カテゴリを選んで1つずつ確認・切替します。",
                 "",
-                "状態",
-                f"  表示言語: {_language_label(values['language'] or 'ja', lang='ja')}",
-                f"  提供元（AI接続元）: {_provider_label(provider, lang='ja')}",
-                f"  モデル（AIモデル）: {_safe(values.get('model_preference') or 'auto')}",
-                f"  ローカルLLM（PC内モデル）: {_state_label(local_state, lang='ja')}",
-                f"  承認（危険操作）: {_approval_label(values['approval_mode'], lang='ja')}",
-                f"  ファイルアクセス（ファイル読み取り）: {_file_access_label(values['file_access_mode'], lang='ja')}",
-                f"  履歴記録（ローカル履歴）: {ledger}",
-                f"  ライブ接続（外部/ローカル実行）: {'オン（明示許可）' if live else 'オフ（初期値）'}",
-                f"  ネットワーク（外部通信）: {'オン（明示許可）' if values['network_enabled'] else 'オフ（初期値）'}",
-                f"  更新通知（ローカルmanifest確認）: {update_notice}",
-                "  認証: Google OAuthはドライラン契約のみ。本番ログインは未実装",
-                "  プライバシー: OpenAI共有トラフィックはオフ。非公開/ローカル内容は共有しません",
-                "  秘密情報（APIキーなど）: 保存しません",
-                "  ローカルパス（PC内の場所）: 出力しません",
-                "  操作方法: 番号で変える場合は /選択 <番号> <値> を使います",
-                "  ローカルLLM案内: /ローカルLLM",
-                "  認証/共有状態: /認証 または /プライバシー",
+                "カテゴリ",
+                "  1. 言語: " + _language_label(values["language"] or "ja", lang="ja") + "  /設定 言語",
+                "  2. 提供元: " + _provider_label(provider, lang="ja") + "  /設定 提供元",
+                "  3. モデル: " + _safe(values.get("model_preference") or "auto") + "  /設定 モデル",
+                "  4. 安全: 承認="
+                + _approval_label(values["approval_mode"], lang="ja")
+                + " / ファイル="
+                + _file_access_label(values["file_access_mode"], lang="ja")
+                + "  /設定 安全",
+                "  5. 記憶: ローカル優先 / local->cloud自動同期なし  /設定 記憶",
+                "  6. 更新: 通知=" + update_notice + " / 自動適用なし  /設定 更新",
+                "  7. 認証: Google OAuthドライラン契約のみ  /設定 認証",
+                "  8. プライバシー: 共有トラフィックオフ  /設定 プライバシー",
+                "",
+                "個別切替",
+                "  /選択 1 日本語|英語",
+                "  /選択 2 自動|モック|ローカル|OpenAI互換|アンソロピック|ジェミニ",
+                "  /選択 3 毎回確認|拒否",
+                "  /選択 4 ワークスペース内のみ|無効",
+                "  /選択 5 オン|オフ  （履歴記録）",
+                "  /選択 6 オン|オフ  （ライブ接続）",
+                "  /選択 7 オン|オフ  （ネットワーク）",
+                "  /選択 8 自動|llama3.1  （モデル）",
+                "  /選択 9 オン|オフ  （更新通知）",
+                "",
+                f"状態: ローカルLLM={_state_label(local_state, lang='ja')} / 履歴={ledger} / ライブ={'オン' if live else 'オフ'}",
+                "秘密情報（APIキーなど）は表示・保存しません。ローカルパスは出力しません。",
                 "",
             )
         )
     return "\n".join(
         (
             "Settings",
-            f"  language: {values['language'] or 'ja'}",
-            f"  provider: {provider}",
-            f"  model: {values.get('model_preference') or 'auto'}",
-            f"  local_llm: {local_state}",
-            f"  approval: {values['approval_mode']}",
-            f"  file_access: {values['file_access_mode']}",
-            f"  ledger: {ledger}",
-            f"  live_provider: {'on' if live else 'off'}",
-            f"  network: {'on' if values['network_enabled'] else 'off'}",
-            f"  update_notice: {update_notice}",
-            "  auth: Google OAuth dry-run contract only",
-            "  privacy: OpenAI shared traffic off / private content excluded",
-            "  secrets: not stored",
-            "  path: not printed",
-            "  numbered selection: /select 1 en, /select 2 mock, /select 8 llama3.1, /select 9 on",
+            "  Open one category instead of dumping every setting:",
+            "  /settings language",
+            "  /settings providers",
+            "  /settings models",
+            "  /settings safety",
+            "  /settings memory",
+            "  /settings update",
+            "  /settings auth",
+            "  /settings privacy",
+            f"  current: language={values['language'] or 'ja'} provider={provider} model={values.get('model_preference') or 'auto'} local_llm={local_state}",
+            f"  toggles: ledger={ledger} live={'on' if live else 'off'} network={'on' if values['network_enabled'] else 'off'} update_notice={update_notice}",
+            "  numbered fallback: /select 1 en, /select 2 mock, /select 8 llama3.1, /select 9 on",
+            "  secrets and local paths are not printed.",
+            "",
+        )
+    )
+
+
+def _settings_category_from_args(args: list[str]) -> str | None:
+    if not args:
+        return None
+    raw = " ".join(args).strip()
+    return SETTINGS_CATEGORY_ALIASES.get(raw) or SETTINGS_CATEGORY_ALIASES.get(raw.lower())
+
+
+def _format_settings_category(
+    category: str,
+    config: dict[str, object],
+    *,
+    provider: str,
+    live: bool,
+    lang: str,
+    provider_report: dict[str, Any] | None = None,
+) -> str:
+    if category == "back":
+        return _format_settings(config, provider=provider, live=live, lang=lang, provider_report=provider_report)
+    if category == "language":
+        return _format_settings_language(config, lang=lang)
+    if category == "providers":
+        return _format_providers(provider_report or {}, lang=lang)
+    if category == "models":
+        return _format_models(config, provider_report or {}, lang=lang)
+    if category == "safety":
+        return _format_safety(config, live=live, lang=lang)
+    if category == "update":
+        return _format_settings_update(config, lang=lang)
+    if category == "auth":
+        return _format_auth_status(config, lang=lang)
+    if category == "privacy":
+        return _format_privacy_status(config, lang=lang)
+    return _format_settings(config, provider=provider, live=live, lang=lang, provider_report=provider_report)
+
+
+def _format_settings_language(config: dict[str, object], *, lang: str) -> str:
+    values = build_config_report(config, exists=True)["config"]
+    if lang == "ja":
+        return "\n".join(
+            (
+                "設定: 言語",
+                f"  現在: {_language_label(values['language'] or 'ja', lang='ja')}",
+                "  選択肢:",
+                f"{_selector('ja', str(values['language'] or 'ja'))} 日本語",
+                f"{_selector('en', str(values['language'] or 'ja'))} 英語",
+                "  変更: /言語 日本語 または /選択 1 日本語",
+                "  戻る: /設定",
+                "",
+            )
+        )
+    return "\n".join(
+        (
+            "Settings: language",
+            f"  current: {values['language'] or 'ja'}",
+            "  choices: ja, en",
+            "  change: /language en or /select 1 en",
+            "  back: /settings",
+            "",
+        )
+    )
+
+
+def _format_settings_update(config: dict[str, object], *, lang: str) -> str:
+    values = build_config_report(config, exists=True)["config"]
+    enabled = bool(values.get("update_notice_enabled"))
+    if lang == "ja":
+        return "\n".join(
+            (
+                "設定: 更新",
+                f"  更新通知: {'オン' if enabled else 'オフ'}",
+                "  通常更新: 通知だけ。作業中は割り込まない",
+                "  セキュリティ更新: 警告だけ。自動適用しない",
+                "  クリティカル更新: 次回起動時に先に表示。基本のローカルmockチャットは止めない",
+                "  自動更新: なし",
+                "  強制サイレント更新: なし",
+                "  変更: /更新通知 オン|オフ または /選択 9 オン|オフ",
+                "  確認: /更新",
+                "  戻る: /設定",
+                "",
+            )
+        )
+    return "\n".join(
+        (
+            "Settings: update",
+            f"  update_notice: {'on' if enabled else 'off'}",
+            "  normal: notice only",
+            "  security: warning only, no interruption during active task",
+            "  critical: show first on next startup, basic local mock chat remains available",
+            "  auto_apply: off",
+            "  forced_silent_update: off",
+            "  change: /update-notice on|off or /select 9 on|off",
+            "  check: /update",
+            "  back: /settings",
             "",
         )
     )
@@ -1212,6 +1366,50 @@ def _format_privacy_status(config: dict[str, object], *, lang: str) -> str:
     )
 
 
+def _format_memory_status(report: dict[str, Any], *, lang: str) -> str:
+    counts = report.get("counts_by_scope") if isinstance(report.get("counts_by_scope"), dict) else {}
+    actions = report.get("actions_not_performed") if isinstance(report.get("actions_not_performed"), list) else []
+    if lang == "ja":
+        lines = [
+            "記憶",
+            f"  ローカル記憶: {'利用可能' if report.get('ok') else '利用不可'}",
+            f"  active件数: {_safe(report.get('record_count') or 0)}",
+            f"  local -> cloud自動同期: {'オン' if report.get('local_to_cloud_enabled_by_default') else 'オフ'}",
+            f"  cloud同期: {'オン' if report.get('cloud_sync_enabled') else 'オフ'}",
+            f"  raw prompt保存: {'オン' if report.get('raw_prompt_persisted') else 'オフ'}",
+            f"  local path出力: {'オン' if report.get('local_absolute_path_persisted') else 'オフ'}",
+            "  scope別:",
+        ]
+        for key in ("session", "local_private", "shared_preference", "project", "procedural", "cloud_account"):
+            lines.append(f"    - {key}: {_safe(counts.get(key, 0))}")
+        lines.extend(
+            [
+                "  試す: yonerai memory add \"note\" --scope local --pretty",
+                "  同期preview: yonerai memory sync preview --direction local-to-cloud --pretty",
+                "  実行しないこと:",
+            ]
+        )
+        for action in actions[:8]:
+            lines.append(f"    - {_safe(action)}")
+        lines.append("")
+        return "\n".join(lines)
+    return "\n".join(
+        (
+            "Memory",
+            f"  available: {bool(report.get('ok'))}",
+            f"  active_records: {_safe(report.get('record_count') or 0)}",
+            f"  local_to_cloud_enabled_by_default: {bool(report.get('local_to_cloud_enabled_by_default'))}",
+            f"  cloud_sync_enabled: {bool(report.get('cloud_sync_enabled'))}",
+            f"  raw_prompt_persisted: {bool(report.get('raw_prompt_persisted'))}",
+            f"  local_absolute_path_persisted: {bool(report.get('local_absolute_path_persisted'))}",
+            "  try: yonerai memory add \"note\" --scope local --pretty",
+            "  sync preview: yonerai memory sync preview --direction local-to-cloud --pretty",
+            "  actions_not_performed: " + ", ".join(_safe(action) for action in actions[:8]),
+            "",
+        )
+    )
+
+
 def _format_sync_status(report: dict[str, Any], *, lang: str) -> str:
     cloud_link = report.get("cloud_link") if isinstance(report.get("cloud_link"), dict) else {}
     directions = report.get("directions") if isinstance(report.get("directions"), dict) else {}
@@ -1260,6 +1458,12 @@ def _format_sync_unavailable(lang: str) -> str:
     return "Sync status is unavailable in this build.\n"
 
 
+def _format_memory_unavailable(lang: str) -> str:
+    if lang == "ja":
+        return "記憶状態はこのビルドでは利用できません。\n"
+    return "Memory status is unavailable in this build.\n"
+
+
 def _format_evolve_status(report: dict[str, Any], *, lang: str) -> str:
     actions = report.get("actions_not_performed") if isinstance(report.get("actions_not_performed"), list) else []
     policy = report.get("input_policy") if isinstance(report.get("input_policy"), dict) else {}
@@ -1306,6 +1510,7 @@ def _format_evolve_unavailable(lang: str) -> str:
 def _format_update_check(report: dict[str, Any], *, lang: str) -> str:
     artifact = report.get("artifact_status") if isinstance(report.get("artifact_status"), dict) else {}
     signature = report.get("signature_status") if isinstance(report.get("signature_status"), dict) else {}
+    policy = report.get("update_policy") if isinstance(report.get("update_policy"), dict) else {}
     actions = report.get("actions_not_performed") if isinstance(report.get("actions_not_performed"), list) else []
     warnings = report.get("warnings") if isinstance(report.get("warnings"), list) else []
     if lang == "ja":
@@ -1325,8 +1530,13 @@ def _format_update_check(report: dict[str, Any], *, lang: str) -> str:
             f"  Quick install: {_safe(report.get('quick_install_command') or '不明')}",
             f"  GitHub fallback: {_safe(report.get('github_install_fallback_command') or '不明')}",
             f"  Verified install: {_safe(report.get('verified_install_page') or 'https://yonerai.com/install')}",
+            f"  セキュリティ更新: {'あり' if report.get('security_update') else 'なし'}",
+            f"  クリティカル更新: {'あり' if report.get('critical_update') else 'なし'}",
             f"  強制更新: {'あり' if report.get('forced_update_enabled') else 'なし'}",
             f"  自動適用: {'あり' if report.get('auto_update_apply_enabled') else 'なし'}",
+            f"  作業中の扱い: {_safe(policy.get('active_session_behavior') or 'warn_only_do_not_interrupt')}",
+            f"  次回起動時: {_safe(policy.get('next_startup_behavior') or 'show_update_screen_first_only_if_critical')}",
+            f"  基本ローカルmockチャット: {'利用可' if policy.get('basic_local_mock_chat_allowed', True) else '制限'}",
             "  実行しなかったこと:",
         ]
         for action in actions:
@@ -1354,8 +1564,13 @@ def _format_update_check(report: dict[str, Any], *, lang: str) -> str:
             f"  quick_install_command: {_safe(report.get('quick_install_command') or 'unknown')}",
             f"  github_install_fallback_command: {_safe(report.get('github_install_fallback_command') or 'unknown')}",
             f"  verified_install_page: {_safe(report.get('verified_install_page') or 'https://yonerai.com/install')}",
+            f"  security_update: {bool(report.get('security_update'))}",
+            f"  critical_update: {bool(report.get('critical_update'))}",
             f"  forced_update_enabled: {bool(report.get('forced_update_enabled'))}",
             f"  auto_update_apply_enabled: {bool(report.get('auto_update_apply_enabled'))}",
+            f"  active_session_behavior: {_safe(policy.get('active_session_behavior') or 'warn_only_do_not_interrupt')}",
+            f"  next_startup_behavior: {_safe(policy.get('next_startup_behavior') or 'show_update_screen_first_only_if_critical')}",
+            f"  basic_local_mock_chat_allowed: {bool(policy.get('basic_local_mock_chat_allowed', True))}",
             "  actions_not_performed: " + ", ".join(_safe(action) for action in actions),
             "",
         )
