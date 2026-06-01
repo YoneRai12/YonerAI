@@ -2,6 +2,25 @@
 
 See also: `docs/RELEASE_NOTES.md` (curated summary, v5.0.0 -> current).
 
+## v0.12.0-alpha.2 (2026-06-01) - Memory UX and Update Notice
+- Published the recovered memory UX work through PR #488: `/記憶`,
+  `/メモリ`, `/memory`, focused `/設定 記憶`, memory add/list/forget/sync
+  preview actions, and `memory_used` id-only display in TUI/runtime surfaces.
+- Kept memory status/settings metadata-only so they show counts and boundary
+  flags without printing memory contents; explicit list remains the redacted
+  memory-summary path.
+- Honored memory settings across TUI and standalone CLI: memory-off blocks
+  TUI writes, and `memory_cloud_preview off` blocks cloud-to-local preview.
+- Made update notices non-blocking and session-aware: startup checks are reused
+  after tasks, and disabling update notices during a session takes effect
+  immediately.
+- Hardened local memory path redaction for additional Unix-style local roots
+  while avoiding slash-command/API false positives.
+- Included current-main security and installer trust-root fixes from PRs #486
+  and #487 without enabling production cloud memory, Google login, OpenAI
+  shared traffic, live Discord, arbitrary shell/file/tool execution, production
+  signing/trust, npm/winget, or production installer behavior.
+
 ## v0.12.0-alpha.1 (2026-06-01) - Memory Boundary Runtime
 - Added the first public local memory boundary runtime with `MemoryRecord`,
   local JSONL storage, redacted summaries, local-private defaults, forget/delete

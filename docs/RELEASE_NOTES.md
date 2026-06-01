@@ -2,6 +2,32 @@
 
 This page is a public-safe index of current release notes and progress checkpoints.
 
+## v0.12.0-alpha.2 Memory UX and Update Notice
+
+- GitHub pre-release target: `v0.12.0-alpha.2`.
+- Release title: `2026.06.01 - YonerAI v0.12.0-alpha.2 Memory UX and Update Notice`.
+- Release date: `2026-06-01`.
+- Public release body: `docs/releases/0.12.0-alpha.2.md`.
+- Status: prerelease memory UX and update notice hardening after
+  v0.12.0-alpha.1.
+- What users can try now: `yonerai memory status --pretty --lang ja`,
+  `yonerai memory add "..." --scope local --pretty --lang ja`,
+  `yonerai memory list --scope local --pretty --lang ja`,
+  `yonerai memory forget <memory_id> --pretty --lang ja`,
+  `yonerai memory sync preview --direction cloud-to-local --pretty --lang ja`,
+  `yonerai memory sync preview --direction local-to-cloud --pretty --lang ja`,
+  `yonerai config set memory_enabled off`,
+  `yonerai config set memory_cloud_preview off`, TUI `/記憶`, `/メモリ`,
+  `/memory`, `/設定 記憶`, and `/更新`.
+- Boundary: local memory UX and preview-contract hardening only; no production
+  cloud memory, no production Oracle/cloud runtime, no production Google login,
+  no OpenAI shared traffic runtime, no live Discord, no automatic local-to-cloud
+  private upload, no deploy/public tunnel, no arbitrary shell/file/tool
+  execution, no production signing/trust store, and no production network
+  installer.
+- Primary traceability range: `v0.12.0-alpha.1..v0.12.0-alpha.2`; PRs #486,
+  #487, and #488.
+
 ## v0.12.0-alpha.1 Memory Boundary Runtime
 
 - GitHub pre-release target: `v0.12.0-alpha.1`.
