@@ -171,6 +171,19 @@ def _build_doctor_report(*, command: str = "yonerai doctor") -> dict[str, Any]:
         manifest_report = verify_manifest(load_manifest_file(str(manifest_path)))
     except ManifestError as exc:
         manifest_report = {"ok": False, "errors": [str(exc)]}
+    try:
+        from yonerai_cli.install_planner import build_install_update_status
+
+        install_update = build_install_update_status()
+    except Exception:
+        install_update = {
+            "latest_stable": "unknown",
+            "quick_install_command": "unavailable",
+            "github_install_fallback_command": "unavailable",
+            "verified_install_page": "https://yonerai.com/install",
+            "forced_update_enabled": False,
+            "auto_update_apply_enabled": False,
+        }
     _prepare_trusted_cli_import_paths()
     try:
         from ora_core.providers import build_provider_setup_report
@@ -306,6 +319,7 @@ def _build_doctor_report(*, command: str = "yonerai doctor") -> dict[str, Any]:
             "signature_state": manifest_report.get("signature_state"),
             "non_production_reason": manifest_report.get("non_production_reason"),
         },
+        "install_update": install_update,
         "credentials": {
             TOKEN_ENV: "present_redacted" if os.getenv(TOKEN_ENV) else "absent",
             "required_for_demo": False,
@@ -987,6 +1001,7 @@ def _doctor_sections_en(report: dict[str, Any]) -> tuple[CliSection, ...]:
     relay_rows = _relay_status_rows(report, lang="en")
     oracle_rows = _oracle_stub_rows(report)
     auto_runtime_rows = _auto_runtime_rows(report)
+    install_update_rows = _install_update_rows(report, lang="en")
     return (
         CliSection(
             "Setup",
@@ -1027,6 +1042,7 @@ def _doctor_sections_en(report: dict[str, Any]) -> tuple[CliSection, ...]:
         CliSection("Auto runtime", auto_runtime_rows),
         CliSection("Provider runtime", provider_rows),
         CliSection("Provider runtime E2E fixtures", provider_e2e_rows),
+        CliSection("Install/update", install_update_rows),
         CliSection(
             "Boundaries",
             (
@@ -1057,6 +1073,7 @@ def _doctor_sections_ja(report: dict[str, Any]) -> tuple[CliSection, ...]:
     relay_rows = _relay_status_rows(report, lang="ja")
     oracle_rows = _oracle_stub_rows(report)
     auto_runtime_rows = _auto_runtime_rows(report)
+    install_update_rows = _install_update_rows(report, lang="ja")
     return (
         CliSection(
             "セットアップ",
@@ -1097,6 +1114,7 @@ def _doctor_sections_ja(report: dict[str, Any]) -> tuple[CliSection, ...]:
         CliSection("Auto runtime", auto_runtime_rows),
         CliSection("プロバイダー実行環境", provider_rows),
         CliSection("プロバイダー実行環境 E2E フィクスチャ", provider_e2e_rows),
+        CliSection("インストール/更新", install_update_rows),
         CliSection(
             "境界",
             (
@@ -1110,6 +1128,48 @@ def _doctor_sections_ja(report: dict[str, Any]) -> tuple[CliSection, ...]:
                 CliRow("PATH変更", "なし" if not boundaries["path_mutation"] else "あり", "ok" if not boundaries["path_mutation"] else "fail"),
             ),
         ),
+    )
+
+
+def _install_update_rows(report: dict[str, Any], *, lang: str = "en") -> tuple[CliRow, ...]:
+    install_update = report.get("install_update")
+    if not isinstance(install_update, dict):
+        unavailable = "利用不可" if lang == "ja" else "unavailable"
+        return (CliRow("status", unavailable, "warn"),)
+    if lang == "ja":
+        return (
+            CliRow("最新stable", install_update.get("latest_stable", "unknown"), "ok"),
+            CliRow("Quick install", install_update.get("quick_install_command", "unavailable"), "ok"),
+            CliRow("GitHub fallback", install_update.get("github_install_fallback_command", "unavailable"), "ok"),
+            CliRow("Verified install", install_update.get("verified_install_page", "unavailable"), "ok"),
+            CliRow(
+                "強制更新",
+                "なし" if not install_update.get("forced_update_enabled") else "あり",
+                "ok" if not install_update.get("forced_update_enabled") else "fail",
+            ),
+            CliRow(
+                "自動適用",
+                "なし" if not install_update.get("auto_update_apply_enabled") else "あり",
+                "ok" if not install_update.get("auto_update_apply_enabled") else "fail",
+            ),
+            CliRow("本番インストーラー", "未完了", "warn"),
+        )
+    return (
+        CliRow("latest_stable", install_update.get("latest_stable", "unknown"), "ok"),
+        CliRow("quick_install", install_update.get("quick_install_command", "unavailable"), "ok"),
+        CliRow("github_fallback", install_update.get("github_install_fallback_command", "unavailable"), "ok"),
+        CliRow("verified_install", install_update.get("verified_install_page", "unavailable"), "ok"),
+        CliRow(
+            "forced_update_enabled",
+            bool(install_update.get("forced_update_enabled")),
+            "fail" if install_update.get("forced_update_enabled") else "ok",
+        ),
+        CliRow(
+            "auto_update_apply_enabled",
+            bool(install_update.get("auto_update_apply_enabled")),
+            "fail" if install_update.get("auto_update_apply_enabled") else "ok",
+        ),
+        CliRow("production_installer", "not ready", "warn"),
     )
 
 
@@ -2862,6 +2922,8 @@ def _print_update_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -
                 CliRow("dry_run", report["dry_run"], "ok" if report["dry_run"] else "fail"),
                 CliRow("current_version", report["current_version"], "ok"),
                 CliRow("target_version", report["target_version"], "ok" if report["target_version"] else "fail"),
+                CliRow("latest_stable", report.get("latest_stable", "unknown"), "ok"),
+                CliRow("channel", report.get("channel", "unknown"), "ok"),
                 CliRow("update_available", report["update_available"], "warn" if report["update_available"] else "ok"),
                 CliRow("version_comparison", report["version_comparison"], _update_version_comparison_level(report)),
                 CliRow("rollback_plan_available", report["rollback_plan_available"], "ok" if report["rollback_plan_available"] else "warn"),
@@ -2874,7 +2936,26 @@ def _print_update_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -
                 CliRow("install_ready", manifest["install_ready"], "ok" if manifest["install_ready"] else "warn"),
                 CliRow("artifact_count", manifest["artifact_count"], "ok" if manifest["artifact_count"] else "fail"),
                 CliRow("selected_artifact", selected.get("artifact_id", "none"), "ok" if selected else "fail"),
+                CliRow("artifact_filename", selected.get("actual_filename", "none"), "ok" if selected else "fail"),
                 CliRow("sha256_present", report["sha256_present"], "ok" if report["sha256_present"] else "fail"),
+            ),
+        ),
+        CliSection(
+            "Install/update UX",
+            (
+                CliRow("quick_install_command", report.get("quick_install_command", "unavailable"), "ok"),
+                CliRow("github_install_fallback_command", report.get("github_install_fallback_command", "unavailable"), "ok"),
+                CliRow("verified_install_page", report.get("verified_install_page", "unavailable"), "ok"),
+                CliRow(
+                    "forced_update_enabled",
+                    bool(report.get("forced_update_enabled")),
+                    "fail" if report.get("forced_update_enabled") else "ok",
+                ),
+                CliRow(
+                    "auto_update_apply_enabled",
+                    bool(report.get("auto_update_apply_enabled")),
+                    "fail" if report.get("auto_update_apply_enabled") else "ok",
+                ),
             ),
         ),
         CliSection(
@@ -2926,6 +3007,8 @@ def _print_update_check_pretty(report: dict[str, Any], *, color: ColorMode = "au
                 CliRow("dry_run", report["dry_run"], "ok" if report["dry_run"] else "fail"),
                 CliRow("current_version", report["current_version"], "ok"),
                 CliRow("latest_manifest_version", report["latest_manifest_version"], "ok"),
+                CliRow("latest_stable", report.get("latest_stable", "unknown"), "ok"),
+                CliRow("channel", report.get("channel", "unknown"), "ok"),
                 CliRow("update_available", report["update_available"], "warn" if report["update_available"] else "ok"),
                 CliRow("version_comparison", report["version_comparison"], _update_version_comparison_level(report)),
                 CliRow("next_safe_command", report["next_safe_command"], "ok"),
@@ -2935,8 +3018,27 @@ def _print_update_check_pretty(report: dict[str, Any], *, color: ColorMode = "au
             "Artifact",
             (
                 CliRow("selected_artifact", artifact.get("selected_artifact") or "none", "ok" if artifact.get("selected_artifact") else "warn"),
+                CliRow("artifact_filename", artifact.get("actual_filename") or "none", "ok" if artifact.get("actual_filename") else "warn"),
                 CliRow("filename_matches", artifact.get("filename_matches"), "ok" if artifact.get("filename_matches") else "fail"),
                 CliRow("sha256_present", artifact.get("sha256_present"), "ok" if artifact.get("sha256_present") else "fail"),
+            ),
+        ),
+        CliSection(
+            "Install/update UX",
+            (
+                CliRow("quick_install_command", report.get("quick_install_command", "unavailable"), "ok"),
+                CliRow("github_install_fallback_command", report.get("github_install_fallback_command", "unavailable"), "ok"),
+                CliRow("verified_install_page", report.get("verified_install_page", "unavailable"), "ok"),
+                CliRow(
+                    "forced_update_enabled",
+                    bool(report.get("forced_update_enabled")),
+                    "fail" if report.get("forced_update_enabled") else "ok",
+                ),
+                CliRow(
+                    "auto_update_apply_enabled",
+                    bool(report.get("auto_update_apply_enabled")),
+                    "fail" if report.get("auto_update_apply_enabled") else "ok",
+                ),
             ),
         ),
         CliSection(
