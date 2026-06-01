@@ -3664,10 +3664,11 @@ def _print_evolve_pretty(report: dict[str, Any], *, lang: str = "ja", color: Col
             if not isinstance(item, dict):
                 continue
             signal = item.get("signal") if isinstance(item.get("signal"), dict) else {}
+            surface = item.get("surface") or signal.get("surface") or "unknown"
             proposal_rows.append(
                 CliRow(
                     str(item.get("proposal_id") or signal.get("feature_id") or "proposal"),
-                    f"{item.get('approval_state') or 'unknown'} / {signal.get('surface') or 'unknown'}",
+                    f"{item.get('approval_state') or 'unknown'} / {surface}",
                     "warn" if item.get("approval_state") == "needs_owner" else "ok",
                 )
             )
