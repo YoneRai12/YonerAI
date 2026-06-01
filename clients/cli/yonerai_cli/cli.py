@@ -3215,7 +3215,15 @@ def _build_memory_report(args: argparse.Namespace) -> dict[str, Any]:
                 "raw_prompt_persisted": False,
             }
         if args.memory_command == "status":
-            return store.status()
+            report = store.status()
+            recent_records = [record.to_public_dict() for record in store.list()[:5]]
+            report["recent_records"] = recent_records
+            report["recent_count"] = len(recent_records)
+            report["sync_previews"] = {
+                "cloud_to_local": build_memory_sync_preview(store.list(), direction="cloud_to_local"),
+                "local_to_cloud": build_memory_sync_preview(store.list(), direction="local_to_cloud"),
+            }
+            return report
         if args.memory_command == "list":
             records = [record.to_public_dict() for record in store.list(scope=scope)]
             return {
@@ -3921,16 +3929,29 @@ def _interactive_callbacks():
         evolve_status=_interactive_evolve_status,
         sync_status=_interactive_sync_status,
         memory_status=_interactive_memory_status,
+        memory_action=_interactive_memory_action,
     )
 
 
-def _interactive_ask_auto(task: str, provider: str, live: bool, ledger_path: str | None, _lang: str) -> dict[str, Any]:
+def _interactive_ask_auto(
+    task: str,
+    provider: str,
+    live: bool,
+    ledger_path: str | None,
+    _lang: str,
+    memory_store_path: str | None = None,
+) -> dict[str, Any]:
+    if memory_store_path == "__default__":
+        _prepare_trusted_cli_import_paths()
+        from ora_core.memory import default_memory_store_path
+
+        memory_store_path = str(default_memory_store_path())
     args = argparse.Namespace(
         task=[task],
         provider=provider,
         live=live,
         ledger_path=ledger_path,
-        memory_store=None,
+        memory_store=memory_store_path,
         file=None,
         workspace=None,
         file_max_bytes=65536,
@@ -3961,6 +3982,37 @@ def _interactive_evolve_status(_lang: str) -> dict[str, Any]:
 def _interactive_memory_status(_lang: str) -> dict[str, Any]:
     args = argparse.Namespace(memory_command="status", store=None)
     return _build_memory_report(args)
+
+
+def _interactive_memory_action(action: str, values: list[str], _lang: str, default_scope: str | None) -> dict[str, Any]:
+    if action == "add":
+        text = values[0] if values else ""
+        args = argparse.Namespace(
+            memory_command="add",
+            text=[text],
+            store=None,
+            scope=default_scope or "local_private",
+            confirm_local=True,
+            tag=[],
+        )
+        return _build_memory_report(args)
+    if action == "list":
+        args = argparse.Namespace(memory_command="list", store=None, scope=None)
+        return _build_memory_report(args)
+    if action == "forget":
+        args = argparse.Namespace(memory_command="forget", store=None, memory_id=values[0] if values else "")
+        return _build_memory_report(args)
+    if action == "sync-preview":
+        direction = (values[0] if values else "cloud-to-local").replace("_", "-")
+        args = argparse.Namespace(
+            memory_command="sync",
+            memory_sync_command="preview",
+            store=None,
+            direction=direction,
+            approve=False,
+        )
+        return _build_memory_report(args)
+    raise CliError("unknown interactive memory action", exit_code=2)
 
 
 def _interactive_sync_status(_lang: str) -> dict[str, Any]:
@@ -4047,6 +4099,15 @@ def build_parser() -> argparse.ArgumentParser:
             "network",
             "ledger",
             "history",
+            "memory",
+            "memory_enabled",
+            "memory_scope",
+            "memory_default_scope",
+            "memory_cloud_preview",
+            "memory_cloud_to_local_preview",
+            "memory_self_evolution_signal",
+            "self_evolution_memory",
+            "memory_local_to_cloud_approval_required",
             "google_auth",
             "auth_google",
             "openai_data_sharing",

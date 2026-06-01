@@ -121,9 +121,12 @@ def test_cli_config_show_and_set_do_not_print_paths_or_store_secrets(tmp_path: P
     assert cli.main(["config", "show", "--json"]) == 0
     report = json.loads(capsys.readouterr().out)
 
-    assert report["schema_version"] == "yonerai-cli-config/v0.5"
+    assert report["schema_version"] == "yonerai-cli-config/v0.6"
     assert report["secrets_supported"] is False
     assert report["path_persisted_in_output"] is False
+    assert report["config"]["memory_enabled"] is True
+    assert report["config"]["memory_default_scope"] == "local_private"
+    assert report["config"]["memory_local_to_cloud_approval_required"] is True
     assert str(tmp_path) not in json.dumps(report)
 
     assert cli.main(["config", "set", "language", "ja", "--json"]) == 0
@@ -141,6 +144,15 @@ def test_cli_config_show_and_set_do_not_print_paths_or_store_secrets(tmp_path: P
     assert cli.main(["config", "set", "openai_data_sharing", "off", "--json"]) == 0
     privacy_flag = json.loads(capsys.readouterr().out)
     assert privacy_flag["config"]["openai_data_sharing_enabled"] is False
+
+    assert cli.main(["config", "set", "memory_scope", "procedural", "--json"]) == 0
+    memory_scope = json.loads(capsys.readouterr().out)
+    assert memory_scope["config"]["memory_default_scope"] == "procedural"
+
+    assert cli.main(["config", "set", "memory_local_to_cloud_approval_required", "off", "--json"]) == 2
+    rejected = capsys.readouterr()
+    assert "cannot be disabled" in rejected.err
+    assert "Traceback" not in rejected.err
 
 
 def test_cli_config_write_failure_is_controlled(tmp_path: Path, monkeypatch, capsys) -> None:
@@ -425,6 +437,84 @@ def test_chat_memory_screen_is_available_in_japanese(tmp_path: Path, monkeypatch
     assert str(tmp_path) not in output
 
 
+def test_chat_memory_actions_are_available_from_interactive_cli(tmp_path: Path, monkeypatch, capsys) -> None:
+    from ora_core.memory import LocalMemoryStore
+    from yonerai_cli import cli
+
+    _clear_provider_env(monkeypatch)
+    config_path = tmp_path / "cli-config.json"
+    memory_path = tmp_path / "memory.jsonl"
+    existing = LocalMemoryStore(memory_path).add("prefer short local replies", scope="procedural")
+    monkeypatch.setenv("YONERAI_MEMORY_STORE_PATH", str(memory_path))
+    monkeypatch.setattr(
+        sys,
+        "stdin",
+        _PlainStringIO(
+            f"/memory list\n/memory add remember safe local preference\n/memory sync preview local-to-cloud\n"
+            f"/memory forget {existing.id}\n/memory list\n/quit\n"
+        ),
+    )
+
+    assert cli.main(["chat", "--script", "--lang", "ja", "--config-path", str(config_path), "--color", "never"]) == 0
+    output = capsys.readouterr().out
+
+    assert existing.id in output
+    assert "memory_id" in output
+    assert "remember safe local preference" in output
+    assert "local-to-cloud" in output
+    assert "sync_performed" in output
+    assert "cloud" in output
+    assert str(tmp_path) not in output
+
+
+def test_chat_memory_settings_can_be_changed_individually(tmp_path: Path, monkeypatch, capsys) -> None:
+    from yonerai_cli import cli
+
+    _clear_provider_env(monkeypatch)
+    config_path = tmp_path / "cli-config.json"
+    monkeypatch.setattr(
+        sys,
+        "stdin",
+        _PlainStringIO(
+            "/settings memory off\n/settings memory scope procedural\n/settings memory cloud-preview off\n"
+            "/settings memory self-evolution on\n/settings memory local-to-cloud off\n/quit\n"
+        ),
+    )
+
+    assert cli.main(["chat", "--script", "--lang", "ja", "--config-path", str(config_path), "--color", "never"]) == 0
+    output = capsys.readouterr().out
+    stored = json.loads(config_path.read_text(encoding="utf-8"))
+
+    assert stored["memory_enabled"] is False
+    assert stored["memory_default_scope"] == "procedural"
+    assert stored["memory_cloud_to_local_preview_enabled"] is False
+    assert stored["memory_self_evolution_signal_enabled"] is True
+    assert stored["memory_local_to_cloud_approval_required"] is True
+    assert "local -> cloud" in output
+    assert "public runtime" in output
+    assert str(tmp_path) not in output
+
+
+def test_chat_ask_auto_displays_memory_used_ids_without_raw_memory(tmp_path: Path, monkeypatch, capsys) -> None:
+    from ora_core.memory import LocalMemoryStore
+    from yonerai_cli import cli
+
+    _clear_provider_env(monkeypatch)
+    config_path = tmp_path / "cli-config.json"
+    memory_path = tmp_path / "memory.jsonl"
+    memory = LocalMemoryStore(memory_path).add("prefer concise private answer", scope="procedural")
+    monkeypatch.setenv("YONERAI_MEMORY_STORE_PATH", str(memory_path))
+    monkeypatch.setattr(sys, "stdin", _PlainStringIO("hello\n/quit\n"))
+
+    assert cli.main(["chat", "--script", "--lang", "ja", "--config-path", str(config_path), "--color", "never"]) == 0
+    output = capsys.readouterr().out
+
+    assert "memory_used=" in output
+    assert memory.id in output
+    assert "prefer concise private answer" not in output
+    assert str(tmp_path) not in output
+
+
 def test_chat_japanese_commands_and_values_are_accepted(tmp_path: Path, monkeypatch, capsys) -> None:
     from yonerai_cli import cli
 
@@ -526,7 +616,9 @@ def test_chat_settings_category_screens_are_individual_and_japanese(tmp_path: Pa
     assert "設定: 言語" in output
     assert "安全設定" in output
     assert "記憶" in output
-    assert "local -> cloud自動同期: オフ" in output
+    assert "local -> cloud" in output
+    assert "承認必須" in output
+    assert "自動同期しません" in output
     assert "設定: 更新" in output
     assert "通常更新: 通知だけ" in output
     assert "クリティカル更新" in output
@@ -676,6 +768,72 @@ def test_tui_empty_prompt_does_not_exit_session(tmp_path: Path, monkeypatch) -> 
 
     assert rc == 0
     assert "Goodbye" in stdout.getvalue()
+
+
+def test_startup_update_notice_is_non_blocking_and_repeated_after_task(tmp_path: Path) -> None:
+    from yonerai_cli.config import DEFAULT_CONFIG, save_cli_config
+    from yonerai_cli.interactive import InteractiveCallbacks, InteractiveOptions, run_interactive_cli
+
+    config_path = tmp_path / "cli-config.json"
+    config = dict(DEFAULT_CONFIG)
+    config["language"] = "en"
+    config["update_notice_enabled"] = True
+    save_cli_config(config, config_path)
+    asked: list[str] = []
+
+    def providers() -> dict[str, Any]:
+        return {"providers": []}
+
+    def ask_auto(task: str, provider: str, live: bool, ledger_path: str | None, lang: str) -> dict[str, Any]:
+        asked.append(task)
+        return {
+            "ok": True,
+            "run": {"id": "run_update_notice"},
+            "response": {"output_text": "ok"},
+            "auto": {"provider": provider, "route": "instant_local"},
+            "live_call_performed": live,
+            "ledger": {"path": ledger_path, "enabled": bool(ledger_path)},
+        }
+
+    def runs_list(*_args: Any) -> dict[str, Any]:
+        return {"runs": []}
+
+    def runs_show(*_args: Any) -> dict[str, Any]:
+        return {"ok": False}
+
+    def update_check(*_args: Any) -> dict[str, Any]:
+        return {
+            "update_available": True,
+            "current_version": "0.6.4",
+            "latest_stable": "0.6.5",
+            "critical_update": True,
+            "update_policy": {"active_session_behavior": "warn_only_do_not_interrupt"},
+            "next_safe_command": "yonerai update check --pretty",
+        }
+
+    stdout = _PlainStringIO()
+    rc = run_interactive_cli(
+        InteractiveOptions(config_path=str(config_path), lang="en", script=True, color="never"),
+        InteractiveCallbacks(
+            providers=providers,
+            ask_auto=ask_auto,
+            runs_list=runs_list,
+            runs_show=runs_show,
+            update_check=update_check,
+        ),
+        stdin=_PlainStringIO("hello\n/quit\n"),
+        stdout=stdout,
+    )
+    output = stdout.getvalue()
+
+    assert rc == 0
+    assert asked == ["hello"]
+    assert "Startup update notice" in output
+    assert "Post-task update notice" in output
+    assert "critical_update: True" in output
+    assert "no auto-apply" in output
+    assert "local mock chat remains available" in output
+    assert str(tmp_path) not in output
 
 
 def test_network_off_forces_live_off_in_chat_session(tmp_path: Path, monkeypatch, capsys) -> None:
