@@ -217,6 +217,39 @@ def test_local_path_memory_is_local_only_and_never_syncs(tmp_path: Path) -> None
     assert preview["decision"]["reason"] == "secret_like_or_local_only_memory_never_syncs"
 
 
+def test_unix_local_path_memory_roots_are_redacted_without_slash_command_false_positive(tmp_path: Path) -> None:
+    _prepare_paths()
+    from ora_core.memory import LocalMemoryStore, build_memory_sync_preview
+
+    unix_paths = (
+        "/workspace/YonerAI/.env",
+        "/opt/app/secret.txt",
+        "/mnt/c/Users/person/private.txt",
+        "/srv/data/key",
+    )
+    for index, local_path in enumerate(unix_paths):
+        store = LocalMemoryStore(tmp_path / f"memory-{index}.jsonl")
+        record = store.add(f"review {local_path} later", scope="shared_preference")
+        preview = build_memory_sync_preview(store.list(), direction="local_to_cloud", explicit_approval=True)
+        serialized = json.dumps(record.to_public_dict(), ensure_ascii=False)
+
+        assert record.sensitivity == "local_only"
+        assert record.sync_policy == "never_sync"
+        assert local_path not in serialized
+        assert "[local_path_redacted]" in serialized
+        assert record.to_public_dict()["local_absolute_path_persisted"] is False
+        assert preview["decision"]["state"] == "blocked"
+        assert preview["decision"]["reason"] == "secret_like_or_local_only_memory_never_syncs"
+
+    command_store = LocalMemoryStore(tmp_path / "command-memory.jsonl")
+    command_record = command_store.add("remember /help and /api/v1/status routes", scope="shared_preference")
+    command_serialized = json.dumps(command_record.to_public_dict(), ensure_ascii=False)
+
+    assert command_record.sensitivity != "local_only"
+    assert "/help" in command_serialized
+    assert "/api/v1/status" in command_serialized
+
+
 def test_memory_sync_preview_honors_per_record_sync_policy(tmp_path: Path) -> None:
     _prepare_paths()
     from ora_core.memory import LocalMemoryStore, build_memory_sync_preview
