@@ -937,6 +937,94 @@ def test_permissions_dry_run_only_resets_read_only_approval(tmp_path: Path) -> N
     assert "approval: prompt" in output
 
 
+def test_permission_profiles_disable_live_and_network_execution(tmp_path: Path) -> None:
+    from yonerai_cli.config import load_cli_config
+    from yonerai_cli.interactive import InteractiveCallbacks, InteractiveOptions, run_interactive_cli
+
+    live_calls: list[bool] = []
+
+    def providers() -> dict[str, Any]:
+        return {"providers": []}
+
+    def ask_auto(_task: str, _provider: str, live: bool, *_args: Any) -> dict[str, Any]:
+        live_calls.append(live)
+        return {"ok": True, "response": {"output_text": "ok"}, "auto": {"route": "instant_local"}}
+
+    def runs_list(*_args: Any) -> dict[str, Any]:
+        return {"runs": []}
+
+    def runs_show(*_args: Any) -> dict[str, Any]:
+        return {"ok": False}
+
+    config_path = tmp_path / "cli-config.json"
+    stdout = _PlainStringIO()
+    rc = run_interactive_cli(
+        InteractiveOptions(config_path=str(config_path), lang="en", script=True, color="never"),
+        InteractiveCallbacks(providers=providers, ask_auto=ask_auto, runs_list=runs_list, runs_show=runs_show),
+        stdin=_PlainStringIO(
+            "/live on\n"
+            "/network on\n"
+            "/permissions read-only\n"
+            "public task after read-only\n"
+            "/permissions dry-run-only\n"
+            "public task after dry-run-only\n"
+            "/quit\n"
+        ),
+        stdout=stdout,
+    )
+
+    assert rc == 0
+    stored = load_cli_config(config_path)
+    assert stored["live_provider_enabled"] is False
+    assert stored["network_enabled"] is False
+    assert stored["agent_mode"] == "plan_readonly"
+    assert stored["approval_mode"] == "prompt"
+    assert live_calls == [False, False]
+
+
+def test_plan_review_commands_preview_task_without_execution(tmp_path: Path) -> None:
+    from yonerai_cli.interactive import InteractiveCallbacks, InteractiveOptions, run_interactive_cli
+
+    asked: list[str] = []
+
+    def providers() -> dict[str, Any]:
+        return {"providers": []}
+
+    def ask_auto(task: str, *_args: Any) -> dict[str, Any]:
+        asked.append(task)
+        return {"ok": True}
+
+    def runs_list(*_args: Any) -> dict[str, Any]:
+        return {"runs": []}
+
+    def runs_show(*_args: Any) -> dict[str, Any]:
+        return {"ok": False}
+
+    stdout = _PlainStringIO()
+    rc = run_interactive_cli(
+        InteractiveOptions(config_path=str(tmp_path / "cli-config.json"), lang="en", script=True, color="never"),
+        InteractiveCallbacks(providers=providers, ask_auto=ask_auto, runs_list=runs_list, runs_show=runs_show),
+        stdin=_PlainStringIO(
+            "/plan draft release gate\n"
+            "/review inspect safety boundary\n"
+            "@researcher gather public docs\n"
+            "/quit\n"
+        ),
+        stdout=stdout,
+    )
+    output = stdout.getvalue()
+
+    assert rc == 0
+    assert asked == []
+    assert "mention: @planner / planner" in output
+    assert "request_summary: draft release gate" in output
+    assert "mention: @reviewer / reviewer" in output
+    assert "request_summary: inspect safety boundary" in output
+    assert "mention: @researcher / researcher" in output
+    assert "request_summary: gather public docs" in output
+    assert str(tmp_path) not in output
+
+
 def test_startup_update_notice_is_non_blocking_and_repeated_after_task(tmp_path: Path) -> None:
     from yonerai_cli.config import DEFAULT_CONFIG, save_cli_config
     from yonerai_cli.interactive import InteractiveCallbacks, InteractiveOptions, run_interactive_cli
