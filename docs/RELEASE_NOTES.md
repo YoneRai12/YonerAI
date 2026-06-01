@@ -25,7 +25,7 @@ This page is a public-safe index of current release notes and progress checkpoin
   traffic runtime, no live Discord, no automatic local-to-cloud private upload,
   no deploy/public tunnel, no arbitrary shell/file/tool execution, no
   production signing/trust store, and no production network installer.
-- Primary traceability range: `v0.11.0-alpha.1..v0.12.0-alpha.1`; PR TBD.
+- Primary traceability range: `v0.11.0-alpha.1..v0.12.0-alpha.1`; PR #482.
 
 ## v0.11.0-alpha.1 Account Sync and Oracle API Foundation
 
