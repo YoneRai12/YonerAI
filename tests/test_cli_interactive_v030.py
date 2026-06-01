@@ -541,6 +541,29 @@ def test_chat_memory_settings_do_not_display_memory_contents(tmp_path: Path, mon
     assert str(tmp_path) not in output
 
 
+def test_chat_memory_off_blocks_memory_add(tmp_path: Path, monkeypatch, capsys) -> None:
+    from yonerai_cli import cli
+
+    _clear_provider_env(monkeypatch)
+    config_path = tmp_path / "cli-config.json"
+    memory_path = tmp_path / "memory.jsonl"
+    monkeypatch.setenv("YONERAI_MEMORY_STORE_PATH", str(memory_path))
+    monkeypatch.setattr(
+        sys,
+        "stdin",
+        _PlainStringIO("/settings memory off\n/memory add should not persist\n/memory list\n/quit\n"),
+    )
+
+    assert cli.main(["chat", "--script", "--lang", "en", "--config-path", str(config_path), "--color", "never"]) == 0
+    output = capsys.readouterr().out
+
+    assert "Memory is off" in output
+    assert "should not persist" not in output
+    assert "count: 0" in output
+    assert not memory_path.exists() or memory_path.read_text(encoding="utf-8") == ""
+    assert str(tmp_path) not in output
+
+
 def test_chat_ask_auto_displays_memory_used_ids_without_raw_memory(tmp_path: Path, monkeypatch, capsys) -> None:
     from ora_core.memory import LocalMemoryStore
     from yonerai_cli import cli

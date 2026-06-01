@@ -724,6 +724,8 @@ def _handle_memory_action(
     if action == "status":
         return _format_memory_status(callbacks.memory_status(lang) if callbacks.memory_status else {}, lang=lang)
     if action == "add":
+        if config.get("memory_enabled") is not True:
+            return _memory_write_disabled(lang)
         if not remaining:
             return _memory_action_help(lang)
         report = callbacks.memory_action("add", [" ".join(remaining)], lang, default_scope)
@@ -1779,6 +1781,26 @@ def _memory_cloud_preview_disabled(lang: str) -> str:
             "cloud-to-local memory preview is off",
             "  The preview callback was not executed.",
             "  Change: /settings memory cloud-preview on",
+            "",
+        )
+    )
+
+
+def _memory_write_disabled(lang: str) -> str:
+    if lang == "ja":
+        return "\n".join(
+            (
+                "記憶: オフ",
+                "  記憶が無効なため、新しい記憶は保存しません。",
+                "  変更: /設定 記憶 オン",
+                "",
+            )
+        )
+    return "\n".join(
+        (
+            "Memory is off",
+            "  New memory records are not saved while memory is disabled.",
+            "  Change: /settings memory on",
             "",
         )
     )
