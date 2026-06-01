@@ -210,6 +210,34 @@ def test_local_path_memory_is_local_only_and_never_syncs(tmp_path: Path) -> None
     assert preview["decision"]["reason"] == "secret_like_or_local_only_memory_never_syncs"
 
 
+def test_non_home_unix_local_paths_are_redacted_and_never_sync(tmp_path: Path) -> None:
+    _prepare_paths()
+    from ora_core.memory import LocalMemoryStore, build_memory_sync_preview
+
+    store = LocalMemoryStore(tmp_path / "memory.jsonl")
+    path_texts = (
+        "remember config at /workspace/YonerAI/.env for project",
+        "review /opt/app/secret.txt before deploy",
+        "inspect /mnt/c/Users/person/key.txt and /srv/data/key",
+    )
+    records = [store.add(text, scope="project") for text in path_texts]
+    exported = store.export()
+    serialized_export = json.dumps(exported, ensure_ascii=False)
+    preview = build_memory_sync_preview(store.list(), direction="local_to_cloud", explicit_approval=True)
+
+    assert all(record.sensitivity == "local_only" for record in records)
+    assert all(record.sync_policy == "never_sync" for record in records)
+    assert "/workspace/YonerAI/.env" not in serialized_export
+    assert "/opt/app/secret.txt" not in serialized_export
+    assert "/mnt/c/Users/person/key.txt" not in serialized_export
+    assert "/srv/data/key" not in serialized_export
+    assert serialized_export.count("[local_path_redacted]") >= len(path_texts)
+    assert exported["local_absolute_path_persisted"] is False
+    assert all(record["local_absolute_path_persisted"] is False for record in exported["records"])
+    assert preview["decision"]["state"] == "blocked"
+    assert preview["decision"]["reason"] == "secret_like_or_local_only_memory_never_syncs"
+
+
 def test_memory_sync_preview_honors_per_record_sync_policy(tmp_path: Path) -> None:
     _prepare_paths()
     from ora_core.memory import LocalMemoryStore, build_memory_sync_preview

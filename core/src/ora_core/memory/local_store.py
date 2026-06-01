@@ -61,7 +61,7 @@ VALID_SYNC_DIRECTIONS = {"cloud_to_local", "local_to_cloud"}
 
 LOCAL_PATH_PATTERNS = (
     re.compile(r"(?:(?<=^)|(?<=[\s\"'(<]))[A-Za-z]:[\\/][^\s\"'<>|]+", re.IGNORECASE),
-    re.compile(r"(?:(?<=^)|(?<=[\s\"'(<]))/(?:home|users|root|etc|var|tmp)/[^\s\"'<>|]+", re.IGNORECASE),
+    re.compile(r"(?:(?<=^)|(?<=[\s\"'(<]))/(?!/)[^\s\"'<>|]+", re.IGNORECASE),
 )
 SECRET_PATTERNS = (
     re.compile(r"\bsk-[A-Za-z0-9_-]{10,}\b"),
