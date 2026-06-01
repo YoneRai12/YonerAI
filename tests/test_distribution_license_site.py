@@ -212,8 +212,8 @@ def test_yonerai_site_install_content_is_copyable_and_non_executing() -> None:
         assert "Quick install" in text
         assert "Verified install" in text
         assert "install.yonerai.com" in text
-        assert "latest/download/install.ps1" in text
-        assert "install.ps1.sha256" in text
+        assert "raw.githubusercontent.com/YoneRai12/YonerAI/62ca47c792f7eae693f9346a8cc34fadc17b8c31/install.ps1" in text
+        assert "e2990bd0cbc35da35388f7338246ca6eaba557f4990606a25bd127c64bc1ba03" in text
         assert "yonerai.com" in text
         assert "github release" in lowered or "github releases" in lowered
 
@@ -237,12 +237,11 @@ def test_readmes_point_to_current_stable_manifest_and_license_policy() -> None:
         assert "PolyForm Noncommercial" in text
         assert "v0.6.3" in text
         assert "irm https://install.yonerai.com | iex" in text
-        assert "latest/download/install.ps1" in text
-        assert "install.ps1.sha256" in text
+        assert "raw.githubusercontent.com/YoneRai12/YonerAI/62ca47c792f7eae693f9346a8cc34fadc17b8c31/install.ps1" in text
+        assert "e2990bd0cbc35da35388f7338246ca6eaba557f4990606a25bd127c64bc1ba03" in text
         assert "YonerAI-0.6.0.zip" not in text
         assert "[IO.Path]" not in text
         assert ".Split()" not in text
-        assert "-split" in text
 
 
 def test_release_archive_policy_is_hash_stable_for_manifest_recording() -> None:
@@ -255,11 +254,11 @@ def test_release_archive_policy_is_hash_stable_for_manifest_recording() -> None:
     assert "ZIP_STORED" in release_script
 
 
-def test_release_workflow_uploads_manifest_separately_from_zip() -> None:
+def test_release_workflow_uploads_manifest_and_bootstrap_without_mutable_sidecar_trust() -> None:
     workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
 
     assert "${{ env.PRODUCT_NAME }}-${{ env.ORA_VERSION }}.zip" in workflow
     assert "releases/manifest.v${{ env.ORA_VERSION }}.json" in workflow
-    assert "install.ps1.sha256" in workflow
     assert "install.ps1" in workflow
-    assert "hashlib.sha256(script.read_bytes()).hexdigest()" in workflow
+    assert "install.ps1.sha256" not in workflow
+    assert "hashlib.sha256(script.read_bytes()).hexdigest()" not in workflow

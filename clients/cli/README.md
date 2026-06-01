@@ -22,41 +22,39 @@ explicit `-Channel alpha` flag.
 irm https://install.yonerai.com | iex
 ```
 
-Quick install runs a static Cloudflare wrapper from `install.yonerai.com`. The
-wrapper verifies the GitHub Release `install.ps1` sidecar hash before execution.
-The GitHub Release bootstrap then validates the manifest, channel, versioned
-artifact name, and release ZIP SHA256 before install-like steps. It does not
-fetch ZIPs, manifests, or sidecar hashes from `yonerai.com`, mutate PATH by
-default, request admin rights, edit the registry, install a service, store
-provider keys, or enable live providers.
+Quick install downloads a static Cloudflare wrapper from `install.yonerai.com`.
+That wrapper downloads the pinned `install.ps1` source from an immutable Git
+commit, verifies it against the SHA256 embedded in the wrapper, and refuses to
+run if the script differs. The current public `install.ps1` remains plan-only;
+it verifies local release metadata and then stops instead of performing a remote
+download-and-execute install. It does not trust a mutable `releases/latest`
+sidecar hash, fetch ZIPs or manifests from `yonerai.com`, mutate PATH by
+default, edit the registry, install services, request admin rights, store
+provider keys, or enable production cloud behavior.
 
-GitHub Release fallback:
-
-```powershell
-iex "& { $(irm https://github.com/YoneRai12/YonerAI/releases/latest/download/install.ps1) } -Execute -Launch"
-```
+GitHub fallback uses the same pinned digest as the Cloudflare wrapper; do not
+pipe `releases/latest/download/install.ps1` directly into `Invoke-Expression`.
 
 ### Verified install
 
-Use this when you want to verify `install.ps1` before execution:
+Use this when you want to verify the bootstrap script hash before execution.
+The expected SHA256 is embedded below instead of being downloaded from the same
+mutable release asset set as the script.
 
 ```powershell
 $ErrorActionPreference = "Stop"
-$base = "https://github.com/YoneRai12/YonerAI/releases/latest/download"
+$url = "https://raw.githubusercontent.com/YoneRai12/YonerAI/62ca47c792f7eae693f9346a8cc34fadc17b8c31/install.ps1"
+$expected = "e2990bd0cbc35da35388f7338246ca6eaba557f4990606a25bd127c64bc1ba03"
 $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("yonerai-bootstrap-" + [guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory -Path $tmp | Out-Null
 try {
   $script = Join-Path $tmp "install.ps1"
-  $sidecar = Join-Path $tmp "install.ps1.sha256"
-  irm "$base/install.ps1" -OutFile $script
-  irm "$base/install.ps1.sha256" -OutFile $sidecar
-  $expected = ((Get-Content -LiteralPath $sidecar -Raw) -split '\s+')[0].ToLowerInvariant()
-  if ($expected -notmatch "^[a-f0-9]{64}$") { throw "install.ps1 sidecar SHA256 is invalid" }
+  irm $url -OutFile $script
   $actual = (Get-FileHash -LiteralPath $script -Algorithm SHA256).Hash.ToLowerInvariant()
   if ($actual -ne $expected) { throw "install.ps1 hash mismatch" }
   $scriptText = Get-Content -LiteralPath $script -Raw
-  if ($scriptText -notmatch "Invoke-VerifiedLocalBootstrap" -or $scriptText -match "install.ps1 is still plan-only") {
-    throw "install.ps1 is not an executable bootstrap. Refusing to launch."
+  if ($scriptText -notmatch "Installer skeleton" -or $scriptText -notmatch "install.ps1 is still plan-only") {
+    throw "install.ps1 is not the expected plan-only bootstrap. Refusing to launch."
   }
   & powershell -NoProfile -ExecutionPolicy Bypass -File $script -Execute -Launch
 } finally {
@@ -64,6 +62,8 @@ try {
 }
 ```
 
+Explicit alpha one-command remote execution is not currently advertised. Use the
+safe manual ZIP flow below for explicit release selection.
 ### If you downloaded the GitHub Release ZIP
 
 Download `YonerAI-0.6.3.zip` from the

@@ -38,43 +38,37 @@ alpha を試す場合だけ `-Channel alpha` を明示します。install 後は
 irm https://install.yonerai.com | iex
 ```
 
-Quick install は `install.yonerai.com` の静的Cloudflare wrapperを取得します。
-そのwrapperが GitHub Release asset の latest `install.ps1` と `install.ps1.sha256`
-を取得し、script hash が一致した場合だけ bootstrap を実行します。その後
-`install.ps1` が release manifest、channel、versioned artifact name、release ZIP
-の SHA256 を確認してから install-like step に進みます。`yonerai.com` から
-ZIP/manifest/sidecar hash を取得しません。PATH 変更、registry 変更、service install、
-admin 要求、provider key 保存、本番 cloud 有効化も既定では行いません。
+Quick install は `install.yonerai.com` の静的 Cloudflare wrapper を取得します。
+その wrapper は immutable な Git commit の pinned `install.ps1` を取得し、wrapper
+に埋め込まれた SHA256 と一致した場合だけ実行へ進みます。現在公開している
+`install.ps1` は plan-only のままで、local release metadata を確認した後に停止し、
+remote download-and-execute install は行いません。mutable な `releases/latest` の
+sidecar hash は信頼しません。`yonerai.com` から ZIP/manifest を取得せず、PATH 変更、
+registry 変更、service install、admin 要求、provider key 保存、本番 cloud 有効化も
+既定では行いません。
 
-GitHub Release fallback:
-
-```powershell
-iex "& { $(irm https://github.com/YoneRai12/YonerAI/releases/latest/download/install.ps1) } -Execute -Launch"
-```
+GitHub fallback も Cloudflare wrapper と同じ pinned digest を使います。
+`releases/latest/download/install.ps1` を直接 `Invoke-Expression` に渡さないでください。
 
 ### Verified install
 
-実行前に bootstrap script の hash を確認したい場合はこちらを使います。GitHub
-Releases から `install.ps1` と `install.ps1.sha256` を取得し、sidecar SHA256 を
-確認します。sidecar がない、壊れている、hash が一致しない場合は失敗して止まります。
+実行前に bootstrap script の hash を確認したい場合はこちらを使います。期待 SHA256 は、
+script と同じ mutable release asset set から取得せず、下の command に埋め込んでいます。
 
 ```powershell
 $ErrorActionPreference = "Stop"
-$base = "https://github.com/YoneRai12/YonerAI/releases/latest/download"
+$url = "https://raw.githubusercontent.com/YoneRai12/YonerAI/62ca47c792f7eae693f9346a8cc34fadc17b8c31/install.ps1"
+$expected = "e2990bd0cbc35da35388f7338246ca6eaba557f4990606a25bd127c64bc1ba03"
 $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("yonerai-bootstrap-" + [guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory -Path $tmp | Out-Null
 try {
   $script = Join-Path $tmp "install.ps1"
-  $sidecar = Join-Path $tmp "install.ps1.sha256"
-  irm "$base/install.ps1" -OutFile $script
-  irm "$base/install.ps1.sha256" -OutFile $sidecar
-  $expected = ((Get-Content -LiteralPath $sidecar -Raw) -split '\s+')[0].ToLowerInvariant()
-  if ($expected -notmatch "^[a-f0-9]{64}$") { throw "install.ps1 sidecar SHA256 is invalid" }
+  irm $url -OutFile $script
   $actual = (Get-FileHash -LiteralPath $script -Algorithm SHA256).Hash.ToLowerInvariant()
   if ($actual -ne $expected) { throw "install.ps1 hash mismatch" }
   $scriptText = Get-Content -LiteralPath $script -Raw
-  if ($scriptText -notmatch "Invoke-VerifiedLocalBootstrap" -or $scriptText -match "install.ps1 is still plan-only") {
-    throw "install.ps1 is not an executable bootstrap. Refusing to launch."
+  if ($scriptText -notmatch "Installer skeleton" -or $scriptText -notmatch "install.ps1 is still plan-only") {
+    throw "install.ps1 is not the expected plan-only bootstrap. Refusing to launch."
   }
   & powershell -NoProfile -ExecutionPolicy Bypass -File $script -Execute -Launch
 } finally {
@@ -82,12 +76,8 @@ try {
 }
 ```
 
-alpha channel を明示して試す場合:
-
-```powershell
-iex "& { $(irm https://github.com/YoneRai12/YonerAI/releases/latest/download/install.ps1) } -Channel alpha -Execute -Launch"
-```
-
+alpha channel の one-command remote execution は現在案内していません。明示的に release
+を選ぶ場合は下の safe manual ZIP flow を使ってください。
 ### GitHub Release の ZIP を解凍したあと
 
 GitHub Release の `YonerAI-0.6.3.zip` をダウンロードして ZIP を展開したら、

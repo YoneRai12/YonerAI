@@ -1,24 +1,20 @@
-const GITHUB_LATEST_BASE_URL =
-  "https://github.com/YoneRai12/YonerAI/releases/latest/download";
+const TRUSTED_INSTALL_SCRIPT_URL =
+  "https://raw.githubusercontent.com/YoneRai12/YonerAI/62ca47c792f7eae693f9346a8cc34fadc17b8c31/install.ps1";
+const TRUSTED_INSTALL_SCRIPT_SHA256 =
+  "e2990bd0cbc35da35388f7338246ca6eaba557f4990606a25bd127c64bc1ba03";
 
 const INSTALL_WRAPPER = String.raw`$ErrorActionPreference = "Stop"
 Set-StrictMode -Version 3.0
 
-$base = "https://github.com/YoneRai12/YonerAI/releases/latest/download"
+$url = "https://raw.githubusercontent.com/YoneRai12/YonerAI/62ca47c792f7eae693f9346a8cc34fadc17b8c31/install.ps1"
+$expected = "e2990bd0cbc35da35388f7338246ca6eaba557f4990606a25bd127c64bc1ba03"
 $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("yonerai-bootstrap-" + [System.Guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory -Path $tmp | Out-Null
 
 try {
   $script = Join-Path $tmp "install.ps1"
-  $sidecar = Join-Path $tmp "install.ps1.sha256"
 
-  Invoke-RestMethod "$base/install.ps1" -OutFile $script
-  Invoke-RestMethod "$base/install.ps1.sha256" -OutFile $sidecar
-
-  $expected = ((Get-Content -LiteralPath $sidecar -Raw) -split '\s+')[0].ToLowerInvariant()
-  if ($expected -notmatch "^[a-f0-9]{64}$") {
-    throw "install.ps1 sidecar SHA256 is invalid."
-  }
+  Invoke-RestMethod $url -OutFile $script
 
   $actual = (Get-FileHash -LiteralPath $script -Algorithm SHA256).Hash.ToLowerInvariant()
   if ($actual -ne $expected) {
@@ -26,8 +22,8 @@ try {
   }
 
   $scriptText = Get-Content -LiteralPath $script -Raw
-  if ($scriptText -notmatch "Invoke-VerifiedLocalBootstrap" -or $scriptText -match "install.ps1 is still plan-only") {
-    throw "install.ps1 is not an executable bootstrap. Refusing to launch."
+  if ($scriptText -notmatch "Installer skeleton" -or $scriptText -notmatch "install.ps1 is still plan-only") {
+    throw "install.ps1 is not the expected plan-only bootstrap. Refusing to launch."
   }
 
   & powershell -NoProfile -ExecutionPolicy Bypass -File $script -Execute -Launch
@@ -47,8 +43,9 @@ const TEXT_HEADERS = {
 
 const NOT_FOUND_TEXT = [
   "YonerAI installer wrapper only.",
-  "Installer assets are served by GitHub Releases, not install.yonerai.com.",
-  `Source: ${GITHUB_LATEST_BASE_URL}`,
+  "Installer bootstrap is fetched from the pinned trusted source below; release assets are not served by install.yonerai.com.",
+  `Source: ${TRUSTED_INSTALL_SCRIPT_URL}`,
+  `SHA256: ${TRUSTED_INSTALL_SCRIPT_SHA256}`,
   "",
 ].join("\n");
 

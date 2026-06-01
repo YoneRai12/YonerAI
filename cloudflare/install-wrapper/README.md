@@ -8,15 +8,16 @@ irm https://install.yonerai.com | iex
 
 The Worker returns a static PowerShell wrapper. The wrapper:
 
-- downloads `install.ps1` from GitHub Release `latest/download`
-- downloads `install.ps1.sha256` from GitHub Release `latest/download`
-- verifies `install.ps1` with SHA256 before execution
-- fails closed if the sidecar is missing, malformed, or mismatched
-- executes the verified bootstrap with `-Execute -Launch`
+- downloads `install.ps1` from an immutable pinned Git commit
+- verifies `install.ps1` with a SHA256 digest embedded in the Worker source
+- does not trust a mutable `releases/latest` sidecar hash as the authenticity root
+- fails closed if the downloaded script does not match the embedded digest
+- executes only the expected plan-only bootstrap with `-Execute -Launch`
 
 It does not serve `install.ps1`, `install.ps1.sha256`, release manifests, ZIP
 artifacts, or local PC files from Cloudflare. GitHub Releases remain the
-distribution source for executable installer assets and release archives.
+distribution source for manually downloaded release archives, but the Worker
+bootstrap trust anchor is independent from mutable release assets.
 
 Deploy from this folder only after confirming Cloudflare account access:
 

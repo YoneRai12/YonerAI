@@ -94,9 +94,9 @@ def test_cli_update_plan_reports_update_available(tmp_path, capsys) -> None:
     assert output["path_mutation"] is False
     assert output["remote_code_executed"] is False
     assert output["quick_install_command"] == "irm https://install.yonerai.com | iex"
-    assert output["github_install_fallback_command"].startswith(
-        'iex "& { $(irm https://github.com/YoneRai12/YonerAI/releases/latest/download/install.ps1)'
-    )
+    assert "raw.githubusercontent.com/YoneRai12/YonerAI/62ca47c792f7eae693f9346a8cc34fadc17b8c31/install.ps1" in output["github_install_fallback_command"]
+    assert "e2990bd0cbc35da35388f7338246ca6eaba557f4990606a25bd127c64bc1ba03" in output["github_install_fallback_command"]
+    assert "releases/latest/download" not in output["github_install_fallback_command"]
     assert output["verified_install_page"] == "https://yonerai.com/install"
     assert output["forced_update_enabled"] is False
     assert output["auto_update_apply_enabled"] is False
@@ -298,10 +298,11 @@ def test_cli_update_check_json_is_stable_network_free_and_path_safe(tmp_path, mo
     assert "no forced update" in output["actions_not_performed"]
     assert "no auto-apply update" in output["actions_not_performed"]
     assert output["quick_install_command"] == "irm https://install.yonerai.com | iex"
-    assert output["github_install_fallback_command"].startswith(
-        'iex "& { $(irm https://github.com/YoneRai12/YonerAI/releases/latest/download/install.ps1)'
-    )
-    assert "install.ps1.sha256" in output["verified_install_command"]
+    assert "raw.githubusercontent.com/YoneRai12/YonerAI/62ca47c792f7eae693f9346a8cc34fadc17b8c31/install.ps1" in output["github_install_fallback_command"]
+    assert "e2990bd0cbc35da35388f7338246ca6eaba557f4990606a25bd127c64bc1ba03" in output["github_install_fallback_command"]
+    assert "releases/latest/download" not in output["github_install_fallback_command"]
+    assert "install.ps1.sha256" not in output["verified_install_command"]
+    assert "e2990bd0cbc35da35388f7338246ca6eaba557f4990606a25bd127c64bc1ba03" in output["verified_install_command"]
     assert output["verified_install_page"] == "https://yonerai.com/install"
     assert output["forced_update_enabled"] is False
     assert output["auto_update_apply_enabled"] is False

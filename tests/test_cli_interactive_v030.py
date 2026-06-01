@@ -272,7 +272,7 @@ def test_readmes_document_install_and_start_yonerai() -> None:
         assert "Quick install" in text
         assert "Verified install" in text
         assert "YonerAI-0.6.3" in text
-        assert "install.ps1.sha256" in text
+        assert "e2990bd0cbc35da35388f7338246ca6eaba557f4990606a25bd127c64bc1ba03" in text
         assert "python --version" in text
         assert "python -m venv .venv" in text
         assert "python -m pip install -e clients/cli" in text

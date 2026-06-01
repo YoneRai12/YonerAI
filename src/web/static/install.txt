@@ -3,26 +3,20 @@ YonerAI install
 Quick install:
 irm https://install.yonerai.com | iex
 
-GitHub Release fallback:
-iex "& { $(irm https://github.com/YoneRai12/YonerAI/releases/latest/download/install.ps1) } -Execute -Launch"
-
-Verified install:
+Verified install / GitHub fallback:
 $ErrorActionPreference = "Stop"
-$base = "https://github.com/YoneRai12/YonerAI/releases/latest/download"
+$url = "https://raw.githubusercontent.com/YoneRai12/YonerAI/62ca47c792f7eae693f9346a8cc34fadc17b8c31/install.ps1"
+$expected = "e2990bd0cbc35da35388f7338246ca6eaba557f4990606a25bd127c64bc1ba03"
 $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("yonerai-bootstrap-" + [guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory -Path $tmp | Out-Null
 try {
   $script = Join-Path $tmp "install.ps1"
-  $sidecar = Join-Path $tmp "install.ps1.sha256"
-  irm "$base/install.ps1" -OutFile $script
-  irm "$base/install.ps1.sha256" -OutFile $sidecar
-  $expected = ((Get-Content -LiteralPath $sidecar -Raw) -split '\s+')[0].ToLowerInvariant()
-  if ($expected -notmatch "^[a-f0-9]{64}$") { throw "install.ps1 sidecar SHA256 is invalid" }
+  irm $url -OutFile $script
   $actual = (Get-FileHash -LiteralPath $script -Algorithm SHA256).Hash.ToLowerInvariant()
   if ($actual -ne $expected) { throw "install.ps1 hash mismatch" }
   $scriptText = Get-Content -LiteralPath $script -Raw
-  if ($scriptText -notmatch "Invoke-VerifiedLocalBootstrap" -or $scriptText -match "install.ps1 is still plan-only") {
-    throw "install.ps1 is not an executable bootstrap. Refusing to launch."
+  if ($scriptText -notmatch "Installer skeleton" -or $scriptText -notmatch "install.ps1 is still plan-only") {
+    throw "install.ps1 is not the expected plan-only bootstrap. Refusing to launch."
   }
   & powershell -NoProfile -ExecutionPolicy Bypass -File $script -Execute -Launch
 } finally {
@@ -30,13 +24,13 @@ try {
 }
 
 日本語:
-Quick install は install.yonerai.com の静的Cloudflare wrapperを実行します。
-そのwrapperが GitHub Releases の latest install.ps1 と install.ps1.sha256 を取得して検証します。
-Verified install は install.ps1.sha256 を先に確認し、hash が一致した時だけ実行します。
-hash が違う、sidecar がない、sidecar が壊れている場合は失敗して止まります。
+Quick install は install.yonerai.com の静的 Cloudflare wrapper を実行します。
+その wrapper は immutable な Git commit の pinned install.ps1 を取得し、wrapper に埋め込まれた SHA256 と一致した場合だけ実行へ進みます。
+releases/latest/download の install.ps1 と同じ場所にある sidecar SHA256 は信頼しません。
+現在の public install.ps1 は plan-only であり、remote download-and-execute install は行いません。
 
 Install source:
-GitHub Releases only.
+Pinned Git commit for bootstrap script, GitHub Releases for manually downloaded ZIP artifacts.
 
 Not served from yonerai.com:
 install.ps1

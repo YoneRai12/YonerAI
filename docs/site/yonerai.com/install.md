@@ -21,10 +21,12 @@ a future signed hosting lane explicitly approves it.
 
 ## Primary copy
 
-YonerAI CLI Local Runtime v0.6.3 can be installed with a quick command or with
-a verified command that checks `install.ps1.sha256` before execution. This is
-stable for the local CLI runtime slice. It is not full YonerAI cloud production
-and not a production-signed installer.
+YonerAI CLI Local Runtime v0.6.3 can be inspected with a quick command or with
+a verified command that checks a pinned `install.ps1` digest before execution.
+The current public bootstrap is plan-only and does not trust a mutable
+`releases/latest` sidecar hash as its authenticity root. This is stable for the
+local CLI runtime slice. It is not full YonerAI cloud production and not a
+production-signed installer.
 
 ## Quick install
 
@@ -35,18 +37,17 @@ irm https://install.yonerai.com | iex
 What this does:
 
 - downloads a static Cloudflare wrapper from `install.yonerai.com`
-- the wrapper downloads `install.ps1` and `install.ps1.sha256` from the latest
-  stable GitHub Release asset redirect
-- verifies `install.ps1` against the sidecar SHA256 before execution
-- downloads the versioned release manifest from GitHub Release assets
-- downloads the versioned YonerAI ZIP from GitHub Release assets
-- verifies the ZIP SHA256 from the manifest before extraction
-- runs `install-local.ps1` only after it is found inside the verified archive
+- the wrapper downloads a pinned `install.ps1` from an immutable Git commit
+- verifies `install.ps1` against a SHA256 embedded in the wrapper before execution
+- keeps the current public bootstrap plan-only instead of performing remote install steps
+- verifies local release manifest and artifact metadata when those files are present
 
 What this does not do:
 
+- does not trust a mutable `releases/latest` sidecar hash as the authenticity root
+- does not pipe `releases/latest/download/install.ps1` directly into `Invoke-Expression`
 - does not fetch ZIPs, manifests, or sidecar hashes from `yonerai.com`
-- does not accept local/custom manifest or artifact paths
+- does not accept local/custom manifest or artifact paths in the Cloudflare wrapper
 - does not mutate PATH by default
 - does not edit the registry
 - does not install services
@@ -56,36 +57,26 @@ What this does not do:
   production Google login
 - does not include production signing keys or a production trust store
 
-GitHub Release fallback:
-
-```powershell
-iex "& { $(irm https://github.com/YoneRai12/YonerAI/releases/latest/download/install.ps1) } -Execute -Launch"
-```
-
 ## Verified install
 
-Use this when you want to verify the bootstrap script before execution. It
-downloads `install.ps1` and `install.ps1.sha256` from GitHub Releases, checks
-the SHA256 sidecar, and fails closed before execution if the sidecar is missing,
-malformed, or mismatched.
+Use this when you want to verify the bootstrap script before execution. The
+expected SHA256 is embedded below instead of being downloaded from the same
+mutable release asset set as the script.
 
 ```powershell
 $ErrorActionPreference = "Stop"
-$base = "https://github.com/YoneRai12/YonerAI/releases/latest/download"
+$url = "https://raw.githubusercontent.com/YoneRai12/YonerAI/62ca47c792f7eae693f9346a8cc34fadc17b8c31/install.ps1"
+$expected = "e2990bd0cbc35da35388f7338246ca6eaba557f4990606a25bd127c64bc1ba03"
 $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("yonerai-bootstrap-" + [guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory -Path $tmp | Out-Null
 try {
   $script = Join-Path $tmp "install.ps1"
-  $sidecar = Join-Path $tmp "install.ps1.sha256"
-  irm "$base/install.ps1" -OutFile $script
-  irm "$base/install.ps1.sha256" -OutFile $sidecar
-  $expected = ((Get-Content -LiteralPath $sidecar -Raw) -split '\s+')[0].ToLowerInvariant()
-  if ($expected -notmatch "^[a-f0-9]{64}$") { throw "install.ps1 sidecar SHA256 is invalid" }
+  irm $url -OutFile $script
   $actual = (Get-FileHash -LiteralPath $script -Algorithm SHA256).Hash.ToLowerInvariant()
   if ($actual -ne $expected) { throw "install.ps1 hash mismatch" }
   $scriptText = Get-Content -LiteralPath $script -Raw
-  if ($scriptText -notmatch "Invoke-VerifiedLocalBootstrap" -or $scriptText -match "install.ps1 is still plan-only") {
-    throw "install.ps1 is not an executable bootstrap. Refusing to launch."
+  if ($scriptText -notmatch "Installer skeleton" -or $scriptText -notmatch "install.ps1 is still plan-only") {
+    throw "install.ps1 is not the expected plan-only bootstrap. Refusing to launch."
   }
   & powershell -NoProfile -ExecutionPolicy Bypass -File $script -Execute -Launch
 } finally {
@@ -93,9 +84,9 @@ try {
 }
 ```
 
-日本語で言うと、この verified command は「GitHub Release から取得した
-install.ps1 が sidecar の SHA256 と一致した場合だけ実行する」ための手順です。
-hash が一致しない場合はその場で止まり、インストール処理へ進みません。
+日本語で言うと、この verified command は「immutable な Git commit から取得した
+install.ps1 が command に埋め込まれた SHA256 と一致した場合だけ実行する」ための
+手順です。hash が一致しない場合はその場で止まり、インストール処理へ進みません。
 
 ## Safe manual install
 

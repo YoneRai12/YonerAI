@@ -11,16 +11,16 @@ WRAPPER_ROOT = ROOT / "cloudflare" / "install-wrapper"
 def test_cloudflare_install_wrapper_is_hash_verified_github_bootstrap() -> None:
     worker = (WRAPPER_ROOT / "src" / "worker.js").read_text(encoding="utf-8")
 
-    assert "https://github.com/YoneRai12/YonerAI/releases/latest/download" in worker
-    assert "install.ps1" in worker
-    assert "install.ps1.sha256" in worker
+    assert "raw.githubusercontent.com/YoneRai12/YonerAI/62ca47c792f7eae693f9346a8cc34fadc17b8c31/install.ps1" in worker
+    assert "e2990bd0cbc35da35388f7338246ca6eaba557f4990606a25bd127c64bc1ba03" in worker
+    assert "releases/latest/download" not in worker
+    assert "install.ps1.sha256" not in worker
     assert "Get-FileHash" in worker
     assert "[System.IO.Path]::GetTempPath()" in worker
     assert ".Split()" not in worker
-    assert "-split" in worker
     assert "install.ps1 hash mismatch" in worker
-    assert "Invoke-VerifiedLocalBootstrap" in worker
-    assert "not an executable bootstrap" in worker
+    assert "Installer skeleton" in worker
+    assert "expected plan-only bootstrap" in worker
     assert "-Execute -Launch" in worker
     assert "cache-control" in worker
     assert "no-store" in worker
@@ -44,7 +44,7 @@ def test_cloudflare_install_wrapper_does_not_serve_local_pc_or_release_assets() 
     )
     for pattern in forbidden_patterns:
         assert re.search(pattern, combined, flags=re.IGNORECASE) is None
-    assert "Installer assets are served by GitHub Releases" in worker
+    assert "Installer bootstrap is fetched from the pinned trusted source" in worker
     assert 'url.pathname === "/"' in worker
     assert 'url.pathname === "/install.ps1"' not in worker
     assert "Do not replace this with" in readme
