@@ -2,6 +2,19 @@
 
 See also: `docs/RELEASE_NOTES.md` (curated summary, v5.0.0 -> current).
 
+## v0.6.4 (2026-06-01) - Installer Execute Fix
+- Fixed the v0.6.3 PowerShell `install.ps1 -Execute` path where manifest
+  artifact metadata could be confused with a script parameter and fail before
+  ZIP download.
+- Added regression coverage that exercises the execute path, verifies the
+  release ZIP SHA256, and reaches the local bootstrap handoff with a fixture.
+- Updated the stable install CTA and site release/press content to `v0.6.4`.
+- Kept `irm https://install.yonerai.com | iex` as the short command while
+  preserving GitHub Release assets as the install source of truth.
+- Reconfirmed no forced update, no auto-update apply, no PATH mutation by
+  default, no admin/service/registry mutation, and no production signing/trust
+  store.
+
 ## v0.6.3 (2026-06-01) - Verified Installer Hardening
 - Added a verified install command for `yonerai.com/install` that downloads
   `install.ps1` and `install.ps1.sha256`, verifies the bootstrap SHA256, and

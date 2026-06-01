@@ -18,10 +18,10 @@ $GitHubReleaseBase = "https://github.com/YoneRai12/YonerAI/releases/download"
 $GitHubLatestInstallScript = "https://github.com/YoneRai12/YonerAI/releases/latest/download/install.ps1"
 $KnownReleases = @{
     stable = @{
-        Version = "0.6.3"
-        Tag = "v0.6.3"
-        ManifestUrl = "$GitHubReleaseBase/v0.6.3/manifest.v0.6.3.json"
-        ArtifactName = "YonerAI-0.6.3.zip"
+        Version = "0.6.4"
+        Tag = "v0.6.4"
+        ManifestUrl = "$GitHubReleaseBase/v0.6.4/manifest.v0.6.4.json"
+        ArtifactName = "YonerAI-0.6.4.zip"
     }
     alpha = @{
         Version = "0.11.0-alpha.1"
@@ -169,15 +169,28 @@ function Get-ManifestArtifact {
     if (-not $artifact) {
         throw "Manifest does not contain the pinned GitHub artifact."
     }
-    Assert-VersionedArtifactName -ArtifactName ([System.IO.Path]::GetFileName([string]$artifact.url)) -Spec $Spec
-    Assert-GitHubReleaseUrl -Url ([string]$artifact.url) -Tag $Spec.Tag -Label "Artifact"
-    if ([string]$artifact.sha256 -notmatch "^[a-f0-9]{64}$") {
+    $artifactUrl = [string]$artifact.url
+    $artifactName = [System.IO.Path]::GetFileName($artifactUrl)
+    $artifactSha256 = [string]$artifact.sha256
+    $artifactSizeBytes = [int64]$artifact.size_bytes
+    $null = Assert-VersionedArtifactName -ArtifactName $artifactName -Spec $Spec
+    $null = Assert-GitHubReleaseUrl -Url $artifactUrl -Tag $Spec.Tag -Label "Artifact"
+    if ($artifactSha256 -notmatch "^[a-f0-9]{64}$") {
         throw "Artifact SHA256 in manifest is invalid."
     }
     if (-not ($artifact.size_bytes -is [int] -or $artifact.size_bytes -is [long])) {
         throw "Artifact size in manifest is invalid."
     }
-    return $artifact
+    return [pscustomobject]@{
+        id = [string]$artifact.id
+        kind = [string]$artifact.kind
+        target = [string]$artifact.target
+        os = [string]$artifact.os
+        arch = [string]$artifact.arch
+        url = $artifactUrl
+        sha256 = $artifactSha256
+        size_bytes = $artifactSizeBytes
+    }
 }
 
 function Expand-VerifiedArtifact {
@@ -252,11 +265,11 @@ try {
     $artifactPath = Join-Path $tempRoot $spec.ArtifactName
     Invoke-GitHubDownload -Url $spec.ManifestUrl -OutFile $manifestPath -Label "manifest"
     $manifestData = Read-Manifest -Path $manifestPath
-    $artifact = Get-ManifestArtifact -ManifestData $manifestData -Spec $spec
-    Invoke-GitHubDownload -Url ([string]$artifact.url) -OutFile $artifactPath -Label "artifact"
-    Assert-FileSha256 -Path $artifactPath -ExpectedSha256 ([string]$artifact.sha256) -Label "artifact"
+    $releaseArtifact = Get-ManifestArtifact -ManifestData $manifestData -Spec $spec
+    Invoke-GitHubDownload -Url ([string]$releaseArtifact.url) -OutFile $artifactPath -Label "artifact"
+    Assert-FileSha256 -Path $artifactPath -ExpectedSha256 ([string]$releaseArtifact.sha256) -Label "artifact"
     $actualSize = [int64](Get-Item -LiteralPath $artifactPath).Length
-    if ($actualSize -ne [int64]$artifact.size_bytes) {
+    if ($actualSize -ne [int64]$releaseArtifact.size_bytes) {
         throw "Artifact size mismatch. Refusing to continue."
     }
     Write-Host "  artifact size verified: true"

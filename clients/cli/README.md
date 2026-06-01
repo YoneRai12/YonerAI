@@ -12,31 +12,67 @@ package and commercial use requires a separate license.
 
 ## Install and start YonerAI
 
-This is the local CLI runtime path, not full YonerAI cloud production.
-v0.6.3 keeps the one-command Windows path downloading installable bytes from
-GitHub Release assets only. `yonerai.com/install` is a command page, not an
-installer file host.
+This is the CLI Local Runtime path, not full YonerAI cloud production. The
+latest stable is `v0.6.4`. Stable is the default channel; alpha requires an
+explicit `-Channel alpha` flag.
 
-### One-command Windows install
+### Quick install
 
 ```powershell
-& ([scriptblock]::Create((irm https://github.com/YoneRai12/YonerAI/releases/latest/download/install.ps1))) -Execute -Launch
+irm https://install.yonerai.com | iex
 ```
 
-The bootstrap rejects local/custom manifest or ZIP paths. It does not fetch
-installer files from `yonerai.com`, mutate PATH by default, edit the registry,
-install services, request admin rights, store provider keys, or enable
-production cloud behavior.
+Quick install runs a static Cloudflare wrapper from `install.yonerai.com`. The
+wrapper verifies the GitHub Release `install.ps1` sidecar hash before execution.
+The GitHub Release bootstrap then validates the manifest, channel, versioned
+artifact name, and release ZIP SHA256 before install-like steps. It does not
+fetch ZIPs, manifests, or sidecar hashes from `yonerai.com`, mutate PATH by
+default, request admin rights, edit the registry, install a service, store
+provider keys, or enable live providers.
+
+GitHub Release fallback:
+
+```powershell
+iex "& { $(irm https://github.com/YoneRai12/YonerAI/releases/latest/download/install.ps1) } -Execute -Launch"
+```
+
+### Verified install
+
+Use this when you want to verify `install.ps1` before execution:
+
+```powershell
+$ErrorActionPreference = "Stop"
+$base = "https://github.com/YoneRai12/YonerAI/releases/latest/download"
+$tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("yonerai-bootstrap-" + [guid]::NewGuid().ToString("N"))
+New-Item -ItemType Directory -Path $tmp | Out-Null
+try {
+  $script = Join-Path $tmp "install.ps1"
+  $sidecar = Join-Path $tmp "install.ps1.sha256"
+  irm "$base/install.ps1" -OutFile $script
+  irm "$base/install.ps1.sha256" -OutFile $sidecar
+  $expected = ((Get-Content -LiteralPath $sidecar -Raw) -split '\s+')[0].ToLowerInvariant()
+  if ($expected -notmatch "^[a-f0-9]{64}$") { throw "install.ps1 sidecar SHA256 is invalid" }
+  $actual = (Get-FileHash -LiteralPath $script -Algorithm SHA256).Hash.ToLowerInvariant()
+  if ($actual -ne $expected) { throw "install.ps1 hash mismatch" }
+  $scriptText = Get-Content -LiteralPath $script -Raw
+  if ($scriptText -notmatch "Invoke-VerifiedLocalBootstrap" -or $scriptText -match "install.ps1 is still plan-only") {
+    throw "install.ps1 is not an executable bootstrap. Refusing to launch."
+  }
+  & powershell -NoProfile -ExecutionPolicy Bypass -File $script -Execute -Launch
+} finally {
+  if (Test-Path -LiteralPath $tmp) { Remove-Item -LiteralPath $tmp -Recurse -Force }
+}
+```
 
 ### If you downloaded the GitHub Release ZIP
 
-Download `Source code (zip)` from the
-[v0.6.3 release](https://github.com/YoneRai12/YonerAI/releases/tag/v0.6.3),
+Download `YonerAI-0.6.4.zip` from the
+[v0.6.4 release](https://github.com/YoneRai12/YonerAI/releases/tag/v0.6.4),
 extract it, then run PowerShell inside the extracted folder. The extracted
 folder name can vary; change the `cd` command to match the folder you see.
 
 ```powershell
-cd "$HOME\Downloads\YonerAI-0.6.3"
+cd "$HOME\Downloads\YonerAI-0.6.4"
 python --version
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
@@ -60,7 +96,7 @@ not mutate PATH, run a remote script, request admin rights, install a service,
 or enable live providers.
 
 `install.ps1` is the GitHub Release bootstrap. Without `-Execute`, it prints
-the plan and performs no download or install:
+the plan and performs no install:
 
 ```powershell
 .\install.ps1
@@ -101,6 +137,13 @@ completion candidates and colored panels. If not, it falls back to plain text.
 In Japanese mode, type `/` to see Japanese-first candidates; Tab and arrow-key
 selection are available in compatible terminals.
 
+Readable Japanese aliases are accepted for the main TUI actions, including
+`/設定`, `/モデル`, `/提供元`, `/安全`, `/履歴`, `/タスク`, `/認証`,
+`/プライバシー`, `/自己進化`, `/更新`, `/更新通知`, and `/終了`. Legacy
+aliases remain accepted for compatibility. The interactive shell is still a
+local terminal surface: it does not enable live providers, arbitrary shell/tool
+execution, production cloud, Google login, or live Discord.
+
 ## Public Demo
 
 From the repository root:
@@ -115,10 +158,10 @@ yonerai start --guided --lang ja
 yonerai providers --pretty --lang ja
 yonerai ask "hello" --auto --pretty --lang ja
 yonerai chat --script --lang ja
-yonerai manifest verify releases/manifest.v0.6.3.json --pretty
-yonerai install plan --manifest releases/manifest.v0.6.3.json --pretty
-yonerai update check --manifest releases/manifest.v0.6.3.json --pretty
-yonerai update plan --manifest releases/manifest.v0.6.3.json --pretty
+yonerai manifest verify manifest.v0.6.4.json --pretty
+yonerai install plan --manifest manifest.v0.6.4.json --pretty
+yonerai update check --manifest manifest.v0.6.4.json --pretty
+yonerai update plan --manifest manifest.v0.6.4.json --pretty
 yonerai demo --pretty
 yonerai demo --json
 ```
@@ -170,12 +213,19 @@ of hanging. `yonerai chat --script` intentionally reads lines from stdin for
 tests or scripted demos.
 
 Japanese mode shows Japanese command labels such as `/設定`, `/モデル`, `/提供元`,
-`/安全`, `/履歴`, `/タスク`, `/エージェント`, `/認証`, `/プライバシー`, `/更新`, and `/終了`. English aliases remain
+`/安全`, `/履歴`, `/タスク`, `/エージェント`, `/認証`, `/同期`, `/プライバシー`, `/更新`, and `/終了`. English aliases remain
 accepted for compatibility, but they are not the primary Japanese UI.
 
 `yonerai update check --pretty` reads local VERSION and a local release
 manifest, then reports whether a newer manifest target exists. It does not
 download, install, mutate PATH, execute remote code, or require admin rights.
+
+`yonerai sync status --pretty --lang ja` shows the public account-sync
+contract. Cloud conversation sync down requires a linked account and
+user-selected cloud conversation. Local private conversation sync up is
+disabled by default and requires explicit approval plus audit reason. The public
+repo command is fixture/contract only; it does not contact Official Cloud or
+production Oracle.
 
 The interactive CLI does not add production Oracle, Official Managed Cloud,
 live Discord, arbitrary shell/file/tool execution, or default live provider
@@ -257,6 +307,9 @@ yonerai providers --pretty --lang ja
 yonerai providers --json
 yonerai auth status --pretty --lang ja
 yonerai auth google login --dry-run --pretty --lang ja
+yonerai sync status --pretty --lang ja
+yonerai sync preview --direction cloud-to-local --json
+yonerai sync approve --dry-run --direction local-to-cloud --json
 yonerai privacy status --pretty --lang ja
 yonerai health
 yonerai smoke --pretty

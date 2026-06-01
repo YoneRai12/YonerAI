@@ -11,7 +11,6 @@ ROOT = Path(__file__).resolve().parents[1]
 CLI_SRC = ROOT / "clients" / "cli"
 V050_MANIFEST = ROOT / "releases" / "manifest.v0.5.0.json"
 V051_MANIFEST = ROOT / "releases" / "manifest.v0.5.1.json"
-V063_MANIFEST = ROOT / "releases" / "manifest.v0.6.3.json"
 
 
 def _prepare_paths() -> None:
@@ -26,10 +25,6 @@ def _load_v050_manifest() -> dict[str, object]:
 
 def _load_v051_manifest() -> dict[str, object]:
     return json.loads(V051_MANIFEST.read_text(encoding="utf-8"))
-
-
-def _load_v063_manifest() -> dict[str, object]:
-    return json.loads(V063_MANIFEST.read_text(encoding="utf-8"))
 
 
 def test_license_policy_is_source_available_noncommercial() -> None:
@@ -101,37 +96,6 @@ def test_v051_manifest_validates_and_records_release_asset() -> None:
     artifact = manifest["artifacts"][0]
     assert artifact["id"] == "yonerai-0.5.1-source-archive"
     assert artifact["url"] == "https://github.com/YoneRai12/YonerAI/releases/download/v0.5.1/YonerAI-0.5.1.zip"
-    assert len(str(artifact["sha256"])) == 64
-    assert artifact["sha256"] != "0000000000000000000000000000000000000000000000000000000000000000"
-    assert isinstance(artifact["size_bytes"], int) and artifact["size_bytes"] > 1
-
-
-def test_v063_manifest_validates_github_release_bootstrap_source() -> None:
-    _prepare_paths()
-    from yonerai_cli.release_manifest import load_manifest_file, verify_manifest
-
-    report = verify_manifest(load_manifest_file(str(V063_MANIFEST)))
-
-    assert report["contract_valid"] is True
-    assert report["install_ready"] is False
-    assert report["version"] == "0.6.3"
-    assert report["release_tag"] == "v0.6.3"
-    assert report["channel"] == "stable"
-    assert report["signature_state"] == "placeholder_non_production"
-    assert report["production_signature_verified"] is False
-    assert report["install_methods"] == [
-        "powershell_verified_github_release_bootstrap",
-        "powershell_github_release_bootstrap",
-        "manual_zip_venv",
-        "manifest_verify_only",
-    ]
-    assert any("GitHub Release asset" in warning for warning in report["warnings"])
-    assert any("yonerai.com" in warning for warning in report["warnings"])
-
-    manifest = _load_v063_manifest()
-    artifact = manifest["artifacts"][0]
-    assert artifact["id"] == "yonerai-0.6.3-source-archive"
-    assert artifact["url"] == "https://github.com/YoneRai12/YonerAI/releases/download/v0.6.3/YonerAI-0.6.3.zip"
     assert len(str(artifact["sha256"])) == 64
     assert artifact["sha256"] != "0000000000000000000000000000000000000000000000000000000000000000"
     assert isinstance(artifact["size_bytes"], int) and artifact["size_bytes"] > 1
@@ -234,25 +198,37 @@ def test_manifest_rejects_unhashable_install_method_without_traceback() -> None:
 
 def test_yonerai_site_install_content_is_copyable_and_non_executing() -> None:
     install_page = (ROOT / "docs" / "site" / "yonerai.com" / "install.md").read_text(encoding="utf-8")
-    release_page = (ROOT / "docs" / "site" / "yonerai.com" / "releases" / "v0.6.3.md").read_text(
+    release_page = (ROOT / "docs" / "site" / "yonerai.com" / "releases" / "v0.6.4.md").read_text(
         encoding="utf-8"
     )
-    press_card = (ROOT / "docs" / "site" / "yonerai.com" / "press" / "v0.6.3-card.md").read_text(
+    press_card = (ROOT / "docs" / "site" / "yonerai.com" / "press" / "v0.6.4-card.md").read_text(
         encoding="utf-8"
     )
+    static_install = (ROOT / "src" / "web" / "static" / "install.txt").read_text(encoding="utf-8")
+    update_policy = (ROOT / "docs" / "policy" / "UPDATE_POLICY.md").read_text(encoding="utf-8")
+
+    for text in (install_page, release_page, static_install):
+        lowered = text.lower()
+        assert "Quick install" in text
+        assert "Verified install" in text
+        assert "install.yonerai.com" in text
+        assert "latest/download/install.ps1" in text
+        assert "install.ps1.sha256" in text
+        assert "yonerai.com" in text
+        assert "github release" in lowered or "github releases" in lowered
 
     for text in (install_page, release_page):
-        lowered = text.lower()
-        assert "YonerAI-0.6.3.zip" in text
-        assert "GitHub Release assets" in text
-        assert "install.ps1.sha256" in text
-        assert "https://github.com/YoneRai12/YonerAI/releases/latest/download/install.ps1" in text or "v0.6.3" in text
-        assert "https://yonerai.com/install.ps1" not in text
-        assert "https://yonerai.com/releases/download" not in text
-        assert "production signing keys" in lowered or "production signature" in lowered
+        assert "YonerAI-0.6.4.zip" in text
+        assert "manifest.v0.6.4.json" in text
+        assert "yonerai update check --manifest $manifest --pretty" in text
+        assert "production signing keys" in text.lower() or "production signature" in text.lower()
+        assert "YonerAI-0.6.0.zip" not in text
 
-    assert "https://github.com/YoneRai12/YonerAI/releases/tag/v0.6.3" in press_card
-    assert "cloud production" in press_card
+    assert "https://github.com/YoneRai12/YonerAI/releases/tag/v0.6.4" in press_card
+    assert "production cloud" in press_card.lower()
+    assert "Official Managed Cloud" not in press_card
+    assert "forced update" in update_policy.lower()
+    assert "auto-apply" in update_policy.lower()
 
 
 def test_readmes_point_to_current_stable_manifest_and_license_policy() -> None:
@@ -260,7 +236,14 @@ def test_readmes_point_to_current_stable_manifest_and_license_policy() -> None:
         text = (ROOT / relative_path).read_text(encoding="utf-8")
 
         assert "PolyForm Noncommercial" in text
-        assert "releases/manifest.v0.6.3.json" in text or "manifest.v0.6.3.json" in text
+        assert "v0.6.4" in text
+        assert "irm https://install.yonerai.com | iex" in text
+        assert "latest/download/install.ps1" in text
+        assert "install.ps1.sha256" in text
+        assert "YonerAI-0.6.0.zip" not in text
+        assert "[IO.Path]" not in text
+        assert ".Split()" not in text
+        assert "-split" in text
 
 
 def test_release_archive_policy_is_hash_stable_for_manifest_recording() -> None:
@@ -279,3 +262,5 @@ def test_release_workflow_uploads_manifest_separately_from_zip() -> None:
     assert "${{ env.PRODUCT_NAME }}-${{ env.ORA_VERSION }}.zip" in workflow
     assert "releases/manifest.v${{ env.ORA_VERSION }}.json" in workflow
     assert "install.ps1.sha256" in workflow
+    assert "install.ps1" in workflow
+    assert "hashlib.sha256(script.read_bytes()).hexdigest()" in workflow

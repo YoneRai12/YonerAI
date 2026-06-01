@@ -42,12 +42,12 @@ def test_yonerai_com_does_not_serve_local_installer_artifact_paths():
     blocked_paths = [
         "/install.ps1",
         "/install.ps1.sha256",
-        "/YonerAI-0.6.3.zip",
-        "/manifest.v0.6.3.json",
+        "/YonerAI-0.6.4.zip",
+        "/manifest.v0.6.4.json",
         "/static/install.ps1",
         "/static/install.ps1.sha256",
-        "/static/YonerAI-0.6.3.zip",
-        "/static/manifest.v0.6.3.json",
+        "/static/YonerAI-0.6.4.zip",
+        "/static/manifest.v0.6.4.json",
     ]
 
     with TestClient(app) as client:

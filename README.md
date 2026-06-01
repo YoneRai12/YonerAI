@@ -28,23 +28,38 @@ See [LICENSE](LICENSE), [LICENSE_JP.md](LICENSE_JP.md), [NOTICE](NOTICE), and
 
 ## Install and start YonerAI
 
-This is the local CLI runtime path, not full YonerAI cloud production. For
-v0.6.3, the one-command path downloads installable bytes from GitHub Release
-assets only. `yonerai.com/install` is a command page, not an installer file
-host.
+This is the local CLI runtime path, not full YonerAI cloud production. The
+latest stable CLI Local Runtime is `v0.6.4`. Stable is the default channel;
+alpha releases require an explicit `-Channel alpha` flag. After install,
+`yonerai` launches the interactive CLI.
 
-### One-command Windows install
+### Quick install
 
 ```powershell
-& ([scriptblock]::Create((irm https://github.com/YoneRai12/YonerAI/releases/latest/download/install.ps1))) -Execute -Launch
+irm https://install.yonerai.com | iex
 ```
 
-The bootstrap rejects local/custom manifest or ZIP paths. It does not fetch
-installer files from `yonerai.com`, mutate PATH by default, edit the registry,
-install services, request admin rights, store provider keys, or enable
-production cloud behavior.
+Quick install downloads a static Cloudflare wrapper from `install.yonerai.com`.
+That wrapper downloads the latest stable `install.ps1` and `install.ps1.sha256`
+from GitHub Release assets, verifies the script hash, and runs the bootstrap
+only after the hash matches. `install.ps1` then verifies the release manifest,
+selected channel, versioned artifact name, and release ZIP SHA256 before
+install-like steps. It does not fetch ZIPs, manifests, or sidecar hashes from
+`yonerai.com`, mutate PATH by default, edit the registry, install services,
+request admin rights, store provider keys, or enable production cloud behavior.
 
-To verify the bootstrap script hash before running it:
+GitHub Release fallback:
+
+```powershell
+iex "& { $(irm https://github.com/YoneRai12/YonerAI/releases/latest/download/install.ps1) } -Execute -Launch"
+```
+
+### Verified install
+
+Use this when you want to verify the bootstrap script hash before execution.
+It downloads `install.ps1` and `install.ps1.sha256` from GitHub Releases, checks
+the SHA256 sidecar, and fails closed before execution if the sidecar is missing,
+malformed, or mismatched.
 
 ```powershell
 $ErrorActionPreference = "Stop"
@@ -56,25 +71,35 @@ try {
   $sidecar = Join-Path $tmp "install.ps1.sha256"
   irm "$base/install.ps1" -OutFile $script
   irm "$base/install.ps1.sha256" -OutFile $sidecar
-  $expected = ((Get-Content -LiteralPath $sidecar -Raw).Split()[0]).ToLowerInvariant()
+  $expected = ((Get-Content -LiteralPath $sidecar -Raw) -split '\s+')[0].ToLowerInvariant()
   if ($expected -notmatch "^[a-f0-9]{64}$") { throw "install.ps1 sidecar SHA256 is invalid" }
   $actual = (Get-FileHash -LiteralPath $script -Algorithm SHA256).Hash.ToLowerInvariant()
   if ($actual -ne $expected) { throw "install.ps1 hash mismatch" }
+  $scriptText = Get-Content -LiteralPath $script -Raw
+  if ($scriptText -notmatch "Invoke-VerifiedLocalBootstrap" -or $scriptText -match "install.ps1 is still plan-only") {
+    throw "install.ps1 is not an executable bootstrap. Refusing to launch."
+  }
   & powershell -NoProfile -ExecutionPolicy Bypass -File $script -Execute -Launch
 } finally {
   if (Test-Path -LiteralPath $tmp) { Remove-Item -LiteralPath $tmp -Recurse -Force }
 }
 ```
 
+Explicit alpha channel:
+
+```powershell
+iex "& { $(irm https://github.com/YoneRai12/YonerAI/releases/latest/download/install.ps1) } -Channel alpha -Execute -Launch"
+```
+
 ### If you downloaded the GitHub Release ZIP
 
-Download `Source code (zip)` from the
-[v0.6.3 release](https://github.com/YoneRai12/YonerAI/releases/tag/v0.6.3),
+Download `YonerAI-0.6.4.zip` from the
+[v0.6.4 release](https://github.com/YoneRai12/YonerAI/releases/tag/v0.6.4),
 extract it, then run PowerShell inside the extracted folder. The extracted
 folder name can vary; change the `cd` command to match the folder you see.
 
 ```powershell
-cd "$HOME\Downloads\YonerAI-0.6.3"
+cd "$HOME\Downloads\YonerAI-0.6.4"
 python --version
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
@@ -97,7 +122,7 @@ hand:
 ```
 
 `install.ps1` is also included as the GitHub Release bootstrap. Without
-`-Execute`, it prints the plan and performs no download or install:
+`-Execute`, it prints the plan and performs no install:
 
 ```powershell
 .\install.ps1
@@ -156,6 +181,12 @@ YonerAI falls back to the plain line-by-line shell used by CI.
 In Japanese mode, type `/` to see Japanese-first command candidates. Tab and
 arrow-key selection are available when `prompt_toolkit` is active:
 
+Readable Japanese aliases are accepted for the primary actions: `/設定`,
+`/モデル`, `/提供元`, `/安全`, `/履歴`, `/タスク`, `/認証`, `/プライバシー`,
+`/自己進化`, `/更新`, `/更新通知`, and `/終了`. Compatibility aliases remain
+accepted, but they do not enable production cloud, live Discord, provider keys,
+arbitrary shell/tool execution, or Google login.
+
 ```text
 /設定       settings
 /モデル     model and local LLM setup
@@ -165,6 +196,7 @@ arrow-key selection are available when `prompt_toolkit` is active:
 /タスク     task progress
 /エージェント reviewer/subagent plan display
 /認証       Google OAuth dry-run status
+/同期       cloud/local sync boundary
 /プライバシー shared-traffic/privacy status
 /更新       local manifest update check
 /更新通知   startup update notice setting
@@ -179,13 +211,17 @@ yonerai chat
 yonerai update check --pretty
 yonerai update check --json
 yonerai auth status --pretty --lang ja
+yonerai sync status --pretty --lang ja
+yonerai sync preview --direction cloud-to-local --json
+yonerai sync approve --dry-run --direction local-to-cloud --json
 yonerai privacy status --pretty --lang ja
 yonerai config set model llama3.1 --pretty --lang ja
 yonerai providers --pretty --lang ja
 ```
 
 `yonerai update check` only reads local VERSION and a local manifest. It does
-not download, install, mutate PATH, run remote code, or require admin rights.
+not download, install, mutate PATH, run remote code, force update, auto-apply
+updates, or require admin rights.
 
 ## Quickstart: Public Demo
 
@@ -209,17 +245,17 @@ yonerai demo --json
 yonerai doctor --pretty
 yonerai doctor --pretty --lang ja
 yonerai status --pretty
-yonerai manifest verify releases/manifest.v0.6.3.json --pretty
-yonerai install plan --manifest releases/manifest.v0.6.3.json --pretty
-yonerai update check --manifest releases/manifest.v0.6.3.json --pretty
-yonerai update plan --manifest releases/manifest.v0.6.3.json --pretty
+yonerai manifest verify manifest.v0.6.4.json --pretty
+yonerai install plan --manifest manifest.v0.6.4.json --pretty
+yonerai update check --manifest manifest.v0.6.4.json --pretty
+yonerai update plan --manifest manifest.v0.6.4.json --pretty
 yonerai plan "summarize public docs" --json
 yonerai ask "summarize public docs" --provider mock --json
 yonerai hybrid run --pretty
 yonerai hybrid run --json
 yonerai search mock "YonerAI alpha2" --json
 yonerai ops plan git-status --json
-yonerai install plan --manifest releases/manifest.v0.6.3.json --json
+yonerai install plan --manifest manifest.v0.6.4.json --json
 ```
 
 ## First 5 minutes
@@ -239,6 +275,7 @@ the same safe `ask --auto` path, or use slash commands.
 /show <run_id>   show one redacted run
 /local-llm       show loopback-only local LLM setup guidance
 /auth            show Google OAuth dry-run contract status
+/sync            show cloud/local sync boundary
 /privacy         show OpenAI shared-traffic and private-content policy
 /update          check local manifest update status
 /update-notice on|off toggle startup update notice setting

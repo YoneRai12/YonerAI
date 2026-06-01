@@ -2,6 +2,24 @@
 
 This page is a public-safe index of current release notes and progress checkpoints.
 
+## v0.6.4 Installer Execute Fix
+
+- GitHub release target: `v0.6.4`.
+- Release title: `2026.06.01 - YonerAI CLI Local Runtime v0.6.4 Installer Execute Fix`.
+- Release date: `2026-06-01`.
+- Public release body: `docs/releases/0.6.4.md`.
+- Fixes the v0.6.3 `install.ps1 -Execute` path where manifest artifact
+  metadata could be confused with a script parameter and fail before release ZIP
+  download.
+- `irm https://install.yonerai.com | iex` remains the short install command.
+  The wrapper checks `install.ps1.sha256` before running the GitHub Release
+  bootstrap.
+- `yonerai.com` remains a command/wrapper entry only. GitHub Release assets
+  remain the source for `install.ps1`, `install.ps1.sha256`,
+  `manifest.v0.6.4.json`, and `YonerAI-0.6.4.zip`.
+- This is not a production-signed installer and does not add forced update or
+  auto-update/apply.
+
 ## v0.6.3 Verified Installer Hardening
 
 - GitHub release target: `v0.6.3`.

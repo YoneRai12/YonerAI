@@ -71,9 +71,16 @@ jobs:
           VERSION=$(cat VERSION | tr -d '[:space:]')
           python scripts/create_release.py "$VERSION"
 
-      - name: Generate Installer Bootstrap Hash
+      - name: Generate install.ps1 sidecar
         run: |
-          sha256sum install.ps1 > install.ps1.sha256
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib
+
+          script = Path("install.ps1")
+          digest = hashlib.sha256(script.read_bytes()).hexdigest()
+          Path("install.ps1.sha256").write_text(f"{digest}  install.ps1\n", encoding="utf-8")
+          PY
 
       - name: Run Release Gate
         run: |

@@ -1026,6 +1026,13 @@ def test_cli_doctor_pretty_supports_japanese_without_json_key_translation(monkey
     assert "Hybrid Wire Contract" in output
     assert "プロバイダー実行環境" in output
     assert "プロバイダー実行環境 E2E フィクスチャ" in output
+    assert "インストール/更新" in output
+    assert "最新stable" in output
+    assert "0.6.4" in output
+    assert "Quick install" in output
+    assert "Verified install" in output
+    assert "強制更新" in output
+    assert "自動適用" in output
     assert "状態" in output
     assert "local_mock_http_server_tested" in output
     assert "openai-compatible" in output
@@ -1052,6 +1059,9 @@ def test_cli_doctor_json_remains_english_keyed_with_lang_ja(capsys):
     output = json.loads(capsys.readouterr().out)
     assert output["command"] == "yonerai doctor"
     assert output["manifest"]["contract_valid"] is True
+    assert output["install_update"]["latest_stable"] == "0.6.4"
+    assert output["install_update"]["forced_update_enabled"] is False
+    assert output["install_update"]["auto_update_apply_enabled"] is False
     assert "system_checks" in output
     assert "マニフェスト" not in json.dumps(output, ensure_ascii=False)
 

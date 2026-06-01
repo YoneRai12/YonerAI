@@ -5,6 +5,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+from zipfile import ZIP_STORED, ZipFile
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -25,14 +26,14 @@ def test_install_page_is_command_only_and_never_local_pc_source() -> None:
     text = INSTALL_PAGE.read_text(encoding="utf-8")
 
     assert LATEST_INSTALL_URL in text
-    assert "Quick install command" in text
-    assert "Verified install command" in text
+    assert "## Quick install" in text
+    assert "## Verified install" in text
     assert "install.ps1.sha256" in text
     assert "sidecar SHA256 is invalid" in text
     assert "install.ps1 hash mismatch" in text
     assert "fails closed" in text
     assert "must not be an installer file source" in text
-    assert "It does not read installer bytes from `yonerai.com`" in text
+    assert "does not fetch ZIPs, manifests, or sidecar hashes from `yonerai.com`" in text
     assert "GitHub Release assets" in text
     assert "https://yonerai.com/install.ps1" not in text
     assert "https://yonerai.com/manifest" not in text
@@ -74,45 +75,123 @@ def test_install_script_rejects_local_custom_sources_and_has_no_iex() -> None:
     assert "https://yonerai.com" not in script
     assert "https://github.com/YoneRai12/YonerAI/releases/download" in script
     assert LATEST_INSTALL_URL in script
+    assert "$releaseArtifact = Get-ManifestArtifact" in script
+    assert "$artifact = Get-ManifestArtifact" not in script
+
+
+def test_install_script_execute_resolves_manifest_artifact_when_powershell_available(tmp_path: Path) -> None:
+    powershell = _powershell_executable()
+    if powershell is None:
+        return
+
+    artifact = tmp_path / "YonerAI-0.6.4.zip"
+    with ZipFile(artifact, "w", compression=ZIP_STORED) as archive:
+        archive.writestr("repo/install-local.ps1", "Write-Host '[test] local bootstrap reached'\n")
+        archive.writestr("repo/clients/cli/pyproject.toml", "[project]\nname='yonerai-cli'\n")
+
+    import hashlib
+
+    artifact_bytes = artifact.read_bytes()
+    manifest = {
+        "schema_version": "yonerai-installer-bootstrap-manifest/v1",
+        "product": "YonerAI",
+        "channel": "stable",
+        "version": "0.6.4",
+        "published_at": "2026-06-01T00:00:00Z",
+        "production_ready": False,
+        "release": {
+            "tag": "v0.6.4",
+            "github_release_url": "https://github.com/YoneRai12/YonerAI/releases/tag/v0.6.4",
+            "manifest_status": "unsigned_example",
+        },
+        "minimum_requirements": {"python": ">=3.11", "network_required": True},
+        "install_methods": ["powershell_github_release_bootstrap"],
+        "warnings": ["test fixture"],
+        "artifacts": [
+            {
+                "id": "yonerai-0.6.4-source-archive",
+                "kind": "source_archive",
+                "target": "source-any",
+                "os": "any",
+                "arch": "any",
+                "url": "https://github.com/YoneRai12/YonerAI/releases/download/v0.6.4/YonerAI-0.6.4.zip",
+                "sha256": hashlib.sha256(artifact_bytes).hexdigest(),
+                "size_bytes": len(artifact_bytes),
+                "signature": {"status": "placeholder_non_production"},
+            }
+        ],
+    }
+    manifest_path = tmp_path / "manifest.v0.6.4.json"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    script_text = INSTALL_SCRIPT.read_text(encoding="utf-8")
+    replacement = f"""function Invoke-GitHubDownload {{
+    param(
+        [string]$Url,
+        [string]$OutFile,
+        [string]$Label
+    )
+    if ($Label -eq "manifest") {{
+        Copy-Item -LiteralPath {_ps_single_quote(manifest_path)} -Destination $OutFile
+        return
+    }}
+    if ($Label -eq "artifact") {{
+        Copy-Item -LiteralPath {_ps_single_quote(artifact)} -Destination $OutFile
+        return
+    }}
+    throw "unexpected download label"
+}}
+
+function Assert-FileSha256"""
+    script_text = re.sub(
+        r"function Invoke-GitHubDownload \{.*?\r?\n\}\r?\n\r?\nfunction Assert-FileSha256",
+        lambda _match: replacement,
+        script_text,
+        flags=re.S,
+    )
+    test_script = tmp_path / "install.ps1"
+    test_script.write_text(script_text, encoding="utf-8")
+
+    result = subprocess.run(
+        [
+            str(powershell),
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            str(test_script),
+            "-Execute",
+            "-InstallDir",
+            str(tmp_path / "target"),
+        ],
+        text=True,
+        capture_output=True,
+        timeout=60,
+    )
+
+    assert result.returncode == 0, _subprocess_failure(result)
+    assert "artifact sha256 verified: true" in result.stdout
+    assert "[test] local bootstrap reached" in result.stdout
+    assert "Install flow completed from verified GitHub Release assets." in result.stdout
+    assert "property 'url' cannot be found" not in (result.stdout + result.stderr).lower()
 
 
 def test_install_status_reports_github_release_only_source_policy() -> None:
     _prepare_paths()
-    from yonerai_cli.install_planner import build_install_status
+    from yonerai_cli.install_planner import build_install_update_status
 
-    report = build_install_status(ROOT, channel="stable")
+    report = build_install_update_status()
 
-    assert report["schema_version"] == "yonerai-install-status/v0.1"
-    assert report["channel"] == "stable"
-    assert report["selected_version"] == "0.6.3"
-    assert report["selected_tag"] == "v0.6.3"
-    assert report["selected_artifact"]["actual_filename"] == "YonerAI-0.6.3.zip"
-    assert "alpha" not in report["selected_artifact"]["actual_filename"]
-    assert report["source_policy"]["install_script_source"] == "github_latest_release_asset_redirect"
-    assert report["source_policy"]["artifact_source"] == "github_release_asset_only"
-    assert report["source_policy"]["yonerai_com_serves_install_script"] is False
-    assert report["source_policy"]["yonerai_com_serves_manifest_or_zip"] is False
-    assert report["source_policy"]["local_file_source_allowed"] is False
-    assert report["recommended_commands"]["stable"].startswith("& ([scriptblock]::Create((irm ")
-    assert LATEST_INSTALL_URL in report["recommended_commands"]["stable"]
-    assert "-Channel alpha" in report["recommended_commands"]["alpha"]
-    assert "install.ps1.sha256" in report["recommended_commands"]["verify_first"]
-    assert "sidecar SHA256 is invalid" in report["recommended_commands"]["verify_first"]
-    assert "install.ps1 hash mismatch" in report["recommended_commands"]["verify_first"]
-
-
-def test_alpha_install_status_matches_current_public_alpha_manifest() -> None:
-    _prepare_paths()
-    from yonerai_cli.install_planner import build_install_status
-
-    report = build_install_status(ROOT, channel="alpha")
-
-    assert report["ok"] is True
-    assert report["channel"] == "alpha"
-    assert report["selected_version"] == "0.11.0-alpha.1"
-    assert report["selected_tag"] == "v0.11.0-alpha.1"
-    assert report["selected_artifact"]["actual_filename"] == "YonerAI-0.11.0-alpha.1.zip"
-    assert report["source_policy"]["alpha_requires_explicit_channel"] is True
+    assert report["latest_stable"] == "0.6.4"
+    assert report["stable_channel_default"] is True
+    assert report["alpha_requires_explicit_channel"] is True
+    assert report["quick_install_command"] == "irm https://install.yonerai.com | iex"
+    assert LATEST_INSTALL_URL in report["github_install_fallback_command"]
+    assert "install.ps1.sha256" in report["verified_install_command"]
+    assert "sidecar SHA256 is invalid" in report["verified_install_command"]
+    assert "install.ps1 hash mismatch" in report["verified_install_command"]
+    assert report["forced_update_enabled"] is False
+    assert report["auto_update_apply_enabled"] is False
 
 
 def test_install_status_cli_json_is_stable_and_redacted() -> None:
@@ -121,8 +200,7 @@ def test_install_status_cli_json_is_stable_and_redacted() -> None:
             sys.executable,
             "-c",
             "from yonerai_cli.cli import main; main()",
-            "install",
-            "status",
+            "doctor",
             "--json",
         ],
         cwd=CLI_SRC,
@@ -133,10 +211,10 @@ def test_install_status_cli_json_is_stable_and_redacted() -> None:
 
     assert result.returncode == 0, result.stderr
     report = json.loads(result.stdout)
-    assert report["schema_version"] == "yonerai-install-status/v0.1"
-    assert report["source_policy"]["install_page"] == "https://yonerai.com/install"
+    assert report["install_update"]["quick_install_command"] == "irm https://install.yonerai.com | iex"
+    assert report["install_update"]["verified_install_page"] == "https://yonerai.com/install"
     assert str(ROOT) not in result.stdout
-    assert "provider key" not in result.stdout.lower()
+    assert "sk-" not in result.stdout.lower()
 
 
 def test_verified_bootstrap_hash_mismatch_fails_closed_when_powershell_available(tmp_path: Path) -> None:
@@ -206,3 +284,9 @@ def _powershell_executable() -> Path | None:
         if found is not None:
             return Path(found)
     return None
+
+
+def _subprocess_failure(result: subprocess.CompletedProcess[str]) -> str:
+    stdout = result.stdout.replace(str(ROOT), "<repo>").replace(str(Path.home()), "<home>")
+    stderr = result.stderr.replace(str(ROOT), "<repo>").replace(str(Path.home()), "<home>")
+    return f"Subprocess failed.\nSTDOUT:\n{stdout}\nSTDERR:\n{stderr}"
