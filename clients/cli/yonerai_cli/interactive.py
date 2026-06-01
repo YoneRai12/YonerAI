@@ -9,6 +9,7 @@ from typing import Any, Callable, TextIO
 
 from yonerai_cli.auth_policy import build_google_auth_status, build_privacy_status
 from yonerai_cli.config import (
+    AGENT_MODES,
     APPROVAL_MODES,
     ConfigError,
     FILE_ACCESS_MODES,
@@ -55,6 +56,10 @@ COMMAND_ALIASES = {
     "/home": "/status",
     "/ヘルプ": "/help",
     "/help": "/help",
+    "/コマンド": "/palette",
+    "/パレット": "/palette",
+    "/palette": "/palette",
+    "/commands": "/palette",
     "/設定": "/settings",
     "/settings": "/settings",
     "/モデル": "/models",
@@ -74,6 +79,14 @@ COMMAND_ALIASES = {
     "/エージェント": "/agents",
     "/agents": "/agents",
     "/agent": "/agents",
+    "/モード": "/mode",
+    "/mode": "/mode",
+    "/計画": "/plan",
+    "/plan": "/plan",
+    "/レビュー": "/review",
+    "/review": "/review",
+    "/権限": "/permissions",
+    "/permissions": "/permissions",
     "/認証": "/auth",
     "/auth": "/auth",
     "/同期": "/sync",
@@ -131,6 +144,29 @@ VALUE_ALIASES = {
     "確認": "prompt",
     "毎回確認": "prompt",
     "拒否": "deny",
+    "計画": "plan_readonly",
+    "読み取り": "plan_readonly",
+    "読み取り専用": "plan_readonly",
+    "plan": "plan_readonly",
+    "plan-readonly": "plan_readonly",
+    "安全実行": "build_safe",
+    "ビルド": "build_safe",
+    "構築": "build_safe",
+    "build": "build_safe",
+    "execute-safe": "build_safe",
+    "レビュー": "review",
+    "査読": "review",
+    "記憶": "memory",
+    "メモリ": "memory",
+    "read-only": "read_only",
+    "readonly": "read_only",
+    "読み取りのみ": "read_only",
+    "自動安全": "auto_safe",
+    "auto-safe": "auto_safe",
+    "危険時確認": "ask_before_risky",
+    "ask-before-risky": "ask_before_risky",
+    "ドライランのみ": "dry_run_only",
+    "dry-run-only": "dry_run_only",
     "ワークスペース内のみ": "workspace_only",
     "ワークスペースのみ": "workspace_only",
     "無効": "disabled",
@@ -154,6 +190,8 @@ SETTINGS_CATEGORY_ALIASES = {
     "models": "models",
     "安全": "safety",
     "safety": "safety",
+    "モード": "mode",
+    "mode": "mode",
     "記憶": "memory",
     "メモリ": "memory",
     "memory": "memory",
@@ -274,6 +312,10 @@ def run_interactive_cli(
                 _write(output_stream, _bye(lang))
                 return 0
             continue
+        agent_preview = _format_agent_mention_preview(text, config=config, lang=lang)
+        if agent_preview is not None:
+            _write(output_stream, agent_preview)
+            continue
 
         effective_live = _effective_live(live, config)
         memory_store_path = _resolve_memory_store_path(config)
@@ -342,11 +384,12 @@ def _effective_live(live: bool, config: dict[str, object]) -> bool:
 
 def _bottom_toolbar(lang: str, *, provider: str, live: bool, config: dict[str, object]) -> str:
     model = _safe(config.get("model_preference") or "auto")
+    agent_mode = _agent_mode_label(config.get("agent_mode") or "plan_readonly", lang=lang)
     if lang == "ja":
         live_text = "ライブ接続オン" if live else "ライブ接続オフ"
         ledger = "履歴オン" if config.get("ledger_enabled") is True else "履歴オフ"
-        return f"Tab/矢印で候補を選択 | 提供元={_provider_label(provider, lang='ja')} | モデル={model} | {live_text} | {ledger}"
-    return f"Tab/arrows complete | provider={provider} | model={model} | live={'on' if live else 'off'} | ledger={'on' if config.get('ledger_enabled') else 'off'}"
+        return f"Tab/矢印で候補を選択 | 提供元={_provider_label(provider, lang='ja')} | モデル={model} | モード={agent_mode} | {live_text} | {ledger}"
+    return f"Tab/arrows complete | provider={provider} | model={model} | mode={agent_mode} | live={'on' if live else 'off'} | ledger={'on' if config.get('ledger_enabled') else 'off'}"
 
 
 def _select_language(
@@ -414,6 +457,9 @@ def _handle_slash_command(
     if command == "/help":
         _write(output_stream, _help(lang))
         return {}
+    if command == "/palette":
+        _write(output_stream, _format_command_palette(lang))
+        return {}
     if command == "/settings":
         provider_report = callbacks.providers()
         category = _settings_category_from_args(args)
@@ -479,6 +525,36 @@ def _handle_slash_command(
         return {}
     if command == "/agents":
         _write(output_stream, _format_agents(last_report, lang=lang))
+        return {}
+    if command == "/mode":
+        if args:
+            value = _canonical_agent_mode_value(args[0])
+            if value not in AGENT_MODES:
+                _write(output_stream, _invalid(lang))
+                return {}
+            success, result = _set_and_report("agent_mode", value, config, options, lang, output_stream)
+            if not success:
+                return {}
+            _write(output_stream, _format_mode_state(config, lang=lang))
+            return result
+        _write(output_stream, _format_mode_state(config, lang=lang))
+        return {}
+    if command == "/plan":
+        success, result = _set_and_report("agent_mode", "plan_readonly", config, options, lang, output_stream)
+        if not success:
+            return {}
+        _write(output_stream, _format_mode_state(config, lang=lang))
+        return result
+    if command == "/review":
+        success, result = _set_and_report("agent_mode", "review", config, options, lang, output_stream)
+        if not success:
+            return {}
+        _write(output_stream, _format_mode_state(config, lang=lang))
+        return result
+    if command == "/permissions":
+        if args:
+            return _handle_permission_profile(args, config=config, options=options, lang=lang, output_stream=output_stream)
+        _write(output_stream, _format_permissions(config, live=live, lang=lang))
         return {}
     if command == "/auth":
         _write(output_stream, _format_auth_status(config, lang=lang))
@@ -635,6 +711,7 @@ def _set_and_report(
     setting_key = {
         "provider": "provider_preference",
         "model": "model_preference",
+        "agent_mode": "agent_mode",
         "approval": "approval_mode",
         "file_access": "file_access_mode",
         "ledger": "ledger_enabled",
@@ -837,11 +914,54 @@ def _handle_numbered_selection(
             new_config = _set_config(config, "update_notice", selected, options.config_path)
             _write(output_stream, _changed_message("update_notice", new_config["update_notice_enabled"], lang=lang))
             return {"update_notice_changed": True}
+        if number == "10":
+            normalized_value = _canonical_agent_mode_value(args[1]) if len(args) > 1 else None
+            if normalized_value in AGENT_MODES:
+                new_config = _set_config(config, "agent_mode", normalized_value, options.config_path)
+                _write(output_stream, _changed_message("agent_mode", new_config["agent_mode"], lang=lang))
+                return {}
+            _write(output_stream, _settings_selection_help(lang))
+            return {}
     except ConfigError as exc:
         _write(output_stream, _config_error(lang, exc))
         return {}
     _write(output_stream, _settings_selection_help(lang))
     return {"provider": provider, "live": live}
+
+
+def _handle_permission_profile(
+    args: list[str],
+    *,
+    config: dict[str, object],
+    options: InteractiveOptions,
+    lang: str,
+    output_stream: TextIO,
+) -> dict[str, object]:
+    profile = _canonical_value(args[0]) if args else ""
+    try:
+        if profile == "read_only":
+            _set_config(config, "agent_mode", "plan_readonly", options.config_path)
+            new_config = _set_config(config, "approval", "deny", options.config_path)
+        elif profile == "auto_safe":
+            _set_config(config, "agent_mode", "build_safe", options.config_path)
+            new_config = _set_config(config, "approval", "prompt", options.config_path)
+        elif profile == "ask_before_risky":
+            _set_config(config, "agent_mode", "review", options.config_path)
+            new_config = _set_config(config, "approval", "prompt", options.config_path)
+        elif profile == "dry_run_only":
+            _set_config(config, "agent_mode", "plan_readonly", options.config_path)
+            new_config = _set_config(config, "approval", "prompt", options.config_path)
+        else:
+            _write(output_stream, _invalid(lang))
+            return {}
+    except ConfigError as exc:
+        _write(output_stream, _config_error(lang, exc))
+        return {}
+    config.clear()
+    config.update(new_config)
+    _write(output_stream, _changed_message("permissions", profile, lang=lang))
+    _write(output_stream, _format_permissions(config, live=bool(config.get("live_provider_enabled")), lang=lang))
+    return {}
 
 
 def _resolve_ledger_path(config: dict[str, object], options: InteractiveOptions) -> str | None:
@@ -874,6 +994,11 @@ def _canonical_command(value: str) -> str:
 def _canonical_value(value: str) -> str:
     raw = value.strip()
     return VALUE_ALIASES.get(raw, VALUE_ALIASES.get(raw.lower(), raw))
+
+
+def _canonical_agent_mode_value(value: str) -> str:
+    normalized = _canonical_value(value)
+    return "plan_readonly" if normalized == "read_only" else normalized
 
 
 def _format_chat_response(report: dict[str, Any], *, lang: str) -> str:
@@ -1158,6 +1283,160 @@ def _agent_role_label(value: object, *, lang: str) -> str:
     }.get(str(value), _safe(value or "担当"))
 
 
+def _format_command_palette(lang: str) -> str:
+    if lang == "ja":
+        return "\n".join(
+            (
+                "コマンドパレット",
+                "  / を入力すると候補を表示します。Tab/矢印が使えない端末では、この一覧と /選択 の番号入力を使います。",
+                "  日本語コマンドを優先表示します。/settings などの英語aliasも互換用に使えます。",
+                "",
+                slash_command_summary(lang).rstrip(),
+                "",
+            )
+        )
+    return "\n".join(
+        (
+            "Command palette",
+            "  Type / to show suggestions. If Tab/arrows are unavailable, use this list and /select numbered fallback.",
+            "  English aliases remain available; Japanese mode shows Japanese commands first.",
+            "",
+            slash_command_summary(lang).rstrip(),
+            "",
+        )
+    )
+
+
+def _format_mode_state(config: dict[str, object], *, lang: str) -> str:
+    values = build_config_report(config, exists=True)["config"]
+    current = str(values.get("agent_mode") or "plan_readonly")
+    if lang == "ja":
+        return "\n".join(
+            (
+                "作業モード",
+                f"  現在: {_agent_mode_label(current, lang='ja')}",
+                "",
+                f"{_selector('plan_readonly', current)} 計画（読み取り専用）: 調査・計画・確認だけ。変更や外部実行はしません。",
+                f"{_selector('build_safe', current)} 安全実行: 公開runtimeで許可済みのdry-run/安全操作だけ候補にします。",
+                f"{_selector('review', current)} レビュー: 差分・安全境界・テスト観点を優先します。",
+                f"{_selector('memory', current)} 記憶: ローカル記憶の確認・整理を優先します。",
+                "",
+                "変更: /モード 計画|安全実行|レビュー|記憶",
+                "ショートカット: /計画 /レビュー",
+                "実サブエージェント起動: なし。表示するのは計画だけです。",
+                "",
+            )
+        )
+    return "\n".join(
+        (
+            "Agent mode",
+            f"  current: {current}",
+            "  plan_readonly: plan and inspect only",
+            "  build_safe: safe public-runtime dry-run actions only",
+            "  review: prioritize review and verification",
+            "  memory: prioritize local memory inspection",
+            "  change: /mode plan|build|review|memory",
+            "  shortcuts: /plan /review",
+            "  real subagent execution: none; this only displays a plan.",
+            "",
+        )
+    )
+
+
+def _format_permissions(config: dict[str, object], *, live: bool, lang: str) -> str:
+    values = build_config_report(config, exists=True)["config"]
+    mode = str(values.get("agent_mode") or "plan_readonly")
+    approval = str(values.get("approval_mode") or "prompt")
+    tools = str(values.get("tools_mode") or "dry_run")
+    if lang == "ja":
+        return "\n".join(
+            (
+                "権限と承認",
+                f"  作業モード: {_agent_mode_label(mode, lang='ja')}",
+                f"  承認: {_approval_label(approval, lang='ja')}",
+                f"  ツール: {_safe(tools)}（public runtime は dry-run 固定）",
+                f"  ライブ接続: {'オン（明示許可）' if live else 'オフ（初期値）'}",
+                "",
+                f"{_selector('read_only', _permission_profile(config))} 読み取り専用: 変更しない。計画・レビューだけ。",
+                f"{_selector('auto_safe', _permission_profile(config))} 自動安全: 安全なdry-run候補だけ。任意shellや外部fileは不可。",
+                f"{_selector('ask_before_risky', _permission_profile(config))} 危険時確認: 危険操作は approval_required / deny。",
+                f"{_selector('dry_run_only', _permission_profile(config))} ドライランのみ: 実行ではなく計画だけ。",
+                "",
+                "変更: /権限 読み取り専用|自動安全|危険時確認|ドライランのみ",
+                "境界: 任意shellなし / workspace外fileなし / provider key表示なし / local private memory自動uploadなし。",
+                "",
+            )
+        )
+    return "\n".join(
+        (
+            "Permissions and approval",
+            f"  agent_mode: {mode}",
+            f"  approval: {approval}",
+            f"  tools: {tools} (public runtime is dry-run only)",
+            f"  live: {'on' if live else 'off'}",
+            "  profiles: read-only, auto-safe, ask-before-risky, dry-run-only",
+            "  change: /permissions read-only|auto-safe|ask-before-risky|dry-run-only",
+            "  boundaries: no arbitrary shell, no files outside workspace, no provider key output, no local private memory auto-upload.",
+            "",
+        )
+    )
+
+
+def _permission_profile(config: dict[str, object]) -> str:
+    if config.get("approval_mode") == "deny":
+        return "read_only"
+    if config.get("agent_mode") == "plan_readonly":
+        return "dry_run_only"
+    if config.get("agent_mode") == "build_safe":
+        return "auto_safe"
+    return "ask_before_risky"
+
+
+def _format_agent_mention_preview(text: str, *, config: dict[str, object], lang: str) -> str | None:
+    parts = text.strip().split(maxsplit=1)
+    if not parts or not parts[0].startswith("@"):
+        return None
+    raw_role = parts[0][1:].strip().lower()
+    role_aliases = {
+        "general": "planner",
+        "planner": "planner",
+        "researcher": "researcher",
+        "reviewer": "reviewer",
+    }
+    role = role_aliases.get(raw_role)
+    if role is None:
+        return None
+    summary = _safe(parts[1] if len(parts) > 1 else "no task provided")
+    mode = str(config.get("agent_mode") or "plan_readonly")
+    if lang == "ja":
+        return "\n".join(
+            (
+                "サブエージェント計画",
+                f"  指名: @{raw_role} / {_agent_role_label(role, lang='ja')}",
+                f"  作業モード: {_agent_mode_label(mode, lang='ja')}",
+                f"  依頼要約: {summary}",
+                "  状態: planned",
+                "  実サブエージェント起動: なし",
+                "  自律実行: なし",
+                "  次にやること: 通常のメッセージとして送ると ask --auto 経路で処理します。",
+                "",
+            )
+        )
+    return "\n".join(
+        (
+            "Subagent plan",
+            f"  mention: @{raw_role} / {role}",
+            f"  agent_mode: {mode}",
+            f"  request_summary: {summary}",
+            "  state: planned",
+            "  real_subagent_execution: none",
+            "  autonomous_actions: none",
+            "  next: send the task as a normal message to use ask --auto.",
+            "",
+        )
+    )
+
+
 def _format_settings(
     config: dict[str, object],
     *,
@@ -1180,15 +1459,16 @@ def _format_settings(
                 "  1. 言語: " + _language_label(values["language"] or "ja", lang="ja") + "  /設定 言語",
                 "  2. 提供元: " + _provider_label(provider, lang="ja") + "  /設定 提供元",
                 "  3. モデル: " + _safe(values.get("model_preference") or "auto") + "  /設定 モデル",
-                "  4. 安全: 承認="
+                "  4. モード: " + _agent_mode_label(values.get("agent_mode"), lang="ja") + "  /設定 モード",
+                "  5. 安全: 承認="
                 + _approval_label(values["approval_mode"], lang="ja")
                 + " / ファイル="
                 + _file_access_label(values["file_access_mode"], lang="ja")
                 + "  /設定 安全",
-                "  5. 記憶: ローカル優先 / local->cloud自動同期なし  /設定 記憶",
-                "  6. 更新: 通知=" + update_notice + " / 自動適用なし  /設定 更新",
-                "  7. 認証: Google OAuthドライラン契約のみ  /設定 認証",
-                "  8. プライバシー: 共有トラフィックオフ  /設定 プライバシー",
+                "  6. 記憶: ローカル優先 / local->cloud自動同期なし  /設定 記憶",
+                "  7. 更新: 通知=" + update_notice + " / 自動適用なし  /設定 更新",
+                "  8. 認証: Google OAuthドライラン契約のみ  /設定 認証",
+                "  9. プライバシー: 共有トラフィックオフ  /設定 プライバシー",
                 "",
                 "個別切替",
                 "  /選択 1 日本語|英語",
@@ -1200,6 +1480,7 @@ def _format_settings(
                 "  /選択 7 オン|オフ  （ネットワーク）",
                 "  /選択 8 自動|llama3.1  （モデル）",
                 "  /選択 9 オン|オフ  （更新通知）",
+                "  /選択 10 計画|安全実行|レビュー|記憶  （作業モード）",
                 "",
                 f"状態: ローカルLLM={_state_label(local_state, lang='ja')} / 履歴={ledger} / ライブ={'オン' if live else 'オフ'}",
                 "秘密情報（APIキーなど）は表示・保存しません。ローカルパスは出力しません。",
@@ -1213,14 +1494,15 @@ def _format_settings(
             "  /settings language",
             "  /settings providers",
             "  /settings models",
+            "  /settings mode",
             "  /settings safety",
             "  /settings memory",
             "  /settings update",
             "  /settings auth",
             "  /settings privacy",
-            f"  current: language={values['language'] or 'ja'} provider={provider} model={values.get('model_preference') or 'auto'} local_llm={local_state}",
+            f"  current: language={values['language'] or 'ja'} provider={provider} model={values.get('model_preference') or 'auto'} agent_mode={values.get('agent_mode')} local_llm={local_state}",
             f"  toggles: ledger={ledger} live={'on' if live else 'off'} network={'on' if values['network_enabled'] else 'off'} update_notice={update_notice}",
-            "  numbered fallback: /select 1 en, /select 2 mock, /select 8 llama3.1, /select 9 on",
+            "  numbered fallback: /select 1 en, /select 2 mock, /select 8 llama3.1, /select 9 on, /select 10 review",
             "  secrets and local paths are not printed.",
             "",
         )
@@ -1259,6 +1541,8 @@ def _format_settings_category(
         return _format_models(config, provider_report or {}, lang=lang)
     if category == "safety":
         return _format_safety(config, live=live, lang=lang)
+    if category == "mode":
+        return _format_mode_state(config, lang=lang)
     if category == "update":
         return _format_settings_update(config, lang=lang)
     if category == "auth":
@@ -2105,6 +2389,7 @@ def _welcome(
     ledger = "オン" if ledger_path else "オフ"
     ledger_en = "on" if ledger_path else "off"
     model = _safe(config.get("model_preference") or "auto")
+    agent_mode = _safe(config.get("agent_mode") or "plan_readonly")
     update_notice = "オン" if config.get("update_notice_enabled") else "オフ"
     update_notice_en = "on" if config.get("update_notice_enabled") else "off"
     if lang == "ja":
@@ -2116,6 +2401,7 @@ def _welcome(
                 "状態ヘッダー",
                 f"  提供元（AI接続元）: {_provider_label(provider, lang='ja')}",
                 f"  モデル（AIモデル）: {model}",
+                f"  作業モード: {_agent_mode_label(agent_mode, lang='ja')}",
                 "  経路（処理方法）: 未実行",
                 "  ローカルノード: 待機中（ローカル開発 / ループバック限定）",
                 f"  履歴: {ledger}（秘匿済みローカル履歴）",
@@ -2124,7 +2410,7 @@ def _welcome(
                 f"  更新通知: {update_notice}（ローカルmanifest確認のみ）",
                 "  認証/同期/プライバシー: Google OAuthドライランのみ / local->cloud自動同期なし / 共有トラフィックオフ",
                 "  自己進化: proposal-only / 合成signalだけ / 自動PR・deployなし",
-                "使う: そのまま質問を書く / / で候補表示 / /設定 / /モデル / /提供元 / /安全 / /履歴 / /認証 / /同期 / /自己進化 / /更新",
+                "使う: そのまま質問を書く / / で候補表示 / /コマンド / /設定 / /モード / /計画 / /レビュー / /権限 / /モデル / /提供元 / /安全 / /履歴 / /認証 / /同期 / /自己進化 / /更新",
                 "設定を変える: /選択 <番号> <値>",
                 "",
             )
@@ -2133,11 +2419,11 @@ def _welcome(
         (
             "YonerAI Mission Control CLI",
             "English mode. Type /help for commands.",
-            f"provider={provider} model={model} route=not_run local_node=standby ledger={ledger_en} live={'on' if live else 'off'} update_notice={update_notice_en} config={'found' if config_exists else 'created/default'}",
+            f"provider={provider} model={model} agent_mode={agent_mode} route=not_run local_node=standby ledger={ledger_en} live={'on' if live else 'off'} update_notice={update_notice_en} config={'found' if config_exists else 'created/default'}",
             "Safety: network off / tools dry-run / workspace file only / arbitrary shell disabled / live providers off by default",
             "Auth/sync/privacy: Google OAuth dry-run only / no automatic local-to-cloud sync / shared traffic off",
             "Self-evolution: proposal-only, synthetic signals only, no PR/deploy/mutation",
-            "Use: type a message, / for suggestions, /settings, /models, /providers, /safety, /runs, /auth, /sync, /evolve, /update",
+            "Use: type a message, / for suggestions, /palette, /settings, /mode, /plan, /review, /permissions, /models, /providers, /safety, /runs, /auth, /sync, /evolve, /update",
             "",
         )
     )
@@ -2150,7 +2436,12 @@ def _help(lang: str) -> str:
                 "コマンド",
                 "  /状態                 状態ヘッダーをもう一度表示する",
                 "  /ホーム               状態ヘッダーをもう一度表示する",
+                "  /コマンド             コマンドパレットを表示する",
                 "  /設定                 設定を見る",
+                "  /モード 計画|安全実行|レビュー|記憶",
+                "  /計画                 読み取り専用の計画モードにする",
+                "  /レビュー             レビュー優先モードにする",
+                "  /権限                 承認と権限の状態を見る",
                 "  /モデル               モデルとローカルLLMの設定を見る",
                 "  /提供元               提供元（AI接続元）を見る",
                 "  /安全                 安全境界を見る",
@@ -2182,7 +2473,12 @@ def _help(lang: str) -> str:
             "Commands",
             "  /status          Show the Mission Control status header again",
             "  /home            Show the Mission Control status header again",
+            "  /palette         Show command palette",
             "  /settings        Show settings",
+            "  /mode plan|build|review|memory Change agent mode",
+            "  /plan            Switch to read-only planning mode",
+            "  /review          Switch to review mode",
+            "  /permissions     Show approval and permission policy",
             "  /models          Show model and local LLM setup",
             "  /providers       Show provider status",
             "  /safety          Show safety boundaries",
@@ -2255,6 +2551,7 @@ def _settings_selection_help(lang: str) -> str:
                 "例: /選択 5 オン",
                 "例: /選択 6 オフ",
                 "例: /選択 7 オフ",
+                "例: /選択 10 レビュー",
                 "",
             )
         )
@@ -2388,6 +2685,17 @@ def _approval_label(value: object, *, lang: str) -> str:
     return {"prompt": "毎回確認", "deny": "拒否"}.get(str(value), _safe(value))
 
 
+def _agent_mode_label(value: object, *, lang: str) -> str:
+    if lang != "ja":
+        return _safe(value)
+    return {
+        "plan_readonly": "計画（読み取り専用）",
+        "build_safe": "安全実行",
+        "review": "レビュー",
+        "memory": "記憶",
+    }.get(str(value), _safe(value))
+
+
 def _file_access_label(value: object, *, lang: str) -> str:
     if lang != "ja":
         return _safe(value)
@@ -2468,6 +2776,8 @@ def _setting_label(value: object, *, lang: str) -> str:
         "language": "表示言語",
         "provider": "提供元（AI接続元）",
         "model": "モデル（AIモデル）",
+        "agent_mode": "作業モード",
+        "permissions": "権限と承認",
         "approval": "承認（危険操作）",
         "file_access": "ファイルアクセス（ファイル読み取り）",
         "ledger": "履歴記録（ローカル履歴）",
@@ -2489,8 +2799,18 @@ def _value_label(value: object, *, lang: str) -> str:
         return _language_label(value, lang=lang)
     if value in PROVIDER_PREFERENCES:
         return _provider_label(value, lang=lang)
+    if value in AGENT_MODES:
+        return _agent_mode_label(value, lang=lang)
     if value in APPROVAL_MODES:
         return _approval_label(value, lang=lang)
+    permission_labels = {
+        "read_only": "読み取り専用",
+        "auto_safe": "自動安全",
+        "ask_before_risky": "危険時確認",
+        "dry_run_only": "ドライランのみ",
+    }
+    if value in permission_labels:
+        return permission_labels[str(value)]
     if value in FILE_ACCESS_MODES:
         return _file_access_label(value, lang=lang)
     if type(value) is bool:

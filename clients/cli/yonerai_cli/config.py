@@ -7,10 +7,11 @@ from pathlib import Path
 from typing import Mapping
 
 
-CONFIG_SCHEMA_VERSION = "yonerai-cli-config/v0.6"
+CONFIG_SCHEMA_VERSION = "yonerai-cli-config/v0.7"
 LANGUAGES = ("ja", "en")
 PROVIDER_PREFERENCES = ("auto", "mock", "local", "openai-compatible", "anthropic", "gemini")
 APPROVAL_MODES = ("prompt", "deny")
+AGENT_MODES = ("plan_readonly", "build_safe", "review", "memory")
 FILE_ACCESS_MODES = ("workspace_only", "disabled")
 MEMORY_DEFAULT_SCOPES = ("local", "local_private", "procedural", "shared_preference", "project", "session")
 MODEL_RE = re.compile(r"^[A-Za-z0-9_.:+/-]{1,80}$")
@@ -20,6 +21,7 @@ DEFAULT_CONFIG: dict[str, object] = {
     "language": None,
     "provider_preference": "auto",
     "model_preference": "auto",
+    "agent_mode": "plan_readonly",
     "approval_mode": "prompt",
     "file_access_mode": "workspace_only",
     "live_provider_enabled": False,
@@ -115,6 +117,8 @@ def validate_cli_config(config: Mapping[str, object]) -> dict[str, object]:
         raise ConfigError("model_preference is invalid.")
     if merged.get("approval_mode") not in APPROVAL_MODES:
         raise ConfigError("approval_mode is invalid.")
+    if merged.get("agent_mode") not in AGENT_MODES:
+        raise ConfigError("agent_mode is invalid.")
     if merged.get("file_access_mode") not in FILE_ACCESS_MODES:
         raise ConfigError("file_access_mode is invalid.")
     for key in (
@@ -146,6 +150,8 @@ def normalize_config_key(key: str) -> str:
         "provider": "provider_preference",
         "model": "model_preference",
         "model_preference": "model_preference",
+        "agent_mode": "agent_mode",
+        "mode": "agent_mode",
         "language": "language",
         "lang": "language",
         "approval": "approval_mode",
@@ -191,6 +197,32 @@ def parse_config_value(key: str, value: str) -> object:
         if not MODEL_RE.fullmatch(raw) or "://" in raw or "\\" in raw:
             raise ConfigError("model must be auto or a simple provider model id.")
         return raw
+    if key == "agent_mode":
+        aliases = {
+            "計画": "plan_readonly",
+            "読み取り": "plan_readonly",
+            "読み取り専用": "plan_readonly",
+            "plan": "plan_readonly",
+            "plan-readonly": "plan_readonly",
+            "readonly": "plan_readonly",
+            "read-only": "plan_readonly",
+            "read_only": "plan_readonly",
+            "安全実行": "build_safe",
+            "ビルド": "build_safe",
+            "構築": "build_safe",
+            "build": "build_safe",
+            "execute-safe": "build_safe",
+            "safe-build": "build_safe",
+            "レビュー": "review",
+            "査読": "review",
+            "reviewer": "review",
+            "記憶": "memory",
+            "メモリ": "memory",
+        }
+        normalized = aliases.get(raw, aliases.get(raw.lower(), raw))
+        if normalized not in AGENT_MODES:
+            raise ConfigError("agent mode must be plan_readonly, build_safe, review, or memory.")
+        return normalized
     if key == "approval_mode":
         if raw not in APPROVAL_MODES:
             raise ConfigError("approval mode must be prompt or deny.")
@@ -240,6 +272,7 @@ def build_config_report(config: Mapping[str, object], *, exists: bool) -> dict[s
             "language": validated["language"],
             "provider_preference": validated["provider_preference"],
             "model_preference": validated["model_preference"],
+            "agent_mode": validated["agent_mode"],
             "approval_mode": validated["approval_mode"],
             "file_access_mode": validated["file_access_mode"],
             "live_provider_enabled": validated["live_provider_enabled"],
