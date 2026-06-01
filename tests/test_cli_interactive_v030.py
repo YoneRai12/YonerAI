@@ -121,9 +121,10 @@ def test_cli_config_show_and_set_do_not_print_paths_or_store_secrets(tmp_path: P
     assert cli.main(["config", "show", "--json"]) == 0
     report = json.loads(capsys.readouterr().out)
 
-    assert report["schema_version"] == "yonerai-cli-config/v0.6"
+    assert report["schema_version"] == "yonerai-cli-config/v0.7"
     assert report["secrets_supported"] is False
     assert report["path_persisted_in_output"] is False
+    assert report["config"]["agent_mode"] == "plan_readonly"
     assert report["config"]["memory_enabled"] is True
     assert report["config"]["memory_default_scope"] == "local_private"
     assert report["config"]["memory_local_to_cloud_approval_required"] is True
@@ -839,6 +840,103 @@ def test_tui_empty_prompt_does_not_exit_session(tmp_path: Path, monkeypatch) -> 
     assert "Goodbye" in stdout.getvalue()
 
 
+def test_agent_console_palette_modes_permissions_and_mentions(tmp_path: Path) -> None:
+    from yonerai_cli.interactive import InteractiveCallbacks, InteractiveOptions, run_interactive_cli
+
+    asked: list[str] = []
+
+    def providers() -> dict[str, Any]:
+        return {"providers": []}
+
+    def ask_auto(task: str, *_args: Any) -> dict[str, Any]:
+        asked.append(task)
+        return {"ok": True}
+
+    def runs_list(*_args: Any) -> dict[str, Any]:
+        return {"runs": []}
+
+    def runs_show(*_args: Any) -> dict[str, Any]:
+        return {"ok": False}
+
+    stdout = _PlainStringIO()
+    rc = run_interactive_cli(
+        InteractiveOptions(config_path=str(tmp_path / "cli-config.json"), lang="ja", script=True, color="never"),
+        InteractiveCallbacks(providers=providers, ask_auto=ask_auto, runs_list=runs_list, runs_show=runs_show),
+        stdin=_PlainStringIO(
+            "/\n"
+            "/コマンド\n"
+            "/モード レビュー\n"
+            "/計画\n"
+            "/レビュー\n"
+            "/権限\n"
+            "/権限 自動安全\n"
+            "/mode plan\n"
+            "/mode read-only\n"
+            "/select 10 build\n"
+            "/permissions ask-before-risky\n"
+            "@planner 公開リリースの計画\n"
+            "@reviewer 安全境界を確認\n"
+            "/終了\n"
+        ),
+        stdout=stdout,
+    )
+    output = stdout.getvalue()
+
+    assert rc == 0
+    assert "コマンドパレット" in output
+    assert "/モード" in output
+    assert "/計画" in output
+    assert "/レビュー" in output
+    assert "/権限" in output
+    assert "作業モード" in output
+    assert "計画（読み取り専用）" in output
+    assert "レビュー" in output
+    assert "権限と承認" in output
+    assert "自動安全" in output
+    assert "危険時確認" in output
+    assert "サブエージェント計画" in output
+    assert "@planner" in output
+    assert "@reviewer" in output
+    assert "実サブエージェント起動: なし" in output
+    assert asked == []
+    assert "値が正しくありません" not in output
+    assert str(tmp_path) not in output
+
+
+def test_permissions_dry_run_only_resets_read_only_approval(tmp_path: Path) -> None:
+    from yonerai_cli.config import load_cli_config
+    from yonerai_cli.interactive import InteractiveCallbacks, InteractiveOptions, run_interactive_cli
+
+    def providers() -> dict[str, Any]:
+        return {"providers": []}
+
+    def ask_auto(_task: str, *_args: Any) -> dict[str, Any]:
+        return {"ok": True}
+
+    def runs_list(*_args: Any) -> dict[str, Any]:
+        return {"runs": []}
+
+    def runs_show(*_args: Any) -> dict[str, Any]:
+        return {"ok": False}
+
+    config_path = tmp_path / "cli-config.json"
+    stdout = _PlainStringIO()
+    rc = run_interactive_cli(
+        InteractiveOptions(config_path=str(config_path), lang="en", script=True, color="never"),
+        InteractiveCallbacks(providers=providers, ask_auto=ask_auto, runs_list=runs_list, runs_show=runs_show),
+        stdin=_PlainStringIO("/permissions read-only\n/permissions dry-run-only\n/permissions\n/quit\n"),
+        stdout=stdout,
+    )
+
+    assert rc == 0
+    stored = load_cli_config(config_path)
+    assert stored["agent_mode"] == "plan_readonly"
+    assert stored["approval_mode"] == "prompt"
+    output = stdout.getvalue()
+    assert "permissions=dry_run_only" in output
+    assert "approval: prompt" in output
+
+
 def test_startup_update_notice_is_non_blocking_and_repeated_after_task(tmp_path: Path) -> None:
     from yonerai_cli.config import DEFAULT_CONFIG, save_cli_config
     from yonerai_cli.interactive import InteractiveCallbacks, InteractiveOptions, run_interactive_cli
@@ -1133,6 +1231,7 @@ def test_slash_command_summary_is_japanese_first() -> None:
     assert words[:12] == [
         "/状態",
         "/設定",
+        "/コマンド",
         "/モデル",
         "/提供元",
         "/安全",
@@ -1140,10 +1239,16 @@ def test_slash_command_summary_is_japanese_first() -> None:
         "/表示",
         "/タスク",
         "/エージェント",
+        "/モード",
+        "/計画",
+    ]
+    assert words[12:16] == [
+        "/レビュー",
+        "/権限",
         "/認証",
         "/同期",
-        "/プライバシー",
     ]
+    assert "/プライバシー" in words
     assert "/設定" in summary
     assert "/状態" in summary
     assert "/ホーム" in summary
@@ -1151,6 +1256,11 @@ def test_slash_command_summary_is_japanese_first() -> None:
     assert "/認証" in summary
     assert "/同期" in summary
     assert "/プライバシー" in summary
+    assert "/コマンド" in summary
+    assert "/モード" in summary
+    assert "/計画" in summary
+    assert "/レビュー" in summary
+    assert "/権限" in summary
     assert "/記憶" in summary
     assert "/記憶" in words
     assert "/メモリ" in words
@@ -1159,6 +1269,7 @@ def test_slash_command_summary_is_japanese_first() -> None:
     assert "/設定" in words
     assert "/状態" in words
     assert "/ホーム" in words
+    assert "/パレット" in words
     assert words.count("/状態") == 1
     assert words.count("/ホーム") == 1
     assert "/提供元" in words
@@ -1172,6 +1283,7 @@ def test_slash_command_summary_is_japanese_first() -> None:
     assert "/提供元 / /提供元" not in summary
     assert "/settings" not in words
     assert "/settings" not in summary
+    assert "/palette" not in words
     assert "/provider" not in words
     assert report["plain_fallback"] is True
     assert report["json_ansi_output"] is False
@@ -1200,10 +1312,19 @@ def test_slash_value_completion_is_context_aware_and_japanese_first() -> None:
     assert slash_value_words("/選択 5 ", "ja") == ["オン", "オフ"]
     assert slash_value_words("/モデル ", "ja")[:2] == ["自動", "llama3.1"]
     assert slash_value_words("/選択 8 ", "ja")[:2] == ["自動", "llama3.1"]
+    assert slash_command_value_group("/モード ") == "agent_mode"
+    assert slash_value_words("/モード ", "ja") == ["計画", "安全実行", "レビュー", "記憶"]
+    assert slash_value_words("/選択 10 ", "ja") == ["計画", "安全実行", "レビュー", "記憶"]
+    assert slash_command_value_group("/権限 ") == "permission_profile"
+    assert slash_value_words("/権限 ", "ja") == ["読み取り専用", "自動安全", "危険時確認", "ドライランのみ"]
+    assert "plan" in slash_value_words("/mode ", "en")
+    assert "build" in slash_value_words("/mode ", "en")
+    assert "auto-safe" in slash_value_words("/permissions ", "en")
+    assert "ask-before-risky" in slash_value_words("/permissions ", "en")
     assert slash_value_words("/ライブ ", "ja") == ["オン", "オフ"]
     assert slash_value_words("/更新通知 ", "ja") == ["オン", "オフ"]
     assert slash_command_value_group("/設定 ") == "settings_category"
-    assert slash_value_words("/設定 ", "ja")[:4] == ["言語", "提供元", "モデル", "安全"]
+    assert slash_value_words("/設定 ", "ja")[:5] == ["言語", "提供元", "モデル", "モード", "安全"]
     assert "memory" not in slash_value_words("/設定 ", "ja")
     assert "Anthropic" in slash_value_words("/provider ", "en")
     assert "Gemini" in slash_value_words("/provider ", "en")
@@ -1325,4 +1446,26 @@ def test_config_set_model_is_supported_and_rejects_url_values(tmp_path: Path, mo
     assert cli.main(["config", "set", "model", "http://127.0.0.1:11434", "--json"]) == 2
     captured = capsys.readouterr()
     assert "model must be auto or a simple provider model id" in captured.err
+    assert "Traceback" not in captured.err
+
+
+def test_config_set_agent_mode_supports_japanese_aliases(tmp_path: Path, monkeypatch, capsys) -> None:
+    from yonerai_cli import cli
+
+    config_path = tmp_path / "cli-config.json"
+    monkeypatch.setenv("YONERAI_CLI_CONFIG_PATH", str(config_path))
+
+    assert cli.main(["config", "set", "mode", "レビュー", "--json"]) == 0
+    output = json.loads(capsys.readouterr().out)
+
+    assert output["config"]["agent_mode"] == "review"
+    assert str(tmp_path) not in json.dumps(output)
+
+    assert cli.main(["config", "set", "mode", "read_only", "--json"]) == 0
+    read_only = json.loads(capsys.readouterr().out)
+    assert read_only["config"]["agent_mode"] == "plan_readonly"
+
+    assert cli.main(["config", "set", "mode", "http://127.0.0.1:11434", "--json"]) == 2
+    captured = capsys.readouterr()
+    assert "agent mode must be plan_readonly" in captured.err
     assert "Traceback" not in captured.err

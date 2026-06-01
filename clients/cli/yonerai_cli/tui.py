@@ -29,6 +29,13 @@ SLASH_COMMANDS: tuple[SlashCommandSpec, ...] = (
     SlashCommandSpec("/状態", "/status", "状態ヘッダーを再表示", "Show mission-control status", ("/status", "/home")),
     SlashCommandSpec("/設定", "/settings", "設定カテゴリを開く", "Open settings categories", ("/settings",), "settings_category"),
     SlashCommandSpec(
+        "/コマンド",
+        "/palette",
+        "コマンドパレットを表示",
+        "Show command palette",
+        ("/palette", "/commands"),
+    ),
+    SlashCommandSpec(
         "/モデル",
         "/models",
         "モデルとローカルLLM設定",
@@ -42,6 +49,10 @@ SLASH_COMMANDS: tuple[SlashCommandSpec, ...] = (
     SlashCommandSpec("/表示", "/show", "実行IDを表示", "Show one run", ("/show",)),
     SlashCommandSpec("/タスク", "/tasks", "タスク進行を見る", "Task progress", ("/tasks",)),
     SlashCommandSpec("/エージェント", "/agents", "担当計画を見る", "Agent/reviewer plan", ("/agents",)),
+    SlashCommandSpec("/モード", "/mode", "作業モードを選ぶ", "Choose agent mode", ("/mode",), "agent_mode"),
+    SlashCommandSpec("/計画", "/plan", "読み取り専用の計画モード", "Switch to read-only planning mode", ("/plan",)),
+    SlashCommandSpec("/レビュー", "/review", "レビュー担当モード", "Switch to review mode", ("/review",)),
+    SlashCommandSpec("/権限", "/permissions", "承認と権限の状態を見る", "Show approval and permission policy", ("/permissions",), "permission_profile"),
     SlashCommandSpec("/認証", "/auth", "Google認証のdry-run状態", "Auth dry-run status", ("/auth",)),
     SlashCommandSpec("/同期", "/sync", "cloud/local同期境界", "Cloud/local sync boundary", ("/sync",)),
     SlashCommandSpec("/プライバシー", "/privacy", "共有とプライバシー境界を見る", "Privacy status", ("/privacy",)),
@@ -93,6 +104,11 @@ JAPANESE_SLASH_ALIASES: dict[str, tuple[str, ...]] = {
     "/show": ("/表示",),
     "/tasks": ("/タスク",),
     "/agents": ("/エージェント",),
+    "/mode": ("/モード",),
+    "/plan": ("/計画",),
+    "/review": ("/レビュー",),
+    "/permissions": ("/権限",),
+    "/palette": ("/コマンド", "/パレット"),
     "/auth": ("/認証",),
     "/sync": ("/同期",),
     "/privacy": ("/プライバシー",),
@@ -136,6 +152,18 @@ SLASH_VALUE_GROUPS: dict[str, tuple[SlashValueSpec, ...]] = {
         SlashValueSpec("毎回確認", "危険操作は確認待ち", "Ask before risky actions", ("prompt", "確認")),
         SlashValueSpec("拒否", "危険操作を拒否", "Deny risky actions", ("deny",)),
     ),
+    "agent_mode": (
+        SlashValueSpec("計画", "読み取り専用で計画する", "Plan/read-only mode", ("plan_readonly", "plan", "read-only")),
+        SlashValueSpec("安全実行", "安全な範囲だけ実行候補にする", "Build/execute-safe mode", ("build_safe", "build", "execute-safe")),
+        SlashValueSpec("レビュー", "レビューと検証を優先する", "Review mode", ("review",)),
+        SlashValueSpec("記憶", "記憶の確認と整理を優先する", "Memory mode", ("memory",)),
+    ),
+    "permission_profile": (
+        SlashValueSpec("読み取り専用", "変更を行わず計画だけにする", "Read-only planning", ("read_only", "read-only")),
+        SlashValueSpec("自動安全", "安全なdry-runだけ自動で扱う", "Auto-safe dry-run", ("auto_safe", "auto-safe")),
+        SlashValueSpec("危険時確認", "危険操作は確認待ちにする", "Ask before risky", ("ask_before_risky", "ask-before-risky")),
+        SlashValueSpec("ドライランのみ", "実行ではなく計画だけにする", "Dry-run only", ("dry_run_only", "dry-run-only")),
+    ),
     "file_access": (
         SlashValueSpec("ワークスペース内のみ", "許可した作業場所だけ読む", "Workspace only", ("workspace_only",)),
         SlashValueSpec("無効", "ファイル読み取りを使わない", "Disabled", ("disabled",)),
@@ -154,11 +182,13 @@ SLASH_VALUE_GROUPS: dict[str, tuple[SlashValueSpec, ...]] = {
         SlashValueSpec("7", "ネットワーク", "Network"),
         SlashValueSpec("8", "モデル", "Model"),
         SlashValueSpec("9", "更新通知", "Update notice"),
+        SlashValueSpec("10", "作業モード", "Agent mode"),
     ),
     "settings_category": (
         SlashValueSpec("言語", "表示言語", "Language", ("language",)),
         SlashValueSpec("提供元", "AI接続元", "Providers", ("providers", "provider")),
         SlashValueSpec("モデル", "AIモデル", "Models", ("models", "model")),
+        SlashValueSpec("モード", "作業モード", "Agent mode", ("mode",)),
         SlashValueSpec("安全", "安全境界", "Safety", ("safety",)),
         SlashValueSpec("記憶", "ローカル記憶と同期境界", "Memory", ("memory", "メモリ")),
         SlashValueSpec("更新", "更新通知とdry-run確認", "Update", ("update",)),
@@ -179,6 +209,7 @@ NUMBERED_VALUE_GROUPS: dict[str, str] = {
     "7": "toggle",
     "8": "model",
     "9": "toggle",
+    "10": "agent_mode",
 }
 
 
