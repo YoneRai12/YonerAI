@@ -2,6 +2,20 @@
 
 See also: `docs/RELEASE_NOTES.md` (curated summary, v5.0.0 -> current).
 
+## v0.13.0-alpha.2 (2026-06-02) - Agent Console Dogfood Patch
+- Published a narrow dogfood patch through PR #494 after v0.13.0-alpha.1
+  testing found permission/profile and preview mismatches.
+- Made `/権限 read-only` and `/権限 dry-run-only` clear existing
+  live-provider and network permissions so older `/live on` or `/network on`
+  state is not preserved by stricter profiles.
+- Made `/計画 <task>` and `/レビュー <text>` show public-safe
+  planner/reviewer previews instead of only switching modes.
+- Batched permission profile config updates into one load/save path.
+- Added regression coverage for live/network clearing and `@researcher`
+  previews.
+- Stable promotion remains deferred: memory and agent-console UX still need
+  more dogfood before v0.7.0 stable.
+
 ## v0.13.0-alpha.1 (2026-06-01) - Agent Console Runtime
 - Added a Codex/opencode-style interaction layer through PR #492: command
   palette (`/コマンド`, `/パレット`, `/palette`), agent modes, planning/review
