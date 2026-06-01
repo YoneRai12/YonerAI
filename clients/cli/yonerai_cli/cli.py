@@ -3217,12 +3217,17 @@ def _build_memory_report(args: argparse.Namespace) -> dict[str, Any]:
         if args.memory_command == "status":
             report = store.status()
             all_records = store.list()
-            recent_records = [record.to_public_dict() for record in all_records[:5]]
-            report["recent_records"] = recent_records
-            report["recent_count"] = len(recent_records)
+            cloud_to_local_preview = build_memory_sync_preview(all_records, direction="cloud_to_local")
+            local_to_cloud_preview = build_memory_sync_preview(all_records, direction="local_to_cloud")
+            for preview in (cloud_to_local_preview, local_to_cloud_preview):
+                local_refs = preview.pop("local_memory", [])
+                preview["local_memory_refs_included"] = False
+                preview["local_memory_ref_count"] = len(local_refs) if isinstance(local_refs, list) else 0
+            report["recent_count"] = min(len(all_records), 5)
+            report["recent_records_included"] = False
             report["sync_previews"] = {
-                "cloud_to_local": build_memory_sync_preview(all_records, direction="cloud_to_local"),
-                "local_to_cloud": build_memory_sync_preview(all_records, direction="local_to_cloud"),
+                "cloud_to_local": cloud_to_local_preview,
+                "local_to_cloud": local_to_cloud_preview,
             }
             return report
         if args.memory_command == "list":

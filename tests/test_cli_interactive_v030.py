@@ -495,6 +495,52 @@ def test_chat_memory_settings_can_be_changed_individually(tmp_path: Path, monkey
     assert str(tmp_path) not in output
 
 
+def test_chat_memory_cloud_preview_setting_blocks_cloud_to_local_preview(tmp_path: Path, monkeypatch, capsys) -> None:
+    from yonerai_cli import cli
+
+    _clear_provider_env(monkeypatch)
+    config_path = tmp_path / "cli-config.json"
+    monkeypatch.setenv("YONERAI_MEMORY_STORE_PATH", str(tmp_path / "memory.jsonl"))
+    monkeypatch.setattr(
+        sys,
+        "stdin",
+        _PlainStringIO(
+            "/settings memory cloud-preview off\n"
+            "/memory sync preview cloud-to-local\n"
+            "/memory sync preview local-to-cloud\n"
+            "/quit\n"
+        ),
+    )
+
+    assert cli.main(["chat", "--script", "--lang", "ja", "--config-path", str(config_path), "--color", "never"]) == 0
+    output = capsys.readouterr().out
+
+    assert "cloud -> local memory preview: オフ" in output
+    assert "同期previewは実行しません" in output
+    assert output.count("sync_performed") == 1
+    assert str(tmp_path) not in output
+
+
+def test_chat_memory_settings_do_not_display_memory_contents(tmp_path: Path, monkeypatch, capsys) -> None:
+    from ora_core.memory import LocalMemoryStore
+    from yonerai_cli import cli
+
+    _clear_provider_env(monkeypatch)
+    config_path = tmp_path / "cli-config.json"
+    memory_path = tmp_path / "memory.jsonl"
+    LocalMemoryStore(memory_path).add("private preference should stay out of settings", scope="procedural")
+    monkeypatch.setenv("YONERAI_MEMORY_STORE_PATH", str(memory_path))
+    monkeypatch.setattr(sys, "stdin", _PlainStringIO("/settings memory\n/quit\n"))
+
+    assert cli.main(["chat", "--script", "--lang", "en", "--config-path", str(config_path), "--color", "never"]) == 0
+    output = capsys.readouterr().out
+
+    assert "active_records: 1" in output
+    assert "private preference should stay out of settings" not in output
+    assert "mem_" not in output
+    assert str(tmp_path) not in output
+
+
 def test_chat_ask_auto_displays_memory_used_ids_without_raw_memory(tmp_path: Path, monkeypatch, capsys) -> None:
     from ora_core.memory import LocalMemoryStore
     from yonerai_cli import cli

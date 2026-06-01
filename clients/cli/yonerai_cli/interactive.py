@@ -737,10 +737,14 @@ def _handle_memory_action(
         if sync_args and _canonical_memory_action(sync_args[0]) == "preview":
             sync_args = sync_args[1:]
         direction = sync_args[0] if sync_args else "cloud-to-local"
+        if _cloud_to_local_memory_preview_disabled(direction, config):
+            return _memory_cloud_preview_disabled(lang)
         report = callbacks.memory_action("sync-preview", [direction], lang, default_scope)
         return _format_memory_action_report(report, lang=lang)
     if action == "preview":
         direction = remaining[0] if remaining else "cloud-to-local"
+        if _cloud_to_local_memory_preview_disabled(direction, config):
+            return _memory_cloud_preview_disabled(lang)
         report = callbacks.memory_action("sync-preview", [direction], lang, default_scope)
         return _format_memory_action_report(report, lang=lang)
     return _memory_action_help(lang)
@@ -765,6 +769,11 @@ def _canonical_memory_action(value: str) -> str:
         "status": "status",
     }
     return aliases.get(raw, aliases.get(normalized, normalized))
+
+
+def _cloud_to_local_memory_preview_disabled(direction: str, config: dict[str, object]) -> bool:
+    normalized = str(direction or "").strip().lower().replace("_", "-")
+    return normalized == "cloud-to-local" and config.get("memory_cloud_to_local_preview_enabled") is not True
 
 
 def _handle_numbered_selection(
@@ -1322,7 +1331,6 @@ def _format_settings_memory(config: dict[str, object], status_report: dict[str, 
     enabled = bool(values.get("memory_enabled"))
     scope = str(values.get("memory_default_scope") or "local_private")
     count = status.get("record_count", 0)
-    recent = status.get("recent_records") if isinstance(status.get("recent_records"), list) else []
     if lang == "ja":
         lines = [
             "設定: 記憶",
@@ -1346,11 +1354,6 @@ def _format_settings_memory(config: dict[str, object], status_report: dict[str, 
             "    /記憶 sync preview local-to-cloud",
             "  ローカルprivate記憶はcloudへ自動同期しません。secret/local path形状はredactされます。",
         ]
-        if recent:
-            lines.append("  最近の記憶:")
-            for record in recent[:5]:
-                if isinstance(record, dict):
-                    lines.append(f"    - {_safe(record.get('memory_id') or 'mem_unknown')}: {_safe(record.get('text') or '')}")
         lines.append("")
         return "\n".join(lines)
     lines = [
@@ -1369,11 +1372,6 @@ def _format_settings_memory(config: dict[str, object], status_report: dict[str, 
         "  actions: /memory add <text>, /memory list, /memory forget <memory_id>, /memory sync preview local-to-cloud",
         "  local_private memory never syncs automatically.",
     ]
-    if recent:
-        lines.append("  recent:")
-        for record in recent[:5]:
-            if isinstance(record, dict):
-                lines.append(f"    - {_safe(record.get('memory_id') or 'mem_unknown')}: {_safe(record.get('text') or '')}")
     lines.append("")
     return "\n".join(lines)
 
@@ -1760,6 +1758,26 @@ def _memory_action_help(lang: str) -> str:
             )
         )
     return "Memory actions: /memory add <text>, /memory list, /memory forget <memory_id>, /memory sync preview local-to-cloud\n"
+
+
+def _memory_cloud_preview_disabled(lang: str) -> str:
+    if lang == "ja":
+        return "\n".join(
+            (
+                "cloud -> local memory preview: オフ",
+                "  設定で無効です。同期previewは実行しません。",
+                "  変更: /設定 記憶 cloud-preview オン",
+                "",
+            )
+        )
+    return "\n".join(
+        (
+            "cloud-to-local memory preview is off",
+            "  The preview callback was not executed.",
+            "  Change: /settings memory cloud-preview on",
+            "",
+        )
+    )
 
 
 def _format_memory_action_report(report: dict[str, Any], *, lang: str) -> str:

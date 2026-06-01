@@ -159,6 +159,13 @@ def test_cli_memory_status_add_list_forget_and_sync_preview(tmp_path: Path, caps
     assert added["record"]["scope"] == "local_private"
     assert added["record"]["sync_policy"] == "never_sync"
 
+    assert cli.main(["memory", "status", "--json"]) == 0
+    status_after_add = json.loads(capsys.readouterr().out)
+    serialized_status = json.dumps(status_after_add, ensure_ascii=False)
+    assert status_after_add["recent_records_included"] is False
+    assert "local preference" not in serialized_status
+    assert memory_id not in serialized_status
+
     assert cli.main(["memory", "list", "--scope", "local", "--json"]) == 0
     listed = json.loads(capsys.readouterr().out)
     assert listed["count"] == 1
