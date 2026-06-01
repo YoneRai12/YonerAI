@@ -1,17 +1,27 @@
 from __future__ import annotations
 
 import re
+import sys
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+CLI_SRC = ROOT / "clients" / "cli"
 WRAPPER_ROOT = ROOT / "cloudflare" / "install-wrapper"
+if str(CLI_SRC) not in sys.path:
+    sys.path.insert(0, str(CLI_SRC))
 
 
 def test_cloudflare_install_wrapper_is_hash_verified_github_bootstrap() -> None:
+    from yonerai_cli.install_planner import LATEST_STABLE_VERSION, TRUSTED_INSTALL_SCRIPT_SHA256
+
     worker = (WRAPPER_ROOT / "src" / "worker.js").read_text(encoding="utf-8")
 
     assert "https://github.com/YoneRai12/YonerAI/releases/latest/download" in worker
+    assert "TRUSTED_INSTALL_SCRIPT_SHA256_BY_TAG" in worker
+    assert f'"v{LATEST_STABLE_VERSION}": "{TRUSTED_INSTALL_SCRIPT_SHA256}"' in worker
+    assert "api.github.com/repos/YoneRai12/YonerAI/releases/latest" not in worker
+    assert "currently embedded trusted stable tag" in worker
     assert "install.ps1" in worker
     assert "install.ps1.sha256" in worker
     assert "Get-FileHash" in worker
@@ -19,8 +29,10 @@ def test_cloudflare_install_wrapper_is_hash_verified_github_bootstrap() -> None:
     assert ".Split()" not in worker
     assert "-split" in worker
     assert "install.ps1 hash mismatch" in worker
+    assert "sidecar does not match the trusted wrapper digest" in worker
     assert "Invoke-VerifiedLocalBootstrap" in worker
     assert "not an executable bootstrap" in worker
+    assert "(Get-Process -Id $PID).Path" in worker
     assert "-Execute -Launch" in worker
     assert "cache-control" in worker
     assert "no-store" in worker
@@ -45,6 +57,7 @@ def test_cloudflare_install_wrapper_does_not_serve_local_pc_or_release_assets() 
     for pattern in forbidden_patterns:
         assert re.search(pattern, combined, flags=re.IGNORECASE) is None
     assert "Installer assets are served by GitHub Releases" in worker
+    assert "embedded trusted stable tag" in worker
     assert 'url.pathname === "/"' in worker
     assert 'url.pathname === "/install.ps1"' not in worker
     assert "Do not replace this with" in readme

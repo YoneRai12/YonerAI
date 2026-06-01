@@ -1002,6 +1002,7 @@ def test_cli_oracle_queue_rejects_private_task_without_cloud_stub(capsys):
 
 def test_cli_doctor_pretty_supports_japanese_without_json_key_translation(monkeypatch, capsys):
     cli = _load_cli_module()
+    from yonerai_cli.install_planner import LATEST_STABLE_VERSION
     for key in (
         "ORA_LOCAL_LLM_ENABLED",
         "ORA_LOCAL_LLM_BASE_URL",
@@ -1028,7 +1029,7 @@ def test_cli_doctor_pretty_supports_japanese_without_json_key_translation(monkey
     assert "プロバイダー実行環境 E2E フィクスチャ" in output
     assert "インストール/更新" in output
     assert "最新stable" in output
-    assert "0.6.3" in output
+    assert LATEST_STABLE_VERSION in output
     assert "Quick install" in output
     assert "Verified install" in output
     assert "強制更新" in output
@@ -1053,13 +1054,14 @@ def test_provider_setup_rows_localizes_japanese_fallback():
 
 def test_cli_doctor_json_remains_english_keyed_with_lang_ja(capsys):
     cli = _load_cli_module()
+    from yonerai_cli.install_planner import LATEST_STABLE_VERSION
 
     assert cli.main(["doctor", "--json", "--lang", "ja"]) == 0
 
     output = json.loads(capsys.readouterr().out)
     assert output["command"] == "yonerai doctor"
     assert output["manifest"]["contract_valid"] is True
-    assert output["install_update"]["latest_stable"] == "0.6.3"
+    assert output["install_update"]["latest_stable"] == LATEST_STABLE_VERSION
     assert output["install_update"]["forced_update_enabled"] is False
     assert output["install_update"]["auto_update_apply_enabled"] is False
     assert "system_checks" in output
