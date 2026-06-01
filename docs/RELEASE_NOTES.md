@@ -2,6 +2,28 @@
 
 This page is a public-safe index of current release notes and progress checkpoints.
 
+## v0.13.0-alpha.1 Agent Console Runtime
+
+- GitHub pre-release target: `v0.13.0-alpha.1`.
+- Release title: `2026.06.01 - YonerAI v0.13.0-alpha.1 Agent Console Runtime`.
+- Release date: `2026-06-01`.
+- Public release body: `docs/releases/0.13.0-alpha.1.md`.
+- Status: prerelease agent-console interaction layer after
+  v0.12.0-alpha.2.
+- What users can try now: `yonerai`, `yonerai chat --lang ja`, `/`,
+  `/コマンド`, `/パレット`, `/モード`, `/モード 計画`, `/モード ビルド`,
+  `/計画 <task>`, `/レビュー <text>`, `/権限`, `/権限 読み取りのみ`,
+  `/権限 ドライランのみ`, `@planner <task>`, `@reviewer <task>`,
+  `@researcher <task>`, `/記憶`, `/メモリ`, `/memory`, and `/更新`.
+- Boundary: command palette, mode/permission UX, public-safe subagent previews,
+  and TUI discoverability only; no uncontrolled autonomous agents, no
+  production cloud memory, no production Oracle/cloud runtime, no production
+  Google login, no OpenAI shared traffic runtime, no live Discord, no automatic
+  local-to-cloud private upload, no deploy/public tunnel, no arbitrary
+  shell/file/tool execution, no production signing/trust store, and no
+  production network installer.
+- Primary traceability range: `v0.12.0-alpha.2..v0.13.0-alpha.1`; PR #492.
+
 ## v0.12.0-alpha.2 Memory UX and Update Notice
 
 - GitHub pre-release target: `v0.12.0-alpha.2`.
