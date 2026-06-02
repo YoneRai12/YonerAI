@@ -982,6 +982,134 @@ def test_permission_profiles_disable_live_and_network_execution(tmp_path: Path) 
     assert live_calls == [False, False]
 
 
+def test_safety_and_permissions_render_effective_live_state(tmp_path: Path) -> None:
+    from yonerai_cli.interactive import InteractiveCallbacks, InteractiveOptions, run_interactive_cli
+
+    def providers() -> dict[str, Any]:
+        return {"providers": []}
+
+    def ask_auto(*_args: Any) -> dict[str, Any]:
+        raise AssertionError("safety display test must not execute ask")
+
+    def runs_list(*_args: Any) -> dict[str, Any]:
+        return {"runs": []}
+
+    def runs_show(*_args: Any) -> dict[str, Any]:
+        return {"ok": False}
+
+    stdout = _PlainStringIO()
+    rc = run_interactive_cli(
+        InteractiveOptions(config_path=str(tmp_path / "cli-config.json"), lang="en", script=True, color="never"),
+        InteractiveCallbacks(providers=providers, ask_auto=ask_auto, runs_list=runs_list, runs_show=runs_show),
+        stdin=_PlainStringIO("/live on\n/network on\n/safety\n/permissions\n/quit\n"),
+        stdout=stdout,
+    )
+
+    assert rc == 0
+    output = stdout.getvalue()
+    assert "network: explicitly enabled" in output
+    assert "live provider: off" in output
+    assert "live: off" in output
+
+
+def test_permission_profile_display_considers_cli_live_option(tmp_path: Path) -> None:
+    from yonerai_cli.interactive import InteractiveCallbacks, InteractiveOptions, run_interactive_cli
+
+    def providers() -> dict[str, Any]:
+        return {"providers": []}
+
+    def ask_auto(*_args: Any) -> dict[str, Any]:
+        raise AssertionError("permission display test must not execute ask")
+
+    def runs_list(*_args: Any) -> dict[str, Any]:
+        return {"runs": []}
+
+    def runs_show(*_args: Any) -> dict[str, Any]:
+        return {"ok": False}
+
+    stdout = _PlainStringIO()
+    rc = run_interactive_cli(
+        InteractiveOptions(config_path=str(tmp_path / "cli-config.json"), lang="en", script=True, color="never", live=True),
+        InteractiveCallbacks(providers=providers, ask_auto=ask_auto, runs_list=runs_list, runs_show=runs_show),
+        stdin=_PlainStringIO("/network on\n/permissions auto-safe\n/quit\n"),
+        stdout=stdout,
+    )
+
+    assert rc == 0
+    output = stdout.getvalue()
+    assert "permissions=auto_safe" in output
+    assert "agent_mode: build_safe" in output
+    assert "live: on" in output
+
+
+def test_permission_profile_display_preserves_session_live_off(tmp_path: Path) -> None:
+    from yonerai_cli.interactive import InteractiveCallbacks, InteractiveOptions, run_interactive_cli
+
+    def providers() -> dict[str, Any]:
+        return {"providers": []}
+
+    def ask_auto(*_args: Any) -> dict[str, Any]:
+        raise AssertionError("permission display test must not execute ask")
+
+    def runs_list(*_args: Any) -> dict[str, Any]:
+        return {"runs": []}
+
+    def runs_show(*_args: Any) -> dict[str, Any]:
+        return {"ok": False}
+
+    stdout = _PlainStringIO()
+    rc = run_interactive_cli(
+        InteractiveOptions(config_path=str(tmp_path / "cli-config.json"), lang="en", script=True, color="never", live=True),
+        InteractiveCallbacks(providers=providers, ask_auto=ask_auto, runs_list=runs_list, runs_show=runs_show),
+        stdin=_PlainStringIO("/live off\n/network on\n/permissions auto-safe\n/permissions\n/quit\n"),
+        stdout=stdout,
+    )
+
+    assert rc == 0
+    output = stdout.getvalue()
+    assert "permissions=auto_safe" in output
+    assert "agent_mode: build_safe" in output
+    assert "live: on" not in output
+    assert output.count("live: off") >= 2
+
+
+def test_settings_safety_renders_effective_live_state(tmp_path: Path) -> None:
+    from yonerai_cli.interactive import InteractiveCallbacks, InteractiveOptions, run_interactive_cli
+
+    def providers() -> dict[str, Any]:
+        return {"providers": []}
+
+    def ask_auto(*_args: Any) -> dict[str, Any]:
+        raise AssertionError("settings safety display test must not execute ask")
+
+    def runs_list(*_args: Any) -> dict[str, Any]:
+        return {"runs": []}
+
+    def runs_show(*_args: Any) -> dict[str, Any]:
+        return {"ok": False}
+
+    stdout = _PlainStringIO()
+    rc = run_interactive_cli(
+        InteractiveOptions(config_path=str(tmp_path / "cli-config.json"), lang="en", script=True, color="never"),
+        InteractiveCallbacks(providers=providers, ask_auto=ask_auto, runs_list=runs_list, runs_show=runs_show),
+        stdin=_PlainStringIO(
+            "/permissions auto-safe\n"
+            "/live on\n"
+            "/network on\n"
+            "/approval deny\n"
+            "/settings safety\n"
+            "/quit\n"
+        ),
+        stdout=stdout,
+    )
+
+    assert rc == 0
+    output = stdout.getvalue()
+    assert "network: explicitly enabled" in output
+    assert "live provider: off" in output
+    assert "live provider: explicitly enabled" not in output
+
+
 def test_plan_review_commands_preview_task_without_execution(tmp_path: Path) -> None:
     from yonerai_cli.interactive import InteractiveCallbacks, InteractiveOptions, run_interactive_cli
 
@@ -1206,7 +1334,7 @@ def test_network_on_restores_existing_live_request_in_chat_session(tmp_path: Pat
         }
 
     monkeypatch.setattr(cli, "_interactive_ask_auto", fake_interactive_ask_auto)
-    monkeypatch.setattr(sys, "stdin", _PlainStringIO("/live on\n/network off\n/network on\nhello\n/quit\n"))
+    monkeypatch.setattr(sys, "stdin", _PlainStringIO("/permissions auto-safe\n/live on\n/network off\n/network on\nhello\n/quit\n"))
 
     assert cli.main(["chat", "--script", "--lang", "en", "--config-path", str(config_path), "--color", "never"]) == 0
     output = capsys.readouterr().out
