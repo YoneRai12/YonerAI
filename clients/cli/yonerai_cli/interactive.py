@@ -379,6 +379,10 @@ def _can_use_prompt_toolkit(options: InteractiveOptions, *, input_stream: TextIO
 
 
 def _effective_live(live: bool, config: dict[str, object]) -> bool:
+    if config.get("agent_mode") == "plan_readonly":
+        return False
+    if config.get("approval_mode") == "deny":
+        return False
     return bool(live and config.get("network_enabled") is not False)
 
 
@@ -509,7 +513,7 @@ def _handle_slash_command(
         _write(output_stream, _format_models(config, callbacks.providers(), lang=lang))
         return {}
     if command == "/safety":
-        _write(output_stream, _format_safety(config, live=live, lang=lang))
+        _write(output_stream, _format_safety(config, live=_effective_live(live, config), lang=lang))
         return {}
     if command == "/providers":
         _write(output_stream, _format_providers(callbacks.providers(), lang=lang))
@@ -561,8 +565,15 @@ def _handle_slash_command(
         return result
     if command == "/permissions":
         if args:
-            return _handle_permission_profile(args, config=config, options=options, lang=lang, output_stream=output_stream)
-        _write(output_stream, _format_permissions(config, live=live, lang=lang))
+            return _handle_permission_profile(
+                args,
+                config=config,
+                options=options,
+                live=live,
+                lang=lang,
+                output_stream=output_stream,
+            )
+        _write(output_stream, _format_permissions(config, live=_effective_live(live, config), lang=lang))
         return {}
     if command == "/auth":
         _write(output_stream, _format_auth_status(config, lang=lang))
@@ -955,6 +966,7 @@ def _handle_permission_profile(
     *,
     config: dict[str, object],
     options: InteractiveOptions,
+    live: bool,
     lang: str,
     output_stream: TextIO,
 ) -> dict[str, object]:
@@ -1006,8 +1018,9 @@ def _handle_permission_profile(
     config.clear()
     config.update(new_config)
     _write(output_stream, _changed_message("permissions", profile, lang=lang))
-    _write(output_stream, _format_permissions(config, live=bool(config.get("live_provider_enabled")), lang=lang))
-    return {"live": False} if force_live_off else {}
+    requested_live = bool(live or config.get("live_provider_enabled") is True)
+    _write(output_stream, _format_permissions(config, live=_effective_live(requested_live, config), lang=lang))
+    return {"live": False} if force_live_off else {"live": requested_live}
 
 
 def _resolve_ledger_path(config: dict[str, object], options: InteractiveOptions) -> str | None:
@@ -1586,7 +1599,7 @@ def _format_settings_category(
     if category == "models":
         return _format_models(config, provider_report or {}, lang=lang)
     if category == "safety":
-        return _format_safety(config, live=live, lang=lang)
+        return _format_safety(config, live=_effective_live(live, config), lang=lang)
     if category == "mode":
         return _format_mode_state(config, lang=lang)
     if category == "update":
