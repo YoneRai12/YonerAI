@@ -62,21 +62,30 @@ def test_yonerai_site_tree_contains_no_installable_local_files() -> None:
     assert offenders == []
 
 
-def test_install_script_rejects_local_custom_sources_and_has_no_iex() -> None:
+def test_install_script_rejects_local_custom_sources_and_requires_explicit_path_wrapper() -> None:
     script = INSTALL_SCRIPT.read_text(encoding="utf-8")
 
-    assert "Local or custom manifest/artifact inputs are not accepted" in script
-    assert "Artifact filename must be the pinned versioned asset" in script
+    assert "Custom manifest/artifact inputs are not accepted" in script
+    assert "Artifact filename must be the selected versioned asset" in script
     assert "latest, main, or source aliases" in script
     assert "Invoke-Expression" not in script
-    assert re.search(r"\biex\b", script, flags=re.IGNORECASE) is None
-    assert "SetEnvironmentVariable" not in script
+    assert "Invoke-GitHubApi" in script
+    assert "Get-ReleaseFromApi" in script
+    assert "[switch]$Repair" in script
+    assert "[switch]$Force" in script
+    assert "[switch]$CleanRetry" in script
+    assert "[switch]$SetPath" in script
+    assert "if (-not $SetPath -or $NoPath)" in script
+    assert "SetEnvironmentVariable" in script
     assert re.search(r"\bsetx\b", script, flags=re.IGNORECASE) is None
-    assert "https://yonerai.com" not in script
+    assert "irm https://install.yonerai.com | iex" in script
     assert "https://github.com/YoneRai12/YonerAI/releases/download" in script
+    assert "https://api.github.com/repos/YoneRai12/YonerAI/releases" in script
     assert LATEST_INSTALL_URL in script
     assert "$releaseArtifact = Get-ManifestArtifact" in script
     assert "$artifact = Get-ManifestArtifact" not in script
+    assert "old Python Scripts executable may shadow the wrapper" in script
+    assert "v0.11.0-alpha.1" not in script
 
 
 def test_install_script_execute_resolves_manifest_artifact_when_powershell_available(tmp_path: Path) -> None:
@@ -161,6 +170,8 @@ function Assert-FileSha256"""
             "-File",
             str(test_script),
             "-Execute",
+            "-Version",
+            "0.6.4",
             "-InstallDir",
             str(tmp_path / "target"),
         ],
@@ -182,7 +193,7 @@ def test_install_status_reports_github_release_only_source_policy() -> None:
 
     report = build_install_update_status()
 
-    assert report["latest_stable"] == "0.6.4"
+    assert report["latest_stable"] == "0.6.5"
     assert report["stable_channel_default"] is True
     assert report["alpha_requires_explicit_channel"] is True
     assert report["quick_install_command"] == "irm https://install.yonerai.com | iex"

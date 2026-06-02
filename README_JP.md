@@ -28,7 +28,7 @@ YonerAI は単なる Discord bot でも、単なる model router でもありま
 ## Install and start YonerAI
 
 これは YonerAI CLI Local Runtime のインストール手順です。full YonerAI cloud
-production ではありません。最新 stable は `v0.6.4` です。stable channel が既定で、
+production ではありません。最新 stable は `v0.6.5` です。stable channel が既定で、
 alpha を試す場合だけ `-Channel alpha` を明示します。install 後は `yonerai` だけで
 対話 CLI が起動します。
 
@@ -90,12 +90,12 @@ iex "& { $(irm https://github.com/YoneRai12/YonerAI/releases/latest/download/ins
 
 ### GitHub Release の ZIP を解凍したあと
 
-GitHub Release の `YonerAI-0.6.4.zip` をダウンロードして ZIP を展開したら、
+GitHub Release の `YonerAI-0.6.5.zip` をダウンロードして ZIP を展開したら、
 PowerShell で展開後のフォルダへ移動してから以下を実行します。フォルダ名は環境に
 よって違うので、`cd` は実際の展開先に合わせてください。
 
 ```powershell
-cd "$HOME\Downloads\YonerAI-0.6.4"
+cd "$HOME\Downloads\YonerAI-0.6.5"
 python --version
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
@@ -234,10 +234,10 @@ yonerai demo --pretty
 yonerai demo --json
 yonerai doctor --pretty --lang ja
 yonerai status --pretty --lang ja
-yonerai manifest verify manifest.v0.6.4.json --pretty --lang ja
-yonerai install plan --manifest manifest.v0.6.4.json --pretty
-yonerai update check --manifest manifest.v0.6.4.json --pretty
-yonerai update plan --manifest manifest.v0.6.4.json --pretty
+yonerai manifest verify manifest.v0.6.5.json --pretty --lang ja
+yonerai install plan --manifest manifest.v0.6.5.json --pretty
+yonerai update check --manifest manifest.v0.6.5.json --pretty
+yonerai update plan --manifest manifest.v0.6.5.json --pretty
 ```
 
 `yonerai quickstart` は `yonerai demo` の alias です。

@@ -19,6 +19,7 @@ from yonerai_cli.config import (
     save_cli_config,
     set_cli_config_value,
 )
+from yonerai_cli.startup_home import render_startup_home_header
 from yonerai_cli.tui import (
     prompt_line,
     prompt_toolkit_available,
@@ -171,13 +172,17 @@ def run_interactive_cli(
 
     last_report: dict[str, Any] | None = None
     use_tui_prompt = _can_use_prompt_toolkit(options, input_stream=input_stream, output_stream=output_stream)
-    welcome = _welcome(
+    welcome_body = _welcome(
         lang,
         provider=provider,
         live=_effective_live(live, config),
         config_exists=config_exists,
         config=config,
         ledger_path=ledger_path,
+    )
+    welcome = _with_startup_home_header(
+        render_startup_home_header(color=options.color, stream=output_stream),
+        welcome_body,
     )
     if not (use_tui_prompt and render_panel(welcome, title="YonerAI", stream=output_stream, color=options.color)):
         _write(output_stream, welcome)
@@ -1368,6 +1373,12 @@ def _format_run(report: dict[str, Any], *, lang: str) -> str:
             "",
         )
     )
+
+
+def _with_startup_home_header(home_header: str | None, body: str) -> str:
+    if not home_header:
+        return body
+    return f"{home_header.rstrip()}\n\n{body}"
 
 
 def _welcome(

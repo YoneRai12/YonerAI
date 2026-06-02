@@ -2,6 +2,26 @@
 
 This page is a public-safe index of current release notes and progress checkpoints.
 
+## v0.6.5 Repair-Safe Installer
+
+- GitHub release target: `v0.6.5`.
+- Release title: `2026.06.03 - YonerAI CLI Local Runtime v0.6.5 Repair-Safe Installer`.
+- Release date: `2026-06-03`.
+- Public release body: `docs/releases/0.6.5.md`.
+- Existing, partial, or broken install targets are detected before manifest or
+  ZIP download.
+- `-Repair`, `-Force`, and `-CleanRetry` now preserve the old target as a
+  timestamped backup before reinstalling.
+- PATH mutation remains disabled by default. `-SetPath` is the explicit user
+  PATH setup path.
+- `Get-Command yonerai -All` is shown as the local diagnosis command for old
+  install shadows.
+- `yonerai` now starts with a terminal-safe YonerAI startup home header.
+- `irm https://install.yonerai.com | iex` remains the short install command and
+  GitHub Release assets remain the install source of truth.
+- This is not a production-signed installer and does not add forced update,
+  auto-update/apply, or alpha runtime promotion.
+
 ## v0.6.4 Installer Execute Fix
 
 - GitHub release target: `v0.6.4`.

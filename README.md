@@ -29,7 +29,7 @@ See [LICENSE](LICENSE), [LICENSE_JP.md](LICENSE_JP.md), [NOTICE](NOTICE), and
 ## Install and start YonerAI
 
 This is the local CLI runtime path, not full YonerAI cloud production. The
-latest stable CLI Local Runtime is `v0.6.4`. Stable is the default channel;
+latest stable CLI Local Runtime is `v0.6.5`. Stable is the default channel;
 alpha releases require an explicit `-Channel alpha` flag. After install,
 `yonerai` launches the interactive CLI.
 
@@ -93,13 +93,13 @@ iex "& { $(irm https://github.com/YoneRai12/YonerAI/releases/latest/download/ins
 
 ### If you downloaded the GitHub Release ZIP
 
-Download `YonerAI-0.6.4.zip` from the
-[v0.6.4 release](https://github.com/YoneRai12/YonerAI/releases/tag/v0.6.4),
+Download `YonerAI-0.6.5.zip` from the
+[v0.6.5 release](https://github.com/YoneRai12/YonerAI/releases/tag/v0.6.5),
 extract it, then run PowerShell inside the extracted folder. The extracted
 folder name can vary; change the `cd` command to match the folder you see.
 
 ```powershell
-cd "$HOME\Downloads\YonerAI-0.6.4"
+cd "$HOME\Downloads\YonerAI-0.6.5"
 python --version
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
@@ -245,17 +245,17 @@ yonerai demo --json
 yonerai doctor --pretty
 yonerai doctor --pretty --lang ja
 yonerai status --pretty
-yonerai manifest verify manifest.v0.6.4.json --pretty
-yonerai install plan --manifest manifest.v0.6.4.json --pretty
-yonerai update check --manifest manifest.v0.6.4.json --pretty
-yonerai update plan --manifest manifest.v0.6.4.json --pretty
+yonerai manifest verify manifest.v0.6.5.json --pretty
+yonerai install plan --manifest manifest.v0.6.5.json --pretty
+yonerai update check --manifest manifest.v0.6.5.json --pretty
+yonerai update plan --manifest manifest.v0.6.5.json --pretty
 yonerai plan "summarize public docs" --json
 yonerai ask "summarize public docs" --provider mock --json
 yonerai hybrid run --pretty
 yonerai hybrid run --json
 yonerai search mock "YonerAI alpha2" --json
 yonerai ops plan git-status --json
-yonerai install plan --manifest manifest.v0.6.4.json --json
+yonerai install plan --manifest manifest.v0.6.5.json --json
 ```
 
 ## First 5 minutes

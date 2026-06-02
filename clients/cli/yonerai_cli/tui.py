@@ -129,11 +129,12 @@ def render_panel(text: str, *, title: str, stream: TextIO, color: str = "auto") 
     try:
         from rich.console import Console
         from rich.panel import Panel
+        from rich.text import Text
     except Exception:
         return False
     force_terminal = None if color == "auto" else color != "never"
     console = Console(file=stream, force_terminal=force_terminal, color_system="auto")
-    console.print(Panel(text, title=title, border_style="cyan"))
+    console.print(Panel(Text.from_ansi(text), title=title, border_style="cyan"))
     return True
 
 
