@@ -2,6 +2,21 @@
 
 See also: `docs/RELEASE_NOTES.md` (curated summary, v5.0.0 -> current).
 
+## v0.15.0-alpha.1 (2026-06-03) - Status API Bridge
+- Added the public Status API bridge through PR #500, covering status,
+  components, incidents, releases, install state, and rate-limit status for
+  status.yonerai.com and future private/AWS backend alignment.
+- Added fixture-only CLI/TUI readers: `yonerai status check`,
+  `yonerai api status`, TUI `/状態`, and doctor status summary integration.
+- Added public status fixtures, JSON schemas, and AWS status API handoff docs
+  without adding production AWS, production Oracle/cloud runtime, production
+  Google login, live Discord, provider keys, or private runtime inventory.
+- Hardened the Status API bridge through PR #501 so local or allowlisted status
+  feeds reject private/reserved IP URLs, internal hostnames, AWS ARNs, local
+  paths, and secret-like markers before printing public JSON.
+- Local status-source read and JSON parse failures now return controlled CLI
+  errors without echoing local absolute paths or raw private endpoints.
+
 ## v0.14.0-alpha.1 (2026-06-02) - Official API Contract
 - Added the public official API contract through PR #498, covering status,
   account, rate-limit, conversation, sync preview/approve, Oracle run, and
