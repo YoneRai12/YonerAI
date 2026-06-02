@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import ipaddress
 import json
+import re
 from pathlib import Path
 from typing import Literal
 from urllib.error import HTTPError, URLError
@@ -70,6 +72,25 @@ FORBIDDEN_STATUS_SOURCE_MARKERS = (
     "/home/",
     "sk-",
     "discord.com/api/webhooks",
+)
+FORBIDDEN_STATUS_SOURCE_PATTERNS = (
+    re.compile(r"\barn:aws[a-zA-Z-]*:[^\s\"'<>]+", re.IGNORECASE),
+    re.compile(r"\bi-[0-9a-f]{8,17}\b", re.IGNORECASE),
+    re.compile(r"(?i)\b(?:api[_-]?key|secret|token|password|passwd|bearer)\b\s*[:=]\s*[^\s\"'<>]+"),
+    re.compile(r"(?i)\b(?:break[-_ ]?glass|control[-_ ]?plane|private[-_ ]?route|internal[-_ ]?route)\b"),
+    re.compile(r"(?i)\b(?:latest/meta-data|metadata/latest|cloudwatch)\b"),
+    re.compile(r"(?i)(?:[A-Z]:\\|\\\\[A-Za-z0-9_.-]+\\|/Users/|/home/|/root/)"),
+)
+STATUS_URL_PATTERN = re.compile(r"\b[a-zA-Z][a-zA-Z0-9+.-]*://[^\s<>'\")]+")
+IPV4_PATTERN = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
+IPV6_BRACKET_PATTERN = re.compile(r"\[([0-9a-fA-F:.%]+)\]")
+PRIVATE_STATUS_HOST_SUFFIXES = (
+    ".corp",
+    ".home",
+    ".internal",
+    ".lan",
+    ".local",
+    ".localdomain",
 )
 PUBLIC_INCIDENT_FIELDS = frozenset(
     {
@@ -315,11 +336,11 @@ def _load_status_feed_source(source: str, *, allow_network: bool) -> dict[str, o
         try:
             content = path.read_text(encoding="utf-8")
         except OSError as exc:
-            raise ValueError(f"failed to read status source file: {exc}") from exc
+            raise ValueError("failed to read status source file") from exc
         try:
             loaded = json.loads(content)
         except json.JSONDecodeError as exc:
-            raise ValueError(f"status source file is not valid JSON: {exc}") from exc
+            raise ValueError("status source file is not valid JSON") from exc
     if not isinstance(loaded, dict):
         raise ValueError("status source must be a JSON object")
     if loaded.get("schema_version") != STATUS_FEED_SCHEMA_VERSION:
@@ -385,6 +406,51 @@ def _assert_public_status_payload(value: object, *, context: str) -> None:
     serialized = json.dumps(value, ensure_ascii=False, sort_keys=True)
     if any(marker in serialized for marker in FORBIDDEN_STATUS_SOURCE_MARKERS):
         raise ValueError(f"status source {context} contains a non-public marker")
+    if any(pattern.search(serialized) for pattern in FORBIDDEN_STATUS_SOURCE_PATTERNS):
+        raise ValueError(f"status source {context} contains a non-public marker")
+    if _contains_private_status_url_or_ip(serialized):
+        raise ValueError(f"status source {context} contains a non-public marker")
+
+
+def _contains_private_status_url_or_ip(serialized: str) -> bool:
+    for raw_url in STATUS_URL_PATTERN.findall(serialized):
+        candidate = raw_url.rstrip(".,;:")
+        parsed = urlparse(candidate)
+        if parsed.hostname and _is_private_status_host(parsed.hostname):
+            return True
+    for candidate in IPV4_PATTERN.findall(serialized):
+        if _is_private_status_ip(candidate):
+            return True
+    for candidate in IPV6_BRACKET_PATTERN.findall(serialized):
+        if _is_private_status_ip(candidate.split("%", 1)[0]):
+            return True
+    return False
+
+
+def _is_private_status_host(hostname: str) -> bool:
+    host = hostname.strip("[]").rstrip(".").lower()
+    if _is_private_status_ip(host.split("%", 1)[0]):
+        return True
+    if host in {"localhost", "metadata.google.internal"}:
+        return True
+    return host.endswith(PRIVATE_STATUS_HOST_SUFFIXES)
+
+
+def _is_private_status_ip(value: str) -> bool:
+    try:
+        address = ipaddress.ip_address(value)
+    except ValueError:
+        return False
+    return any(
+        (
+            address.is_private,
+            address.is_loopback,
+            address.is_link_local,
+            address.is_multicast,
+            address.is_reserved,
+            address.is_unspecified,
+        )
+    )
 
 
 def _public_component_name(value: object, fallback: str) -> object:

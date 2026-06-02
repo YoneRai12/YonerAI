@@ -25,6 +25,12 @@ FORBIDDEN_PUBLIC_MARKERS = (
     "/home/",
     "sk-",
     "discord.com/api/webhooks",
+    "10.0.0.5",
+    "192.168.",
+    "127.0.0.1",
+    "169.254.169.254",
+    "fc00::",
+    "fe80::",
 )
 
 
@@ -153,6 +159,81 @@ def test_status_source_components_reject_non_public_markers(tmp_path: Path) -> N
 
     with pytest.raises(ValueError, match="non-public marker"):
         build_status_check_report(source=str(fixture_path))
+
+
+@pytest.mark.parametrize(
+    "bad_value",
+    [
+        "runbook http://10.0.0.5/runbook",
+        "dashboard http://192.168.1.5/status",
+        "loopback http://127.0.0.1/status",
+        "metadata http://169.254.169.254/latest/meta-data",
+        "ipv6 loopback http://[::1]/status",
+        "ipv6 unique local http://[fc00::1]/status",
+        "ipv6 link local http://[fe80::1]/status",
+        "aws arn arn:aws:lambda:ap-northeast-1:123456789012:function:private",
+        "instance i-0123456789abcdef0",
+        "local path /root/private/status.json",
+        "token api_key=example-secret",
+        "internal host https://runbook.internal/status",
+    ],
+)
+def test_status_source_rejects_private_endpoint_markers(tmp_path: Path, bad_value: str) -> None:
+    from ora_core.official.status_api import build_status_check_report, build_status_feed_fixture
+
+    feed = build_status_feed_fixture()
+    feed["incidents"] = [
+        {
+            "id": "bad-incident",
+            "summary": {"en": bad_value},
+            "component_id": "official_api",
+            "state": "degraded",
+        }
+    ]
+    fixture_path = tmp_path / "status-feed.json"
+    fixture_path.write_text(json.dumps(feed, ensure_ascii=False), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="non-public marker") as exc_info:
+        build_status_check_report(source=str(fixture_path))
+
+    assert bad_value not in str(exc_info.value)
+
+
+def test_status_source_accepts_public_docs_url(tmp_path: Path) -> None:
+    from ora_core.official.status_api import build_status_check_report, build_status_feed_fixture
+
+    feed = build_status_feed_fixture()
+    feed["incidents"] = [
+        {
+            "id": "public-docs",
+            "summary": {"en": "See https://yonerai.com/install for public install status."},
+            "component_id": "install",
+            "state": "operational",
+        }
+    ]
+    fixture_path = tmp_path / "status-feed.json"
+    fixture_path.write_text(json.dumps(feed, ensure_ascii=False), encoding="utf-8")
+
+    report = build_status_check_report(source=str(fixture_path))
+    serialized = _serialized(report)
+
+    assert "https://yonerai.com/install" in serialized
+    assert report["private_runtime_details_included"] is False
+
+
+def test_status_source_component_source_private_url_is_not_printed(tmp_path: Path) -> None:
+    from ora_core.official.status_api import build_status_check_report, build_status_feed_fixture
+
+    feed = build_status_feed_fixture()
+    feed["categories"][0]["components"][0]["source"] = "http://10.0.0.5/private-monitor"
+    fixture_path = tmp_path / "status-feed.json"
+    fixture_path.write_text(json.dumps(feed, ensure_ascii=False), encoding="utf-8")
+
+    report = build_status_check_report(source=str(fixture_path))
+    serialized = _serialized(report)
+
+    assert "10.0.0.5" not in serialized
+    assert report["components"][0]["source"]["provider"] == "yonerai"
 
 
 def test_generated_status_fixtures_and_schemas_are_valid_json() -> None:

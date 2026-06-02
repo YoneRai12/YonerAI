@@ -73,6 +73,7 @@ def test_api_status_rejects_missing_local_status_source_without_traceback(capsys
     captured = capsys.readouterr()
 
     assert "failed to read status source file" in captured.err
+    assert str(missing) not in captured.err
     assert "Traceback" not in captured.err
 
 
@@ -85,6 +86,33 @@ def test_api_status_rejects_invalid_local_status_source_without_traceback(capsys
     captured = capsys.readouterr()
 
     assert "status source file is not valid JSON" in captured.err
+    assert str(invalid) not in captured.err
+    assert "Traceback" not in captured.err
+
+
+def test_api_status_rejects_private_endpoint_without_printing_it(capsys, tmp_path) -> None:
+    from ora_core.official.status_api import build_status_feed_fixture
+    from yonerai_cli import cli
+
+    private_endpoint = "http://10.0.0.5/runbook"
+    feed = build_status_feed_fixture()
+    feed["incidents"] = [
+        {
+            "id": "bad-incident",
+            "summary": {"en": f"private runbook {private_endpoint}"},
+            "component_id": "official_api",
+            "state": "degraded",
+        }
+    ]
+    fixture = tmp_path / "status-feed.json"
+    fixture.write_text(json.dumps(feed, ensure_ascii=False), encoding="utf-8")
+
+    assert cli.main(["api", "status", "--status-source", str(fixture), "--json"]) == 2
+    captured = capsys.readouterr()
+
+    assert "non-public marker" in captured.err
+    assert private_endpoint not in captured.err
+    assert "private_runtime_details_included" not in captured.err
     assert "Traceback" not in captured.err
 
 
