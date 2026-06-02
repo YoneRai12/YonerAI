@@ -45,8 +45,9 @@ The public reader must reject sourced payload text that contains private or
 reserved endpoint material before it is printed. This includes RFC1918 IPv4,
 loopback, link-local, metadata-service IPs, IPv6 loopback, unique-local,
 link-local, multicast/reserved addresses, internal hostname suffixes such as
-`.internal` or `.local`, AWS ARNs/instance ids, local paths, and secret-like
-markers. Controlled errors must not echo the offending URL, local path, or raw
+`.internal`, `.local`, or `.svc`, AWS ARNs/instance ids, local paths, and
+secret-like markers. Malformed URL text that cannot be parsed safely must fail
+closed. Controlled errors must not echo the offending URL, local path, or raw
 private endpoint.
 
 ## Endpoints

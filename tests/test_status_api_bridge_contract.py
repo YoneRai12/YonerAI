@@ -171,11 +171,16 @@ def test_status_source_components_reject_non_public_markers(tmp_path: Path) -> N
         "ipv6 loopback http://[::1]/status",
         "ipv6 unique local http://[fc00::1]/status",
         "ipv6 link local http://[fe80::1]/status",
+        "raw ipv6 loopback ::1",
+        "raw ipv6 unique local fc00::1",
+        "raw ipv6 link local fe80::1",
+        "malformed ipv6 url http://[::1/status",
         "aws arn arn:aws:lambda:ap-northeast-1:123456789012:function:private",
         "instance i-0123456789abcdef0",
         "local path /root/private/status.json",
         "token api_key=example-secret",
         "internal host https://runbook.internal/status",
+        "kubernetes service https://api.default.svc/status",
     ],
 )
 def test_status_source_rejects_private_endpoint_markers(tmp_path: Path, bad_value: str) -> None:

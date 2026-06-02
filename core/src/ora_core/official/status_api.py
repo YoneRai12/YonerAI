@@ -84,6 +84,7 @@ FORBIDDEN_STATUS_SOURCE_PATTERNS = (
 STATUS_URL_PATTERN = re.compile(r"\b[a-zA-Z][a-zA-Z0-9+.-]*://[^\s<>'\")]+")
 IPV4_PATTERN = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
 IPV6_BRACKET_PATTERN = re.compile(r"\[([0-9a-fA-F:.%]+)\]")
+IPV6_CANDIDATE_PATTERN = re.compile(r"(?<![0-9A-Fa-f:])(?:[0-9A-Fa-f]{0,4}:){2,}[0-9A-Fa-f:.%]*(?![0-9A-Fa-f:])")
 PRIVATE_STATUS_HOST_SUFFIXES = (
     ".corp",
     ".home",
@@ -91,6 +92,7 @@ PRIVATE_STATUS_HOST_SUFFIXES = (
     ".lan",
     ".local",
     ".localdomain",
+    ".svc",
 )
 PUBLIC_INCIDENT_FIELDS = frozenset(
     {
@@ -415,14 +417,21 @@ def _assert_public_status_payload(value: object, *, context: str) -> None:
 def _contains_private_status_url_or_ip(serialized: str) -> bool:
     for raw_url in STATUS_URL_PATTERN.findall(serialized):
         candidate = raw_url.rstrip(".,;:")
-        parsed = urlparse(candidate)
-        if parsed.hostname and _is_private_status_host(parsed.hostname):
+        try:
+            parsed = urlparse(candidate)
+            hostname = parsed.hostname
+        except ValueError:
+            return True
+        if hostname and _is_private_status_host(hostname):
             return True
     for candidate in IPV4_PATTERN.findall(serialized):
         if _is_private_status_ip(candidate):
             return True
     for candidate in IPV6_BRACKET_PATTERN.findall(serialized):
         if _is_private_status_ip(candidate.split("%", 1)[0]):
+            return True
+    for candidate in IPV6_CANDIDATE_PATTERN.findall(serialized):
+        if _is_private_status_ip(candidate.strip("[]").split("%", 1)[0]):
             return True
     return False
 
