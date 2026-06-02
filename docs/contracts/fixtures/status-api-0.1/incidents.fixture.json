@@ -1,0 +1,87 @@
+{
+  "generated_at": "2026-06-02T00:00:00Z",
+  "incidents": [
+    {
+      "affected": {
+        "component_label": {
+          "en": "Official API",
+          "ja": "公式API"
+        },
+        "count_label": {
+          "en": "1 affected component",
+          "ja": "1 affected component"
+        },
+        "end_label": "08:40",
+        "segments": [
+          {
+            "status": "operational",
+            "width": 10
+          },
+          {
+            "status": "degraded",
+            "width": 80
+          },
+          {
+            "status": "operational",
+            "width": 10
+          }
+        ],
+        "start_label": "2026-06-02 08:05",
+        "tooltip": {
+          "en": "Official API: degraded 08:05 -> 08:40",
+          "ja": "公式API: 性能低下 08:05 -> 08:40"
+        }
+      },
+      "category_id": "official-api",
+      "component_id": "official_api",
+      "date": "2026-06-02",
+      "description": {
+        "en": "Public contract sample; not a production incident.",
+        "ja": "公開 contract 用のサンプルであり本番障害ではありません。"
+      },
+      "id": "incident-20260602-api-degraded",
+      "impact": "degraded",
+      "impact_label": {
+        "en": "Degraded",
+        "ja": "性能低下"
+      },
+      "kind": "incident",
+      "kind_label": {
+        "en": "Incident",
+        "ja": "Incident"
+      },
+      "state": "degraded",
+      "status_label": {
+        "en": "fixture",
+        "ja": "fixture"
+      },
+      "summary": {
+        "en": "Degraded fixture for the official API bridge.",
+        "ja": "公式API bridge の degraded fixture です。"
+      },
+      "title": {
+        "en": "Official API degraded fixture",
+        "ja": "公式API degraded fixture"
+      },
+      "updates": [
+        {
+          "body": {
+            "en": "Fixture monitoring state.",
+            "ja": "fixture の監視状態です。"
+          },
+          "status": "monitoring",
+          "time_local": "2026-06-02 20:26 JST",
+          "time_utc": "2026-06-02 11:26 UTC",
+          "title": {
+            "en": "Monitoring",
+            "ja": "監視中"
+          }
+        }
+      ]
+    }
+  ],
+  "ok": true,
+  "private_runtime_details_included": false,
+  "production_backend_included": false,
+  "schema_version": "yonerai-status-api/v0.1"
+}

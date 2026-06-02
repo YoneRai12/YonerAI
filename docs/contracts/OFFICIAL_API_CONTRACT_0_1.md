@@ -66,6 +66,11 @@ Every endpoint must define:
 | `POST` | `/v1/evolve/proposals` | account required | user_quota | fixture only |
 | `GET` | `/v1/evolve/proposals` | account required | user_quota | fixture only |
 
+`GET /v1/status` is further specified by
+`docs/contracts/STATUS_API_CONTRACT_0_1.md` so that YonerAI CLI,
+status.yonerai.com, and the future private/AWS backend consume the same
+public-safe status component/feed shape.
+
 Schema files live under:
 
 - `docs/contracts/schemas/official-api-contract-0.1.schema.json`

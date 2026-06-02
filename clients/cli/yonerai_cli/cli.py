@@ -44,6 +44,15 @@ COLOR_CHOICES = ("auto", "never", "always")
 PLAN_PROVIDER_CHOICES = ("auto", "mock", "openai-compatible", "local", "anthropic", "gemini")
 SYNC_AUTH_STATE_CHOICES = ("unauthenticated", "dry_run", "pending", "linked", "expired", "revoked")
 SYNC_DIRECTION_CHOICES = ("cloud-to-local", "local-to-cloud")
+STATUS_PROFILE_CHOICES = (
+    "operational",
+    "degraded_api",
+    "maintenance",
+    "oracle_not_production",
+    "auth_dry_run_only",
+    "install_operational",
+    "alpha_available_stable_current",
+)
 MEMORY_SCOPE_CHOICES = (
     "local",
     "session",
@@ -172,7 +181,7 @@ def _format_error_body(status_code: int, body: dict[str, Any], *, fallback_code:
 
 
 def _print_json(data: dict[str, Any]) -> None:
-    print(json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True))
+    print(json.dumps(data, ensure_ascii=True, indent=2, sort_keys=True))
 
 
 def _build_doctor_report(*, command: str = "yonerai doctor") -> dict[str, Any]:
@@ -299,6 +308,18 @@ def _build_doctor_report(*, command: str = "yonerai doctor") -> dict[str, Any]:
             "raw_prompt_persisted": False,
             "local_absolute_path_persisted": False,
         }
+    try:
+        from ora_core.official import build_status_check_report
+
+        status_api = build_status_check_report(profile="operational")
+    except Exception:
+        status_api = {
+            "schema_version": "yonerai-status-api/v0.1",
+            "ok": False,
+            "status": "unavailable",
+            "production_backend_included": False,
+            "private_runtime_details_included": False,
+        }
     python_supported = sys.version_info >= (3, 11)
     manifest_contract_valid = bool(manifest_report.get("contract_valid", manifest_report.get("ok")))
     system_checks = {
@@ -313,6 +334,7 @@ def _build_doctor_report(*, command: str = "yonerai doctor") -> dict[str, Any]:
     hybrid_execution_slice_ok = bool(hybrid_execution_slice.get("ok"))
     auto_runtime_ok = bool(auto_runtime.get("ok"))
     memory_boundary_ok = bool(memory_boundary.get("ok"))
+    status_api_ok = bool(status_api.get("ok"))
     return {
         "ok": (
             manifest_contract_valid
@@ -325,6 +347,7 @@ def _build_doctor_report(*, command: str = "yonerai doctor") -> dict[str, Any]:
             and hybrid_execution_slice_ok
             and auto_runtime_ok
             and memory_boundary_ok
+            and status_api_ok
         ),
         "command": command,
         "schema_version": "yonerai-doctor/v1",
@@ -369,6 +392,7 @@ def _build_doctor_report(*, command: str = "yonerai doctor") -> dict[str, Any]:
         "hybrid_execution_slice": hybrid_execution_slice,
         "auto_runtime": auto_runtime,
         "memory_boundary": memory_boundary,
+        "status_api": status_api,
         "provider_runtime_e2e_fixtures": _provider_runtime_e2e_fixture_report(),
         "system_checks": system_checks,
         "errors": manifest_report.get("errors", []),
@@ -788,14 +812,30 @@ def _print_start_pretty(report: dict[str, Any], *, lang: str = "en", color: Colo
     print(format_first_run_pretty(report, lang=lang, color=color))
 
 
-def _build_status_report(*, source: str = "local") -> dict[str, Any]:
+def _build_status_report(
+    *,
+    source: str = "local",
+    status_source: str | None = None,
+    allow_network_status_fetch: bool = False,
+    profile: str = "operational",
+) -> dict[str, Any]:
     report = _build_doctor_report(command="yonerai status")
     try:
         _prepare_trusted_cli_import_paths()
+        from ora_core.official import build_status_check_report
         from ora_core.status_contract import build_official_status_contract
     except Exception as exc:
         raise CliError("official status contract fixture is unavailable.", exit_code=1) from exc
     report["status_source"] = source
+    try:
+        status_api = build_status_check_report(
+            source=status_source,
+            allow_network=allow_network_status_fetch,
+            profile=profile,
+        )
+    except ValueError as exc:
+        raise CliError(str(exc), exit_code=2) from exc
+    report["status_api"] = status_api
     report["official_status"] = build_official_status_contract(source=source)
     return report
 
@@ -935,8 +975,10 @@ def _print_status_pretty(report: dict[str, Any], *, lang: str = "en", color: Col
 def _format_status_pretty(report: dict[str, Any], *, lang: str = "en", color: ColorMode = "auto") -> str:
     manifest = report["manifest"]
     boundaries = report["boundaries"]
+    status_api_section = CliSection("Status API bridge", _status_api_rows(report, lang=lang))
     if lang == "ja":
         sections = (
+            status_api_section,
             CliSection(
                 "公開デモ",
                 (
@@ -965,6 +1007,7 @@ def _format_status_pretty(report: dict[str, Any], *, lang: str = "en", color: Co
         return render_report("YonerAI 状態", sections, color=color)
 
     sections = (
+        status_api_section,
         CliSection(
             "Public demo",
             (
@@ -1031,6 +1074,7 @@ def _doctor_sections_en(report: dict[str, Any]) -> tuple[CliSection, ...]:
     oracle_rows = _oracle_stub_rows(report)
     auto_runtime_rows = _auto_runtime_rows(report)
     memory_boundary = report.get("memory_boundary") if isinstance(report.get("memory_boundary"), dict) else {}
+    status_api_rows = _status_api_rows(report, lang="en")
     install_update_rows = _install_update_rows(report, lang="en")
     return (
         CliSection(
@@ -1070,6 +1114,7 @@ def _doctor_sections_en(report: dict[str, Any]) -> tuple[CliSection, ...]:
         CliSection("Relay local-dev", relay_rows),
         CliSection("Oracle stub", oracle_rows),
         CliSection("Auto runtime", auto_runtime_rows),
+        CliSection("Status API bridge", status_api_rows),
         CliSection(
             "Memory boundary",
             (
@@ -1117,6 +1162,7 @@ def _doctor_sections_ja(report: dict[str, Any]) -> tuple[CliSection, ...]:
     oracle_rows = _oracle_stub_rows(report)
     auto_runtime_rows = _auto_runtime_rows(report)
     memory_boundary = report.get("memory_boundary") if isinstance(report.get("memory_boundary"), dict) else {}
+    status_api_rows = _status_api_rows(report, lang="ja")
     install_update_rows = _install_update_rows(report, lang="ja")
     return (
         CliSection(
@@ -1156,6 +1202,7 @@ def _doctor_sections_ja(report: dict[str, Any]) -> tuple[CliSection, ...]:
         CliSection("Relay local-dev", relay_rows),
         CliSection("Oracle stub", oracle_rows),
         CliSection("Auto runtime", auto_runtime_rows),
+        CliSection("Status API bridge", status_api_rows),
         CliSection(
             "記憶境界",
             (
@@ -1186,6 +1233,39 @@ def _doctor_sections_ja(report: dict[str, Any]) -> tuple[CliSection, ...]:
             ),
         ),
     )
+
+
+def _status_api_rows(report: dict[str, Any], *, lang: str = "en") -> tuple[CliRow, ...]:
+    status_api = report.get("status_api")
+    if not isinstance(status_api, dict):
+        return (CliRow("status", "unavailable", "warn"),)
+    releases = status_api.get("releases") if isinstance(status_api.get("releases"), dict) else {}
+    install = status_api.get("install") if isinstance(status_api.get("install"), dict) else {}
+    source = status_api.get("source") if isinstance(status_api.get("source"), dict) else {}
+    status = str(status_api.get("status") or "unknown")
+    state = "ok" if status in {"operational", "contract_only", "not_production"} else "warn"
+    rows = [
+        CliRow("status", status, state),
+        CliRow("component_count", status_api.get("component_count", 0), "ok"),
+        CliRow("status_source", source.get("kind", "fixture"), "ok"),
+        CliRow("latest_stable", releases.get("latest_stable", "unknown"), "ok"),
+        CliRow("latest_alpha", releases.get("latest_alpha", "unknown"), "ok"),
+        CliRow("install", install.get("status", "unknown"), "ok"),
+        CliRow("status_yonerai_com_ready", status_api.get("status_yonerai_com_ready"), "ok"),
+        CliRow(
+            "production_backend_included",
+            status_api.get("production_backend_included"),
+            "fail" if status_api.get("production_backend_included") else "ok",
+        ),
+        CliRow(
+            "private_runtime_details",
+            status_api.get("private_runtime_details_included"),
+            "fail" if status_api.get("private_runtime_details_included") else "ok",
+        ),
+    ]
+    if lang == "ja":
+        rows.append(CliRow("network_fetch", "explicit only", "ok"))
+    return tuple(rows)
 
 
 def _install_update_rows(report: dict[str, Any], *, lang: str = "en") -> tuple[CliRow, ...]:
@@ -3673,7 +3753,19 @@ def _build_api_report_for_cli(args: argparse.Namespace) -> dict[str, Any]:
     auth_state = getattr(args, "auth_state", "dry_run")
     try:
         if args.api_command == "status":
-            return builders["api_status"](auth_state=auth_state)
+            report = builders["api_status"](auth_state=auth_state)
+            try:
+                _prepare_trusted_cli_import_paths()
+                from ora_core.official import build_status_check_report
+
+                report["status_bridge"] = build_status_check_report(
+                    source=getattr(args, "status_source", None),
+                    allow_network=bool(getattr(args, "allow_network_status_fetch", False)),
+                    profile=getattr(args, "status_profile", "operational"),
+                )
+            except ValueError as exc:
+                raise CliError(str(exc), exit_code=2) from exc
+            return report
         if args.api_command == "contract":
             return builders["api"]()
         if args.api_command == "rate-limit":
@@ -4012,6 +4104,14 @@ def _print_api_pretty(report: dict[str, Any], *, lang: str = "ja", color: ColorM
     if rate_state:
         status_rows.append(CliRow("rate_limit_policy_state", rate_state.get("policy_state"), "ok"))
         status_rows.append(CliRow("quota_fallback", rate_state.get("quota_exceeded_fallback"), "ok"))
+    status_bridge = report.get("status_bridge") if isinstance(report.get("status_bridge"), dict) else {}
+    if status_bridge:
+        status_rows.append(CliRow("status_bridge", status_bridge.get("status"), "ok" if status_bridge.get("ok") else "warn"))
+        status_rows.append(CliRow("status_components", status_bridge.get("component_count"), "ok"))
+        releases = status_bridge.get("releases") if isinstance(status_bridge.get("releases"), dict) else {}
+        if releases:
+            status_rows.append(CliRow("latest_stable", releases.get("latest_stable"), "ok"))
+            status_rows.append(CliRow("latest_alpha", releases.get("latest_alpha"), "ok"))
     detail_rows: list[CliRow] = []
     if endpoints:
         detail_rows.append(CliRow("endpoint_count", len(endpoints), "ok"))
@@ -4071,6 +4171,7 @@ def _interactive_callbacks():
         runs_list=_interactive_runs_list,
         runs_show=_interactive_runs_show,
         update_check=_interactive_update_check,
+        status_check=_interactive_status_check,
         evolve_status=_interactive_evolve_status,
         api_status=_interactive_api_status,
         sync_status=_interactive_sync_status,
@@ -4120,6 +4221,10 @@ def _interactive_update_check(manifest_path: str | None, _lang: str) -> dict[str
     return _build_update_report(args)
 
 
+def _interactive_status_check(_lang: str) -> dict[str, Any]:
+    return _build_status_report()["status_api"]
+
+
 def _interactive_evolve_status(_lang: str) -> dict[str, Any]:
     args = argparse.Namespace(evolve_command="status")
     return _build_evolve_report_for_cli(args)
@@ -4167,7 +4272,13 @@ def _interactive_sync_status(_lang: str) -> dict[str, Any]:
 
 
 def _interactive_api_status(_lang: str) -> dict[str, Any]:
-    args = argparse.Namespace(api_command="status", auth_state="dry_run")
+    args = argparse.Namespace(
+        api_command="status",
+        auth_state="dry_run",
+        status_source=None,
+        allow_network_status_fetch=False,
+        status_profile="operational",
+    )
     return _build_api_report_for_cli(args)
 
 
@@ -4310,6 +4421,16 @@ def build_parser() -> argparse.ArgumentParser:
     api_subcommands = api.add_subparsers(dest="api_command", required=True)
     api_status = api_subcommands.add_parser("status", help="Show official API readiness and fixture-only boundaries.")
     api_status.add_argument("--auth-state", choices=SYNC_AUTH_STATE_CHOICES, default="dry_run")
+    api_status.add_argument(
+        "--status-source",
+        help="Optional local status-feed JSON path or allowlisted HTTPS status URL. URL fetch also requires --allow-network-status-fetch.",
+    )
+    api_status.add_argument(
+        "--allow-network-status-fetch",
+        action="store_true",
+        help="Explicitly allow fetching an allowlisted HTTPS status URL. Disabled by default.",
+    )
+    api_status.add_argument("--status-profile", choices=STATUS_PROFILE_CHOICES, default="operational")
     api_status_output = api_status.add_mutually_exclusive_group()
     api_status_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
     api_status_output.add_argument("--pretty", action="store_true", help="Print readable official API status.")
@@ -4447,10 +4568,21 @@ def build_parser() -> argparse.ArgumentParser:
     providers.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
 
     status = subcommands.add_parser("status", help="Print offline public demo and installer readiness status.")
+    status.add_argument("status_command", nargs="?", choices=("check",), default="check")
     status_output = status.add_mutually_exclusive_group()
     status_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
     status_output.add_argument("--pretty", action="store_true", help="Print a readable status summary.")
     status.add_argument("--source", choices=("local", "fixture"), default="local", help="Status source. Default: local.")
+    status.add_argument(
+        "--status-source",
+        help="Optional local status-feed JSON path or allowlisted HTTPS status URL. URL fetch also requires --allow-network-status-fetch.",
+    )
+    status.add_argument(
+        "--allow-network-status-fetch",
+        action="store_true",
+        help="Explicitly allow fetching an allowlisted HTTPS status URL. Disabled by default.",
+    )
+    status.add_argument("--profile", choices=STATUS_PROFILE_CHOICES, default="operational")
     status.add_argument("--lang", choices=LANG_CHOICES, default="en", help="Pretty output language. Default: en.")
     status.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
 
@@ -4851,7 +4983,12 @@ def run(argv: list[str] | None = None) -> int:
             _print_providers_pretty(report, lang=args.lang, color=args.color)
         return 0 if report["ok"] else 1
     if args.command == "status":
-        report = _build_status_report(source=args.source)
+        report = _build_status_report(
+            source=args.source,
+            status_source=args.status_source,
+            allow_network_status_fetch=args.allow_network_status_fetch,
+            profile=args.profile,
+        )
         if args.json:
             _print_json(report)
         else:
