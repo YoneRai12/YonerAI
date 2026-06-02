@@ -89,6 +89,9 @@ COMMAND_ALIASES = {
     "/permissions": "/permissions",
     "/認証": "/auth",
     "/auth": "/auth",
+    "/API": "/api",
+    "/api": "/api",
+    "/公式": "/api",
     "/同期": "/sync",
     "/sync": "/sync",
     "/プライバシー": "/privacy",
@@ -214,6 +217,7 @@ class InteractiveCallbacks:
     runs_show: Callable[[str, str | None, str], dict[str, Any]]
     update_check: Callable[[str | None, str], dict[str, Any]] | None = None
     evolve_status: Callable[[str], dict[str, Any]] | None = None
+    api_status: Callable[[str], dict[str, Any]] | None = None
     sync_status: Callable[[str], dict[str, Any]] | None = None
     memory_status: Callable[[str], dict[str, Any]] | None = None
     memory_action: Callable[[str, list[str], str, str | None], dict[str, Any]] | None = None
@@ -577,6 +581,12 @@ def _handle_slash_command(
         return {}
     if command == "/auth":
         _write(output_stream, _format_auth_status(config, lang=lang))
+        return {}
+    if command == "/api":
+        if callbacks.api_status is None:
+            _write(output_stream, _format_api_unavailable(lang))
+            return {}
+        _write(output_stream, _format_api_status(callbacks.api_status(lang), lang=lang))
         return {}
     if command == "/privacy":
         _write(output_stream, _format_privacy_status(config, lang=lang))
@@ -2087,6 +2097,51 @@ def _format_sync_unavailable(lang: str) -> str:
     return "Sync status is unavailable in this build.\n"
 
 
+def _format_api_status(report: dict[str, Any], *, lang: str) -> str:
+    rate_state = report.get("rate_limit_state") if isinstance(report.get("rate_limit_state"), dict) else {}
+    actions = report.get("actions_not_performed") if isinstance(report.get("actions_not_performed"), list) else []
+    if lang == "ja":
+        lines = [
+            "公式API",
+            f"  設定状態: {'設定済み' if report.get('official_api_configured') else '未設定'}",
+            f"  対象URL: {_safe(report.get('endpoint_url') or 'not_configured')}",
+            f"  認証状態: {_safe(report.get('auth_state') or 'dry_run')}",
+            f"  レート制限: {_safe(rate_state.get('policy_state') or 'contract_only')}",
+            f"  quota超過時: {_safe(rate_state.get('quota_exceeded_fallback') or 'local_mock_or_loopback_provider')}",
+            f"  private content除外: {'有効' if report.get('private_content_exclusion') else '不明'}",
+            f"  OpenAI shared traffic: {'オン' if report.get('shared_traffic_enabled') else 'オフ'}",
+            f"  production backend: {'含む' if report.get('production_backend_included') else '含まない'}",
+            "  試す: yonerai api status --pretty --lang ja",
+            "  境界:",
+        ]
+        for action in actions[:8]:
+            lines.append(f"    - {_safe(action)}")
+        lines.append("")
+        return "\n".join(lines)
+    return "\n".join(
+        (
+            "Official API",
+            f"  configured: {bool(report.get('official_api_configured'))}",
+            f"  endpoint_url: {_safe(report.get('endpoint_url') or 'not_configured')}",
+            f"  auth_state: {_safe(report.get('auth_state') or 'dry_run')}",
+            f"  rate_limit: {_safe(rate_state.get('policy_state') or 'contract_only')}",
+            f"  quota_fallback: {_safe(rate_state.get('quota_exceeded_fallback') or 'local_mock_or_loopback_provider')}",
+            f"  private_content_exclusion: {bool(report.get('private_content_exclusion'))}",
+            f"  shared_traffic_enabled: {bool(report.get('shared_traffic_enabled'))}",
+            f"  production_backend_included: {bool(report.get('production_backend_included'))}",
+            "  try: yonerai api status --pretty",
+            "  actions_not_performed: " + ", ".join(_safe(action) for action in actions[:8]),
+            "",
+        )
+    )
+
+
+def _format_api_unavailable(lang: str) -> str:
+    if lang == "ja":
+        return "公式API状態はこのビルドでは利用できません。\n"
+    return "Official API status is unavailable in this build.\n"
+
+
 def _format_memory_unavailable(lang: str) -> str:
     if lang == "ja":
         return "記憶状態はこのビルドでは利用できません。\n"
@@ -2482,7 +2537,7 @@ def _welcome(
             "Safety: network off / tools dry-run / workspace file only / arbitrary shell disabled / live providers off by default",
             "Auth/sync/privacy: Google OAuth dry-run only / no automatic local-to-cloud sync / shared traffic off",
             "Self-evolution: proposal-only, synthetic signals only, no PR/deploy/mutation",
-            "Use: type a message, / for suggestions, /palette, /settings, /mode, /plan, /review, /permissions, /models, /providers, /safety, /runs, /auth, /sync, /evolve, /update",
+            "Use: type a message, / for suggestions, /palette, /settings, /mode, /plan, /review, /permissions, /models, /providers, /safety, /runs, /auth, /api, /sync, /evolve, /update",
             "",
         )
     )
@@ -2547,6 +2602,7 @@ def _help(lang: str) -> str:
             "  /show <run_id>   Show one run",
             "  /local-llm       Show local LLM loopback setup",
             "  /auth            Show Google OAuth dry-run status",
+            "  /api             Show official API contract status",
             "  /sync            Show cloud/local sync boundaries",
             "  /privacy         Show shared-traffic and private-content policy",
             "  /evolve          Show proposal-only self-evolution queue",

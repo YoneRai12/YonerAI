@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://yonerai.com/contracts/official-api-0.1/status.response.schema.json",
+  "title": "YonerAI Official API status response 0.1",
+  "type": "object",
+  "required": ["ok", "service", "public_repo_mode", "production_backend"],
+  "properties": {
+    "ok": {"type": "boolean"},
+    "service": {"const": "yonerai-official-api"},
+    "public_repo_mode": {"const": "fixture_only"},
+    "production_backend": {"const": false},
+    "message": {"type": "string"}
+  },
+  "additionalProperties": false
+}

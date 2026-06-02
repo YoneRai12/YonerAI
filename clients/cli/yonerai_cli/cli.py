@@ -3615,6 +3615,7 @@ def _load_official_contract_builders() -> dict[str, Any]:
     from ora_core.official import (
         build_account_status_report,
         build_official_api_contract_fixture,
+        build_official_api_status_report,
         build_rate_limit_policy_report,
         build_sync_approval_dry_run_report,
         build_sync_preview_report,
@@ -3624,6 +3625,7 @@ def _load_official_contract_builders() -> dict[str, Any]:
     return {
         "account": build_account_status_report,
         "api": build_official_api_contract_fixture,
+        "api_status": build_official_api_status_report,
         "rate_limit": build_rate_limit_policy_report,
         "approve": build_sync_approval_dry_run_report,
         "preview": build_sync_preview_report,
@@ -3664,6 +3666,21 @@ def _build_sync_report_for_cli(args: argparse.Namespace) -> dict[str, Any]:
     except ValueError as exc:
         raise CliError(str(exc), exit_code=2) from exc
     raise CliError("unknown sync command", exit_code=2)
+
+
+def _build_api_report_for_cli(args: argparse.Namespace) -> dict[str, Any]:
+    builders = _load_official_contract_builders()
+    auth_state = getattr(args, "auth_state", "dry_run")
+    try:
+        if args.api_command == "status":
+            return builders["api_status"](auth_state=auth_state)
+        if args.api_command == "contract":
+            return builders["api"]()
+        if args.api_command == "rate-limit":
+            return builders["rate_limit"]()
+    except ValueError as exc:
+        raise CliError(str(exc), exit_code=2) from exc
+    raise CliError("unknown api command", exit_code=2)
 
 
 def _load_evolve_signals_for_cli(args: argparse.Namespace) -> list[Any] | None:
@@ -3958,6 +3975,68 @@ def _print_sync_pretty(report: dict[str, Any], *, lang: str = "ja", color: Color
     print(render_report(title, tuple(sections), color=color))
 
 
+def _print_api_pretty(report: dict[str, Any], *, lang: str = "ja", color: ColorMode = "auto") -> None:
+    endpoints = report.get("endpoints") if isinstance(report.get("endpoints"), list) else []
+    quotas = report.get("quotas") if isinstance(report.get("quotas"), dict) else {}
+    headers = report.get("headers") if isinstance(report.get("headers"), dict) else report.get("rate_limit_headers")
+    if not isinstance(headers, dict):
+        headers = {}
+    rate_state = report.get("rate_limit_state") if isinstance(report.get("rate_limit_state"), dict) else {}
+    if lang == "ja":
+        title = "YonerAI 公式API契約"
+    else:
+        title = "YonerAI official API contract"
+    status_rows = [
+        CliRow("schema_version", report.get("schema_version"), "ok"),
+        CliRow("ok", report.get("ok"), "ok" if report.get("ok") else "fail"),
+    ]
+    for key in (
+        "public_repo_mode",
+        "official_api_configured",
+        "endpoint_url",
+        "contract_target_origin",
+        "auth_state",
+        "production_backend_included",
+        "official_backend_called",
+        "shared_traffic_enabled",
+    ):
+        if key not in report:
+            continue
+        value = report.get(key)
+        state = "ok"
+        if key in {"production_backend_included", "official_backend_called", "shared_traffic_enabled"} and value:
+            state = "fail"
+        if key == "official_api_configured" and not value:
+            state = "warn"
+        status_rows.append(CliRow(key, value, state))
+    if rate_state:
+        status_rows.append(CliRow("rate_limit_policy_state", rate_state.get("policy_state"), "ok"))
+        status_rows.append(CliRow("quota_fallback", rate_state.get("quota_exceeded_fallback"), "ok"))
+    detail_rows: list[CliRow] = []
+    if endpoints:
+        detail_rows.append(CliRow("endpoint_count", len(endpoints), "ok"))
+        for endpoint in endpoints:
+            if isinstance(endpoint, dict):
+                detail_rows.append(
+                    CliRow(
+                        f"{endpoint.get('method')} {endpoint.get('path')}",
+                        endpoint.get("auth") or endpoint.get("summary"),
+                        "ok",
+                    )
+                )
+    if quotas:
+        detail_rows.append(CliRow("quota_categories", ", ".join(str(key) for key in quotas), "ok"))
+    if headers:
+        detail_rows.append(CliRow("rate_limit_headers", ", ".join(str(key) for key in headers), "ok"))
+    non_action_rows = tuple(CliRow(item, True, "ok") for item in report.get("actions_not_performed", []))
+    sections = [CliSection("Status", tuple(status_rows))]
+    if detail_rows:
+        sections.append(CliSection("Contract", tuple(detail_rows)))
+    if non_action_rows:
+        sections.append(CliSection("Non-actions", non_action_rows))
+    print(render_report(title, tuple(sections), color=color))
+
+
 def _sync_pretty_state(key: str, value: object) -> str:
     if key == "auth_state":
         return {
@@ -3993,6 +4072,7 @@ def _interactive_callbacks():
         runs_show=_interactive_runs_show,
         update_check=_interactive_update_check,
         evolve_status=_interactive_evolve_status,
+        api_status=_interactive_api_status,
         sync_status=_interactive_sync_status,
         memory_status=_interactive_memory_status,
         memory_action=_interactive_memory_action,
@@ -4084,6 +4164,11 @@ def _interactive_memory_action(action: str, values: list[str], _lang: str, defau
 def _interactive_sync_status(_lang: str) -> dict[str, Any]:
     args = argparse.Namespace(sync_command="status", auth_state="dry_run", selected=False)
     return _build_sync_report_for_cli(args)
+
+
+def _interactive_api_status(_lang: str) -> dict[str, Any]:
+    args = argparse.Namespace(api_command="status", auth_state="dry_run")
+    return _build_api_report_for_cli(args)
 
 
 def _run_interactive_chat(args: argparse.Namespace) -> int:
@@ -4220,6 +4305,28 @@ def build_parser() -> argparse.ArgumentParser:
     privacy_status_output.add_argument("--pretty", action="store_true", help="Print a readable privacy status.")
     privacy_status.add_argument("--lang", choices=LANG_CHOICES, default="ja", help="Pretty output language. Default: ja.")
     privacy_status.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
+
+    api = subcommands.add_parser("api", help="Inspect official API contracts without contacting production cloud.")
+    api_subcommands = api.add_subparsers(dest="api_command", required=True)
+    api_status = api_subcommands.add_parser("status", help="Show official API readiness and fixture-only boundaries.")
+    api_status.add_argument("--auth-state", choices=SYNC_AUTH_STATE_CHOICES, default="dry_run")
+    api_status_output = api_status.add_mutually_exclusive_group()
+    api_status_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
+    api_status_output.add_argument("--pretty", action="store_true", help="Print readable official API status.")
+    api_status.add_argument("--lang", choices=LANG_CHOICES, default="ja", help="Pretty output language. Default: ja.")
+    api_status.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
+    api_contract = api_subcommands.add_parser("contract", help="Show the official API fixture contract.")
+    api_contract_output = api_contract.add_mutually_exclusive_group()
+    api_contract_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
+    api_contract_output.add_argument("--pretty", action="store_true", help="Print readable official API contract.")
+    api_contract.add_argument("--lang", choices=LANG_CHOICES, default="ja", help="Pretty output language. Default: ja.")
+    api_contract.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
+    api_rate = api_subcommands.add_parser("rate-limit", help="Show official API rate-limit policy contract.")
+    api_rate_output = api_rate.add_mutually_exclusive_group()
+    api_rate_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
+    api_rate_output.add_argument("--pretty", action="store_true", help="Print readable official API rate-limit policy.")
+    api_rate.add_argument("--lang", choices=LANG_CHOICES, default="ja", help="Pretty output language. Default: ja.")
+    api_rate.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
 
     sync = subcommands.add_parser("sync", help="Preview official account sync contracts without contacting cloud.")
     sync_subcommands = sync.add_subparsers(dest="sync_command", required=True)
@@ -4693,6 +4800,13 @@ def run(argv: list[str] | None = None) -> int:
             _print_json(report)
         else:
             _print_privacy_pretty(report, lang=args.lang, color=args.color)
+        return 0 if report["ok"] else 1
+    if args.command == "api":
+        report = _build_api_report_for_cli(args)
+        if args.json:
+            _print_json(report)
+        else:
+            _print_api_pretty(report, lang=args.lang, color=args.color)
         return 0 if report["ok"] else 1
     if args.command == "sync":
         report = _build_sync_report_for_cli(args)

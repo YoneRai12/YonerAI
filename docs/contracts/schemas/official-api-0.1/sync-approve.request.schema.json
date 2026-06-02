@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://yonerai.com/contracts/official-api-0.1/sync-approve.request.schema.json",
+  "title": "YonerAI Official API sync approve request 0.1",
+  "type": "object",
+  "required": ["direction", "conversation_ref", "explicit_approval", "audit_reason"],
+  "properties": {
+    "direction": {"enum": ["cloud_to_local", "local_to_cloud"]},
+    "conversation_ref": {"type": "string"},
+    "explicit_approval": {"const": true},
+    "audit_reason": {"type": "string", "minLength": 1}
+  },
+  "additionalProperties": false
+}
