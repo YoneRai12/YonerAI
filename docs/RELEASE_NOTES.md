@@ -2,6 +2,29 @@
 
 This page is a public-safe index of current release notes and progress checkpoints.
 
+## v0.15.0-alpha.1 Status API Bridge
+
+- GitHub pre-release target: `v0.15.0-alpha.1`.
+- Release title: `2026.06.03 - YonerAI v0.15.0-alpha.1 Status API Bridge`.
+- Release date: `2026-06-03`.
+- Public release body: `docs/releases/0.15.0-alpha.1.md`.
+- Status: prerelease status/API contract slice after v0.14.0-alpha.1.
+- What users can try now: `yonerai status check --pretty --lang ja`,
+  `yonerai status check --json`, `yonerai api status --pretty --lang ja`,
+  `yonerai api status --json`,
+  `yonerai api status --status-source docs/contracts/fixtures/status-api-0.1/status-feed.fixture.json --json`,
+  `yonerai doctor --pretty --lang ja`, TUI `/状態`, `/API`, and `/公式`.
+- Boundary: contract/schemas/fixtures/CLI/TUI visibility only; no production
+  AWS backend, no production Oracle/cloud runtime, no production Google login,
+  no live Discord, no OpenAI shared traffic runtime, no private content upload,
+  no deploy/public tunnel, no arbitrary shell/file/tool execution, no
+  production signing/trust store, and no production network installer.
+- Public JSON guard: local or allowlisted status feeds now reject
+  private/reserved IP URLs, internal hostnames, AWS ARNs, local paths, and
+  secret-like markers before public JSON is printed.
+- Primary traceability range: `v0.14.0-alpha.1..v0.15.0-alpha.1`; PRs #500
+  and #501.
+
 ## v0.14.0-alpha.1 Official API Contract
 
 - GitHub pre-release target: `v0.14.0-alpha.1`.

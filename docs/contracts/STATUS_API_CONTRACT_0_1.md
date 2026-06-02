@@ -41,6 +41,15 @@ The public repo readers must fail closed or strip non-public fields before
 printing JSON. Internal monitoring data belongs only in the private/AWS lane,
 where it is reduced into this contract before publication.
 
+The public reader must reject sourced payload text that contains private or
+reserved endpoint material before it is printed. This includes RFC1918 IPv4,
+loopback, link-local, metadata-service IPs, IPv6 loopback, unique-local,
+link-local, multicast/reserved addresses, internal hostname suffixes such as
+`.internal`, `.local`, or `.svc`, AWS ARNs/instance ids, local paths, and
+secret-like markers. Malformed URL text that cannot be parsed safely must fail
+closed. Controlled errors must not echo the offending URL, local path, or raw
+private endpoint.
+
 ## Endpoints
 
 All endpoints are JSON and public-safe. Production responses should include
@@ -124,7 +133,9 @@ Every component must expose:
 The `source` object may identify public-safe source type such as `fixture`,
 `github_release`, `status_feed`, `aws_future`, or `manual_incident`. It must not
 contain private AWS ids, private routes, tokens, ARNs, local paths, hostnames, or
-break-glass detail.
+break-glass detail. If a local or allowlisted feed provides a non-public source
+field, the public reader must either reduce it to the public-safe source shape
+or reject the payload before printing.
 
 ## Status Feed Shape
 
