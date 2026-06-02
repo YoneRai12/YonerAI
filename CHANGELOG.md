@@ -2,6 +2,23 @@
 
 See also: `docs/RELEASE_NOTES.md` (curated summary, v5.0.0 -> current).
 
+## v0.14.0-alpha.1 (2026-06-02) - Official API Contract
+- Added the public official API contract through PR #498, covering status,
+  account, rate-limit, conversation, sync preview/approve, Oracle run, and
+  self-evolution proposal endpoints.
+- Added JSON schemas, a fixture, and conformance tests for the official API
+  contract while keeping production AWS, production Oracle, production Google
+  login, and private content upload out of the public repo.
+- Added `yonerai api status`, `yonerai api contract`, and
+  `yonerai api rate-limit`, plus TUI `/API`, `/api`, and `/公式`.
+- Added `docs/private_handoff/AWS_OFFICIAL_API_HANDOFF.md` and
+  `docs/policy/API_RATE_LIMIT_POLICY.md` for the private/AWS implementation
+  lane and public quota-contract behavior.
+- Included the read-only/live-boundary fix from PR #497 so displayed live state
+  matches the effective local safety boundary.
+- Release notes now support a hidden `release-title` metadata comment so the
+  GitHub Release title is not duplicated as a visible body heading.
+
 ## v0.13.0-alpha.2 (2026-06-02) - Agent Console Dogfood Patch
 - Published a narrow dogfood patch through PR #494 after v0.13.0-alpha.1
   testing found permission/profile and preview mismatches.

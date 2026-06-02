@@ -2,6 +2,25 @@
 
 This page is a public-safe index of current release notes and progress checkpoints.
 
+## v0.14.0-alpha.1 Official API Contract
+
+- GitHub pre-release target: `v0.14.0-alpha.1`.
+- Release title: `2026.06.02 - YonerAI v0.14.0-alpha.1 Official API Contract`.
+- Release date: `2026-06-02`.
+- Public release body: `docs/releases/0.14.0-alpha.1.md`.
+- Status: prerelease official API contract slice after v0.13.0-alpha.2.
+- What users can try now: `yonerai api status --pretty --lang ja`,
+  `yonerai api status --json`, `yonerai api contract --pretty --lang ja`,
+  `yonerai api contract --json`, `yonerai api rate-limit --pretty --lang ja`,
+  `yonerai sync api-contract --json`, and TUI `/API`, `/api`, `/公式`.
+- Boundary: contract/schemas/fixtures/CLI/TUI visibility only; no production
+  AWS backend, no production Oracle/cloud runtime, no production Google login,
+  no live Discord, no OpenAI shared traffic runtime, no private content upload,
+  no deploy/public tunnel, no arbitrary shell/file/tool execution, no
+  production signing/trust store, and no production network installer.
+- Primary traceability range: `v0.13.0-alpha.2..v0.14.0-alpha.1`; PRs #497
+  and #498.
+
 ## v0.13.0-alpha.2 Agent Console Dogfood Patch
 
 - GitHub pre-release target: `v0.13.0-alpha.2`.
