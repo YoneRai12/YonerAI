@@ -13,7 +13,7 @@ package and commercial use requires a separate license.
 ## Install and start YonerAI
 
 This is the CLI Local Runtime path, not full YonerAI cloud production. The
-latest stable is `v0.6.4`. Stable is the default channel; alpha requires an
+latest stable is `v0.6.5`. Stable is the default channel; alpha requires an
 explicit `-Channel alpha` flag.
 
 ### Quick install
@@ -66,13 +66,13 @@ try {
 
 ### If you downloaded the GitHub Release ZIP
 
-Download `YonerAI-0.6.4.zip` from the
-[v0.6.4 release](https://github.com/YoneRai12/YonerAI/releases/tag/v0.6.4),
+Download `YonerAI-0.6.5.zip` from the
+[v0.6.5 release](https://github.com/YoneRai12/YonerAI/releases/tag/v0.6.5),
 extract it, then run PowerShell inside the extracted folder. The extracted
 folder name can vary; change the `cd` command to match the folder you see.
 
 ```powershell
-cd "$HOME\Downloads\YonerAI-0.6.4"
+cd "$HOME\Downloads\YonerAI-0.6.5"
 python --version
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
@@ -158,10 +158,10 @@ yonerai start --guided --lang ja
 yonerai providers --pretty --lang ja
 yonerai ask "hello" --auto --pretty --lang ja
 yonerai chat --script --lang ja
-yonerai manifest verify manifest.v0.6.4.json --pretty
-yonerai install plan --manifest manifest.v0.6.4.json --pretty
-yonerai update check --manifest manifest.v0.6.4.json --pretty
-yonerai update plan --manifest manifest.v0.6.4.json --pretty
+yonerai manifest verify manifest.v0.6.5.json --pretty
+yonerai install plan --manifest manifest.v0.6.5.json --pretty
+yonerai update check --manifest manifest.v0.6.5.json --pretty
+yonerai update plan --manifest manifest.v0.6.5.json --pretty
 yonerai demo --pretty
 yonerai demo --json
 ```

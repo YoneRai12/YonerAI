@@ -13,7 +13,7 @@ is only the guide page. It must not be an installer file source.
 
 Install YonerAI.
 
-Latest stable: `v0.6.4`.
+Latest stable: `v0.6.5`.
 
 The install source of truth is GitHub Releases. `yonerai.com` must not host
 installer scripts, release manifests, ZIP artifacts, or SHA256 sidecars unless
@@ -21,7 +21,7 @@ a future signed hosting lane explicitly approves it.
 
 ## Primary copy
 
-YonerAI CLI Local Runtime v0.6.4 can be installed with a quick command or with
+YonerAI CLI Local Runtime v0.6.5 can be installed with a quick command or with
 a verified command that checks `install.ps1.sha256` before execution. This is
 stable for the local CLI runtime slice. It is not full YonerAI cloud production
 and not a production-signed installer.
@@ -100,9 +100,9 @@ hash が一致しない場合はその場で止まり、インストール処理
 ## Safe manual install
 
 ```powershell
-# 1. Download YonerAI-0.6.4.zip from the GitHub Release.
+# 1. Download YonerAI-0.6.5.zip from the GitHub Release.
 # 2. Extract the ZIP.
-cd "$HOME\Downloads\YonerAI-0.6.4"
+cd "$HOME\Downloads\YonerAI-0.6.5"
 python --version
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
@@ -141,14 +141,14 @@ admin rights, run `irm ... | iex`, or execute a remote installer. With
 
 ## Verify before planning
 
-`manifest.v0.6.4.json` is a GitHub Release asset. Download it from the same
+`manifest.v0.6.5.json` is a GitHub Release asset. Download it from the same
 GitHub Release and save it beside the extracted ZIP contents before running
 local verify or plan commands; release ZIPs intentionally do not embed
 versioned manifests because the manifest records the ZIP hash.
 
 ```powershell
-# Release ZIP flow: manifest.v0.6.4.json is a separate GitHub Release asset.
-$manifest = ".\manifest.v0.6.4.json"
+# Release ZIP flow: manifest.v0.6.5.json is a separate GitHub Release asset.
+$manifest = ".\manifest.v0.6.5.json"
 yonerai manifest verify $manifest --pretty
 yonerai install plan --manifest $manifest --pretty
 yonerai update check --manifest $manifest --pretty
@@ -162,14 +162,14 @@ production control plane.
 
 ## Release links
 
-- GitHub Release: https://github.com/YoneRai12/YonerAI/releases/tag/v0.6.4
-- Release asset: https://github.com/YoneRai12/YonerAI/releases/download/v0.6.4/YonerAI-0.6.4.zip
-- Manifest asset: https://github.com/YoneRai12/YonerAI/releases/download/v0.6.4/manifest.v0.6.4.json
+- GitHub Release: https://github.com/YoneRai12/YonerAI/releases/tag/v0.6.5
+- Release asset: https://github.com/YoneRai12/YonerAI/releases/download/v0.6.5/YonerAI-0.6.5.zip
+- Manifest asset: https://github.com/YoneRai12/YonerAI/releases/download/v0.6.5/manifest.v0.6.5.json
 
 ## Prerelease bridge preview
 
 v0.7.0-alpha.1 is a prerelease bridge foundation, not the stable install
-recommendation. Use v0.6.4 for the current stable CLI Local Runtime unless you
+recommendation. Use v0.6.5 for the current stable CLI Local Runtime unless you
 are explicitly testing the official-bridge alpha.
 
 ```powershell
@@ -187,8 +187,8 @@ install, and no production signing/trust material.
 ## v0.11 alpha account-sync contract prerelease
 
 v0.11.0-alpha.1 is the current prerelease path for public account sync
-contracts, `/同期`, `yonerai sync ...`, and an official API fixture. Use it
-only when explicitly testing the v0.11 alpha. Use v0.6.4 for the stable CLI
+contracts, `/蜷梧悄`, `yonerai sync ...`, and an official API fixture. Use it
+only when explicitly testing the v0.11 alpha. Use v0.6.5 for the stable CLI
 Local Runtime path.
 
 ```powershell
@@ -199,20 +199,20 @@ yonerai sync preview --direction cloud-to-local --json
 yonerai sync approve --dry-run --direction local-to-cloud --json
 yonerai install plan --manifest $manifest --pretty
 yonerai update check --manifest $manifest --pretty
-.\install.ps1 -Manifest $manifest -Artifact YonerAI-0.11.0-alpha.1.zip
 ```
 
-`install.ps1` stays plan-only. It may read a local v0.11 manifest and print
-artifact, SHA256, signature, and trust status. It does not download, install,
-mutate PATH, execute remote code, request admin, edit registry, or install
-services. Account sync remains contract/fixture only in the public repo.
+The current GitHub Release bootstrap does not accept custom local manifest or
+artifact paths for install execution. Use `yonerai manifest verify`,
+`yonerai install plan`, `yonerai update check`, and `yonerai update plan` for
+local v0.11 manifest inspection. Account sync remains contract/fixture only in
+the public repo.
 
 ## v0.10 alpha public orchestration boundary prerelease
 
 v0.10.0-alpha.1 is the previous prerelease path for Japanese-first Mission
 Control status/navigation, public Google auth dry-run boundary hardening,
 Quality Wall scan hardening, and the plan-only installer manifest default. Use
-it only when explicitly testing the v0.10 alpha. Use v0.6.4 for the stable CLI
+it only when explicitly testing the v0.10 alpha. Use v0.6.5 for the stable CLI
 Local Runtime path.
 
 ```powershell
@@ -220,20 +220,18 @@ $manifest = ".\manifest.v0.10.0-alpha.1.json"
 yonerai manifest verify $manifest --pretty
 yonerai install plan --manifest $manifest --pretty
 yonerai update check --manifest $manifest --pretty
-.\install.ps1 -Manifest $manifest -Artifact YonerAI-0.10.0-alpha.1.zip
 ```
 
-`install.ps1` stays plan-only. It may read a local v0.10 manifest and print
-artifact, SHA256, signature, and trust status. It does not download, install,
-mutate PATH, execute remote code, request admin, edit registry, or install
-services.
+The current GitHub Release bootstrap does not accept custom local manifest or
+artifact paths for install execution. Use the CLI manifest/update commands
+above for local v0.10 inspection.
 
 ## v0.9 alpha TUI value-completion and quality-wall prerelease
 
 v0.9.0-alpha.1 is the previous prerelease path for Japanese-first TUI value
 completion, stronger public Quality Wall checks, and the plan-only installer
 manifest default. Use it only when explicitly testing the v0.9 alpha. Use
-v0.11.0-alpha.1 for the current prerelease path or v0.6.4 for the stable CLI
+v0.11.0-alpha.1 for the current prerelease path or v0.6.5 for the stable CLI
 Local Runtime path.
 
 ```powershell
@@ -241,13 +239,11 @@ $manifest = ".\manifest.v0.9.0-alpha.1.json"
 yonerai manifest verify $manifest --pretty
 yonerai install plan --manifest $manifest --pretty
 yonerai update check --manifest $manifest --pretty
-.\install.ps1 -Manifest $manifest -Artifact YonerAI-0.9.0-alpha.1.zip
 ```
 
-`install.ps1` stays plan-only. It may read a local v0.9 manifest and print
-artifact, SHA256, signature, and trust status. It does not download, install,
-mutate PATH, execute remote code, request admin, edit registry, or install
-services.
+The current GitHub Release bootstrap does not accept custom local manifest or
+artifact paths for install execution. Use the CLI manifest/update commands
+above for local v0.9 inspection.
 
 ## v0.8 alpha install/auth boundary candidate
 
@@ -262,12 +258,11 @@ $manifest = ".\manifest.v0.8.0-alpha.1.json"
 yonerai manifest verify $manifest --pretty
 yonerai install plan --manifest $manifest --pretty
 yonerai update check --manifest $manifest --pretty
-.\install.ps1 -Manifest $manifest -Artifact YonerAI-0.8.0-alpha.1.zip
 ```
 
-`install.ps1` stays plan-only. It may read a local manifest and print artifact,
-SHA256, signature, and trust status. It does not download, install, mutate
-PATH, execute remote code, request admin, edit registry, or install services.
+The current GitHub Release bootstrap does not accept custom local manifest or
+artifact paths for install execution. Use the CLI manifest/update commands
+above for local v0.8 inspection.
 OpenAI shared traffic remains OFF by default and local/private content is
 excluded from any future shared-traffic policy.
 Google auth remains a dry-run contract; this is not production Google login.

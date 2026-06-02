@@ -2,6 +2,22 @@
 
 See also: `docs/RELEASE_NOTES.md` (curated summary, v5.0.0 -> current).
 
+## v0.6.5 (2026-06-03) - Repair-Safe Installer
+- Added pre-download detection for existing, partial, or broken install targets
+  so the installer stops with a controlled repair message before downloading
+  manifest or ZIP assets.
+- Added explicit `-Repair`, `-Force`, and `-CleanRetry` recovery paths that
+  preserve the old target as a timestamped backup before reinstalling.
+- Kept PATH mutation disabled by default while adding explicit `-SetPath` user
+  command-wrapper setup.
+- Added `Get-Command yonerai -All` guidance for diagnosing old YonerAI command
+  shadows.
+- Added a terminal-safe YonerAI startup home header for `yonerai`.
+- Updated the stable install CTA, site release/press content, manifest, and
+  release note targets to `v0.6.5`.
+- Reconfirmed no forced update, no auto-update apply, no service/admin install,
+  no production signing/trust store, and no alpha runtime promotion.
+
 ## v0.6.4 (2026-06-01) - Installer Execute Fix
 - Fixed the v0.6.3 PowerShell `install.ps1 -Execute` path where manifest
   artifact metadata could be confused with a script parameter and fail before

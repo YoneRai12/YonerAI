@@ -56,7 +56,7 @@ def test_build_update_plan_reports_no_update_needed_for_matching_version(tmp_pat
     assert report["dry_run"] is True
     assert report["current_version"] == _current_version()
     assert report["target_version"] == _current_version()
-    assert report["latest_stable"] == "0.6.4"
+    assert report["latest_stable"] == "0.6.5"
     assert report["channel"] == manifest["channel"]
     assert report["update_available"] is False
     assert report["version_comparison"] == "same"
@@ -85,7 +85,7 @@ def test_cli_update_plan_reports_update_available(tmp_path, capsys) -> None:
     assert output["schema_version"] == "yonerai-update-plan/v0.1"
     assert output["current_version"] == _current_version()
     assert output["target_version"] == FUTURE_TEST_VERSION
-    assert output["latest_stable"] == "0.6.4"
+    assert output["latest_stable"] == "0.6.5"
     assert output["channel"] == manifest["channel"]
     assert output["update_available"] is True
     assert output["version_comparison"] == "target_newer"
@@ -282,7 +282,7 @@ def test_cli_update_check_json_is_stable_network_free_and_path_safe(tmp_path, mo
     assert output["schema_version"] == "yonerai-update-check/v0.1"
     assert output["current_version"] == _current_version()
     assert output["latest_manifest_version"] == FUTURE_TEST_VERSION
-    assert output["latest_stable"] == "0.6.4"
+    assert output["latest_stable"] == "0.6.5"
     assert output["channel"] == manifest["channel"]
     assert output["update_available"] is True
     assert output["artifact_status"]["sha256_present"] is True

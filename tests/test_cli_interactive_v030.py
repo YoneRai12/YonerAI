@@ -255,7 +255,7 @@ def test_readmes_document_install_and_start_yonerai() -> None:
         assert "GitHub Release" in text
         assert "Quick install" in text
         assert "Verified install" in text
-        assert "YonerAI-0.6.4" in text
+        assert "YonerAI-0.6.5" in text
         assert "install.ps1.sha256" in text
         assert "python --version" in text
         assert "python -m venv .venv" in text
@@ -275,6 +275,36 @@ def test_cli_without_args_has_non_tty_interactive_fallback(tmp_path: Path, monke
 
     assert "YonerAI Interactive CLI" in output
     assert "対話画面は起動しません" in output
+    assert str(tmp_path) not in output
+
+
+def test_startup_home_header_respects_color_mode() -> None:
+    from yonerai_cli.startup_home import SUBTITLE, render_startup_home_header
+
+    plain = render_startup_home_header(color="never", width=90)
+    colored = render_startup_home_header(color="always", width=90)
+
+    assert "██╗" in plain
+    assert SUBTITLE in plain
+    assert "\x1b[" not in plain
+    assert "\x1b[38;2;" in colored
+
+
+def test_chat_script_startup_home_is_plain_when_color_never(tmp_path: Path, monkeypatch, capsys) -> None:
+    from yonerai_cli import cli
+    from yonerai_cli.startup_home import SUBTITLE
+
+    _clear_provider_env(monkeypatch)
+    config_path = tmp_path / "cli-config.json"
+    monkeypatch.setattr(sys, "stdin", _PlainStringIO("/quit\n"))
+
+    assert cli.main(["chat", "--script", "--lang", "en", "--config-path", str(config_path), "--color", "never"]) == 0
+    output = capsys.readouterr().out
+
+    assert "██╗" in output
+    assert SUBTITLE in output
+    assert "YonerAI Mission Control CLI" in output
+    assert "\x1b[" not in output
     assert str(tmp_path) not in output
 
 
