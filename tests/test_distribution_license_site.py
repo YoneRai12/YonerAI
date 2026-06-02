@@ -284,3 +284,4 @@ def test_release_workflow_uploads_manifest_separately_from_zip() -> None:
     assert "install.ps1.sha256" in workflow
     assert "install.ps1" in workflow
     assert "hashlib.sha256(script.read_bytes()).hexdigest()" in workflow
+    assert "<!-- release-title:" in workflow

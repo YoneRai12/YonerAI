@@ -46,6 +46,10 @@ jobs:
           release_note = Path("docs/releases") / f"{version}.md"
           title = f"YonerAI {version}"
           for line in release_note.read_text(encoding="utf-8").splitlines():
+              stripped = line.strip()
+              if stripped.startswith("<!-- release-title:") and stripped.endswith("-->"):
+                  title = stripped.removeprefix("<!-- release-title:").removesuffix("-->").strip()
+                  break
               if line.startswith("# "):
                   title = line[2:].strip()
                   break
