@@ -379,6 +379,10 @@ def _can_use_prompt_toolkit(options: InteractiveOptions, *, input_stream: TextIO
 
 
 def _effective_live(live: bool, config: dict[str, object]) -> bool:
+    if config.get("agent_mode") == "plan_readonly":
+        return False
+    if config.get("approval_mode") == "deny":
+        return False
     return bool(live and config.get("network_enabled") is not False)
 
 
@@ -554,7 +558,7 @@ def _handle_slash_command(
     if command == "/permissions":
         if args:
             return _handle_permission_profile(args, config=config, options=options, lang=lang, output_stream=output_stream)
-        _write(output_stream, _format_permissions(config, live=live, lang=lang))
+        _write(output_stream, _format_permissions(config, live=_effective_live(live, config), lang=lang))
         return {}
     if command == "/auth":
         _write(output_stream, _format_auth_status(config, lang=lang))
@@ -960,7 +964,7 @@ def _handle_permission_profile(
     config.clear()
     config.update(new_config)
     _write(output_stream, _changed_message("permissions", profile, lang=lang))
-    _write(output_stream, _format_permissions(config, live=bool(config.get("live_provider_enabled")), lang=lang))
+    _write(output_stream, _format_permissions(config, live=_effective_live(bool(config.get("live_provider_enabled")), config), lang=lang))
     return {}
 
 
