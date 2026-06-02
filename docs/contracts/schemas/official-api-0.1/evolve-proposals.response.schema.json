@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://yonerai.com/contracts/official-api-0.1/evolve-proposals.response.schema.json",
+  "title": "YonerAI Official API evolve proposals response 0.1",
+  "type": "object",
+  "required": ["ok", "proposals"],
+  "properties": {
+    "ok": {"type": "boolean"},
+    "proposals": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["proposal_id", "approval_state", "feature_id"],
+        "properties": {
+          "proposal_id": {"type": "string"},
+          "approval_state": {"enum": ["needs_owner", "approved", "rejected", "queued"]},
+          "feature_id": {"type": "string"}
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

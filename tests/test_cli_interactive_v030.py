@@ -382,7 +382,7 @@ def test_chat_accepts_english_commands_while_showing_japanese_ui(tmp_path: Path,
         sys,
         "stdin",
         _PlainStringIO(
-            "/settings\n/providers\n/safety\n/tasks\n/local-llm\n/auth\n/sync\n/privacy\n/runs\n/live on\n/network on\n/update-notice on\n/provider mock\n/quit\n"
+            "/settings\n/providers\n/safety\n/tasks\n/local-llm\n/auth\n/api\n/sync\n/privacy\n/runs\n/live on\n/network on\n/update-notice on\n/provider mock\n/quit\n"
         ),
     )
 
@@ -407,6 +407,8 @@ def test_chat_accepts_english_commands_while_showing_japanese_ui(tmp_path: Path,
     assert "同期" in output
     assert "プライバシー" in output
     assert "Google OAuth" in output
+    assert "not_configured" in output
+    assert "production backend" in output
     assert "local -> cloud" in output
     assert "OpenAI共有トラフィック" in output
     assert "実行履歴" in output

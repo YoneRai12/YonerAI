@@ -3,6 +3,7 @@ from __future__ import annotations
 from .account_sync import (
     ACCOUNT_SYNC_SCHEMA_VERSION,
     OFFICIAL_API_SCHEMA_VERSION,
+    OFFICIAL_API_STATUS_SCHEMA_VERSION,
     RATE_LIMIT_SCHEMA_VERSION,
     SYNC_AUDIT_SCHEMA_VERSION,
     AccountIdentity,
@@ -16,6 +17,7 @@ from .account_sync import (
     SyncEnvelope,
     build_account_status_report,
     build_official_api_contract_fixture,
+    build_official_api_status_report,
     build_rate_limit_policy_report,
     build_sync_approval_dry_run_report,
     build_sync_preview_report,
@@ -25,6 +27,7 @@ from .account_sync import (
 __all__ = [
     "ACCOUNT_SYNC_SCHEMA_VERSION",
     "OFFICIAL_API_SCHEMA_VERSION",
+    "OFFICIAL_API_STATUS_SCHEMA_VERSION",
     "RATE_LIMIT_SCHEMA_VERSION",
     "SYNC_AUDIT_SCHEMA_VERSION",
     "AccountIdentity",
@@ -38,6 +41,7 @@ __all__ = [
     "SyncEnvelope",
     "build_account_status_report",
     "build_official_api_contract_fixture",
+    "build_official_api_status_report",
     "build_rate_limit_policy_report",
     "build_sync_approval_dry_run_report",
     "build_sync_preview_report",

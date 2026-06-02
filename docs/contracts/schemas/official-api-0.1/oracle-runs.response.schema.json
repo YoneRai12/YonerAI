@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://yonerai.com/contracts/official-api-0.1/oracle-runs.response.schema.json",
+  "title": "YonerAI Official API oracle runs response 0.1",
+  "type": "object",
+  "required": ["ok", "run_id", "status"],
+  "properties": {
+    "ok": {"type": "boolean"},
+    "run_id": {"type": "string"},
+    "status": {"enum": ["queued", "running", "succeeded", "failed", "blocked"]}
+  },
+  "additionalProperties": false
+}

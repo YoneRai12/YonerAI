@@ -7,6 +7,7 @@ from typing import Literal
 ACCOUNT_SYNC_SCHEMA_VERSION = "yonerai-account-sync/v0.1"
 SYNC_AUDIT_SCHEMA_VERSION = "yonerai-sync-audit/v0.1"
 OFFICIAL_API_SCHEMA_VERSION = "yonerai-official-api-contract/v0.1"
+OFFICIAL_API_STATUS_SCHEMA_VERSION = "yonerai-official-api-status/v0.1"
 RATE_LIMIT_SCHEMA_VERSION = "yonerai-rate-limit-policy/v0.1"
 
 AuthState = Literal["unauthenticated", "dry_run", "pending", "linked", "expired", "revoked"]
@@ -329,9 +330,23 @@ def build_rate_limit_policy_report() -> dict[str, object]:
         "ok": True,
         "policy_state": "contract_only",
         "quotas": {
+            "anonymous": {"scope": "ip_or_edge_fingerprint", "enforced_in_public_repo": False},
+            "authenticated": {"scope": "official_account", "enforced_in_public_repo": False},
             "user_quota": {"scope": "official_account", "enforced_in_public_repo": False},
             "device_quota": {"scope": "local_device_ref", "enforced_in_public_repo": False},
             "provider_quota": {"scope": "provider_or_shared_pool", "enforced_in_public_repo": False},
+            "cloud_contract": {"scope": "cloud_contract_candidate", "enforced_in_public_repo": False},
+            "oracle_queue": {"scope": "official_oracle_queue", "enforced_in_public_repo": False},
+            "abuse": {"scope": "edge_and_account_abuse_controls", "enforced_in_public_repo": False},
+        },
+        "headers": _rate_limit_headers(),
+        "quota_exceeded_response": {
+            "status": 429,
+            "code": "quota_exceeded",
+            "required_fields": ["code", "message", "retry_after"],
+            "retry_after_required": True,
+            "local_fallback": "local_mock_or_loopback_provider",
+            "provider_keys_exposed": False,
         },
         "shared_traffic": {
             "openai_shared_traffic_enabled": False,
@@ -351,6 +366,30 @@ def build_rate_limit_policy_report() -> dict[str, object]:
     }
 
 
+def build_official_api_status_report(*, auth_state: AuthState = "dry_run") -> dict[str, object]:
+    _validate_auth_state(auth_state)
+    return {
+        "schema_version": OFFICIAL_API_STATUS_SCHEMA_VERSION,
+        "ok": True,
+        "public_repo_mode": "fixture_only",
+        "official_api_configured": False,
+        "endpoint_url": "not_configured",
+        "contract_target_origin": "https://api.yonerai.com",
+        "auth_state": auth_state,
+        "google_auth": GoogleAuthSessionContract(auth_state=auth_state).to_public_dict(),
+        "rate_limit_state": {
+            "policy_state": "contract_only",
+            "headers": _rate_limit_headers(),
+            "quota_exceeded_fallback": "local_mock_or_loopback_provider",
+        },
+        "private_content_exclusion": _private_content_exclusion(),
+        "shared_traffic_enabled": False,
+        "official_backend_called": False,
+        "production_backend_included": False,
+        "actions_not_performed": _official_api_non_actions(),
+    }
+
+
 def build_official_api_contract_fixture() -> dict[str, object]:
     return {
         "schema_version": OFFICIAL_API_SCHEMA_VERSION,
@@ -365,15 +404,93 @@ def build_official_api_contract_fixture() -> dict[str, object]:
             "production_login_enabled_in_public_repo": False,
         },
         "endpoints": [
-            _endpoint("GET", "/v1/account/me", "return the linked account summary"),
-            _endpoint("GET", "/v1/conversations", "list user-selected cloud conversation refs"),
-            _endpoint("POST", "/v1/sync/preview", "preview sync decision and audit reason"),
-            _endpoint("POST", "/v1/sync/approve", "record explicit sync approval in official backend"),
-            _endpoint("POST", "/v1/oracle/runs", "enqueue official Oracle run request"),
-            _endpoint("GET", "/v1/oracle/runs/{id}", "read official Oracle run result envelope"),
-            _endpoint("GET", "/v1/rate-limit", "read quota and local fallback state"),
-            _endpoint("GET", "/v1/status", "read official service status"),
+            _endpoint(
+                "GET",
+                "/v1/status",
+                "read official service status",
+                auth="anonymous_allowed",
+                response_schema_ref="official-api-0.1/status.response.schema.json",
+                rate_limit_bucket="anonymous",
+            ),
+            _endpoint(
+                "GET",
+                "/v1/account/me",
+                "return the linked account summary",
+                auth="account_required",
+                response_schema_ref="official-api-0.1/account-me.response.schema.json",
+                rate_limit_bucket="authenticated",
+            ),
+            _endpoint(
+                "GET",
+                "/v1/rate-limit",
+                "read quota and local fallback state",
+                auth="account_or_device",
+                response_schema_ref="official-api-0.1/rate-limit.response.schema.json",
+                rate_limit_bucket="authenticated",
+            ),
+            _endpoint(
+                "GET",
+                "/v1/conversations",
+                "list user-selected cloud conversation refs",
+                auth="account_required",
+                response_schema_ref="official-api-0.1/conversations.response.schema.json",
+                rate_limit_bucket="user_quota",
+            ),
+            _endpoint(
+                "POST",
+                "/v1/sync/preview",
+                "preview sync decision and audit reason",
+                auth="account_required",
+                request_schema_ref="official-api-0.1/sync-preview.request.schema.json",
+                response_schema_ref="official-api-0.1/sync-preview.response.schema.json",
+                rate_limit_bucket="cloud_contract",
+            ),
+            _endpoint(
+                "POST",
+                "/v1/sync/approve",
+                "record explicit sync approval in official backend",
+                auth="account_required",
+                request_schema_ref="official-api-0.1/sync-approve.request.schema.json",
+                response_schema_ref="official-api-0.1/sync-approve.response.schema.json",
+                rate_limit_bucket="cloud_contract",
+            ),
+            _endpoint(
+                "POST",
+                "/v1/oracle/runs",
+                "enqueue official Oracle run request",
+                auth="account_required",
+                request_schema_ref="official-api-0.1/oracle-runs.request.schema.json",
+                response_schema_ref="official-api-0.1/oracle-runs.response.schema.json",
+                rate_limit_bucket="oracle_queue",
+            ),
+            _endpoint(
+                "GET",
+                "/v1/oracle/runs/{run_id}",
+                "read official Oracle run result envelope",
+                auth="account_required",
+                response_schema_ref="official-api-0.1/oracle-run.response.schema.json",
+                rate_limit_bucket="oracle_queue",
+            ),
+            _endpoint(
+                "POST",
+                "/v1/evolve/proposals",
+                "submit low-resolution self-evolution proposal signals",
+                auth="account_required",
+                request_schema_ref="official-api-0.1/evolve-proposals.request.schema.json",
+                response_schema_ref="official-api-0.1/evolve-proposals.response.schema.json",
+                rate_limit_bucket="user_quota",
+            ),
+            _endpoint(
+                "GET",
+                "/v1/evolve/proposals",
+                "list owner-reviewable self-evolution proposals",
+                auth="account_required",
+                response_schema_ref="official-api-0.1/evolve-proposals.response.schema.json",
+                rate_limit_bucket="user_quota",
+            ),
         ],
+        "rate_limit_headers": _rate_limit_headers(),
+        "error_schema": _error_schema(),
         "privacy_rules": [
             "cloud-to-local sync requires linked account and user-selected cloud conversation",
             "local-to-cloud sync is disabled by default",
@@ -388,6 +505,7 @@ def build_official_api_contract_fixture() -> dict[str, object]:
             "pii_allowed_in_public_repo": False,
             "auto_pr_merge_deploy_allowed": False,
         },
+        "actions_not_performed": _official_api_non_actions(),
     }
 
 
@@ -430,13 +548,85 @@ def _sync_decision(
     )
 
 
-def _endpoint(method: str, path: str, summary: str) -> dict[str, object]:
+def _endpoint(
+    method: str,
+    path: str,
+    summary: str,
+    *,
+    auth: str,
+    response_schema_ref: str,
+    rate_limit_bucket: str,
+    request_schema_ref: str | None = None,
+) -> dict[str, object]:
     return {
         "method": method,
         "path": path,
         "summary": summary,
+        "auth": auth,
+        "request_schema": {
+            "required": method == "POST",
+            "schema_ref": request_schema_ref,
+        },
+        "response_schema": {
+            "schema_ref": response_schema_ref,
+        },
+        "error_schema": _error_schema(),
+        "rate_limit": {
+            "bucket": rate_limit_bucket,
+            "headers": _rate_limit_headers(),
+            "quota_exceeded_status": 429,
+        },
+        "privacy_boundary": _private_content_exclusion(),
         "implemented_in_public_repo": False,
         "fixture_available": True,
+        "fixture_support": "contract_only",
+    }
+
+
+def _rate_limit_headers() -> dict[str, str]:
+    return {
+        "Retry-After": "required on 429 quota_exceeded responses",
+        "X-YonerAI-RateLimit-Limit": "quota limit for the active bucket",
+        "X-YonerAI-RateLimit-Remaining": "remaining quota for the active bucket",
+        "X-YonerAI-RateLimit-Reset": "unix timestamp or RFC3339 reset time",
+        "X-YonerAI-RateLimit-Bucket": (
+            "anonymous, authenticated, user_quota, device_quota, "
+            "provider_quota, cloud_contract, oracle_queue, or abuse"
+        ),
+    }
+
+
+def _error_schema() -> dict[str, object]:
+    return {
+        "type": "object",
+        "required": ["ok", "error"],
+        "properties": {
+            "ok": {"const": False},
+            "error": {
+                "type": "object",
+                "required": ["code", "message", "retry_after"],
+                "properties": {
+                    "code": {"type": "string"},
+                    "message": {"type": "string"},
+                    "retry_after": {"type": ["integer", "null"]},
+                    "request_id": {"type": ["string", "null"]},
+                },
+                "additionalProperties": False,
+            },
+        },
+        "additionalProperties": False,
+    }
+
+
+def _private_content_exclusion() -> dict[str, bool]:
+    return {
+        "raw_prompt_allowed": False,
+        "private_file_content_allowed": False,
+        "local_memory_allowed": False,
+        "local_node_payload_allowed": False,
+        "provider_keys_allowed": False,
+        "local_absolute_paths_allowed": False,
+        "openai_shared_traffic_allowed": False,
     }
 
 
@@ -461,4 +651,18 @@ def _sync_non_actions() -> list[str]:
         "no local node payload upload",
         "no provider key upload",
         "no OpenAI shared traffic",
+    ]
+
+
+def _official_api_non_actions() -> list[str]:
+    return [
+        "no production AWS request",
+        "no production Google login",
+        "no live OAuth token exchange",
+        "no production Oracle call",
+        "no official cloud runtime execution",
+        "no private/local content upload",
+        "no provider key upload",
+        "no OpenAI shared traffic",
+        "no telemetry ingestion",
     ]

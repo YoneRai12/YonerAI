@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://yonerai.com/contracts/official-api-0.1/oracle-runs.request.schema.json",
+  "title": "YonerAI Official API oracle runs request 0.1",
+  "type": "object",
+  "required": ["task_class", "privacy_class", "args_hash"],
+  "properties": {
+    "task_class": {"type": "string"},
+    "privacy_class": {"enum": ["public", "local_file", "private", "dangerous"]},
+    "args_hash": {"type": "string"},
+    "payload": {"type": "object"}
+  },
+  "additionalProperties": false
+}

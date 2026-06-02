@@ -138,8 +138,38 @@ def test_sync_api_contract_and_rate_limit_are_exposed_as_fixtures(capsys) -> Non
     assert api_report["production_backend_included"] is False
     assert any(endpoint["path"] == "/v1/sync/preview" for endpoint in api_report["endpoints"])
     assert any(endpoint["path"] == "/v1/rate-limit" for endpoint in api_report["endpoints"])
+    assert any(endpoint["path"] == "/v1/evolve/proposals" for endpoint in api_report["endpoints"])
+    assert len(api_report["endpoints"]) == 10
 
     assert cli.main(["sync", "rate-limit", "--json"]) == 0
     rate_report = json.loads(capsys.readouterr().out)
     assert rate_report["shared_traffic"]["openai_shared_traffic_enabled"] is False
     assert rate_report["fallback"]["cloud_quota_exceeded"] == "local_mock_or_loopback_provider"
+    assert rate_report["quota_exceeded_response"]["status"] == 429
+
+
+def test_api_status_contract_and_rate_limit_commands_are_fixture_only(capsys) -> None:
+    from yonerai_cli import cli
+
+    assert cli.main(["api", "status", "--json"]) == 0
+    status_report = json.loads(capsys.readouterr().out)
+    serialized_status = json.dumps(status_report, sort_keys=True)
+    assert status_report["official_api_configured"] is False
+    assert status_report["endpoint_url"] == "not_configured"
+    assert status_report["official_backend_called"] is False
+    assert status_report["production_backend_included"] is False
+    assert status_report["shared_traffic_enabled"] is False
+    assert "C:\\Users" not in serialized_status
+    assert "/Users/" not in serialized_status
+    assert "sk-" not in serialized_status
+
+    assert cli.main(["api", "contract", "--json"]) == 0
+    api_report = json.loads(capsys.readouterr().out)
+    assert api_report["production_backend_included"] is False
+    assert len(api_report["endpoints"]) == 10
+    assert all(endpoint["fixture_support"] == "contract_only" for endpoint in api_report["endpoints"])
+
+    assert cli.main(["api", "rate-limit", "--json"]) == 0
+    rate_report = json.loads(capsys.readouterr().out)
+    assert "Retry-After" in rate_report["headers"]
+    assert rate_report["shared_traffic"]["openai_shared_traffic_enabled"] is False

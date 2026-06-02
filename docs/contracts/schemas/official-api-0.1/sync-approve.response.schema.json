@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://yonerai.com/contracts/official-api-0.1/sync-approve.response.schema.json",
+  "title": "YonerAI Official API sync approve response 0.1",
+  "type": "object",
+  "required": ["ok", "approval_recorded", "sync_performed"],
+  "properties": {
+    "ok": {"type": "boolean"},
+    "approval_recorded": {"type": "boolean"},
+    "sync_performed": {"type": "boolean"},
+    "audit_id": {"type": ["string", "null"]}
+  },
+  "additionalProperties": false
+}
