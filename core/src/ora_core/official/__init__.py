@@ -23,6 +23,19 @@ from .account_sync import (
     build_sync_preview_report,
     build_sync_status_report,
 )
+from .status_api import (
+    STATUS_API_SCHEMA_VERSION,
+    STATUS_CONTRACT_SCHEMA_VERSION,
+    STATUS_FEED_SCHEMA_VERSION,
+    build_status_api_contract_fixture,
+    build_status_check_report,
+    build_status_components_report,
+    build_status_feed_fixture,
+    build_status_incidents_report,
+    build_status_install_report,
+    build_status_rate_limit_report,
+    build_status_releases_report,
+)
 
 __all__ = [
     "ACCOUNT_SYNC_SCHEMA_VERSION",
@@ -30,6 +43,9 @@ __all__ = [
     "OFFICIAL_API_STATUS_SCHEMA_VERSION",
     "RATE_LIMIT_SCHEMA_VERSION",
     "SYNC_AUDIT_SCHEMA_VERSION",
+    "STATUS_API_SCHEMA_VERSION",
+    "STATUS_CONTRACT_SCHEMA_VERSION",
+    "STATUS_FEED_SCHEMA_VERSION",
     "AccountIdentity",
     "CloudAccountLinkState",
     "CloudConversationRef",
@@ -46,4 +62,12 @@ __all__ = [
     "build_sync_approval_dry_run_report",
     "build_sync_preview_report",
     "build_sync_status_report",
+    "build_status_api_contract_fixture",
+    "build_status_check_report",
+    "build_status_components_report",
+    "build_status_feed_fixture",
+    "build_status_incidents_report",
+    "build_status_install_report",
+    "build_status_rate_limit_report",
+    "build_status_releases_report",
 ]

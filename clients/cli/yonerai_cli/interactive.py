@@ -216,6 +216,7 @@ class InteractiveCallbacks:
     runs_list: Callable[[str | None, int, str], dict[str, Any]]
     runs_show: Callable[[str, str | None, str], dict[str, Any]]
     update_check: Callable[[str | None, str], dict[str, Any]] | None = None
+    status_check: Callable[[str], dict[str, Any]] | None = None
     evolve_status: Callable[[str], dict[str, Any]] | None = None
     api_status: Callable[[str], dict[str, Any]] | None = None
     sync_status: Callable[[str], dict[str, Any]] | None = None
@@ -461,6 +462,8 @@ def _handle_slash_command(
                 ledger_path=ledger_path,
             ),
         )
+        if callbacks.status_check is not None:
+            _write(output_stream, _format_status_check(callbacks.status_check(lang), lang=lang))
         return {}
     if command == "/help":
         _write(output_stream, _help(lang))
@@ -2044,6 +2047,45 @@ def _format_memory_status(report: dict[str, Any], *, lang: str) -> str:
             "  try: yonerai memory add \"note\" --scope local --pretty",
             "  sync preview: yonerai memory sync preview --direction local-to-cloud --pretty",
             "  actions_not_performed: " + ", ".join(_safe(action) for action in actions[:8]),
+            "",
+        )
+    )
+
+
+def _format_status_check(report: dict[str, Any], *, lang: str) -> str:
+    releases = report.get("releases") if isinstance(report.get("releases"), dict) else {}
+    install = report.get("install") if isinstance(report.get("install"), dict) else {}
+    source = report.get("source") if isinstance(report.get("source"), dict) else {}
+    actions = report.get("actions_not_performed") if isinstance(report.get("actions_not_performed"), list) else []
+    if lang == "ja":
+        lines = [
+            "状態",
+            f"  全体: {_safe(report.get('status') or 'unknown')}",
+            f"  component数: {_safe(report.get('component_count') or 0)}",
+            f"  source: {_safe(source.get('kind') or 'fixture')}",
+            f"  latest stable: {_safe(releases.get('latest_stable') or 'unknown')}",
+            f"  latest alpha: {_safe(releases.get('latest_alpha') or 'unknown')}",
+            f"  install: {_safe(install.get('status') or 'unknown')}",
+            "  status.yonerai.com: 同じfeed形式を読めます",
+            "  本番AWS/Oracle: public repoには含みません",
+            "  実行しないこと:",
+        ]
+        for action in actions[:6]:
+            lines.append(f"    - {_safe(action)}")
+        lines.append("")
+        return "\n".join(lines)
+    return "\n".join(
+        (
+            "Status",
+            f"  overall: {_safe(report.get('status') or 'unknown')}",
+            f"  component_count: {_safe(report.get('component_count') or 0)}",
+            f"  source: {_safe(source.get('kind') or 'fixture')}",
+            f"  latest_stable: {_safe(releases.get('latest_stable') or 'unknown')}",
+            f"  latest_alpha: {_safe(releases.get('latest_alpha') or 'unknown')}",
+            f"  install: {_safe(install.get('status') or 'unknown')}",
+            "  status.yonerai.com: ready to consume the same feed shape",
+            "  production_aws_oracle: not included in the public repo",
+            "  actions_not_performed: " + ", ".join(_safe(action) for action in actions[:6]),
             "",
         )
     )

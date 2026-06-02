@@ -1,0 +1,16 @@
+{
+  "artifact_source": "GitHub Release assets",
+  "latest_stable": "v0.6.4",
+  "no_admin_required_by_default": true,
+  "no_path_mutation_by_default": true,
+  "no_production_installer_claim": true,
+  "no_registry_mutation": true,
+  "no_service_install": true,
+  "ok": true,
+  "quick_install_command": "irm https://install.yonerai.com | iex",
+  "release_channel": "stable",
+  "schema_version": "yonerai-status-api/v0.1",
+  "status": "operational",
+  "verified_install_command": "irm https://install.yonerai.com/verified | iex",
+  "yonerai_com_hosts_assets": false
+}
