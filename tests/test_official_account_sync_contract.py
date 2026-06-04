@@ -171,6 +171,33 @@ def test_official_api_schema_files_are_valid_json() -> None:
         assert schema["type"] == "object"
 
 
+def test_official_oracle_runs_schema_rejects_private_payload_classes() -> None:
+    schema_path = (
+        ROOT
+        / "docs"
+        / "contracts"
+        / "schemas"
+        / "official-api-0.1"
+        / "oracle-runs.request.schema.json"
+    )
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+
+    privacy_class = schema["properties"]["privacy_class"]
+    payload = schema["properties"]["payload"]
+
+    assert privacy_class == {"const": "public"}
+    assert "enum" not in privacy_class
+    assert payload["additionalProperties"] is False
+    assert set(payload["properties"]) == {
+        "low_resolution_summary",
+        "summary_hash",
+        "policy_ref",
+    }
+    assert "raw_prompt" not in payload["properties"]
+    assert "private_file_content" not in payload["properties"]
+    assert "local_node_payload" not in payload["properties"]
+
+
 def test_rate_limit_policy_keeps_shared_traffic_off_and_local_fallback() -> None:
     from ora_core.official import build_rate_limit_policy_report
 
