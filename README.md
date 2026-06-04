@@ -64,7 +64,7 @@ malformed, or mismatched.
 Trusted `v0.7.0` `install.ps1` SHA256:
 
 ```text
-447c368ad36e6616ba8e7432e100dbed85cc7b07a6d21a761995b2cf98260cdd
+ebd6c66238626e15bba856e7f09f249084811898d2f2de85b973ffcc644d05c6
 ```
 
 ```powershell
