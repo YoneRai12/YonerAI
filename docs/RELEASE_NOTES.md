@@ -2,6 +2,30 @@
 
 This page is a public-safe index of current release notes and progress checkpoints.
 
+## v0.16.0-alpha.1 CLI Architecture and Policy Runtime
+
+- GitHub pre-release target: `v0.16.0-alpha.1`.
+- Release title: `2026.06.05 - YonerAI v0.16.0-alpha.1 CLI Architecture and Policy Runtime`.
+- Release date: `2026-06-05`.
+- Public release body: `docs/releases/0.16.0-alpha.1.md`.
+- Status: prerelease CLI architecture and policy-runtime slice after
+  v0.15.0-alpha.1.
+- What users can try now: `yonerai`, `yonerai chat --lang ja`,
+  `yonerai policy status --pretty --lang ja`, `yonerai policy status --json`,
+  `yonerai auth status --pretty --lang ja`,
+  `yonerai auth google login --dry-run --pretty --lang ja`,
+  `yonerai install status --json`, `yonerai demo --json`, and TUI
+  `/ポリシー`.
+- Boundary: architecture/policy/onboarding prerelease only; no production
+  AWS backend, no production Oracle/cloud runtime, no production Google login,
+  no live Discord, no OpenAI shared traffic runtime, no private content upload,
+  no deploy/public tunnel, no arbitrary shell/file/tool execution, no
+  production signing/trust store, and no production network installer.
+- Security carry-in: explicit allowlisted status fetch now rejects redirects
+  before reaching loopback or private endpoints.
+- Primary traceability range: `v0.15.0-alpha.1..v0.16.0-alpha.1`; PRs #507
+  and #509.
+
 ## v0.15.0-alpha.1 Status API Bridge
 
 - GitHub pre-release target: `v0.15.0-alpha.1`.
