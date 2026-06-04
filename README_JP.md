@@ -28,7 +28,7 @@ YonerAI は単なる Discord bot でも、単なる model router でもありま
 ## Install and start YonerAI
 
 これは YonerAI CLI Local Runtime のインストール手順です。full YonerAI cloud
-production ではありません。最新 stable は `v0.6.5` です。stable channel が既定で、
+production ではありません。最新 stable は `v0.7.0` です。stable channel が既定で、
 alpha を試す場合だけ `-Channel alpha` を明示します。install 後は `yonerai` だけで
 対話 CLI が起動します。
 
@@ -57,6 +57,12 @@ iex "& { $(irm https://github.com/YoneRai12/YonerAI/releases/latest/download/ins
 実行前に bootstrap script の hash を確認したい場合はこちらを使います。GitHub
 Releases から `install.ps1` と `install.ps1.sha256` を取得し、sidecar SHA256 を
 確認します。sidecar がない、壊れている、hash が一致しない場合は失敗して止まります。
+
+trusted `v0.7.0` `install.ps1` SHA256:
+
+```text
+447c368ad36e6616ba8e7432e100dbed85cc7b07a6d21a761995b2cf98260cdd
+```
 
 ```powershell
 $ErrorActionPreference = "Stop"
@@ -90,12 +96,12 @@ iex "& { $(irm https://github.com/YoneRai12/YonerAI/releases/latest/download/ins
 
 ### GitHub Release の ZIP を解凍したあと
 
-GitHub Release の `YonerAI-0.6.5.zip` をダウンロードして ZIP を展開したら、
+GitHub Release の `YonerAI-0.7.0.zip` をダウンロードして ZIP を展開したら、
 PowerShell で展開後のフォルダへ移動してから以下を実行します。フォルダ名は環境に
 よって違うので、`cd` は実際の展開先に合わせてください。
 
 ```powershell
-cd "$HOME\Downloads\YonerAI-0.6.5"
+cd "$HOME\Downloads\YonerAI-0.7.0"
 python --version
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
@@ -234,10 +240,10 @@ yonerai demo --pretty
 yonerai demo --json
 yonerai doctor --pretty --lang ja
 yonerai status --pretty --lang ja
-yonerai manifest verify manifest.v0.6.5.json --pretty --lang ja
-yonerai install plan --manifest manifest.v0.6.5.json --pretty
-yonerai update check --manifest manifest.v0.6.5.json --pretty
-yonerai update plan --manifest manifest.v0.6.5.json --pretty
+yonerai manifest verify manifest.v0.7.0.json --pretty --lang ja
+yonerai install plan --manifest manifest.v0.7.0.json --pretty
+yonerai update check --manifest manifest.v0.7.0.json --pretty
+yonerai update plan --manifest manifest.v0.7.0.json --pretty
 ```
 
 `yonerai quickstart` は `yonerai demo` の alias です。
@@ -350,7 +356,7 @@ v0.1.0-alpha.2 は local public alpha slice です。完成品の YonerAI では
 - Workspace File Access Guard: `yonerai ask "use this selected file" --file <path> --workspace <dir> --provider mock --json`
 - Mock search: `yonerai search mock "YonerAI alpha2" --json`
 - SafeShell plan: `yonerai ops plan git-status --json`
-- Local memory: `yonerai memory add "local note" --store <local.jsonl> --confirm-local --json`
+- Local memory boundary: `yonerai memory add "local note" --scope local --pretty --lang ja`
 - Synthetic Discord boundary: `yonerai discord synthetic "hello" --json`
 - Status fixture: `yonerai status --source fixture --json`
 - Installer dry-run planning: `yonerai install plan-windows --json`

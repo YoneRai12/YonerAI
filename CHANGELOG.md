@@ -2,6 +2,20 @@
 
 See also: `docs/RELEASE_NOTES.md` (curated summary, v5.0.0 -> current).
 
+## v0.7.0 (2026-06-04) - Memory and Agent Console
+- Promoted local Memory UX from alpha into the stable CLI Local Runtime lane.
+- Added stable `yonerai memory status/add/list/forget/sync preview` flows with
+  local-only defaults and local-to-cloud sync disabled by default.
+- Connected memory_used IDs into `ask --auto` and the run ledger without
+  storing raw memory content in provider/cloud/oracle paths.
+- Promoted the Agent Console command palette, mode, plan, review, and safe
+  subagent preview surfaces into the stable CLI lane.
+- Preserved the v0.6.5 repair-safe installer behavior while updating the stable
+  install target and public install docs to `v0.7.0`.
+- Reconfirmed no production cloud, no production Oracle, no live Discord, no
+  production Google login, no production signing/trust store, no npm/winget,
+  and no auto-update apply.
+
 ## v0.6.5 (2026-06-03) - Repair-Safe Installer
 - Added pre-download detection for existing, partial, or broken install targets
   so the installer stops with a controlled repair message before downloading

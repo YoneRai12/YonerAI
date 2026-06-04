@@ -29,7 +29,7 @@ See [LICENSE](LICENSE), [LICENSE_JP.md](LICENSE_JP.md), [NOTICE](NOTICE), and
 ## Install and start YonerAI
 
 This is the local CLI runtime path, not full YonerAI cloud production. The
-latest stable CLI Local Runtime is `v0.6.5`. Stable is the default channel;
+latest stable CLI Local Runtime is `v0.7.0`. Stable is the default channel;
 alpha releases require an explicit `-Channel alpha` flag. After install,
 `yonerai` launches the interactive CLI.
 
@@ -60,6 +60,12 @@ Use this when you want to verify the bootstrap script hash before execution.
 It downloads `install.ps1` and `install.ps1.sha256` from GitHub Releases, checks
 the SHA256 sidecar, and fails closed before execution if the sidecar is missing,
 malformed, or mismatched.
+
+Trusted `v0.7.0` `install.ps1` SHA256:
+
+```text
+447c368ad36e6616ba8e7432e100dbed85cc7b07a6d21a761995b2cf98260cdd
+```
 
 ```powershell
 $ErrorActionPreference = "Stop"
@@ -93,13 +99,13 @@ iex "& { $(irm https://github.com/YoneRai12/YonerAI/releases/latest/download/ins
 
 ### If you downloaded the GitHub Release ZIP
 
-Download `YonerAI-0.6.5.zip` from the
-[v0.6.5 release](https://github.com/YoneRai12/YonerAI/releases/tag/v0.6.5),
+Download `YonerAI-0.7.0.zip` from the
+[v0.7.0 release](https://github.com/YoneRai12/YonerAI/releases/tag/v0.7.0),
 extract it, then run PowerShell inside the extracted folder. The extracted
 folder name can vary; change the `cd` command to match the folder you see.
 
 ```powershell
-cd "$HOME\Downloads\YonerAI-0.6.5"
+cd "$HOME\Downloads\YonerAI-0.7.0"
 python --version
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
@@ -174,9 +180,10 @@ uncontrolled agents or enable live providers by default.
 
 ### Interactive CLI controls
 
-The v0.6 TUI runtime adds `prompt_toolkit` completion and Rich panels when the
-terminal supports them. If either library or terminal support is unavailable,
-YonerAI falls back to the plain line-by-line shell used by CI.
+The v0.7 stable CLI runtime includes the Memory UX and Agent Console surfaces
+that were previously alpha-only. It uses `prompt_toolkit` completion and Rich
+panels when the terminal supports them. If either library or terminal support is
+unavailable, YonerAI falls back to the plain line-by-line shell used by CI.
 
 In Japanese mode, type `/` to see Japanese-first command candidates. Tab and
 arrow-key selection are available when `prompt_toolkit` is active:
@@ -217,6 +224,10 @@ yonerai sync approve --dry-run --direction local-to-cloud --json
 yonerai privacy status --pretty --lang ja
 yonerai config set model llama3.1 --pretty --lang ja
 yonerai providers --pretty --lang ja
+yonerai memory status --pretty --lang ja
+yonerai memory add "local note" --scope local --pretty --lang ja
+yonerai memory list --scope local --pretty --lang ja
+yonerai memory sync preview --direction local-to-cloud --pretty --lang ja
 ```
 
 `yonerai update check` only reads local VERSION and a local manifest. It does
@@ -245,17 +256,17 @@ yonerai demo --json
 yonerai doctor --pretty
 yonerai doctor --pretty --lang ja
 yonerai status --pretty
-yonerai manifest verify manifest.v0.6.5.json --pretty
-yonerai install plan --manifest manifest.v0.6.5.json --pretty
-yonerai update check --manifest manifest.v0.6.5.json --pretty
-yonerai update plan --manifest manifest.v0.6.5.json --pretty
+yonerai manifest verify manifest.v0.7.0.json --pretty
+yonerai install plan --manifest manifest.v0.7.0.json --pretty
+yonerai update check --manifest manifest.v0.7.0.json --pretty
+yonerai update plan --manifest manifest.v0.7.0.json --pretty
 yonerai plan "summarize public docs" --json
 yonerai ask "summarize public docs" --provider mock --json
 yonerai hybrid run --pretty
 yonerai hybrid run --json
 yonerai search mock "YonerAI alpha2" --json
 yonerai ops plan git-status --json
-yonerai install plan --manifest manifest.v0.6.5.json --json
+yonerai install plan --manifest manifest.v0.7.0.json --json
 ```
 
 ## First 5 minutes
@@ -393,7 +404,7 @@ production services, or live network calls:
 - Workspace File Access Guard: `yonerai ask "use this selected file" --file <path> --workspace <dir> --provider mock --json`
 - Mock search: `yonerai search mock "YonerAI alpha2" --json`
 - SafeShell plan: `yonerai ops plan git-status --json`
-- Local memory: `yonerai memory add "local note" --store <local.jsonl> --confirm-local --json`
+- Local memory boundary: `yonerai memory add "local note" --scope local --pretty --lang ja`
 - Synthetic Discord boundary: `yonerai discord synthetic "hello" --json`
 - Status fixture: `yonerai status --source fixture --json`
 - Installer dry-run planning: `yonerai install plan --manifest releases/manifest.example.json --json`
@@ -480,7 +491,8 @@ What works today:
   runtime
 - run `yonerai search mock "query"` for deterministic mock search fixtures
 - run `yonerai ops plan git-status` for SafeShell diagnostic planning without arbitrary shell execution
-- run `yonerai memory add/list/delete/export --store <local.jsonl>` for explicit opt-in local-only memory records
+- run `yonerai memory status/add/list/forget/sync preview` for local-only
+  memory records and cloud/local sync boundary previews
 - run `yonerai discord synthetic "message"` for synthetic Discord gateway boundary checks
 - run `yonerai status --source fixture` for official/status contract fixtures with no production service call
 - run `yonerai install plan --manifest releases/manifest.example.json` for safe local installer dry-run planning
