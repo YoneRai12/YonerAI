@@ -794,7 +794,7 @@ def test_first_launch_language_selection_persists_choice(tmp_path: Path) -> None
         return {"ok": False}
 
     config_path = tmp_path / "cli-config.json"
-    stdin = _TTYStringIO("2\n/quit\n")
+    stdin = _TTYStringIO("2\n1\n/quit\n")
     stdout = _TTYStringIO()
 
     rc = run_interactive_cli(
@@ -807,8 +807,54 @@ def test_first_launch_language_selection_persists_choice(tmp_path: Path) -> None
     assert rc == 0
     output = stdout.getvalue()
     assert "YonerAI language / 表示言語" in output
+    assert "YonerAI account / auth" in output
+    assert "Local CLI works without login" in output
     assert "English mode" in output
-    assert json.loads(config_path.read_text(encoding="utf-8"))["language"] == "en"
+    stored = json.loads(config_path.read_text(encoding="utf-8"))
+    assert stored["language"] == "en"
+    assert stored["auth_onboarding_seen"] is True
+
+
+def test_first_launch_google_auth_onboarding_is_dry_run_only(tmp_path: Path) -> None:
+    from yonerai_cli.interactive import InteractiveCallbacks, InteractiveOptions, run_interactive_cli
+
+    def providers() -> dict[str, Any]:
+        return {"providers": []}
+
+    def ask_auto(*_args: Any) -> dict[str, Any]:
+        raise AssertionError("no ask should run")
+
+    def runs_list(*_args: Any) -> dict[str, Any]:
+        return {"runs": []}
+
+    def runs_show(*_args: Any) -> dict[str, Any]:
+        return {"ok": False}
+
+    config_path = tmp_path / "cli-config.json"
+    stdin = _TTYStringIO("1\n2\n/終了\n")
+    stdout = _TTYStringIO()
+
+    rc = run_interactive_cli(
+        InteractiveOptions(config_path=str(config_path), color="never"),
+        InteractiveCallbacks(providers=providers, ask_auto=ask_auto, runs_list=runs_list, runs_show=runs_show),
+        stdin=stdin,
+        stdout=stdout,
+    )
+
+    assert rc == 0
+    output = stdout.getvalue()
+    assert "YonerAI account / 認証" in output
+    assert "Googleログイン dry-run" in output
+    assert "production_login_enabled" in output
+    assert "token_printed" in output
+    assert "no production Google login" in output
+    assert "no token printing" in output
+    assert "Traceback" not in output
+    assert str(tmp_path) not in output
+    stored = json.loads(config_path.read_text(encoding="utf-8"))
+    assert stored["language"] == "ja"
+    assert stored["auth_onboarding_seen"] is True
+    assert stored["google_auth_enabled"] is False
 
 
 def test_existing_language_config_skips_first_launch_prompt(tmp_path: Path) -> None:
@@ -843,6 +889,7 @@ def test_existing_language_config_skips_first_launch_prompt(tmp_path: Path) -> N
 
     assert rc == 0
     assert "YonerAI language / 表示言語" not in output
+    assert "YonerAI account / 認証" not in output
     assert "YonerAI ミッションコントロール CLI" in output
     assert json.loads(config_path.read_text(encoding="utf-8"))["language"] == "ja"
     assert str(tmp_path) not in output

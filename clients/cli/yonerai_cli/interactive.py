@@ -89,6 +89,7 @@ from yonerai_cli.screens.status_api import (
     _format_api_unavailable,
     _format_status_check,
 )
+from yonerai_cli.services.onboarding_service import run_auth_onboarding
 from yonerai_cli.startup_home import render_startup_home_header
 from yonerai_cli.tui.aliases import canonical_agent_mode_value as _canonical_agent_mode_value
 from yonerai_cli.tui.aliases import canonical_command as _canonical_command
@@ -144,6 +145,16 @@ def run_interactive_cli(
     config = load_cli_config(options.config_path)
     config_exists = _config_exists(options.config_path)
     lang = _select_language(config, options, input_stream=input_stream, output_stream=output_stream)
+    run_auth_onboarding(
+        config,
+        config_path=options.config_path,
+        config_exists=config_exists,
+        script=options.script,
+        lang=lang,
+        input_stream=input_stream,
+        output_stream=output_stream,
+        color=options.color,
+    )
     provider = options.provider or str(config.get("provider_preference") or "auto")
     if provider not in PROVIDER_PREFERENCES:
         provider = "auto"
