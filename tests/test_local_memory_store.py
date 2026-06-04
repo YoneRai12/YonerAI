@@ -85,6 +85,39 @@ def test_cli_memory_add_list_delete(tmp_path: Path, capsys) -> None:
     assert str(tmp_path) not in json.dumps(add_output)
 
 
+def test_cli_memory_add_uses_configured_default_scope(tmp_path: Path, capsys, monkeypatch) -> None:
+    _prepare_paths()
+    from yonerai_cli import cli
+    from yonerai_cli.config import DEFAULT_CONFIG, save_cli_config
+
+    config_path = tmp_path / "cli-config.json"
+    store = tmp_path / "memory.jsonl"
+    config = dict(DEFAULT_CONFIG)
+    config["memory_default_scope"] = "procedural"
+    save_cli_config(config, config_path)
+    monkeypatch.setenv("YONERAI_CLI_CONFIG_PATH", str(config_path))
+
+    rc = cli.main(["memory", "add", "prefer short answers", "--store", str(store), "--confirm-local", "--json"])
+    output = json.loads(capsys.readouterr().out)
+
+    assert rc == 0
+    assert output["record"]["scope"] == "procedural"
+    assert output["record"]["sync_policy"] == "local_to_cloud_requires_approval"
+
+
+def test_cli_memory_validation_error_is_specific(tmp_path: Path, capsys) -> None:
+    _prepare_paths()
+    from yonerai_cli import cli
+
+    store = tmp_path / "memory.jsonl"
+    rc = cli.main(["memory", "add", "   ", "--scope", "local", "--store", str(store), "--json"])
+    captured = capsys.readouterr()
+
+    assert rc == 2
+    assert "prompt must not be empty" in captured.err
+    assert "local memory operation failed" not in captured.err
+
+
 def test_cli_memory_export_is_local_only(tmp_path: Path, capsys) -> None:
     _prepare_paths()
     from yonerai_cli import cli

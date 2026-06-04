@@ -3184,10 +3184,12 @@ def _build_memory_report(args: argparse.Namespace) -> dict[str, Any]:
     scope = getattr(args, "scope", None) or None
     try:
         if args.memory_command == "add":
+            default_scope = str(_load_memory_cli_config().get("memory_default_scope") or "local_private")
+            effective_scope = scope or default_scope
             explicit_local_scope = scope in {"local", "local_private"}
             if not args.confirm_local and not explicit_local_scope:
                 raise CliError("memory add requires --confirm-local or explicit --scope local.", exit_code=2)
-            record = store.add(_prompt_from_args(args.text), tags=tuple(args.tag or ()), scope=scope or "local_private")
+            record = store.add(_prompt_from_args(args.text), tags=tuple(args.tag or ()), scope=effective_scope)
             return {
                 "schema_version": schema_version,
                 "ok": True,
@@ -3266,6 +3268,8 @@ def _build_memory_report(args: argparse.Namespace) -> dict[str, Any]:
             )
     except CliError:
         raise
+    except ValueError as exc:
+        raise CliError(str(exc), exit_code=2) from exc
     except Exception as exc:
         raise CliError(
             "local memory operation failed; verify store permissions and JSONL format.",
