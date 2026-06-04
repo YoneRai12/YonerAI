@@ -15,9 +15,9 @@ class UpdateServiceError(Exception):
 def build_install_report(args: argparse.Namespace, *, repo_root: Path) -> dict[str, Any]:
     try:
         from yonerai_cli.install_planner import (
+            build_install_update_status,
             build_install_plan,
             build_install_plan_from_default,
-            build_install_status,
             build_windows_install_plan,
             build_windows_install_plan_from_default,
         )
@@ -26,14 +26,17 @@ def build_install_report(args: argparse.Namespace, *, repo_root: Path) -> dict[s
 
     try:
         if args.install_command == "status":
-            return build_install_status(repo_root, channel=args.channel)
+            report = build_install_update_status()
+            if isinstance(report, dict):
+                report.setdefault("channel", args.channel)
+            return report
         if args.install_command == "plan":
             if args.manifest:
                 return build_install_plan(args.manifest)
-            return build_install_plan_from_default(repo_root, channel=args.channel)
+            return _call_default_install_builder(build_install_plan_from_default, repo_root, channel=args.channel)
         if args.manifest:
             return build_windows_install_plan(args.manifest)
-        return build_windows_install_plan_from_default(repo_root, channel=args.channel)
+        return _call_default_install_builder(build_windows_install_plan_from_default, repo_root, channel=args.channel)
     except ManifestError as exc:
         raise UpdateServiceError(str(exc)) from exc
 
@@ -76,6 +79,16 @@ def _call_default_update_builder(builder: Any, repo_root: Path, *, current_versi
     if "channel" in parameters:
         return builder(repo_root, current_version=current_version, channel=channel)
     report = builder(repo_root, current_version=current_version)
+    if isinstance(report, dict):
+        report.setdefault("channel", channel)
+    return report
+
+
+def _call_default_install_builder(builder: Any, repo_root: Path, *, channel: str) -> dict[str, Any]:
+    parameters = inspect.signature(builder).parameters
+    if "channel" in parameters:
+        return builder(repo_root, channel=channel)
+    report = builder(repo_root)
     if isinstance(report, dict):
         report.setdefault("channel", channel)
     return report
