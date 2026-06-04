@@ -2,6 +2,28 @@
 
 See also: `docs/RELEASE_NOTES.md` (curated summary, v5.0.0 -> current).
 
+## v0.16.0-alpha.1 (2026-06-05) - CLI Architecture and Policy Runtime
+- Published the CLI architecture split through PR #507. `cli.py` is now a thin
+  entrypoint, while command, screen, service, and TUI modules own focused
+  behavior.
+- Added policy runtime visibility through `yonerai policy status --pretty/--json`
+  and TUI `/ポリシー`.
+- Added first-launch auth onboarding after language selection while keeping
+  Google auth dry-run/contract only.
+- Added packaged fallback support for `yonerai demo` and `yonerai smoke` so
+  packaged execution does not require repo-only script files.
+- Hardened missing-core error handling for API/policy surfaces and fixed
+  `yonerai install status` handling for reports without an `ok` field.
+- Added `docs/architecture/RUST_BOUNDARY_PROPOSAL.md` for future launcher,
+  updater, verifier, local node, and relay-client boundary decisions.
+- Included PR #509 so explicit allowlisted status fetches reject redirects
+  before reaching loopback or private endpoints.
+- Preserved boundaries: no production Oracle/cloud runtime, no production
+  Google login, no OpenAI shared traffic runtime, no live Discord, no automatic
+  local-to-cloud private upload, no arbitrary shell/file/tool execution, no
+  provider key output/storage, no production signing/trust store, and no
+  production network installer.
+
 ## v0.15.0-alpha.1 (2026-06-03) - Status API Bridge
 - Added the public Status API bridge through PR #500, covering status,
   components, incidents, releases, install state, and rate-limit status for
