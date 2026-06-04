@@ -117,8 +117,10 @@ def test_cli_memory_add_uses_repo_redactor_outside_repo_root(tmp_path: Path, cap
 
     assert rc == 0
     assert output["raw_prompt_persisted"] is False
-    assert "LEAKED_QUERY_TOKEN" not in output["record"]["text"]
-    assert "discord.com/api/webhooks" not in output["record"]["text"]
+    assert "text" not in output["record"]
+    assert output["record"]["raw_text_included"] is False
+    assert "LEAKED_QUERY_TOKEN" not in output["record"]["redacted_summary"]
+    assert "discord.com/api/webhooks" not in output["record"]["redacted_summary"]
 
 
 def test_memory_record_has_boundary_fields_and_forget_is_redacted(tmp_path: Path) -> None:
@@ -158,6 +160,8 @@ def test_cli_memory_status_add_list_forget_and_sync_preview(tmp_path: Path, caps
     memory_id = added["record"]["memory_id"]
     assert added["record"]["scope"] == "local_private"
     assert added["record"]["sync_policy"] == "never_sync"
+    assert "text" not in added["record"]
+    assert added["record"]["raw_text_included"] is False
 
     assert cli.main(["memory", "status", "--json"]) == 0
     status_after_add = json.loads(capsys.readouterr().out)
@@ -169,6 +173,8 @@ def test_cli_memory_status_add_list_forget_and_sync_preview(tmp_path: Path, caps
     assert cli.main(["memory", "list", "--scope", "local", "--json"]) == 0
     listed = json.loads(capsys.readouterr().out)
     assert listed["count"] == 1
+    assert "text" not in listed["records"][0]
+    assert listed["records"][0]["raw_text_included"] is False
 
     assert cli.main(["memory", "sync", "preview", "--direction", "local-to-cloud", "--json"]) == 0
     preview = json.loads(capsys.readouterr().out)

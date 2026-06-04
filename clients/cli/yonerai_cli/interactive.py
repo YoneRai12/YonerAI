@@ -2168,7 +2168,7 @@ def _format_memory_action_report(report: dict[str, Any], *, lang: str) -> str:
                     f"  memory_id: {_safe(record.get('memory_id') or 'none')}",
                     f"  scope: {_safe(record.get('scope') or 'unknown')}",
                     f"  sync_policy: {_safe(record.get('sync_policy') or 'unknown')}",
-                    f"  summary: {_safe(record.get('text') or '')}",
+                    f"  summary: {_safe(record.get('redacted_summary') or '')}",
                     "  cloud同期: なし",
                     "  raw prompt保存: なし",
                     "",
@@ -2180,7 +2180,7 @@ def _format_memory_action_report(report: dict[str, Any], *, lang: str) -> str:
                 f"  memory_id: {_safe(record.get('memory_id') or 'none')}",
                 f"  scope: {_safe(record.get('scope') or 'unknown')}",
                 f"  sync_policy: {_safe(record.get('sync_policy') or 'unknown')}",
-                f"  summary: {_safe(record.get('text') or '')}",
+                f"  summary: {_safe(record.get('redacted_summary') or '')}",
                 "  cloud_sync: false",
                 "  raw_prompt_persisted: false",
                 "",
@@ -2193,7 +2193,7 @@ def _format_memory_action_report(report: dict[str, Any], *, lang: str) -> str:
             lines.append("  記憶はまだありません" if lang == "ja" else "  no memory records")
         for record in records[:10]:
             if isinstance(record, dict):
-                lines.append(f"  - {_safe(record.get('memory_id') or 'mem_unknown')}: {_safe(record.get('text') or '')}")
+                lines.append(f"  - {_safe(record.get('memory_id') or 'mem_unknown')}: {_safe(record.get('redacted_summary') or '')}")
         lines.append("")
         return "\n".join(lines)
     if operation == "forget":

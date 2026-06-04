@@ -123,9 +123,9 @@ class MemoryRecord:
         payload = asdict(self)
         payload["schema_version"] = MEMORY_BOUNDARY_SCHEMA_VERSION
         payload["memory_id"] = self.id
-        payload["text"] = self.redacted_summary
         payload["tags"] = list(self.tags)
         payload["cloud_synced"] = False
+        payload["raw_text_included"] = False
         payload["raw_content_persisted"] = False
         payload["raw_prompt_persisted"] = False
         payload["provider_key_persisted"] = False

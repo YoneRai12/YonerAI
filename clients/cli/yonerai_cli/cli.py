@@ -3362,7 +3362,7 @@ def _print_memory_pretty(report: dict[str, Any], *, lang: str = "en", color: Col
         print(render_report(title, (CliSection(section_title, rows),), color=color))
         return
     if report.get("operation") == "list":
-        rows = tuple(CliRow(record["memory_id"], record["text"], "ok") for record in report["records"]) or (
+        rows = tuple(CliRow(record["memory_id"], record.get("redacted_summary", "[redacted]"), "ok") for record in report["records"]) or (
             CliRow("records", "none", "warn"),
         )
         title = "YonerAI ローカル記憶" if lang == "ja" else "YonerAI local memory"
