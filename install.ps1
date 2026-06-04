@@ -524,6 +524,16 @@ if (-not $Execute) {
     exit 0
 }
 
+if (-not [string]::IsNullOrWhiteSpace($Version)) {
+    $preflightTargetDir = Get-DefaultInstallDir -RequestedChannel $Channel -RequestedVersion $Version
+    $preflightTargetDisplay = Get-DisplayInstallDir -RequestedChannel $Channel -RequestedVersion $Version
+    Write-Host "  install target: $preflightTargetDisplay"
+    Write-Host "  repair mode: $([bool]$Repair)"
+    Write-Host "  force mode: $([bool]$Force)"
+    Write-Host "  clean retry mode: $([bool]$CleanRetry)"
+    Assert-InstallTargetDoesNotBlockDownload -Destination $preflightTargetDir
+}
+
 $spec = Get-ReleaseSpec -RequestedChannel $Channel -RequestedVersion $Version
 $targetDir = Get-DefaultInstallDir -RequestedChannel $Channel -RequestedVersion $spec.Version
 $targetDisplay = Get-DisplayInstallDir -RequestedChannel $Channel -RequestedVersion $spec.Version

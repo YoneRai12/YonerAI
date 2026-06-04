@@ -2,9 +2,9 @@ name: YonerAI Quality Wall
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, "stable/**"]
   push:
-    branches: [main]
+    branches: [main, "stable/**"]
 
 env:
   PYTHON_VERSION: "3.11"

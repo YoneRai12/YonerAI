@@ -198,10 +198,10 @@ def test_manifest_rejects_unhashable_install_method_without_traceback() -> None:
 
 def test_yonerai_site_install_content_is_copyable_and_non_executing() -> None:
     install_page = (ROOT / "docs" / "site" / "yonerai.com" / "install.md").read_text(encoding="utf-8")
-    release_page = (ROOT / "docs" / "site" / "yonerai.com" / "releases" / "v0.6.5.md").read_text(
+    release_page = (ROOT / "docs" / "site" / "yonerai.com" / "releases" / "v0.7.0.md").read_text(
         encoding="utf-8"
     )
-    press_card = (ROOT / "docs" / "site" / "yonerai.com" / "press" / "v0.6.5-card.md").read_text(
+    press_card = (ROOT / "docs" / "site" / "yonerai.com" / "press" / "v0.7.0-card.md").read_text(
         encoding="utf-8"
     )
     static_install = (ROOT / "src" / "web" / "static" / "install.txt").read_text(encoding="utf-8")
@@ -218,13 +218,13 @@ def test_yonerai_site_install_content_is_copyable_and_non_executing() -> None:
         assert "github release" in lowered or "github releases" in lowered
 
     for text in (install_page, release_page):
-        assert "YonerAI-0.6.5.zip" in text
-        assert "manifest.v0.6.5.json" in text
+        assert "YonerAI-0.7.0.zip" in text
+        assert "manifest.v0.7.0.json" in text
         assert "yonerai update check --manifest $manifest --pretty" in text
         assert "production signing keys" in text.lower() or "production signature" in text.lower()
         assert "YonerAI-0.6.0.zip" not in text
 
-    assert "https://github.com/YoneRai12/YonerAI/releases/tag/v0.6.5" in press_card
+    assert "https://github.com/YoneRai12/YonerAI/releases/tag/v0.7.0" in press_card
     assert "production cloud" in press_card.lower()
     assert "Official Managed Cloud" not in press_card
     assert "forced update" in update_policy.lower()
@@ -236,7 +236,7 @@ def test_readmes_point_to_current_stable_manifest_and_license_policy() -> None:
         text = (ROOT / relative_path).read_text(encoding="utf-8")
 
         assert "PolyForm Noncommercial" in text
-        assert "v0.6.5" in text
+        assert "v0.7.0" in text
         assert "irm https://install.yonerai.com | iex" in text
         assert "latest/download/install.ps1" in text
         assert "install.ps1.sha256" in text

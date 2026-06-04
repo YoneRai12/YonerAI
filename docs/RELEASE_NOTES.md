@@ -2,6 +2,23 @@
 
 This page is a public-safe index of current release notes and progress checkpoints.
 
+## v0.7.0 Memory and Agent Console
+
+- GitHub release target: `v0.7.0`.
+- Release title: `2026.06.04 - YonerAI CLI Local Runtime v0.7.0 Memory and Agent Console`.
+- Release date: `2026-06-04`.
+- Public release body: `docs/releases/0.7.0.md`.
+- Promotes local Memory UX and Agent Console surfaces from alpha into the stable
+  CLI Local Runtime lane.
+- Adds stable `yonerai memory status/add/list/forget/sync preview` flows.
+- Keeps local-to-cloud memory sync disabled by default and records memory IDs,
+  not raw memory content, in the ask/ledger path.
+- Preserves the repair-safe GitHub Release installer path while updating the
+  stable install target to `v0.7.0`.
+- This is not full YonerAI production readiness and does not add production
+  cloud, production Oracle, live Discord, production Google login, production
+  signing/trust, npm/winget, or auto-update apply.
+
 ## v0.6.5 Repair-Safe Installer
 
 - GitHub release target: `v0.6.5`.

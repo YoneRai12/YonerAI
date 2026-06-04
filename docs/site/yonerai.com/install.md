@@ -13,7 +13,7 @@ is only the guide page. It must not be an installer file source.
 
 Install YonerAI.
 
-Latest stable: `v0.6.5`.
+Latest stable: `v0.7.0`.
 
 The install source of truth is GitHub Releases. `yonerai.com` must not host
 installer scripts, release manifests, ZIP artifacts, or SHA256 sidecars unless
@@ -21,7 +21,7 @@ a future signed hosting lane explicitly approves it.
 
 ## Primary copy
 
-YonerAI CLI Local Runtime v0.6.5 can be installed with a quick command or with
+YonerAI CLI Local Runtime v0.7.0 can be installed with a quick command or with
 a verified command that checks `install.ps1.sha256` before execution. This is
 stable for the local CLI runtime slice. It is not full YonerAI cloud production
 and not a production-signed installer.
@@ -93,16 +93,16 @@ try {
 }
 ```
 
-日本語で言うと、この verified command は「GitHub Release から取得した
-install.ps1 が sidecar の SHA256 と一致した場合だけ実行する」ための手順です。
-hash が一致しない場合はその場で止まり、インストール処理へ進みません。
+日本語で言うと、この verified command は GitHub Release から取得した
+`install.ps1` が sidecar の SHA256 と一致した場合だけ実行します。hash が
+一致しない場合はその場で止まり、インストール処理へ進みません。
 
 ## Safe manual install
 
 ```powershell
-# 1. Download YonerAI-0.6.5.zip from the GitHub Release.
+# 1. Download YonerAI-0.7.0.zip from the GitHub Release.
 # 2. Extract the ZIP.
-cd "$HOME\Downloads\YonerAI-0.6.5"
+cd "$HOME\Downloads\YonerAI-0.7.0"
 python --version
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
@@ -141,14 +141,14 @@ admin rights, run `irm ... | iex`, or execute a remote installer. With
 
 ## Verify before planning
 
-`manifest.v0.6.5.json` is a GitHub Release asset. Download it from the same
+`manifest.v0.7.0.json` is a GitHub Release asset. Download it from the same
 GitHub Release and save it beside the extracted ZIP contents before running
 local verify or plan commands; release ZIPs intentionally do not embed
 versioned manifests because the manifest records the ZIP hash.
 
 ```powershell
-# Release ZIP flow: manifest.v0.6.5.json is a separate GitHub Release asset.
-$manifest = ".\manifest.v0.6.5.json"
+# Release ZIP flow: manifest.v0.7.0.json is a separate GitHub Release asset.
+$manifest = ".\manifest.v0.7.0.json"
 yonerai manifest verify $manifest --pretty
 yonerai install plan --manifest $manifest --pretty
 yonerai update check --manifest $manifest --pretty
@@ -162,33 +162,15 @@ production control plane.
 
 ## Release links
 
-- GitHub Release: https://github.com/YoneRai12/YonerAI/releases/tag/v0.6.5
-- Release asset: https://github.com/YoneRai12/YonerAI/releases/download/v0.6.5/YonerAI-0.6.5.zip
-- Manifest asset: https://github.com/YoneRai12/YonerAI/releases/download/v0.6.5/manifest.v0.6.5.json
-
-## Prerelease bridge preview
-
-v0.7.0-alpha.1 is a prerelease bridge foundation, not the stable install
-recommendation. Use v0.6.5 for the current stable CLI Local Runtime unless you
-are explicitly testing the official-bridge alpha.
-
-```powershell
-$manifest = ".\manifest.v0.7.0-alpha.1.json"
-yonerai manifest verify $manifest --pretty
-yonerai install plan --manifest $manifest --pretty
-yonerai update check --manifest $manifest --pretty
-yonerai update plan --manifest $manifest --pretty
-```
-
-The v0.7 prerelease path keeps the same non-actions: no download by default, no
-install by default, no PATH mutation, no remote script execution, no service
-install, and no production signing/trust material.
+- GitHub Release: https://github.com/YoneRai12/YonerAI/releases/tag/v0.7.0
+- Release asset: https://github.com/YoneRai12/YonerAI/releases/download/v0.7.0/YonerAI-0.7.0.zip
+- Manifest asset: https://github.com/YoneRai12/YonerAI/releases/download/v0.7.0/manifest.v0.7.0.json
 
 ## v0.11 alpha account-sync contract prerelease
 
 v0.11.0-alpha.1 is the current prerelease path for public account sync
-contracts, `/蜷梧悄`, `yonerai sync ...`, and an official API fixture. Use it
-only when explicitly testing the v0.11 alpha. Use v0.6.5 for the stable CLI
+contracts, `/同期`, `yonerai sync ...`, and an official API fixture. Use it
+only when explicitly testing the v0.11 alpha. Use v0.7.0 for the stable CLI
 Local Runtime path.
 
 ```powershell
@@ -212,7 +194,7 @@ the public repo.
 v0.10.0-alpha.1 is the previous prerelease path for Japanese-first Mission
 Control status/navigation, public Google auth dry-run boundary hardening,
 Quality Wall scan hardening, and the plan-only installer manifest default. Use
-it only when explicitly testing the v0.10 alpha. Use v0.6.5 for the stable CLI
+it only when explicitly testing the v0.10 alpha. Use v0.7.0 for the stable CLI
 Local Runtime path.
 
 ```powershell
@@ -231,7 +213,7 @@ above for local v0.10 inspection.
 v0.9.0-alpha.1 is the previous prerelease path for Japanese-first TUI value
 completion, stronger public Quality Wall checks, and the plan-only installer
 manifest default. Use it only when explicitly testing the v0.9 alpha. Use
-v0.11.0-alpha.1 for the current prerelease path or v0.6.5 for the stable CLI
+v0.11.0-alpha.1 for the current prerelease path or v0.7.0 for the stable CLI
 Local Runtime path.
 
 ```powershell

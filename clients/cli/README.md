@@ -13,7 +13,7 @@ package and commercial use requires a separate license.
 ## Install and start YonerAI
 
 This is the CLI Local Runtime path, not full YonerAI cloud production. The
-latest stable is `v0.6.5`. Stable is the default channel; alpha requires an
+latest stable is `v0.7.0`. Stable is the default channel; alpha requires an
 explicit `-Channel alpha` flag.
 
 ### Quick install
@@ -39,6 +39,12 @@ iex "& { $(irm https://github.com/YoneRai12/YonerAI/releases/latest/download/ins
 ### Verified install
 
 Use this when you want to verify `install.ps1` before execution:
+
+Trusted `v0.7.0` `install.ps1` SHA256:
+
+```text
+ebd6c66238626e15bba856e7f09f249084811898d2f2de85b973ffcc644d05c6
+```
 
 ```powershell
 $ErrorActionPreference = "Stop"
@@ -66,13 +72,13 @@ try {
 
 ### If you downloaded the GitHub Release ZIP
 
-Download `YonerAI-0.6.5.zip` from the
-[v0.6.5 release](https://github.com/YoneRai12/YonerAI/releases/tag/v0.6.5),
+Download `YonerAI-0.7.0.zip` from the
+[v0.7.0 release](https://github.com/YoneRai12/YonerAI/releases/tag/v0.7.0),
 extract it, then run PowerShell inside the extracted folder. The extracted
 folder name can vary; change the `cd` command to match the folder you see.
 
 ```powershell
-cd "$HOME\Downloads\YonerAI-0.6.5"
+cd "$HOME\Downloads\YonerAI-0.7.0"
 python --version
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
@@ -158,10 +164,10 @@ yonerai start --guided --lang ja
 yonerai providers --pretty --lang ja
 yonerai ask "hello" --auto --pretty --lang ja
 yonerai chat --script --lang ja
-yonerai manifest verify manifest.v0.6.5.json --pretty
-yonerai install plan --manifest manifest.v0.6.5.json --pretty
-yonerai update check --manifest manifest.v0.6.5.json --pretty
-yonerai update plan --manifest manifest.v0.6.5.json --pretty
+yonerai manifest verify manifest.v0.7.0.json --pretty
+yonerai install plan --manifest manifest.v0.7.0.json --pretty
+yonerai update check --manifest manifest.v0.7.0.json --pretty
+yonerai update plan --manifest manifest.v0.7.0.json --pretty
 yonerai demo --pretty
 yonerai demo --json
 ```
@@ -252,7 +258,10 @@ Credential-free commands:
 - `yonerai ask "use this selected file" --file <path> --workspace <dir> --provider mock --json`
 - `yonerai search mock "YonerAI alpha2" --json`
 - `yonerai ops plan git-status --json`
-- `yonerai memory add "local note" --store <local.jsonl> --confirm-local --json`
+- `yonerai memory status --pretty --lang ja`
+- `yonerai memory add "local note" --scope local --pretty --lang ja`
+- `yonerai memory list --scope local --pretty --lang ja`
+- `yonerai memory sync preview --direction local-to-cloud --pretty --lang ja`
 - `yonerai discord synthetic "hello" --json`
 - `yonerai status --source fixture --json`
 - `yonerai manifest verify releases/manifest.example.json --json`
@@ -264,8 +273,9 @@ mock-first path, Local LLM next steps when loopback is detected, a workspace
 file guard sample, a redacted ledger sample, and limitations. Mock `ask`
 returns a public-safe `run_id`. Workspace file support is a Workspace File
 Access Guard: it reads only an explicit UTF-8 text file under an explicit
-workspace. Local memory writes only when a store path and `--confirm-local` are
-provided.
+workspace. Local memory is stored in the local YonerAI memory store by default,
+can be disabled through config, and does not sync local/private content up to
+cloud by default.
 
 `yonerai providers --pretty --lang ja` is the provider readiness view. It
 reports mock, local LLM, OpenAI-compatible, Anthropic, and Gemini setup without
@@ -335,7 +345,11 @@ yonerai runs list --ledger .yonerai-runs.jsonl --pretty --lang ja
 yonerai runs show <run_id> --ledger .yonerai-runs.jsonl --pretty --lang ja
 yonerai search mock "YonerAI alpha2" --json
 yonerai ops plan git-status --json
-yonerai memory add "local note" --store .yonerai-memory.jsonl --confirm-local --json
+yonerai memory status --pretty --lang ja
+yonerai memory add "local note" --scope local --pretty --lang ja
+yonerai memory list --scope local --pretty --lang ja
+yonerai memory forget <memory_id> --pretty --lang ja
+yonerai memory sync preview --direction local-to-cloud --pretty --lang ja
 yonerai discord synthetic "hello" --json
 yonerai status --source fixture --json
 yonerai install plan --manifest releases/manifest.example.json --json
@@ -409,7 +423,8 @@ service install, and no remote script execution. It does not install anything.
 - External provider execution requires explicit provider selection, `--live`, and provider-specific env opt-in; default CLI/demo/tests do not call live providers.
 - Local LLM execution is loopback-only.
 - Workspace File Access Guard requires explicit `--file` and `--workspace`; it is not folder crawling, PDF/image parsing, arbitrary file access, or automatic file summarization.
-- Local memory requires explicit `--store` and `--confirm-local`; it is local-only and redacted.
+- Local memory uses the local YonerAI memory store by default, is redacted in
+  output, and does not sync local/private content up to cloud by default.
 - SafeShell is plan-only for a small diagnostic allowlist; it is not arbitrary shell execution.
 - It does not deploy anything.
 - Manifest verification is local-file validation only, not installation.

@@ -193,7 +193,7 @@ def test_install_status_reports_github_release_only_source_policy() -> None:
 
     report = build_install_update_status()
 
-    assert report["latest_stable"] == "0.6.5"
+    assert report["latest_stable"] == "0.7.0"
     assert report["stable_channel_default"] is True
     assert report["alpha_requires_explicit_channel"] is True
     assert report["quick_install_command"] == "irm https://install.yonerai.com | iex"

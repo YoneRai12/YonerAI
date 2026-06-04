@@ -8,6 +8,7 @@ from ora_core.planning.task_classifier import TaskClassification, classify_task
 from ora_core.providers import ProviderError, ProviderRequest, ProviderResponse, build_default_provider_registry
 from ora_core.providers.registry import ProviderRegistry, normalize_provider_id
 from ora_core.route_preview import preview_route
+from ora_core.memory import MemoryRecord, build_memory_usage_report, memory_context_event, select_allowed_memory_for_ask
 
 from .boundaries import build_boundary_checks_for_task
 from .ledger import RunLedger, build_run_ledger_from_env, safe_summary
@@ -96,6 +97,7 @@ def build_auto_runtime_report(
     ledger: RunLedger | None = None,
     registry: ProviderRegistry | None = None,
     context_events: Sequence[Mapping[str, object]] | None = None,
+    memory_records: Sequence[MemoryRecord] | None = None,
     local_file_context: bool = False,
     client_type: str = "cli",
 ) -> dict[str, object]:
@@ -129,6 +131,12 @@ def build_auto_runtime_report(
     )
     ledger.append_event(run.run_id, "auto_runtime_decision", "ok", _decision_summary(decision))
     ledger.append_event(run.run_id, "shared_traffic_policy", "ok", "shared_traffic=false private_content_exclusion=true")
+    allowed_memory = select_allowed_memory_for_ask(tuple(memory_records or ()))
+    memory_report = build_memory_usage_report(allowed_memory, enabled=memory_records is not None)
+    if allowed_memory:
+        ledger.record_memory_usage(run.run_id, list(memory_report["used_ids"]))  # type: ignore[arg-type]
+        event = memory_context_event(allowed_memory)
+        ledger.append_event(run.run_id, str(event["name"]), str(event["status"]), str(event["summary"]))
 
     for event in context_events or ():
         if not isinstance(event, Mapping):
@@ -176,6 +184,7 @@ def build_auto_runtime_report(
             search_report=search_report,
             reviewer_plan=reviewer_plan,
             task_progress=task_progress,
+            memory_report=memory_report,
             ok=False,
             live_call_performed=False,
             error={
@@ -215,6 +224,7 @@ def build_auto_runtime_report(
             search_report=search_report,
             reviewer_plan=reviewer_plan,
             task_progress=task_progress,
+            memory_report=memory_report,
             ok=ok,
             live_call_performed=False,
             response=None,
@@ -260,6 +270,7 @@ def build_auto_runtime_report(
             search_report=search_report,
             reviewer_plan=reviewer_plan,
             task_progress=task_progress,
+            memory_report=memory_report,
             ok=True,
             live_call_performed=bool(provider_result["live_call_performed"]),
             response=response.to_public_dict(),
@@ -290,6 +301,7 @@ def build_auto_runtime_report(
             search_report=search_report,
             reviewer_plan=reviewer_plan,
             task_progress=task_progress,
+            memory_report=memory_report,
             ok=False,
             live_call_performed=bool(provider_result["live_call_performed"]),
             response=None,
@@ -716,6 +728,7 @@ def _base_report(
     search_report: dict[str, object],
     reviewer_plan: dict[str, object],
     task_progress: dict[str, object],
+    memory_report: dict[str, object] | None = None,
     ok: bool,
     live_call_performed: bool,
     response: dict[str, object] | None = None,
@@ -735,6 +748,13 @@ def _base_report(
         "search": search_report,
         "reviewer_plan": reviewer_plan,
         "task_progress": task_progress,
+        "memory": memory_report
+        or {
+            "enabled": False,
+            "used_ids": [],
+            "raw_memory_content_in_ledger": False,
+            "content_sent_to_cloud_contract": False,
+        },
         "shared_traffic": {
             "enabled": False,
             "openai_shared_traffic_enabled": False,
