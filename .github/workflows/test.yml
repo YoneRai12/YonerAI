@@ -2,9 +2,9 @@ name: YonerAI Core Tests
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "stable/**" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "stable/**" ]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

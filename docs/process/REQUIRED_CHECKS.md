@@ -1,12 +1,14 @@
 # YonerAI Required Checks
 
-This file defines the checks that should block merges to `main` after the
-YonerAI quality wall is enabled. It is intentionally explicit so future Codex,
-Gemini, Dependabot, or human changes do not treat CI as optional.
+This file defines the checks that should block merges to `main` and stable
+release branches such as `stable/v0.6.x` after the YonerAI quality wall is
+enabled. It is intentionally explicit so future Codex, Gemini, Dependabot, or
+human changes do not treat CI as optional.
 
 ## Required Branch Protection Checks
 
-Enable these contexts as required status checks for `main`:
+Enable these contexts as required status checks for `main` and stable release
+branches:
 
 - `build-and-test (3.11)`
 - `core-test`
@@ -32,12 +34,13 @@ Use GitHub repository settings:
 
 1. Open `Settings` -> `Branches`.
 2. Add or edit the rule for `main`.
-3. Enable `Require a pull request before merging`.
-4. Enable `Require status checks to pass before merging`.
-5. Enable `Require branches to be up to date before merging`.
-6. Select every check listed in `Required Branch Protection Checks`.
-7. Enable `Require conversation resolution before merging`.
-8. Do not enable release, deploy, production Google login, or shared OpenAI
+3. Add or edit a separate rule for `stable/**`.
+4. Enable `Require a pull request before merging`.
+5. Enable `Require status checks to pass before merging`.
+6. Enable `Require branches to be up to date before merging`.
+7. Select every check listed in `Required Branch Protection Checks`.
+8. Enable `Require conversation resolution before merging`.
+9. Do not enable release, deploy, production Google login, or shared OpenAI
    traffic automation from this branch rule.
 
 ## Merge Policy

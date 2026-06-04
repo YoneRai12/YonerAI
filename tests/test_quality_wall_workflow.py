@@ -28,6 +28,7 @@ def test_quality_wall_workflow_splits_user_visible_gates() -> None:
 
     assert "runs-on: windows-latest" in workflow
     assert "runs-on: macos-latest" in workflow
+    assert 'branches: [main, "stable/**"]' in workflow
     assert "python scripts/ci_quality_scans.py --changed" in workflow
     assert "git diff --check" in workflow
     assert "ruff check" in workflow
