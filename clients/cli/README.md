@@ -43,7 +43,7 @@ Use this when you want to verify `install.ps1` before execution:
 Trusted `v0.7.0` `install.ps1` SHA256:
 
 ```text
-ebd6c66238626e15bba856e7f09f249084811898d2f2de85b973ffcc644d05c6
+3db7cdace412d2c2978c74d77e2a2fce664bee4e6ee710f79b2349c0e89f3874
 ```
 
 ```powershell
