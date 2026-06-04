@@ -1,0 +1,56 @@
+{
+  "schema_version": "yonerai-installer-bootstrap-manifest/v1",
+  "product": "YonerAI",
+  "channel": "stable",
+  "version": "0.7.0",
+  "published_at": "2026-06-04T00:00:00Z",
+  "production_ready": false,
+  "release": {
+    "tag": "v0.7.0",
+    "github_release_url": "https://github.com/YoneRai12/YonerAI/releases/tag/v0.7.0",
+    "manifest_status": "unsigned_example"
+  },
+  "minimum_requirements": {
+    "python": ">=3.11",
+    "windows": "10 or newer for the documented PowerShell local CLI path",
+    "network_required": true
+  },
+  "install_methods": [
+    "powershell_verified_github_release_bootstrap",
+    "powershell_github_release_bootstrap",
+    "manual_zip_venv",
+    "manifest_verify_only"
+  ],
+  "warnings": [
+    "stable local CLI runtime manifest; not a production cloud runtime",
+    "install.ps1 is served only as a GitHub Release asset, not from yonerai.com",
+    "verified bootstrap command checks install.ps1.sha256 before script execution",
+    "GitHub latest/download is the stable bootstrap entry and resolves to versioned GitHub Release assets",
+    "release ZIP SHA256 must match this manifest before extraction",
+    "production signature verification is not available in this public manifest",
+    "no production signing key or production trust store is included",
+    "install-local.ps1 runs only from the verified GitHub Release archive",
+    "existing or partial install targets require -Repair, -Force, -CleanRetry, or a different -InstallDir",
+    "no PATH mutation is performed by default; -SetPath is explicit",
+    "yonerai.com/install is a command page only and must not serve local PC installer files",
+    "local memory remains local by default and local-to-cloud sync is disabled by default"
+  ],
+  "artifacts": [
+    {
+      "id": "yonerai-0.7.0-source-archive",
+      "kind": "source_archive",
+      "target": "source-any",
+      "os": "any",
+      "arch": "any",
+      "url": "https://github.com/YoneRai12/YonerAI/releases/download/v0.7.0/YonerAI-0.7.0.zip",
+      "sha256": "7a0523cbec5d0c3158f3f3c9aa55b5c0fef7af85b55f291a6978b703f1bacb2d",
+      "size_bytes": 15198766,
+      "signature": {
+        "status": "placeholder_non_production",
+        "algorithm": "none",
+        "key_id": "PLACEHOLDER_NON_PRODUCTION_KEY",
+        "signature": "PLACEHOLDER_NON_PRODUCTION_SIGNATURE"
+      }
+    }
+  ]
+}
