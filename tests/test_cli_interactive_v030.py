@@ -649,7 +649,9 @@ def test_chat_numbered_settings_and_ledger_are_usable_in_japanese(tmp_path: Path
     monkeypatch.setattr(
         sys,
         "stdin",
-        _PlainStringIO("/設定\n/選択 2 モック\n/選択 5 オン\n/選択 6 オフ\n/選択 7 オフ\n/選択 9 オン\nhello\n/タスク\n/履歴\n/終了\n"),
+        _PlainStringIO(
+            "/設定\n/選択 2 モック\n/選択 5 オン\n/選択 6 オフ\n/選択 7 オフ\n/選択 9 オン\nhello\n/タスク\n/履歴\n/終了\n"
+        ),
     )
 
     assert cli.main(["chat", "--script", "--lang", "ja", "--config-path", str(config_path), "--color", "never"]) == 0
@@ -807,6 +809,43 @@ def test_first_launch_language_selection_persists_choice(tmp_path: Path) -> None
     assert "YonerAI language / 表示言語" in output
     assert "English mode" in output
     assert json.loads(config_path.read_text(encoding="utf-8"))["language"] == "en"
+
+
+def test_existing_language_config_skips_first_launch_prompt(tmp_path: Path) -> None:
+    from yonerai_cli.config import DEFAULT_CONFIG, save_cli_config
+    from yonerai_cli.interactive import InteractiveCallbacks, InteractiveOptions, run_interactive_cli
+
+    def providers() -> dict[str, Any]:
+        return {"providers": []}
+
+    def ask_auto(*_args: Any) -> dict[str, Any]:
+        raise AssertionError("no ask should run")
+
+    def runs_list(*_args: Any) -> dict[str, Any]:
+        return {"runs": []}
+
+    def runs_show(*_args: Any) -> dict[str, Any]:
+        return {"ok": False}
+
+    config_path = tmp_path / "cli-config.json"
+    config = dict(DEFAULT_CONFIG)
+    config["language"] = "ja"
+    save_cli_config(config, config_path)
+
+    stdout = _TTYStringIO()
+    rc = run_interactive_cli(
+        InteractiveOptions(config_path=str(config_path)),
+        InteractiveCallbacks(providers=providers, ask_auto=ask_auto, runs_list=runs_list, runs_show=runs_show),
+        stdin=_TTYStringIO("/終了\n"),
+        stdout=stdout,
+    )
+    output = stdout.getvalue()
+
+    assert rc == 0
+    assert "YonerAI language / 表示言語" not in output
+    assert "YonerAI ミッションコントロール CLI" in output
+    assert json.loads(config_path.read_text(encoding="utf-8"))["language"] == "ja"
+    assert str(tmp_path) not in output
 
 
 def test_tui_empty_prompt_does_not_exit_session(tmp_path: Path, monkeypatch) -> None:
@@ -1031,7 +1070,9 @@ def test_permission_profile_display_considers_cli_live_option(tmp_path: Path) ->
 
     stdout = _PlainStringIO()
     rc = run_interactive_cli(
-        InteractiveOptions(config_path=str(tmp_path / "cli-config.json"), lang="en", script=True, color="never", live=True),
+        InteractiveOptions(
+            config_path=str(tmp_path / "cli-config.json"), lang="en", script=True, color="never", live=True
+        ),
         InteractiveCallbacks(providers=providers, ask_auto=ask_auto, runs_list=runs_list, runs_show=runs_show),
         stdin=_PlainStringIO("/network on\n/permissions auto-safe\n/quit\n"),
         stdout=stdout,
@@ -1061,7 +1102,9 @@ def test_permission_profile_display_preserves_session_live_off(tmp_path: Path) -
 
     stdout = _PlainStringIO()
     rc = run_interactive_cli(
-        InteractiveOptions(config_path=str(tmp_path / "cli-config.json"), lang="en", script=True, color="never", live=True),
+        InteractiveOptions(
+            config_path=str(tmp_path / "cli-config.json"), lang="en", script=True, color="never", live=True
+        ),
         InteractiveCallbacks(providers=providers, ask_auto=ask_auto, runs_list=runs_list, runs_show=runs_show),
         stdin=_PlainStringIO("/live off\n/network on\n/permissions auto-safe\n/permissions\n/quit\n"),
         stdout=stdout,
@@ -1095,12 +1138,7 @@ def test_settings_safety_renders_effective_live_state(tmp_path: Path) -> None:
         InteractiveOptions(config_path=str(tmp_path / "cli-config.json"), lang="en", script=True, color="never"),
         InteractiveCallbacks(providers=providers, ask_auto=ask_auto, runs_list=runs_list, runs_show=runs_show),
         stdin=_PlainStringIO(
-            "/permissions auto-safe\n"
-            "/live on\n"
-            "/network on\n"
-            "/approval deny\n"
-            "/settings safety\n"
-            "/quit\n"
+            "/permissions auto-safe\n/live on\n/network on\n/approval deny\n/settings safety\n/quit\n"
         ),
         stdout=stdout,
     )
@@ -1135,10 +1173,7 @@ def test_plan_review_commands_preview_task_without_execution(tmp_path: Path) -> 
         InteractiveOptions(config_path=str(tmp_path / "cli-config.json"), lang="en", script=True, color="never"),
         InteractiveCallbacks(providers=providers, ask_auto=ask_auto, runs_list=runs_list, runs_show=runs_show),
         stdin=_PlainStringIO(
-            "/plan draft release gate\n"
-            "/review inspect safety boundary\n"
-            "@researcher gather public docs\n"
-            "/quit\n"
+            "/plan draft release gate\n/review inspect safety boundary\n@researcher gather public docs\n/quit\n"
         ),
         stdout=stdout,
     )
@@ -1297,7 +1332,9 @@ def test_network_off_forces_live_off_in_chat_session(tmp_path: Path, monkeypatch
     config_path = tmp_path / "cli-config.json"
     calls: list[bool] = []
 
-    def fake_interactive_ask_auto(task: str, provider: str, live: bool, ledger_path: str | None, lang: str) -> dict[str, Any]:
+    def fake_interactive_ask_auto(
+        task: str, provider: str, live: bool, ledger_path: str | None, lang: str
+    ) -> dict[str, Any]:
         calls.append(live)
         return {
             "ok": True,
@@ -1325,7 +1362,9 @@ def test_network_on_restores_existing_live_request_in_chat_session(tmp_path: Pat
     config_path = tmp_path / "cli-config.json"
     calls: list[bool] = []
 
-    def fake_interactive_ask_auto(task: str, provider: str, live: bool, ledger_path: str | None, lang: str) -> dict[str, Any]:
+    def fake_interactive_ask_auto(
+        task: str, provider: str, live: bool, ledger_path: str | None, lang: str
+    ) -> dict[str, Any]:
         calls.append(live)
         return {
             "ok": True,
@@ -1336,7 +1375,9 @@ def test_network_on_restores_existing_live_request_in_chat_session(tmp_path: Pat
         }
 
     monkeypatch.setattr(cli, "_interactive_ask_auto", fake_interactive_ask_auto)
-    monkeypatch.setattr(sys, "stdin", _PlainStringIO("/permissions auto-safe\n/live on\n/network off\n/network on\nhello\n/quit\n"))
+    monkeypatch.setattr(
+        sys, "stdin", _PlainStringIO("/permissions auto-safe\n/live on\n/network off\n/network on\nhello\n/quit\n")
+    )
 
     assert cli.main(["chat", "--script", "--lang", "en", "--config-path", str(config_path), "--color", "never"]) == 0
     output = capsys.readouterr().out
@@ -1453,19 +1494,20 @@ def test_slash_command_summary_is_japanese_first() -> None:
         "/モデル",
         "/提供元",
         "/安全",
+        "/ポリシー",
         "/履歴",
         "/表示",
         "/タスク",
         "/エージェント",
         "/モード",
-        "/計画",
     ]
     assert words[12:16] == [
+        "/計画",
         "/レビュー",
         "/権限",
         "/認証",
-        "/同期",
     ]
+    assert "/同期" in words
     assert "/プライバシー" in words
     assert "/設定" in summary
     assert "/状態" in summary
@@ -1479,6 +1521,8 @@ def test_slash_command_summary_is_japanese_first() -> None:
     assert "/計画" in summary
     assert "/レビュー" in summary
     assert "/権限" in summary
+    assert "/ポリシー" in summary
+    assert "/ポリシー" in words
     assert "/記憶" in summary
     assert "/記憶" in words
     assert "/メモリ" in words
