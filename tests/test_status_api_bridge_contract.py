@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import sys
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
 import pytest
@@ -128,6 +130,44 @@ def test_status_source_local_file_is_allowed_and_network_is_fail_closed(tmp_path
 
     with pytest.raises(ValueError, match="requires --allow-network-status-fetch"):
         build_status_check_report(source="https://status.yonerai.com/status.json", allow_network=False)
+
+
+def test_status_network_fetch_rejects_redirects_before_following_private_target() -> None:
+    from ora_core.official.status_api import _STATUS_URL_OPENER
+
+    hits: list[str] = []
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self) -> None:
+            hits.append(self.path)
+            if self.path == "/redirect":
+                self.send_response(302)
+                location = f"http://127.0.0.1:{self.server.server_port}/private-status-feed.json"
+                self.send_header("Location", location)
+                self.end_headers()
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(b"{}")
+
+        def log_message(self, format: str, *args: object) -> None:
+            return
+
+    server = HTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        redirect_url = f"http://127.0.0.1:{server.server_port}/redirect"
+        with pytest.raises(Exception) as exc_info:
+            _STATUS_URL_OPENER.open(redirect_url, timeout=5)
+    finally:
+        server.shutdown()
+        thread.join(timeout=5)
+        server.server_close()
+
+    assert getattr(exc_info.value, "code", None) == 302
+    assert hits == ["/redirect"]
 
 
 def test_status_source_incidents_reject_non_public_markers(tmp_path: Path) -> None:

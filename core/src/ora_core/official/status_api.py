@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Literal
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
-from urllib.request import Request, urlopen
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 
 STATUS_API_SCHEMA_VERSION = "yonerai-status-api/v0.1"
@@ -57,6 +57,14 @@ STATUS_COMPONENT_IDS = (
     "hybrid_node",
 )
 ALLOWED_STATUS_HOSTS = frozenset({"status.yonerai.com", "api.yonerai.com", "yonerai.com"})
+
+
+class _NoStatusRedirectHandler(HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):  # type: ignore[override]
+        return None
+
+
+_STATUS_URL_OPENER = build_opener(_NoStatusRedirectHandler)
 DEFAULT_GENERATED_AT = "2026-06-02T00:00:00Z"
 FORBIDDEN_STATUS_SOURCE_MARKERS = (
     "AKIA",
@@ -323,9 +331,11 @@ def _load_status_feed_source(source: str, *, allow_network: bool) -> dict[str, o
             raise ValueError("status URL fetch requires --allow-network-status-fetch")
         request = Request(source, headers={"User-Agent": "YonerAI-CLI-status-contract/0.1"})
         try:
-            with urlopen(request, timeout=5) as response:  # noqa: S310 - explicit allowlisted status fetch only
+            with _STATUS_URL_OPENER.open(request, timeout=5) as response:  # noqa: S310 - explicit allowlisted status fetch only
                 body = response.read(1_000_000)
         except HTTPError as exc:
+            if 300 <= exc.code < 400:
+                raise ValueError("status source redirects are not allowed") from exc
             raise ValueError(f"status source returned HTTP {exc.code}") from exc
         except URLError as exc:
             raise ValueError("status source could not be fetched") from exc
