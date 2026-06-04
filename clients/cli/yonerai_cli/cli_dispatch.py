@@ -100,7 +100,7 @@ def dispatch_command(args: argparse.Namespace, hooks: CliRuntimeHooks) -> int:
                 args, print_json=hooks.print_json, prepare_import_paths=hooks.prepare_import_paths
             )
         except SyncCommandError as exc:
-            raise CliDispatchError(str(exc), exit_code=2) from exc
+            raise CliDispatchError(str(exc), exit_code=exc.exit_code) from exc
     if args.command == "evolve":
         try:
             return handle_evolve_command(

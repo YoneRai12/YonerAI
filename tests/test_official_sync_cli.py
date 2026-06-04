@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -173,3 +175,29 @@ def test_api_status_contract_and_rate_limit_commands_are_fixture_only(capsys) ->
     rate_report = json.loads(capsys.readouterr().out)
     assert "Retry-After" in rate_report["headers"]
     assert rate_report["shared_traffic"]["openai_shared_traffic_enabled"] is False
+
+
+def test_sync_status_standalone_cli_reports_controlled_unavailable_error(tmp_path: Path) -> None:
+    package_root = tmp_path / "standalone_cli"
+    shutil.copytree(CLIENTS_CLI / "yonerai_cli", package_root / "yonerai_cli")
+
+    script = (
+        "from yonerai_cli import cli\n"
+        "rc = cli.main(['sync', 'status', '--json'])\n"
+        "print(f'rc={rc}')\n"
+    )
+    completed = subprocess.run(
+        [sys.executable, "-S", "-c", script],
+        cwd=tmp_path,
+        env={"PYTHONPATH": str(package_root)},
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    diagnostic = f"stdout={completed.stdout!r}\nstderr={completed.stderr!r}"
+
+    assert completed.returncode == 0, diagnostic
+    assert "rc=1" in completed.stdout, diagnostic
+    assert "official sync contract fixtures are unavailable" in completed.stderr, diagnostic
+    assert "Traceback" not in completed.stderr, diagnostic
+    assert "ModuleNotFoundError" not in completed.stderr, diagnostic

@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 from typing import Any, Callable
 
 from yonerai_cli.output import CliRow, CliSection, ColorMode, render_report
 
 
 class SyncCommandError(Exception):
-    pass
+    def __init__(self, message: str, *, exit_code: int = 2) -> None:
+        super().__init__(message)
+        self.exit_code = exit_code
 
 
 SYNC_AUTH_STATE_CHOICES = ("unauthenticated", "dry_run", "pending", "linked", "expired", "revoked")
@@ -138,6 +141,11 @@ def _add_output_and_locale(
 
 def _load_official_contract_builders(prepare_import_paths: Callable[[], None]) -> dict[str, Any]:
     prepare_import_paths()
+    importlib.invalidate_caches()
+    core_available = importlib.util.find_spec("ora_core") is not None
+    official_available = core_available and importlib.util.find_spec("ora_core.official") is not None
+    if not official_available:
+        raise SyncCommandError("official sync contract fixtures are unavailable.", exit_code=1)
     from ora_core.official import (
         build_official_api_contract_fixture,
         build_rate_limit_policy_report,
