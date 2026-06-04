@@ -40,6 +40,7 @@ from yonerai_cli.services.core_api_service import (
     DEFAULT_API_ORIGIN,
     TOKEN_ENV,
     CoreApiServiceError,
+    safe_http_error as _safe_http_error,
 )
 from yonerai_cli.services import interactive_service
 from yonerai_cli.services.interactive_service import InteractiveServiceError

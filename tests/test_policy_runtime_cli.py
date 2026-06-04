@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import argparse
+import importlib.util
 import io
 import json
 import sys
 from pathlib import Path
 from typing import Any
+
+import pytest
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -146,6 +150,23 @@ def test_policy_status_pretty_is_japanese_and_has_no_ansi_when_disabled(capsys) 
     assert "arbitrary_shell_execution" in output
     assert "signed_update_policy" in output
     assert "\x1b[" not in output
+
+
+def test_policy_status_missing_core_returns_controlled_error(monkeypatch) -> None:
+    from yonerai_cli.commands import policy
+
+    original_find_spec = importlib.util.find_spec
+
+    def fake_find_spec(name: str, *args: object, **kwargs: object) -> object:
+        if name in {"ora_core", "ora_core.policies"}:
+            return None
+        return original_find_spec(name, *args, **kwargs)
+
+    monkeypatch.setattr(policy.importlib.util, "find_spec", fake_find_spec)
+
+    args = argparse.Namespace(policy_command="status", json=True, lang="ja", color="never")
+    with pytest.raises(ValueError, match="policy status report is unavailable"):
+        policy.handle_policy_command(args, config={}, print_json=lambda _data: None)
 
 
 def test_policy_pretty_uses_runtime_report_values_instead_of_ui_constants() -> None:

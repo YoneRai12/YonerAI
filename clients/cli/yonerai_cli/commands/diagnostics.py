@@ -449,6 +449,8 @@ def _prepare_trusted_cli_import_paths() -> None:
 
 def _load_repo_script_module(module_name: str, script_relative_path: str) -> Any:
     script_path = _repo_root() / script_relative_path
+    if not script_path.is_file():
+        raise DiagnosticsCommandError("public script module is unavailable.", exit_code=1)
     spec = importlib.util.spec_from_file_location(module_name, script_path)
     if spec is None or spec.loader is None:
         raise DiagnosticsCommandError("public script module is unavailable.", exit_code=1)
@@ -458,11 +460,21 @@ def _load_repo_script_module(module_name: str, script_relative_path: str) -> Any
 
 
 def _load_public_mvp_smoke_module() -> Any:
-    return _load_repo_script_module("yonerai_trusted_public_mvp_smoke", "scripts/dev/public_mvp_smoke.py")
+    try:
+        return _load_repo_script_module("yonerai_trusted_public_mvp_smoke", "scripts/dev/public_mvp_smoke.py")
+    except DiagnosticsCommandError:
+        from yonerai_cli.services.public_runtime_service import packaged_public_mvp_smoke
+
+        return packaged_public_mvp_smoke
 
 
 def _load_public_demo_module() -> Any:
-    return _load_repo_script_module("yonerai_trusted_public_demo", "scripts/dev/public_demo.py")
+    try:
+        return _load_repo_script_module("yonerai_trusted_public_demo", "scripts/dev/public_demo.py")
+    except DiagnosticsCommandError:
+        from yonerai_cli.services.public_runtime_service import packaged_public_demo
+
+        return packaged_public_demo
 
 
 def _prepare_core_import_path() -> None:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 from typing import Any, Callable
 
 from yonerai_cli.screens.policy import format_policy_status_pretty
@@ -32,6 +33,13 @@ def handle_policy_command(
     if args.policy_command != "status":
         raise ValueError("unknown policy command")
 
+    importlib.invalidate_caches()
+    policies_available = (
+        importlib.util.find_spec("ora_core") is not None
+        and importlib.util.find_spec("ora_core.policies") is not None
+    )
+    if not policies_available:
+        raise ValueError("policy status report is unavailable.")
     from ora_core.policies import build_policy_status_report
 
     report = build_policy_status_report(config)

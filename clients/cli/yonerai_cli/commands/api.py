@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 from typing import Any, Callable
 
 from yonerai_cli.output import CliRow, CliSection, ColorMode, render_report
@@ -68,6 +69,13 @@ def handle_api_command(
 
 def build_api_report(args: argparse.Namespace, *, prepare_import_paths: Callable[[], None]) -> dict[str, Any]:
     prepare_import_paths()
+    importlib.invalidate_caches()
+    official_available = (
+        importlib.util.find_spec("ora_core") is not None
+        and importlib.util.find_spec("ora_core.official") is not None
+    )
+    if not official_available:
+        raise ApiCommandError("official API contract fixtures are unavailable.")
     from ora_core.official import (
         build_official_api_contract_fixture,
         build_official_api_status_report,

@@ -192,6 +192,36 @@ def test_cli_demo_available_from_clients_cli_cwd() -> None:
     assert "C:\\Users" not in result.stdout
 
 
+def test_cli_demo_uses_packaged_fallback_when_repo_script_is_missing(monkeypatch, capsys, tmp_path) -> None:
+    cli = _load_cli_module()
+
+    monkeypatch.setattr(cli.diagnostics_command, "_repo_root", lambda: tmp_path)
+
+    assert cli.main(["demo", "--json"]) == 0
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["ok"] is True
+    assert output["contract"] == "yonerai-public-demo/v1"
+    assert output["source"] == "packaged_cli_fallback"
+    assert output["official_cloud_runtime_included"] is False
+    assert "C:\\Users" not in json.dumps(output)
+
+
+def test_cli_smoke_uses_packaged_fallback_when_repo_script_is_missing(monkeypatch, capsys, tmp_path) -> None:
+    cli = _load_cli_module()
+
+    monkeypatch.setattr(cli.diagnostics_command, "_repo_root", lambda: tmp_path)
+
+    assert cli.main(["smoke", "--json"]) == 0
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["ok"] is True
+    assert output["contract"] == "public-mvp-smoke-0.5"
+    assert output["source"] == "packaged_cli_fallback"
+    assert output["official_cloud_runtime_included"] is False
+    assert "C:\\Users" not in json.dumps(output)
+
+
 def test_cli_start_json_reports_first_run_without_external_calls(monkeypatch, capsys):
     cli = _load_cli_module()
     from yonerai_cli import first_run

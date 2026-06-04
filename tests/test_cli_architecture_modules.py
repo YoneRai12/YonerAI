@@ -56,6 +56,7 @@ EXPECTED_MODULES = (
     "yonerai_cli.services.ledger_service",
     "yonerai_cli.services.memory_service",
     "yonerai_cli.services.onboarding_service",
+    "yonerai_cli.services.public_runtime_service",
     "yonerai_cli.services.update_service",
     "yonerai_cli.tui.aliases",
     "yonerai_cli.tui.keymap",

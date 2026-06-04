@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import argparse
+import importlib.util
 import json
 import shutil
 import subprocess
 import sys
 from pathlib import Path
+
+import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -175,6 +179,23 @@ def test_api_status_contract_and_rate_limit_commands_are_fixture_only(capsys) ->
     rate_report = json.loads(capsys.readouterr().out)
     assert "Retry-After" in rate_report["headers"]
     assert rate_report["shared_traffic"]["openai_shared_traffic_enabled"] is False
+
+
+def test_api_missing_core_returns_controlled_error(monkeypatch) -> None:
+    from yonerai_cli.commands import api
+
+    original_find_spec = importlib.util.find_spec
+
+    def fake_find_spec(name: str, *args: object, **kwargs: object) -> object:
+        if name in {"ora_core", "ora_core.official"}:
+            return None
+        return original_find_spec(name, *args, **kwargs)
+
+    monkeypatch.setattr(api.importlib.util, "find_spec", fake_find_spec)
+
+    args = argparse.Namespace(api_command="contract")
+    with pytest.raises(api.ApiCommandError, match="official API contract fixtures are unavailable"):
+        api.build_api_report(args, prepare_import_paths=lambda: None)
 
 
 def test_sync_status_standalone_cli_reports_controlled_unavailable_error(tmp_path: Path) -> None:
