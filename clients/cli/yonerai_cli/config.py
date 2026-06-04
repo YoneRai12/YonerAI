@@ -34,6 +34,7 @@ DEFAULT_CONFIG: dict[str, object] = {
     "memory_local_to_cloud_approval_required": True,
     "memory_self_evolution_signal_enabled": False,
     "update_notice_enabled": False,
+    "auth_onboarding_seen": False,
     "google_auth_enabled": False,
     "openai_data_sharing_enabled": False,
 }
@@ -130,6 +131,7 @@ def validate_cli_config(config: Mapping[str, object]) -> dict[str, object]:
         "memory_local_to_cloud_approval_required",
         "memory_self_evolution_signal_enabled",
         "update_notice_enabled",
+        "auth_onboarding_seen",
         "google_auth_enabled",
         "openai_data_sharing_enabled",
     ):

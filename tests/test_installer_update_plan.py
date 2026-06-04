@@ -188,6 +188,19 @@ def test_install_update_status_keeps_latest_base_separate_from_trusted_digest() 
     assert report["trusted_install_script_sha256"] == TRUSTED_INSTALL_SCRIPT_SHA256
 
 
+def test_cli_install_status_does_not_require_ok_field(capsys) -> None:
+    _prepare_paths()
+    from yonerai_cli import cli
+
+    assert cli.main(["install", "status", "--json"]) == 0
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["latest_stable"]
+    assert output["quick_install_command"] == "irm https://install.yonerai.com | iex"
+    assert output["channel"] == "stable"
+    assert "Traceback" not in json.dumps(output)
+
+
 def test_cli_update_plan_rejects_empty_prerelease_identifier(tmp_path, capsys) -> None:
     _prepare_paths()
     from yonerai_cli import cli
