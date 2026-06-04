@@ -84,7 +84,7 @@ def handle_install_command(
         print_json(report)
     else:
         print(format_install_pretty(report, color=args.color))
-    return 0 if report["ok"] else 1
+    return 0 if report.get("ok", True) else 1
 
 
 def handle_update_command(
