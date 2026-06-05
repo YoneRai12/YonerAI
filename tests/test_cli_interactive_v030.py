@@ -975,6 +975,7 @@ def test_agent_console_palette_modes_permissions_and_mentions(tmp_path: Path) ->
     assert "コマンドパレット" in output
     assert "コンテキスト" in output
     assert "@file は未実装" in output
+    assert "秘匿済み要約" in output
     assert "cloud候補へ渡しません" in output
     assert "/モード" in output
     assert "/計画" in output
