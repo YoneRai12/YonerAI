@@ -43,6 +43,7 @@ def build_google_auth_status(
     auth_enabled = bool((config or {}).get("google_auth_enabled", False))
     configured = client_id_configured and bool(redirect_report["valid"])
     staging = _staging_auth_origin_report(source)
+    preferred_lang = _preferred_lang(config)
     return {
         "schema_version": GOOGLE_AUTH_SCHEMA_VERSION,
         "ok": True,
@@ -60,7 +61,7 @@ def build_google_auth_status(
         "flow": _google_flow_contract(redirect_report),
         "storage": _google_token_storage_contract(),
         "next_safe_command": (
-            "yonerai auth google login --staging --pretty --lang ja"
+            f"yonerai auth google login --staging --pretty --lang {preferred_lang}"
             if staging["configured"]
             else "yonerai auth google login --dry-run --pretty"
         ),
@@ -230,19 +231,29 @@ def build_privacy_status(config: Mapping[str, object] | None = None) -> dict[str
     }
 
 
-def validate_staging_redirect_location(location: str, expected_origin: str) -> dict[str, object]:
-    origin_report = _validate_staging_auth_origin(expected_origin)
+def validate_staging_redirect_location(
+    location: str,
+    expected_origin: str,
+    *,
+    env: Mapping[str, str | None] | None = None,
+) -> dict[str, object]:
+    source = os.environ if env is None else env
+    localhost_dev_allowed = _env_truthy(source.get(STAGING_AUTH_ALLOW_LOCALHOST_DEV_ENV))
+    origin_report = _validate_staging_auth_origin(expected_origin, localhost_dev_allowed=localhost_dev_allowed)
     if not origin_report["valid"]:
         return {"valid": False, "reason": "expected_origin_invalid", "location_printed": False}
     try:
         parsed = urlparse(location)
+        expected = urlparse(str(origin_report["origin"]))
+        parsed_port = parsed.port
+        expected_port = expected.port
     except ValueError:
         return {"valid": False, "reason": "redirect_location_invalid", "location_printed": False}
-    expected = urlparse(str(origin_report["origin"]))
+    expected_scheme = expected.scheme
     valid = (
-        parsed.scheme == "https"
+        parsed.scheme == expected_scheme
         and (parsed.hostname or "").lower() == (expected.hostname or "").lower()
-        and (parsed.port or 443) == (expected.port or 443)
+        and (parsed_port or _default_port(parsed.scheme)) == (expected_port or _default_port(expected_scheme))
         and not parsed.username
         and not parsed.password
     )
@@ -297,6 +308,7 @@ def _staging_auth_origin_report(env: Mapping[str, str | None]) -> dict[str, obje
 def _validate_staging_auth_origin(origin: str, *, localhost_dev_allowed: bool = False) -> dict[str, object]:
     try:
         parsed = urlparse(origin)
+        parsed_port = parsed.port
     except ValueError:
         return {"valid": False, "origin": "invalid_or_disallowed", "reason": "staging_origin_invalid"}
     host = (parsed.hostname or "").lower()
@@ -312,7 +324,7 @@ def _validate_staging_auth_origin(origin: str, *, localhost_dev_allowed: bool = 
         parsed.scheme == "https"
         and host in ALLOWED_STAGING_AUTH_HOSTS
         and not unsafe_components
-        and (parsed.port in {None, 443})
+        and (parsed_port in {None, 443})
         and (parsed.path in {"", "/"})
     )
     if not valid:
@@ -323,13 +335,13 @@ def _validate_staging_auth_origin(origin: str, *, localhost_dev_allowed: bool = 
             reason = "staging_origin_must_be_https"
         elif host not in ALLOWED_STAGING_AUTH_HOSTS:
             reason = "staging_origin_host_not_allowlisted"
-        elif parsed.port not in {None, 443}:
+        elif parsed_port not in {None, 443}:
             reason = "staging_origin_port_not_allowed"
         elif parsed.path not in {"", "/"}:
             reason = "staging_origin_path_not_allowed"
         return {"valid": False, "origin": "invalid_or_disallowed", "reason": reason}
     if localhost_dev:
-        port = f":{parsed.port}" if parsed.port else ""
+        port = f":{parsed_port}" if parsed_port else ""
         normalized = f"{parsed.scheme}://{host}{port}"
         return {"valid": True, "origin": normalized, "reason": None, "localhost_dev": True}
     normalized = f"https://{host}"
@@ -338,6 +350,19 @@ def _validate_staging_auth_origin(origin: str, *, localhost_dev_allowed: bool = 
 
 def _env_truthy(value: str | None) -> bool:
     return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _preferred_lang(config: Mapping[str, object] | None) -> str:
+    lang = str((config or {}).get("language") or "ja").strip().lower()
+    return lang if lang in {"ja", "en"} else "ja"
+
+
+def _default_port(scheme: str) -> int | None:
+    if scheme == "http":
+        return 80
+    if scheme == "https":
+        return 443
+    return None
 
 
 def _staging_auth_unconfigured_error() -> dict[str, str]:
