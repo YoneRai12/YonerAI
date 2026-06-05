@@ -40,6 +40,26 @@ def test_auth_status_is_contract_only_and_does_not_print_tokens(tmp_path: Path, 
     assert str(tmp_path) not in serialized
 
 
+def test_auth_status_uses_staging_without_local_google_client_id(tmp_path: Path, monkeypatch, capsys) -> None:
+    from yonerai_cli import cli
+
+    monkeypatch.setenv("YONERAI_CLI_CONFIG_PATH", str(tmp_path / "cli-config.json"))
+    monkeypatch.setenv("YONERAI_STAGING_AUTH_ORIGIN", "https://api-staging.yonerai.com")
+    monkeypatch.delenv("YONERAI_GOOGLE_OAUTH_CLIENT_ID", raising=False)
+
+    assert cli.main(["auth", "status", "--json"]) == 0
+    report = json.loads(capsys.readouterr().out)
+    serialized = json.dumps(report, sort_keys=True)
+
+    assert report["configured"] is False
+    assert report["staging_login_available"] is True
+    assert report["staging"]["origin"] == "https://api-staging.yonerai.com"
+    assert report["next_safe_command"] == "yonerai auth google login --staging --pretty --lang ja"
+    assert report["error"] is None
+    assert "YONERAI_GOOGLE_OAUTH_CLIENT_SECRET" not in serialized
+    assert str(tmp_path) not in serialized
+
+
 def test_google_login_dry_run_requires_client_configuration_without_traceback(tmp_path: Path, monkeypatch, capsys) -> None:
     from yonerai_cli import cli
 
@@ -76,6 +96,137 @@ def test_google_login_dry_run_accepts_loopback_pkce_contract(tmp_path: Path, mon
     assert report["flow"]["redirect_uri"].startswith("http://127.0.0.1:")
     assert report["storage"]["plain_text_token_storage_allowed"] is False
     assert "no live OAuth request" in report["actions_not_performed"]
+
+
+def test_google_login_staging_requires_configured_allowlisted_origin(tmp_path: Path, monkeypatch, capsys) -> None:
+    from yonerai_cli import cli
+
+    monkeypatch.setenv("YONERAI_CLI_CONFIG_PATH", str(tmp_path / "cli-config.json"))
+    monkeypatch.delenv("YONERAI_STAGING_AUTH_ORIGIN", raising=False)
+    monkeypatch.delenv("YONERAI_OFFICIAL_API_STAGING_ORIGIN", raising=False)
+
+    assert cli.main(["auth", "google", "login", "--staging", "--json"]) == 1
+    report = json.loads(capsys.readouterr().out)
+    serialized = json.dumps(report, sort_keys=True)
+
+    assert report["operation"] == "google_login_staging"
+    assert report["configured"] is False
+    assert report["production_login_enabled"] is False
+    assert report["token_exchange_performed"] is False
+    assert report["refresh_token_stored"] is False
+    assert report["client_secret_required"] is False
+    assert report["authorization_url"] is None
+    assert report["error"]["code"] == "staging_auth_origin_not_configured"
+    assert "YONERAI_GOOGLE_OAUTH_CLIENT_SECRET" not in serialized
+    assert str(tmp_path) not in serialized
+
+
+def test_google_login_staging_generates_public_safe_auth_url(tmp_path: Path, monkeypatch, capsys) -> None:
+    from yonerai_cli import cli
+
+    monkeypatch.setenv("YONERAI_CLI_CONFIG_PATH", str(tmp_path / "cli-config.json"))
+    monkeypatch.setenv("YONERAI_STAGING_AUTH_ORIGIN", "https://api-staging.yonerai.com")
+
+    assert cli.main(["auth", "google", "login", "--staging", "--json"]) == 0
+    report = json.loads(capsys.readouterr().out)
+    serialized = json.dumps(report, sort_keys=True)
+
+    assert report["operation"] == "google_login_staging"
+    assert report["configured"] is True
+    assert report["staging"]["origin"] == "https://api-staging.yonerai.com"
+    assert report["authorization_url"].startswith("https://api-staging.yonerai.com/v1/auth/google/start?")
+    assert "state=" in report["authorization_url"]
+    assert "device_session_id=" in report["authorization_url"]
+    assert "redirect_uri=http%3A%2F%2F127.0.0.1" in report["authorization_url"]
+    assert report["state_generated"] is True
+    assert report["state_printed_separately"] is False
+    assert report["browser_opened"] is False
+    assert report["live_oauth_started"] is False
+    assert report["client_secret_required"] is False
+    assert report["token_exchange_performed"] is False
+    assert report["refresh_token_stored"] is False
+    assert report["staging_api"]["network_fetch_default"] == "off"
+    assert report["staging_api"]["redirect_policy"] == "reject_unexpected_host"
+    assert any(endpoint["path"] == "/v1/account/me" for endpoint in report["staging_api"]["allowed_methods_and_paths"])
+    assert "YONERAI_GOOGLE_OAUTH_CLIENT_SECRET" not in serialized
+    assert "refresh_token" in serialized
+    assert str(tmp_path) not in serialized
+
+
+def test_google_login_staging_allows_explicit_loopback_dev_origin(tmp_path: Path, monkeypatch, capsys) -> None:
+    from yonerai_cli import cli
+
+    monkeypatch.setenv("YONERAI_CLI_CONFIG_PATH", str(tmp_path / "cli-config.json"))
+    monkeypatch.setenv("YONERAI_STAGING_AUTH_ORIGIN", "http://127.0.0.1:8787")
+    monkeypatch.setenv("YONERAI_STAGING_AUTH_ALLOW_LOCALHOST_DEV", "1")
+
+    assert cli.main(["auth", "google", "login", "--staging", "--json"]) == 0
+    report = json.loads(capsys.readouterr().out)
+    serialized = json.dumps(report, sort_keys=True)
+
+    assert report["configured"] is True
+    assert report["staging"]["origin"] == "http://127.0.0.1:8787"
+    assert report["staging"]["localhost_dev_allowed"] is True
+    assert report["authorization_url"].startswith("http://127.0.0.1:8787/v1/auth/google/start?")
+    assert report["production_login_enabled"] is False
+    assert report["token_exchange_performed"] is False
+    assert "YONERAI_GOOGLE_OAUTH_CLIENT_SECRET" not in serialized
+    assert str(tmp_path) not in serialized
+
+
+@pytest.mark.parametrize(
+    "origin",
+    [
+        "http://api-staging.yonerai.com",
+        "https://127.0.0.1",
+        "https://10.0.0.5",
+        "https://metadata.google.internal",
+        "https://api-staging.yonerai.com.evil.test",
+        "https://api-staging.yonerai.com/path",
+        "https://user:pass@api-staging.yonerai.com",
+    ],
+)
+def test_google_login_staging_rejects_disallowed_origins_without_echoing_value(
+    origin: str,
+    tmp_path: Path,
+    monkeypatch,
+    capsys,
+) -> None:
+    from yonerai_cli import cli
+
+    monkeypatch.setenv("YONERAI_CLI_CONFIG_PATH", str(tmp_path / "cli-config.json"))
+    monkeypatch.setenv("YONERAI_STAGING_AUTH_ORIGIN", origin)
+
+    assert cli.main(["auth", "google", "login", "--staging", "--json"]) == 1
+    report = json.loads(capsys.readouterr().out)
+    serialized = json.dumps(report, sort_keys=True)
+
+    assert report["configured"] is False
+    assert report["staging"]["origin"] == "invalid_or_disallowed"
+    assert report["authorization_url"] is None
+    assert report["token_exchange_performed"] is False
+    assert origin not in serialized
+    assert "user:pass" not in serialized
+    assert "10.0.0.5" not in serialized
+
+
+def test_google_staging_redirect_validation_rejects_unexpected_host() -> None:
+    from yonerai_cli.auth_policy import validate_staging_redirect_location
+
+    accepted = validate_staging_redirect_location(
+        "https://api-staging.yonerai.com/v1/auth/google/callback",
+        "https://api-staging.yonerai.com",
+    )
+    rejected = validate_staging_redirect_location(
+        "https://evil.test/v1/auth/google/callback",
+        "https://api-staging.yonerai.com",
+    )
+
+    assert accepted["valid"] is True
+    assert accepted["actual_host"] == "api-staging.yonerai.com"
+    assert rejected["valid"] is False
+    assert rejected["reason"] == "redirect_host_not_allowed"
+    assert rejected["actual_host"] == "redacted"
 
 
 def test_google_login_rejects_non_loopback_redirect(tmp_path: Path, monkeypatch, capsys) -> None:

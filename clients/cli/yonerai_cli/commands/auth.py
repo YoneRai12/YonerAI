@@ -3,7 +3,12 @@ from __future__ import annotations
 import argparse
 from typing import Any, Callable
 
-from yonerai_cli.auth_policy import build_google_auth_status, build_google_login_dry_run, build_privacy_status
+from yonerai_cli.auth_policy import (
+    build_google_auth_status,
+    build_google_login_dry_run,
+    build_google_login_staging,
+    build_privacy_status,
+)
 from yonerai_cli.config import ConfigError, load_cli_config
 from yonerai_cli.output import CliRow, CliSection, ColorMode, render_report
 
@@ -33,9 +38,15 @@ def add_auth_parser(
     auth_google = auth_subcommands.add_parser("google", help="Preview Google OAuth installed-app flow contracts.")
     auth_google_subcommands = auth_google.add_subparsers(dest="auth_google_command", required=True)
     auth_google_login = auth_google_subcommands.add_parser(
-        "login", help="Dry-run Google OAuth login contract. No live OAuth is started."
+        "login", help="Dry-run or staging Google OAuth login contract. Production OAuth is disabled."
     )
-    auth_google_login.add_argument("--dry-run", action="store_true", help="Required; do not open a browser or contact Google.")
+    mode_group = auth_google_login.add_mutually_exclusive_group()
+    mode_group.add_argument("--dry-run", action="store_true", help="Preview the installed-app OAuth contract only.")
+    mode_group.add_argument(
+        "--staging",
+        action="store_true",
+        help="Generate a staging YonerAI auth URL when an allowlisted staging origin is configured.",
+    )
     auth_google_login.add_argument("--config-path", help="Optional local CLI config path.")
     auth_google_login_output = auth_google_login.add_mutually_exclusive_group()
     auth_google_login_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
@@ -73,9 +84,12 @@ def handle_auth_command(args: argparse.Namespace, *, print_json: Callable[[dict[
     if args.auth_command == "status":
         report = build_google_auth_status(_load_config(args))
     elif args.auth_command == "google" and args.auth_google_command == "login":
-        if not args.dry_run:
-            raise AuthCommandError("auth google login requires --dry-run in the public repo.")
-        report = build_google_login_dry_run(_load_config(args))
+        if args.staging:
+            report = build_google_login_staging(_load_config(args))
+        elif args.dry_run:
+            report = build_google_login_dry_run(_load_config(args))
+        else:
+            raise AuthCommandError("auth google login requires --dry-run or --staging in the public repo.")
     else:
         raise AuthCommandError("unknown auth command")
 
@@ -101,15 +115,19 @@ def handle_privacy_command(args: argparse.Namespace, *, print_json: Callable[[di
 def format_auth_pretty(report: dict[str, Any], *, lang: str = "ja", color: ColorMode = "auto") -> str:
     flow = report.get("flow") if isinstance(report.get("flow"), dict) else {}
     storage = report.get("storage") if isinstance(report.get("storage"), dict) else {}
+    staging = report.get("staging") if isinstance(report.get("staging"), dict) else {}
+    staging_api = report.get("staging_api") if isinstance(report.get("staging_api"), dict) else {}
     error = report.get("error") if isinstance(report.get("error"), dict) else None
     if lang == "ja":
         title = "YonerAI 認証ステータス"
         flow_title = "Google OAuth 契約"
+        staging_title = "Staging Googleログイン"
         storage_title = "保存方針"
         boundary_title = "実行しないこと"
     else:
         title = "YonerAI auth status"
         flow_title = "Google OAuth contract"
+        staging_title = "Staging Google login"
         storage_title = "Storage policy"
         boundary_title = "Non-actions"
     flow_rows = (
@@ -135,6 +153,32 @@ def format_auth_pretty(report: dict[str, Any], *, lang: str = "ja", color: Color
         ),
         CliRow("token_printed", report.get("token_printed"), "fail" if report.get("token_printed") else "ok"),
     )
+    staging_available = bool(report.get("staging_login_available") or report.get("staging_login") or staging.get("configured"))
+    staging_rows = (
+        CliRow(
+            "staging_login_available",
+            staging_available,
+            "ok" if staging_available else "warn",
+        ),
+        CliRow("origin", staging.get("origin", "not_configured"), "ok" if staging.get("configured") else "warn"),
+        CliRow(
+            "authorization_url",
+            report.get("authorization_url", "not_started_or_not_configured"),
+            "ok" if report.get("authorization_url") else "warn",
+        ),
+        CliRow(
+            "client_secret_required",
+            report.get("client_secret_required", False),
+            "fail" if report.get("client_secret_required") else "ok",
+        ),
+        CliRow(
+            "token_exchange_performed",
+            report.get("token_exchange_performed", False),
+            "fail" if report.get("token_exchange_performed") else "ok",
+        ),
+        CliRow("account_sync_performed", False, "ok"),
+        CliRow("staging_contract_fixture_only", staging_api.get("fixture_only", True), "ok"),
+    )
     storage_rows = (
         CliRow("refresh_token_storage", storage.get("refresh_token_storage"), "ok"),
         CliRow(
@@ -147,6 +191,7 @@ def format_auth_pretty(report: dict[str, Any], *, lang: str = "ja", color: Color
     non_action_rows = tuple(CliRow(item, True, "ok") for item in report.get("actions_not_performed", []))
     sections = (
         CliSection(flow_title, flow_rows),
+        CliSection(staging_title, staging_rows),
         CliSection(storage_title, storage_rows),
         CliSection(boundary_title, non_action_rows),
     )

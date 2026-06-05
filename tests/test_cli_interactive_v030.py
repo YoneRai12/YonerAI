@@ -334,6 +334,29 @@ def test_cli_without_args_tty_runs_first_launch_language_selection(tmp_path: Pat
     assert str(tmp_path) not in output
 
 
+def test_first_launch_auth_onboarding_can_show_staging_contract(tmp_path: Path, monkeypatch, capsys) -> None:
+    from yonerai_cli import cli
+
+    config_path = tmp_path / "cli-config.json"
+    monkeypatch.setenv("YONERAI_CLI_CONFIG_PATH", str(config_path))
+    monkeypatch.setenv("YONERAI_STAGING_AUTH_ORIGIN", "https://api-staging.yonerai.com")
+    monkeypatch.setattr(sys, "stdin", _TTYStringIO("2\n2\n/quit\n"))
+
+    assert cli.main([]) == 0
+    output = capsys.readouterr().out
+    stored = json.loads(config_path.read_text(encoding="utf-8"))
+
+    assert "YonerAI account / auth" in output
+    assert "Use local only" in output
+    assert "Check Google login" in output
+    assert "Staging Google login" in output
+    assert "https://api-staging.yonerai.com/v1/auth/google/start?" in output
+    assert "token_exchange_performed" in output
+    assert stored["language"] == "en"
+    assert stored["auth_onboarding_seen"] is True
+    assert str(tmp_path) not in output
+
+
 def test_chat_script_runs_ask_auto_and_persists_language_without_path_leak(tmp_path: Path, monkeypatch, capsys) -> None:
     from yonerai_cli import cli
 
@@ -418,6 +441,29 @@ def test_chat_accepts_english_commands_while_showing_japanese_ui(tmp_path: Path,
     assert "提供元（AI接続元）=モック（テスト用）" in output
     assert "Network" not in output
     assert "Changed setting" not in output
+    assert str(tmp_path) not in output
+
+
+def test_chat_auth_screen_shows_staging_and_sync_boundaries(tmp_path: Path, monkeypatch, capsys) -> None:
+    from yonerai_cli import cli
+
+    _clear_provider_env(monkeypatch)
+    config_path = tmp_path / "cli-config.json"
+    monkeypatch.setenv("YONERAI_STAGING_AUTH_ORIGIN", "https://api-staging.yonerai.com")
+    monkeypatch.setattr(sys, "stdin", _PlainStringIO("/auth\n/sync\n/privacy\n/quit\n"))
+
+    assert cli.main(["chat", "--script", "--lang", "en", "--config-path", str(config_path), "--color", "never"]) == 0
+    output = capsys.readouterr().out
+
+    assert "Auth" in output
+    assert "staging_login: available" in output
+    assert "staging_origin: https://api-staging.yonerai.com" in output
+    assert "account_sync: off" in output
+    assert "local_private_upload: disabled" in output
+    assert "local_to_cloud_enabled_by_default: False" in output
+    assert "local_to_cloud_requires_approval: True" in output
+    assert "private_content_exclusion_active: True" in output
+    assert "openai_shared_traffic_enabled: False" in output
     assert str(tmp_path) not in output
 
 
