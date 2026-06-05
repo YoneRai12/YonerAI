@@ -14,10 +14,10 @@ class CommandPaletteCategory:
 
 
 COMMAND_PALETTE_CATEGORIES: tuple[CommandPaletteCategory, ...] = (
-    CommandPaletteCategory("ホーム", "Home", ("/status", "/palette", "/help", "/quit")),
+    CommandPaletteCategory("ホーム", "Home", ("/status", "/palette", "/composer", "/help", "/quit")),
     CommandPaletteCategory("設定", "Settings", ("/settings", "/models", "/providers", "/mode", "/permissions")),
     CommandPaletteCategory("安全", "Safety", ("/safety", "/policy", "/file-access", "/network", "/live-provider")),
-    CommandPaletteCategory("作業", "Work", ("/plan", "/review", "/tasks", "/agents", "/context")),
+    CommandPaletteCategory("作業", "Work", ("/plan", "/review", "/progress", "/tasks", "/agents", "/context")),
     CommandPaletteCategory("履歴と記憶", "History and memory", ("/runs", "/show", "/memory", "/ledger")),
     CommandPaletteCategory("公式境界", "Official boundary", ("/auth", "/api", "/sync", "/privacy", "/evolve", "/update")),
 )
@@ -30,6 +30,9 @@ def format_command_palette(lang: str) -> str:
             "  / を入力すると候補が出ます。Tab/矢印が使えない端末では、この一覧と /選択 を使います。",
             "  日本語コマンドを優先表示します。英語の互換コマンドも入力できます。",
             "  参照は @planner / @reviewer / @researcher と、/コンテキスト の公開安全な候補だけです。",
+            "  検索: / の後に文字を続けると候補を絞ります。長い一覧はカテゴリごとに見ます。",
+            "  番号fallback: /設定 で番号を確認し、/選択 <番号> <値> で変更します。",
+            "  ページ: 端末が狭い場合はカテゴリ単位でスクロールしてください。",
             "",
         ]
     else:
@@ -38,6 +41,9 @@ def format_command_palette(lang: str) -> str:
             "  Type / for suggestions. If Tab/arrows are unavailable, use this list and /select numbered fallback.",
             "  English aliases remain available. Japanese mode shows Japanese commands first.",
             "  Context references are limited to public-safe @planner/@reviewer/@researcher and /context guidance.",
+            "  Search: keep typing after / to filter candidates. Long lists are grouped by category.",
+            "  Numbered fallback: use /settings to inspect numbers, then /select <number> <value>.",
+            "  Paging: scroll by category on narrow terminals.",
             "",
         ]
     specs = _spec_by_canonical()
