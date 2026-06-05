@@ -1610,6 +1610,13 @@ def test_slash_command_summary_is_japanese_first() -> None:
     assert report["context_screen"] is True
 
 
+def test_command_palette_pads_japanese_commands_by_display_width() -> None:
+    from yonerai_cli.tui.palette import _pad_display_width
+
+    assert _pad_display_width("/設定", 14) == "/設定" + (" " * 9)
+    assert _pad_display_width("/live-provider", 14) == "/live-provider "
+
+
 def test_slash_value_completion_is_context_aware_and_japanese_first() -> None:
     from yonerai_cli.tui import slash_command_value_group, slash_value_meta, slash_value_words
 

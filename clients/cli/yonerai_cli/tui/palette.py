@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import unicodedata
 
 from yonerai_cli.tui.keymap import JAPANESE_SLASH_ALIASES, SLASH_COMMANDS, SlashCommandSpec
 
@@ -77,6 +78,17 @@ def _format_palette_command(spec: SlashCommandSpec, *, lang: str) -> str:
     if lang == "ja":
         aliases = [alias for alias in JAPANESE_SLASH_ALIASES.get(spec.canonical, ()) if alias != spec.command]
         alias_text = f"  別名: {', '.join(aliases)}" if aliases else ""
-        return f"  {spec.command:<12} {spec.description_ja}{alias_text}"
+        return f"  {_pad_display_width(spec.command, 14)} {spec.description_ja}{alias_text}"
     primary = spec.aliases[0] if spec.aliases else spec.command
     return f"  {primary:<16} {spec.description_en}"
+
+
+def _pad_display_width(value: str, width: int) -> str:
+    display_width = sum(_char_display_width(ch) for ch in value)
+    return value + (" " * max(width - display_width, 1))
+
+
+def _char_display_width(ch: str) -> int:
+    if unicodedata.combining(ch):
+        return 0
+    return 2 if unicodedata.east_asian_width(ch) in {"F", "W"} else 1
