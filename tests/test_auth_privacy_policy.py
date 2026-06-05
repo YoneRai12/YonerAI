@@ -188,6 +188,23 @@ def test_google_login_staging_allows_explicit_loopback_dev_origin(tmp_path: Path
     assert str(tmp_path) not in serialized
 
 
+def test_google_login_staging_preserves_ipv6_loopback_dev_brackets(tmp_path: Path, monkeypatch, capsys) -> None:
+    from yonerai_cli import cli
+
+    monkeypatch.setenv("YONERAI_CLI_CONFIG_PATH", str(tmp_path / "cli-config.json"))
+    monkeypatch.setenv("YONERAI_STAGING_AUTH_ORIGIN", "http://[::1]:8787")
+    monkeypatch.setenv("YONERAI_STAGING_AUTH_ALLOW_LOCALHOST_DEV", "1")
+
+    assert cli.main(["auth", "google", "login", "--staging", "--json"]) == 0
+    report = json.loads(capsys.readouterr().out)
+    serialized = json.dumps(report, sort_keys=True)
+
+    assert report["staging"]["origin"] == "http://[::1]:8787"
+    assert report["authorization_url"].startswith("http://[::1]:8787/v1/auth/google/start?")
+    assert "http://::1:8787" not in serialized
+    assert str(tmp_path) not in serialized
+
+
 @pytest.mark.parametrize(
     "origin",
     [
@@ -307,6 +324,19 @@ def test_google_staging_redirect_validation_accepts_explicit_localhost_dev() -> 
     assert accepted["actual_host"] == "127.0.0.1"
     assert rejected["valid"] is False
     assert rejected["actual_host"] == "redacted"
+
+
+def test_google_staging_redirect_validation_accepts_ipv6_loopback_dev() -> None:
+    from yonerai_cli.auth_policy import validate_staging_redirect_location
+
+    accepted = validate_staging_redirect_location(
+        "http://[::1]:8787/v1/auth/google/callback",
+        "http://[::1]:8787",
+        env={"YONERAI_STAGING_AUTH_ALLOW_LOCALHOST_DEV": "1"},
+    )
+
+    assert accepted["valid"] is True
+    assert accepted["actual_host"] == "::1"
 
 
 def test_google_login_requires_staging_or_dry_run_flag(tmp_path: Path, monkeypatch, capsys) -> None:

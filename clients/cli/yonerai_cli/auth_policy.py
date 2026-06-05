@@ -351,7 +351,7 @@ def _validate_staging_auth_origin(origin: str, *, localhost_dev_allowed: bool = 
         return {"valid": False, "origin": "invalid_or_disallowed", "reason": reason}
     if localhost_dev:
         port = f":{parsed_port}" if parsed_port else ""
-        normalized = f"{parsed.scheme}://{host}{port}"
+        normalized = f"{parsed.scheme}://{_url_host(host)}{port}"
         return {"valid": True, "origin": normalized, "reason": None, "localhost_dev": True}
     normalized = f"https://{host}"
     return {"valid": True, "origin": normalized, "reason": None}
@@ -372,6 +372,10 @@ def _default_port(scheme: str) -> int | None:
     if scheme == "https":
         return 443
     return None
+
+
+def _url_host(host: str) -> str:
+    return f"[{host}]" if ":" in host and not host.startswith("[") else host
 
 
 def _staging_auth_unconfigured_error() -> dict[str, str]:
