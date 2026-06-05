@@ -18,7 +18,7 @@ from yonerai_cli.screens.runs import (
     _progress_summary_label,
     _run_progress_events,
 )
-from yonerai_cli.tui import slash_command_summary
+from yonerai_cli.tui.palette import format_command_palette
 
 
 def _format_chat_response(report: dict[str, Any], *, lang: str) -> str:
@@ -197,27 +197,7 @@ def _agent_role_label(value: object, *, lang: str) -> str:
 
 
 def _format_command_palette(lang: str) -> str:
-    if lang == "ja":
-        return "\n".join(
-            (
-                "コマンドパレット",
-                "  / を入力すると候補を表示します。Tab/矢印が使えない端末では、この一覧と /選択 の番号入力を使います。",
-                "  日本語コマンドを優先表示します。/settings などの英語aliasも互換用に使えます。",
-                "",
-                slash_command_summary(lang).rstrip(),
-                "",
-            )
-        )
-    return "\n".join(
-        (
-            "Command palette",
-            "  Type / to show suggestions. If Tab/arrows are unavailable, use this list and /select numbered fallback.",
-            "  English aliases remain available; Japanese mode shows Japanese commands first.",
-            "",
-            slash_command_summary(lang).rstrip(),
-            "",
-        )
-    )
+    return format_command_palette(lang)
 
 
 def _format_mode_state(config: dict[str, object], *, lang: str) -> str:

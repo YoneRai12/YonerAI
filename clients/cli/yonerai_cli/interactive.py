@@ -33,6 +33,7 @@ from yonerai_cli.screens.auth_privacy import (
     _format_auth_status,
     _format_privacy_status,
 )
+from yonerai_cli.screens.context import format_context_screen
 from yonerai_cli.screens.evolve import (
     _format_evolve_status,
     _format_evolve_unavailable,
@@ -483,6 +484,9 @@ def _handle_slash_command(
         return {}
     if command == "/agents":
         _write(output_stream, _format_agents(last_report, lang=lang))
+        return {}
+    if command == "/context":
+        _write(output_stream, format_context_screen(lang=lang))
         return {}
     if command == "/mode":
         if args:
@@ -1091,6 +1095,7 @@ def _help(lang: str) -> str:
                 "  /ポリシー             提供元・権限・更新・記憶の方針を見る",
                 "  /タスク               現在/最近のタスク進行を見る",
                 "  /エージェント         計画中の担当（計画担当・レビュー担当など）を見る",
+                "  /コンテキスト         参照できる文脈と禁止境界を見る",
                 "  /履歴                 実行履歴を見る",
                 "  /表示 <実行ID>        1件の実行を見る",
                 "  /ローカルLLM          PC内モデルの接続方法を見る",
@@ -1129,6 +1134,7 @@ def _help(lang: str) -> str:
             "  /policy          Show runtime policy state",
             "  /tasks           Show current/recent task progress",
             "  /agents          Show planned agent/reviewer roles",
+            "  /context         Show safe context references",
             "  /runs            Show run history",
             "  /show <run_id>   Show one run",
             "  /local-llm       Show local LLM loopback setup",

@@ -37,6 +37,7 @@ EXPECTED_MODULES = (
     "yonerai_cli.screens.agent_console",
     "yonerai_cli.screens.ask",
     "yonerai_cli.screens.auth_privacy",
+    "yonerai_cli.screens.context",
     "yonerai_cli.screens.diagnostics",
     "yonerai_cli.screens.evolve",
     "yonerai_cli.screens.home",

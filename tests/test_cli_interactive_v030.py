@@ -953,6 +953,7 @@ def test_agent_console_palette_modes_permissions_and_mentions(tmp_path: Path) ->
         stdin=_PlainStringIO(
             "/\n"
             "/コマンド\n"
+            "/コンテキスト\n"
             "/モード レビュー\n"
             "/計画\n"
             "/レビュー\n"
@@ -972,6 +973,10 @@ def test_agent_console_palette_modes_permissions_and_mentions(tmp_path: Path) ->
 
     assert rc == 0
     assert "コマンドパレット" in output
+    assert "コンテキスト" in output
+    assert "@file は未実装" in output
+    assert "秘匿済み要約" in output
+    assert "cloud候補へ渡しません" in output
     assert "/モード" in output
     assert "/計画" in output
     assert "/レビュー" in output
@@ -1534,7 +1539,7 @@ def test_slash_command_summary_is_japanese_first() -> None:
     summary = slash_command_summary("ja")
     report = tui_capability_report()
 
-    assert words[:12] == [
+    assert words[:13] == [
         "/状態",
         "/設定",
         "/コマンド",
@@ -1546,9 +1551,10 @@ def test_slash_command_summary_is_japanese_first() -> None:
         "/表示",
         "/タスク",
         "/エージェント",
+        "/コンテキスト",
         "/モード",
     ]
-    assert words[12:16] == [
+    assert words[13:17] == [
         "/計画",
         "/レビュー",
         "/権限",
@@ -1564,6 +1570,8 @@ def test_slash_command_summary_is_japanese_first() -> None:
     assert "/同期" in summary
     assert "/プライバシー" in summary
     assert "/コマンド" in summary
+    assert "/コンテキスト" in summary
+    assert "/参照" in words
     assert "/モード" in summary
     assert "/計画" in summary
     assert "/レビュー" in summary
@@ -1596,9 +1604,18 @@ def test_slash_command_summary_is_japanese_first() -> None:
     assert "/provider" not in words
     assert report["plain_fallback"] is True
     assert report["json_ansi_output"] is False
+    assert report["command_palette_categories"] is True
     assert report["japanese_alias_completion"] is True
     assert report["japanese_value_completion"] is True
     assert report["status_screen"] is True
+    assert report["context_screen"] is True
+
+
+def test_command_palette_pads_japanese_commands_by_display_width() -> None:
+    from yonerai_cli.tui.palette import _pad_display_width
+
+    assert _pad_display_width("/設定", 14) == "/設定" + (" " * 9)
+    assert _pad_display_width("/live-provider", 14) == "/live-provider "
 
 
 def test_slash_value_completion_is_context_aware_and_japanese_first() -> None:
