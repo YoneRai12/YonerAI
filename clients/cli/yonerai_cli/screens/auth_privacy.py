@@ -8,6 +8,7 @@ def _format_auth_status(config: dict[str, object], *, lang: str) -> str:
     report = build_google_auth_status(config)
     flow = report.get("flow") if isinstance(report.get("flow"), dict) else {}
     storage = report.get("storage") if isinstance(report.get("storage"), dict) else {}
+    staging = report.get("staging") if isinstance(report.get("staging"), dict) else {}
     error = report.get("error") if isinstance(report.get("error"), dict) else {}
     actions = report.get("actions_not_performed") if isinstance(report.get("actions_not_performed"), list) else []
     if lang == "ja":
@@ -20,7 +21,11 @@ def _format_auth_status(config: dict[str, object], *, lang: str) -> str:
             f"  state必須: {_yes_no(flow.get('state_required'), lang='ja')}",
             f"  embedded webview: {'禁止' if not flow.get('embedded_webview_allowed') else '許可'}",
             f"  token保存: {_safe(storage.get('refresh_token_storage') or 'disabled_by_default')}",
-            "  次に試す: yonerai auth google login --dry-run --pretty --lang ja",
+            f"  stagingログイン: {'利用可能' if staging.get('configured') else '未設定'}",
+            f"  staging origin: {_safe(staging.get('origin') or 'not_configured')}",
+            "  account sync: オフ。cloud -> local は選択/認証後のpreviewのみ、local -> cloud は既定で無効です",
+            "  local/private upload: 無効。private file / local memory / local node payload は送信しません",
+            f"  次に試す: {_safe(report.get('next_safe_command') or 'yonerai auth google login --dry-run --pretty --lang ja')}",
         ]
         if error:
             lines.append(f"  補足: {_safe(error.get('message') or error.get('code'))}")
@@ -38,7 +43,11 @@ def _format_auth_status(config: dict[str, object], *, lang: str) -> str:
             f"  pkce_required: {bool(flow.get('pkce_required'))}",
             f"  state_required: {bool(flow.get('state_required'))}",
             f"  token_storage: {_safe(storage.get('refresh_token_storage') or 'disabled_by_default')}",
-            "  next: yonerai auth google login --dry-run --pretty",
+            f"  staging_login: {'available' if staging.get('configured') else 'not configured'}",
+            f"  staging_origin: {_safe(staging.get('origin') or 'not_configured')}",
+            "  account_sync: off; cloud-to-local is preview-only after selection/auth, local-to-cloud is disabled by default",
+            "  local_private_upload: disabled; private files, local memory, and local node payloads are excluded",
+            f"  next: {_safe(report.get('next_safe_command') or 'yonerai auth google login --dry-run --pretty')}",
             "  actions_not_performed: " + ", ".join(_safe(action) for action in actions[:8]),
             "",
         )
