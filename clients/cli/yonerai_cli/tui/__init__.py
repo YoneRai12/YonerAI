@@ -14,7 +14,7 @@ from yonerai_cli.tui.keymap import (
     slash_value_meta,
     slash_value_words,
 )
-from yonerai_cli.tui.palette import slash_command_summary
+from yonerai_cli.tui.palette import format_command_palette, slash_command_summary
 from yonerai_cli.tui.renderer import (
     prompt_line,
     prompt_toolkit_available,
@@ -37,6 +37,7 @@ __all__ = [
     "render_panel",
     "rich_available",
     "run_with_status",
+    "format_command_palette",
     "slash_command_meta",
     "slash_command_summary",
     "slash_command_value_group",
