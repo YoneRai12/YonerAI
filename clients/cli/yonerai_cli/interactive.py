@@ -33,6 +33,7 @@ from yonerai_cli.screens.auth_privacy import (
     _format_auth_status,
     _format_privacy_status,
 )
+from yonerai_cli.screens.composer import format_input_composer
 from yonerai_cli.screens.context import format_context_screen
 from yonerai_cli.screens.evolve import (
     _format_evolve_status,
@@ -65,6 +66,7 @@ from yonerai_cli.screens.providers import (
     _format_models,
     _format_providers,
 )
+from yonerai_cli.screens.progress import format_running_preview, format_thinking_status
 from yonerai_cli.screens.home import _welcome
 from yonerai_cli.screens.safety import _format_safety
 from yonerai_cli.screens.update import (
@@ -395,6 +397,17 @@ def _handle_slash_command(
     if command == "/palette":
         _write(output_stream, _format_command_palette(lang))
         return {}
+    if command == "/composer":
+        _write(
+            output_stream,
+            format_input_composer(
+                lang=lang,
+                config=config,
+                provider=provider,
+                live=_effective_live(live, config),
+            ),
+        )
+        return {}
     if command == "/settings":
         provider_report = callbacks.providers()
         category = _settings_category_from_args(args)
@@ -478,6 +491,20 @@ def _handle_slash_command(
         return {}
     if command == "/tasks":
         _write(output_stream, _format_tasks(last_report, callbacks.runs_list(ledger_path, 5, lang), lang=lang))
+        return {}
+    if command == "/progress":
+        if last_report is not None:
+            _write(output_stream, format_running_preview(last_report, lang=lang))
+        else:
+            _write(
+                output_stream,
+                format_thinking_status(
+                    lang=lang,
+                    provider=provider,
+                    live=_effective_live(live, config),
+                    memory_enabled=bool(config.get("memory_enabled")),
+                ),
+            )
         return {}
     if command == "/show" and args:
         _write(output_stream, _format_run(callbacks.runs_show(args[0], ledger_path, lang), lang=lang))
@@ -1084,6 +1111,7 @@ def _help(lang: str) -> str:
                 "  /状態                 状態ヘッダーをもう一度表示する",
                 "  /ホーム               状態ヘッダーをもう一度表示する",
                 "  /コマンド             コマンドパレットを表示する",
+                "  /入力                 入力欄と補完の使い方を見る",
                 "  /設定                 設定を見る",
                 "  /モード 計画|安全実行|レビュー|記憶",
                 "  /計画                 読み取り専用の計画モードにする",
@@ -1093,6 +1121,7 @@ def _help(lang: str) -> str:
                 "  /提供元               提供元（AI接続元）を見る",
                 "  /安全                 安全境界を見る",
                 "  /ポリシー             提供元・権限・更新・記憶の方針を見る",
+                "  /進行                 実行前後の進行表示を見る",
                 "  /タスク               現在/最近のタスク進行を見る",
                 "  /エージェント         計画中の担当（計画担当・レビュー担当など）を見る",
                 "  /コンテキスト         参照できる文脈と禁止境界を見る",
@@ -1123,6 +1152,7 @@ def _help(lang: str) -> str:
             "  /status          Show the Mission Control status header again",
             "  /home            Show the Mission Control status header again",
             "  /palette         Show command palette",
+            "  /composer        Show input composer and completion help",
             "  /settings        Show settings",
             "  /mode plan|build|review|memory Change agent mode",
             "  /plan            Switch to read-only planning mode",
@@ -1132,6 +1162,7 @@ def _help(lang: str) -> str:
             "  /providers       Show provider status",
             "  /safety          Show safety boundaries",
             "  /policy          Show runtime policy state",
+            "  /progress        Show progress panel",
             "  /tasks           Show current/recent task progress",
             "  /agents          Show planned agent/reviewer roles",
             "  /context         Show safe context references",

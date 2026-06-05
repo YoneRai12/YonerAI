@@ -295,6 +295,8 @@ def _format_agent_mention_preview(text: str, *, config: dict[str, object], lang:
         "planner": "planner",
         "researcher": "researcher",
         "reviewer": "reviewer",
+        "implementer": "implementer",
+        "tester": "tester",
     }
     role = role_aliases.get(raw_role)
     if role is None:

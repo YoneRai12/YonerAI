@@ -110,7 +110,7 @@ def _welcome(
                 f"  ポリシー: {policy_line}",
                 "  認証/同期/プライバシー: Google OAuthドライランのみ / local->cloud自動同期なし / 共有トラフィックオフ",
                 "  自己進化: proposal-only / 合成signalだけ / 自動PR・deployなし",
-                "使う: そのまま質問を書く / / で候補表示 / /コマンド / /設定 / /モード / /計画 / /レビュー / /権限 / /モデル / /提供元 / /安全 / /ポリシー / /履歴 / /認証 / /同期 / /自己進化 / /更新",
+                "使う: そのまま質問を書く / / で候補表示 / /入力 / /コマンド / /設定 / /モード / /計画 / /レビュー / /権限 / /モデル / /提供元 / /安全 / /ポリシー / /進行 / /履歴 / /認証 / /同期 / /自己進化 / /更新",
                 "設定を変える: /選択 <番号> <値>",
                 "",
             )
@@ -124,7 +124,7 @@ def _welcome(
             f"Policy: {policy_line}",
             "Auth/sync/privacy: Google OAuth dry-run only / no automatic local-to-cloud sync / shared traffic off",
             "Self-evolution: proposal-only, synthetic signals only, no PR/deploy/mutation",
-            "Use: type a message, / for suggestions, /palette, /settings, /mode, /plan, /review, /permissions, /models, /providers, /safety, /policy, /runs, /auth, /sync, /evolve, /update",
+            "Use: type a message, / for suggestions, /composer, /palette, /settings, /mode, /plan, /review, /permissions, /models, /providers, /safety, /policy, /progress, /runs, /auth, /sync, /evolve, /update",
             "",
         )
     )

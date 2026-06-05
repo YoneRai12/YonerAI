@@ -8,6 +8,8 @@ ColorMode = Literal["auto", "never", "always"]
 ESC = chr(27)
 RESET = f"{ESC}[0m"
 SUBTITLE = "CLI • build / sync / evolve"
+COMPACT_YONERAI = "YonerAI"
+FULL_LOGO_MIN_WIDTH = 132
 
 ASCII_YONERAI = r"""
 ██╗   ██╗ ██████╗ ███╗   ██╗███████╗██████╗  █████╗ ██╗
@@ -30,8 +32,10 @@ def render_startup_home_header(
     subtitle_palette = ["#8BE9FD", "#67F3B0"]
     terminal_width = width or get_terminal_size((120, 30)).columns
 
-    title = center_block(ASCII_YONERAI, width=terminal_width)
-    divider = center_block("─" * 40, width=terminal_width)
+    title_source = COMPACT_YONERAI if terminal_width < FULL_LOGO_MIN_WIDTH else ASCII_YONERAI
+    divider_width = 24 if title_source == COMPACT_YONERAI else 40
+    title = center_block(title_source, width=terminal_width)
+    divider = center_block("─" * divider_width, width=terminal_width)
     subtitle = center_block(SUBTITLE, width=terminal_width)
 
     if not _color_enabled(color, stream=stream):

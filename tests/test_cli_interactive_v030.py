@@ -953,7 +953,9 @@ def test_agent_console_palette_modes_permissions_and_mentions(tmp_path: Path) ->
         stdin=_PlainStringIO(
             "/\n"
             "/コマンド\n"
+            "/入力\n"
             "/コンテキスト\n"
+            "/進行\n"
             "/モード レビュー\n"
             "/計画\n"
             "/レビュー\n"
@@ -965,6 +967,8 @@ def test_agent_console_palette_modes_permissions_and_mentions(tmp_path: Path) ->
             "/permissions ask-before-risky\n"
             "@planner 公開リリースの計画\n"
             "@reviewer 安全境界を確認\n"
+            "@implementer 実装候補を整理\n"
+            "@tester テスト観点を整理\n"
             "/終了\n"
         ),
         stdout=stdout,
@@ -973,10 +977,19 @@ def test_agent_console_palette_modes_permissions_and_mentions(tmp_path: Path) ->
 
     assert rc == 0
     assert "コマンドパレット" in output
+    assert "検索" in output
+    assert "番号fallback" in output
+    assert "入力欄" in output
+    assert "Enterで送信" in output
     assert "コンテキスト" in output
     assert "@file は未実装" in output
+    assert "@implementer" in output
+    assert "@tester" in output
     assert "秘匿済み要約" in output
     assert "cloud候補へ渡しません" in output
+    assert "進行表示" in output
+    assert "経路選択" in output
+    assert "提供元選択" in output
     assert "/モード" in output
     assert "/計画" in output
     assert "/レビュー" in output
@@ -990,6 +1003,8 @@ def test_agent_console_palette_modes_permissions_and_mentions(tmp_path: Path) ->
     assert "サブエージェント計画" in output
     assert "@planner" in output
     assert "@reviewer" in output
+    assert "実装担当" in output
+    assert "テスト担当" in output
     assert "実サブエージェント起動: なし" in output
     assert asked == []
     assert "値が正しくありません" not in output
@@ -1225,7 +1240,12 @@ def test_plan_review_commands_preview_task_without_execution(tmp_path: Path) -> 
         InteractiveOptions(config_path=str(tmp_path / "cli-config.json"), lang="en", script=True, color="never"),
         InteractiveCallbacks(providers=providers, ask_auto=ask_auto, runs_list=runs_list, runs_show=runs_show),
         stdin=_PlainStringIO(
-            "/plan draft release gate\n/review inspect safety boundary\n@researcher gather public docs\n/quit\n"
+            "/plan draft release gate\n"
+            "/review inspect safety boundary\n"
+            "@researcher gather public docs\n"
+            "@implementer draft safe patch\n"
+            "@tester verify public smoke\n"
+            "/quit\n"
         ),
         stdout=stdout,
     )
@@ -1239,6 +1259,10 @@ def test_plan_review_commands_preview_task_without_execution(tmp_path: Path) -> 
     assert "request_summary: inspect safety boundary" in output
     assert "mention: @researcher / researcher" in output
     assert "request_summary: gather public docs" in output
+    assert "mention: @implementer / implementer" in output
+    assert "request_summary: draft safe patch" in output
+    assert "mention: @tester / tester" in output
+    assert "request_summary: verify public smoke" in output
     assert str(tmp_path) not in output
 
 
@@ -1539,22 +1563,24 @@ def test_slash_command_summary_is_japanese_first() -> None:
     summary = slash_command_summary("ja")
     report = tui_capability_report()
 
-    assert words[:13] == [
+    assert words[:15] == [
         "/状態",
         "/設定",
         "/コマンド",
+        "/入力",
         "/モデル",
         "/提供元",
         "/安全",
         "/ポリシー",
         "/履歴",
         "/表示",
+        "/進行",
         "/タスク",
         "/エージェント",
         "/コンテキスト",
         "/モード",
     ]
-    assert words[13:17] == [
+    assert words[15:19] == [
         "/計画",
         "/レビュー",
         "/権限",
@@ -1570,6 +1596,7 @@ def test_slash_command_summary_is_japanese_first() -> None:
     assert "/同期" in summary
     assert "/プライバシー" in summary
     assert "/コマンド" in summary
+    assert "/入力" in summary
     assert "/コンテキスト" in summary
     assert "/参照" in words
     assert "/モード" in summary
@@ -1583,10 +1610,12 @@ def test_slash_command_summary_is_japanese_first() -> None:
     assert "/メモリ" in words
     assert "/memory" not in words
     assert "/更新" in summary
+    assert "/進行" in summary
     assert "/設定" in words
     assert "/状態" in words
     assert "/ホーム" in words
     assert "/パレット" in words
+    assert "/入力欄" in words
     assert words.count("/状態") == 1
     assert words.count("/ホーム") == 1
     assert "/提供元" in words
@@ -1601,6 +1630,7 @@ def test_slash_command_summary_is_japanese_first() -> None:
     assert "/settings" not in words
     assert "/settings" not in summary
     assert "/palette" not in words
+    assert "/composer" not in words
     assert "/provider" not in words
     assert report["plain_fallback"] is True
     assert report["json_ansi_output"] is False
@@ -1660,6 +1690,32 @@ def test_slash_value_completion_is_context_aware_and_japanese_first() -> None:
         "disabled",
         "無効",
     ]
+
+
+def test_codelevel_tui_audit_records_source_files_without_vendoring() -> None:
+    audit = REPO_ROOT / "docs" / "competitive" / "CODEX_OPENCODE_CODELEVEL_TUI_AUDIT.md"
+    text = audit.read_text(encoding="utf-8")
+
+    assert "1d9c9c9f33735223cc564ec942001c9141a11eb1" in text
+    assert "0a364330627e95aa723ff70959467ca62b13bf5b" in text
+    assert "codex-rs/tui/src/app.rs" in text
+    assert "codex-rs/tui/src/bottom_pane/chat_composer.rs" in text
+    assert "codex-rs/tui/src/bottom_pane/scroll_state.rs" in text
+    assert "packages/opencode/src/cli/cmd/tui/thread.ts" in text
+    assert "packages/opencode/src/permission/index.ts" in text
+    assert "packages/opencode/src/acp/permission.ts" in text
+    assert "does not vendor" in text or "does not vendor, copy, or relicense external code" in text
+    assert "No arbitrary `@file` loading" in text
+
+
+def test_startup_home_header_uses_compact_logo_on_narrow_terminals() -> None:
+    from yonerai_cli.startup_home import render_startup_home_header
+
+    rendered = render_startup_home_header(color="never", width=80)
+
+    assert "YonerAI" in rendered
+    assert "CLI • build / sync / evolve" in rendered
+    assert "██████" not in rendered
 
 
 def test_prompt_completer_switches_to_value_candidates_when_available() -> None:
