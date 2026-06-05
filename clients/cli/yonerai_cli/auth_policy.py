@@ -43,7 +43,14 @@ def build_google_auth_status(
     auth_enabled = bool((config or {}).get("google_auth_enabled", False))
     configured = client_id_configured and bool(redirect_report["valid"])
     staging = _staging_auth_origin_report(source)
+    staging_ready = bool(staging["configured"]) and bool(redirect_report["valid"])
     preferred_lang = _preferred_lang(config)
+    error = None
+    if not (configured or staging_ready):
+        error = _google_auth_unconfigured_error(
+            client_id_configured or bool(staging["configured"]),
+            redirect_report,
+        )
     return {
         "schema_version": GOOGLE_AUTH_SCHEMA_VERSION,
         "ok": True,
@@ -62,11 +69,11 @@ def build_google_auth_status(
         "storage": _google_token_storage_contract(),
         "next_safe_command": (
             f"yonerai auth google login --staging --pretty --lang {preferred_lang}"
-            if staging["configured"]
+            if staging_ready
             else "yonerai auth google login --dry-run --pretty"
         ),
         "actions_not_performed": _google_auth_non_actions(),
-        "error": None if configured or staging["configured"] else _google_auth_unconfigured_error(client_id_configured, redirect_report),
+        "error": error,
     }
 
 
@@ -116,7 +123,8 @@ def build_google_login_staging(
     source = os.environ if env is None else env
     status = build_google_auth_status(config, env=source)
     staging = status["staging"] if isinstance(status.get("staging"), dict) else {}
-    configured = bool(staging.get("configured"))
+    redirect_valid = bool(status["flow"]["redirect_valid"])
+    configured = bool(staging.get("configured")) and redirect_valid
     state = secrets.token_urlsafe(32) if configured else None
     device_session_id = secrets.token_urlsafe(24) if configured else None
     redirect_uri = str(status["flow"]["redirect_uri"])
@@ -129,6 +137,7 @@ def build_google_login_staging(
             f"&device_session_id={quote(device_session_id, safe='')}"
             f"&redirect_uri={quote(redirect_uri, safe='')}"
         )
+    staging_error = staging.get("error") if not staging.get("configured") else None
     return {
         "schema_version": GOOGLE_AUTH_SCHEMA_VERSION,
         "ok": configured,
@@ -175,7 +184,7 @@ def build_google_login_staging(
             "no local private content upload",
             "no account sync performed",
         ],
-        "error": None if configured else staging.get("error") or _staging_auth_unconfigured_error(),
+        "error": None if configured else staging_error or status.get("error") or _staging_auth_unconfigured_error(),
     }
 
 
@@ -396,6 +405,7 @@ def _staging_api_contract(staging: Mapping[str, object]) -> dict[str, object]:
 def _loopback_redirect_report(redirect_uri: str) -> dict[str, object]:
     try:
         parsed = urlparse(redirect_uri)
+        parsed.port
     except ValueError:
         return {"valid": False, "uri": DEFAULT_GOOGLE_LOOPBACK_REDIRECT, "reason": "redirect_uri_invalid"}
     host = (parsed.hostname or "").lower()

@@ -244,6 +244,32 @@ def test_google_login_staging_rejects_malformed_port_without_traceback(tmp_path:
     assert str(tmp_path) not in serialized
 
 
+def test_google_login_staging_rejects_malformed_redirect_port_without_printing_it(
+    tmp_path: Path,
+    monkeypatch,
+    capsys,
+) -> None:
+    from yonerai_cli import cli
+
+    redirect_uri = "http://127.0.0.1:bad/oauth/google/callback"
+    monkeypatch.setenv("YONERAI_CLI_CONFIG_PATH", str(tmp_path / "cli-config.json"))
+    monkeypatch.setenv("YONERAI_STAGING_AUTH_ORIGIN", "https://api-staging.yonerai.com")
+    monkeypatch.setenv("YONERAI_GOOGLE_OAUTH_REDIRECT_URI", redirect_uri)
+
+    assert cli.main(["auth", "google", "login", "--staging", "--json"]) == 1
+    report = json.loads(capsys.readouterr().out)
+    serialized = json.dumps(report, sort_keys=True)
+
+    assert report["configured"] is False
+    assert report["authorization_url"] is None
+    assert report["flow"]["redirect_valid"] is False
+    assert report["flow"]["redirect_uri"] == "http://127.0.0.1:8765/oauth/google/callback"
+    assert report["error"]["code"] == "redirect_uri_invalid"
+    assert redirect_uri not in serialized
+    assert "Traceback" not in serialized
+    assert str(tmp_path) not in serialized
+
+
 def test_google_staging_redirect_validation_rejects_unexpected_host() -> None:
     from yonerai_cli.auth_policy import validate_staging_redirect_location
 
