@@ -2,6 +2,25 @@
 
 This page is a public-safe index of current release notes and progress checkpoints.
 
+## v0.17.0-alpha.1 Staging Google Login UX
+
+- GitHub pre-release target: `v0.17.0-alpha.1`.
+- Release title: `2026.06.05 - YonerAI v0.17.0-alpha.1 Staging Google Login UX`.
+- Release date: `2026-06-05`.
+- Public release body: `docs/releases/0.17.0-alpha.1.md`.
+- Status: prerelease staging-auth UX slice after v0.16.0-alpha.1.
+- What users can try now: `yonerai auth status --pretty --lang ja`,
+  `yonerai auth google login --dry-run --pretty --lang ja`,
+  `yonerai auth google login --staging --pretty --lang ja` with an allowlisted
+  staging origin, TUI `/認証`, and first-launch account onboarding.
+- Boundary: staging/auth-contract UX only; no production Google login, no
+  Google client secret in the public repo, no token exchange in the public CLI,
+  no refresh token plaintext storage, no production AWS backend, no production
+  Oracle/cloud runtime, no live Discord, no OpenAI shared traffic runtime, no
+  private content upload, no arbitrary shell/file/tool execution, and no
+  production signing/trust store.
+- Primary traceability range: `v0.16.0-alpha.1..v0.17.0-alpha.1`; PR #513.
+
 ## v0.16.0-alpha.1 CLI Architecture and Policy Runtime
 
 - GitHub pre-release target: `v0.16.0-alpha.1`.
