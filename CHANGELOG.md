@@ -2,6 +2,22 @@
 
 See also: `docs/RELEASE_NOTES.md` (curated summary, v5.0.0 -> current).
 
+## v0.17.0-alpha.1 (2026-06-05) - Staging Google Login UX
+- Published staging Google login UX through PR #513. `yonerai auth google
+  login --staging` now generates a public-safe staging authorization URL when
+  an allowlisted staging origin is configured.
+- Added staging origin policy for `YONERAI_STAGING_AUTH_ORIGIN` and
+  `YONERAI_OFFICIAL_API_STAGING_ORIGIN`, with HTTPS allowlist checks,
+  credentialed URL rejection, private/non-allowlisted host rejection, controlled
+  malformed URL errors, and explicit localhost dev mode only.
+- Added TUI `/認証` staging state and first-launch account choices after
+  language selection: local-only, staging/dry-run Google login check, or later.
+- Kept production Google login off: no Google client secret in the public repo,
+  no token exchange, no refresh token plaintext storage, no browser launch by
+  default, no account sync, and no local private content upload.
+- Added regression coverage for staging origin, redirect, dry-run error,
+  onboarding, TUI auth, sync boundary, secret redaction, and JSON safety.
+
 ## v0.16.0-alpha.1 (2026-06-05) - CLI Architecture and Policy Runtime
 - Published the CLI architecture split through PR #507. `cli.py` is now a thin
   entrypoint, while command, screen, service, and TUI modules own focused
