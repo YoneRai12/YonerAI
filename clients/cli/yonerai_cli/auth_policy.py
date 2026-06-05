@@ -85,6 +85,11 @@ def build_google_login_dry_run(
     source = os.environ if env is None else env
     status = build_google_auth_status(config, env=source)
     ok = bool(status["configured"])
+    client_id_configured = _client_id_configured(source)
+    redirect_report = _loopback_redirect_report(
+        str(source.get("YONERAI_GOOGLE_OAUTH_REDIRECT_URI") or DEFAULT_GOOGLE_LOOPBACK_REDIRECT)
+    )
+    dry_run_error = None if ok else _google_auth_unconfigured_error(client_id_configured, redirect_report)
     return {
         "schema_version": GOOGLE_AUTH_SCHEMA_VERSION,
         "ok": ok,
@@ -111,7 +116,7 @@ def build_google_login_dry_run(
             "exchange the authorization code only after state and PKCE verification",
         ],
         "actions_not_performed": status["actions_not_performed"],
-        "error": status["error"],
+        "error": dry_run_error,
     }
 
 

@@ -91,6 +91,28 @@ def test_google_login_dry_run_requires_client_configuration_without_traceback(tm
     assert "Traceback" not in json.dumps(report)
 
 
+def test_google_login_dry_run_preserves_error_when_staging_is_ready(
+    tmp_path: Path,
+    monkeypatch,
+    capsys,
+) -> None:
+    from yonerai_cli import cli
+
+    monkeypatch.setenv("YONERAI_CLI_CONFIG_PATH", str(tmp_path / "cli-config.json"))
+    monkeypatch.setenv("YONERAI_STAGING_AUTH_ORIGIN", "https://api-staging.yonerai.com")
+    monkeypatch.delenv("YONERAI_GOOGLE_OAUTH_CLIENT_ID", raising=False)
+
+    assert cli.main(["auth", "google", "login", "--dry-run", "--json"]) == 1
+    report = json.loads(capsys.readouterr().out)
+    serialized = json.dumps(report, sort_keys=True)
+
+    assert report["operation"] == "google_login_dry_run"
+    assert report["configured"] is False
+    assert report["error"]["code"] == "google_oauth_client_not_configured"
+    assert "YONERAI_GOOGLE_OAUTH_CLIENT_SECRET" not in serialized
+    assert str(tmp_path) not in serialized
+
+
 def test_google_login_dry_run_accepts_loopback_pkce_contract(tmp_path: Path, monkeypatch, capsys) -> None:
     from yonerai_cli import cli
 
