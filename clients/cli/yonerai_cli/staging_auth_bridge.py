@@ -5,7 +5,7 @@ import re
 from collections.abc import Callable, Mapping
 from typing import Any
 from urllib.error import HTTPError, URLError
-from urllib.parse import quote, urlparse
+from urllib.parse import parse_qsl, quote, urlparse
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 
@@ -14,6 +14,17 @@ CLI_BRIDGE_POLL_PATH_TEMPLATE = "/auth/cli/poll/{request_id}"
 GOOGLE_BROWSER_START_PATH = "/auth/google/start"
 GOOGLE_CALLBACK_PATH = "/api/auth/callback/google"
 _REQUEST_ID_RE = re.compile(r"^[A-Za-z0-9_-]{3,160}$")
+_FORBIDDEN_TOKEN_KEYS = {"google_token", "id_token", "access_token", "refresh_token", "authorization_code"}
+_FORBIDDEN_QUERY_PARAM_KEYS = _FORBIDDEN_TOKEN_KEYS | {
+    "api_key",
+    "auth_token",
+    "client_secret",
+    "code",
+    "secret",
+    "session_token",
+    "staging_session_token",
+    "token",
+}
 
 JsonTransport = Callable[[str, str, Mapping[str, object] | None, float], tuple[int, Mapping[str, object]]]
 
@@ -56,7 +67,7 @@ def start_cli_bridge(
     return {
         "status": str(body.get("status") or "created"),
         "request_id": request_id,
-        "expires_at": body.get("expires_at"),
+        "expires_at": _safe_optional_public_scalar(body.get("expires_at"), "expires_at"),
         "browser_start_path": browser_start_path,
         "browser_start_url": _join_origin_path(origin, browser_start_path),
         "poll_path": poll_path,
@@ -86,7 +97,7 @@ def poll_cli_bridge(
     return {
         "status": status,
         "request_id": safe_request_id,
-        "expires_at": body.get("expires_at"),
+        "expires_at": _safe_optional_public_scalar(body.get("expires_at"), "expires_at"),
         "staging_session_received": session_received,
         "staging_session_token_printed": False,
         "google_token_returned": False,
@@ -158,7 +169,26 @@ def _safe_relative_path(value: object, field_name: str) -> str:
             f"staging_bridge_{field_name}_invalid",
             "Staging CLI bridge returned an invalid path.",
         )
+    _assert_no_sensitive_query_params(parsed, field_name)
     return path
+
+
+def _safe_optional_public_scalar(value: object, field_name: str) -> str | int | float | bool | None:
+    if value is None or isinstance(value, str | int | float | bool):
+        return value
+    raise StagingAuthBridgeError(
+        f"staging_bridge_{field_name}_invalid",
+        "Staging CLI bridge returned an invalid public field.",
+    )
+
+
+def _assert_no_sensitive_query_params(parsed: Any, field_name: str) -> None:
+    for key, _value in parse_qsl(parsed.query, keep_blank_values=True, strict_parsing=False):
+        if key.strip().lower() in _FORBIDDEN_QUERY_PARAM_KEYS:
+            raise StagingAuthBridgeError(
+                f"staging_bridge_{field_name}_invalid",
+                "Staging CLI bridge returned an invalid path.",
+            )
 
 
 def _safe_request_id(value: object) -> str:
@@ -171,10 +201,13 @@ def _safe_request_id(value: object) -> str:
 def _assert_no_token_return(body: Mapping[str, object], *, allow_session_placeholder: bool = False) -> None:
     if body.get("google_token_returned") is True or body.get("refresh_token_returned") is True:
         raise StagingAuthBridgeError("staging_bridge_token_return_forbidden", "Staging CLI bridge attempted to return tokens.")
-    forbidden_keys = {"google_token", "id_token", "access_token", "refresh_token", "authorization_code"}
-    if not allow_session_placeholder:
+    forbidden_keys = set(_FORBIDDEN_TOKEN_KEYS)
+    if allow_session_placeholder:
+        body_to_scan = {key: nested for key, nested in body.items() if str(key).lower() != "staging_session_token"}
+    else:
         forbidden_keys.add("staging_session_token")
-    if _contains_forbidden_key(body, forbidden_keys):
+        body_to_scan = body
+    if _contains_forbidden_key(body_to_scan, forbidden_keys | {"staging_session_token"}):
         raise StagingAuthBridgeError("staging_bridge_token_return_forbidden", "Staging CLI bridge attempted to return tokens.")
 
 
