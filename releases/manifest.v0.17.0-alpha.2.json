@@ -16,7 +16,8 @@
     "network_required": true
   },
   "install_methods": [
-    "verified_github_release_installer",
+    "powershell_verified_github_release_bootstrap",
+    "powershell_github_release_bootstrap",
     "manual_zip_venv",
     "manifest_verify_only"
   ],
@@ -46,8 +47,8 @@
       "os": "any",
       "arch": "any",
       "url": "https://github.com/YoneRai12/YonerAI/releases/download/v0.17.0-alpha.2/YonerAI-0.17.0-alpha.2.zip",
-      "sha256": "e14a951b3cb0ea8a9e821a7ea46f9a71c6efc38d8410f60c8d3cf31de2a7eafa",
-      "size_bytes": 15944137,
+      "sha256": "bdfa125c1d36c6948368e9ccca4b713da5e89b232aa341de18915a2eab5d12ad",
+      "size_bytes": 15945340,
       "signature": {
         "status": "placeholder_non_production",
         "algorithm": "none",

@@ -27,6 +27,12 @@ function Write-YonerAI {
     Write-Host "[YonerAI] $Message"
 }
 
+function Stop-YonerAI {
+    param([string]$Message)
+    [Console]::Error.WriteLine("[YonerAI] $Message")
+    exit 1
+}
+
 function Get-CurrentPowerShellPath {
     $path = (Get-Process -Id $PID).Path
     if ([string]::IsNullOrWhiteSpace($path)) {
@@ -200,11 +206,16 @@ function Invoke-GitHubDownload {
         [string]$Label
     )
     Write-YonerAI "Downloading $Label from GitHub Release"
+    $previousProgressPreference = $ProgressPreference
     try {
+        $ProgressPreference = "SilentlyContinue"
         Invoke-WebRequest -Uri $Url -OutFile $OutFile -UseBasicParsing
     }
     catch {
         throw "Failed to download $Label from GitHub Release."
+    }
+    finally {
+        $ProgressPreference = $previousProgressPreference
     }
 }
 
@@ -291,11 +302,11 @@ function Get-InstallTargetState {
     if (Test-Path -LiteralPath $exe -PathType Leaf) {
         return [pscustomobject]@{ Exists = $true; Kind = "installed"; Message = "already installed same version or previous attempt" }
     }
-    if (Test-Path -LiteralPath $source -PathType Container) {
-        return [pscustomobject]@{ Exists = $true; Kind = "partial_source"; Message = "partial source folder exists" }
-    }
     if (Test-Path -LiteralPath $venv -PathType Container) {
         return [pscustomobject]@{ Exists = $true; Kind = "partial_venv"; Message = "partial virtual environment exists" }
+    }
+    if (Test-Path -LiteralPath $source -PathType Container) {
+        return [pscustomobject]@{ Exists = $true; Kind = "partial_source"; Message = "partial source folder exists" }
     }
     $children = @(Get-ChildItem -LiteralPath $Destination -Force -ErrorAction SilentlyContinue)
     if ($children.Count -gt 0) {
@@ -378,6 +389,20 @@ function Get-CommandKind {
         return "external Python Scripts executable may shadow the wrapper"
     }
     return "external PATH entry"
+}
+
+function Get-NormalizedPathText {
+    param([string]$PathText)
+    if ([string]::IsNullOrWhiteSpace($PathText)) {
+        return ""
+    }
+    $expanded = [Environment]::ExpandEnvironmentVariables($PathText.Trim().Trim('"'))
+    try {
+        return [System.IO.Path]::GetFullPath($expanded).TrimEnd("\")
+    }
+    catch {
+        return $expanded.TrimEnd("\")
+    }
 }
 
 function Show-YonerAICommandDiagnostic {
@@ -471,7 +496,10 @@ function Set-YonerAIUserPath {
     }
     else {
         $parts = @($currentUserPath -split ";") | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
-        $alreadyPresent = $parts | Where-Object { $_.TrimEnd("\") -ieq $bin.TrimEnd("\") } | Select-Object -First 1
+        $normalizedBin = Get-NormalizedPathText -PathText $bin
+        $alreadyPresent = $parts | Where-Object {
+            (Get-NormalizedPathText -PathText $_) -ieq $normalizedBin
+        } | Select-Object -First 1
         if ($alreadyPresent) {
             $newPath = $currentUserPath
         }
@@ -508,6 +536,10 @@ Write-Host "  PATH mutation: disabled unless -SetPath"
 Write-Host "  not performed unless -Execute: release lookup, download, extraction, pip install, launch"
 Write-Host "  never performed: service install, admin request, provider key storage"
 Write-Host "  optional user PATH wrapper: disabled unless -SetPath"
+
+if (-not [string]::IsNullOrWhiteSpace($Manifest) -or -not [string]::IsNullOrWhiteSpace($Artifact)) {
+    Stop-YonerAI "Custom manifest/artifact inputs are not accepted by install.ps1. Use GitHub Release assets for install, or use 'yonerai install plan' for local dry-run planning."
+}
 
 if (-not $Execute) {
     Write-Host ""

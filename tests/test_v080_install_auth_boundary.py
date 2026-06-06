@@ -80,7 +80,7 @@ def test_v080_manifest_validates_as_non_production_alpha_manifest() -> None:
     assert report["production_trust_material"] is False
 
 
-def test_install_skeleton_reads_local_manifest_plan_without_actions_when_powershell_available() -> None:
+def test_install_skeleton_rejects_custom_manifest_inputs_when_powershell_available() -> None:
     powershell = _powershell_executable()
     if powershell is None:
         return
@@ -105,17 +105,10 @@ def test_install_skeleton_reads_local_manifest_plan_without_actions_when_powersh
     )
 
     output = result.stdout + result.stderr
-    assert result.returncode == 0, _subprocess_failure(result)
-    assert "Plan only. Nothing was installed." in output
-    assert "manifest version: 0.7.0-alpha.1" in output
-    assert "artifact name: YonerAI-0.7.0-alpha.1.zip" in output
-    assert "sha256 format valid: True" in output
-    assert "artifact name matches manifest: True" in output
-    assert "local artifact status: not found; hash not checked" in output
-    assert "production trust: not present in public repo" in output
-    assert "not performed: network download" in output
-    assert "PATH mutation" in output
-    assert "remote script execution" in output
+    assert result.returncode != 0, _subprocess_failure(result)
+    assert "Custom manifest/artifact inputs are not accepted by install.ps1" in output
+    assert "yonerai install plan" in output
+    assert str(ROOT) not in output
 
 
 def test_install_skeleton_rejects_tampered_local_artifact_when_powershell_available() -> None:
@@ -155,12 +148,11 @@ def test_install_skeleton_rejects_tampered_local_artifact_when_powershell_availa
 
     output = result.stdout + result.stderr
     assert result.returncode != 0, _subprocess_failure(result)
-    assert "local artifact sha256 matches manifest: False" in output
-    assert "Artifact SHA256 mismatch" in output
+    assert "Custom manifest/artifact inputs are not accepted by install.ps1" in output
     assert "Plan only. Nothing was installed." not in output
 
 
-def test_install_skeleton_selects_matching_artifact_when_manifest_has_multiple_entries() -> None:
+def test_install_skeleton_rejects_custom_artifact_even_with_multiple_manifest_entries() -> None:
     powershell = _powershell_executable()
     if powershell is None:
         return
@@ -217,12 +209,10 @@ def test_install_skeleton_selects_matching_artifact_when_manifest_has_multiple_e
             pass
 
     output = result.stdout + result.stderr
-    assert result.returncode == 0, _subprocess_failure(result)
-    assert "artifact name: YonerAI-0.7.0-alpha.1-windows-x64.zip" in output
-    assert "artifact name matches manifest: True" in output
-    assert "local artifact sha256 matches manifest: True" in output
-    assert "local artifact size matches manifest: True" in output
-    assert "Plan only. Nothing was installed." in output
+    assert result.returncode != 0, _subprocess_failure(result)
+    assert "Custom manifest/artifact inputs are not accepted by install.ps1" in output
+    assert "yonerai install plan" in output
+    assert "Plan only. Nothing was installed." not in output
 
 
 def test_install_skeleton_rejects_absolute_manifest_path_when_powershell_available() -> None:
@@ -248,19 +238,35 @@ def test_install_skeleton_rejects_absolute_manifest_path_when_powershell_availab
     )
 
     assert result.returncode != 0, _subprocess_failure(result)
-    assert "Manifest must be a relative local path" in (result.stdout + result.stderr)
+    assert "Custom manifest/artifact inputs are not accepted by install.ps1" in (result.stdout + result.stderr)
 
 
-def test_install_skeleton_does_not_contain_remote_execute_or_path_mutation_primitives() -> None:
+def test_install_script_keeps_explicit_execute_and_path_mutation_boundaries() -> None:
     script = INSTALL_SKELETON.read_text(encoding="utf-8")
 
     assert "Invoke-Expression" not in script
-    assert re.search(r"\biex\b", script, flags=re.IGNORECASE) is None
-    assert "Invoke-WebRequest" not in script
+    assert "Invoke-VerifiedLocalBootstrap" in script
+    assert "PATH mutation: disabled unless -SetPath" in script
+    assert "[switch]$SetPath" in script
     assert re.search(r"\biwr\b", script, flags=re.IGNORECASE) is None
-    assert re.search(r"\birm\b", script, flags=re.IGNORECASE) is None
-    assert "SetEnvironmentVariable" not in script
+    assert "SetEnvironmentVariable" in script
     assert re.search(r"\bsetx\b", script, flags=re.IGNORECASE) is None
+
+
+def test_install_script_detects_specific_partial_venv_before_source_folder() -> None:
+    script = INSTALL_SKELETON.read_text(encoding="utf-8")
+
+    assert script.index('Kind = "partial_venv"') < script.index('Kind = "partial_source"')
+
+
+def test_install_script_suppresses_download_progress_and_normalizes_path_entries() -> None:
+    script = INSTALL_SKELETON.read_text(encoding="utf-8")
+
+    assert '$ProgressPreference = "SilentlyContinue"' in script
+    assert "finally {" in script
+    assert "Get-NormalizedPathText" in script
+    assert "ExpandEnvironmentVariables" in script
+    assert "(Get-NormalizedPathText -PathText $_) -ieq $normalizedBin" in script
 
 
 def _powershell_executable() -> Path | None:
