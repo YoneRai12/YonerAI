@@ -192,7 +192,10 @@ def build_google_login_staging(
                     bridge_report["request_id"] = started.get("request_id")
                     authorization_url = str(started.get("browser_start_url") or authorization_url)
                     if open_browser and authorization_url:
-                        browser_opened = bool(webbrowser.open(authorization_url))
+                        try:
+                            browser_opened = bool(webbrowser.open(authorization_url))
+                        except Exception:
+                            browser_opened = False
                 active_request_id = str(poll_request_id or bridge_report.get("request_id") or "")
                 if active_request_id and wait_linked:
                     polled = wait_for_cli_bridge_link(
@@ -228,11 +231,28 @@ def build_google_login_staging(
         if poll_request_id and not bridge:
             authorization_url = None
     staging_error = staging.get("error") if not staging.get("configured") else None
-    wait_link_failed = bool(wait_linked and bridge_report["network_called"] and not bridge_report["waited_until_linked"])
+    account_me = bridge_report.get("account_me") if isinstance(bridge_report.get("account_me"), Mapping) else {}
+    account_validation_failed = bool(
+        wait_linked
+        and bridge_report.get("staging_session_received") is True
+        and account_me
+        and account_me.get("ok") is not True
+    )
+    wait_link_failed = bool(
+        wait_linked
+        and bridge_report["network_called"]
+        and (not bridge_report["waited_until_linked"] or account_validation_failed)
+    )
+    wait_error_code = "staging_account_validation_failed" if account_validation_failed else "staging_link_not_completed"
+    wait_error_message = (
+        "Staging account validation failed after the bridge linked."
+        if account_validation_failed
+        else "Staging CLI bridge did not complete before the wait timeout."
+    )
     wait_link_error = (
         {
-            "code": "staging_link_not_completed",
-            "message": "Staging CLI bridge did not complete before the wait timeout.",
+            "code": wait_error_code,
+            "message": wait_error_message,
             "status_code": None,
             "private_endpoint_printed": False,
             "token_printed": False,
@@ -242,7 +262,7 @@ def build_google_login_staging(
     )
     ok = configured and bridge_error is None and not wait_link_failed
     authorization_url_printed = configured and bridge_error is None and authorization_url is not None
-    linked_claim = _linked_claim_from_bridge(staging, bridge_report)
+    linked_claim = None if account_validation_failed else _linked_claim_from_bridge(staging, bridge_report)
     return {
         "schema_version": GOOGLE_AUTH_SCHEMA_VERSION,
         "ok": ok,

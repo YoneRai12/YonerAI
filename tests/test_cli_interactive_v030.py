@@ -628,6 +628,21 @@ def test_chat_memory_cloud_preview_setting_blocks_cloud_to_local_preview(tmp_pat
     assert str(tmp_path) not in output
 
 
+def test_chat_settings_do_not_persist_runtime_config_path(tmp_path: Path, monkeypatch, capsys) -> None:
+    from yonerai_cli import cli
+
+    _clear_provider_env(monkeypatch)
+    config_path = tmp_path / "cli-config.json"
+    monkeypatch.setattr(sys, "stdin", _PlainStringIO("/settings memory off\n/quit\n"))
+
+    assert cli.main(["chat", "--script", "--lang", "en", "--config-path", str(config_path), "--color", "never"]) == 0
+    _ = capsys.readouterr()
+    stored = json.loads(config_path.read_text(encoding="utf-8"))
+
+    assert "_runtime_config_path" not in stored
+    assert str(tmp_path) not in json.dumps(stored, sort_keys=True)
+
+
 def test_chat_memory_settings_do_not_display_memory_contents(tmp_path: Path, monkeypatch, capsys) -> None:
     from ora_core.memory import LocalMemoryStore
     from yonerai_cli import cli

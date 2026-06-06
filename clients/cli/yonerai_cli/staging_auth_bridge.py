@@ -106,15 +106,25 @@ def wait_for_cli_bridge_link(
     interval = max(0.25, min(max(poll_interval_seconds, 0.25), 10.0))
     attempts = 0
     last_report: dict[str, object] | None = None
+    last_transient_error: StagingAuthBridgeError | None = None
     session_token: str | None = None
     while True:
         attempts += 1
-        safe_request_id, body = _poll_cli_bridge_body(
-            origin,
-            request_id,
-            transport=transport,
-            timeout_seconds=timeout_seconds,
-        )
+        try:
+            safe_request_id, body = _poll_cli_bridge_body(
+                origin,
+                request_id,
+                transport=transport,
+                timeout_seconds=timeout_seconds,
+            )
+        except StagingAuthBridgeError as exc:
+            if not _is_transient_poll_error(exc):
+                raise
+            last_transient_error = exc
+            if time.monotonic() >= deadline:
+                break
+            time.sleep(interval)
+            continue
         last_report = _safe_poll_report(safe_request_id, body)
         session_token = _session_token_from_body(body)
         status = str(last_report.get("status") or "unknown")
@@ -125,6 +135,12 @@ def wait_for_cli_bridge_link(
             break
         time.sleep(interval)
     if last_report is None:
+        if last_transient_error is not None:
+            raise StagingAuthBridgeError(
+                "staging_bridge_poll_transient_timeout",
+                "Staging CLI bridge poll did not recover before the wait timeout.",
+                status_code=last_transient_error.status_code,
+            )
         raise StagingAuthBridgeError("staging_bridge_poll_failed", "Staging CLI bridge poll failed.")
     account_report: dict[str, object] | None = None
     if fetch_account and session_token:
@@ -146,6 +162,12 @@ def wait_for_cli_bridge_link(
         }
     )
     return last_report
+
+
+def _is_transient_poll_error(error: StagingAuthBridgeError) -> bool:
+    if error.code == "staging_bridge_unreachable":
+        return True
+    return error.status_code in {408, 429, 500, 502, 503, 504}
 
 
 def fetch_staging_account_me(

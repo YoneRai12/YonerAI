@@ -751,6 +751,7 @@ def _set_config_values(
 ) -> dict[str, object]:
     updated = load_cli_config(config_path)
     updated.update(values)
+    updated.pop("_runtime_config_path", None)
     saved = save_cli_config(updated, config_path)
     config.clear()
     config.update(saved)

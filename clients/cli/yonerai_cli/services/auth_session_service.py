@@ -11,9 +11,12 @@ from yonerai_cli.config import default_config_path
 
 
 STAGING_AUTH_CLAIM_SCHEMA_VERSION = "yonerai-staging-auth-claim/v0.1"
-_TOKEN_KEY_RE = re.compile(r"(token|secret|authorization|credential|password|code)", re.IGNORECASE)
+_TOKEN_KEY_RE = re.compile(
+    r"(^|[_\-.:\s])(access_token|id_token|refresh_token|token|secret|authorization|credential|password|auth_code|code)($|[_\-.:\s])",
+    re.IGNORECASE,
+)
 _LOCAL_PATH_RE = re.compile(r"([A-Za-z]:\\|\\\\|/Users/|/home/|/root/)")
-_SAFE_TEXT_RE = re.compile(r"^[A-Za-z0-9_.:@+\-*\s]{0,160}$")
+_SAFE_TEXT_RE = re.compile(r"^[A-Za-z0-9_.:@+\-*(),!\[\]&\s]{0,160}$")
 
 
 def default_staging_auth_claim_path(config_path: str | Path | None = None) -> Path:
@@ -158,7 +161,7 @@ def _contains_forbidden_secret_material(value: object, *, key: str = "") -> bool
         text = str(value)
         if key in allowed_secret_boundary_keys:
             return value is True
-        if _TOKEN_KEY_RE.search(text):
+        if _TOKEN_KEY_RE.search(key) and text:
             return True
     return False
 
