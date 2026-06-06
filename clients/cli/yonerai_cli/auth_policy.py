@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import re
 import webbrowser
+from collections.abc import Callable
 from typing import Mapping
 from urllib.parse import urlparse
 
@@ -19,6 +20,10 @@ from yonerai_cli.staging_auth_bridge import (
     wait_for_cli_bridge_link,
 )
 from yonerai_cli.services.auth_session_service import build_staging_auth_claim, load_staging_auth_claim
+from yonerai_cli.services.staging_session_service import (
+    build_staging_session_status,
+    storage_capability,
+)
 
 
 GOOGLE_AUTH_SCHEMA_VERSION = "yonerai-google-auth-contract/v0.1"
@@ -63,6 +68,7 @@ def build_google_auth_status(
     configured = client_id_configured and bool(redirect_report["valid"])
     staging = _staging_auth_origin_report(source)
     staging_claim = load_staging_auth_claim(claim_path)
+    staging_session_claim = build_staging_session_status(claim_path)
     staging_ready = bool(staging["configured"]) and bool(redirect_report["valid"])
     preferred_lang = _preferred_lang(config)
     error = None
@@ -78,6 +84,7 @@ def build_google_auth_status(
         "staging_login_available": bool(staging["configured"]),
         "staging": staging,
         "staging_session": staging_claim,
+        "staging_session_claim": staging_session_claim,
         "staging_auth_state": staging_claim.get("auth_state", "unauthenticated"),
         "staging_account": staging_claim.get("account"),
         "google_auth_enabled": auth_enabled,
@@ -90,6 +97,7 @@ def build_google_auth_status(
         "token_printed": False,
         "flow": _google_flow_contract(redirect_report),
         "storage": _google_token_storage_contract(),
+        "session_storage": storage_capability(),
         "next_safe_command": (
             f"yonerai auth google login --staging --bridge --pretty --lang {preferred_lang}"
             if staging_ready
@@ -156,6 +164,7 @@ def build_google_login_staging(
     poll_interval_seconds: float = 2.0,
     transport: JsonTransport | None = None,
     account_transport: HeaderJsonTransport | None = None,
+    session_claim_handler: Callable[[str, Mapping[str, object], Mapping[str, object]], Mapping[str, object]] | None = None,
 ) -> dict[str, object]:
     source = os.environ if env is None else env
     status = build_google_auth_status(config, env=source)
@@ -206,6 +215,7 @@ def build_google_login_staging(
                         poll_interval_seconds=poll_interval_seconds,
                         transport=transport,
                         account_transport=account_transport,
+                        session_claim_handler=session_claim_handler,
                     )
                     bridge_report["poll"] = polled
                     bridge_report["poll_status"] = polled.get("status")
@@ -298,6 +308,17 @@ def build_google_login_staging(
         "staging_linked_claim": linked_claim,
         "staging_claim_saved": False,
         "staging_session_token_stored": False,
+        "staging_session_claim_stored": bool(
+            isinstance(bridge_report.get("poll"), Mapping)
+            and isinstance(bridge_report["poll"].get("session_storage"), Mapping)
+            and bridge_report["poll"]["session_storage"].get("stored") is True
+        ),
+        "staging_session_storage": (
+            bridge_report["poll"].get("session_storage")
+            if isinstance(bridge_report.get("poll"), Mapping)
+            and isinstance(bridge_report["poll"].get("session_storage"), Mapping)
+            else {}
+        ),
         "token_exchange_performed": False,
         "refresh_token_stored": False,
         "flow": status["flow"],

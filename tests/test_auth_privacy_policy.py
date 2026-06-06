@@ -906,6 +906,111 @@ def test_auth_status_reads_saved_linked_staging_claim(tmp_path: Path, monkeypatc
     assert str(tmp_path) not in serialized
 
 
+def test_auth_session_status_reads_safe_staging_session_without_printing_token(
+    tmp_path: Path,
+    monkeypatch,
+    capsys,
+) -> None:
+    from yonerai_cli import cli
+    from yonerai_cli.services.staging_session_service import save_staging_session
+
+    config_path = tmp_path / "cli-config.json"
+    save_staging_session(
+        session_token="ystg_session_fixture_123",
+        origin="https://api-staging.yonerai.com",
+        account={"email": "owner@example.com", "display_name": "Owner", "sub": "google-subject-private"},
+        expires_at="2099-06-06T00:30:00Z",
+        config_path=config_path,
+    )
+    monkeypatch.setenv("YONERAI_CLI_CONFIG_PATH", str(config_path))
+
+    assert cli.main(["auth", "session", "status", "--json"]) == 0
+    report = json.loads(capsys.readouterr().out)
+    serialized = json.dumps(report, sort_keys=True)
+
+    assert report["auth_state"] == "linked"
+    assert report["session_available"] is True
+    assert report["redacted_email"] == "o***@example.com"
+    assert report["token_printed"] is False
+    assert report["google_access_token_stored"] is False
+    assert report["google_refresh_token_stored"] is False
+    assert report["plaintext_session_token_stored"] is False
+    assert "ystg_session_fixture_123" not in serialized
+    assert "owner@example.com" not in serialized
+    assert str(tmp_path) not in serialized
+
+
+def test_auth_logout_staging_clears_safe_session_without_printing_paths(
+    tmp_path: Path,
+    monkeypatch,
+    capsys,
+) -> None:
+    from yonerai_cli import cli
+    from yonerai_cli.services.staging_session_service import save_staging_session
+
+    config_path = tmp_path / "cli-config.json"
+    save_staging_session(
+        session_token="ystg_session_fixture_123",
+        origin="https://api-staging.yonerai.com",
+        account={"email": "owner@example.com", "display_name": "Owner"},
+        expires_at="2099-06-06T00:30:00Z",
+        config_path=config_path,
+    )
+    monkeypatch.setenv("YONERAI_CLI_CONFIG_PATH", str(config_path))
+
+    assert cli.main(["auth", "logout", "--staging", "--json"]) == 0
+    logout_report = json.loads(capsys.readouterr().out)
+    assert logout_report["session_removed"] is True
+    assert logout_report["token_printed"] is False
+
+    assert cli.main(["auth", "session", "status", "--json"]) == 0
+    status_report = json.loads(capsys.readouterr().out)
+    serialized = json.dumps(status_report, sort_keys=True)
+
+    assert status_report["auth_state"] == "unauthenticated"
+    assert status_report["session_available"] is False
+    assert "ystg_session_fixture_123" not in serialized
+    assert str(tmp_path) not in serialized
+
+
+def test_staging_session_rejects_case_insensitive_local_paths() -> None:
+    from yonerai_cli.services.staging_session_service import build_staging_session_claim, validate_staging_session_claim
+
+    claim = build_staging_session_claim(
+        session_token="ystg_session_fixture_123",
+        origin="https://api-staging.yonerai.com",
+        account={"email": "owner@example.com", "display_name": "Owner"},
+        expires_at="2099-06-06T00:30:00Z",
+        storage_backend="memory_session_only",
+    )
+    claim["display_name"] = "/users/example/private"
+
+    with pytest.raises(ValueError, match="local path"):
+        validate_staging_session_claim(claim)
+
+
+def test_auth_logout_staging_reports_delete_failure_safely(tmp_path: Path, monkeypatch) -> None:
+    from yonerai_cli.services.staging_session_service import clear_staging_session, default_staging_session_claim_path
+
+    config_path = tmp_path / "cli-config.json"
+    claim_path = default_staging_session_claim_path(config_path)
+    claim_path.write_text("{}", encoding="utf-8")
+
+    def deny_unlink(self: Path) -> None:
+        raise OSError("locked path should not be printed")
+
+    monkeypatch.setattr(Path, "unlink", deny_unlink)
+    report = clear_staging_session(config_path)
+    serialized = json.dumps(report, sort_keys=True)
+
+    assert report["ok"] is False
+    assert report["session_removed"] is False
+    assert report["error"]["code"] == "staging_session_clear_failed"  # type: ignore[index]
+    assert report["error"]["local_path_printed"] is False  # type: ignore[index]
+    assert str(tmp_path) not in serialized
+    assert "locked path" not in serialized
+
+
 def test_google_login_staging_bridge_fails_closed_on_token_return(tmp_path: Path, monkeypatch) -> None:
     from yonerai_cli.auth_policy import build_google_login_staging
 
