@@ -467,6 +467,64 @@ def test_chat_auth_screen_shows_staging_and_sync_boundaries(tmp_path: Path, monk
     assert str(tmp_path) not in output
 
 
+def test_chat_auth_screen_shows_linked_staging_claim_without_raw_email(
+    tmp_path: Path,
+    monkeypatch,
+    capsys,
+) -> None:
+    from yonerai_cli import cli
+    from yonerai_cli.services.auth_session_service import build_staging_auth_claim, save_staging_auth_claim
+
+    _clear_provider_env(monkeypatch)
+    config_path = tmp_path / "cli-config.json"
+    save_staging_auth_claim(
+        build_staging_auth_claim(
+            origin="https://api-staging.yonerai.com",
+            account={"email": "owner@example.com", "display_name": "Owner"},
+        ),
+        config_path=config_path,
+    )
+    monkeypatch.setenv("YONERAI_STAGING_AUTH_ORIGIN", "https://api-staging.yonerai.com")
+    monkeypatch.setattr(sys, "stdin", _PlainStringIO("/auth\n/quit\n"))
+
+    assert cli.main(["chat", "--script", "--lang", "en", "--config-path", str(config_path), "--color", "never"]) == 0
+    output = capsys.readouterr().out
+
+    assert "staging_auth_state: linked" in output
+    assert "linked_account: o***@example.com" in output
+    assert "owner@example.com" not in output
+    assert str(tmp_path) not in output
+
+
+def test_chat_auth_screen_uses_display_name_when_email_is_not_linked(
+    tmp_path: Path,
+    monkeypatch,
+    capsys,
+) -> None:
+    from yonerai_cli import cli
+    from yonerai_cli.services.auth_session_service import build_staging_auth_claim, save_staging_auth_claim
+
+    _clear_provider_env(monkeypatch)
+    config_path = tmp_path / "cli-config.json"
+    save_staging_auth_claim(
+        build_staging_auth_claim(
+            origin="https://api-staging.yonerai.com",
+            account={"display_name": "linked staging account"},
+        ),
+        config_path=config_path,
+    )
+    monkeypatch.setenv("YONERAI_STAGING_AUTH_ORIGIN", "https://api-staging.yonerai.com")
+    monkeypatch.setattr(sys, "stdin", _PlainStringIO("/auth\n/quit\n"))
+
+    assert cli.main(["chat", "--script", "--lang", "en", "--config-path", str(config_path), "--color", "never"]) == 0
+    output = capsys.readouterr().out
+
+    assert "staging_auth_state: linked" in output
+    assert "linked_account: linked staging account" in output
+    assert "linked_account: not-linked" not in output
+    assert str(tmp_path) not in output
+
+
 def test_chat_memory_screen_is_available_in_japanese(tmp_path: Path, monkeypatch, capsys) -> None:
     from yonerai_cli import cli
 
@@ -568,6 +626,21 @@ def test_chat_memory_cloud_preview_setting_blocks_cloud_to_local_preview(tmp_pat
     assert "同期previewは実行しません" in output
     assert output.count("sync_performed") == 1
     assert str(tmp_path) not in output
+
+
+def test_chat_settings_do_not_persist_runtime_config_path(tmp_path: Path, monkeypatch, capsys) -> None:
+    from yonerai_cli import cli
+
+    _clear_provider_env(monkeypatch)
+    config_path = tmp_path / "cli-config.json"
+    monkeypatch.setattr(sys, "stdin", _PlainStringIO("/settings memory off\n/quit\n"))
+
+    assert cli.main(["chat", "--script", "--lang", "en", "--config-path", str(config_path), "--color", "never"]) == 0
+    _ = capsys.readouterr()
+    stored = json.loads(config_path.read_text(encoding="utf-8"))
+
+    assert "_runtime_config_path" not in stored
+    assert str(tmp_path) not in json.dumps(stored, sort_keys=True)
 
 
 def test_chat_memory_settings_do_not_display_memory_contents(tmp_path: Path, monkeypatch, capsys) -> None:

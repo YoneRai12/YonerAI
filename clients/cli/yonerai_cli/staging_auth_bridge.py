@@ -2,20 +2,28 @@ from __future__ import annotations
 
 import json
 import re
+import time
 from collections.abc import Callable, Mapping
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlparse
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
+from yonerai_cli.services.auth_session_service import sanitize_staging_account
+
 
 CLI_BRIDGE_START_PATH = "/auth/cli/start"
 CLI_BRIDGE_POLL_PATH_TEMPLATE = "/auth/cli/poll/{request_id}"
 GOOGLE_BROWSER_START_PATH = "/auth/google/start"
 GOOGLE_CALLBACK_PATH = "/api/auth/callback/google"
+ACCOUNT_ME_PATH = "/v1/account/me"
 _REQUEST_ID_RE = re.compile(r"^[A-Za-z0-9_-]{3,160}$")
 
 JsonTransport = Callable[[str, str, Mapping[str, object] | None, float], tuple[int, Mapping[str, object]]]
+HeaderJsonTransport = Callable[
+    [str, str, Mapping[str, str], Mapping[str, object] | None, float],
+    tuple[int, Mapping[str, object]],
+]
 
 
 class StagingAuthBridgeError(ValueError):
@@ -74,6 +82,134 @@ def poll_cli_bridge(
     transport: JsonTransport | None = None,
     timeout_seconds: float = 10.0,
 ) -> dict[str, object]:
+    safe_request_id, body = _poll_cli_bridge_body(
+        origin,
+        request_id,
+        transport=transport,
+        timeout_seconds=timeout_seconds,
+    )
+    return _safe_poll_report(safe_request_id, body)
+
+
+def wait_for_cli_bridge_link(
+    origin: str,
+    request_id: str,
+    *,
+    transport: JsonTransport | None = None,
+    account_transport: HeaderJsonTransport | None = None,
+    timeout_seconds: float = 10.0,
+    max_wait_seconds: float = 120.0,
+    poll_interval_seconds: float = 2.0,
+    fetch_account: bool = True,
+) -> dict[str, object]:
+    deadline = time.monotonic() + max(0.0, max_wait_seconds)
+    interval = max(0.25, min(max(poll_interval_seconds, 0.25), 10.0))
+    attempts = 0
+    last_report: dict[str, object] | None = None
+    last_transient_error: StagingAuthBridgeError | None = None
+    session_token: str | None = None
+    while True:
+        attempts += 1
+        try:
+            safe_request_id, body = _poll_cli_bridge_body(
+                origin,
+                request_id,
+                transport=transport,
+                timeout_seconds=timeout_seconds,
+            )
+        except StagingAuthBridgeError as exc:
+            if not _is_transient_poll_error(exc):
+                raise
+            last_transient_error = exc
+            if time.monotonic() >= deadline:
+                break
+            time.sleep(interval)
+            continue
+        last_report = _safe_poll_report(safe_request_id, body)
+        session_token = _session_token_from_body(body)
+        status = str(last_report.get("status") or "unknown")
+        session_received = bool(last_report.get("staging_session_received"))
+        if session_received:
+            break
+        if status in {"linked", "completed", "complete"}:
+            last_report["linked_without_session_claim"] = True
+            break
+        if status in {"expired", "revoked", "error", "failed"} or time.monotonic() >= deadline:
+            break
+        time.sleep(interval)
+    if last_report is None:
+        if last_transient_error is not None:
+            raise StagingAuthBridgeError(
+                "staging_bridge_poll_transient_timeout",
+                "Staging CLI bridge poll did not recover before the wait timeout.",
+                status_code=last_transient_error.status_code,
+            )
+        raise StagingAuthBridgeError("staging_bridge_poll_failed", "Staging CLI bridge poll failed.")
+    account_report: dict[str, object] | None = None
+    if fetch_account and session_token:
+        account_report = fetch_staging_account_me(
+            origin,
+            session_token,
+            transport=account_transport,
+            timeout_seconds=timeout_seconds,
+        )
+    last_report.update(
+        {
+            "poll_attempts": attempts,
+            "waited_until_linked": bool(last_report.get("staging_session_received")),
+            "account_me": account_report,
+            "google_token_returned": False,
+            "refresh_token_returned": False,
+            "staging_session_token_printed": False,
+        }
+    )
+    return last_report
+
+
+def _is_transient_poll_error(error: StagingAuthBridgeError) -> bool:
+    if error.code == "staging_bridge_unreachable":
+        return True
+    return error.status_code in {408, 429, 500, 502, 503, 504}
+
+
+def fetch_staging_account_me(
+    origin: str,
+    staging_session_token: str,
+    *,
+    transport: HeaderJsonTransport | None = None,
+    timeout_seconds: float = 10.0,
+) -> dict[str, object]:
+    if not staging_session_token or any(ord(char) < 32 or ord(char) == 127 for char in staging_session_token):
+        raise StagingAuthBridgeError("staging_session_claim_invalid", "Staging session claim is invalid.")
+    caller = transport or _default_header_json_transport
+    status_code, body = caller(
+        "GET",
+        _join_origin_path(origin, ACCOUNT_ME_PATH),
+        {"Authorization": f"Bearer {staging_session_token}"},
+        None,
+        timeout_seconds,
+    )
+    _assert_no_token_return(body, allow_session_placeholder=True)
+    account_source = body.get("account") or body.get("identity") or body.get("profile") or body
+    account = sanitize_staging_account(account_source if isinstance(account_source, Mapping) else {})
+    return {
+        "status_code": status_code,
+        "ok": 200 <= status_code < 300,
+        "account": account,
+        "session_claim_sent": True,
+        "session_claim_printed": False,
+        "google_token_returned": False,
+        "refresh_token_returned": False,
+    }
+
+
+def _poll_cli_bridge_body(
+    origin: str,
+    request_id: str,
+    *,
+    transport: JsonTransport | None,
+    timeout_seconds: float,
+) -> tuple[str, Mapping[str, object]]:
     caller = transport or _default_json_transport
     safe_request_id = _safe_request_id(request_id)
     poll_path = CLI_BRIDGE_POLL_PATH_TEMPLATE.format(request_id=quote(safe_request_id, safe=""))
@@ -81,8 +217,14 @@ def poll_cli_bridge(
     if status_code >= 400:
         raise StagingAuthBridgeError("staging_bridge_poll_failed", "Staging CLI bridge poll failed.", status_code=status_code)
     _assert_no_token_return(body, allow_session_placeholder=True)
+    return safe_request_id, body
+
+
+def _safe_poll_report(safe_request_id: str, body: Mapping[str, object]) -> dict[str, object]:
     status = str(body.get("status") or "unknown")
-    session_received = "staging_session_token" in body
+    session_received = _session_token_from_body(body) is not None
+    account_source = body.get("account") or body.get("identity") or body.get("profile")
+    account = sanitize_staging_account(account_source if isinstance(account_source, Mapping) else {})
     return {
         "status": status,
         "request_id": safe_request_id,
@@ -92,8 +234,19 @@ def poll_cli_bridge(
         "google_token_returned": False,
         "refresh_token_returned": False,
         "replay_protected": bool(body.get("replay_protected", False)),
-        "linked_identity": "session_placeholder_only" if session_received else "not_linked_yet",
+        "linked_identity": "staging_session_claim_received" if session_received else "not_linked_yet",
+        "account": account if session_received or account_source else None,
     }
+
+
+def _session_token_from_body(body: Mapping[str, object]) -> str | None:
+    value = body.get("staging_session_token")
+    if value is None:
+        value = body.get("staging_session_claim")
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
 
 
 def _default_json_transport(
@@ -109,6 +262,38 @@ def _default_json_transport(
         request.add_header("Content-Type", "application/json")
     try:
         with _NO_REDIRECT_OPENER.open(request, timeout=timeout_seconds) as response:  # noqa: S310 - origin is allowlisted before use.
+            return int(response.status), _read_json_body(response.read())
+    except HTTPError as exc:
+        if 300 <= int(exc.code) < 400:
+            raise StagingAuthBridgeError(
+                "staging_bridge_redirect_forbidden",
+                "Staging CLI bridge attempted to redirect.",
+                status_code=int(exc.code),
+            ) from exc
+        try:
+            return int(exc.code), _read_json_body(exc.read())
+        except StagingAuthBridgeError:
+            return int(exc.code), {}
+    except (OSError, URLError) as exc:
+        raise StagingAuthBridgeError("staging_bridge_unreachable", "Staging CLI bridge is unreachable.") from exc
+
+
+def _default_header_json_transport(
+    method: str,
+    url: str,
+    headers: Mapping[str, str],
+    body: Mapping[str, object] | None,
+    timeout_seconds: float,
+) -> tuple[int, Mapping[str, object]]:
+    payload = None if body is None else json.dumps(dict(body)).encode("utf-8")
+    request = Request(url, data=payload, method=method.upper())
+    request.add_header("Accept", "application/json")
+    for key, value in headers.items():
+        request.add_header(key, value)
+    if payload is not None:
+        request.add_header("Content-Type", "application/json")
+    try:
+        with _NO_REDIRECT_OPENER.open(request, timeout=timeout_seconds) as response:  # noqa: S310 - allowlisted origin.
             return int(response.status), _read_json_body(response.read())
     except HTTPError as exc:
         if 300 <= int(exc.code) < 400:
