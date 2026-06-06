@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 import sys
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from threading import Thread
 
 import pytest
 
@@ -54,7 +56,7 @@ def test_auth_status_uses_staging_without_local_google_client_id(tmp_path: Path,
     assert report["configured"] is False
     assert report["staging_login_available"] is True
     assert report["staging"]["origin"] == "https://api-staging.yonerai.com"
-    assert report["next_safe_command"] == "yonerai auth google login --staging --pretty --lang ja"
+    assert report["next_safe_command"] == "yonerai auth google login --staging --bridge --pretty --lang ja"
     assert report["error"] is None
     assert "YONERAI_GOOGLE_OAUTH_CLIENT_SECRET" not in serialized
     assert str(tmp_path) not in serialized
@@ -71,7 +73,7 @@ def test_auth_status_localizes_staging_next_command(tmp_path: Path, monkeypatch,
     assert cli.main(["auth", "status", "--json"]) == 0
     report = json.loads(capsys.readouterr().out)
 
-    assert report["next_safe_command"] == "yonerai auth google login --staging --pretty --lang en"
+    assert report["next_safe_command"] == "yonerai auth google login --staging --bridge --pretty --lang en"
 
 
 def test_google_login_dry_run_requires_client_configuration_without_traceback(tmp_path: Path, monkeypatch, capsys) -> None:
@@ -170,23 +172,309 @@ def test_google_login_staging_generates_public_safe_auth_url(tmp_path: Path, mon
     assert report["operation"] == "google_login_staging"
     assert report["configured"] is True
     assert report["staging"]["origin"] == "https://api-staging.yonerai.com"
-    assert report["authorization_url"].startswith("https://api-staging.yonerai.com/v1/auth/google/start?")
-    assert "state=" in report["authorization_url"]
-    assert "device_session_id=" in report["authorization_url"]
-    assert "redirect_uri=http%3A%2F%2F127.0.0.1" in report["authorization_url"]
-    assert report["state_generated"] is True
+    assert report["authorization_url"] == "https://api-staging.yonerai.com/auth/google/start"
+    assert report["state_generated"] is False
     assert report["state_printed_separately"] is False
+    assert report["device_session_id_generated"] is False
     assert report["browser_opened"] is False
     assert report["live_oauth_started"] is False
     assert report["client_secret_required"] is False
     assert report["token_exchange_performed"] is False
     assert report["refresh_token_stored"] is False
     assert report["staging_api"]["network_fetch_default"] == "off"
+    assert report["staging_api"]["network_fetch_when"] == "explicit --bridge or --poll-request-id only"
     assert report["staging_api"]["redirect_policy"] == "reject_unexpected_host"
     assert any(endpoint["path"] == "/v1/account/me" for endpoint in report["staging_api"]["allowed_methods_and_paths"])
+    assert any(endpoint["path"] == "/auth/cli/start" for endpoint in report["staging_api"]["allowed_methods_and_paths"])
+    assert report["official_backend_called"] is False
+    assert report["cli_bridge"]["network_called"] is False
     assert "YONERAI_GOOGLE_OAUTH_CLIENT_SECRET" not in serialized
     assert "refresh_token" in serialized
     assert str(tmp_path) not in serialized
+
+
+def test_google_login_staging_bridge_starts_cli_request_without_printing_tokens(tmp_path: Path, monkeypatch) -> None:
+    from yonerai_cli.auth_policy import build_google_login_staging
+
+    calls: list[tuple[str, str]] = []
+
+    def transport(method: str, url: str, body: object, timeout: float) -> tuple[int, dict[str, object]]:
+        calls.append((method, url))
+        assert body is None
+        assert timeout == 7.0
+        return (
+            200,
+            {
+                "status": "created",
+                "request_id": "cli_fixture_request",
+                "expires_at": 12345,
+                "browser_start_path": "/auth/google/start?cli_request_id=cli_fixture_request&redirect=true",
+                "poll_path": "/auth/cli/poll/cli_fixture_request",
+                "google_token_returned": False,
+                "refresh_token_returned": False,
+            },
+        )
+
+    monkeypatch.setenv("YONERAI_CLI_CONFIG_PATH", str(tmp_path / "cli-config.json"))
+    monkeypatch.setenv("YONERAI_STAGING_AUTH_ORIGIN", "https://api-staging.yonerai.com")
+
+    report = build_google_login_staging(bridge=True, timeout_seconds=7.0, transport=transport)
+    serialized = json.dumps(report, sort_keys=True)
+
+    assert report["ok"] is True
+    assert report["official_backend_called"] is True
+    assert report["authorization_url"] == (
+        "https://api-staging.yonerai.com/auth/google/start?cli_request_id=cli_fixture_request&redirect=true"
+    )
+    assert report["cli_bridge"]["request_id"] == "cli_fixture_request"
+    assert report["cli_bridge"]["start"]["poll_path"] == "/auth/cli/poll/cli_fixture_request"
+    assert calls == [("POST", "https://api-staging.yonerai.com/auth/cli/start")]
+    assert report["cli_bridge"]["start"]["staging_session_token_printed"] is False
+    assert "ystg_cli" not in serialized
+    assert "YONERAI_GOOGLE_OAUTH_CLIENT_SECRET" not in serialized
+    assert str(tmp_path) not in serialized
+
+
+def test_google_login_staging_bridge_poll_redacts_session_placeholder(tmp_path: Path, monkeypatch) -> None:
+    from yonerai_cli.auth_policy import build_google_login_staging
+
+    def transport(method: str, url: str, body: object, timeout: float) -> tuple[int, dict[str, object]]:
+        assert method == "GET"
+        assert url == "https://api-staging.yonerai.com/auth/cli/poll/cli_fixture_request"
+        return (
+            200,
+            {
+                "status": "completed",
+                "request_id": "cli_fixture_request",
+                "staging_session_token": "ystg_cli_secret_placeholder",
+                "google_token_returned": False,
+                "refresh_token_returned": False,
+                "replay_protected": True,
+            },
+        )
+
+    monkeypatch.setenv("YONERAI_CLI_CONFIG_PATH", str(tmp_path / "cli-config.json"))
+    monkeypatch.setenv("YONERAI_STAGING_AUTH_ORIGIN", "https://api-staging.yonerai.com")
+
+    report = build_google_login_staging(poll_request_id="cli_fixture_request", transport=transport)
+    serialized = json.dumps(report, sort_keys=True)
+
+    assert report["ok"] is True
+    assert report["official_backend_called"] is True
+    assert report["cli_bridge"]["poll_status"] == "completed"
+    assert report["cli_bridge"]["staging_session_received"] is True
+    assert report["cli_bridge"]["poll"]["linked_identity"] == "session_placeholder_only"
+    assert "ystg_cli_secret_placeholder" not in serialized
+    assert "staging_session_token_printed" in serialized
+    assert str(tmp_path) not in serialized
+
+
+def test_google_login_staging_bridge_fails_closed_on_token_return(tmp_path: Path, monkeypatch) -> None:
+    from yonerai_cli.auth_policy import build_google_login_staging
+
+    def transport(method: str, url: str, body: object, timeout: float) -> tuple[int, dict[str, object]]:
+        return (
+            200,
+            {
+                "status": "created",
+                "request_id": "cli_fixture_request",
+                "browser_start_path": "/auth/google/start?cli_request_id=cli_fixture_request&redirect=true",
+                "poll_path": "/auth/cli/poll/cli_fixture_request",
+                "google_token": "must-not-print",
+                "google_token_returned": True,
+            },
+        )
+
+    monkeypatch.setenv("YONERAI_CLI_CONFIG_PATH", str(tmp_path / "cli-config.json"))
+    monkeypatch.setenv("YONERAI_STAGING_AUTH_ORIGIN", "https://api-staging.yonerai.com")
+
+    report = build_google_login_staging(bridge=True, transport=transport)
+    serialized = json.dumps(report, sort_keys=True)
+
+    assert report["ok"] is False
+    assert report["error"]["code"] == "staging_bridge_token_return_forbidden"
+    assert report["authorization_url_printed"] is False
+    assert report["authorization_url"] is None
+    assert "must-not-print" not in serialized
+    assert str(tmp_path) not in serialized
+
+
+def test_google_login_staging_bridge_fails_closed_on_nested_token_return(tmp_path: Path, monkeypatch) -> None:
+    from yonerai_cli.auth_policy import build_google_login_staging
+
+    def transport(method: str, url: str, body: object, timeout: float) -> tuple[int, dict[str, object]]:
+        return (
+            200,
+            {
+                "status": "created",
+                "request_id": "cli_fixture_request",
+                "browser_start_path": "/auth/google/start?cli_request_id=cli_fixture_request&redirect=true",
+                "poll_path": "/auth/cli/poll/cli_fixture_request",
+                "google_token_returned": False,
+                "refresh_token_returned": False,
+                "data": {"access_token": "nested-must-not-print"},
+            },
+        )
+
+    monkeypatch.setenv("YONERAI_CLI_CONFIG_PATH", str(tmp_path / "cli-config.json"))
+    monkeypatch.setenv("YONERAI_STAGING_AUTH_ORIGIN", "https://api-staging.yonerai.com")
+
+    report = build_google_login_staging(bridge=True, transport=transport)
+    serialized = json.dumps(report, sort_keys=True)
+
+    assert report["ok"] is False
+    assert report["error"]["code"] == "staging_bridge_token_return_forbidden"
+    assert report["authorization_url_printed"] is False
+    assert report["authorization_url"] is None
+    assert "nested-must-not-print" not in serialized
+    assert str(tmp_path) not in serialized
+
+
+def test_google_login_staging_bridge_rejects_cross_origin_paths(tmp_path: Path, monkeypatch) -> None:
+    from yonerai_cli.auth_policy import build_google_login_staging
+
+    def transport(method: str, url: str, body: object, timeout: float) -> tuple[int, dict[str, object]]:
+        return (
+            200,
+            {
+                "status": "created",
+                "request_id": "cli_fixture_request",
+                "browser_start_path": "https://evil.test/auth/google/start",
+                "poll_path": "/auth/cli/poll/cli_fixture_request",
+                "google_token_returned": False,
+                "refresh_token_returned": False,
+            },
+        )
+
+    monkeypatch.setenv("YONERAI_CLI_CONFIG_PATH", str(tmp_path / "cli-config.json"))
+    monkeypatch.setenv("YONERAI_STAGING_AUTH_ORIGIN", "https://api-staging.yonerai.com")
+
+    report = build_google_login_staging(bridge=True, transport=transport)
+    serialized = json.dumps(report, sort_keys=True)
+
+    assert report["ok"] is False
+    assert report["error"]["code"] == "staging_bridge_browser_start_path_invalid"
+    assert report["authorization_url_printed"] is False
+    assert report["authorization_url"] is None
+    assert "evil.test" not in serialized
+    assert str(tmp_path) not in serialized
+
+
+def test_google_login_staging_bridge_rejects_backslash_paths(tmp_path: Path, monkeypatch) -> None:
+    from yonerai_cli.auth_policy import build_google_login_staging
+
+    def transport(method: str, url: str, body: object, timeout: float) -> tuple[int, dict[str, object]]:
+        return (
+            200,
+            {
+                "status": "created",
+                "request_id": "cli_fixture_request",
+                "browser_start_path": "/auth\\google\\start",
+                "poll_path": "/auth/cli/poll/cli_fixture_request",
+                "google_token_returned": False,
+                "refresh_token_returned": False,
+            },
+        )
+
+    monkeypatch.setenv("YONERAI_CLI_CONFIG_PATH", str(tmp_path / "cli-config.json"))
+    monkeypatch.setenv("YONERAI_STAGING_AUTH_ORIGIN", "https://api-staging.yonerai.com")
+
+    report = build_google_login_staging(bridge=True, transport=transport)
+    serialized = json.dumps(report, sort_keys=True)
+
+    assert report["ok"] is False
+    assert report["error"]["code"] == "staging_bridge_browser_start_path_invalid"
+    assert report["authorization_url_printed"] is False
+    assert report["authorization_url"] is None
+    assert "\\google" not in serialized
+    assert str(tmp_path) not in serialized
+
+
+def test_google_login_staging_bridge_rejects_unexpected_relative_start_path(tmp_path: Path, monkeypatch) -> None:
+    from yonerai_cli.auth_policy import build_google_login_staging
+
+    def transport(method: str, url: str, body: object, timeout: float) -> tuple[int, dict[str, object]]:
+        return (
+            200,
+            {
+                "status": "created",
+                "request_id": "cli_fixture_request",
+                "browser_start_path": "/internal/debug",
+                "poll_path": "/auth/cli/poll/cli_fixture_request",
+                "google_token_returned": False,
+                "refresh_token_returned": False,
+            },
+        )
+
+    monkeypatch.setenv("YONERAI_CLI_CONFIG_PATH", str(tmp_path / "cli-config.json"))
+    monkeypatch.setenv("YONERAI_STAGING_AUTH_ORIGIN", "https://api-staging.yonerai.com")
+
+    report = build_google_login_staging(bridge=True, transport=transport)
+    serialized = json.dumps(report, sort_keys=True)
+
+    assert report["ok"] is False
+    assert report["error"]["code"] == "staging_bridge_browser_start_path_invalid"
+    assert report["authorization_url_printed"] is False
+    assert report["authorization_url"] is None
+    assert "/internal/debug" not in serialized
+    assert str(tmp_path) not in serialized
+
+
+def test_staging_bridge_transport_rejects_redirect_before_following() -> None:
+    from yonerai_cli.staging_auth_bridge import StagingAuthBridgeError, _default_json_transport
+
+    class RedirectHandler(BaseHTTPRequestHandler):
+        def do_POST(self) -> None:  # noqa: N802 - http.server callback name
+            self.send_response(302)
+            self.send_header("Location", "https://evil.test/auth/cli/start")
+            self.end_headers()
+
+        def log_message(self, format: str, *args: object) -> None:
+            return
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), RedirectHandler)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        with pytest.raises(StagingAuthBridgeError) as exc_info:
+            _default_json_transport("POST", f"http://127.0.0.1:{server.server_port}/auth/cli/start", None, 2.0)
+    finally:
+        server.shutdown()
+        thread.join(timeout=5)
+
+    assert exc_info.value.code == "staging_bridge_redirect_forbidden"
+    assert exc_info.value.status_code == 302
+
+
+def test_staging_bridge_transport_preserves_http_error_with_non_json_body() -> None:
+    from yonerai_cli.staging_auth_bridge import _default_json_transport
+
+    class BadGatewayHandler(BaseHTTPRequestHandler):
+        def do_POST(self) -> None:  # noqa: N802 - http.server callback name
+            self.send_response(502)
+            self.send_header("Content-Type", "text/html")
+            self.end_headers()
+            self.wfile.write(b"<html>bad gateway</html>")
+
+        def log_message(self, format: str, *args: object) -> None:
+            return
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), BadGatewayHandler)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        status_code, body = _default_json_transport(
+            "POST",
+            f"http://127.0.0.1:{server.server_port}/auth/cli/start",
+            None,
+            2.0,
+        )
+    finally:
+        server.shutdown()
+        thread.join(timeout=5)
+
+    assert status_code == 502
+    assert body == {}
 
 
 def test_google_login_staging_allows_explicit_loopback_dev_origin(tmp_path: Path, monkeypatch, capsys) -> None:
@@ -203,7 +491,7 @@ def test_google_login_staging_allows_explicit_loopback_dev_origin(tmp_path: Path
     assert report["configured"] is True
     assert report["staging"]["origin"] == "http://127.0.0.1:8787"
     assert report["staging"]["localhost_dev_allowed"] is True
-    assert report["authorization_url"].startswith("http://127.0.0.1:8787/v1/auth/google/start?")
+    assert report["authorization_url"] == "http://127.0.0.1:8787/auth/google/start"
     assert report["production_login_enabled"] is False
     assert report["token_exchange_performed"] is False
     assert "YONERAI_GOOGLE_OAUTH_CLIENT_SECRET" not in serialized
@@ -222,7 +510,7 @@ def test_google_login_staging_preserves_ipv6_loopback_dev_brackets(tmp_path: Pat
     serialized = json.dumps(report, sort_keys=True)
 
     assert report["staging"]["origin"] == "http://[::1]:8787"
-    assert report["authorization_url"].startswith("http://[::1]:8787/v1/auth/google/start?")
+    assert report["authorization_url"] == "http://[::1]:8787/auth/google/start"
     assert "http://::1:8787" not in serialized
     assert str(tmp_path) not in serialized
 

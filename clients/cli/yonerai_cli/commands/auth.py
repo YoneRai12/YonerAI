@@ -47,6 +47,21 @@ def add_auth_parser(
         action="store_true",
         help="Generate a staging YonerAI auth URL when an allowlisted staging origin is configured.",
     )
+    auth_google_login.add_argument(
+        "--bridge",
+        action="store_true",
+        help="Explicitly call the staging CLI bridge start endpoint. Network is off unless this is set.",
+    )
+    auth_google_login.add_argument(
+        "--poll-request-id",
+        help="Poll a one-time staging CLI bridge request id. Does not print tokens.",
+    )
+    auth_google_login.add_argument(
+        "--timeout-seconds",
+        type=float,
+        default=10.0,
+        help="Network timeout for explicit staging bridge calls. Default: 10.",
+    )
     auth_google_login.add_argument("--config-path", help="Optional local CLI config path.")
     auth_google_login_output = auth_google_login.add_mutually_exclusive_group()
     auth_google_login_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
@@ -85,8 +100,15 @@ def handle_auth_command(args: argparse.Namespace, *, print_json: Callable[[dict[
         report = build_google_auth_status(_load_config(args))
     elif args.auth_command == "google" and args.auth_google_command == "login":
         if args.staging:
-            report = build_google_login_staging(_load_config(args))
+            report = build_google_login_staging(
+                _load_config(args),
+                bridge=bool(args.bridge),
+                poll_request_id=args.poll_request_id,
+                timeout_seconds=args.timeout_seconds,
+            )
         elif args.dry_run:
+            if args.bridge or args.poll_request_id:
+                raise AuthCommandError("--bridge and --poll-request-id require --staging.")
             report = build_google_login_dry_run(_load_config(args))
         else:
             raise AuthCommandError("auth google login requires --dry-run or --staging in the public repo.")
@@ -117,6 +139,7 @@ def format_auth_pretty(report: dict[str, Any], *, lang: str = "ja", color: Color
     storage = report.get("storage") if isinstance(report.get("storage"), dict) else {}
     staging = report.get("staging") if isinstance(report.get("staging"), dict) else {}
     staging_api = report.get("staging_api") if isinstance(report.get("staging_api"), dict) else {}
+    cli_bridge = report.get("cli_bridge") if isinstance(report.get("cli_bridge"), dict) else {}
     error = report.get("error") if isinstance(report.get("error"), dict) else None
     if lang == "ja":
         title = "YonerAI 認証ステータス"
@@ -178,6 +201,19 @@ def format_auth_pretty(report: dict[str, Any], *, lang: str = "ja", color: Color
         ),
         CliRow("account_sync_performed", False, "ok"),
         CliRow("staging_contract_fixture_only", staging_api.get("fixture_only", True), "ok"),
+        CliRow("bridge_network_called", cli_bridge.get("network_called", False), "warn" if cli_bridge.get("network_called") else "ok"),
+        CliRow("bridge_request_id", cli_bridge.get("request_id") or "not_started", "ok" if cli_bridge.get("request_id") else "warn"),
+        CliRow("bridge_poll_status", cli_bridge.get("poll_status") or "not_started", "ok"),
+        CliRow(
+            "staging_session_received",
+            cli_bridge.get("staging_session_received", False),
+            "ok" if cli_bridge.get("staging_session_received") else "warn",
+        ),
+        CliRow(
+            "staging_session_token_printed",
+            cli_bridge.get("staging_session_token_printed", False),
+            "fail" if cli_bridge.get("staging_session_token_printed") else "ok",
+        ),
     )
     storage_rows = (
         CliRow("refresh_token_storage", storage.get("refresh_token_storage"), "ok"),
