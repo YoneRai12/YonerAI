@@ -267,7 +267,11 @@ def build_google_login_staging(
     )
     ok = configured and bridge_error is None and not wait_link_failed
     authorization_url_printed = configured and bridge_error is None and authorization_url is not None
-    linked_claim = None if (account_validation_failed or missing_session_claim) else _linked_claim_from_bridge(staging, bridge_report)
+    linked_claim = (
+        None
+        if (account_validation_failed or missing_session_claim)
+        else _linked_claim_from_validated_bridge(staging, bridge_report)
+    )
     return {
         "schema_version": GOOGLE_AUTH_SCHEMA_VERSION,
         "ok": ok,
@@ -330,21 +334,21 @@ def build_google_login_staging(
     }
 
 
-def _linked_claim_from_bridge(
+def _linked_claim_from_validated_bridge(
     staging: Mapping[str, object],
     bridge_report: Mapping[str, object],
 ) -> dict[str, object] | None:
     if bridge_report.get("staging_session_received") is not True:
         return None
-    poll = bridge_report.get("poll") if isinstance(bridge_report.get("poll"), Mapping) else {}
     account_me = bridge_report.get("account_me") if isinstance(bridge_report.get("account_me"), Mapping) else {}
-    poll_account = poll.get("account") if isinstance(poll.get("account"), Mapping) else {}
+    if account_me.get("ok") is not True:
+        return None
+    poll = bridge_report.get("poll") if isinstance(bridge_report.get("poll"), Mapping) else {}
     account_me_account = account_me.get("account") if isinstance(account_me.get("account"), Mapping) else {}
-    account = account_me_account or poll_account
     return build_staging_auth_claim(
         origin=str(staging.get("origin") or "configured"),
         expires_at=poll.get("expires_at"),
-        account=account if isinstance(account, Mapping) else {},
+        account=account_me_account if isinstance(account_me_account, Mapping) else {},
     )
 
 

@@ -264,6 +264,10 @@ def test_google_login_staging_bridge_poll_redacts_session_placeholder(tmp_path: 
     assert report["cli_bridge"]["poll_status"] == "completed"
     assert report["cli_bridge"]["staging_session_received"] is True
     assert report["cli_bridge"]["poll"]["linked_identity"] == "staging_session_claim_received"
+    assert report["cli_bridge"]["account_me"] is None
+    assert report["staging_linked"] is False
+    assert report["staging_linked_claim"] is None
+    assert report["staging_claim_saved"] is False
     assert "ystg_cli_secret_placeholder" not in serialized
     assert "staging_session_token_printed" in serialized
     assert str(tmp_path) not in serialized
