@@ -6,7 +6,7 @@ from collections.abc import Callable, Mapping
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlparse
-from urllib.request import Request, urlopen
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 
 CLI_BRIDGE_START_PATH = "/auth/cli/start"
@@ -108,10 +108,19 @@ def _default_json_transport(
     if payload is not None:
         request.add_header("Content-Type", "application/json")
     try:
-        with urlopen(request, timeout=timeout_seconds) as response:  # noqa: S310 - origin is allowlisted before use.
+        with _NO_REDIRECT_OPENER.open(request, timeout=timeout_seconds) as response:  # noqa: S310 - origin is allowlisted before use.
             return int(response.status), _read_json_body(response.read())
     except HTTPError as exc:
-        return int(exc.code), _read_json_body(exc.read())
+        if 300 <= int(exc.code) < 400:
+            raise StagingAuthBridgeError(
+                "staging_bridge_redirect_forbidden",
+                "Staging CLI bridge attempted to redirect.",
+                status_code=int(exc.code),
+            ) from exc
+        try:
+            return int(exc.code), _read_json_body(exc.read())
+        except StagingAuthBridgeError:
+            return int(exc.code), {}
     except (OSError, URLError) as exc:
         raise StagingAuthBridgeError("staging_bridge_unreachable", "Staging CLI bridge is unreachable.") from exc
 
@@ -136,7 +145,8 @@ def _safe_relative_path(value: object, field_name: str) -> str:
     path = str(value or "").strip()
     parsed = urlparse(path)
     if (
-        any(ord(char) < 32 or ord(char) == 127 for char in path)
+        "\\" in path
+        or any(ord(char) < 32 or ord(char) == 127 for char in path)
         or not path.startswith("/")
         or path.startswith("//")
         or parsed.scheme
@@ -164,8 +174,28 @@ def _assert_no_token_return(body: Mapping[str, object], *, allow_session_placeho
     forbidden_keys = {"google_token", "id_token", "access_token", "refresh_token", "authorization_code"}
     if not allow_session_placeholder:
         forbidden_keys.add("staging_session_token")
-    if any(key in body for key in forbidden_keys):
+    if _contains_forbidden_key(body, forbidden_keys):
         raise StagingAuthBridgeError("staging_bridge_token_return_forbidden", "Staging CLI bridge attempted to return tokens.")
+
+
+def _contains_forbidden_key(value: object, forbidden_keys: set[str]) -> bool:
+    if isinstance(value, Mapping):
+        for key, nested in value.items():
+            if str(key).lower() in forbidden_keys:
+                return True
+            if _contains_forbidden_key(nested, forbidden_keys):
+                return True
+    elif isinstance(value, list | tuple):
+        return any(_contains_forbidden_key(item, forbidden_keys) for item in value)
+    return False
+
+
+class _NoRedirectHandler(HTTPRedirectHandler):
+    def redirect_request(self, req: object, fp: object, code: int, msg: str, headers: object, newurl: str) -> None:
+        return None
+
+
+_NO_REDIRECT_OPENER = build_opener(_NoRedirectHandler)
 
 
 def _url_host(host: str) -> str:
