@@ -350,7 +350,7 @@ def test_first_launch_auth_onboarding_can_show_staging_contract(tmp_path: Path, 
     assert "Use local only" in output
     assert "Check Google login" in output
     assert "Staging Google login" in output
-    assert "https://api-staging.yonerai.com/v1/auth/google/start?" in output
+    assert "https://api-staging.yonerai.com/auth/google/start" in output
     assert "token_exchange_performed" in output
     assert stored["language"] == "en"
     assert stored["auth_onboarding_seen"] is True

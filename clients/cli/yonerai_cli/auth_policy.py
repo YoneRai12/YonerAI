@@ -1,10 +1,20 @@
 from __future__ import annotations
 
 import os
-import secrets
 import re
 from typing import Mapping
-from urllib.parse import quote, urlparse
+from urllib.parse import urlparse
+
+from yonerai_cli.staging_auth_bridge import (
+    CLI_BRIDGE_POLL_PATH_TEMPLATE,
+    CLI_BRIDGE_START_PATH,
+    GOOGLE_BROWSER_START_PATH,
+    GOOGLE_CALLBACK_PATH,
+    JsonTransport,
+    StagingAuthBridgeError,
+    poll_cli_bridge,
+    start_cli_bridge,
+)
 
 
 GOOGLE_AUTH_SCHEMA_VERSION = "yonerai-google-auth-contract/v0.1"
@@ -20,12 +30,16 @@ ALLOWED_STAGING_AUTH_HOSTS = frozenset(
     }
 )
 LOCALHOST_DEV_AUTH_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
-STAGING_AUTH_START_PATH = "/v1/auth/google/start"
+STAGING_AUTH_START_PATH = GOOGLE_BROWSER_START_PATH
 STAGING_API_CONTRACT_ENDPOINTS = (
     ("GET", "/v1/account/me"),
     ("GET", "/v1/status"),
     ("GET", "/v1/rate-limit"),
     ("POST", "/v1/sync/preview"),
+    ("GET", GOOGLE_BROWSER_START_PATH),
+    ("GET", GOOGLE_CALLBACK_PATH),
+    ("POST", CLI_BRIDGE_START_PATH),
+    ("GET", CLI_BRIDGE_POLL_PATH_TEMPLATE),
 )
 _CLIENT_ID_RE = re.compile(r"^[A-Za-z0-9._:-]{6,256}$")
 
@@ -68,7 +82,7 @@ def build_google_auth_status(
         "flow": _google_flow_contract(redirect_report),
         "storage": _google_token_storage_contract(),
         "next_safe_command": (
-            f"yonerai auth google login --staging --pretty --lang {preferred_lang}"
+            f"yonerai auth google login --staging --bridge --pretty --lang {preferred_lang}"
             if staging_ready
             else "yonerai auth google login --dry-run --pretty"
         ),
@@ -124,28 +138,63 @@ def build_google_login_staging(
     config: Mapping[str, object] | None = None,
     *,
     env: Mapping[str, str | None] | None = None,
+    bridge: bool = False,
+    poll_request_id: str | None = None,
+    timeout_seconds: float = 10.0,
+    transport: JsonTransport | None = None,
 ) -> dict[str, object]:
     source = os.environ if env is None else env
     status = build_google_auth_status(config, env=source)
     staging = status["staging"] if isinstance(status.get("staging"), dict) else {}
     redirect_valid = bool(status["flow"]["redirect_valid"])
     configured = bool(staging.get("configured")) and redirect_valid
-    state = secrets.token_urlsafe(32) if configured else None
-    device_session_id = secrets.token_urlsafe(24) if configured else None
-    redirect_uri = str(status["flow"]["redirect_uri"])
     authorization_url = None
-    if configured and state and device_session_id:
+    bridge_report: dict[str, object] = {
+        "supported": True,
+        "network_called": False,
+        "start_path": CLI_BRIDGE_START_PATH,
+        "poll_path_template": CLI_BRIDGE_POLL_PATH_TEMPLATE,
+        "browser_start_path": GOOGLE_BROWSER_START_PATH,
+        "callback_path": GOOGLE_CALLBACK_PATH,
+        "request_id": None,
+        "poll_status": "not_started",
+        "staging_session_received": False,
+        "staging_session_token_printed": False,
+    }
+    bridge_error: dict[str, object] | None = None
+    if configured:
         origin = str(staging["origin"])
-        authorization_url = (
-            f"{origin}{STAGING_AUTH_START_PATH}"
-            f"?state={quote(state, safe='')}"
-            f"&device_session_id={quote(device_session_id, safe='')}"
-            f"&redirect_uri={quote(redirect_uri, safe='')}"
-        )
+        authorization_url = f"{origin}{STAGING_AUTH_START_PATH}"
+        if bridge or poll_request_id:
+            bridge_report["network_called"] = True
+            try:
+                if bridge:
+                    started = start_cli_bridge(origin, timeout_seconds=timeout_seconds, transport=transport)
+                    bridge_report["start"] = started
+                    bridge_report["request_id"] = started.get("request_id")
+                    authorization_url = str(started.get("browser_start_url") or authorization_url)
+                if poll_request_id:
+                    polled = poll_cli_bridge(
+                        origin,
+                        poll_request_id,
+                        timeout_seconds=timeout_seconds,
+                        transport=transport,
+                    )
+                    bridge_report["poll"] = polled
+                    bridge_report["poll_status"] = polled.get("status")
+                    bridge_report["request_id"] = polled.get("request_id")
+                    bridge_report["staging_session_received"] = bool(polled.get("staging_session_received"))
+            except StagingAuthBridgeError as exc:
+                bridge_error = exc.to_safe_error()
+                authorization_url = None
+        if poll_request_id and not bridge:
+            authorization_url = None
     staging_error = staging.get("error") if not staging.get("configured") else None
+    ok = configured and bridge_error is None
+    authorization_url_printed = configured and bridge_error is None and authorization_url is not None
     return {
         "schema_version": GOOGLE_AUTH_SCHEMA_VERSION,
-        "ok": configured,
+        "ok": ok,
         "operation": "google_login_staging",
         "dry_run": False,
         "staging_login": True,
@@ -154,11 +203,11 @@ def build_google_login_staging(
         "production_login_enabled": False,
         "live_oauth_started": False,
         "browser_opened": False,
-        "authorization_url_printed": configured,
+        "authorization_url_printed": authorization_url_printed,
         "authorization_url": authorization_url,
-        "state_generated": configured,
+        "state_generated": False,
         "state_printed_separately": False,
-        "device_session_id_generated": configured,
+        "device_session_id_generated": False,
         "device_session_id_printed_separately": False,
         "pkce_code_challenge_generated": False,
         "pkce_code_verifier_printed": False,
@@ -166,7 +215,8 @@ def build_google_login_staging(
         "client_id_printed": False,
         "client_secret_required": False,
         "client_secret_supported": False,
-        "official_backend_called": False,
+        "official_backend_called": bool(bridge_report["network_called"]),
+        "cli_bridge": bridge_report,
         "token_exchange_performed": False,
         "refresh_token_stored": False,
         "flow": status["flow"],
@@ -189,7 +239,11 @@ def build_google_login_staging(
             "no local private content upload",
             "no account sync performed",
         ],
-        "error": None if configured else staging_error or status.get("error") or _staging_auth_unconfigured_error(),
+        "error": bridge_error
+        if bridge_error
+        else None
+        if configured
+        else staging_error or status.get("error") or _staging_auth_unconfigured_error(),
     }
 
 
@@ -397,6 +451,8 @@ def _staging_api_contract(staging: Mapping[str, object]) -> dict[str, object]:
         "origin": origin,
         "fixture_only": True,
         "network_fetch_default": "off",
+        "network_fetch_when": "explicit --bridge or --poll-request-id only",
+        "next_e2e_command": "yonerai auth google login --staging --bridge --pretty --lang ja",
         "allowed_methods_and_paths": [
             {"method": method, "path": path, "url": f"{origin}{path}" if origin != "not_configured" else "not_configured"}
             for method, path in STAGING_API_CONTRACT_ENDPOINTS
