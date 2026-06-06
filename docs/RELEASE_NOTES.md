@@ -2,6 +2,28 @@
 
 This page is a public-safe index of current release notes and progress checkpoints.
 
+## v0.18.0-alpha.2 Staging Google Login E2E
+
+- GitHub pre-release target: `v0.18.0-alpha.2`.
+- Release title: `2026.06.06 - YonerAI v0.18.0-alpha.2 Staging Google Login E2E`.
+- Release date: `2026-06-06`.
+- Public release body: `docs/releases/0.18.0-alpha.2.md`.
+- Evidence: `docs/evidence/STAGING_GOOGLE_LOGIN_E2E.md`.
+- Status: prerelease staging E2E evidence and bridge-hardening slice after
+  v0.18.0-alpha.1.
+- What users can try now:
+  `yonerai auth google login --staging --bridge --open-browser --wait-linked --pretty --lang ja`,
+  `yonerai auth status --pretty --lang ja`, TUI `/認証`, and `/auth`.
+- Boundary: staging Google login only; no production Google login, no Google
+  client secret in the public repo, no Google token storage, no refresh-token
+  storage, no account sync, no OpenAI shared traffic runtime, no local private
+  content upload, no production AWS backend, no production Oracle/cloud runtime,
+  no live Discord, no arbitrary shell/file/tool execution, and no production
+  signing/trust store.
+- Security carry-in: backend-provided bridge paths now reject token-like query
+  parameters and URL fragments before the public CLI prints or joins URLs.
+- Primary traceability range: `v0.18.0-alpha.1..v0.18.0-alpha.2`.
+
 ## v0.18.0-alpha.1 Staging Google Login Linked UX
 
 - GitHub pre-release target: `v0.18.0-alpha.1`.

@@ -2,6 +2,21 @@
 
 See also: `docs/RELEASE_NOTES.md` (curated summary, v5.0.0 -> current).
 
+## v0.18.0-alpha.2 (2026-06-06) - Staging Google Login E2E
+- Published public-safe staging Google login E2E evidence for
+  `https://api-staging.yonerai.com`: bridge start, browser callback, poll
+  linked, and authenticated `GET /v1/account/me` with minimal profile.
+- Added `docs/evidence/STAGING_GOOGLE_LOGIN_E2E.md` without account email,
+  request id, auth code, tokens, client secrets, provider keys, private paths,
+  or private runtime inventory.
+- Hardened the public CLI staging bridge so backend-provided bridge paths reject
+  token-like query parameters and URL fragments before printing or joining URLs.
+- Kept top-level staging session claims usable only for linked-state validation
+  while continuing to reject nested token-like fields.
+- Kept production login off: no Google client secret in the public repo, no
+  Google token or refresh-token storage, no account sync, no shared traffic, no
+  local private upload, and no production Oracle/cloud runtime.
+
 ## v0.18.0-alpha.1 (2026-06-06) - Staging Google Login Linked UX
 - Completed the public CLI linked-state side of staging Google login. Users can
   run `yonerai auth google login --staging --bridge --open-browser --wait-linked

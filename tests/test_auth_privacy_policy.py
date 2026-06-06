@@ -269,6 +269,203 @@ def test_google_login_staging_bridge_poll_redacts_session_placeholder(tmp_path: 
     assert str(tmp_path) not in serialized
 
 
+def test_staging_bridge_rejects_sensitive_query_params_in_paths(tmp_path: Path, monkeypatch) -> None:
+    from yonerai_cli.auth_policy import build_google_login_staging
+
+    def transport(method: str, url: str, body: object, timeout: float) -> tuple[int, dict[str, object]]:
+        return (
+            200,
+            {
+                "status": "created",
+                "request_id": "cli_fixture_request",
+                "browser_start_path": "/auth/google/start?cli_request_id=cli_fixture_request&access_token=leakmarker",
+                "poll_path": "/auth/cli/poll/cli_fixture_request",
+                "google_token_returned": False,
+                "refresh_token_returned": False,
+            },
+        )
+
+    monkeypatch.setenv("YONERAI_CLI_CONFIG_PATH", str(tmp_path / "cli-config.json"))
+    monkeypatch.setenv("YONERAI_STAGING_AUTH_ORIGIN", "https://api-staging.yonerai.com")
+
+    report = build_google_login_staging(bridge=True, transport=transport)
+    serialized = json.dumps(report, sort_keys=True)
+
+    assert report["ok"] is False
+    assert report["error"]["code"] == "staging_bridge_browser_start_path_invalid"
+    assert "leakmarker" not in serialized
+    assert str(tmp_path) not in serialized
+
+
+def test_staging_bridge_rejects_semicolon_sensitive_query_params(tmp_path: Path, monkeypatch) -> None:
+    from yonerai_cli.auth_policy import build_google_login_staging
+
+    def transport(method: str, url: str, body: object, timeout: float) -> tuple[int, dict[str, object]]:
+        return (
+            200,
+            {
+                "status": "created",
+                "request_id": "cli_fixture_request",
+                "browser_start_path": "/auth/google/start?cli_request_id=cli_fixture_request;access_token=leakmarker",
+                "poll_path": "/auth/cli/poll/cli_fixture_request",
+                "google_token_returned": False,
+                "refresh_token_returned": False,
+            },
+        )
+
+    monkeypatch.setenv("YONERAI_CLI_CONFIG_PATH", str(tmp_path / "cli-config.json"))
+    monkeypatch.setenv("YONERAI_STAGING_AUTH_ORIGIN", "https://api-staging.yonerai.com")
+
+    report = build_google_login_staging(bridge=True, transport=transport)
+    serialized = json.dumps(report, sort_keys=True)
+
+    assert report["ok"] is False
+    assert report["error"]["code"] == "staging_bridge_browser_start_path_invalid"
+    assert "leakmarker" not in serialized
+    assert str(tmp_path) not in serialized
+
+
+def test_staging_bridge_rejects_sensitive_fragment_params_in_paths(tmp_path: Path, monkeypatch) -> None:
+    from yonerai_cli.auth_policy import build_google_login_staging
+
+    def transport(method: str, url: str, body: object, timeout: float) -> tuple[int, dict[str, object]]:
+        return (
+            200,
+            {
+                "status": "created",
+                "request_id": "cli_fixture_request",
+                "browser_start_path": "/auth/google/start?cli_request_id=cli_fixture_request#refresh_token=leakmarker",
+                "poll_path": "/auth/cli/poll/cli_fixture_request",
+                "google_token_returned": False,
+                "refresh_token_returned": False,
+            },
+        )
+
+    monkeypatch.setenv("YONERAI_CLI_CONFIG_PATH", str(tmp_path / "cli-config.json"))
+    monkeypatch.setenv("YONERAI_STAGING_AUTH_ORIGIN", "https://api-staging.yonerai.com")
+
+    report = build_google_login_staging(bridge=True, transport=transport)
+    serialized = json.dumps(report, sort_keys=True)
+
+    assert report["ok"] is False
+    assert report["error"]["code"] == "staging_bridge_browser_start_path_invalid"
+    assert "leakmarker" not in serialized
+    assert str(tmp_path) not in serialized
+
+
+def test_staging_bridge_rejects_sensitive_poll_path_params(tmp_path: Path, monkeypatch) -> None:
+    from yonerai_cli.auth_policy import build_google_login_staging
+
+    def transport(method: str, url: str, body: object, timeout: float) -> tuple[int, dict[str, object]]:
+        return (
+            200,
+            {
+                "status": "created",
+                "request_id": "cli_fixture_request",
+                "browser_start_path": "/auth/google/start?cli_request_id=cli_fixture_request",
+                "poll_path": "/auth/cli/poll/cli_fixture_request?staging_session_token=leakmarker",
+                "google_token_returned": False,
+                "refresh_token_returned": False,
+            },
+        )
+
+    monkeypatch.setenv("YONERAI_CLI_CONFIG_PATH", str(tmp_path / "cli-config.json"))
+    monkeypatch.setenv("YONERAI_STAGING_AUTH_ORIGIN", "https://api-staging.yonerai.com")
+
+    report = build_google_login_staging(bridge=True, transport=transport)
+    serialized = json.dumps(report, sort_keys=True)
+
+    assert report["ok"] is False
+    assert report["error"]["code"] == "staging_bridge_poll_path_invalid"
+    assert "leakmarker" not in serialized
+    assert str(tmp_path) not in serialized
+
+
+def test_staging_bridge_rejects_nested_session_token_in_poll_response(tmp_path: Path, monkeypatch) -> None:
+    from yonerai_cli.auth_policy import build_google_login_staging
+
+    def transport(method: str, url: str, body: object, timeout: float) -> tuple[int, dict[str, object]]:
+        assert method == "GET"
+        return (
+            200,
+            {
+                "status": "completed",
+                "request_id": "cli_fixture_request",
+                "account": {"staging_session_token": "nested_secret"},
+                "google_token_returned": False,
+                "refresh_token_returned": False,
+            },
+        )
+
+    monkeypatch.setenv("YONERAI_CLI_CONFIG_PATH", str(tmp_path / "cli-config.json"))
+    monkeypatch.setenv("YONERAI_STAGING_AUTH_ORIGIN", "https://api-staging.yonerai.com")
+
+    report = build_google_login_staging(poll_request_id="cli_fixture_request", transport=transport)
+    serialized = json.dumps(report, sort_keys=True)
+
+    assert report["ok"] is False
+    assert report["error"]["code"] == "staging_bridge_token_return_forbidden"
+    assert "nested_secret" not in serialized
+    assert str(tmp_path) not in serialized
+
+
+def test_staging_bridge_rejects_object_session_claim_in_poll_response(tmp_path: Path, monkeypatch) -> None:
+    from yonerai_cli.auth_policy import build_google_login_staging
+
+    def transport(method: str, url: str, body: object, timeout: float) -> tuple[int, dict[str, object]]:
+        assert method == "GET"
+        return (
+            200,
+            {
+                "status": "completed",
+                "request_id": "cli_fixture_request",
+                "staging_session_claim": {"access_token": "nested_secret"},
+                "google_token_returned": False,
+                "refresh_token_returned": False,
+            },
+        )
+
+    monkeypatch.setenv("YONERAI_CLI_CONFIG_PATH", str(tmp_path / "cli-config.json"))
+    monkeypatch.setenv("YONERAI_STAGING_AUTH_ORIGIN", "https://api-staging.yonerai.com")
+
+    report = build_google_login_staging(poll_request_id="cli_fixture_request", transport=transport)
+    serialized = json.dumps(report, sort_keys=True)
+
+    assert report["ok"] is False
+    assert report["error"]["code"] == "staging_bridge_token_return_forbidden"
+    assert "nested_secret" not in serialized
+    assert str(tmp_path) not in serialized
+
+
+def test_staging_bridge_rejects_non_scalar_expires_at(tmp_path: Path, monkeypatch) -> None:
+    from yonerai_cli.auth_policy import build_google_login_staging
+
+    def transport(method: str, url: str, body: object, timeout: float) -> tuple[int, dict[str, object]]:
+        return (
+            200,
+            {
+                "status": "created",
+                "request_id": "cli_fixture_request",
+                "expires_at": {"value": "not_a_public_scalar"},
+                "browser_start_path": "/auth/google/start?cli_request_id=cli_fixture_request",
+                "poll_path": "/auth/cli/poll/cli_fixture_request",
+                "google_token_returned": False,
+                "refresh_token_returned": False,
+            },
+        )
+
+    monkeypatch.setenv("YONERAI_CLI_CONFIG_PATH", str(tmp_path / "cli-config.json"))
+    monkeypatch.setenv("YONERAI_STAGING_AUTH_ORIGIN", "https://api-staging.yonerai.com")
+
+    report = build_google_login_staging(bridge=True, transport=transport)
+    serialized = json.dumps(report, sort_keys=True)
+
+    assert report["ok"] is False
+    assert report["error"]["code"] == "staging_bridge_expires_at_invalid"
+    assert "not_a_public_scalar" not in serialized
+    assert str(tmp_path) not in serialized
+
+
 def test_google_login_staging_waits_for_link_and_fetches_account_without_storing_tokens(
     tmp_path: Path,
     monkeypatch,
