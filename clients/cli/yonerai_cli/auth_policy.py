@@ -211,6 +211,7 @@ def build_google_login_staging(
                     bridge_report["poll_status"] = polled.get("status")
                     bridge_report["request_id"] = polled.get("request_id")
                     bridge_report["staging_session_received"] = bool(polled.get("staging_session_received"))
+                    bridge_report["linked_without_session_claim"] = bool(polled.get("linked_without_session_claim"))
                     bridge_report["waited_until_linked"] = bool(polled.get("waited_until_linked"))
                     bridge_report["poll_attempts"] = polled.get("poll_attempts", 0)
                     bridge_report["account_me"] = polled.get("account_me")
@@ -238,17 +239,21 @@ def build_google_login_staging(
         and account_me
         and account_me.get("ok") is not True
     )
+    missing_session_claim = bool(wait_linked and bridge_report.get("linked_without_session_claim") is True)
     wait_link_failed = bool(
         wait_linked
         and bridge_report["network_called"]
-        and (not bridge_report["waited_until_linked"] or account_validation_failed)
+        and (not bridge_report["waited_until_linked"] or account_validation_failed or missing_session_claim)
     )
-    wait_error_code = "staging_account_validation_failed" if account_validation_failed else "staging_link_not_completed"
-    wait_error_message = (
-        "Staging account validation failed after the bridge linked."
-        if account_validation_failed
-        else "Staging CLI bridge did not complete before the wait timeout."
-    )
+    if account_validation_failed:
+        wait_error_code = "staging_account_validation_failed"
+        wait_error_message = "Staging account validation failed after the bridge linked."
+    elif missing_session_claim:
+        wait_error_code = "staging_session_claim_missing"
+        wait_error_message = "Staging CLI bridge linked without a usable session claim."
+    else:
+        wait_error_code = "staging_link_not_completed"
+        wait_error_message = "Staging CLI bridge did not complete before the wait timeout."
     wait_link_error = (
         {
             "code": wait_error_code,
@@ -262,7 +267,7 @@ def build_google_login_staging(
     )
     ok = configured and bridge_error is None and not wait_link_failed
     authorization_url_printed = configured and bridge_error is None and authorization_url is not None
-    linked_claim = None if account_validation_failed else _linked_claim_from_bridge(staging, bridge_report)
+    linked_claim = None if (account_validation_failed or missing_session_claim) else _linked_claim_from_bridge(staging, bridge_report)
     return {
         "schema_version": GOOGLE_AUTH_SCHEMA_VERSION,
         "ok": ok,

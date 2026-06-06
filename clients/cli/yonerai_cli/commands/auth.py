@@ -158,7 +158,21 @@ def _persist_staging_claim_if_linked(report: dict[str, Any], *, config_path: str
     claim = report.get("staging_linked_claim")
     if not isinstance(claim, dict):
         return
-    saved = save_staging_auth_claim(claim, config_path=config_path)
+    try:
+        saved = save_staging_auth_claim(claim, config_path=config_path)
+    except ValueError:
+        report["ok"] = False
+        report["staging_linked"] = False
+        report["staging_linked_claim"] = None
+        report["staging_claim_saved"] = False
+        report["staging_session_token_stored"] = False
+        report["error"] = {
+            "code": "staging_claim_save_failed",
+            "message": "Staging linked account claim could not be saved safely.",
+            "private_path_printed": False,
+            "token_printed": False,
+        }
+        return
     report["staging_linked_claim"] = saved
     report["staging_claim_saved"] = True
     report["staging_session_token_stored"] = False

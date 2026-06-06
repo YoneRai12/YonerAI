@@ -128,8 +128,11 @@ def wait_for_cli_bridge_link(
         last_report = _safe_poll_report(safe_request_id, body)
         session_token = _session_token_from_body(body)
         status = str(last_report.get("status") or "unknown")
-        linked = bool(last_report.get("staging_session_received")) or status in {"linked", "completed", "complete"}
-        if linked:
+        session_received = bool(last_report.get("staging_session_received"))
+        if session_received:
+            break
+        if status in {"linked", "completed", "complete"}:
+            last_report["linked_without_session_claim"] = True
             break
         if status in {"expired", "revoked", "error", "failed"} or time.monotonic() >= deadline:
             break
@@ -153,8 +156,7 @@ def wait_for_cli_bridge_link(
     last_report.update(
         {
             "poll_attempts": attempts,
-            "waited_until_linked": bool(last_report.get("staging_session_received"))
-            or str(last_report.get("status")) in {"linked", "completed", "complete"},
+            "waited_until_linked": bool(last_report.get("staging_session_received")),
             "account_me": account_report,
             "google_token_returned": False,
             "refresh_token_returned": False,

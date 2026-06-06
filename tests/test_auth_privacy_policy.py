@@ -494,6 +494,53 @@ def test_google_login_staging_does_not_link_when_account_validation_fails(tmp_pa
     assert str(tmp_path) not in serialized
 
 
+def test_google_login_staging_does_not_link_without_session_claim(tmp_path: Path, monkeypatch) -> None:
+    from yonerai_cli.auth_policy import build_google_login_staging
+
+    def transport(method: str, url: str, body: object, timeout: float) -> tuple[int, dict[str, object]]:
+        if method == "POST":
+            return (
+                200,
+                {
+                    "status": "created",
+                    "request_id": "cli_fixture_request",
+                    "browser_start_path": "/auth/google/start?cli_request_id=cli_fixture_request&redirect=true",
+                    "poll_path": "/auth/cli/poll/cli_fixture_request",
+                    "google_token_returned": False,
+                    "refresh_token_returned": False,
+                },
+            )
+        return (
+            200,
+            {
+                "status": "linked",
+                "request_id": "cli_fixture_request",
+                "google_token_returned": False,
+                "refresh_token_returned": False,
+            },
+        )
+
+    monkeypatch.setenv("YONERAI_CLI_CONFIG_PATH", str(tmp_path / "cli-config.json"))
+    monkeypatch.setenv("YONERAI_STAGING_AUTH_ORIGIN", "https://api-staging.yonerai.com")
+
+    report = build_google_login_staging(
+        bridge=True,
+        wait_linked=True,
+        transport=transport,
+    )
+    serialized = json.dumps(report, sort_keys=True)
+
+    assert report["ok"] is False
+    assert report["error"]["code"] == "staging_session_claim_missing"
+    assert report["cli_bridge"]["linked_without_session_claim"] is True
+    assert report["cli_bridge"]["waited_until_linked"] is False
+    assert report["staging_linked"] is False
+    assert report["staging_linked_claim"] is None
+    assert report["staging_session_token_stored"] is False
+    assert "Traceback" not in serialized
+    assert str(tmp_path) not in serialized
+
+
 def test_google_login_staging_browser_open_exception_falls_back(tmp_path: Path, monkeypatch) -> None:
     from yonerai_cli.auth_policy import build_google_login_staging
 
@@ -608,6 +655,32 @@ def test_staging_auth_claim_storage_redacts_and_rejects_secret_material(tmp_path
     assert "google-subject" not in serialized
     with pytest.raises(ValueError):
         validate_staging_auth_claim({"auth_state": "linked", "access_token": "secret"})
+
+
+def test_staging_claim_save_failure_is_controlled_and_redacted(tmp_path: Path, monkeypatch) -> None:
+    from yonerai_cli.commands.auth import _persist_staging_claim_if_linked
+
+    def fail_save(claim: dict[str, object], *, config_path: str | None = None) -> dict[str, object]:
+        raise ValueError(f"cannot write {tmp_path / 'cli-config.json'}")
+
+    monkeypatch.setattr("yonerai_cli.commands.auth.save_staging_auth_claim", fail_save)
+    report: dict[str, object] = {
+        "ok": True,
+        "staging_linked": True,
+        "staging_linked_claim": {"auth_state": "linked", "account": {"email_redacted": "o***@example.com"}},
+    }
+
+    _persist_staging_claim_if_linked(report, config_path=str(tmp_path / "cli-config.json"))
+    serialized = json.dumps(report, sort_keys=True)
+
+    assert report["ok"] is False
+    assert report["staging_linked"] is False
+    assert report["staging_linked_claim"] is None
+    assert report["staging_claim_saved"] is False
+    assert report["error"]["code"] == "staging_claim_save_failed"  # type: ignore[index]
+    assert report["error"]["private_path_printed"] is False  # type: ignore[index]
+    assert "cannot write" not in serialized
+    assert str(tmp_path) not in serialized
 
 
 def test_auth_status_reads_saved_linked_staging_claim(tmp_path: Path, monkeypatch, capsys) -> None:
