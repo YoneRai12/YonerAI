@@ -59,6 +59,7 @@ COMMAND_ALIASES = {
     "/api": "/api",
     "/公式": "/api",
     "/同期": "/sync",
+    "/クラウド": "/sync",
     "/sync": "/sync",
     "/プライバシー": "/privacy",
     "/privacy": "/privacy",

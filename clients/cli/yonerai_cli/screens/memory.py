@@ -111,10 +111,14 @@ def _format_sync_status(report: dict[str, Any], *, lang: str) -> str:
     cloud_to_local = directions.get("cloud_to_local") if isinstance(directions.get("cloud_to_local"), dict) else {}
     local_to_cloud = directions.get("local_to_cloud") if isinstance(directions.get("local_to_cloud"), dict) else {}
     actions = report.get("actions_not_performed") if isinstance(report.get("actions_not_performed"), list) else []
+    error = report.get("error") if isinstance(report.get("error"), dict) else {}
     if lang == "ja":
         lines = [
             "同期",
             f"  認証状態: {_safe(report.get('auth_state') or cloud_link.get('auth_state') or 'dry_run')}",
+            f"  staging origin: {_safe(report.get('staging_origin') or 'not_configured')}",
+            f"  staging linked claim: {_yes_no(report.get('staging_claim_present'), lang='ja')}",
+            f"  staging session: {'利用可能' if report.get('staging_session_available') else '未保存'}",
             "  cloud -> local: ログイン済み + 選択したcloud会話だけ同期downできます",
             f"    現在有効: {_yes_no(cloud_to_local.get('enabled_now'), lang='ja')}",
             "  local -> cloud: 初期値では無効。明示承認とaudit理由が必要です",
@@ -122,10 +126,14 @@ def _format_sync_status(report: dict[str, Any], *, lang: str) -> str:
             f"    明示承認必須: {_yes_no(local_to_cloud.get('requires_explicit_approval'), lang='ja')}",
             "  除外: private file / local memory / local node payload / provider keys",
             f"  共有トラフィック: {'オン' if report.get('shared_traffic_enabled') else 'オフ'}",
-            "  public repo: contract/fixtureのみ。本番Official Cloud/Oracleには接続しません",
-            "  試す: yonerai sync preview --direction cloud-to-local --json",
+            "  public repo: staging preview表示まで。本番Official Cloud/Oracleには接続しません",
+            "  試す: yonerai sync conversations --pretty --lang ja",
+            "  試す: yonerai sync preview --direction cloud-to-local --pretty --lang ja",
+            "  試す: yonerai sync preview --direction local-to-cloud --pretty --lang ja",
             "  実行しないこと:",
         ]
+        if error:
+            lines.append(f"  注意: {_safe(error.get('code') or 'sync_error')} - {_safe(error.get('message') or '')}")
         for action in actions[:8]:
             lines.append(f"    - {_safe(action)}")
         lines.append("")
@@ -134,13 +142,18 @@ def _format_sync_status(report: dict[str, Any], *, lang: str) -> str:
         (
             "Sync",
             f"  auth_state: {_safe(report.get('auth_state') or cloud_link.get('auth_state') or 'dry_run')}",
+            f"  staging_origin: {_safe(report.get('staging_origin') or 'not_configured')}",
+            f"  staging_claim_present: {bool(report.get('staging_claim_present'))}",
+            f"  staging_session_available: {bool(report.get('staging_session_available'))}",
             f"  cloud_to_local_enabled: {bool(cloud_to_local.get('enabled_now'))}",
             f"  local_to_cloud_enabled_by_default: {bool(local_to_cloud.get('enabled_by_default'))}",
             f"  local_to_cloud_requires_approval: {bool(local_to_cloud.get('requires_explicit_approval'))}",
             "  excluded: private file, local memory, local node payload, provider keys",
             f"  shared_traffic_enabled: {bool(report.get('shared_traffic_enabled'))}",
-            "  public_repo: contract/fixture only; no production Official Cloud or Oracle call",
-            "  try: yonerai sync preview --direction cloud-to-local --json",
+            "  public_repo: staging preview visibility only; no production Official Cloud or Oracle call",
+            "  try: yonerai sync conversations --pretty --lang en",
+            "  try: yonerai sync preview --direction cloud-to-local --pretty --lang en",
+            "  try: yonerai sync preview --direction local-to-cloud --pretty --lang en",
             "  actions_not_performed: " + ", ".join(_safe(action) for action in actions[:8]),
             "",
         )

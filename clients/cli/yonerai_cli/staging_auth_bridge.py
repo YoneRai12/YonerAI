@@ -44,6 +44,7 @@ HeaderJsonTransport = Callable[
     [str, str, Mapping[str, str], Mapping[str, object] | None, float],
     tuple[int, Mapping[str, object]],
 ]
+SessionClaimHandler = Callable[[str, Mapping[str, object], Mapping[str, object]], Mapping[str, object]]
 
 
 class StagingAuthBridgeError(ValueError):
@@ -121,6 +122,7 @@ def wait_for_cli_bridge_link(
     max_wait_seconds: float = 120.0,
     poll_interval_seconds: float = 2.0,
     fetch_account: bool = True,
+    session_claim_handler: SessionClaimHandler | None = None,
 ) -> dict[str, object]:
     deadline = time.monotonic() + max(0.0, max_wait_seconds)
     interval = max(0.25, min(max(poll_interval_seconds, 0.25), 10.0))
@@ -166,6 +168,7 @@ def wait_for_cli_bridge_link(
             )
         raise StagingAuthBridgeError("staging_bridge_poll_failed", "Staging CLI bridge poll failed.")
     account_report: dict[str, object] | None = None
+    session_storage_report: Mapping[str, object] | None = None
     if fetch_account and session_token:
         account_report = fetch_staging_account_me(
             origin,
@@ -173,11 +176,14 @@ def wait_for_cli_bridge_link(
             transport=account_transport,
             timeout_seconds=timeout_seconds,
         )
+        if account_report.get("ok") is True and session_claim_handler is not None:
+            session_storage_report = session_claim_handler(session_token, last_report, account_report)
     last_report.update(
         {
             "poll_attempts": attempts,
             "waited_until_linked": bool(last_report.get("staging_session_received")),
             "account_me": account_report,
+            "session_storage": dict(session_storage_report or {}),
             "google_token_returned": False,
             "refresh_token_returned": False,
             "staging_session_token_printed": False,

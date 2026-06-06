@@ -171,10 +171,9 @@ def build_interactive_api_status(*, prepare_import_paths: Callable[[], None]) ->
 
 
 def build_interactive_sync_status(*, prepare_import_paths: Callable[[], None]) -> dict[str, Any]:
-    prepare_import_paths()
-    from ora_core.official import build_sync_status_report
+    from yonerai_cli.services.staging_sync_service import build_staging_sync_status
 
-    return build_sync_status_report(auth_state="dry_run", selected=False)
+    return build_staging_sync_status(config={})
 
 
 def build_interactive_evolve_status(*, prepare_import_paths: Callable[[], None]) -> dict[str, Any]:

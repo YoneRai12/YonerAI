@@ -2,6 +2,31 @@
 
 This page is a public-safe index of current release notes and progress checkpoints.
 
+## v0.19.0-alpha.1 Cloud Conversation Sync Preview
+
+- GitHub pre-release target: `v0.19.0-alpha.1`.
+- Release title: `2026.06.06 - YonerAI v0.19.0-alpha.1 Cloud Conversation Sync Preview`.
+- Release date: `2026-06-06`.
+- Public release body: `docs/releases/0.19.0-alpha.1.md`.
+- Evidence: `docs/evidence/STAGING_CLOUD_SYNC_PREVIEW_E2E.md`.
+- Status: prerelease staging cloud conversation sync preview after
+  v0.18.0-alpha.2.
+- What users can try now:
+  `yonerai auth google login --staging --bridge --open-browser --wait-linked --pretty --lang ja`,
+  `yonerai auth session status --pretty --lang ja`,
+  `yonerai sync conversations --pretty --lang ja`,
+  `yonerai sync conversation show <cloud_conversation_id> --pretty --lang ja`,
+  `yonerai sync preview --direction cloud-to-local --audit-reason "user_selected_cloud_preview" --pretty --lang ja`,
+  `yonerai sync preview --direction local-to-cloud --audit-reason "manual_preview_only" --pretty --lang ja`,
+  TUI `/認証`, `/同期`, and `/クラウド`.
+- Boundary: staging sync preview only; no production Google login, no Google
+  client secret in the public repo, no Google token storage, no refresh-token
+  storage, no automatic local-to-cloud upload, no OpenAI shared traffic runtime,
+  no local private content upload, no production AWS backend, no production
+  Oracle/cloud runtime, no live Discord, no arbitrary shell/file/tool execution,
+  and no production signing/trust store.
+- Primary traceability range: `v0.18.0-alpha.2..v0.19.0-alpha.1`.
+
 ## v0.18.0-alpha.2 Staging Google Login E2E
 
 - GitHub pre-release target: `v0.18.0-alpha.2`.

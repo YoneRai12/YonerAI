@@ -331,7 +331,7 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _configure_stdio() -> None:
-    for stream in (sys.stdout, sys.stderr):
+    for stream in (sys.stdin, sys.stdout, sys.stderr):
         reconfigure = getattr(stream, "reconfigure", None)
         if not callable(reconfigure):
             continue

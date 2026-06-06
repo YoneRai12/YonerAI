@@ -2,6 +2,21 @@
 
 See also: `docs/RELEASE_NOTES.md` (curated summary, v5.0.0 -> current).
 
+## v0.19.0-alpha.1 (2026-06-06) - Cloud Conversation Sync Preview
+- Connected the public CLI staging login path to account-required cloud
+  conversation sync preview endpoints on `https://api-staging.yonerai.com`.
+- Added safe local YonerAI staging session claim storage so the CLI can reuse
+  an opaque staging session for `/v1/account/me`, `/v1/conversations`, and
+  `/v1/sync/preview` without printing or storing Google tokens.
+- Added `yonerai auth session status` and `yonerai auth logout --staging` for
+  inspecting and clearing the local staging session claim.
+- Added `yonerai sync conversations`, `yonerai sync conversation show <id>`, and
+  staging-backed cloud-to-local sync preview behavior with metadata-only output.
+- Kept local-to-cloud disabled by default and preview-only in the public repo.
+- Preserved boundaries: no production Google login, no Google client secret, no
+  Google access/ID/refresh token storage, no local private upload, no OpenAI
+  shared traffic, no production Oracle/cloud runtime, and no live Discord.
+
 ## v0.18.0-alpha.2 (2026-06-06) - Staging Google Login E2E
 - Published public-safe staging Google login E2E evidence for
   `https://api-staging.yonerai.com`: bridge start, browser callback, poll
