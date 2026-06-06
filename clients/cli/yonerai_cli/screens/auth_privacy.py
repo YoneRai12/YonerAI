@@ -5,10 +5,12 @@ from yonerai_cli.screens.labels import _safe, _value_label, _yes_no
 
 
 def _format_auth_status(config: dict[str, object], *, lang: str) -> str:
-    report = build_google_auth_status(config)
+    report = build_google_auth_status(config, claim_path=str(config.get("_runtime_config_path") or "") or None)
     flow = report.get("flow") if isinstance(report.get("flow"), dict) else {}
     storage = report.get("storage") if isinstance(report.get("storage"), dict) else {}
     staging = report.get("staging") if isinstance(report.get("staging"), dict) else {}
+    staging_session = report.get("staging_session") if isinstance(report.get("staging_session"), dict) else {}
+    staging_account = staging_session.get("account") if isinstance(staging_session.get("account"), dict) else {}
     error = report.get("error") if isinstance(report.get("error"), dict) else {}
     actions = report.get("actions_not_performed") if isinstance(report.get("actions_not_performed"), list) else []
     if lang == "ja":
@@ -23,6 +25,8 @@ def _format_auth_status(config: dict[str, object], *, lang: str) -> str:
             f"  token保存: {_safe(storage.get('refresh_token_storage') or 'disabled_by_default')}",
             f"  stagingログイン: {'利用可能' if staging.get('configured') else '未設定'}",
             f"  staging origin: {_safe(staging.get('origin') or 'not_configured')}",
+            f"  staging認証状態: {_safe(staging_session.get('auth_state') or 'unauthenticated')}",
+            f"  linked account: {_safe(_staging_account_label(staging_account))}",
             "  account sync: オフ。cloud -> local は選択/認証後のpreviewのみ、local -> cloud は既定で無効です",
             "  local/private upload: 無効。private file / local memory / local node payload は送信しません",
             f"  次に試す: {_safe(report.get('next_safe_command') or 'yonerai auth google login --dry-run --pretty --lang ja')}",
@@ -45,6 +49,8 @@ def _format_auth_status(config: dict[str, object], *, lang: str) -> str:
             f"  token_storage: {_safe(storage.get('refresh_token_storage') or 'disabled_by_default')}",
             f"  staging_login: {'available' if staging.get('configured') else 'not configured'}",
             f"  staging_origin: {_safe(staging.get('origin') or 'not_configured')}",
+            f"  staging_auth_state: {_safe(staging_session.get('auth_state') or 'unauthenticated')}",
+            f"  linked_account: {_safe(_staging_account_label(staging_account))}",
             "  account_sync: off; cloud-to-local is preview-only after selection/auth, local-to-cloud is disabled by default",
             "  local_private_upload: disabled; private files, local memory, and local node payloads are excluded",
             f"  next: {_safe(report.get('next_safe_command') or 'yonerai auth google login --dry-run --pretty')}",
@@ -52,6 +58,13 @@ def _format_auth_status(config: dict[str, object], *, lang: str) -> str:
             "",
         )
     )
+
+
+def _staging_account_label(account: dict[str, object]) -> object:
+    email = account.get("email_redacted")
+    if email and email != "not-linked":
+        return email
+    return account.get("display_name") or "not-linked"
 
 
 def _format_privacy_status(config: dict[str, object], *, lang: str) -> str:

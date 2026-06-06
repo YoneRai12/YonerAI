@@ -146,6 +146,7 @@ def run_interactive_cli(
     input_stream = stdin or sys.stdin
     output_stream = stdout or sys.stdout
     config = load_cli_config(options.config_path)
+    _attach_runtime_config_path(config, options.config_path)
     config_exists = _config_exists(options.config_path)
     lang = _select_language(config, options, input_stream=input_stream, output_stream=output_stream)
     run_auth_onboarding(
@@ -739,6 +740,7 @@ def _set_config(config: dict[str, object], key: str, value: str, config_path: st
     updated = set_cli_config_value(key, value, config_path)
     config.clear()
     config.update(updated)
+    _attach_runtime_config_path(config, config_path)
     return updated
 
 
@@ -752,7 +754,13 @@ def _set_config_values(
     saved = save_cli_config(updated, config_path)
     config.clear()
     config.update(saved)
+    _attach_runtime_config_path(config, config_path)
     return saved
+
+
+def _attach_runtime_config_path(config: dict[str, object], config_path: str | None) -> None:
+    if config_path:
+        config["_runtime_config_path"] = str(config_path)
 
 
 def _handle_memory_setting(

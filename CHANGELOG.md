@@ -2,6 +2,20 @@
 
 See also: `docs/RELEASE_NOTES.md` (curated summary, v5.0.0 -> current).
 
+## v0.18.0-alpha.1 (2026-06-06) - Staging Google Login Linked UX
+- Completed the public CLI linked-state side of staging Google login. Users can
+  run `yonerai auth google login --staging --bridge --open-browser --wait-linked
+  --pretty --lang ja` against `https://api-staging.yonerai.com`.
+- Added safe waiting/polling for the staging CLI bridge, minimal `account/me`
+  fetch after linked state, and redacted YonerAI staging account claim storage.
+- Added TUI `/認証` linked-state display and fixed linked accounts without an
+  email claim so they no longer appear as `not-linked`.
+- Kept production login off: no Google client secret in the public repo, no
+  Google token or refresh-token storage, no account sync, no shared traffic, no
+  local private upload, and no production Oracle/cloud runtime.
+- Live staging smoke reached linked state and `GET /v1/account/me` returned 200
+  with token printing/storage disabled.
+
 ## v0.17.0-alpha.1 (2026-06-05) - Staging Google Login UX
 - Published staging Google login UX through PR #513. `yonerai auth google
   login --staging` now generates a public-safe staging authorization URL when

@@ -11,6 +11,7 @@ from yonerai_cli.auth_policy import (
 )
 from yonerai_cli.config import ConfigError, load_cli_config
 from yonerai_cli.output import CliRow, CliSection, ColorMode, render_report
+from yonerai_cli.services.auth_session_service import save_staging_auth_claim
 
 
 class AuthCommandError(Exception):
@@ -62,6 +63,28 @@ def add_auth_parser(
         default=10.0,
         help="Network timeout for explicit staging bridge calls. Default: 10.",
     )
+    auth_google_login.add_argument(
+        "--open-browser",
+        action="store_true",
+        help="Open the staging Google auth URL after starting a bridge request.",
+    )
+    auth_google_login.add_argument(
+        "--wait-linked",
+        action="store_true",
+        help="Poll the staging CLI bridge until it links or times out. Does not print tokens.",
+    )
+    auth_google_login.add_argument(
+        "--max-wait-seconds",
+        type=float,
+        default=120.0,
+        help="Maximum wait for --wait-linked. Default: 120.",
+    )
+    auth_google_login.add_argument(
+        "--poll-interval-seconds",
+        type=float,
+        default=2.0,
+        help="Polling interval for --wait-linked. Default: 2.",
+    )
     auth_google_login.add_argument("--config-path", help="Optional local CLI config path.")
     auth_google_login_output = auth_google_login.add_mutually_exclusive_group()
     auth_google_login_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
@@ -97,15 +120,24 @@ def add_privacy_parser(
 
 def handle_auth_command(args: argparse.Namespace, *, print_json: Callable[[dict[str, Any]], None]) -> int:
     if args.auth_command == "status":
-        report = build_google_auth_status(_load_config(args))
+        report = build_google_auth_status(_load_config(args), claim_path=getattr(args, "config_path", None))
     elif args.auth_command == "google" and args.auth_google_command == "login":
         if args.staging:
+            if args.open_browser and not args.bridge:
+                raise AuthCommandError("--open-browser requires --bridge.")
+            if args.wait_linked and not (args.bridge or args.poll_request_id):
+                raise AuthCommandError("--wait-linked requires --bridge or --poll-request-id.")
             report = build_google_login_staging(
                 _load_config(args),
                 bridge=bool(args.bridge),
                 poll_request_id=args.poll_request_id,
                 timeout_seconds=args.timeout_seconds,
+                open_browser=bool(args.open_browser),
+                wait_linked=bool(args.wait_linked),
+                max_wait_seconds=args.max_wait_seconds,
+                poll_interval_seconds=args.poll_interval_seconds,
             )
+            _persist_staging_claim_if_linked(report, config_path=getattr(args, "config_path", None))
         elif args.dry_run:
             if args.bridge or args.poll_request_id:
                 raise AuthCommandError("--bridge and --poll-request-id require --staging.")
@@ -120,6 +152,16 @@ def handle_auth_command(args: argparse.Namespace, *, print_json: Callable[[dict[
     else:
         print(format_auth_pretty(report, lang=args.lang, color=args.color))
     return 0 if report["ok"] else 1
+
+
+def _persist_staging_claim_if_linked(report: dict[str, Any], *, config_path: str | None) -> None:
+    claim = report.get("staging_linked_claim")
+    if not isinstance(claim, dict):
+        return
+    saved = save_staging_auth_claim(claim, config_path=config_path)
+    report["staging_linked_claim"] = saved
+    report["staging_claim_saved"] = True
+    report["staging_session_token_stored"] = False
 
 
 def handle_privacy_command(args: argparse.Namespace, *, print_json: Callable[[dict[str, Any]], None]) -> int:
@@ -139,7 +181,17 @@ def format_auth_pretty(report: dict[str, Any], *, lang: str = "ja", color: Color
     storage = report.get("storage") if isinstance(report.get("storage"), dict) else {}
     staging = report.get("staging") if isinstance(report.get("staging"), dict) else {}
     staging_api = report.get("staging_api") if isinstance(report.get("staging_api"), dict) else {}
+    staging_session = report.get("staging_session") if isinstance(report.get("staging_session"), dict) else {}
+    linked_claim = report.get("staging_linked_claim") if isinstance(report.get("staging_linked_claim"), dict) else {}
     cli_bridge = report.get("cli_bridge") if isinstance(report.get("cli_bridge"), dict) else {}
+    account_me = cli_bridge.get("account_me") if isinstance(cli_bridge.get("account_me"), dict) else {}
+    account = (
+        linked_claim.get("account")
+        if isinstance(linked_claim.get("account"), dict)
+        else staging_session.get("account")
+        if isinstance(staging_session.get("account"), dict)
+        else {}
+    )
     error = report.get("error") if isinstance(report.get("error"), dict) else None
     if lang == "ja":
         title = "YonerAI 認証ステータス"
@@ -185,10 +237,17 @@ def format_auth_pretty(report: dict[str, Any], *, lang: str = "ja", color: Color
         ),
         CliRow("origin", staging.get("origin", "not_configured"), "ok" if staging.get("configured") else "warn"),
         CliRow(
+            "auth_state",
+            report.get("staging_auth_state") or staging_session.get("auth_state") or ("linked" if linked_claim else "unauthenticated"),
+            "ok" if (report.get("staging_auth_state") == "linked" or staging_session.get("auth_state") == "linked" or linked_claim) else "warn",
+        ),
+        CliRow("linked_account", _staging_account_label(account), "ok" if account else "warn"),
+        CliRow(
             "authorization_url",
             report.get("authorization_url", "not_started_or_not_configured"),
             "ok" if report.get("authorization_url") else "warn",
         ),
+        CliRow("browser_opened", report.get("browser_opened", False), "ok" if report.get("browser_opened") else "warn"),
         CliRow(
             "client_secret_required",
             report.get("client_secret_required", False),
@@ -210,9 +269,24 @@ def format_auth_pretty(report: dict[str, Any], *, lang: str = "ja", color: Color
             "ok" if cli_bridge.get("staging_session_received") else "warn",
         ),
         CliRow(
+            "staging_claim_saved",
+            report.get("staging_claim_saved", False),
+            "ok" if report.get("staging_claim_saved") else "warn",
+        ),
+        CliRow(
+            "account_me_status",
+            account_me.get("status_code") or "not_called",
+            "ok" if account_me.get("ok") else "warn",
+        ),
+        CliRow(
             "staging_session_token_printed",
             cli_bridge.get("staging_session_token_printed", False),
             "fail" if cli_bridge.get("staging_session_token_printed") else "ok",
+        ),
+        CliRow(
+            "staging_session_token_stored",
+            report.get("staging_session_token_stored", False),
+            "fail" if report.get("staging_session_token_stored") else "ok",
         ),
     )
     storage_rows = (
@@ -234,6 +308,13 @@ def format_auth_pretty(report: dict[str, Any], *, lang: str = "ja", color: Color
     if error:
         sections = (*sections, CliSection("Error", (CliRow(str(error.get("code")), error.get("message"), "warn"),)))
     return render_report(title, sections, color=color)
+
+
+def _staging_account_label(account: dict[str, object]) -> object:
+    email = account.get("email_redacted")
+    if email and email != "not-linked":
+        return email
+    return account.get("display_name") or "not-linked"
 
 
 def format_privacy_pretty(report: dict[str, Any], *, lang: str = "ja", color: ColorMode = "auto") -> str:
