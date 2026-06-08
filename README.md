@@ -1,5 +1,10 @@
 # YonerAI
 
+> [!WARNING]
+> **Do not treat this README as the single source of truth for the current alpha state.**  
+> YonerAI is moving quickly, so this README can lag behind active releases and commits.  
+> Check [Alpha releases](https://github.com/YoneRai12/YonerAI/releases) and [latest commits](https://github.com/YoneRai12/YonerAI/commits/main) for the newest implementation status.
+
 Provider-independent AI execution foundation for keeping one reliable AI experience across official, local, and self-hosted runtimes.
 
 [Japanese README](README_JP.md) | [Current phase](docs/CURRENT_PHASE_CONTEXT.md) | [Contracts](docs/contracts) | [Root file / PR traceability](docs/repo/FILE_PR_TRACEABILITY_MATRIX_CURRENT.md) | [Latest checkpoint archive](docs/releases/v2026.5.21.5-implementation-continuation-checkpoint.md)
