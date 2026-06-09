@@ -33,7 +33,13 @@ from yonerai_cli.screens.auth_privacy import (
     _format_auth_status,
     _format_privacy_status,
 )
-from yonerai_cli.screens.composer import format_input_composer
+from yonerai_cli.screens.composer import (
+    format_input_composer,
+    _composer_buffer_preview,
+    _composer_msg,
+    _format_composer_status,
+    _handle_ime_command,
+)
 from yonerai_cli.screens.context import format_context_screen
 from yonerai_cli.screens.evolve import (
     _format_evolve_status,
@@ -93,7 +99,7 @@ from yonerai_cli.screens.status_api import (
     _format_status_check,
 )
 from yonerai_cli.ime import RomajiComposer
-from yonerai_cli.ime.privacy import cloud_privacy_wording
+from yonerai_cli.tui.themes import THEME_CHOICES_HELP, normalize_theme, theme_label
 from yonerai_cli.services.onboarding_service import run_auth_onboarding
 from yonerai_cli.startup_home import render_startup_home_header
 from yonerai_cli.tui.aliases import canonical_agent_mode_value as _canonical_agent_mode_value
@@ -151,6 +157,14 @@ def run_interactive_cli(
     _attach_runtime_config_path(config, options.config_path)
     config_exists = _config_exists(options.config_path)
     lang = _select_language(config, options, input_stream=input_stream, output_stream=output_stream)
+    _select_theme(
+        config,
+        options,
+        lang=lang,
+        config_exists=config_exists,
+        input_stream=input_stream,
+        output_stream=output_stream,
+    )
     run_auth_onboarding(
         config,
         config_path=options.config_path,
@@ -185,7 +199,11 @@ def run_interactive_cli(
         policy_report=policy_report,
     )
     welcome = _with_startup_home_header(
-        render_startup_home_header(color=options.color, stream=output_stream),
+        render_startup_home_header(
+            color=options.color,
+            stream=output_stream,
+            theme=str(config.get("theme") or "auto"),
+        ),
         welcome_body,
     )
     if not (use_tui_prompt and render_panel(welcome, title="YonerAI", stream=output_stream, color=options.color)):
@@ -368,6 +386,39 @@ def _select_language(
     return "ja"
 
 
+def _select_theme(
+    config: dict[str, object],
+    options: InteractiveOptions,
+    *,
+    lang: str,
+    config_exists: bool,
+    input_stream: TextIO,
+    output_stream: TextIO,
+) -> str:
+    # Theme is only asked once, on a first-launch interactive TTY (no config
+    # file existed at startup). Script mode and existing configs keep their
+    # stored theme (default "auto"), so those flows are unaffected.
+    current = normalize_theme(str(config.get("theme") or "auto"))
+    if options.script or not _is_interactive(input_stream) or config_exists:
+        return current
+    if lang == "ja":
+        output_stream.write("YonerAI 表示テーマ / theme\n")
+        output_stream.write("  端末に合う見た目を選べます（後で /テーマ で変更可）\n")
+    else:
+        output_stream.write("YonerAI display theme\n")
+        output_stream.write("  Pick a look for your terminal (change later with /theme)\n")
+    output_stream.write(f"  {THEME_CHOICES_HELP}\n> ")
+    output_stream.flush()
+    choice = input_stream.readline().strip().lower()
+    mapping = {"1": "auto", "2": "dark", "3": "light", "4": "mono"}
+    theme = mapping.get(choice, choice if choice in {"auto", "dark", "light", "mono"} else "auto")
+    config["theme"] = theme
+    save_cli_config(config, options.config_path)
+    label = theme_label(theme, lang=lang)
+    output_stream.write((f"テーマ: {label}\n" if lang == "ja" else f"theme: {label}\n"))
+    return theme
+
+
 def _handle_slash_command(
     text: str,
     *,
@@ -407,6 +458,32 @@ def _handle_slash_command(
         return {}
     if command == "/help":
         _write(output_stream, _help(lang))
+        return {}
+    if command == "/theme":
+        if args:
+            requested = _canonical_value(args[0]).strip().lower()
+            if requested not in {"auto", "dark", "light", "mono"}:
+                _write(
+                    output_stream,
+                    ("テーマは auto/dark/light/mono です。\n" if lang == "ja" else "theme must be auto/dark/light/mono.\n"),
+                )
+                return {}
+            config["theme"] = requested
+            try:
+                save_cli_config(config, options.config_path)
+            except ConfigError as exc:
+                _write(output_stream, _config_error(lang, exc))
+                return {}
+            label = theme_label(requested, lang=lang)
+            _write(output_stream, (f"テーマを変更しました: {label}\n" if lang == "ja" else f"Changed theme: {label}\n"))
+            _write(
+                output_stream,
+                render_startup_home_header(color=options.color, stream=output_stream, theme=requested) + "\n",
+            )
+        else:
+            current = theme_label(str(config.get("theme") or "auto"), lang=lang)
+            head = "現在のテーマ" if lang == "ja" else "current theme"
+            _write(output_stream, f"{head}: {current}\n  {THEME_CHOICES_HELP}\n")
         return {}
     if command == "/palette":
         _write(output_stream, _format_command_palette(lang))
@@ -786,151 +863,6 @@ def _handle_slash_command(
     _write(output_stream, _unknown(lang))
     return {}
 
-
-_COMPOSER_MESSAGES: dict[str, dict[str, str]] = {
-    "enabled": {
-        "ja": "ローマ字コンポーザー: オン。文章はバッファに溜まり、/変換 → /確定 で送信します。/入力 off で解除。\n",
-        "en": "Romaji composer: on. Text is buffered; use /convert then /commit to send. /input off to disable.\n",
-    },
-    "disabled": {
-        "ja": "ローマ字コンポーザー: オフ。通常入力に戻りました。\n",
-        "en": "Romaji composer: off. Back to normal input.\n",
-    },
-    "empty": {"ja": "バッファが空です。先にローマ字で文章を入力してください。\n", "en": "Buffer is empty. Type romaji text first.\n"},
-    "candidate": {"ja": "変換候補:", "en": "Conversion candidate:"},
-    "next_steps": {"ja": "  /確定 で送信、/戻す でローマ字に戻す", "en": "  /commit to send, /revert to restore romaji"},
-    "no_candidate": {"ja": "変換候補がありません。先に /変換 してください。\n", "en": "No candidate. Run /convert first.\n"},
-    "committed": {"ja": "確定しました。送信します。\n", "en": "Committed. Sending.\n"},
-    "nothing_to_revert": {"ja": "戻せる変換がありません。\n", "en": "Nothing to revert.\n"},
-    "reverted": {"ja": "変換を取り消し、ローマ字バッファに戻しました。\n", "en": "Conversion undone; romaji buffer restored.\n"},
-    "dict_added": {"ja": "辞書に追加しました。\n", "en": "Dictionary entry added.\n"},
-    "dict_invalid": {"ja": "形式: /辞書 add tokyo=東京\n", "en": "Format: /dict add tokyo=東京\n"},
-    "dict_empty": {"ja": "辞書は空です。/辞書 add tokyo=東京 で追加できます。\n", "en": "Dictionary is empty. Add with /dict add tokyo=東京.\n"},
-    "dict_list": {"ja": "辞書:", "en": "Dictionary:"},
-    "style_set": {"ja": "文体を設定しました。\n", "en": "Style profile set.\n"},
-    "cloud_needs_confirm": {
-        "ja": "クラウド変換は既定でオフです。文言を確認のうえ /ime cloud on confirm で有効化してください。\n",
-        "en": "Cloud conversion is disabled by default. Review the notice, then enable with /ime cloud on confirm.\n",
-    },
-    "cloud_enabled": {"ja": "クラウド変換 opt-in を記録しました（この build では contract-only）。\n", "en": "Cloud opt-in recorded (contract-only in this build).\n"},
-    "cloud_disabled": {"ja": "クラウド変換をオフにしました。\n", "en": "Cloud conversion disabled.\n"},
-    "endpoint_set": {"ja": "ローカルLLMエンドポイントを設定しました（loopback限定）。\n", "en": "Local LLM endpoint set (loopback only).\n"},
-    "endpoint_invalid": {
-        "ja": "エンドポイントは localhost / 127.0.0.1 / ::1 のみ許可です。\n",
-        "en": "Endpoint must be localhost / 127.0.0.1 / ::1 only.\n",
-    },
-    "mode_set": {"ja": "変換モードを設定しました。\n", "en": "Provider mode set.\n"},
-    "mode_invalid": {
-        "ja": "モードは deterministic / local_llm のいずれかです（cloud は /ime cloud on confirm）。\n",
-        "en": "Mode must be deterministic or local_llm (cloud via /ime cloud on confirm).\n",
-    },
-    "ime_help": {
-        "ja": "使い方: /ime on|off|status / /ime mode <deterministic|local_llm> / /ime endpoint <loopback URL> / /ime cloud on confirm|off\n",
-        "en": "Usage: /ime on|off|status / /ime mode <deterministic|local_llm> / /ime endpoint <loopback URL> / /ime cloud on confirm|off\n",
-    },
-}
-
-
-def _composer_msg(lang: str, key: str) -> str:
-    entry = _COMPOSER_MESSAGES.get(key, {})
-    return entry.get(lang if lang == "ja" else "en", "")
-
-
-def _composer_buffer_preview(buffer_text: str, lang: str) -> str:
-    label = "バッファ" if lang == "ja" else "buffer"
-    hint = "/変換 で日本語にできます" if lang == "ja" else "use /convert to convert"
-    return f"[{label} {len(buffer_text)}字] {buffer_text}\n  ({hint})\n"
-
-
-def _format_composer_status(status: dict[str, object], lang: str) -> str:
-    if lang == "ja":
-        return "\n".join(
-            (
-                "ローマ字コンポーザー状態",
-                f"  有効: {'オン' if status.get('composer_enabled') else 'オフ'}",
-                f"  変換モード: {status.get('provider_mode')}",
-                f"  ローカルLLM endpoint: {'設定済（loopback）' if status.get('local_llm_endpoint_set') else '未設定'}",
-                f"  文体: {status.get('style_profile')}",
-                f"  辞書件数: {status.get('dictionary_entries')}",
-                f"  バッファ文字数: {status.get('buffer_chars')}",
-                f"  変換候補: {'あり' if status.get('candidate_ready') else 'なし'}",
-                f"  クラウドopt-in: {'確認済' if status.get('cloud_opt_in_confirmed') else '未確認（既定オフ）'}",
-                "  注意: これはOS全体のIMEではなく、YonerAI CLI内だけの入力支援です。",
-                "",
-            )
-        )
-    return "\n".join(
-        (
-            "Romaji composer status",
-            f"  enabled: {status.get('composer_enabled')}",
-            f"  provider_mode: {status.get('provider_mode')}",
-            f"  local_llm_endpoint_set: {status.get('local_llm_endpoint_set')}",
-            f"  style_profile: {status.get('style_profile')}",
-            f"  dictionary_entries: {status.get('dictionary_entries')}",
-            f"  buffer_chars: {status.get('buffer_chars')}",
-            f"  candidate_ready: {status.get('candidate_ready')}",
-            f"  cloud_opt_in_confirmed: {status.get('cloud_opt_in_confirmed')}",
-            "  note: this is a CLI-local composer, not a global OS IME.",
-            "",
-        )
-    )
-
-
-def _handle_ime_command(
-    args: list[str],
-    *,
-    composer: RomajiComposer,
-    lang: str,
-    output_stream: TextIO,
-) -> dict[str, object]:
-    if not args or _canonical_value(args[0]) == "status":
-        _write(output_stream, _format_composer_status(composer.status(), lang))
-        return {}
-    head = _canonical_value(args[0])
-    if head == "on":
-        composer.enable()
-        _write(output_stream, _composer_msg(lang, "enabled"))
-        return {}
-    if head == "off":
-        composer.disable()
-        _write(output_stream, _composer_msg(lang, "disabled"))
-        return {}
-    if head == "mode" and len(args) >= 2:
-        mode = args[1].strip().lower()
-        if mode not in {"deterministic", "local_llm"}:
-            _write(output_stream, _composer_msg(lang, "mode_invalid"))
-            return {}
-        composer.set_provider_mode(mode)
-        _write(output_stream, _composer_msg(lang, "mode_set"))
-        return {}
-    if head == "endpoint" and len(args) >= 2:
-        try:
-            composer.set_local_llm_endpoint(args[1].strip())
-        except ValueError:
-            _write(output_stream, _composer_msg(lang, "endpoint_invalid"))
-            return {}
-        _write(output_stream, _composer_msg(lang, "endpoint_set"))
-        return {}
-    if head == "cloud" and len(args) >= 2:
-        action = _canonical_value(args[1])
-        if action == "off":
-            composer.state.cloud_opt_in_confirmed = False
-            if composer.state.provider_mode == "cloud_opt_in":
-                composer.set_provider_mode("deterministic")
-            _write(output_stream, _composer_msg(lang, "cloud_disabled"))
-            return {}
-        if action == "on":
-            confirmed = len(args) >= 3 and args[2].strip().lower() == "confirm"
-            _write(output_stream, cloud_privacy_wording(lang) + "\n")
-            if not confirmed:
-                _write(output_stream, _composer_msg(lang, "cloud_needs_confirm"))
-                return {}
-            composer.confirm_cloud_opt_in()
-            composer.set_provider_mode("cloud_opt_in")
-            _write(output_stream, _composer_msg(lang, "cloud_enabled"))
-            return {}
-    _write(output_stream, _composer_msg(lang, "ime_help"))
-    return {}
 
 
 def _set_and_report(

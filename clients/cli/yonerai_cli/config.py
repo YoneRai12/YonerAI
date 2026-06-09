@@ -9,6 +9,7 @@ from typing import Mapping
 
 CONFIG_SCHEMA_VERSION = "yonerai-cli-config/v0.7"
 LANGUAGES = ("ja", "en")
+THEMES = ("auto", "dark", "light", "mono")
 PROVIDER_PREFERENCES = ("auto", "mock", "local", "openai-compatible", "anthropic", "gemini")
 APPROVAL_MODES = ("prompt", "deny")
 AGENT_MODES = ("plan_readonly", "build_safe", "review", "memory")
@@ -19,6 +20,7 @@ MODEL_RE = re.compile(r"^[A-Za-z0-9_.:+/-]{1,80}$")
 DEFAULT_CONFIG: dict[str, object] = {
     "schema_version": CONFIG_SCHEMA_VERSION,
     "language": None,
+    "theme": "auto",
     "provider_preference": "auto",
     "model_preference": "auto",
     "agent_mode": "plan_readonly",
@@ -111,6 +113,8 @@ def validate_cli_config(config: Mapping[str, object]) -> dict[str, object]:
     language = merged.get("language")
     if language is not None and language not in LANGUAGES:
         raise ConfigError("language must be ja or en.")
+    if merged.get("theme") not in THEMES:
+        raise ConfigError("theme is invalid.")
     if merged.get("provider_preference") not in PROVIDER_PREFERENCES:
         raise ConfigError("provider_preference is invalid.")
     model = merged.get("model_preference")
@@ -156,6 +160,7 @@ def normalize_config_key(key: str) -> str:
         "mode": "agent_mode",
         "language": "language",
         "lang": "language",
+        "theme": "theme",
         "approval": "approval_mode",
         "file_access": "file_access_mode",
         "live_provider": "live_provider_enabled",

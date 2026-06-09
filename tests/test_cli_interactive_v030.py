@@ -340,7 +340,8 @@ def test_first_launch_auth_onboarding_can_show_staging_contract(tmp_path: Path, 
     config_path = tmp_path / "cli-config.json"
     monkeypatch.setenv("YONERAI_CLI_CONFIG_PATH", str(config_path))
     monkeypatch.setenv("YONERAI_STAGING_AUTH_ORIGIN", "https://api-staging.yonerai.com")
-    monkeypatch.setattr(sys, "stdin", _TTYStringIO("2\n2\n/quit\n"))
+    # First-launch order: language -> theme -> auth onboarding -> prompt.
+    monkeypatch.setattr(sys, "stdin", _TTYStringIO("2\n2\n2\n/quit\n"))
 
     assert cli.main([]) == 0
     output = capsys.readouterr().out
@@ -950,7 +951,8 @@ def test_first_launch_google_auth_onboarding_is_dry_run_only(tmp_path: Path) -> 
         return {"ok": False}
 
     config_path = tmp_path / "cli-config.json"
-    stdin = _TTYStringIO("1\n2\n/終了\n")
+    # First-launch order: language -> theme -> auth onboarding -> prompt.
+    stdin = _TTYStringIO("1\n2\n2\n/終了\n")
     stdout = _TTYStringIO()
 
     rc = run_interactive_cli(
