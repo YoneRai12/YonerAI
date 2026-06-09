@@ -238,3 +238,72 @@ def _handle_ime_command(
             return {}
     _write(output_stream, _composer_msg(lang, "ime_help"))
     return {}
+
+
+# Slash-command handlers for the composer (/convert /commit /revert /dict /style).
+# Kept here (not in interactive.py) so the interactive shell stays a thin
+# dispatcher per the screen-module architecture rule.
+def _handle_composer_command(
+    command: str,
+    args: list[str],
+    *,
+    composer: RomajiComposer,
+    lang: str,
+    output_stream: TextIO,
+) -> dict[str, object]:
+    if command == "/convert":
+        result = composer.convert()
+        if not result.get("ok"):
+            _write(output_stream, _composer_msg(lang, "empty"))
+            return {}
+        notice = str(result.get("notice") or "")
+        candidate = str(result.get("candidate"))
+        lines = [_composer_msg(lang, "candidate"), f"  {candidate}"]
+        if notice:
+            lines.append(f"  ({notice})")
+        lines.append(_composer_msg(lang, "next_steps"))
+        _write(output_stream, "\n".join(lines) + "\n")
+        return {}
+    if command == "/commit":
+        committed = composer.commit()
+        if committed is None:
+            _write(output_stream, _composer_msg(lang, "no_candidate"))
+            return {}
+        _write(output_stream, _composer_msg(lang, "committed"))
+        return {"send_text": committed}
+    if command == "/revert":
+        restored = composer.revert()
+        if restored is None:
+            _write(output_stream, _composer_msg(lang, "nothing_to_revert"))
+            return {}
+        _write(output_stream, _composer_msg(lang, "reverted"))
+        _write(output_stream, _composer_buffer_preview(restored, lang))
+        return {}
+    if command == "/dict":
+        joined = " ".join(args)
+        if "=" in joined:
+            romaji, _, japanese = joined.partition("=")
+            romaji = romaji.removeprefix("add").strip()
+            try:
+                composer.add_dictionary_entry(romaji, japanese)
+            except ValueError:
+                _write(output_stream, _composer_msg(lang, "dict_invalid"))
+                return {}
+            _write(output_stream, _composer_msg(lang, "dict_added"))
+            return {}
+        entries = composer.state.user_dictionary
+        if not entries:
+            _write(output_stream, _composer_msg(lang, "dict_empty"))
+            return {}
+        body = "\n".join(f"  {romaji} -> {japanese}" for romaji, japanese in sorted(entries.items()))
+        _write(output_stream, _composer_msg(lang, "dict_list") + "\n" + body + "\n")
+        return {}
+    # /style
+    if args:
+        composer.set_style_profile(" ".join(args))
+        _write(output_stream, _composer_msg(lang, "style_set"))
+    else:
+        current = composer.state.style_profile or ("未設定" if lang == "ja" else "not set")
+        label = "文体" if lang == "ja" else "style"
+        _write(output_stream, f"{label}: {current}\n")
+    return {}
