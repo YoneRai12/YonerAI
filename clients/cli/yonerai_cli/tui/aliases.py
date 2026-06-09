@@ -100,6 +100,18 @@ COMMAND_ALIASES = {
     "/quit": "/quit",
     "/exit": "/quit",
     "/q": "/quit",
+    "/ime": "/ime",
+    "/IME": "/ime",
+    "/変換": "/convert",
+    "/convert": "/convert",
+    "/確定": "/commit",
+    "/commit": "/commit",
+    "/戻す": "/revert",
+    "/revert": "/revert",
+    "/辞書": "/dict",
+    "/dict": "/dict",
+    "/文体": "/style",
+    "/style": "/style",
 }
 VALUE_ALIASES = {
     "日本語": "ja",
