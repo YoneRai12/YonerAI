@@ -3,6 +3,8 @@ from __future__ import annotations
 from shutil import get_terminal_size
 from typing import Literal, TextIO
 
+from yonerai_cli.tui.themes import theme_palette, theme_uses_truecolor
+
 
 ColorMode = Literal["auto", "never", "always"]
 ESC = chr(27)
@@ -26,10 +28,11 @@ def render_startup_home_header(
     color: ColorMode = "auto",
     stream: TextIO | None = None,
     width: int | None = None,
+    theme: str | None = "auto",
 ) -> str:
-    title_palette = ["#8BE9FD", "#5A8CFF", "#9B6DFF", "#67F3B0"]
-    line_palette = ["#89F7FE", "#66A6FF"]
-    subtitle_palette = ["#8BE9FD", "#67F3B0"]
+    title_palette = theme_palette(theme, "title")
+    line_palette = theme_palette(theme, "line")
+    subtitle_palette = theme_palette(theme, "subtitle")
     terminal_width = width or get_terminal_size((120, 30)).columns
 
     title_source = COMPACT_YONERAI if terminal_width < FULL_LOGO_MIN_WIDTH else ASCII_YONERAI
@@ -38,7 +41,7 @@ def render_startup_home_header(
     divider = center_block("─" * divider_width, width=terminal_width)
     subtitle = center_block(SUBTITLE, width=terminal_width)
 
-    if not _color_enabled(color, stream=stream):
+    if not _color_enabled(color, stream=stream) or not theme_uses_truecolor(theme):
         return "\n".join((title, divider, subtitle))
     return "\n".join(
         (
