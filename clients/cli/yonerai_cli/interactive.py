@@ -39,8 +39,11 @@ from yonerai_cli.screens.composer import (
     _composer_msg,
     _format_composer_status,
     _handle_ime_command,
+    _handle_composer_command,
 )
 from yonerai_cli.screens.context import format_context_screen
+from yonerai_cli.screens.theme import _handle_theme_command
+from yonerai_cli.screens.help import _help, _non_tty_fallback, _unknown, _bye, _config_error
 from yonerai_cli.screens.evolve import (
     _format_evolve_status,
     _format_evolve_unavailable,
@@ -460,31 +463,14 @@ def _handle_slash_command(
         _write(output_stream, _help(lang))
         return {}
     if command == "/theme":
-        if args:
-            requested = _canonical_value(args[0]).strip().lower()
-            if requested not in {"auto", "dark", "light", "mono"}:
-                _write(
-                    output_stream,
-                    ("テーマは auto/dark/light/mono です。\n" if lang == "ja" else "theme must be auto/dark/light/mono.\n"),
-                )
-                return {}
-            config["theme"] = requested
-            try:
-                save_cli_config(config, options.config_path)
-            except ConfigError as exc:
-                _write(output_stream, _config_error(lang, exc))
-                return {}
-            label = theme_label(requested, lang=lang)
-            _write(output_stream, (f"テーマを変更しました: {label}\n" if lang == "ja" else f"Changed theme: {label}\n"))
-            _write(
-                output_stream,
-                render_startup_home_header(color=options.color, stream=output_stream, theme=requested) + "\n",
-            )
-        else:
-            current = theme_label(str(config.get("theme") or "auto"), lang=lang)
-            head = "現在のテーマ" if lang == "ja" else "current theme"
-            _write(output_stream, f"{head}: {current}\n  {THEME_CHOICES_HELP}\n")
-        return {}
+        return _handle_theme_command(
+            args,
+            config=config,
+            config_path=options.config_path,
+            color=options.color,
+            lang=lang,
+            output_stream=output_stream,
+        )
     if command == "/palette":
         _write(output_stream, _format_command_palette(lang))
         return {}
@@ -511,62 +497,8 @@ def _handle_slash_command(
         return {}
     if command == "/ime" and composer is not None:
         return _handle_ime_command(args, composer=composer, lang=lang, output_stream=output_stream)
-    if command == "/convert" and composer is not None:
-        result = composer.convert()
-        if not result.get("ok"):
-            _write(output_stream, _composer_msg(lang, "empty"))
-            return {}
-        notice = str(result.get("notice") or "")
-        candidate = str(result.get("candidate"))
-        lines = [_composer_msg(lang, "candidate"), f"  {candidate}"]
-        if notice:
-            lines.append(f"  ({notice})")
-        lines.append(_composer_msg(lang, "next_steps"))
-        _write(output_stream, "\n".join(lines) + "\n")
-        return {}
-    if command == "/commit" and composer is not None:
-        committed = composer.commit()
-        if committed is None:
-            _write(output_stream, _composer_msg(lang, "no_candidate"))
-            return {}
-        _write(output_stream, _composer_msg(lang, "committed"))
-        return {"send_text": committed}
-    if command == "/revert" and composer is not None:
-        restored = composer.revert()
-        if restored is None:
-            _write(output_stream, _composer_msg(lang, "nothing_to_revert"))
-            return {}
-        _write(output_stream, _composer_msg(lang, "reverted"))
-        _write(output_stream, _composer_buffer_preview(restored, lang))
-        return {}
-    if command == "/dict" and composer is not None:
-        joined = " ".join(args)
-        if "=" in joined:
-            romaji, _, japanese = joined.partition("=")
-            romaji = romaji.removeprefix("add").strip()
-            try:
-                composer.add_dictionary_entry(romaji, japanese)
-            except ValueError:
-                _write(output_stream, _composer_msg(lang, "dict_invalid"))
-                return {}
-            _write(output_stream, _composer_msg(lang, "dict_added"))
-            return {}
-        entries = composer.state.user_dictionary
-        if not entries:
-            _write(output_stream, _composer_msg(lang, "dict_empty"))
-            return {}
-        body = "\n".join(f"  {romaji} -> {japanese}" for romaji, japanese in sorted(entries.items()))
-        _write(output_stream, _composer_msg(lang, "dict_list") + "\n" + body + "\n")
-        return {}
-    if command == "/style" and composer is not None:
-        if args:
-            composer.set_style_profile(" ".join(args))
-            _write(output_stream, _composer_msg(lang, "style_set"))
-        else:
-            current = composer.state.style_profile or ("未設定" if lang == "ja" else "not set")
-            label = "文体" if lang == "ja" else "style"
-            _write(output_stream, f"{label}: {current}\n")
-        return {}
+    if command in {"/convert", "/commit", "/revert", "/dict", "/style"} and composer is not None:
+        return _handle_composer_command(command, args, composer=composer, lang=lang, output_stream=output_stream)
     if command == "/settings":
         provider_report = callbacks.providers()
         category = _settings_category_from_args(args)
@@ -1271,125 +1203,6 @@ def _safe_policy_status(callbacks: InteractiveCallbacks, config: dict[str, objec
         return None
 
 
-def _help(lang: str) -> str:
-    if lang == "ja":
-        return "\n".join(
-            (
-                "コマンド",
-                "  /状態                 状態ヘッダーをもう一度表示する",
-                "  /ホーム               状態ヘッダーをもう一度表示する",
-                "  /コマンド             コマンドパレットを表示する",
-                "  /入力                 入力欄と補完の使い方を見る",
-                "  /設定                 設定を見る",
-                "  /モード 計画|安全実行|レビュー|記憶",
-                "  /計画                 読み取り専用の計画モードにする",
-                "  /レビュー             レビュー優先モードにする",
-                "  /権限                 承認と権限の状態を見る",
-                "  /モデル               モデルとローカルLLMの設定を見る",
-                "  /提供元               提供元（AI接続元）を見る",
-                "  /安全                 安全境界を見る",
-                "  /ポリシー             提供元・権限・更新・記憶の方針を見る",
-                "  /進行                 実行前後の進行表示を見る",
-                "  /タスク               現在/最近のタスク進行を見る",
-                "  /エージェント         計画中の担当（計画担当・レビュー担当など）を見る",
-                "  /コンテキスト         参照できる文脈と禁止境界を見る",
-                "  /履歴                 実行履歴を見る",
-                "  /表示 <実行ID>        1件の実行を見る",
-                "  /ローカルLLM          PC内モデルの接続方法を見る",
-                "  /認証                 Google OAuthドライラン状態を見る",
-                "  /同期                 cloud/local同期境界を見る",
-                "  /プライバシー         共有とプライバシー境界を見る",
-                "  /自己進化             proposal-only自己進化キューを見る",
-                "  /更新                 ローカルmanifestで更新を確認",
-                "  /更新通知 オン|オフ   起動時の更新案内設定を変更",
-                "  /言語 日本語|英語     表示言語を変更",
-                "  /提供元選択 自動|モック|ローカル|OpenAI互換|Anthropic|Gemini",
-                "  /承認 確認|拒否       危険操作の扱いを変更",
-                "  /ファイル ワークスペース内のみ|無効",
-                "  /履歴記録 オン|オフ   秘匿済みローカル履歴の記録を変更",
-                "  /ライブ接続 オン|オフ 外部/ローカル実行の明示許可を変更",
-                "  /ネットワーク オン|オフ 外部通信の明示許可を変更",
-                "  /選択 <番号> <値>      設定画面の番号で変更",
-                "  /終了                 終了",
-                "",
-            )
-        )
-    return "\n".join(
-        (
-            "Commands",
-            "  /status          Show the Mission Control status header again",
-            "  /home            Show the Mission Control status header again",
-            "  /palette         Show command palette",
-            "  /composer        Show input composer and completion help",
-            "  /settings        Show settings",
-            "  /mode plan|build|review|memory Change agent mode",
-            "  /plan            Switch to read-only planning mode",
-            "  /review          Switch to review mode",
-            "  /permissions     Show approval and permission policy",
-            "  /models          Show model and local LLM setup",
-            "  /providers       Show provider status",
-            "  /safety          Show safety boundaries",
-            "  /policy          Show runtime policy state",
-            "  /progress        Show progress panel",
-            "  /tasks           Show current/recent task progress",
-            "  /agents          Show planned agent/reviewer roles",
-            "  /context         Show safe context references",
-            "  /runs            Show run history",
-            "  /show <run_id>   Show one run",
-            "  /local-llm       Show local LLM loopback setup",
-            "  /auth            Show Google OAuth dry-run status",
-            "  /sync            Show cloud/local sync boundaries",
-            "  /privacy         Show shared-traffic and private-content policy",
-            "  /evolve          Show proposal-only self-evolution queue",
-            "  /update          Check local manifest update status",
-            "  /update-notice on|off Toggle startup update notice setting",
-            "  /language ja|en  Change language",
-            "  /provider auto|mock|local|openai-compatible|anthropic|gemini",
-            "  /ledger on|off    Toggle redacted local ledger",
-            "  /live on|off      Toggle explicit live/local execution permission",
-            "  /network on|off   Toggle explicit network permission",
-            "  /select <n> <value> Change a numbered setting",
-            "  /quit            Exit",
-            "",
-        )
-    )
-
-
-def _non_tty_fallback(lang: str) -> str:
-    if lang == "ja":
-        return "\n".join(
-            (
-                "YonerAI Interactive CLI",
-                "この入力はTTYではないため、対話画面は起動しません。",
-                "対話で使う: yonerai",
-                "明示して使う: yonerai chat",
-                "スクリプトで使う: yonerai chat --script",
-                "確認する: yonerai providers --pretty --lang ja",
-                "",
-            )
-        )
-    return "\n".join(
-        (
-            "YonerAI Interactive CLI",
-            "stdin is not a TTY, so the interactive screen did not start.",
-            "Interactive: yonerai chat",
-            "Scripted: yonerai chat --script",
-            "Check setup: yonerai providers --pretty --lang en",
-            "",
-        )
-    )
-
-
-def _config_error(lang: str, exc: ConfigError) -> str:
-    message = _safe(str(exc) or "config error")
-    if lang == "ja":
-        return f"設定を保存できませんでした: {message}\n"
-    return f"Could not save config: {message}\n"
-
-
-def _unknown(lang: str) -> str:
-    return "不明なコマンドです。/ヘルプ を見てください\n" if lang == "ja" else "Unknown command. Type /help\n"
-
 
 def _read_update_notice_report(
     config: dict[str, object],
@@ -1405,10 +1218,6 @@ def _read_update_notice_report(
     if not (report.get("update_available") or report.get("security_update") or report.get("critical_update")):
         return None
     return report
-
-
-def _bye(lang: str) -> str:
-    return "終了しました\n" if lang == "ja" else "Goodbye\n"
 
 
 def _write(stream: TextIO, text: str) -> None:
