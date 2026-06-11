@@ -50,6 +50,7 @@ def test_release_gate_workflow_does_not_publish() -> None:
     assert "python scripts/create_release.py \"${VERSION}\"" in workflow
     assert '--artifact "${PRODUCT_NAME}-${VERSION}.zip"' in workflow
     assert "git diff --name-only \"${RELEASE_DIFF_RANGE}\"" in workflow
+    assert "docs/releases/" not in workflow
 
 
 def test_required_checks_doc_lists_quality_wall_jobs() -> None:

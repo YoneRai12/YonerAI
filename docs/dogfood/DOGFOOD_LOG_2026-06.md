@@ -1,6 +1,6 @@
-# YonerAI Control Spine Dogfood Log - 2026-06
+# YonerAI Control Spine 実使用検証ログ - 2026-06
 
-Status: public-safe dogfood log.
+Status: public-safe real-use log.
 
 ## Anchors
 
@@ -43,7 +43,7 @@ updates, or auto-apply updates.
 `yonerai update alpha` now selects the latest alpha manifest
 `manifest.v0.21.0-alpha.1.json`.
 
-## Staging API Dogfood
+## Staging API Real-Use Check
 
 `yonerai rate-limit`:
 

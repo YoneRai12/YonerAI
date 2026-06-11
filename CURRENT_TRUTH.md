@@ -7,8 +7,8 @@ details.
 
 - generated_date_utc: 2026-06-11
 - latest_stable_tag: v0.7.0
-- latest_prerelease_tag: v0.21.0-alpha.1
-- main_head_short: ec4f273c
+- latest_prerelease_tag: v0.21.0-alpha.2
+- main_head_short: 57eee92a
 - staging_api_base_host: api-staging.yonerai.com
 
 ## Open Production Blockers
