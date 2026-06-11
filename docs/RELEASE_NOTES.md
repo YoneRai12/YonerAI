@@ -2,6 +2,35 @@
 
 This page is a public-safe index of current release notes and progress checkpoints.
 
+## v0.20.0-alpha.1 Web CLI API Control Spine
+
+- GitHub pre-release target: `v0.20.0-alpha.1`.
+- Release title: `2026.06.11 - YonerAI v0.20.0-alpha.1 Web CLI API Control Spine`.
+- Release date: `2026-06-11`.
+- Public release body: `docs/releases/0.20.0-alpha.1.md`.
+- Status: prerelease staging Control Spine client after v0.19.0-alpha.1.
+- What users can try now:
+  `yonerai login --bridge --open-browser --wait-linked --pretty --lang ja`,
+  `yonerai whoami --pretty --lang ja`,
+  `yonerai api status --pretty --lang ja`,
+  `yonerai api ping --pretty --lang ja`,
+  `yonerai api rate-limit --pretty --lang ja`,
+  `yonerai project list --pretty --lang ja`,
+  `yonerai auth sessions --pretty --lang ja`,
+  `yonerai auth revoke-session <session_id> --pretty --lang ja`,
+  `yonerai audit list --pretty --lang ja`,
+  TUI `/認証`, `/ログイン`, `/API`, `/プロジェクト`, `/セッション`, `/監査`,
+  and `/同期`.
+- Boundary: staging Control Spine only; no production Google login, no Google
+  client secret in the public repo, no Google token storage, no refresh-token
+  storage, no automatic local-to-cloud upload, no OpenAI shared traffic runtime,
+  no local private content upload, no production AWS backend in the public repo,
+  no production Oracle/cloud runtime, no live Discord, no arbitrary shell/file/tool
+  execution, and no production signing/trust store.
+- Security carry-in: linked auth state requires a validated `account/me`
+  response and is not accepted from poll-only data.
+- Primary traceability range: `v0.19.0-alpha.1..v0.20.0-alpha.1`.
+
 ## v0.19.0-alpha.1 Cloud Conversation Sync Preview
 
 - GitHub pre-release target: `v0.19.0-alpha.1`.

@@ -42,6 +42,7 @@ from yonerai_cli.screens.composer import (
     _handle_composer_command,
 )
 from yonerai_cli.screens.context import format_context_screen
+from yonerai_cli.screens.control_spine import format_control_spine_callback, format_control_spine_tui, format_staging_login_hint
 from yonerai_cli.screens.theme import _handle_theme_command
 from yonerai_cli.screens.help import _help, _non_tty_fallback, _unknown, _bye, _config_error
 from yonerai_cli.screens.evolve import (
@@ -116,9 +117,7 @@ from yonerai_cli.tui import (
     slash_command_summary,
 )
 
-
 INTERACTIVE_SCHEMA_VERSION = "yonerai-interactive-cli/v0.8"
-
 
 @dataclass(frozen=True)
 class InteractiveCallbacks:
@@ -131,6 +130,10 @@ class InteractiveCallbacks:
     evolve_status: Callable[[str], dict[str, Any]] | None = None
     api_status: Callable[[str], dict[str, Any]] | None = None
     sync_status: Callable[[str], dict[str, Any]] | None = None
+    whoami: Callable[[str], dict[str, Any]] | None = None
+    project_status: Callable[[str], dict[str, Any]] | None = None
+    session_status: Callable[[str], dict[str, Any]] | None = None
+    audit_status: Callable[[str], dict[str, Any]] | None = None
     memory_status: Callable[[str], dict[str, Any]] | None = None
     memory_action: Callable[[str, list[str], str, str | None], dict[str, Any]] | None = None
     policy_status: Callable[[dict[str, object]], dict[str, Any]] | None = None
@@ -653,12 +656,14 @@ def _handle_slash_command(
         return {}
     if command == "/auth":
         _write(output_stream, _format_auth_status(config, lang=lang))
+        if callbacks.whoami is not None:
+            _write(output_stream, format_control_spine_tui(callbacks.whoami(lang), lang=lang))
         return {}
-    if command == "/api":
-        if callbacks.api_status is None:
-            _write(output_stream, _format_api_unavailable(lang))
-            return {}
-        _write(output_stream, _format_api_status(callbacks.api_status(lang), lang=lang))
+    if command == "/login":
+        _write(output_stream, format_staging_login_hint(lang=lang))
+        return {}
+    if command in {"/api", "/project", "/sessions", "/audit"}:
+        _write(output_stream, format_control_spine_callback(command, callbacks, lang=lang) or _format_api_unavailable(lang))
         return {}
     if command == "/privacy":
         _write(output_stream, _format_privacy_status(config, lang=lang))
@@ -1201,7 +1206,6 @@ def _safe_policy_status(callbacks: InteractiveCallbacks, config: dict[str, objec
         return callbacks.policy_status(config)
     except Exception:
         return None
-
 
 
 def _read_update_notice_report(

@@ -8,6 +8,7 @@ from typing import Any, Callable
 
 from yonerai_cli import __version__
 from yonerai_cli.commands.api import ApiCommandError, handle_api_command
+from yonerai_cli.commands.audit import AuditCommandError, handle_audit_command
 from yonerai_cli.commands.ask import (
     AskCommandError,
     AskCommandUserInputError,
@@ -17,7 +18,9 @@ from yonerai_cli.commands.ask import (
 from yonerai_cli.commands.auth import (
     AuthCommandError,
     handle_auth_command,
+    handle_login_alias_command,
     handle_privacy_command,
+    handle_whoami_command,
 )
 from yonerai_cli.commands.config import ConfigCommandError, handle_config_command
 from yonerai_cli.commands.discord import DiscordCommandError, handle_discord_command
@@ -35,6 +38,7 @@ from yonerai_cli.commands.ops import OpsCommandError, handle_ops_command
 from yonerai_cli.commands.oracle import OracleCommandError, handle_oracle_command
 from yonerai_cli.commands.policy import handle_policy_command
 from yonerai_cli.commands.providers import ProvidersCommandError, handle_providers_command
+from yonerai_cli.commands.project import ProjectCommandError, handle_project_command
 from yonerai_cli.commands.route import RouteCommandError, handle_route_command
 from yonerai_cli.commands.runs import RunsCommandError, handle_runs_command
 from yonerai_cli.commands.search import SearchCommandError, handle_search_command
@@ -72,6 +76,16 @@ class CliRuntimeHooks:
 def dispatch_command(args: argparse.Namespace, hooks: CliRuntimeHooks) -> int:
     if args.command in {"chat", "interactive"}:
         return hooks.run_interactive_chat(args)
+    if args.command == "login":
+        try:
+            return handle_login_alias_command(args, print_json=hooks.print_json)
+        except AuthCommandError as exc:
+            raise CliDispatchError(str(exc), exit_code=2) from exc
+    if args.command == "whoami":
+        try:
+            return handle_whoami_command(args, print_json=hooks.print_json)
+        except AuthCommandError as exc:
+            raise CliDispatchError(str(exc), exit_code=2) from exc
     if args.command == "config":
         try:
             return handle_config_command(args, print_json=hooks.print_json)
@@ -93,6 +107,16 @@ def dispatch_command(args: argparse.Namespace, hooks: CliRuntimeHooks) -> int:
                 args, print_json=hooks.print_json, prepare_import_paths=hooks.prepare_import_paths
             )
         except ApiCommandError as exc:
+            raise CliDispatchError(str(exc), exit_code=2) from exc
+    if args.command == "project":
+        try:
+            return handle_project_command(args, print_json=hooks.print_json)
+        except ProjectCommandError as exc:
+            raise CliDispatchError(str(exc), exit_code=2) from exc
+    if args.command == "audit":
+        try:
+            return handle_audit_command(args, print_json=hooks.print_json)
+        except AuditCommandError as exc:
             raise CliDispatchError(str(exc), exit_code=2) from exc
     if args.command == "sync":
         try:

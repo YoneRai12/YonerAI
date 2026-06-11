@@ -2,6 +2,22 @@
 
 See also: `docs/RELEASE_NOTES.md` (curated summary, v5.0.0 -> current).
 
+## v0.20.0-alpha.1 (2026-06-11) - Web CLI API Control Spine
+- Connected the public CLI to staging YonerAIAPI Control Spine surfaces:
+  `yonerai login`, `yonerai whoami`, `yonerai project`, `yonerai api ping`,
+  `yonerai auth sessions`, `yonerai auth revoke-session`, and
+  `yonerai audit list`.
+- Added TUI visibility for `/ログイン`, `/API`, `/プロジェクト`, `/セッション`,
+  and `/監査`, while keeping Japanese-first labels and English aliases.
+- Displayed staging scopes, rate-limit state, project state, session state, and
+  sanitized audit availability without printing Google tokens or opaque session
+  values.
+- Incorporated the security intake from PR #521 so linked auth state requires a
+  validated `account/me` response instead of poll-only data.
+- Preserved boundaries: no production Google login, no Google client secret, no
+  Google access/ID/refresh token storage, no local private upload, no OpenAI
+  shared traffic, no production Oracle/cloud runtime, and no live Discord.
+
 ## v0.19.0-alpha.1 (2026-06-06) - Cloud Conversation Sync Preview
 - Connected the public CLI staging login path to account-required cloud
   conversation sync preview endpoints on `https://api-staging.yonerai.com`.

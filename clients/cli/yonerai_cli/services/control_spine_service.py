@@ -1,0 +1,716 @@
+from __future__ import annotations
+
+import json
+import re
+from collections.abc import Callable, Mapping
+from typing import Any
+from urllib.error import HTTPError, URLError
+from urllib.parse import quote
+from urllib.request import HTTPRedirectHandler, Request, build_opener
+
+from yonerai_cli.auth_policy import build_google_auth_status
+from yonerai_cli.config import load_cli_config
+from yonerai_cli.services.auth_session_service import sanitize_staging_account
+from yonerai_cli.services.staging_session_service import load_staging_session_token
+
+
+CONTROL_SPINE_SCHEMA_VERSION = "yonerai-control-spine-client/v0.1"
+STATUS_PATH = "/v1/status"
+RATE_LIMIT_PATH = "/v1/rate-limit"
+ACCOUNT_ME_PATH = "/v1/account/me"
+PING_PATH = "/v1/ping"
+PROJECTS_PATH = "/v1/projects"
+PROJECT_CURRENT_PATH = "/v1/projects/current"
+PROJECT_USE_PATH = "/v1/projects/current"
+SESSIONS_PATH = "/v1/sessions"
+SESSION_REVOKE_PATH_TEMPLATE = "/v1/sessions/{session_id}/revoke"
+AUDIT_EVENTS_PATH = "/v1/audit/events"
+PROJECT_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{1,120}$")
+SESSION_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{1,160}$")
+
+HeaderJsonTransport = Callable[
+    [str, str, Mapping[str, str], Mapping[str, object] | None, float],
+    tuple[int, Mapping[str, object], Mapping[str, str]],
+]
+
+
+class ControlSpineServiceError(ValueError):
+    def __init__(self, code: str, message: str, *, status_code: int | None = None) -> None:
+        super().__init__(code)
+        self.code = code
+        self.message = message
+        self.status_code = status_code
+
+    def to_safe_error(self) -> dict[str, object]:
+        return _safe_error(self.code, self.message, status_code=self.status_code)
+
+
+def build_control_spine_context(
+    *,
+    config: Mapping[str, object] | None = None,
+    env: Mapping[str, str | None] | None = None,
+    claim_path: str | None = None,
+) -> dict[str, object]:
+    auth = build_google_auth_status(config or {}, env=env, claim_path=claim_path)
+    staging = auth.get("staging") if isinstance(auth.get("staging"), Mapping) else {}
+    session_token, session_claim = load_staging_session_token(claim_path)
+    session_claim_map = session_claim if isinstance(session_claim, Mapping) else {}
+    origin_configured = bool(staging.get("configured"))
+    origin = str(staging.get("origin") or "not_configured") if origin_configured else "not_configured"
+    auth_state = str(session_claim_map.get("auth_state") or auth.get("staging_auth_state") or "unauthenticated")
+    return {
+        "origin_configured": origin_configured,
+        "origin": origin,
+        "auth_state": auth_state,
+        "account_linked": bool(session_token and auth_state == "linked"),
+        "session_available": session_token is not None,
+        "session_token": session_token,
+        "session_claim": dict(session_claim_map),
+        "production_login_enabled": False,
+        "production_backend_enabled": False,
+        "shared_traffic_enabled": False,
+        "local_private_upload_enabled": False,
+    }
+
+
+def build_control_spine_status_report(
+    *,
+    config: Mapping[str, object] | None = None,
+    env: Mapping[str, str | None] | None = None,
+    claim_path: str | None = None,
+    transport: HeaderJsonTransport | None = None,
+    timeout_seconds: float = 10.0,
+) -> dict[str, object]:
+    context = build_control_spine_context(config=config, env=env, claim_path=claim_path)
+    report = _base_report("api_status", context)
+    if not context["origin_configured"]:
+        report["ok"] = True
+        report["error"] = _safe_error("staging_origin_not_configured", "Staging API origin is not configured.")
+        return report
+    status = _safe_get(context, STATUS_PATH, transport=transport, timeout_seconds=timeout_seconds)
+    rate_limit = _safe_get(context, RATE_LIMIT_PATH, transport=transport, timeout_seconds=timeout_seconds)
+    report["official_backend_called"] = bool(status.get("official_backend_called") or rate_limit.get("official_backend_called"))
+    report["backend_status"] = status
+    report["rate_limit"] = rate_limit
+    report["scopes"] = _scopes_from_rate_limit(rate_limit.get("body") if isinstance(rate_limit.get("body"), Mapping) else {})
+    report["control_spine"] = _control_spine_from_status(
+        status.get("body") if isinstance(status.get("body"), Mapping) else {},
+        rate_limit.get("body") if isinstance(rate_limit.get("body"), Mapping) else {},
+    )
+    return report
+
+
+def build_control_spine_rate_limit_report(
+    *,
+    config: Mapping[str, object] | None = None,
+    env: Mapping[str, str | None] | None = None,
+    claim_path: str | None = None,
+    transport: HeaderJsonTransport | None = None,
+    timeout_seconds: float = 10.0,
+) -> dict[str, object]:
+    context = build_control_spine_context(config=config, env=env, claim_path=claim_path)
+    report = _base_report("api_rate_limit", context)
+    if not context["origin_configured"]:
+        report["ok"] = False
+        report["error"] = _safe_error("staging_origin_not_configured", "Staging API origin is not configured.")
+        return report
+    rate_limit = _safe_get(context, RATE_LIMIT_PATH, transport=transport, timeout_seconds=timeout_seconds)
+    report["official_backend_called"] = bool(rate_limit.get("official_backend_called"))
+    report["rate_limit"] = rate_limit
+    report["scopes"] = _scopes_from_rate_limit(rate_limit.get("body") if isinstance(rate_limit.get("body"), Mapping) else {})
+    report["ok"] = bool(rate_limit.get("ok"))
+    if rate_limit.get("error"):
+        report["error"] = rate_limit["error"]
+    return report
+
+
+def build_control_spine_ping_report(
+    *,
+    config: Mapping[str, object] | None = None,
+    env: Mapping[str, str | None] | None = None,
+    claim_path: str | None = None,
+    transport: HeaderJsonTransport | None = None,
+    timeout_seconds: float = 10.0,
+) -> dict[str, object]:
+    context = build_control_spine_context(config=config, env=env, claim_path=claim_path)
+    report = _base_report("api_ping", context)
+    if not context["origin_configured"]:
+        report["ok"] = False
+        report["error"] = _safe_error("staging_origin_not_configured", "Staging API origin is not configured.")
+        return report
+    result = _safe_get(context, PING_PATH, transport=transport, timeout_seconds=timeout_seconds, auth=True)
+    report["official_backend_called"] = bool(result.get("official_backend_called"))
+    report["backend_status_code"] = result.get("status_code")
+    report["rate_limit_headers_present"] = result.get("rate_limit_headers_present", [])
+    if result.get("ok"):
+        body = result.get("body") if isinstance(result.get("body"), Mapping) else {}
+        report["ping"] = {
+            "ok": True,
+            "message": _safe_text(body.get("message") or body.get("status"), fallback="pong"),
+        }
+        return report
+    report["ok"] = False
+    report["error"] = result.get("error") or _safe_error("api_ping_failed", "Staging API ping failed.")
+    return report
+
+
+def build_whoami_report(
+    *,
+    config: Mapping[str, object] | None = None,
+    env: Mapping[str, str | None] | None = None,
+    claim_path: str | None = None,
+    transport: HeaderJsonTransport | None = None,
+    timeout_seconds: float = 10.0,
+) -> dict[str, object]:
+    context = build_control_spine_context(config=config, env=env, claim_path=claim_path)
+    report = _base_report("whoami", context)
+    if not context["origin_configured"]:
+        report["ok"] = False
+        report["error"] = _safe_error("staging_origin_not_configured", "Staging API origin is not configured.")
+        return report
+    if not context["session_available"]:
+        report["ok"] = False
+        report["error"] = _safe_error("staging_auth_required", "Staging login is required before whoami.")
+        return report
+    result = _safe_get(context, ACCOUNT_ME_PATH, transport=transport, timeout_seconds=timeout_seconds, auth=True)
+    report["official_backend_called"] = bool(result.get("official_backend_called"))
+    report["backend_status_code"] = result.get("status_code")
+    report["rate_limit_headers_present"] = result.get("rate_limit_headers_present", [])
+    if not result.get("ok"):
+        report["ok"] = False
+        report["error"] = result.get("error") or _safe_error("account_me_failed", "Staging account check failed.")
+        return report
+    body = result.get("body") if isinstance(result.get("body"), Mapping) else {}
+    account_source = body.get("account") or body.get("identity") or body.get("profile") or body
+    report["account"] = sanitize_staging_account(account_source if isinstance(account_source, Mapping) else {})
+    report["account_linked"] = True
+    return report
+
+
+def build_project_report(
+    command: str,
+    *,
+    project_id: str | None = None,
+    config: Mapping[str, object] | None = None,
+    env: Mapping[str, str | None] | None = None,
+    claim_path: str | None = None,
+    transport: HeaderJsonTransport | None = None,
+    timeout_seconds: float = 10.0,
+) -> dict[str, object]:
+    context = build_control_spine_context(config=config, env=env, claim_path=claim_path)
+    report = _base_report(f"project_{command}", context)
+    if not context["origin_configured"]:
+        report["ok"] = False
+        report["error"] = _safe_error("staging_origin_not_configured", "Staging API origin is not configured.")
+        return report
+    if not context["session_available"]:
+        report["ok"] = False
+        report["error"] = _safe_error("staging_auth_required", "Staging login is required before reading projects.")
+        return report
+    method = "GET"
+    path = PROJECTS_PATH
+    body = None
+    if command == "current":
+        path = PROJECT_CURRENT_PATH
+    elif command == "use":
+        safe_project_id = _safe_project_id(project_id)
+        method = "POST"
+        path = PROJECT_USE_PATH
+        body = {"project_id": safe_project_id}
+        report["requested_project_id"] = safe_project_id
+    elif command != "list":
+        raise ControlSpineServiceError("project_command_invalid", "Project command is invalid.")
+    result = _safe_request(context, method, path, body, transport=transport, timeout_seconds=timeout_seconds, auth=True)
+    report["official_backend_called"] = bool(result.get("official_backend_called"))
+    report["backend_status_code"] = result.get("status_code")
+    report["rate_limit_headers_present"] = result.get("rate_limit_headers_present", [])
+    if not result.get("ok"):
+        report["ok"] = False
+        report["error"] = result.get("error") or _safe_error("project_api_failed", "Staging project API request failed.")
+        return report
+    response = result.get("body") if isinstance(result.get("body"), Mapping) else {}
+    if command == "list":
+        report["projects"] = _sanitize_projects(response)
+        report["current_project"] = _first_current_project(report["projects"])
+    else:
+        report["project"] = _sanitize_project(
+            response.get("project") if isinstance(response.get("project"), Mapping) else response
+        )
+    return report
+
+
+def build_session_report(
+    command: str,
+    *,
+    session_id: str | None = None,
+    config: Mapping[str, object] | None = None,
+    env: Mapping[str, str | None] | None = None,
+    claim_path: str | None = None,
+    transport: HeaderJsonTransport | None = None,
+    timeout_seconds: float = 10.0,
+) -> dict[str, object]:
+    context = build_control_spine_context(config=config, env=env, claim_path=claim_path)
+    report = _base_report(f"session_{command}", context)
+    if not context["origin_configured"]:
+        report["ok"] = False
+        report["error"] = _safe_error("staging_origin_not_configured", "Staging API origin is not configured.")
+        return report
+    if not context["session_available"]:
+        report["ok"] = False
+        report["error"] = _safe_error("staging_auth_required", "Staging login is required before reading sessions.")
+        return report
+    method = "GET"
+    path = SESSIONS_PATH
+    body = None
+    if command == "revoke":
+        safe_session_id = _safe_session_id(session_id)
+        method = "POST"
+        path = SESSION_REVOKE_PATH_TEMPLATE.format(session_id=quote(safe_session_id, safe=""))
+        body = {"session_id": safe_session_id}
+        report["requested_session_id"] = safe_session_id
+    elif command != "list":
+        raise ControlSpineServiceError("session_command_invalid", "Session command is invalid.")
+    result = _safe_request(context, method, path, body, transport=transport, timeout_seconds=timeout_seconds, auth=True)
+    report["official_backend_called"] = bool(result.get("official_backend_called"))
+    report["backend_status_code"] = result.get("status_code")
+    report["rate_limit_headers_present"] = result.get("rate_limit_headers_present", [])
+    if not result.get("ok"):
+        report["ok"] = False
+        report["error"] = result.get("error") or _safe_error("session_api_failed", "Staging session API request failed.")
+        return report
+    response = result.get("body") if isinstance(result.get("body"), Mapping) else {}
+    if command == "list":
+        report["sessions"] = _sanitize_sessions(response)
+    else:
+        report["revoked"] = bool(response.get("revoked", True))
+        report["session"] = _sanitize_session(
+            response.get("session") if isinstance(response.get("session"), Mapping) else response
+        )
+    return report
+
+
+def build_audit_report(
+    *,
+    config: Mapping[str, object] | None = None,
+    env: Mapping[str, str | None] | None = None,
+    claim_path: str | None = None,
+    transport: HeaderJsonTransport | None = None,
+    timeout_seconds: float = 10.0,
+) -> dict[str, object]:
+    context = build_control_spine_context(config=config, env=env, claim_path=claim_path)
+    report = _base_report("audit_list", context)
+    if not context["origin_configured"]:
+        report["ok"] = False
+        report["error"] = _safe_error("staging_origin_not_configured", "Staging API origin is not configured.")
+        return report
+    if not context["session_available"]:
+        report["ok"] = False
+        report["error"] = _safe_error("staging_auth_required", "Staging login is required before reading audit events.")
+        return report
+    result = _safe_get(context, AUDIT_EVENTS_PATH, transport=transport, timeout_seconds=timeout_seconds, auth=True)
+    report["official_backend_called"] = bool(result.get("official_backend_called"))
+    report["backend_status_code"] = result.get("status_code")
+    report["rate_limit_headers_present"] = result.get("rate_limit_headers_present", [])
+    if result.get("status_code") == 404:
+        report["ok"] = False
+        report["error"] = _safe_error("audit_not_available", "Sanitized audit API is not available on this staging backend.", status_code=404)
+        return report
+    if not result.get("ok"):
+        report["ok"] = False
+        report["error"] = result.get("error") or _safe_error("audit_api_failed", "Staging audit API request failed.")
+        return report
+    response = result.get("body") if isinstance(result.get("body"), Mapping) else {}
+    report["events"] = _sanitize_audit_events(response)
+    return report
+
+
+def _base_report(operation: str, context: Mapping[str, object]) -> dict[str, object]:
+    session_claim = context.get("session_claim") if isinstance(context.get("session_claim"), Mapping) else {}
+    return {
+        "schema_version": CONTROL_SPINE_SCHEMA_VERSION,
+        "ok": True,
+        "operation": operation,
+        "staging_only": True,
+        "backend_url": context.get("origin"),
+        "staging_origin_configured": bool(context.get("origin_configured")),
+        "auth_state": context.get("auth_state"),
+        "account_linked": bool(context.get("account_linked")),
+        "staging_session_available": bool(context.get("session_available")),
+        "session_storage": {
+            "storage_backend": _safe_text(session_claim.get("storage_backend"), fallback="none"),
+            "session_hash": _safe_text(session_claim.get("session_hash"), fallback=None),
+            "token_printed": False,
+            "google_token_stored": False,
+            "refresh_token_stored": False,
+            "plaintext_session_token_stored": False,
+        },
+        "official_backend_called": False,
+        "production_login_enabled": False,
+        "production_backend_enabled": False,
+        "production_oracle_enabled": False,
+        "shared_traffic_enabled": False,
+        "local_private_upload_enabled": False,
+        "raw_prompt_upload_enabled": False,
+        "next_safe_commands": [
+            "yonerai login --staging --bridge --open-browser --wait-linked --pretty --lang ja",
+            "yonerai whoami --pretty --lang ja",
+            "yonerai project list --pretty --lang ja",
+            "yonerai auth sessions --pretty --lang ja",
+            "yonerai api ping --pretty --lang ja",
+        ],
+        "actions_not_performed": [
+            "no production Google login",
+            "no Google token storage",
+            "no refresh token storage",
+            "no OpenAI shared traffic",
+            "no local private upload",
+            "no production Oracle/cloud runtime",
+            "no arbitrary shell or file execution",
+        ],
+    }
+
+
+def _safe_get(
+    context: Mapping[str, object],
+    path: str,
+    *,
+    transport: HeaderJsonTransport | None,
+    timeout_seconds: float,
+    auth: bool = False,
+) -> dict[str, object]:
+    return _safe_request(context, "GET", path, None, transport=transport, timeout_seconds=timeout_seconds, auth=auth)
+
+
+def _safe_request(
+    context: Mapping[str, object],
+    method: str,
+    path: str,
+    body: Mapping[str, object] | None,
+    *,
+    transport: HeaderJsonTransport | None,
+    timeout_seconds: float,
+    auth: bool,
+) -> dict[str, object]:
+    try:
+        status_code, payload, headers = _request_json(
+            method,
+            str(context["origin"]),
+            path,
+            _auth_headers(context) if auth else {},
+            body,
+            transport=transport,
+            timeout_seconds=timeout_seconds,
+        )
+        _assert_public_safe_payload(payload)
+    except ControlSpineServiceError as exc:
+        return {
+            "ok": False,
+            "official_backend_called": True,
+            "status_code": exc.status_code,
+            "error": exc.to_safe_error(),
+            "body": {},
+            "rate_limit_headers_present": [],
+        }
+    ok = 200 <= status_code < 300
+    error = None if ok else _error_from_status(status_code, payload)
+    return {
+        "ok": ok,
+        "official_backend_called": True,
+        "status_code": status_code,
+        "body": payload if ok else {},
+        "error": error,
+        "rate_limit_headers_present": _rate_limit_headers_present(headers),
+    }
+
+
+def _request_json(
+    method: str,
+    origin: str,
+    path: str,
+    headers: Mapping[str, str],
+    body: Mapping[str, object] | None,
+    *,
+    transport: HeaderJsonTransport | None,
+    timeout_seconds: float,
+) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+    caller = transport or _default_header_json_transport
+    return caller(method, f"{origin}{path}", dict(headers), body, timeout_seconds)
+
+
+def _default_header_json_transport(
+    method: str,
+    url: str,
+    headers: Mapping[str, str],
+    body: Mapping[str, object] | None,
+    timeout_seconds: float,
+) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+    data = None if body is None else json.dumps(dict(body)).encode("utf-8")
+    request = Request(url, data=data, method=method.upper())
+    request.add_header("Accept", "application/json")
+    for key, value in headers.items():
+        request.add_header(key, value)
+    if data is not None:
+        request.add_header("Content-Type", "application/json")
+    try:
+        with _NO_REDIRECT_OPENER.open(request, timeout=timeout_seconds) as response:  # noqa: S310 - origin is allowlisted by auth policy.
+            return int(response.status), _read_json_body(response.read()), dict(response.headers)
+    except HTTPError as exc:
+        if 300 <= int(exc.code) < 400:
+            raise ControlSpineServiceError(
+                "control_spine_redirect_forbidden",
+                "Staging API attempted to redirect.",
+                status_code=int(exc.code),
+            ) from exc
+        try:
+            return int(exc.code), _read_json_body(exc.read()), dict(exc.headers)
+        except ControlSpineServiceError:
+            return int(exc.code), {}, dict(exc.headers)
+    except (OSError, URLError) as exc:
+        raise ControlSpineServiceError("control_spine_unreachable", "Staging API is unreachable.") from exc
+
+
+def _read_json_body(raw: bytes) -> Mapping[str, object]:
+    try:
+        value = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ControlSpineServiceError("control_spine_invalid_json", "Staging API returned invalid JSON.") from exc
+    if not isinstance(value, dict):
+        raise ControlSpineServiceError("control_spine_invalid_json", "Staging API returned invalid JSON.")
+    return value
+
+
+def _auth_headers(context: Mapping[str, object]) -> dict[str, str]:
+    token = context.get("session_token")
+    if not isinstance(token, str) or not token.strip():
+        return {}
+    return {"Authorization": f"Bearer {token}"}
+
+
+def _error_from_status(status_code: int, payload: Mapping[str, object]) -> dict[str, object]:
+    reason = "request_failed"
+    detail = payload.get("detail")
+    if isinstance(detail, Mapping):
+        reason = _safe_text(detail.get("reason"), fallback=reason) or reason
+    elif isinstance(detail, str):
+        reason = _safe_text(detail, fallback=reason) or reason
+    if status_code in {401, 403}:
+        return _safe_error("staging_auth_required", "Staging login is required or the saved session expired.", status_code=status_code)
+    if status_code == 404:
+        return _safe_error("control_spine_not_available", "This staging control spine endpoint is not available.", status_code=status_code)
+    return _safe_error(str(reason), "Staging control spine request failed.", status_code=status_code)
+
+
+def _control_spine_from_status(status_payload: Mapping[str, object], rate_payload: Mapping[str, object]) -> dict[str, object]:
+    status_control = status_payload.get("control_spine") if isinstance(status_payload.get("control_spine"), Mapping) else {}
+    rate_control = rate_payload.get("control_spine") if isinstance(rate_payload.get("control_spine"), Mapping) else {}
+    return {
+        "contract_version": _safe_text(rate_control.get("contract_version"), fallback="yonerai.control-spine.v0.1"),
+        "status": _safe_text(status_control.get("status"), fallback=status_payload.get("status") or "unknown"),
+        "mode": _safe_text(status_control.get("mode"), fallback="staging"),
+        "sessions": _safe_text(status_control.get("sessions"), fallback="unknown"),
+        "revoke": _safe_text(status_control.get("revoke"), fallback="unknown"),
+        "projects": _safe_text(status_control.get("projects"), fallback="unknown"),
+        "audit": _safe_text(status_control.get("audit"), fallback="unknown"),
+        "admin_scope": _safe_text(status_control.get("admin_scope"), fallback="disabled_by_default"),
+        "shared_traffic": _safe_text(status_control.get("shared_traffic"), fallback="off"),
+    }
+
+
+def _scopes_from_rate_limit(payload: Mapping[str, object]) -> list[dict[str, object]]:
+    control = payload.get("control_spine") if isinstance(payload.get("control_spine"), Mapping) else {}
+    raw = control.get("scopes") if isinstance(control.get("scopes"), list) else []
+    scopes: list[dict[str, object]] = []
+    for item in raw:
+        if not isinstance(item, Mapping):
+            continue
+        scopes.append(
+            {
+                "name": _safe_scope(item.get("name")),
+                "enabled_by_default": bool(item.get("enabled_by_default")),
+                "summary": _safe_text(item.get("summary"), fallback=""),
+            }
+        )
+    return scopes
+
+
+def _sanitize_projects(payload: Mapping[str, object]) -> list[dict[str, object]]:
+    raw = payload.get("projects") if isinstance(payload.get("projects"), list) else []
+    return [_sanitize_project(item) for item in raw if isinstance(item, Mapping)]
+
+
+def _sanitize_project(project: Mapping[str, object]) -> dict[str, object]:
+    scopes = project.get("scopes") if isinstance(project.get("scopes"), list) else []
+    return {
+        "project_id": _safe_text(project.get("project_id") or project.get("id"), fallback="personal-staging"),
+        "name": _safe_text(project.get("name") or project.get("display_name"), fallback="personal staging"),
+        "current": bool(project.get("current", False)),
+        "billing_enabled": bool(project.get("billing_enabled", False)),
+        "scopes": [_safe_scope(scope) for scope in scopes],
+        "raw_private_content_included": False,
+    }
+
+
+def _first_current_project(projects: object) -> dict[str, object]:
+    if not isinstance(projects, list):
+        return {}
+    for project in projects:
+        if isinstance(project, Mapping) and project.get("current"):
+            return dict(project)
+    return dict(projects[0]) if projects and isinstance(projects[0], Mapping) else {}
+
+
+def _sanitize_sessions(payload: Mapping[str, object]) -> list[dict[str, object]]:
+    raw = payload.get("sessions") if isinstance(payload.get("sessions"), list) else []
+    return [_sanitize_session(item) for item in raw if isinstance(item, Mapping)]
+
+
+def _sanitize_session(session: Mapping[str, object]) -> dict[str, object]:
+    scopes = session.get("scopes") if isinstance(session.get("scopes"), list) else []
+    return {
+        "session_id": _safe_text(session.get("session_id") or session.get("id"), fallback="session-redacted"),
+        "status": _safe_text(session.get("status"), fallback="unknown"),
+        "current": bool(session.get("current", False)),
+        "created_at": _safe_text(session.get("created_at"), fallback=None),
+        "expires_at": _safe_text(session.get("expires_at"), fallback=None),
+        "scopes": [_safe_scope(scope) for scope in scopes],
+        "token_included": False,
+    }
+
+
+def _sanitize_audit_events(payload: Mapping[str, object]) -> list[dict[str, object]]:
+    raw = payload.get("events") if isinstance(payload.get("events"), list) else []
+    events: list[dict[str, object]] = []
+    for item in raw:
+        if not isinstance(item, Mapping):
+            continue
+        events.append(
+            {
+                "event_id": _safe_text(item.get("event_id") or item.get("id"), fallback="event-redacted"),
+                "event_type": _safe_text(item.get("event_type") or item.get("type"), fallback="unknown"),
+                "created_at": _safe_text(item.get("created_at"), fallback=None),
+                "summary": _safe_text(item.get("summary"), fallback="sanitized audit event"),
+                "raw_prompt_included": False,
+                "private_content_included": False,
+            }
+        )
+    return events
+
+
+def _safe_project_id(value: object) -> str:
+    text = str(value or "").strip()
+    if not PROJECT_ID_RE.fullmatch(text):
+        raise ControlSpineServiceError("project_id_invalid", "Project id is invalid.")
+    return text
+
+
+def _safe_session_id(value: object) -> str:
+    text = str(value or "").strip()
+    if not SESSION_ID_RE.fullmatch(text):
+        raise ControlSpineServiceError("session_id_invalid", "Session id is invalid.")
+    return text
+
+
+def _safe_scope(value: object) -> str:
+    text = str(value or "").strip()
+    if not re.fullmatch(r"[a-z][a-z0-9:*_-]{1,80}", text):
+        return "scope:redacted"
+    return text
+
+
+def _safe_text(value: object, *, fallback: object) -> object:
+    if value is None:
+        return fallback
+    text = str(value).strip()
+    if not text:
+        return fallback
+    lowered = text.lower()
+    forbidden = (
+        "access_token",
+        "refresh_token",
+        "id_token",
+        "client_secret",
+        "authorization_code",
+        "google_token",
+        "staging_session_token",
+        "api_key",
+        "password",
+        "c:\\users",
+        "\\\\",
+        "/users/",
+        "/home/",
+        "/root/",
+        "http://10.",
+        "http://192.168.",
+        "http://127.",
+        "169.254.169.254",
+    )
+    if any(marker in lowered for marker in forbidden):
+        return fallback
+    if any(ord(char) < 32 or ord(char) == 127 for char in text):
+        return fallback
+    return text[:240]
+
+
+def _assert_public_safe_payload(payload: object) -> None:
+    serialized = json.dumps(payload, ensure_ascii=False, sort_keys=True).lower()
+    forbidden_markers = (
+        "access_token",
+        "refresh_token",
+        "id_token",
+        "client_secret",
+        "authorization_code",
+        "google_token",
+        "staging_session_token",
+        "api_key",
+        "password",
+        "c:\\users",
+        "\\\\",
+        "/users/",
+        "/home/",
+        "/root/",
+        "http://10.",
+        "http://192.168.",
+        "http://127.",
+        "169.254.169.254",
+    )
+    if any(marker in serialized for marker in forbidden_markers):
+        raise ControlSpineServiceError(
+            "control_spine_private_payload_rejected",
+            "Staging control spine returned non-public fields.",
+        )
+
+
+def _rate_limit_headers_present(headers: Mapping[str, str]) -> list[str]:
+    expected = {
+        "x-yonerai-ratelimit-scope": "X-YonerAI-RateLimit-Scope",
+        "x-yonerai-ratelimit-limit": "X-YonerAI-RateLimit-Limit",
+        "x-yonerai-ratelimit-remaining": "X-YonerAI-RateLimit-Remaining",
+        "x-yonerai-ratelimit-reset": "X-YonerAI-RateLimit-Reset",
+        "x-yonerai-ratelimit-reason": "X-YonerAI-RateLimit-Reason",
+    }
+    normalized = {key.lower() for key in headers}
+    return [public for key, public in expected.items() if key in normalized]
+
+
+def _safe_error(code: str, message: str, *, status_code: int | None = None) -> dict[str, object]:
+    return {
+        "code": code,
+        "message": message,
+        "status_code": status_code,
+        "private_endpoint_printed": False,
+        "local_path_printed": False,
+        "token_printed": False,
+        "google_token_printed": False,
+    }
+
+
+def load_config_for_control_spine(config_path: str | None) -> dict[str, object]:
+    return load_cli_config(config_path)
+
+
+class _NoRedirectHandler(HTTPRedirectHandler):
+    def redirect_request(self, req: object, fp: object, code: int, msg: str, headers: object, newurl: str) -> None:
+        return None
+
+
+_NO_REDIRECT_OPENER = build_opener(_NoRedirectHandler)
