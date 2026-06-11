@@ -328,14 +328,43 @@ def run(argv: list[str] | None = None) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     _configure_stdio()
+    actual_argv = list(sys.argv[1:] if argv is None else argv)
     try:
-        return run(argv)
+        return run(actual_argv)
     except DiagnosticsCommandError as exc:
-        print(f"error: {exc}", file=sys.stderr)
+        print(f"error: {_localized_cli_error(str(exc), actual_argv)}", file=sys.stderr)
         return exc.exit_code
     except CliError as exc:
-        print(f"error: {exc}", file=sys.stderr)
+        print(f"error: {_localized_cli_error(str(exc), actual_argv)}", file=sys.stderr)
         return exc.exit_code
+
+
+def _localized_cli_error(message: str, argv: list[str]) -> str:
+    if _explicit_lang(argv) == "en":
+        return message
+    mapping = {
+        "public CLI login is staging-only in this build.": (
+            "この公開CLIではステージングログインだけ使えます。本番ログインは無効です。"
+        ),
+        "Session id is invalid.": "セッションIDが正しくありません。`yonerai sessions` で確認してください。",
+        "Staging login is required or the saved session expired.": (
+            "ステージングセッションが未ログイン、または期限切れです。`yonerai login` を実行してください。"
+        ),
+    }
+    if message in mapping:
+        return mapping[message]
+    if "Staging login is required" in message:
+        return "ステージングログインが必要です。`yonerai login` を実行してください。"
+    return message
+
+
+def _explicit_lang(argv: list[str]) -> str | None:
+    for index, value in enumerate(argv):
+        if value == "--lang" and index + 1 < len(argv):
+            return argv[index + 1]
+        if value.startswith("--lang="):
+            return value.split("=", 1)[1]
+    return None
 
 
 def _configure_stdio() -> None:

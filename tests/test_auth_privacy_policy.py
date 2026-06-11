@@ -56,7 +56,7 @@ def test_auth_status_uses_staging_without_local_google_client_id(tmp_path: Path,
     assert report["configured"] is False
     assert report["staging_login_available"] is True
     assert report["staging"]["origin"] == "https://api-staging.yonerai.com"
-    assert report["next_safe_command"] == "yonerai auth google login --staging --bridge --pretty --lang ja"
+    assert report["next_safe_command"] == "yonerai login"
     assert report["error"] is None
     assert "YONERAI_GOOGLE_OAUTH_CLIENT_SECRET" not in serialized
     assert str(tmp_path) not in serialized
@@ -73,7 +73,7 @@ def test_auth_status_localizes_staging_next_command(tmp_path: Path, monkeypatch,
     assert cli.main(["auth", "status", "--json"]) == 0
     report = json.loads(capsys.readouterr().out)
 
-    assert report["next_safe_command"] == "yonerai auth google login --staging --bridge --pretty --lang en"
+    assert report["next_safe_command"] == "yonerai login"
 
 
 def test_google_login_dry_run_requires_client_configuration_without_traceback(tmp_path: Path, monkeypatch, capsys) -> None:
@@ -182,7 +182,7 @@ def test_google_login_staging_generates_public_safe_auth_url(tmp_path: Path, mon
     assert report["token_exchange_performed"] is False
     assert report["refresh_token_stored"] is False
     assert report["staging_api"]["network_fetch_default"] == "off"
-    assert report["staging_api"]["network_fetch_when"] == "explicit --bridge or --poll-request-id only"
+    assert report["staging_api"]["network_fetch_when"] == "yonerai login or explicit --bridge/--poll-request-id"
     assert report["staging_api"]["redirect_policy"] == "reject_unexpected_host"
     assert any(endpoint["path"] == "/v1/account/me" for endpoint in report["staging_api"]["allowed_methods_and_paths"])
     assert any(endpoint["path"] == "/auth/cli/start" for endpoint in report["staging_api"]["allowed_methods_and_paths"])
@@ -565,6 +565,111 @@ def test_google_login_staging_waits_for_link_and_fetches_account_without_storing
     assert "ystg_cli_secret_placeholder" not in serialized
     assert "owner@example.com" not in serialized
     assert str(tmp_path) not in serialized
+
+
+def test_staging_login_token_custody_scans_filesystem_config_and_ledger(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from yonerai_cli.auth_policy import build_google_login_staging
+    from yonerai_cli.commands.auth import _persist_staging_claim_if_linked, _staging_session_handler
+
+    config_path = tmp_path / "cli-config.json"
+    session_secret = "ystg_cli_secret_placeholder_custody"
+    forbidden_values = (
+        session_secret,
+        "google_access_token_secret",
+        "google_refresh_token_secret",
+        "google_auth_code_secret",
+    )
+
+    def transport(method: str, url: str, body: object, timeout: float) -> tuple[int, dict[str, object]]:
+        if method == "POST":
+            return (
+                200,
+                {
+                    "status": "created",
+                    "request_id": "cli_fixture_request",
+                    "browser_start_path": "/auth/google/start?cli_request_id=cli_fixture_request&redirect=true",
+                    "poll_path": "/auth/cli/poll/cli_fixture_request",
+                    "expires_at": "2099-06-06T00:30:00Z",
+                    "google_token_returned": False,
+                    "refresh_token_returned": False,
+                },
+            )
+        return (
+            200,
+            {
+                "status": "completed",
+                "request_id": "cli_fixture_request",
+                "staging_session_token": session_secret,
+                "account": {"email": "owner@example.com", "display_name": "Owner"},
+                "expires_at": "2099-06-06T00:30:00Z",
+                "google_token_returned": False,
+                "refresh_token_returned": False,
+                "replay_protected": True,
+            },
+        )
+
+    def account_transport(
+        method: str,
+        url: str,
+        headers: dict[str, str],
+        body: object,
+        timeout: float,
+    ) -> tuple[int, dict[str, object]]:
+        assert headers["Authorization"] == f"Bearer {session_secret}"
+        return (
+            200,
+            {
+                "ok": True,
+                "account": {"email": "owner@example.com", "display_name": "Owner"},
+                "google_token_returned": False,
+                "refresh_token_returned": False,
+            },
+        )
+
+    monkeypatch.setenv("YONERAI_CLI_CONFIG_PATH", str(config_path))
+    monkeypatch.setenv("YONERAI_STAGING_AUTH_ORIGIN", "https://api-staging.yonerai.com")
+
+    report = build_google_login_staging(
+        bridge=True,
+        wait_linked=True,
+        max_wait_seconds=2.0,
+        poll_interval_seconds=0.25,
+        transport=transport,
+        account_transport=account_transport,
+        session_claim_handler=_staging_session_handler(
+            str(config_path),
+            origin="https://api-staging.yonerai.com",
+        ),
+    )
+    _persist_staging_claim_if_linked(report, config_path=str(config_path))
+    ledger_path = tmp_path / "runs.jsonl"
+    ledger_path.write_text(
+        json.dumps(
+            {
+                "run_id": "run_custody_fixture",
+                "auth_state": report.get("staging_linked_claim", {}).get("auth_state"),
+                "session_hash": report.get("staging_session_storage", {}).get("session_hash"),
+                "token_printed": False,
+                "google_token_stored": False,
+                "refresh_token_stored": False,
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    assert report["ok"] is True
+    assert report["staging_claim_saved"] is True
+    for path in tmp_path.rglob("*"):
+        if not path.is_file():
+            continue
+        data = path.read_bytes()
+        for forbidden in forbidden_values:
+            assert forbidden.encode("utf-8") not in data, path.name
 
 
 def test_google_login_staging_retries_transient_poll_error(tmp_path: Path, monkeypatch) -> None:

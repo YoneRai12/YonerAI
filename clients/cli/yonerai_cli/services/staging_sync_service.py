@@ -398,10 +398,10 @@ def _base_report(operation: str, context: Mapping[str, Any]) -> dict[str, Any]:
             },
         },
         "next_safe_commands": [
-            "yonerai auth google login --staging --bridge --open-browser --wait-linked --pretty --lang ja",
-            "yonerai sync conversations --pretty --lang ja",
-            "yonerai sync preview --direction cloud-to-local --pretty --lang ja",
-            "yonerai sync preview --direction local-to-cloud --pretty --lang ja",
+            "yonerai login",
+            "yonerai sync conversations",
+            "yonerai sync preview",
+            "yonerai sync preview local-to-cloud",
         ],
         "actions_not_performed": _sync_non_actions(),
     }

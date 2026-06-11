@@ -35,7 +35,7 @@ def _format_auth_status(config: dict[str, object], *, lang: str) -> str:
             f"  linked account: {_safe(_staging_account_label(staging_account, session_claim))}",
             "  account sync: オフ。cloud -> local は選択・認証後の preview のみ。local -> cloud は既定で無効です",
             "  local/private upload: 無効。private file / local memory / local node payload は送信しません",
-            f"  次に試す: {_safe(report.get('next_safe_command') or 'yonerai auth google login --dry-run --pretty --lang ja')}",
+            f"  次に試す: {_safe(report.get('next_safe_command') or 'yonerai login')}",
         ]
         if error:
             lines.append(f"  補足: {_safe(error.get('message') or error.get('code'))}")
@@ -61,7 +61,7 @@ def _format_auth_status(config: dict[str, object], *, lang: str) -> str:
             f"  linked_account: {_safe(_staging_account_label(staging_account, session_claim))}",
             "  account_sync: off; cloud-to-local is preview-only after selection/auth, local-to-cloud is disabled by default",
             "  local_private_upload: disabled; private files, local memory, and local node payloads are excluded",
-            f"  next: {_safe(report.get('next_safe_command') or 'yonerai auth google login --dry-run --pretty')}",
+            f"  next: {_safe(report.get('next_safe_command') or 'yonerai login')}",
             "  actions_not_performed: " + ", ".join(_safe(action) for action in actions[:8]),
             "",
         )

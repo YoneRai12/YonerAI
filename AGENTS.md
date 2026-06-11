@@ -54,6 +54,16 @@ Run the smallest relevant set, usually including:
 - Live Discord, real tokens, deploys, production signing keys, production trust stores, persistent memory, Google login, and production DB behavior require an explicit owner-approved private/live lane.
 - Do not broad-rename ORA symbols without a compatibility plan and tests.
 
+## Lane Ownership
+
+- CLI visual, terminal theme, IME, and display polish are the Claude lane.
+- Control Spine client behavior, auth/session/sync command contracts, release gates, manifests, and GitHub Releases are the Codex lane.
+- Design book updates, design deltas, and broad audit narratives are the Claude doc lane unless the current owner prompt assigns them elsewhere.
+- GPT-5.5 is the manager lane for cross-lane decisions, final claim boundaries, and ownership conflicts.
+- Files owned by another lane must not be modified without an explicit handoff tag in the current task, PR body, or review thread.
+- Review ping-pong is limited to one response round per disputed point. If a conflict remains after that, escalate to the manager lane instead of repeatedly editing the same files.
+- All lanes must read `CURRENT_TRUTH.md`, `AGENTS.md`, and `docs/process/YONERAI_CODEX_WORKFLOW.md` before making public release, API, CLI, or production-readiness claims.
+
 ## Reporting
 
 Final reports must be Japanese and include exact PRs, commits, tests, scans, runtime-boundary status, `src/cogs/ora.py` status, `reference_clawdbot` status, non-claims, blockers, and the next recommended goal.

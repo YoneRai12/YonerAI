@@ -99,9 +99,9 @@ def build_google_auth_status(
         "storage": _google_token_storage_contract(),
         "session_storage": storage_capability(),
         "next_safe_command": (
-            f"yonerai auth google login --staging --bridge --pretty --lang {preferred_lang}"
+            "yonerai login"
             if staging_ready
-            else "yonerai auth google login --dry-run --pretty"
+            else f"yonerai auth google login --dry-run --pretty --lang {preferred_lang}"
         ),
         "actions_not_performed": _google_auth_non_actions(),
         "error": error,
@@ -577,8 +577,8 @@ def _staging_api_contract(staging: Mapping[str, object]) -> dict[str, object]:
         "origin": origin,
         "fixture_only": True,
         "network_fetch_default": "off",
-        "network_fetch_when": "explicit --bridge or --poll-request-id only",
-        "next_e2e_command": "yonerai auth google login --staging --bridge --pretty --lang ja",
+        "network_fetch_when": "yonerai login or explicit --bridge/--poll-request-id",
+        "next_e2e_command": "yonerai login",
         "allowed_methods_and_paths": [
             {"method": method, "path": path, "url": f"{origin}{path}" if origin != "not_configured" else "not_configured"}
             for method, path in STAGING_API_CONTRACT_ENDPOINTS

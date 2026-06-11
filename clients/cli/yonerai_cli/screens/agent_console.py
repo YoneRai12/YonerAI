@@ -196,8 +196,8 @@ def _agent_role_label(value: object, *, lang: str) -> str:
     }.get(str(value), _safe(value or "担当"))
 
 
-def _format_command_palette(lang: str) -> str:
-    return format_command_palette(lang)
+def _format_command_palette(lang: str, *, display_mode: str | None = None, color: str = "auto") -> str:
+    return format_command_palette(lang, display_mode=display_mode, color=color)  # type: ignore[arg-type]
 
 
 def _format_mode_state(config: dict[str, object], *, lang: str) -> str:

@@ -76,6 +76,9 @@ def _format_settings(
                 "",
                 "カテゴリ",
                 "  1. 言語: " + _language_label(values["language"] or "ja", lang="ja") + "  /設定 言語",
+                "  - コマンド表示: "
+                + _safe(values.get("command_display_mode") or "ja_only")
+                + "  変更: config set command_display ja_only|ja_with_en|en_with_ja|en_only",
                 "  2. 提供元: " + _provider_label(provider, lang="ja") + "  /設定 提供元",
                 "  3. モデル: " + _safe(values.get("model_preference") or "auto") + "  /設定 モデル",
                 "  4. モード: " + _agent_mode_label(values.get("agent_mode"), lang="ja") + "  /設定 モード",
@@ -122,6 +125,7 @@ def _format_settings(
             "  /settings privacy",
             "  /settings policy",
             f"  current: language={values['language'] or 'ja'} provider={provider} model={values.get('model_preference') or 'auto'} agent_mode={values.get('agent_mode')} local_llm={local_state}",
+            f"  command_display: {values.get('command_display_mode') or 'en_only'}",
             f"  toggles: ledger={ledger} live={'on' if live else 'off'} network={'on' if values['network_enabled'] else 'off'} update_notice={update_notice}",
             "  numbered fallback: /select 1 en, /select 2 mock, /select 8 llama3.1, /select 9 on, /select 10 review",
             "  secrets and local paths are not printed.",

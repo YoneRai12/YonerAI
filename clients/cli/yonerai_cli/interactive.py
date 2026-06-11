@@ -104,6 +104,7 @@ from yonerai_cli.screens.status_api import (
 )
 from yonerai_cli.ime import RomajiComposer
 from yonerai_cli.tui.themes import THEME_CHOICES_HELP, normalize_theme, theme_from_input, theme_label
+from yonerai_cli.tui.palette import normalize_command_display_mode
 from yonerai_cli.services.onboarding_service import run_auth_onboarding
 from yonerai_cli.startup_home import render_startup_home_header
 from yonerai_cli.tui.aliases import canonical_agent_mode_value as _canonical_agent_mode_value
@@ -354,6 +355,10 @@ def _effective_live(live: bool, config: dict[str, object]) -> bool:
     )
 
 
+def _command_display_mode(config: dict[str, object], lang: str) -> str:
+    return normalize_command_display_mode(config.get("command_display_mode"), lang=lang)
+
+
 def _bottom_toolbar(lang: str, *, provider: str, live: bool, config: dict[str, object]) -> str:
     model = _safe(config.get("model_preference") or "auto")
     agent_mode = _agent_mode_label(config.get("agent_mode") or "plan_readonly", lang=lang)
@@ -440,7 +445,14 @@ def _handle_slash_command(
 ) -> dict[str, object]:
     parts = text.split()
     if parts[0] == "/":
-        _write(output_stream, slash_command_summary(lang))
+        _write(
+            output_stream,
+            slash_command_summary(
+                lang,
+                display_mode=_command_display_mode(config, lang),
+                color=options.color,
+            ),
+        )
         return {}
     command = _canonical_command(parts[0])
     args = parts[1:]
@@ -474,7 +486,14 @@ def _handle_slash_command(
             output_stream=output_stream,
         )
     if command == "/palette":
-        _write(output_stream, _format_command_palette(lang))
+        _write(
+            output_stream,
+            _format_command_palette(
+                lang,
+                display_mode=_command_display_mode(config, lang),
+                color=options.color,
+            ),
+        )
         return {}
     if command == "/composer":
         if composer is not None and args and _canonical_value(args[0]) in {"on", "off"}:
