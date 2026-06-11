@@ -870,7 +870,7 @@ def _script_encoding_hint(text: str, lang: str) -> str | None:
     if not text.startswith("/"):
         return None
     body = text[1:].strip()
-    if not body:
+    if not body or body == "?":
         return None
     tokens = [token for token in body.split() if token]
     if not tokens:
@@ -896,8 +896,11 @@ def _script_encoding_hint(text: str, lang: str) -> str | None:
 
 def _update_apply_confirmed(args: list[str]) -> bool:
     for arg in args:
+        raw = arg.strip()
         value = _canonical_value(arg)
-        if value in {"confirm", "confirmed", "yes", "y", "true", "1", "確認", "はい", "実行"}:
+        if value in {"confirm", "confirmed", "yes", "y", "true", "1", "prompt"}:
+            return True
+        if raw in {"確認", "はい", "実行"}:
             return True
     return False
 

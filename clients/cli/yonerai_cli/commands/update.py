@@ -93,6 +93,7 @@ def add_update_parser(
         "beta",
         aliases=[
             "alpha",
+            "アルファ",
             "ベータ",
             "ベータ版",
             "アルファ",
@@ -117,6 +118,7 @@ def add_update_parser(
             "stable",
             "alpha",
             "beta",
+            "アルファ",
             "安定版",
             "ベータ",
             "ベータ版",
@@ -190,6 +192,7 @@ def _normalize_apply_channel(value: str) -> str:
     if value in {
         "alpha",
         "beta",
+        "アルファ",
         "ベータ",
         "ベータ版",
         "アルファ版",
@@ -203,6 +206,7 @@ def _normalize_short_update_args(args: argparse.Namespace) -> argparse.Namespace
     alpha_aliases = {
         "beta",
         "alpha",
+        "アルファ",
         "ベータ",
         "ベータ版",
         "アルファ",

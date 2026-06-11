@@ -43,6 +43,7 @@ def test_install_script_is_plan_first_verified_github_release_bootstrap() -> Non
     assert "optional shortcuts: disabled unless -Shortcut" in script
     assert "CreateShortcut" in script
     assert "New-YonerAIShortcut" in script
+    assert "Write-Warning \"Failed to create shortcuts; continuing without them.\"" in script
     assert "SetEnvironmentVariable" in script
     assert re.search(r"\bsetx\b", script, flags=re.IGNORECASE) is None
 

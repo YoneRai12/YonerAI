@@ -1,4 +1,4 @@
-﻿# YonerAI
+# YonerAI
 
 YonerAI は、公式・ローカル・self-hosted の実行環境が変わっても、同じ利用体験と同じ境界を保つための provider-independent AI execution foundation です。
 

@@ -178,10 +178,6 @@ def build_update_apply_report(
     script = repo_root / "install.ps1"
     if not script.is_file():
         raise UpdateServiceError("local installer script is unavailable")
-    shell = shutil.which("pwsh") or shutil.which("powershell")
-    if shell is None:
-        raise UpdateServiceError("PowerShell is required for manual update apply")
-
     run_env = dict(os.environ if env is None else env)
     if run_env.get("YONERAI_UPDATE_APPLY_TEST_MODE") == "1":
         base_report.update(
@@ -202,6 +198,10 @@ def build_update_apply_report(
             }
         )
         return base_report
+
+    shell = shutil.which("pwsh") or shutil.which("powershell")
+    if shell is None:
+        raise UpdateServiceError("PowerShell is required for manual update apply")
 
     command = [
         shell,

@@ -1,4 +1,4 @@
-﻿# YonerAI
+# YonerAI
 
 > [!WARNING]
 > **Do not treat this README as the single source of truth for the current prerelease state.**
@@ -68,7 +68,7 @@ mismatched.
 ```powershell
 $ErrorActionPreference = "Stop"
 $base = "https://github.com/YoneRai12/YonerAI/releases/download/v0.8.0"
-$expected = "d814f97ea1801d12322d0aaa0c67a21c8499e43f6f3bf0519e1d2b00151a81bd"
+$expected = "968dbeee3375fd8ee233d995592037d897d5be3b02ec0a9130ce7bff9ab9a29c"
 $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("yonerai-bootstrap-" + [guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory -Path $tmp | Out-Null
 try {

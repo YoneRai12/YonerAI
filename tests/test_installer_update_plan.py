@@ -552,6 +552,17 @@ def test_cli_update_short_japanese_beta_alias_selects_prerelease_channel(capsys)
     assert compat["channel"] == "alpha"
 
 
+def test_cli_update_apply_short_japanese_alpha_alias_selects_prerelease_channel(capsys) -> None:
+    _prepare_paths()
+    from yonerai_cli import cli
+
+    assert cli.main(["update", "apply", "アルファ", "--json"]) == 1
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["channel"] == "alpha"
+    assert output["confirmation_required"] is True
+
+
 def test_cli_update_apply_requires_explicit_confirmation(capsys) -> None:
     _prepare_paths()
     from yonerai_cli import cli
@@ -589,6 +600,24 @@ def test_update_apply_test_mode_does_not_install() -> None:
     assert report["path_mutation"] is False
     assert report["remote_code_executed"] is False
     assert report["network_required"] is True
+
+
+def test_update_apply_test_mode_does_not_require_powershell(monkeypatch) -> None:
+    _prepare_paths()
+    from yonerai_cli.services import update_service
+
+    monkeypatch.setattr(update_service.shutil, "which", lambda _: None)
+
+    report = update_service.build_update_apply_report(
+        channel="alpha",
+        confirmed=True,
+        repo_root=ROOT,
+        current_version="0.20.0-alpha.1",
+        env={"YONERAI_UPDATE_APPLY_TEST_MODE": "1"},
+    )
+
+    assert report["ok"] is True
+    assert report["apply_state"] == "test_mode_not_installed"
 
 
 def test_cli_update_plan_pretty_is_readable(capsys) -> None:

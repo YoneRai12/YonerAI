@@ -1956,6 +1956,30 @@ def test_chat_update_beta_and_apply_are_short_safe_defaults(tmp_path: Path, monk
     assert str(tmp_path) not in output
 
 
+def test_chat_update_apply_accepts_japanese_confirm_token(tmp_path: Path, monkeypatch, capsys) -> None:
+    from yonerai_cli import cli
+
+    _clear_provider_env(monkeypatch)
+    config_path = tmp_path / "cli-config.json"
+    monkeypatch.setenv("YONERAI_UPDATE_APPLY_TEST_MODE", "1")
+    monkeypatch.setattr(sys, "stdin", _PlainStringIO("/更新 適用 ベータ版 確認\n/終了\n"))
+
+    assert cli.main(["chat", "--script", "--lang", "ja", "--config-path", str(config_path), "--color", "never"]) == 0
+    output = capsys.readouterr().out
+
+    assert "更新適用" in output
+    assert "確認が必要: いいえ" in output
+    assert "状態: test_mode_not_installed" in output
+    assert "Traceback" not in output
+    assert str(tmp_path) not in output
+
+
+def test_script_encoding_hint_does_not_treat_help_slash_as_mojibake() -> None:
+    from yonerai_cli.interactive import _script_encoding_hint
+
+    assert _script_encoding_hint("/?", "ja") is None
+
+
 def test_chat_rate_limit_short_command_is_safe_without_staging_origin(tmp_path: Path, monkeypatch, capsys) -> None:
     from yonerai_cli import cli
 

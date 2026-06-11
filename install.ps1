@@ -518,36 +518,41 @@ function New-YonerAIShortcut {
     if (-not $Shortcut) {
         return
     }
-    if (-not (Test-Path -LiteralPath $YoneraiExe -PathType Leaf)) {
-        throw "Installed yonerai.exe was not found after local bootstrap."
-    }
-    $shellPath = Get-CurrentPowerShellPath
-    $escapedExe = $YoneraiExe.Replace("'", "''")
-    $arguments = "-NoProfile -ExecutionPolicy Bypass -NoExit -Command `"& '$escapedExe'`""
-    $wsh = New-Object -ComObject WScript.Shell
-    $targets = @()
-    $desktop = [Environment]::GetFolderPath("Desktop")
-    if (-not [string]::IsNullOrWhiteSpace($desktop)) {
-        $targets += (Join-Path $desktop "YonerAI.lnk")
-    }
-    $programs = [Environment]::GetFolderPath("Programs")
-    if (-not [string]::IsNullOrWhiteSpace($programs)) {
-        $folder = Join-Path $programs "YonerAI"
-        if (-not (Test-Path -LiteralPath $folder -PathType Container)) {
-            New-Item -ItemType Directory -Path $folder | Out-Null
+    try {
+        if (-not (Test-Path -LiteralPath $YoneraiExe -PathType Leaf)) {
+            throw "Installed yonerai.exe was not found after local bootstrap."
         }
-        $targets += (Join-Path $folder "YonerAI.lnk")
+        $shellPath = Get-CurrentPowerShellPath
+        $escapedExe = $YoneraiExe.Replace("'", "''")
+        $arguments = "-NoProfile -ExecutionPolicy Bypass -NoExit -Command `"& '$escapedExe'`""
+        $wsh = New-Object -ComObject WScript.Shell
+        $targets = @()
+        $desktop = [Environment]::GetFolderPath("Desktop")
+        if (-not [string]::IsNullOrWhiteSpace($desktop)) {
+            $targets += (Join-Path $desktop "YonerAI.lnk")
+        }
+        $programs = [Environment]::GetFolderPath("Programs")
+        if (-not [string]::IsNullOrWhiteSpace($programs)) {
+            $folder = Join-Path $programs "YonerAI"
+            if (-not (Test-Path -LiteralPath $folder -PathType Container)) {
+                New-Item -ItemType Directory -Path $folder | Out-Null
+            }
+            $targets += (Join-Path $folder "YonerAI.lnk")
+        }
+        foreach ($target in $targets) {
+            $shortcutFile = $wsh.CreateShortcut($target)
+            $shortcutFile.TargetPath = $shellPath
+            $shortcutFile.Arguments = $arguments
+            $shortcutFile.WorkingDirectory = [Environment]::GetFolderPath("UserProfile")
+            $shortcutFile.IconLocation = "$shellPath,0"
+            $shortcutFile.Description = "Start YonerAI CLI"
+            $shortcutFile.Save()
+        }
+        Write-Host "  shortcuts installed: Start Menu and Desktop when available"
     }
-    foreach ($target in $targets) {
-        $shortcutFile = $wsh.CreateShortcut($target)
-        $shortcutFile.TargetPath = $shellPath
-        $shortcutFile.Arguments = $arguments
-        $shortcutFile.WorkingDirectory = [Environment]::GetFolderPath("UserProfile")
-        $shortcutFile.IconLocation = "$shellPath,0"
-        $shortcutFile.Description = "Start YonerAI CLI"
-        $shortcutFile.Save()
+    catch {
+        Write-Warning "Failed to create shortcuts; continuing without them."
     }
-    Write-Host "  shortcuts installed: Start Menu and Desktop when available"
 }
 
 function Start-YonerAI {
