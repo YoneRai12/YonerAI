@@ -79,10 +79,12 @@ def build_interactive_update_check(
     repo_root: Path,
     current_version: str | None,
 ) -> dict[str, Any]:
-    from yonerai_cli.services.update_service import UpdateServiceError, build_update_report
+    from yonerai_cli.services.update_service import UpdateServiceError, build_update_choice_report, build_update_report
 
-    args = argparse.Namespace(update_command="check", manifest=manifest_path, channel="stable")
     try:
+        if manifest_path is None:
+            return build_update_choice_report(repo_root=repo_root, current_version=current_version or __version__)
+        args = argparse.Namespace(update_command="check", manifest=manifest_path, channel="stable")
         return build_update_report(args, repo_root=repo_root, current_version=current_version or __version__)
     except UpdateServiceError as exc:
         raise InteractiveServiceError(str(exc), exit_code=1) from exc

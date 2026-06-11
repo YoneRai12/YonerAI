@@ -353,8 +353,13 @@ def _localized_cli_error(message: str, argv: list[str]) -> str:
     }
     if message in mapping:
         return mapping[message]
+    lower_message = message.lower()
     if "Staging login is required" in message:
         return "ステージングログインが必要です。`yonerai login` を実行してください。"
+    if "saved session expired" in lower_message or "session expired" in lower_message:
+        return "保存済みセッションの期限が切れています。`yonerai login` でログインし直してください。"
+    if "revoked" in lower_message:
+        return "このセッションは取り消し済みです。`yonerai login` で新しくログインしてください。"
     return message
 
 

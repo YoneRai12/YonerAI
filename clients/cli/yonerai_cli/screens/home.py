@@ -106,7 +106,7 @@ def _welcome(
                 f"  履歴: {ledger}（秘匿済みローカル履歴）",
                 f"  安全: {safety_line}",
                 f"  ライブ接続: {'オン（明示許可）' if live else 'オフ（初期値）'} / 設定={'既存' if config_exists else '初期値'}",
-                f"  更新通知: {update_notice}（ローカルmanifest確認のみ）",
+                f"  更新通知: {update_notice}（安定版/アルファ版の確認のみ）",
                 f"  ポリシー: {policy_line}",
                 "  認証/同期/プライバシー: Google OAuthドライランのみ / local->cloud自動同期なし / 共有トラフィックオフ",
                 "  自己進化: proposal-only / 合成signalだけ / 自動PR・deployなし",

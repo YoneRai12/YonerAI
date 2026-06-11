@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 import sys
@@ -87,12 +87,16 @@ def test_default_update_manifest_keeps_stable_users_on_stable_channel() -> None:
 
     stable_default = default_update_manifest_path(ROOT)
     stable_report = build_update_check_from_default(ROOT, current_version="0.6.0")
-    alpha_report = build_update_check_from_default(ROOT, current_version="0.7.0-alpha.1")
+    stable_from_alpha_report = build_update_check_from_default(ROOT, current_version="0.7.0-alpha.1")
+    alpha_report = build_update_check_from_default(ROOT, current_version="0.7.0-alpha.1", channel="alpha")
 
-    assert stable_default.name == "manifest.v0.6.0.json"
-    assert stable_report["latest_manifest_version"] == "0.6.0"
-    assert stable_report["update_available"] is False
-    assert alpha_report["latest_manifest_version"] == "0.21.0-alpha.1"
+    assert stable_default.name == "manifest.v0.7.0.json"
+    assert stable_report["latest_manifest_version"] == "0.7.0"
+    assert stable_report["update_available"] is True
+    assert stable_from_alpha_report["latest_manifest_version"] == "0.7.0"
+    assert stable_from_alpha_report["channel"] == "stable"
+    assert alpha_report["latest_manifest_version"] == "0.21.0-alpha.2"
+    assert alpha_report["channel"] == "alpha"
     assert alpha_report["update_available"] is True
 
 
@@ -117,6 +121,6 @@ def test_v070_site_and_release_docs_explain_bridge_boundaries() -> None:
         assert "/自己進化" in text or "yonerai evolve" in text
 
     assert "manifest.v0.7.0-alpha.1.json" in install_page
-    assert "Latest stable: `v0.6.4`." in install_page
-    assert "YonerAI CLI Local Runtime v0.6.4" in install_page
+    assert "Latest stable: `v0.7.0`." in install_page
+    assert "YonerAI CLI Local Runtime v0.7.0" in install_page
     assert "no remote script execution" in install_page

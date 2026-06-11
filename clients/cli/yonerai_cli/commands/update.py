@@ -5,7 +5,12 @@ from pathlib import Path
 from typing import Any, Callable
 
 from yonerai_cli.screens.update import format_install_pretty, format_update_pretty
-from yonerai_cli.services.update_service import UpdateServiceError, build_install_report, build_update_report
+from yonerai_cli.services.update_service import (
+    UpdateServiceError,
+    build_install_report,
+    build_update_choice_report,
+    build_update_report,
+)
 
 
 class InstallUpdateCommandError(Exception):
@@ -49,24 +54,50 @@ def add_update_parser(
     *,
     color_choices: tuple[str, ...],
 ) -> None:
-    update = subcommands.add_parser("update", help="Plan update actions without downloading or installing.")
-    update_subcommands = update.add_subparsers(dest="update_command", required=True)
+    update = subcommands.add_parser("update", help="Show safe update choices without downloading or installing.")
+    update_output = update.add_mutually_exclusive_group()
+    update_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
+    update_output.add_argument("--pretty", action="store_true", help="Print a readable update choice screen.")
+    update.add_argument("--color", choices=color_choices, default="auto", help="Pretty output color mode. Default: auto.")
+    update_subcommands = update.add_subparsers(dest="update_command", required=False)
 
     update_plan = update_subcommands.add_parser("plan", help="Build a local manifest update dry-run plan.")
     update_plan.add_argument("--manifest", help="Local release manifest JSON path. Defaults to releases/manifest.example.json.")
     update_plan.add_argument("--channel", choices=("stable", "alpha"), default="stable", help="Default manifest channel when --manifest is omitted. Default: stable.")
     update_plan_output = update_plan.add_mutually_exclusive_group()
-    update_plan_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
-    update_plan_output.add_argument("--pretty", action="store_true", help="Print a readable update plan.")
+    update_plan_output.add_argument("--json", action="store_true", default=argparse.SUPPRESS, help="Print stable machine-readable JSON.")
+    update_plan_output.add_argument("--pretty", action="store_true", default=argparse.SUPPRESS, help="Print a readable update plan.")
     update_plan.add_argument("--color", choices=color_choices, default="auto", help="Pretty output color mode. Default: auto.")
 
     update_check = update_subcommands.add_parser("check", help="Check local manifest update status without downloading or installing.")
     update_check.add_argument("--manifest", help="Local release manifest JSON path. Defaults to the newest releases/manifest.v*.json.")
     update_check.add_argument("--channel", choices=("stable", "alpha"), default="stable", help="Default manifest channel when --manifest is omitted. Default: stable.")
     update_check_output = update_check.add_mutually_exclusive_group()
-    update_check_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
-    update_check_output.add_argument("--pretty", action="store_true", help="Print a readable update check.")
+    update_check_output.add_argument("--json", action="store_true", default=argparse.SUPPRESS, help="Print stable machine-readable JSON.")
+    update_check_output.add_argument("--pretty", action="store_true", default=argparse.SUPPRESS, help="Print a readable update check.")
     update_check.add_argument("--color", choices=color_choices, default="auto", help="Pretty output color mode. Default: auto.")
+
+    update_stable = update_subcommands.add_parser(
+        "stable",
+        aliases=["release", "安定版", "リリース"],
+        help="Check the latest stable release. Short form for update check --channel stable.",
+    )
+    update_stable_output = update_stable.add_mutually_exclusive_group()
+    update_stable_output.add_argument("--json", action="store_true", default=argparse.SUPPRESS, help="Print stable machine-readable JSON.")
+    update_stable_output.add_argument("--pretty", action="store_true", default=argparse.SUPPRESS, help="Print a readable update check.")
+    update_stable.add_argument("--color", choices=color_choices, default="auto", help="Pretty output color mode. Default: auto.")
+    update_stable.set_defaults(channel="stable")
+
+    update_alpha = update_subcommands.add_parser(
+        "alpha",
+        aliases=["アルファ", "アルファ版", "最新アルファ"],
+        help="Check the latest alpha prerelease. Short form for update check --channel alpha.",
+    )
+    update_alpha_output = update_alpha.add_mutually_exclusive_group()
+    update_alpha_output.add_argument("--json", action="store_true", default=argparse.SUPPRESS, help="Print stable machine-readable JSON.")
+    update_alpha_output.add_argument("--pretty", action="store_true", default=argparse.SUPPRESS, help="Print a readable update check.")
+    update_alpha.add_argument("--color", choices=color_choices, default="auto", help="Pretty output color mode. Default: auto.")
+    update_alpha.set_defaults(channel="alpha")
 
 
 def handle_install_command(
@@ -95,7 +126,11 @@ def handle_update_command(
     current_version: str,
 ) -> int:
     try:
-        report = build_update_report(args, repo_root=repo_root, current_version=current_version)
+        if args.update_command is None:
+            report = build_update_choice_report(repo_root=repo_root, current_version=current_version)
+        else:
+            args = _normalize_short_update_args(args)
+            report = build_update_report(args, repo_root=repo_root, current_version=current_version)
     except UpdateServiceError as exc:
         raise InstallUpdateCommandError(str(exc)) from exc
 
@@ -104,3 +139,18 @@ def handle_update_command(
     else:
         print(format_update_pretty(report, color=args.color))
     return 0 if report["ok"] else 1
+
+
+def _normalize_short_update_args(args: argparse.Namespace) -> argparse.Namespace:
+    command = getattr(args, "update_command", None)
+    if command in {"stable", "release", "安定版", "リリース", "alpha", "アルファ", "アルファ版", "最新アルファ"}:
+        channel = "alpha" if command in {"alpha", "アルファ", "アルファ版", "最新アルファ"} else "stable"
+        return argparse.Namespace(
+            **{
+                **vars(args),
+                "update_command": "check",
+                "channel": channel,
+                "manifest": None,
+            }
+        )
+    return args

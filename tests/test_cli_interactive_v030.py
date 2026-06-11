@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import io
 import importlib.util
@@ -438,7 +438,7 @@ def test_chat_accepts_english_commands_while_showing_japanese_ui(tmp_path: Path,
     assert "実行履歴" in output
     assert "設定を変更しました: ライブ接続（外部/ローカル実行）=オン" in output
     assert "設定を変更しました: ネットワーク（外部通信）=オン" in output
-    assert "設定を変更しました: 更新通知（ローカルmanifest確認）=オン" in output
+    assert "設定を変更しました: 更新通知（安定版/アルファ版確認）=オン" in output
     assert "提供元（AI接続元）=モック（テスト用）" in output
     assert "Network" not in output
     assert "Changed setting" not in output
@@ -781,7 +781,7 @@ def test_chat_numbered_settings_and_ledger_are_usable_in_japanese(tmp_path: Path
     assert "設定を変更しました: 履歴記録（ローカル履歴）=オン" in output
     assert "設定を変更しました: ライブ接続（外部/ローカル実行）=オフ" in output
     assert "設定を変更しました: ネットワーク（外部通信）=オフ" in output
-    assert "設定を変更しました: 更新通知（ローカルmanifest確認）=オン" in output
+    assert "設定を変更しました: 更新通知（安定版/アルファ版確認）=オン" in output
     assert "YonerAI ミッションコントロール" in output
     assert "タスク" in output
     assert "実行履歴" in output
@@ -1896,6 +1896,24 @@ def test_chat_models_and_update_commands_are_usable(tmp_path: Path, monkeypatch,
     assert stored["model_preference"] == "llama3.1"
     assert str(tmp_path) not in output
     assert chr(27) + "[" not in output
+
+
+def test_chat_update_command_without_manifest_shows_channel_choices(tmp_path: Path, monkeypatch, capsys) -> None:
+    from yonerai_cli import cli
+
+    _clear_provider_env(monkeypatch)
+    config_path = tmp_path / "cli-config.json"
+    monkeypatch.setattr(sys, "stdin", _PlainStringIO("/更新\n/終了\n"))
+
+    assert cli.main(["chat", "--script", "--lang", "ja", "--config-path", str(config_path), "--color", "never"]) == 0
+    output = capsys.readouterr().out
+
+    assert "YonerAI 更新" in output
+    assert "どちらを確認しますか" in output
+    assert "yonerai update stable" in output
+    assert "yonerai update alpha" in output
+    assert "ダウンロード" in output
+    assert str(tmp_path) not in output
 
 
 def test_chat_update_command_handles_missing_manifest_without_crashing(tmp_path: Path, monkeypatch, capsys) -> None:

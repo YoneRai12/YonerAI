@@ -1,4 +1,4 @@
-# YonerAI
+﻿# YonerAI
 
 > [!WARNING]
 > **Do not treat this README as the single source of truth for the current alpha state.**  
@@ -34,7 +34,7 @@ See [LICENSE](LICENSE), [LICENSE_JP.md](LICENSE_JP.md), [NOTICE](NOTICE), and
 ## Install and start YonerAI
 
 This is the local CLI runtime path, not full YonerAI cloud production. The
-latest stable CLI Local Runtime is `v0.6.4`. Stable is the default channel;
+latest stable CLI Local Runtime is `v0.7.0`. Stable is the default channel;
 alpha releases require an explicit `-Channel alpha` flag. After install,
 `yonerai` launches the interactive CLI.
 
@@ -66,8 +66,8 @@ mismatched.
 
 ```powershell
 $ErrorActionPreference = "Stop"
-$base = "https://github.com/YoneRai12/YonerAI/releases/download/v0.6.4"
-$expected = "f33681434ee33d100970f65a160accbc506ee3547f9322be2662b780d24f9de5"
+$base = "https://github.com/YoneRai12/YonerAI/releases/download/v0.7.0"
+$expected = "3db7cdace412d2c2978c74d77e2a2fce664bee4e6ee710f79b2349c0e89f3874"
 $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("yonerai-bootstrap-" + [guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory -Path $tmp | Out-Null
 try {
@@ -95,13 +95,13 @@ ZIP flow for explicit release selection.
 
 ### If you downloaded the GitHub Release ZIP
 
-Download `YonerAI-0.6.4.zip` from the
-[v0.6.4 release](https://github.com/YoneRai12/YonerAI/releases/tag/v0.6.4),
+Download `YonerAI-0.7.0.zip` from the
+[v0.7.0 release](https://github.com/YoneRai12/YonerAI/releases/tag/v0.7.0),
 extract it, then run PowerShell inside the extracted folder. The extracted
 folder name can vary; change the `cd` command to match the folder you see.
 
 ```powershell
-cd "$HOME\Downloads\YonerAI-0.6.4"
+cd "$HOME\Downloads\YonerAI-0.7.0"
 python --version
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
@@ -200,7 +200,7 @@ arbitrary shell/tool execution, or Google login.
 /認証       Google OAuth dry-run status
 /同期       cloud/local sync boundary
 /プライバシー shared-traffic/privacy status
-/更新       local manifest update check
+/更新       choose stable/alpha update check
 /更新通知   startup update notice setting
 /終了       quit
 ```
@@ -210,8 +210,9 @@ Useful commands:
 ```powershell
 yonerai
 yonerai chat
-yonerai update check --pretty
-yonerai update check --json
+yonerai update
+yonerai update stable
+yonerai update alpha
 yonerai auth status --pretty --lang ja
 yonerai sync status --pretty --lang ja
 yonerai sync preview --direction cloud-to-local --json
@@ -221,9 +222,10 @@ yonerai config set model llama3.1 --pretty --lang ja
 yonerai providers --pretty --lang ja
 ```
 
-`yonerai update check` only reads local VERSION and a local manifest. It does
-not download, install, mutate PATH, run remote code, force update, auto-apply
-updates, or require admin rights.
+`yonerai update` shows stable/alpha choices first. `yonerai update stable` and
+`yonerai update alpha` only read local VERSION and local release manifests. They
+do not download, install, mutate PATH, run remote code, force update,
+auto-apply updates, or require admin rights.
 
 ## Quickstart: Public Demo
 
@@ -247,17 +249,17 @@ yonerai demo --json
 yonerai doctor --pretty
 yonerai doctor --pretty --lang ja
 yonerai status --pretty
-yonerai manifest verify manifest.v0.6.4.json --pretty
-yonerai install plan --manifest manifest.v0.6.4.json --pretty
-yonerai update check --manifest manifest.v0.6.4.json --pretty
-yonerai update plan --manifest manifest.v0.6.4.json --pretty
+yonerai manifest verify manifest.v0.7.0.json --pretty
+yonerai install plan --manifest manifest.v0.7.0.json --pretty
+yonerai update check --manifest manifest.v0.7.0.json --pretty
+yonerai update plan --manifest manifest.v0.7.0.json --pretty
 yonerai plan "summarize public docs" --json
 yonerai ask "summarize public docs" --provider mock --json
 yonerai hybrid run --pretty
 yonerai hybrid run --json
 yonerai search mock "YonerAI alpha2" --json
 yonerai ops plan git-status --json
-yonerai install plan --manifest manifest.v0.6.4.json --json
+yonerai install plan --manifest manifest.v0.7.0.json --json
 ```
 
 ## First 5 minutes
