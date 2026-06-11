@@ -54,9 +54,10 @@ def build_control_spine_context(
     auth = build_google_auth_status(config or {}, env=env, claim_path=claim_path)
     staging = auth.get("staging") if isinstance(auth.get("staging"), Mapping) else {}
     session_token, session_claim = load_staging_session_token(claim_path)
+    session_claim_map = session_claim if isinstance(session_claim, Mapping) else {}
     origin_configured = bool(staging.get("configured"))
     origin = str(staging.get("origin") or "not_configured") if origin_configured else "not_configured"
-    auth_state = str(session_claim.get("auth_state") or auth.get("staging_auth_state") or "unauthenticated")
+    auth_state = str(session_claim_map.get("auth_state") or auth.get("staging_auth_state") or "unauthenticated")
     return {
         "origin_configured": origin_configured,
         "origin": origin,
@@ -64,7 +65,7 @@ def build_control_spine_context(
         "account_linked": bool(session_token and auth_state == "linked"),
         "session_available": session_token is not None,
         "session_token": session_token,
-        "session_claim": dict(session_claim),
+        "session_claim": dict(session_claim_map),
         "production_login_enabled": False,
         "production_backend_enabled": False,
         "shared_traffic_enabled": False,

@@ -16,7 +16,10 @@ def format_control_spine_callback(command: str, callbacks: Any, *, lang: str = "
     callback = mapping.get(command)
     if callback is None:
         return None
-    return format_control_spine_tui(callback(lang), lang=lang)
+    report = callback(lang)
+    if report is None:
+        return None
+    return format_control_spine_tui(report, lang=lang)
 
 
 def format_staging_login_hint(*, lang: str = "ja") -> str:

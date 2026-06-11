@@ -58,7 +58,12 @@ def build_parser() -> argparse.ArgumentParser:
     subcommands = parser.add_subparsers(dest="command", required=False)
 
     login = subcommands.add_parser("login", help="Start staging Google login for the public CLI. Production login is disabled.")
-    login.add_argument("--staging", action="store_true", default=True, help="Use staging login. This is the only supported mode.")
+    login.add_argument(
+        "--staging",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Use staging login. --no-staging is rejected because production login is disabled.",
+    )
     login.add_argument("--bridge", action="store_true", help="Call the staging CLI auth bridge start endpoint.")
     login.add_argument("--open-browser", action="store_true", help="Open the staging Google auth URL after bridge start.")
     login.add_argument("--wait-linked", action="store_true", help="Poll until the staging CLI bridge links or times out.")

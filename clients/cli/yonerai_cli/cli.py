@@ -120,7 +120,7 @@ def _load_config_for_policy(args: argparse.Namespace) -> dict[str, object]:
         raise CliError(str(exc), exit_code=2) from exc
 
 
-def _interactive_callbacks():
+def _interactive_callbacks(config_path: str | None = None):
     from yonerai_cli.interactive import InteractiveCallbacks
 
     return InteractiveCallbacks(
@@ -130,12 +130,12 @@ def _interactive_callbacks():
         runs_show=_interactive_runs_show,
         update_check=_interactive_update_check,
         status_check=_interactive_status_check,
-        api_status=_interactive_api_status,
+        api_status=lambda lang: _interactive_api_status(lang, config_path=config_path),
         sync_status=_interactive_sync_status,
-        whoami=control_spine_callbacks.interactive_whoami,
-        project_status=control_spine_callbacks.interactive_project_status,
-        session_status=control_spine_callbacks.interactive_session_status,
-        audit_status=control_spine_callbacks.interactive_audit_status,
+        whoami=lambda lang: control_spine_callbacks.interactive_whoami(lang, config_path=config_path),
+        project_status=lambda lang: control_spine_callbacks.interactive_project_status(lang, config_path=config_path),
+        session_status=lambda lang: control_spine_callbacks.interactive_session_status(lang, config_path=config_path),
+        audit_status=lambda lang: control_spine_callbacks.interactive_audit_status(lang, config_path=config_path),
         evolve_status=_interactive_evolve_status,
         memory_status=_interactive_memory_status,
         memory_action=_interactive_memory_action,
@@ -200,8 +200,8 @@ def _interactive_status_check(_lang: str) -> dict[str, Any]:
         raise CliError(str(exc), exit_code=exc.exit_code) from exc
 
 
-def _interactive_api_status(_lang: str) -> dict[str, Any]:
-    control_spine_report = control_spine_callbacks.interactive_api_status(_lang)
+def _interactive_api_status(_lang: str, *, config_path: str | None = None) -> dict[str, Any]:
+    control_spine_report = control_spine_callbacks.interactive_api_status(_lang, config_path=config_path)
     if control_spine_report is not None:
         return control_spine_report
     try:
@@ -266,7 +266,7 @@ def _interactive_memory_action(action: str, values: list[str], _lang: str, defau
 
 def _run_interactive_chat(args: argparse.Namespace) -> int:
     try:
-        return interactive_service.run_interactive_chat(args, _interactive_callbacks())
+        return interactive_service.run_interactive_chat(args, _interactive_callbacks(getattr(args, "config_path", None)))
     except InteractiveServiceError as exc:
         raise CliError(str(exc), exit_code=exc.exit_code) from exc
 

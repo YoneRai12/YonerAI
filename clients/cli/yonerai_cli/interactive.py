@@ -117,9 +117,7 @@ from yonerai_cli.tui import (
     slash_command_summary,
 )
 
-
 INTERACTIVE_SCHEMA_VERSION = "yonerai-interactive-cli/v0.8"
-
 
 @dataclass(frozen=True)
 class InteractiveCallbacks:
@@ -132,8 +130,10 @@ class InteractiveCallbacks:
     evolve_status: Callable[[str], dict[str, Any]] | None = None
     api_status: Callable[[str], dict[str, Any]] | None = None
     sync_status: Callable[[str], dict[str, Any]] | None = None
-    whoami: Callable[[str], dict[str, Any]] | None = None; project_status: Callable[[str], dict[str, Any]] | None = None
-    session_status: Callable[[str], dict[str, Any]] | None = None; audit_status: Callable[[str], dict[str, Any]] | None = None
+    whoami: Callable[[str], dict[str, Any]] | None = None
+    project_status: Callable[[str], dict[str, Any]] | None = None
+    session_status: Callable[[str], dict[str, Any]] | None = None
+    audit_status: Callable[[str], dict[str, Any]] | None = None
     memory_status: Callable[[str], dict[str, Any]] | None = None
     memory_action: Callable[[str, list[str], str, str | None], dict[str, Any]] | None = None
     policy_status: Callable[[dict[str, object]], dict[str, Any]] | None = None

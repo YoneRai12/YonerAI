@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Mapping
 
 
@@ -200,6 +201,81 @@ def test_login_alias_prints_staging_url_without_network(tmp_path: Path, monkeypa
     assert report["official_backend_called"] is False
     assert report["production_login_enabled"] is False
     assert report["token_printed"] is False
+
+
+def test_login_alias_no_staging_is_controlled_error(tmp_path: Path, monkeypatch, capsys) -> None:
+    from yonerai_cli import cli
+
+    monkeypatch.setenv("YONERAI_CLI_CONFIG_PATH", str(tmp_path / "cli-config.json"))
+
+    assert cli.main(["login", "--no-staging", "--json"]) == 2
+    output = capsys.readouterr()
+
+    assert "staging-only" in output.err
+    assert str(tmp_path) not in output.err
+
+
+def test_revoke_session_invalid_id_is_controlled_error(tmp_path: Path, monkeypatch, capsys) -> None:
+    from yonerai_cli import cli
+    from yonerai_cli.services.staging_session_service import save_staging_session
+
+    config_path = tmp_path / "cli-config.json"
+    monkeypatch.setenv("YONERAI_CLI_CONFIG_PATH", str(config_path))
+    monkeypatch.setenv("YONERAI_STAGING_AUTH_ORIGIN", "https://api-staging.yonerai.com")
+    save_staging_session(
+        session_token="opaque-session-value-123456789",
+        origin="https://api-staging.yonerai.com",
+        account={"email": "owner@example.test", "display_name": "Owner"},
+        config_path=config_path,
+    )
+
+    assert cli.main(["auth", "revoke-session", "bad session id", "--json"]) == 2
+    output = capsys.readouterr()
+
+    assert "Session id is invalid." in output.err
+    assert "Traceback" not in output.err
+    assert str(tmp_path) not in output.err
+
+
+def test_control_spine_callback_returns_none_when_api_status_unavailable() -> None:
+    from yonerai_cli.screens.control_spine import format_control_spine_callback
+
+    callbacks = SimpleNamespace(api_status=lambda _lang: None)
+
+    assert format_control_spine_callback("/api", callbacks, lang="ja") is None
+
+
+def test_interactive_callbacks_honor_custom_config_path(tmp_path: Path, monkeypatch) -> None:
+    from yonerai_cli import cli
+    from yonerai_cli.services import control_spine_callbacks
+
+    seen: dict[str, object] = {}
+
+    def fake_whoami(_lang: str, *, config_path: str | None = None) -> dict[str, object]:
+        seen["config_path"] = config_path
+        return {"ok": True, "operation": "whoami"}
+
+    monkeypatch.setattr(control_spine_callbacks, "interactive_whoami", fake_whoami)
+
+    callbacks = cli._interactive_callbacks(str(tmp_path / "custom-config.json"))
+    assert callbacks.whoami is not None
+    assert callbacks.whoami("ja")["operation"] == "whoami"
+    assert seen["config_path"] == str(tmp_path / "custom-config.json")
+
+
+def test_control_spine_context_handles_missing_session_claim(tmp_path: Path, monkeypatch) -> None:
+    from yonerai_cli.services import control_spine_service
+
+    monkeypatch.setattr(control_spine_service, "load_staging_session_token", lambda _path: (None, None))
+
+    context = control_spine_service.build_control_spine_context(
+        config={},
+        env={"YONERAI_STAGING_AUTH_ORIGIN": "https://api-staging.yonerai.com"},
+        claim_path=str(tmp_path / "cli-config.json"),
+    )
+
+    assert context["auth_state"] == "unauthenticated"
+    assert context["session_claim"] == {}
 
 
 def test_control_spine_slash_commands_are_visible() -> None:

@@ -13,23 +13,45 @@ from yonerai_cli.services.control_spine_service import (
 )
 
 
-def interactive_api_status(_lang: str) -> dict[str, Any] | None:
+def interactive_api_status(_lang: str, *, config_path: str | None = None) -> dict[str, Any] | None:
     if not (os.environ.get("YONERAI_STAGING_AUTH_ORIGIN") or os.environ.get("YONERAI_OFFICIAL_API_STAGING_ORIGIN")):
         return None
-    return build_control_spine_status_report(config=load_config_for_control_spine(None), env=os.environ)
+    return build_control_spine_status_report(
+        config=load_config_for_control_spine(config_path),
+        env=os.environ,
+        claim_path=config_path,
+    )
 
 
-def interactive_whoami(_lang: str) -> dict[str, Any]:
-    return build_whoami_report(config=load_config_for_control_spine(None), env=os.environ)
+def interactive_whoami(_lang: str, *, config_path: str | None = None) -> dict[str, Any]:
+    return build_whoami_report(
+        config=load_config_for_control_spine(config_path),
+        env=os.environ,
+        claim_path=config_path,
+    )
 
 
-def interactive_project_status(_lang: str) -> dict[str, Any]:
-    return build_project_report("current", config=load_config_for_control_spine(None), env=os.environ)
+def interactive_project_status(_lang: str, *, config_path: str | None = None) -> dict[str, Any]:
+    return build_project_report(
+        "current",
+        config=load_config_for_control_spine(config_path),
+        env=os.environ,
+        claim_path=config_path,
+    )
 
 
-def interactive_session_status(_lang: str) -> dict[str, Any]:
-    return build_session_report("list", config=load_config_for_control_spine(None), env=os.environ)
+def interactive_session_status(_lang: str, *, config_path: str | None = None) -> dict[str, Any]:
+    return build_session_report(
+        "list",
+        config=load_config_for_control_spine(config_path),
+        env=os.environ,
+        claim_path=config_path,
+    )
 
 
-def interactive_audit_status(_lang: str) -> dict[str, Any]:
-    return build_audit_report(config=load_config_for_control_spine(None), env=os.environ)
+def interactive_audit_status(_lang: str, *, config_path: str | None = None) -> dict[str, Any]:
+    return build_audit_report(
+        config=load_config_for_control_spine(config_path),
+        env=os.environ,
+        claim_path=config_path,
+    )

@@ -16,6 +16,7 @@ from yonerai_cli.output import CliRow, CliSection, ColorMode, render_report
 from yonerai_cli.screens.control_spine import format_control_spine_pretty
 from yonerai_cli.services.auth_session_service import save_staging_auth_claim
 from yonerai_cli.services.control_spine_service import (
+    ControlSpineServiceError,
     build_session_report,
     build_whoami_report,
     load_config_for_control_spine,
@@ -187,23 +188,29 @@ def handle_auth_command(args: argparse.Namespace, *, print_json: Callable[[dict[
         report = clear_staging_session(getattr(args, "config_path", None))
         formatter = format_session_pretty
     elif args.auth_command == "sessions":
-        report = build_session_report(
-            "list",
-            config=load_config_for_control_spine(getattr(args, "config_path", None)),
-            env=os.environ,
-            claim_path=getattr(args, "config_path", None),
-            timeout_seconds=float(getattr(args, "timeout_seconds", 10.0)),
-        )
+        try:
+            report = build_session_report(
+                "list",
+                config=load_config_for_control_spine(getattr(args, "config_path", None)),
+                env=os.environ,
+                claim_path=getattr(args, "config_path", None),
+                timeout_seconds=float(getattr(args, "timeout_seconds", 10.0)),
+            )
+        except ControlSpineServiceError as exc:
+            raise AuthCommandError(exc.message) from exc
         formatter = format_control_spine_pretty
     elif args.auth_command == "revoke-session":
-        report = build_session_report(
-            "revoke",
-            session_id=getattr(args, "session_id", None),
-            config=load_config_for_control_spine(getattr(args, "config_path", None)),
-            env=os.environ,
-            claim_path=getattr(args, "config_path", None),
-            timeout_seconds=float(getattr(args, "timeout_seconds", 10.0)),
-        )
+        try:
+            report = build_session_report(
+                "revoke",
+                session_id=getattr(args, "session_id", None),
+                config=load_config_for_control_spine(getattr(args, "config_path", None)),
+                env=os.environ,
+                claim_path=getattr(args, "config_path", None),
+                timeout_seconds=float(getattr(args, "timeout_seconds", 10.0)),
+            )
+        except ControlSpineServiceError as exc:
+            raise AuthCommandError(exc.message) from exc
         formatter = format_control_spine_pretty
     elif args.auth_command == "google" and args.auth_google_command == "login":
         if args.staging:
