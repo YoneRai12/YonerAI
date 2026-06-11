@@ -129,8 +129,12 @@ def _interactive_callbacks(config_path: str | None = None):
         runs_list=_interactive_runs_list,
         runs_show=_interactive_runs_show,
         update_check=_interactive_update_check,
+        update_apply=_interactive_update_apply,
         status_check=_interactive_status_check,
         api_status=lambda lang: _interactive_api_status(lang, config_path=config_path),
+        rate_limit_status=lambda lang: control_spine_callbacks.interactive_rate_limit_status(
+            lang, config_path=config_path
+        ),
         sync_status=_interactive_sync_status,
         whoami=lambda lang: control_spine_callbacks.interactive_whoami(lang, config_path=config_path),
         project_status=lambda lang: control_spine_callbacks.interactive_project_status(lang, config_path=config_path),
@@ -186,6 +190,19 @@ def _interactive_update_check(manifest_path: str | None, _lang: str) -> dict[str
             manifest_path,
             repo_root=_repo_root(),
             current_version=_read_repo_version() or __version__,
+        )
+    except InteractiveServiceError as exc:
+        raise CliError(str(exc), exit_code=exc.exit_code) from exc
+
+
+def _interactive_update_apply(channel: str, confirmed: bool, _lang: str) -> dict[str, Any]:
+    try:
+        return interactive_service.build_interactive_update_apply(
+            channel,
+            confirmed=confirmed,
+            repo_root=_repo_root(),
+            current_version=_read_repo_version() or __version__,
+            env=os.environ,
         )
     except InteractiveServiceError as exc:
         raise CliError(str(exc), exit_code=exc.exit_code) from exc
@@ -344,7 +361,7 @@ def _localized_cli_error(message: str, argv: list[str]) -> str:
         return message
     mapping = {
         "public CLI login is staging-only in this build.": (
-            "この公開CLIではステージングログインだけ使えます。本番ログインは無効です。"
+            "この公開CLIではステージングログインだけ使えます。正式ログインは無効です。"
         ),
         "Session id is invalid.": "セッションIDが正しくありません。`yonerai sessions` で確認してください。",
         "Staging login is required or the saved session expired.": (

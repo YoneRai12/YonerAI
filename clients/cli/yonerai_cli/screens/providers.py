@@ -267,7 +267,7 @@ def _provider_non_action_ja(value: str) -> str:
         "no local LLM text generation": "local LLMへpromptを送りません",
         "no provider key output": "provider keyを表示しません",
         "no live Discord": "live Discordへ接続しません",
-        "no production Oracle": "production Oracleへ接続しません",
+        "no production Oracle": "official Oracleへ接続しません",
         "no official cloud runtime": "official cloud runtimeなし",
         "no shell execution": "shell実行なし",
         "no file read": "ファイル読み取りなし",

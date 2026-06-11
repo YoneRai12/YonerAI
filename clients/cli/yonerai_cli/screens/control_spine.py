@@ -9,6 +9,7 @@ from yonerai_cli.screens.labels import _safe, _yes_no
 def format_control_spine_callback(command: str, callbacks: Any, *, lang: str = "ja") -> str | None:
     mapping = {
         "/api": getattr(callbacks, "api_status", None),
+        "/rate-limit": getattr(callbacks, "rate_limit_status", None),
         "/project": getattr(callbacks, "project_status", None),
         "/sessions": getattr(callbacks, "session_status", None),
         "/audit": getattr(callbacks, "audit_status", None),
@@ -28,13 +29,13 @@ def format_staging_login_hint(*, lang: str = "ja") -> str:
             "Only staging Google login is available.\n"
             "Try: yonerai login\n"
             "Advanced/CI compatible form remains: yonerai auth google login --staging --bridge --pretty --lang en\n"
-            "No production login, Google token storage, or private data sync is performed.\n"
+            "No official login, Google token storage, or private data sync is performed.\n"
         )
     return (
         "ステージング Google ログインだけ利用できます。\n"
         "普通に使う: yonerai login\n"
         "長い --bridge / --open-browser / --wait-linked は上級者/CI向けの互換オプションです。\n"
-        "本番ログイン、Google token 保存、非公開データ同期は行いません。\n"
+        "正式ログイン、Google token 保存、非公開データ同期は行いません。\n"
     )
 
 
@@ -168,8 +169,8 @@ def format_control_spine_tui(report: dict[str, Any], *, lang: str = "ja") -> str
         f"  アカウント: {'リンク済み' if report.get('account_linked') else '未リンク'}",
         f"  セッション: {'利用可能' if report.get('staging_session_available') else '未保存'}",
         f"  セッション期限: {_safe(report.get('session_expires_at') or '未リンク')}",
-        f"  production backend: {'enabled' if report.get('production_backend_enabled') else 'disabled'}",
-        f"  本番ログイン: {'有効' if report.get('production_login_enabled') else '無効'}",
+        f"  公式バックエンド: {'有効' if report.get('production_backend_enabled') else '無効'}",
+        f"  正式ログイン: {'有効' if report.get('production_login_enabled') else '無効'}",
         f"  OpenAI共有トラフィック: {'オン' if report.get('shared_traffic_enabled') else 'オフ'}",
         f"  ローカル非公開アップロード: {'オン' if report.get('local_private_upload_enabled') else 'オフ'}",
     ]

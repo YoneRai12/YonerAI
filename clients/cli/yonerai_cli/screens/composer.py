@@ -48,7 +48,7 @@ def format_input_composer(
                 "",
                 "禁止していること",
                 "  任意shell実行なし / workspace外ファイル読み取りなし / provider key表示なし",
-                "  local private memory の自動uploadなし / production Oracle・cloud実行なし",
+                "  local private memory の自動uploadなし / official Oracle・cloud実行なし",
                 "",
             )
         )
@@ -72,7 +72,7 @@ def format_input_composer(
             "",
             "Boundaries",
             "  no arbitrary shell, no files outside workspace, no provider key output",
-            "  no local private memory auto-upload, no production Oracle/cloud runtime",
+            "  no local private memory auto-upload, no official Oracle/cloud runtime",
             "",
         )
     )

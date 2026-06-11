@@ -27,7 +27,7 @@ COMMAND_PALETTE_CATEGORIES: tuple[CommandPaletteCategory, ...] = (
     CommandPaletteCategory("安全", "Safety", ("/safety", "/policy", "/file-access", "/network", "/live-provider")),
     CommandPaletteCategory("作業", "Work", ("/plan", "/review", "/progress", "/tasks", "/agents", "/context")),
     CommandPaletteCategory("履歴と記憶", "History and memory", ("/runs", "/show", "/memory", "/ledger")),
-    CommandPaletteCategory("公式境界", "Official boundary", ("/auth", "/api", "/sync", "/privacy", "/evolve", "/update")),
+    CommandPaletteCategory("公式境界", "Official boundary", ("/auth", "/api", "/rate-limit", "/sync", "/privacy", "/evolve", "/update")),
 )
 
 

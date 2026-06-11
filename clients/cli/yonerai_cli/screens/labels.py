@@ -177,7 +177,7 @@ def _setting_label(value: object, *, lang: str) -> str:
         "memory_default_scope": "記憶の既定スコープ",
         "memory_cloud_to_local_preview_enabled": "cloud -> local記憶preview",
         "memory_self_evolution_signal_enabled": "self-evolution signal記憶",
-        "update_notice": "更新通知（安定版/アルファ版確認）",
+        "update_notice": "更新通知（安定版/ベータ版確認）",
         "live_provider": "ライブ接続（外部/ローカル実行）",
         "network": "ネットワーク（外部通信）",
     }

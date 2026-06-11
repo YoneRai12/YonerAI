@@ -173,7 +173,7 @@ def _format_sync_unavailable(lang: str) -> str:
     return "\n".join(
         (
             "Sync status is contract display only in this build.",
-            "  cloud -> local: production cloud sync is not implemented",
+            "  cloud -> local: official cloud sync is not implemented",
             "  local -> cloud: disabled by default; no automatic upload",
             "  private/local memory/file/local node payload/provider keys are not sent",
             "",

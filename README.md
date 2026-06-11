@@ -1,7 +1,7 @@
-﻿# YonerAI
+# YonerAI
 
 > [!WARNING]
-> **Do not treat this README as the single source of truth for the current alpha state.**  
+> **Do not treat this README as the single source of truth for the current prerelease state.**
 > YonerAI is moving quickly, so this README can lag behind active releases and commits.  
 > Check [Alpha releases](https://github.com/YoneRai12/YonerAI/releases) and [latest commits](https://github.com/YoneRai12/YonerAI/commits/main) for the newest implementation status.
 
@@ -34,9 +34,10 @@ See [LICENSE](LICENSE), [LICENSE_JP.md](LICENSE_JP.md), [NOTICE](NOTICE), and
 ## Install and start YonerAI
 
 This is the local CLI runtime path, not full YonerAI cloud production. The
-latest stable CLI Local Runtime is `v0.7.0`. Stable is the default channel;
-alpha releases require an explicit `-Channel alpha` flag. After install,
-`yonerai` launches the interactive CLI.
+latest stable CLI Local Runtime is `v0.8.0`. Stable is the default channel.
+The beta/prerelease line remains explicit and compatibility-mapped to existing
+prerelease manifests. After install, `yonerai` launches the interactive CLI and
+plain text talks to the safe local runtime without remembering flags.
 
 ### Quick install
 
@@ -66,8 +67,8 @@ mismatched.
 
 ```powershell
 $ErrorActionPreference = "Stop"
-$base = "https://github.com/YoneRai12/YonerAI/releases/download/v0.7.0"
-$expected = "3db7cdace412d2c2978c74d77e2a2fce664bee4e6ee710f79b2349c0e89f3874"
+$base = "https://github.com/YoneRai12/YonerAI/releases/download/v0.8.0"
+$expected = "968dbeee3375fd8ee233d995592037d897d5be3b02ec0a9130ce7bff9ab9a29c"
 $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("yonerai-bootstrap-" + [guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory -Path $tmp | Out-Null
 try {
@@ -90,18 +91,18 @@ try {
 }
 ```
 
-Explicit alpha one-command remote execution is not advertised. Use the manual
-ZIP flow for explicit release selection.
+Explicit beta/prerelease one-command remote execution is not advertised. Use
+the manual ZIP flow for explicit release selection.
 
 ### If you downloaded the GitHub Release ZIP
 
-Download `YonerAI-0.7.0.zip` from the
-[v0.7.0 release](https://github.com/YoneRai12/YonerAI/releases/tag/v0.7.0),
+Download `YonerAI-0.8.0.zip` from the
+[v0.8.0 release](https://github.com/YoneRai12/YonerAI/releases/tag/v0.8.0),
 extract it, then run PowerShell inside the extracted folder. The extracted
 folder name can vary; change the `cd` command to match the folder you see.
 
 ```powershell
-cd "$HOME\Downloads\YonerAI-0.7.0"
+cd "$HOME\Downloads\YonerAI-0.8.0"
 python --version
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
@@ -200,7 +201,7 @@ arbitrary shell/tool execution, or Google login.
 /認証       Google OAuth dry-run status
 /同期       cloud/local sync boundary
 /プライバシー shared-traffic/privacy status
-/更新       choose stable/alpha update check
+/更新       choose stable/beta update check
 /更新通知   startup update notice setting
 /終了       quit
 ```
@@ -212,7 +213,7 @@ yonerai
 yonerai chat
 yonerai update
 yonerai update stable
-yonerai update alpha
+yonerai update beta
 yonerai auth status --pretty --lang ja
 yonerai sync status --pretty --lang ja
 yonerai sync preview --direction cloud-to-local --json
@@ -222,8 +223,8 @@ yonerai config set model llama3.1 --pretty --lang ja
 yonerai providers --pretty --lang ja
 ```
 
-`yonerai update` shows stable/alpha choices first. `yonerai update stable` and
-`yonerai update alpha` only read local VERSION and local release manifests. They
+`yonerai update` shows stable/beta choices first. `yonerai update stable` and
+`yonerai update beta` only read local VERSION and local release manifests. They
 do not download, install, mutate PATH, run remote code, force update,
 auto-apply updates, or require admin rights.
 
@@ -249,17 +250,17 @@ yonerai demo --json
 yonerai doctor --pretty
 yonerai doctor --pretty --lang ja
 yonerai status --pretty
-yonerai manifest verify manifest.v0.7.0.json --pretty
-yonerai install plan --manifest manifest.v0.7.0.json --pretty
-yonerai update check --manifest manifest.v0.7.0.json --pretty
-yonerai update plan --manifest manifest.v0.7.0.json --pretty
+yonerai manifest verify releases/manifest.v0.8.0.json --pretty
+yonerai install plan --manifest releases/manifest.v0.8.0.json --pretty
+yonerai update check --manifest releases/manifest.v0.8.0.json --pretty
+yonerai update plan --manifest releases/manifest.v0.8.0.json --pretty
 yonerai plan "summarize public docs" --json
 yonerai ask "summarize public docs" --provider mock --json
 yonerai hybrid run --pretty
 yonerai hybrid run --json
 yonerai search mock "YonerAI alpha2" --json
 yonerai ops plan git-status --json
-yonerai install plan --manifest manifest.v0.7.0.json --json
+yonerai install plan --manifest releases/manifest.v0.8.0.json --json
 ```
 
 ## First 5 minutes
@@ -361,7 +362,7 @@ What this first path explains:
 - `yonerai ask "hello" --auto --pretty --lang ja` classifies the task, chooses a
   safe route, shows the selected provider, and explains whether a ledger was
   written.
-- `yonerai demo --pretty` shows the current alpha slice without credentials.
+- `yonerai demo --pretty` shows the current public-safe local slice without credentials.
 - `yonerai doctor --pretty --lang ja` checks local setup without installing or
   mutating PATH.
 - `yonerai hybrid run --pretty` runs a local-dev Hybrid slice: route preview,

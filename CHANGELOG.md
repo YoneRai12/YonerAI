@@ -2,6 +2,27 @@
 
 See also: `docs/RELEASE_NOTES.md` (curated summary, v5.0.0 -> current).
 
+## v0.8.0 (2026-06-12) - Normal Talkable CLI
+- Promoted the current trunk into a stable CLI Local Runtime slice after the
+  v0.12-v0.21 prerelease line.
+- Made `yonerai` the normal interactive app path: first launch language choice,
+  compact home screen, plain-text chat through `ask --auto`, command palette,
+  and Japanese-first slash commands.
+- Reframed update UX for normal users: `yonerai update` shows `stable/beta`,
+  `yonerai update beta` replaces user-facing alpha wording, and `/更新` can
+  prepare a manual apply only after explicit confirmation.
+- Added opt-in `install.ps1 -Shortcut` support for Desktop/Start Menu launchers
+  without admin rights, service install, registry mutation, or default PATH
+  mutation.
+- Brought memory, agent-console previews, staging auth/sync visibility, Status
+  API guardrails, Control Spine short commands, policy runtime, and Quality Wall
+  work into the stable local CLI runtime claim boundary.
+- Preserved boundaries: no production Google login, no Google token/refresh
+  storage, no provider keys, no OpenAI shared traffic, no production
+  Oracle/cloud runtime, no live Discord, no arbitrary shell/file execution, no
+  automatic local-to-cloud upload, and no production signing/trust store.
+- Full traceability from `v0.7.0..v0.8.0`: `docs/releases/0.8.0.md`.
+
 ## v0.20.0-alpha.1 (2026-06-11) - Web CLI API Control Spine
 - Connected the public CLI to staging YonerAIAPI Control Spine surfaces:
   `yonerai login`, `yonerai whoami`, `yonerai project`, `yonerai api ping`,

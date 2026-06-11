@@ -1058,7 +1058,7 @@ def test_cli_doctor_pretty_supports_japanese_without_json_key_translation(monkey
     assert "プロバイダー実行環境" in output
     assert "プロバイダー実行環境 E2E フィクスチャ" in output
     assert "インストール/更新" in output
-    assert "最新stable" in output
+    assert "最新安定版" in output
     assert LATEST_STABLE_VERSION in output
     assert "Quick install" in output
     assert "Verified install" in output
