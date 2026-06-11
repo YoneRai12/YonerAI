@@ -1,4 +1,8 @@
 # YonerAI
+> [!WARNING]
+> **このREADMEを現在のアルファ状態における唯一の真実の情報源として扱わないでください。**  
+> YonerAIの開発は急速に進んでいるため、このREADMEの内容はアクティブなリリースやコミットよりも遅れている場合があります。  
+> 最新の実装状況については、[アルファリリース](https://github.com/YoneRai12/YonerAI/releases)および[最新のコミット](https://github.com/YoneRai12/YonerAI/commits/main)をご確認ください。
 
 YonerAI は、公式・ローカル・self-hosted の実行環境が変わっても、同じ利用体験と同じ境界を保つための provider-independent AI execution foundation です。
 
