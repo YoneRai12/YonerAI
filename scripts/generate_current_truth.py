@@ -76,7 +76,7 @@ def _is_current_cli_release_line(version: str) -> bool:
 
 
 def _main_head_short() -> str:
-    for ref in ("public/main", "origin/main", "main", "HEAD"):
+    for ref in ("origin/main", "public/main", "main", "HEAD"):
         value = _run_git(["rev-parse", "--short", ref])
         if value:
             return value

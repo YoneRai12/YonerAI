@@ -87,3 +87,25 @@ def test_current_truth_generator_ignores_legacy_release_tag_families(monkeypatch
     assert "- latest_prerelease_tag: v1.1.0-alpha.1" in text
     assert "v2026." not in text
     assert "v5.1." not in text
+
+
+def test_current_truth_prefers_origin_main_over_stale_public_remote(monkeypatch) -> None:
+    module = _load_current_truth_module()
+
+    def fake_run_git(args: list[str]) -> str:
+        if args[:3] == ["tag", "--list", "v*"]:
+            return "\n".join(["v0.7.0", "v0.21.0-alpha.2"])
+        if args == ["rev-parse", "--short", "origin/main"]:
+            return "57eee92a"
+        if args == ["rev-parse", "--short", "public/main"]:
+            return "69fb9768"
+        if args[:2] == ["rev-parse", "--short"]:
+            return "abcdef0"
+        return ""
+
+    monkeypatch.setattr(module, "_run_git", fake_run_git)
+
+    text = module.build_current_truth(generated_date="2026-06-11")
+
+    assert "- main_head_short: 57eee92a" in text
+    assert "69fb9768" not in text

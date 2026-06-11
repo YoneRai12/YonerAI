@@ -323,7 +323,7 @@ jobs:
             git fetch --no-tags origin "${BASE_REF}" || true
             RELEASE_DIFF_RANGE="origin/${BASE_REF}...HEAD"
           fi
-          if git diff --name-only "${RELEASE_DIFF_RANGE}" 2>/dev/null | grep -E '^(VERSION|PRODUCT_NAME|docs/releases/|releases/manifest)' >/dev/null; then
+          if git diff --name-only "${RELEASE_DIFF_RANGE}" 2>/dev/null | grep -E '^(VERSION|PRODUCT_NAME|releases/manifest)' >/dev/null; then
             python scripts/create_release.py "${VERSION}"
             python scripts/release_gate.py \
               --tag "v${VERSION}" \

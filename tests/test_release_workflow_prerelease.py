@@ -28,3 +28,10 @@ def test_release_workflow_keeps_release_notes_and_version_guards() -> None:
     assert '--tag "${GITHUB_REF_NAME}"' in workflow
     assert '--artifact "${PRODUCT_NAME}-${ORA_VERSION}.zip"' in workflow
     assert '--github-prerelease "${ORA_PRERELEASE}"' in workflow
+
+
+def test_release_workflow_fetches_tags_before_current_truth_archive() -> None:
+    workflow = Path(".github/workflows/release.yml").read_text(encoding="utf-8")
+
+    assert "fetch-depth: 0" in workflow
+    assert "Regenerate CURRENT_TRUTH.md for release archive" in workflow
