@@ -23,7 +23,7 @@ for path in (CLIENTS_CLI, CORE_SRC):
 
 from yonerai_cli.config import DEFAULT_CONFIG, ConfigError, THEMES, save_cli_config, validate_cli_config
 from yonerai_cli.startup_home import render_startup_home_header
-from yonerai_cli.tui.themes import normalize_theme, theme_palette, theme_uses_truecolor
+from yonerai_cli.tui.themes import normalize_theme, theme_from_input, theme_palette, theme_uses_truecolor
 
 
 class _TTYStringIO(io.StringIO):
@@ -65,6 +65,9 @@ def test_normalize_theme_falls_back_to_auto() -> None:
     assert normalize_theme("nonsense") == "auto"
     assert normalize_theme(None) == "auto"
     assert normalize_theme("DARK") == "dark"
+    assert normalize_theme("ダーク") == "dark"
+    assert normalize_theme("2") == "dark"
+    assert theme_from_input("モノクロ") == "mono"
 
 
 def test_mono_disables_truecolor() -> None:
@@ -139,6 +142,23 @@ def test_first_launch_theme_prompt_persists(tmp_path: Path) -> None:
     assert saved["theme"] == "dark"
 
 
+def test_first_launch_theme_prompt_accepts_japanese(tmp_path: Path) -> None:
+    InteractiveCallbacks, InteractiveOptions, run_interactive_cli = _interactive()
+    config_path = tmp_path / "c.json"
+    stdout = _TTYStringIO()
+    rc = run_interactive_cli(
+        InteractiveOptions(config_path=str(config_path), color="never"),
+        _callbacks(InteractiveCallbacks),
+        stdin=_TTYStringIO("1\nダーク\n/quit\n"),
+        stdout=stdout,
+    )
+    assert rc == 0
+    import json
+
+    saved = json.loads(config_path.read_text(encoding="utf-8"))
+    assert saved["theme"] == "dark"
+
+
 def test_existing_config_skips_theme_prompt(tmp_path: Path) -> None:
     InteractiveCallbacks, InteractiveOptions, run_interactive_cli = _interactive()
     config_path = tmp_path / "c.json"
@@ -178,6 +198,26 @@ def test_theme_slash_command_changes_and_persists(tmp_path: Path) -> None:
     assert saved["theme"] == "light"
 
 
+def test_theme_slash_command_accepts_japanese_and_number(tmp_path: Path) -> None:
+    InteractiveCallbacks, InteractiveOptions, run_interactive_cli = _interactive()
+    config_path = tmp_path / "c.json"
+    cfg = dict(DEFAULT_CONFIG)
+    cfg["language"] = "ja"
+    save_cli_config(cfg, config_path)
+    stdout = _PlainStringIO()
+    rc = run_interactive_cli(
+        InteractiveOptions(config_path=str(config_path), provider="mock", script=True, color="never"),
+        _callbacks(InteractiveCallbacks),
+        stdin=_PlainStringIO("/テーマ ダーク\n/テーマ 3\n/quit\n"),
+        stdout=stdout,
+    )
+    assert rc == 0
+    import json
+
+    saved = json.loads(config_path.read_text(encoding="utf-8"))
+    assert saved["theme"] == "light"
+
+
 def test_theme_slash_command_rejects_invalid(tmp_path: Path) -> None:
     InteractiveCallbacks, InteractiveOptions, run_interactive_cli = _interactive()
     config_path = tmp_path / "c.json"
@@ -192,3 +232,29 @@ def test_theme_slash_command_rejects_invalid(tmp_path: Path) -> None:
         stdout=stdout,
     )
     assert "auto/dark/light/mono" in stdout.getvalue()
+
+
+def test_theme_save_error_sanitizes_dynamic_value_only(monkeypatch: pytest.MonkeyPatch) -> None:
+    from yonerai_cli.screens import theme as theme_screen
+
+    def failing_save(*_args: object, **_kwargs: object) -> dict[str, object]:
+        raise ConfigError("bad path C:\\Users\\owner\\secret\\cli.json token=abc123")
+
+    monkeypatch.setattr(theme_screen, "save_cli_config", failing_save)
+    stdout = _PlainStringIO()
+
+    theme_screen._handle_theme_command(
+        ["2"],
+        config=dict(DEFAULT_CONFIG),
+        config_path="unused.json",
+        color="never",
+        lang="ja",
+        output_stream=stdout,
+    )
+
+    output = stdout.getvalue()
+    assert "\n  理由: " in output
+    assert "C:\\Users" not in output
+    assert "token=abc123" not in output
+    assert "[LOCAL_PATH]" in output
+    assert "[REDACTED]" in output
