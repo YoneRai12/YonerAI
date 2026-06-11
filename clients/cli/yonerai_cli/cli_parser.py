@@ -39,6 +39,16 @@ PLAN_MODE_CHOICES = (
 )
 
 
+def _add_control_spine_short_options(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--config-path", help="Optional local CLI config path.")
+    parser.add_argument("--timeout-seconds", type=float, default=10.0, help="Network timeout. Default: 10.")
+    output = parser.add_mutually_exclusive_group()
+    output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
+    output.add_argument("--pretty", action="store_true", help="Print a readable Japanese-first report.")
+    parser.add_argument("--lang", choices=LANG_CHOICES, default="ja", help="Pretty output language. Default: ja.")
+    parser.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
+
+
 def build_parser() -> argparse.ArgumentParser:
     shared = argparse.ArgumentParser(add_help=False)
     shared.add_argument(
@@ -62,14 +72,14 @@ def build_parser() -> argparse.ArgumentParser:
         "--staging",
         action=argparse.BooleanOptionalAction,
         default=True,
-        help="Use staging login. --no-staging is rejected because production login is disabled.",
+        help=argparse.SUPPRESS,
     )
-    login.add_argument("--bridge", action="store_true", help="Call the staging CLI auth bridge start endpoint.")
-    login.add_argument("--open-browser", action="store_true", help="Open the staging Google auth URL after bridge start.")
-    login.add_argument("--wait-linked", action="store_true", help="Poll until the staging CLI bridge links or times out.")
-    login.add_argument("--timeout-seconds", type=float, default=10.0, help="Network timeout. Default: 10.")
-    login.add_argument("--max-wait-seconds", type=float, default=120.0, help="Maximum wait for --wait-linked. Default: 120.")
-    login.add_argument("--poll-interval-seconds", type=float, default=2.0, help="Polling interval. Default: 2.")
+    login.add_argument("--bridge", action="store_true", help=argparse.SUPPRESS)
+    login.add_argument("--open-browser", action="store_true", help=argparse.SUPPRESS)
+    login.add_argument("--wait-linked", action="store_true", help=argparse.SUPPRESS)
+    login.add_argument("--timeout-seconds", type=float, default=10.0, help=argparse.SUPPRESS)
+    login.add_argument("--max-wait-seconds", type=float, default=120.0, help=argparse.SUPPRESS)
+    login.add_argument("--poll-interval-seconds", type=float, default=2.0, help=argparse.SUPPRESS)
     login.add_argument("--config-path", help="Optional local CLI config path.")
     login_output = login.add_mutually_exclusive_group()
     login_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
@@ -85,6 +95,27 @@ def build_parser() -> argparse.ArgumentParser:
     whoami_output.add_argument("--pretty", action="store_true", help="Print a readable account report.")
     whoami.add_argument("--lang", choices=LANG_CHOICES, default="ja", help="Pretty output language. Default: ja.")
     whoami.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
+
+    sessions = subcommands.add_parser("sessions", help="List staging CLI sessions. Same as auth sessions.")
+    _add_control_spine_short_options(sessions)
+
+    revoke = subcommands.add_parser("revoke", help="Revoke a staging CLI session. Same as auth revoke-session.")
+    revoke.add_argument("session_id", help="Session id returned by `yonerai sessions`.")
+    _add_control_spine_short_options(revoke)
+
+    logout = subcommands.add_parser("logout", help="Clear the local staging session claim. Production login is disabled.")
+    _add_control_spine_short_options(logout)
+
+    projects = subcommands.add_parser("projects", help="List or select staging projects. Same as project list/current/use.")
+    projects.add_argument("project_short_command", nargs="?", choices=("list", "current", "use"), default="list")
+    projects.add_argument("project_id", nargs="?", help="Project id for `yonerai projects use <project_id>`.")
+    _add_control_spine_short_options(projects)
+
+    ping = subcommands.add_parser("ping", help="Ping the staging YonerAI API when configured. Same as api ping.")
+    _add_control_spine_short_options(ping)
+
+    rate_limit = subcommands.add_parser("rate-limit", help="Show staging API rate-limit state. Same as api rate-limit.")
+    _add_control_spine_short_options(rate_limit)
 
     chat = subcommands.add_parser(
         "chat", aliases=["interactive"], help="Start the Japanese-first interactive YonerAI terminal."

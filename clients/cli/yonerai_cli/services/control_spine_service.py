@@ -8,6 +8,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
+from yonerai_cli import __version__
 from yonerai_cli.auth_policy import build_google_auth_status
 from yonerai_cli.config import load_cli_config
 from yonerai_cli.services.auth_session_service import sanitize_staging_account
@@ -15,7 +16,9 @@ from yonerai_cli.services.staging_session_service import load_staging_session_to
 
 
 CONTROL_SPINE_SCHEMA_VERSION = "yonerai-control-spine-client/v0.1"
+CONTRACT_VERSION_POLICY = "yonerai-official-api-contract/v0.14"
 STATUS_PATH = "/v1/status"
+HEALTH_PATH = "/v1/health"
 RATE_LIMIT_PATH = "/v1/rate-limit"
 ACCOUNT_ME_PATH = "/v1/account/me"
 PING_PATH = "/v1/ping"
@@ -88,14 +91,24 @@ def build_control_spine_status_report(
         report["error"] = _safe_error("staging_origin_not_configured", "Staging API origin is not configured.")
         return report
     status = _safe_get(context, STATUS_PATH, transport=transport, timeout_seconds=timeout_seconds)
+    health = _safe_get(context, HEALTH_PATH, transport=transport, timeout_seconds=timeout_seconds)
     rate_limit = _safe_get(context, RATE_LIMIT_PATH, transport=transport, timeout_seconds=timeout_seconds)
-    report["official_backend_called"] = bool(status.get("official_backend_called") or rate_limit.get("official_backend_called"))
+    report["official_backend_called"] = bool(
+        status.get("official_backend_called")
+        or health.get("official_backend_called")
+        or rate_limit.get("official_backend_called")
+    )
     report["backend_status"] = status
+    report["health"] = health
     report["rate_limit"] = rate_limit
     report["scopes"] = _scopes_from_rate_limit(rate_limit.get("body") if isinstance(rate_limit.get("body"), Mapping) else {})
+    report["contract_skew"] = _contract_skew_from_health(
+        health.get("body") if isinstance(health.get("body"), Mapping) else {}
+    )
     report["control_spine"] = _control_spine_from_status(
         status.get("body") if isinstance(status.get("body"), Mapping) else {},
         rate_limit.get("body") if isinstance(rate_limit.get("body"), Mapping) else {},
+        health.get("body") if isinstance(health.get("body"), Mapping) else {},
     )
     return report
 
@@ -170,7 +183,7 @@ def build_whoami_report(
         return report
     if not context["session_available"]:
         report["ok"] = False
-        report["error"] = _safe_error("staging_auth_required", "Staging login is required before whoami.")
+        report["error"] = _auth_required_error("Staging login is required before whoami.")
         return report
     result = _safe_get(context, ACCOUNT_ME_PATH, transport=transport, timeout_seconds=timeout_seconds, auth=True)
     report["official_backend_called"] = bool(result.get("official_backend_called"))
@@ -205,7 +218,7 @@ def build_project_report(
         return report
     if not context["session_available"]:
         report["ok"] = False
-        report["error"] = _safe_error("staging_auth_required", "Staging login is required before reading projects.")
+        report["error"] = _auth_required_error("Staging login is required before reading projects.")
         return report
     method = "GET"
     path = PROJECTS_PATH
@@ -257,7 +270,7 @@ def build_session_report(
         return report
     if not context["session_available"]:
         report["ok"] = False
-        report["error"] = _safe_error("staging_auth_required", "Staging login is required before reading sessions.")
+        report["error"] = _auth_required_error("Staging login is required before reading sessions.")
         return report
     method = "GET"
     path = SESSIONS_PATH
@@ -305,7 +318,7 @@ def build_audit_report(
         return report
     if not context["session_available"]:
         report["ok"] = False
-        report["error"] = _safe_error("staging_auth_required", "Staging login is required before reading audit events.")
+        report["error"] = _auth_required_error("Staging login is required before reading audit events.")
         return report
     result = _safe_get(context, AUDIT_EVENTS_PATH, transport=transport, timeout_seconds=timeout_seconds, auth=True)
     report["official_backend_called"] = bool(result.get("official_backend_called"))
@@ -336,6 +349,7 @@ def _base_report(operation: str, context: Mapping[str, object]) -> dict[str, obj
         "auth_state": context.get("auth_state"),
         "account_linked": bool(context.get("account_linked")),
         "staging_session_available": bool(context.get("session_available")),
+        "session_expires_at": _safe_text(session_claim.get("expires_at"), fallback=None),
         "session_storage": {
             "storage_backend": _safe_text(session_claim.get("storage_backend"), fallback="none"),
             "session_hash": _safe_text(session_claim.get("session_hash"), fallback=None),
@@ -348,15 +362,16 @@ def _base_report(operation: str, context: Mapping[str, object]) -> dict[str, obj
         "production_login_enabled": False,
         "production_backend_enabled": False,
         "production_oracle_enabled": False,
+        "contract_version_policy": CONTRACT_VERSION_POLICY,
         "shared_traffic_enabled": False,
         "local_private_upload_enabled": False,
         "raw_prompt_upload_enabled": False,
         "next_safe_commands": [
-            "yonerai login --staging --bridge --open-browser --wait-linked --pretty --lang ja",
-            "yonerai whoami --pretty --lang ja",
-            "yonerai project list --pretty --lang ja",
-            "yonerai auth sessions --pretty --lang ja",
-            "yonerai api ping --pretty --lang ja",
+            "yonerai login",
+            "yonerai whoami",
+            "yonerai projects",
+            "yonerai sessions",
+            "yonerai ping",
         ],
         "actions_not_performed": [
             "no production Google login",
@@ -494,19 +509,30 @@ def _error_from_status(status_code: int, payload: Mapping[str, object]) -> dict[
     elif isinstance(detail, str):
         reason = _safe_text(detail, fallback=reason) or reason
     if status_code in {401, 403}:
-        return _safe_error("staging_auth_required", "Staging login is required or the saved session expired.", status_code=status_code)
+        return _auth_required_error("Staging login is required or the saved session expired.", status_code=status_code)
     if status_code == 404:
         return _safe_error("control_spine_not_available", "This staging control spine endpoint is not available.", status_code=status_code)
     return _safe_error(str(reason), "Staging control spine request failed.", status_code=status_code)
 
 
-def _control_spine_from_status(status_payload: Mapping[str, object], rate_payload: Mapping[str, object]) -> dict[str, object]:
+def _control_spine_from_status(
+    status_payload: Mapping[str, object],
+    rate_payload: Mapping[str, object],
+    health_payload: Mapping[str, object],
+) -> dict[str, object]:
     status_control = status_payload.get("control_spine") if isinstance(status_payload.get("control_spine"), Mapping) else {}
     rate_control = rate_payload.get("control_spine") if isinstance(rate_payload.get("control_spine"), Mapping) else {}
+    health_control = health_payload.get("control_spine") if isinstance(health_payload.get("control_spine"), Mapping) else {}
     return {
-        "contract_version": _safe_text(rate_control.get("contract_version"), fallback="yonerai.control-spine.v0.1"),
+        "contract_version": _safe_text(
+            health_payload.get("api_version") or rate_control.get("contract_version"),
+            fallback="yonerai.control-spine.v0.1",
+        ),
+        "contract_version_policy": CONTRACT_VERSION_POLICY,
+        "api_version": _safe_text(health_payload.get("api_version"), fallback="unknown"),
+        "min_cli_version": _safe_text(health_payload.get("min_cli_version"), fallback="unknown"),
         "status": _safe_text(status_control.get("status"), fallback=status_payload.get("status") or "unknown"),
-        "mode": _safe_text(status_control.get("mode"), fallback="staging"),
+        "mode": _safe_text(health_control.get("mode") or status_control.get("mode"), fallback="staging"),
         "sessions": _safe_text(status_control.get("sessions"), fallback="unknown"),
         "revoke": _safe_text(status_control.get("revoke"), fallback="unknown"),
         "projects": _safe_text(status_control.get("projects"), fallback="unknown"),
@@ -523,14 +549,62 @@ def _scopes_from_rate_limit(payload: Mapping[str, object]) -> list[dict[str, obj
     for item in raw:
         if not isinstance(item, Mapping):
             continue
+        name = _safe_scope(item.get("name"))
+        frozen = _dangerous_scope_freeze(name)
         scopes.append(
             {
-                "name": _safe_scope(item.get("name")),
-                "enabled_by_default": bool(item.get("enabled_by_default")),
+                "name": name,
+                "enabled_by_default": False if frozen else bool(item.get("enabled_by_default")),
                 "summary": _safe_text(item.get("summary"), fallback=""),
+                "requires_threat_model": bool(frozen),
+                "disabled_reason": "dangerous_scope_freeze" if frozen else None,
             }
         )
     return scopes
+
+
+def _contract_skew_from_health(payload: Mapping[str, object]) -> dict[str, object]:
+    api_version = _safe_text(payload.get("api_version"), fallback="unknown")
+    min_cli_version = _safe_text(payload.get("min_cli_version"), fallback=None)
+    current = _safe_text(__version__, fallback="unknown")
+    missing_fields = [
+        field for field in ("api_version", "min_cli_version") if not isinstance(payload.get(field), str) or not str(payload.get(field)).strip()
+    ]
+    below_minimum = False
+    if isinstance(min_cli_version, str):
+        below_minimum = _version_tuple(str(current)) < _version_tuple(min_cli_version)
+    return {
+        "api_version": api_version,
+        "min_cli_version": min_cli_version or "unknown",
+        "current_cli_version": current,
+        "policy": CONTRACT_VERSION_POLICY,
+        "missing_fields": missing_fields,
+        "missing_field_policy": "debug_only_no_user_warning",
+        "skew_detected": below_minimum,
+        "warning": (
+            "YonerAI CLI is older than the staging API minimum. Run `yonerai update check` and re-login if needed."
+            if below_minimum
+            else None
+        ),
+    }
+
+
+def _dangerous_scope_freeze(scope: str) -> bool:
+    return scope == "agent:run" or scope.startswith("admin:")
+
+
+def _version_tuple(value: str) -> tuple[int, int, int, int]:
+    text = value.strip().lstrip("v")
+    main = text.split("-", 1)[0]
+    parts = []
+    for piece in main.split(".")[:4]:
+        try:
+            parts.append(int(piece))
+        except ValueError:
+            parts.append(0)
+    while len(parts) < 4:
+        parts.append(0)
+    return (parts[0], parts[1], parts[2], parts[3])
 
 
 def _sanitize_projects(payload: Mapping[str, object]) -> list[dict[str, object]]:
@@ -702,6 +776,12 @@ def _safe_error(code: str, message: str, *, status_code: int | None = None) -> d
         "token_printed": False,
         "google_token_printed": False,
     }
+
+
+def _auth_required_error(message: str, *, status_code: int | None = None) -> dict[str, object]:
+    error = _safe_error("staging_auth_required", message, status_code=status_code)
+    error["next_safe_command"] = "yonerai login"
+    return error
 
 
 def load_config_for_control_spine(config_path: str | None) -> dict[str, object]:

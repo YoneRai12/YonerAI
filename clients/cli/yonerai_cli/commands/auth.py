@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import sys
 from collections.abc import Callable, Mapping
 from typing import Any
 
@@ -317,16 +318,27 @@ def _persist_staging_claim_if_linked(report: dict[str, Any], *, config_path: str
 def handle_login_alias_command(args: argparse.Namespace, *, print_json: Callable[[dict[str, Any]], None]) -> int:
     if not getattr(args, "staging", True):
         raise AuthCommandError("public CLI login is staging-only in this build.")
-    if getattr(args, "open_browser", False) and not getattr(args, "bridge", False):
+    interactive_tty = bool(sys.stdin.isatty() and sys.stdout.isatty())
+    implicit_user_login = (
+        not bool(getattr(args, "json", False))
+        and not bool(getattr(args, "bridge", False))
+        and not bool(getattr(args, "open_browser", False))
+        and not bool(getattr(args, "wait_linked", False))
+        and interactive_tty
+    )
+    bridge = bool(getattr(args, "bridge", False) or implicit_user_login)
+    open_browser = bool(getattr(args, "open_browser", False) or (implicit_user_login and interactive_tty))
+    wait_linked = bool(getattr(args, "wait_linked", False) or (implicit_user_login and interactive_tty))
+    if open_browser and not bridge:
         raise AuthCommandError("--open-browser requires --bridge.")
-    if getattr(args, "wait_linked", False) and not getattr(args, "bridge", False):
+    if wait_linked and not bridge:
         raise AuthCommandError("--wait-linked requires --bridge.")
     report = build_google_login_staging(
         _load_config(args),
-        bridge=bool(getattr(args, "bridge", False)),
+        bridge=bridge,
         timeout_seconds=float(getattr(args, "timeout_seconds", 10.0)),
-        open_browser=bool(getattr(args, "open_browser", False)),
-        wait_linked=bool(getattr(args, "wait_linked", False)),
+        open_browser=open_browser,
+        wait_linked=wait_linked,
         max_wait_seconds=float(getattr(args, "max_wait_seconds", 120.0)),
         poll_interval_seconds=float(getattr(args, "poll_interval_seconds", 2.0)),
         session_claim_handler=_staging_session_handler(
@@ -420,13 +432,30 @@ def format_auth_pretty(report: dict[str, Any], *, lang: str = "ja", color: Color
     )
     session_available = bool(session_claim.get("session_available", False) or session_storage.get("stored", False))
     staging_available = bool(report.get("staging_login_available") or report.get("staging_login") or staging.get("configured"))
+    session_auth_state = (
+        report.get("staging_auth_state")
+        or staging_session.get("auth_state")
+        or ("linked" if linked_claim else "unauthenticated")
+    )
+    session_expires_at = (
+        session_claim.get("expires_at")
+        or session_storage.get("expires_at")
+        or staging_session.get("expires_at")
+        or linked_claim.get("expires_at")
+    )
     staging_rows = (
         CliRow("staging_login_available", staging_available, "ok" if staging_available else "warn"),
         CliRow("origin", staging.get("origin", "not_configured"), "ok" if staging.get("configured") else "warn"),
         CliRow(
             "auth_state",
-            report.get("staging_auth_state") or staging_session.get("auth_state") or ("linked" if linked_claim else "unauthenticated"),
-            "ok" if (report.get("staging_auth_state") == "linked" or staging_session.get("auth_state") == "linked" or linked_claim) else "warn",
+            session_auth_state,
+            "ok" if session_auth_state == "linked" else "warn",
+        ),
+        CliRow("session_expires_at", session_expires_at or "not-linked", "ok" if session_expires_at else "warn"),
+        CliRow(
+            "relogin_action",
+            "yonerai login" if session_auth_state in {"expired", "revoked", "unauthenticated"} else "not_needed",
+            "warn" if session_auth_state in {"expired", "revoked", "unauthenticated"} else "ok",
         ),
         CliRow("linked_account", _staging_account_label(account), "ok" if account else "warn"),
         CliRow(
@@ -522,13 +551,19 @@ def format_session_pretty(report: dict[str, Any], *, lang: str = "ja", color: Co
         title = "YonerAI staging session"
         session_title = "Safe session claim"
         boundary_title = "Never stored"
+    auth_state = str(report.get("auth_state", "unauthenticated"))
     session_rows = (
         CliRow("operation", report.get("operation"), "ok"),
-        CliRow("auth_state", report.get("auth_state", "unauthenticated"), "ok" if report.get("auth_state") == "linked" else "warn"),
+        CliRow("auth_state", auth_state, "ok" if auth_state == "linked" else "warn"),
         CliRow("session_available", report.get("session_available", False), "ok" if report.get("session_available") else "warn"),
         CliRow("origin", report.get("origin", "not_configured"), "ok" if report.get("origin") != "not_configured" else "warn"),
         CliRow("account", report.get("redacted_email") or report.get("display_name") or "not-linked", "ok" if report.get("session_available") else "warn"),
         CliRow("expires_at", report.get("expires_at") or "not-linked", "ok" if report.get("expires_at") else "warn"),
+        CliRow(
+            "relogin_action",
+            "yonerai login" if auth_state in {"expired", "revoked", "unauthenticated"} else "not_needed",
+            "warn" if auth_state in {"expired", "revoked", "unauthenticated"} else "ok",
+        ),
         CliRow("storage_backend", report.get("storage_backend", "none"), "ok" if report.get("storage_backend") != "none" else "warn"),
         CliRow("session_hash", report.get("session_hash") or "not-linked", "ok" if report.get("session_hash") else "warn"),
         CliRow("session_removed", report.get("session_removed", False), "ok" if report.get("operation") == "staging_logout" else "warn"),

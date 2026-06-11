@@ -48,6 +48,17 @@ def test_control_spine_status_reads_scopes_without_tokens(tmp_path: Path, monkey
                 },
                 {"X-YonerAI-RateLimit-Scope": "staging"},
             )
+        if url.endswith("/v1/health"):
+            return (
+                200,
+                {
+                    "status": "ok",
+                    "api_version": "yonerai.control-spine.v0.1",
+                    "min_cli_version": "0.20.0-alpha.1",
+                    "control_spine": {"mode": "staging"},
+                },
+                {"X-YonerAI-RateLimit-Scope": "staging"},
+            )
         if url.endswith("/v1/rate-limit"):
             return (
                 200,
@@ -60,6 +71,7 @@ def test_control_spine_status_reads_scopes_without_tokens(tmp_path: Path, monkey
                         "scopes": [
                             {"name": "profile:read", "enabled_by_default": True, "summary": "read profile"},
                             {"name": "session:revoke", "enabled_by_default": True, "summary": "revoke sessions"},
+                            {"name": "agent:run", "enabled_by_default": True, "summary": "dogfood agent run disabled"},
                             {"name": "admin:*", "enabled_by_default": False, "summary": "admin disabled"},
                         ],
                     },
@@ -86,7 +98,13 @@ def test_control_spine_status_reads_scopes_without_tokens(tmp_path: Path, monkey
     assert report["production_backend_enabled"] is False
     assert report["shared_traffic_enabled"] is False
     assert report["control_spine"]["mode"] == "staging"
-    assert [scope["name"] for scope in report["scopes"]] == ["profile:read", "session:revoke", "admin:*"]
+    assert [scope["name"] for scope in report["scopes"]] == ["profile:read", "session:revoke", "agent:run", "admin:*"]
+    agent_scope = next(scope for scope in report["scopes"] if scope["name"] == "agent:run")
+    admin_scope = next(scope for scope in report["scopes"] if scope["name"] == "admin:*")
+    assert agent_scope["enabled_by_default"] is False
+    assert agent_scope["requires_threat_model"] is True
+    assert admin_scope["requires_threat_model"] is True
+    assert report["contract_skew"]["skew_detected"] is False
     assert "access_token" not in serialized
     assert "refresh_token" in serialized
     assert str(tmp_path) not in serialized
@@ -136,6 +154,119 @@ def test_whoami_uses_saved_staging_session_without_printing_it(tmp_path: Path, m
     assert session_value not in serialized
     assert "google-subject" not in serialized
     assert str(tmp_path) not in serialized
+
+
+def test_expired_session_mid_command_has_guided_japanese_relogin(tmp_path: Path, monkeypatch) -> None:
+    from yonerai_cli.screens.control_spine import format_control_spine_pretty
+    from yonerai_cli.services.control_spine_service import build_whoami_report
+    from yonerai_cli.services.staging_session_service import save_staging_session
+
+    config_path = tmp_path / "cli-config.json"
+    save_staging_session(
+        session_token="opaque-session-value-123456789",
+        origin="https://api-staging.yonerai.com",
+        account={"email": "owner@example.test", "display_name": "Owner"},
+        expires_at="2000-01-01T00:00:00Z",
+        config_path=config_path,
+    )
+
+    def transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, dict[str, object], dict[str, str]]:
+        raise AssertionError("expired local session must not call staging backend")
+
+    report = build_whoami_report(
+        config={},
+        env={"YONERAI_STAGING_AUTH_ORIGIN": "https://api-staging.yonerai.com"},
+        claim_path=str(config_path),
+        transport=transport,
+    )
+    rendered = format_control_spine_pretty(report, lang="ja", color="never")
+    serialized = json.dumps(report, ensure_ascii=False, sort_keys=True) + rendered
+
+    assert report["ok"] is False
+    assert report["auth_state"] == "expired"
+    assert report["error"]["code"] == "staging_auth_required"
+    assert "yonerai login" in rendered
+    assert "Traceback" not in serialized
+    assert str(tmp_path) not in serialized
+
+
+def test_contract_skew_warns_when_backend_requires_newer_cli(tmp_path: Path, monkeypatch) -> None:
+    from yonerai_cli.screens.control_spine import format_control_spine_pretty
+    from yonerai_cli.services.control_spine_service import build_control_spine_status_report
+
+    monkeypatch.setenv("YONERAI_STAGING_AUTH_ORIGIN", "https://api-staging.yonerai.com")
+
+    def transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, dict[str, object], dict[str, str]]:
+        if url.endswith("/v1/status"):
+            return 200, {"status": "not_production", "control_spine": {"mode": "staging"}}, {}
+        if url.endswith("/v1/health"):
+            return 200, {"api_version": "yonerai.control-spine.v0.2", "min_cli_version": "99.0.0"}, {}
+        if url.endswith("/v1/rate-limit"):
+            return 200, {"scope": "staging", "allowed": True, "quota_exceeded": False}, {}
+        raise AssertionError(url)
+
+    report = build_control_spine_status_report(
+        config={},
+        env={"YONERAI_STAGING_AUTH_ORIGIN": "https://api-staging.yonerai.com"},
+        claim_path=str(tmp_path / "cli-config.json"),
+        transport=transport,
+    )
+    rendered = format_control_spine_pretty(report, lang="ja", color="never")
+    serialized = json.dumps(report, ensure_ascii=False, sort_keys=True) + rendered
+
+    assert report["ok"] is True
+    assert report["contract_skew"]["skew_detected"] is True
+    assert "yonerai update check" in rendered
+    assert str(tmp_path) not in serialized
+
+
+def test_contract_skew_missing_health_fields_is_debug_only(tmp_path: Path, monkeypatch) -> None:
+    from yonerai_cli.screens.control_spine import format_control_spine_pretty
+    from yonerai_cli.services.control_spine_service import build_control_spine_status_report
+
+    monkeypatch.setenv("YONERAI_STAGING_AUTH_ORIGIN", "https://api-staging.yonerai.com")
+
+    def transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, dict[str, object], dict[str, str]]:
+        if url.endswith("/v1/status"):
+            return 200, {"status": "not_production", "control_spine": {"mode": "staging"}}, {}
+        if url.endswith("/v1/health"):
+            return 200, {"status": "ok"}, {}
+        if url.endswith("/v1/rate-limit"):
+            return 200, {"scope": "staging", "allowed": True, "quota_exceeded": False}, {}
+        raise AssertionError(url)
+
+    report = build_control_spine_status_report(
+        config={},
+        env={"YONERAI_STAGING_AUTH_ORIGIN": "https://api-staging.yonerai.com"},
+        claim_path=str(tmp_path / "cli-config.json"),
+        transport=transport,
+    )
+    rendered = format_control_spine_pretty(report, lang="ja", color="never")
+
+    assert report["ok"] is True
+    assert report["contract_skew"]["skew_detected"] is False
+    assert report["contract_skew"]["warning"] is None
+    assert report["contract_skew"]["missing_fields"] == ["api_version", "min_cli_version"]
+    assert report["contract_skew"]["missing_field_policy"] == "debug_only_no_user_warning"
+    assert "yonerai update check" not in rendered
 
 
 def test_control_spine_rejects_private_or_token_payload(tmp_path: Path) -> None:
@@ -211,7 +342,7 @@ def test_login_alias_no_staging_is_controlled_error(tmp_path: Path, monkeypatch,
     assert cli.main(["login", "--no-staging", "--json"]) == 2
     output = capsys.readouterr()
 
-    assert "staging-only" in output.err
+    assert "ステージングログイン" in output.err
     assert str(tmp_path) not in output.err
 
 
@@ -232,7 +363,7 @@ def test_revoke_session_invalid_id_is_controlled_error(tmp_path: Path, monkeypat
     assert cli.main(["auth", "revoke-session", "bad session id", "--json"]) == 2
     output = capsys.readouterr()
 
-    assert "Session id is invalid." in output.err
+    assert "セッションID" in output.err
     assert "Traceback" not in output.err
     assert str(tmp_path) not in output.err
 

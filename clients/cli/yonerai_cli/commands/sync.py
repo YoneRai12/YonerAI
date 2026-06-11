@@ -74,6 +74,7 @@ def add_sync_parser(
     )
 
     preview = sync_subcommands.add_parser("preview", help="Preview a sync decision. No sync is performed.")
+    preview.add_argument("direction_value", nargs="?", choices=SYNC_DIRECTION_CHOICES, help="Optional short direction.")
     preview.add_argument("--direction", choices=SYNC_DIRECTION_CHOICES, default="cloud-to-local")
     preview.add_argument("--fixture-auth-state", choices=SYNC_AUTH_STATE_CHOICES, default="dry_run")
     preview.add_argument("--selected", action="store_true", help="Fixture: cloud conversation is user-selected.")
@@ -181,9 +182,10 @@ def build_sync_report(args: argparse.Namespace, *, prepare_import_paths: Callabl
                 timeout_seconds=float(getattr(args, "timeout_seconds", 10.0)),
             )
         if args.sync_command == "preview":
-            if _staging_origin_configured() or args.direction == "local-to-cloud":
+            direction = _effective_sync_direction(args)
+            if _staging_origin_configured() or direction == "local-to-cloud":
                 return build_staging_sync_preview_report(
-                    direction=args.direction,
+                    direction=direction,
                     config=_load_config(args),
                     env=os.environ,
                     claim_path=getattr(args, "config_path", None),
@@ -193,7 +195,7 @@ def build_sync_report(args: argparse.Namespace, *, prepare_import_paths: Callabl
                     timeout_seconds=float(getattr(args, "timeout_seconds", 10.0)),
                 )
             return builders()["preview"](
-                direction=_sync_direction_for_core(args.direction),
+                direction=_sync_direction_for_core(direction),
                 auth_state=auth_state,
                 selected=selected,
                 explicit_approval=bool(getattr(args, "explicit_approval", False)),
@@ -217,6 +219,10 @@ def build_sync_report(args: argparse.Namespace, *, prepare_import_paths: Callabl
     except (ConfigError, StagingSyncServiceError, ValueError) as exc:
         raise SyncCommandError(str(exc)) from exc
     raise SyncCommandError("unknown sync command")
+
+
+def _effective_sync_direction(args: argparse.Namespace) -> str:
+    return str(getattr(args, "direction_value", None) or getattr(args, "direction", "cloud-to-local"))
 
 
 def format_sync_pretty(report: dict[str, Any], *, lang: str = "ja", color: ColorMode = "auto") -> str:

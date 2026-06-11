@@ -68,6 +68,7 @@ jobs:
         run: |
           python -m pytest \
             tests/test_cli_interactive_v030.py \
+            tests/test_cli_command_display_modes.py \
             tests/test_cli_output_formatting.py \
             -q -k "not install_like_entry_point_starts_yonerai"
 
@@ -142,6 +143,7 @@ jobs:
             tests/test_installer_update_plan.py \
             tests/test_distribution_license_site.py \
             tests/test_local_bootstrap_script.py \
+            tests/test_official_bridge_foundation.py \
             tests/test_v080_install_auth_boundary.py \
             -q
 
@@ -166,6 +168,7 @@ jobs:
             tests/test_cli_runtime_shell_v020.py `
             tests/test_auth_privacy_policy.py `
             tests/test_cli_interactive_v030.py `
+            tests/test_cli_command_display_modes.py `
             tests/test_cli_output_formatting.py `
             -q -k "not install_like_entry_point_starts_yonerai"
 
@@ -192,6 +195,7 @@ jobs:
             tests/test_installer_install_plan.py `
             tests/test_installer_update_plan.py `
             tests/test_local_bootstrap_script.py `
+            tests/test_official_bridge_foundation.py `
             tests/test_v080_install_auth_boundary.py `
             -q
 
@@ -212,6 +216,7 @@ jobs:
             tests/test_cli_runtime_shell_v020.py \
             tests/test_auth_privacy_policy.py \
             tests/test_cli_interactive_v030.py \
+            tests/test_cli_command_display_modes.py \
             tests/test_cli_output_formatting.py \
             -q -k "not install_like_entry_point_starts_yonerai"
 
@@ -234,6 +239,7 @@ jobs:
             tests/test_installer_install_plan.py \
             tests/test_installer_update_plan.py \
             tests/test_local_bootstrap_script.py \
+            tests/test_official_bridge_foundation.py \
             tests/test_v080_install_auth_boundary.py \
             -q
 
@@ -302,6 +308,7 @@ jobs:
             tests/test_verify_version.py \
             tests/test_release_workflow_prerelease.py \
             tests/test_release_gate.py \
+            tests/test_current_truth_anchor.py \
             tests/test_quality_wall_workflow.py \
             -q
       - name: Run source release gate checks

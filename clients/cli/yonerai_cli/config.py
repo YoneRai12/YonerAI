@@ -10,6 +10,7 @@ from typing import Mapping
 CONFIG_SCHEMA_VERSION = "yonerai-cli-config/v0.7"
 LANGUAGES = ("ja", "en")
 THEMES = ("auto", "dark", "light", "mono")
+COMMAND_DISPLAY_MODES = ("ja_only", "ja_with_en", "en_with_ja", "en_only")
 PROVIDER_PREFERENCES = ("auto", "mock", "local", "openai-compatible", "anthropic", "gemini")
 APPROVAL_MODES = ("prompt", "deny")
 AGENT_MODES = ("plan_readonly", "build_safe", "review", "memory")
@@ -21,6 +22,7 @@ DEFAULT_CONFIG: dict[str, object] = {
     "schema_version": CONFIG_SCHEMA_VERSION,
     "language": None,
     "theme": "auto",
+    "command_display_mode": "ja_only",
     "provider_preference": "auto",
     "model_preference": "auto",
     "agent_mode": "plan_readonly",
@@ -115,6 +117,8 @@ def validate_cli_config(config: Mapping[str, object]) -> dict[str, object]:
         raise ConfigError("language must be ja or en.")
     if merged.get("theme") not in THEMES:
         raise ConfigError("theme is invalid.")
+    if merged.get("command_display_mode") not in COMMAND_DISPLAY_MODES:
+        raise ConfigError("command_display_mode must be ja_only, ja_with_en, en_with_ja, or en_only.")
     if merged.get("provider_preference") not in PROVIDER_PREFERENCES:
         raise ConfigError("provider_preference is invalid.")
     model = merged.get("model_preference")
@@ -161,6 +165,12 @@ def normalize_config_key(key: str) -> str:
         "language": "language",
         "lang": "language",
         "theme": "theme",
+        "command_display": "command_display_mode",
+        "command_display_mode": "command_display_mode",
+        "command_aliases": "command_display_mode",
+        "commands_display": "command_display_mode",
+        "コマンド表示": "command_display_mode",
+        "コマンド": "command_display_mode",
         "approval": "approval_mode",
         "file_access": "file_access_mode",
         "live_provider": "live_provider_enabled",
@@ -200,6 +210,31 @@ def parse_config_value(key: str, value: str) -> object:
         if raw not in PROVIDER_PREFERENCES:
             raise ConfigError("provider must be auto, mock, local, openai-compatible, anthropic, or gemini.")
         return raw
+    if key == "command_display_mode":
+        aliases = {
+            "日本語のみ": "ja_only",
+            "日本語": "ja_only",
+            "日本語+英語": "ja_with_en",
+            "日本語と英語": "ja_with_en",
+            "ja": "ja_only",
+            "ja-only": "ja_only",
+            "ja_only": "ja_only",
+            "ja-with-en": "ja_with_en",
+            "ja_with_en": "ja_with_en",
+            "英語+日本語": "en_with_ja",
+            "英語と日本語": "en_with_ja",
+            "英語のみ": "en_only",
+            "英語": "en_only",
+            "en": "en_only",
+            "en-only": "en_only",
+            "en_only": "en_only",
+            "en-with-ja": "en_with_ja",
+            "en_with_ja": "en_with_ja",
+        }
+        normalized = aliases.get(raw, aliases.get(raw.lower(), raw))
+        if normalized not in COMMAND_DISPLAY_MODES:
+            raise ConfigError("command_display must be ja_only, ja_with_en, en_with_ja, or en_only.")
+        return normalized
     if key == "model_preference":
         if not MODEL_RE.fullmatch(raw) or "://" in raw or "\\" in raw:
             raise ConfigError("model must be auto or a simple provider model id.")
@@ -277,6 +312,7 @@ def build_config_report(config: Mapping[str, object], *, exists: bool) -> dict[s
         "secrets_supported": False,
         "config": {
             "language": validated["language"],
+            "command_display_mode": validated["command_display_mode"],
             "provider_preference": validated["provider_preference"],
             "model_preference": validated["model_preference"],
             "agent_mode": validated["agent_mode"],

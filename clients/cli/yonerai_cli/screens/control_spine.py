@@ -26,12 +26,14 @@ def format_staging_login_hint(*, lang: str = "ja") -> str:
     if lang != "ja":
         return (
             "Only staging Google login is available.\n"
-            "Try: yonerai login --bridge --open-browser --wait-linked --pretty --lang ja\n"
+            "Try: yonerai login\n"
+            "Advanced/CI compatible form remains: yonerai auth google login --staging --bridge --pretty --lang en\n"
             "No production login, Google token storage, or private data sync is performed.\n"
         )
     return (
         "ステージング Google ログインだけ利用できます。\n"
-        "次に試す: yonerai login --bridge --open-browser --wait-linked --pretty --lang ja\n"
+        "普通に使う: yonerai login\n"
+        "長い --bridge / --open-browser / --wait-linked は上級者/CI向けの互換オプションです。\n"
         "本番ログイン、Google token 保存、非公開データ同期は行いません。\n"
     )
 
@@ -61,6 +63,21 @@ def format_control_spine_pretty(report: dict[str, Any], *, lang: str = "ja", col
     control = report.get("control_spine") if isinstance(report.get("control_spine"), dict) else {}
     if control:
         sections.append(CliSection("Control Spine", tuple(CliRow(key, value, "ok") for key, value in control.items())))
+
+    skew = report.get("contract_skew") if isinstance(report.get("contract_skew"), dict) else {}
+    if skew:
+        sections.append(
+            CliSection(
+                _label("契約バージョン", "Contract version", lang),
+                (
+                    CliRow("api_version", skew.get("api_version"), "ok"),
+                    CliRow("min_cli_version", skew.get("min_cli_version"), "ok"),
+                    CliRow("current_cli_version", skew.get("current_cli_version"), "ok"),
+                    CliRow("skew_detected", skew.get("skew_detected"), "warn" if skew.get("skew_detected") else "ok"),
+                    CliRow("next_action", _contract_skew_message(skew, lang), "warn" if skew.get("skew_detected") else "ok"),
+                ),
+            )
+        )
 
     scopes = report.get("scopes") if isinstance(report.get("scopes"), list) else []
     if scopes:
@@ -150,6 +167,7 @@ def format_control_spine_tui(report: dict[str, Any], *, lang: str = "ja") -> str
         f"  ステージング専用: {_yes_no(report.get('staging_only'), lang='ja')}",
         f"  アカウント: {'リンク済み' if report.get('account_linked') else '未リンク'}",
         f"  セッション: {'利用可能' if report.get('staging_session_available') else '未保存'}",
+        f"  セッション期限: {_safe(report.get('session_expires_at') or '未リンク')}",
         f"  production backend: {'enabled' if report.get('production_backend_enabled') else 'disabled'}",
         f"  本番ログイン: {'有効' if report.get('production_login_enabled') else '無効'}",
         f"  OpenAI共有トラフィック: {'オン' if report.get('shared_traffic_enabled') else 'オフ'}",
@@ -157,7 +175,12 @@ def format_control_spine_tui(report: dict[str, Any], *, lang: str = "ja") -> str
     ]
     error = report.get("error") if isinstance(report.get("error"), dict) else {}
     if error:
-        lines.append(f"  注意: {_safe(error.get('code'))} - {_safe(error.get('message'))}")
+        lines.append(f"  注意: {_safe(error.get('code'))} - {_safe(_error_message(error, lang))}")
+        if error.get("next_safe_command"):
+            lines.append(f"  次に試す: {_safe(error.get('next_safe_command'))}")
+    skew = report.get("contract_skew") if isinstance(report.get("contract_skew"), dict) else {}
+    if skew and skew.get("skew_detected"):
+        lines.append(f"  契約警告: {_safe(_contract_skew_message(skew, lang))}")
     account = report.get("account") if isinstance(report.get("account"), dict) else {}
     if account:
         lines.append(f"  表示名: {_safe(account.get('display_name'))}")
@@ -169,7 +192,7 @@ def format_control_spine_tui(report: dict[str, Any], *, lang: str = "ja") -> str
             if isinstance(scope, dict):
                 state = "有効" if scope.get("enabled_by_default") else "無効"
                 lines.append(f"    - {_safe(scope.get('name'))}: {state}")
-    lines.append("  次に試す: yonerai whoami --pretty --lang ja")
+    lines.append("  次に試す: yonerai whoami")
     lines.append("")
     return "\n".join(lines)
 
@@ -182,6 +205,7 @@ def _status_section(report: dict[str, Any], *, lang: str) -> CliSection:
         CliRow("staging_only", report.get("staging_only"), "ok"),
         CliRow("account_linked", report.get("account_linked"), "ok" if report.get("account_linked") else "warn"),
         CliRow("auth_state", report.get("auth_state"), "ok" if report.get("auth_state") == "linked" else "warn"),
+        CliRow("session_expires_at", report.get("session_expires_at") or "not-linked", "ok" if report.get("session_expires_at") else "warn"),
         CliRow(
             "session_available",
             report.get("staging_session_available"),
@@ -208,7 +232,8 @@ def _status_section(report: dict[str, Any], *, lang: str) -> CliSection:
     error = report.get("error") if isinstance(report.get("error"), dict) else {}
     if error:
         rows.append(CliRow("error", error.get("code"), "fail"))
-        rows.append(CliRow("message", error.get("message"), "warn"))
+        rows.append(CliRow("message", _error_message(error, lang), "warn"))
+        rows.append(CliRow("next_action", error.get("next_safe_command") or "yonerai login", "warn"))
     return CliSection(_label("状態", "Status", lang), tuple(rows))
 
 
@@ -262,6 +287,9 @@ def _scope_summary(scope: dict[str, Any], lang: str) -> str:
     state = "有効" if scope.get("enabled_by_default") else "無効"
     if lang != "ja":
         state = "enabled" if scope.get("enabled_by_default") else "disabled"
+    if scope.get("requires_threat_model"):
+        reason = "脅威モデルゲートが必要" if lang == "ja" else "requires threat-model gate"
+        return f"{state} - {reason} - {_safe(scope.get('summary') or '')}"
     return f"{state} - {_safe(scope.get('summary') or '')}"
 
 
@@ -296,3 +324,17 @@ def _session_rows(session: dict[str, Any], report: dict[str, Any]) -> tuple[CliR
         CliRow("revoked", report.get("revoked", False), "ok" if report.get("revoked") else "warn"),
         CliRow("token_included", session.get("token_included"), "fail" if session.get("token_included") else "ok"),
     )
+
+
+def _error_message(error: dict[str, Any], lang: str) -> object:
+    if lang == "ja" and error.get("code") == "staging_auth_required":
+        return "ステージングセッションが未ログイン、または期限切れです。`yonerai login` を実行してください。"
+    return error.get("message")
+
+
+def _contract_skew_message(skew: dict[str, Any], lang: str) -> str:
+    if not skew.get("skew_detected"):
+        return "問題なし" if lang == "ja" else "ok"
+    if lang == "ja":
+        return "CLIがステージングAPIの最小対応バージョンより古い可能性があります。`yonerai update check` を確認してください。"
+    return str(skew.get("warning") or "Run `yonerai update check`.")

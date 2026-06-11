@@ -70,6 +70,7 @@ SLASH_COMMANDS: tuple[SlashCommandSpec, ...] = (
 
 JAPANESE_SLASH_ALIASES: dict[str, tuple[str, ...]] = {
     "/status": ("/ホーム",),
+    "/policy": ("/方針",),
     "/palette": ("/パレット",),
     "/composer": ("/入力欄",),
     "/providers": ("/プロバイダー",),
