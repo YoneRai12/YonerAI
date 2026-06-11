@@ -432,13 +432,13 @@ def test_chat_accepts_english_commands_while_showing_japanese_ui(tmp_path: Path,
     assert "プライバシー" in output
     assert "Google OAuth" in output
     assert "not_configured" in output
-    assert "production backend" in output
+    assert "公式バックエンド" in output
     assert "local -> cloud" in output
     assert "OpenAI共有トラフィック" in output
     assert "実行履歴" in output
     assert "設定を変更しました: ライブ接続（外部/ローカル実行）=オン" in output
     assert "設定を変更しました: ネットワーク（外部通信）=オン" in output
-    assert "設定を変更しました: 更新通知（安定版/アルファ版確認）=オン" in output
+    assert "設定を変更しました: 更新通知（安定版/ベータ版確認）=オン" in output
     assert "提供元（AI接続元）=モック（テスト用）" in output
     assert "Network" not in output
     assert "Changed setting" not in output
@@ -760,6 +760,24 @@ def test_chat_accepts_readable_japanese_commands_and_values(tmp_path: Path, monk
     assert str(tmp_path) not in output
 
 
+def test_chat_script_reports_mojibake_hint_for_question_mark_slash_command(tmp_path: Path, monkeypatch, capsys) -> None:
+    from yonerai_cli import cli
+
+    _clear_provider_env(monkeypatch)
+    config_path = tmp_path / "cli-config.json"
+    monkeypatch.setattr(sys, "stdin", _PlainStringIO("/??\n/quit\n"))
+
+    assert cli.main(["chat", "--script", "--lang", "ja", "--config-path", str(config_path), "--color", "never"]) == 0
+    output = capsys.readouterr().out
+
+    assert "文字化けした可能性があります" in output
+    assert "/quit" in output
+    assert "/update beta" in output
+    assert "$OutputEncoding" in output
+    assert "不明なコマンドです" not in output
+    assert "Traceback" not in output
+
+
 def test_chat_numbered_settings_and_ledger_are_usable_in_japanese(tmp_path: Path, monkeypatch, capsys) -> None:
     from yonerai_cli import cli
 
@@ -781,7 +799,7 @@ def test_chat_numbered_settings_and_ledger_are_usable_in_japanese(tmp_path: Path
     assert "設定を変更しました: 履歴記録（ローカル履歴）=オン" in output
     assert "設定を変更しました: ライブ接続（外部/ローカル実行）=オフ" in output
     assert "設定を変更しました: ネットワーク（外部通信）=オフ" in output
-    assert "設定を変更しました: 更新通知（安定版/アルファ版確認）=オン" in output
+    assert "設定を変更しました: 更新通知（安定版/ベータ版確認）=オン" in output
     assert "YonerAI ミッションコントロール" in output
     assert "タスク" in output
     assert "実行履歴" in output
@@ -1714,6 +1732,8 @@ def test_slash_command_summary_is_japanese_first() -> None:
     assert "/ホーム" in summary
     assert "/モデル" in summary
     assert "/認証" in summary
+    assert "/レート" in summary
+    assert "/レート" in words
     assert "/同期" in summary
     assert "/プライバシー" in summary
     assert "/コマンド" in summary
@@ -1882,7 +1902,7 @@ def test_chat_models_and_update_commands_are_usable(tmp_path: Path, monkeypatch,
     assert "ローカルLLM（PC内モデル）" in output
     assert "設定を変更しました: モデル（AIモデル）=llama3.1" in output
     assert "更新確認" in output
-    assert "最新stable" in output
+    assert "最新安定版" in output
     assert "Quick install" in output
     assert "Verified install" in output
     assert "強制更新: なし" in output
@@ -1911,8 +1931,45 @@ def test_chat_update_command_without_manifest_shows_channel_choices(tmp_path: Pa
     assert "YonerAI 更新" in output
     assert "どちらを確認しますか" in output
     assert "yonerai update stable" in output
-    assert "yonerai update alpha" in output
+    assert "yonerai update beta" in output
     assert "ダウンロード" in output
+    assert str(tmp_path) not in output
+
+
+def test_chat_update_beta_and_apply_are_short_safe_defaults(tmp_path: Path, monkeypatch, capsys) -> None:
+    from yonerai_cli import cli
+
+    _clear_provider_env(monkeypatch)
+    config_path = tmp_path / "cli-config.json"
+    monkeypatch.setattr(sys, "stdin", _PlainStringIO("/更新 ベータ版\n/更新 適用 ベータ版\n/終了\n"))
+
+    assert cli.main(["chat", "--script", "--lang", "ja", "--config-path", str(config_path), "--color", "never"]) == 0
+    output = capsys.readouterr().out
+
+    assert "更新確認" in output
+    assert "チャンネル: ベータ版" in output
+    assert "更新適用" in output
+    assert "確認が必要: はい" in output
+    assert "/更新 適用 ベータ版 確認" in output
+    assert "自動適用なし" in output
+    assert "Traceback" not in output
+    assert str(tmp_path) not in output
+
+
+def test_chat_rate_limit_short_command_is_safe_without_staging_origin(tmp_path: Path, monkeypatch, capsys) -> None:
+    from yonerai_cli import cli
+
+    _clear_provider_env(monkeypatch)
+    monkeypatch.delenv("YONERAI_STAGING_AUTH_ORIGIN", raising=False)
+    monkeypatch.delenv("YONERAI_OFFICIAL_API_STAGING_ORIGIN", raising=False)
+    config_path = tmp_path / "cli-config.json"
+    monkeypatch.setattr(sys, "stdin", _PlainStringIO("/レート\n/終了\n"))
+
+    assert cli.main(["chat", "--script", "--lang", "ja", "--config-path", str(config_path), "--color", "never"]) == 0
+    output = capsys.readouterr().out
+
+    assert "公式API状態はこのビルドでは表示できません" in output
+    assert "Traceback" not in output
     assert str(tmp_path) not in output
 
 
@@ -1947,7 +2004,7 @@ def test_chat_update_command_accepts_spaced_manifest_path(tmp_path: Path, monkey
 
     output = capsys.readouterr().out
     assert "更新確認" in output
-    assert "最新stable" in output
+    assert "最新安定版" in output
     assert "no download" in output
     assert "Traceback" not in output
     assert str(tmp_path) not in output

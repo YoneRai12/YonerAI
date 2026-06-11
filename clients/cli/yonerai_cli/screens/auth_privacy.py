@@ -48,7 +48,7 @@ def _format_auth_status(config: dict[str, object], *, lang: str) -> str:
         (
             "Auth",
             f"  google_auth: {'configured' if report.get('configured') else 'not configured'}",
-            "  mode: staging contract only; production Google login is disabled",
+            "  mode: staging contract only; official Google login is disabled",
             f"  loopback_redirect_only: {bool(flow.get('loopback_redirect_only'))}",
             f"  pkce_required: {bool(flow.get('pkce_required'))}",
             f"  state_required: {bool(flow.get('state_required'))}",

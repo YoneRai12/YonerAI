@@ -61,7 +61,7 @@ def format_install_status_pretty(report: dict[str, Any], *, color: ColorMode = "
     signature = report["signature_status"]
     non_actions = report["non_actions"]
     rows = (
-        CliRow("channel", report["channel"], "ok"),
+        CliRow("channel", _display_channel(report.get("channel"), lang="en"), "ok"),
         CliRow("selected_version", report["selected_version"], "ok"),
         CliRow("install_script_source", source["install_script_source"], "ok"),
         CliRow("artifact_source", source["artifact_source"], "ok"),
@@ -91,6 +91,8 @@ def format_install_status_pretty(report: dict[str, Any], *, color: ColorMode = "
 def format_update_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -> str:
     if report.get("schema_version") == "yonerai-update-choice/v0.1":
         return format_update_choice_pretty(report)
+    if report.get("schema_version") == "yonerai-update-apply/v0.1":
+        return _format_update_apply_pretty(report, color=color)
     if report.get("schema_version") == "yonerai-update-check/v0.1":
         return format_update_check_pretty(report, color=color)
     manifest = report["manifest"]
@@ -108,7 +110,7 @@ def format_update_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -
                 CliRow("current_version", report["current_version"], "ok"),
                 CliRow("target_version", report["target_version"], "ok" if report["target_version"] else "fail"),
                 CliRow("latest_stable", report.get("latest_stable", "unknown"), "ok"),
-                CliRow("channel", report.get("channel") or "unknown", "ok" if report.get("channel") else "fail"),
+                CliRow("channel", _display_channel(report.get("channel"), lang="en"), "ok" if report.get("channel") else "fail"),
                 CliRow("update_available", report["update_available"], "warn" if report["update_available"] else "ok"),
                 CliRow("security_update", bool(report.get("security_update")), "warn" if report.get("security_update") else "ok"),
                 CliRow("critical_update", bool(report.get("critical_update")), "fail" if report.get("critical_update") else "ok"),
@@ -173,6 +175,55 @@ def format_update_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -
     return render_report("YonerAI update plan", sections, color=color)
 
 
+def _format_update_apply_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -> str:
+    artifact = report.get("artifact_status") if isinstance(report.get("artifact_status"), dict) else {}
+    signature = report.get("signature_status") if isinstance(report.get("signature_status"), dict) else {}
+    sections = (
+        CliSection(
+            "Manual update apply",
+            (
+                CliRow("ok", report.get("ok"), "ok" if report.get("ok") else "warn"),
+                CliRow("channel", _display_channel(report.get("channel"), lang="en"), "ok"),
+                CliRow("current_version", report.get("current_version"), "ok"),
+                CliRow("target_version", report.get("latest_manifest_version"), "ok"),
+                CliRow("update_available", report.get("update_available"), "warn" if report.get("update_available") else "ok"),
+                CliRow("confirmation_required", report.get("confirmation_required"), "warn" if report.get("confirmation_required") else "ok"),
+                CliRow("apply_state", report.get("apply_state", "not_started"), "ok" if report.get("ok") else "warn"),
+                CliRow("next_safe_command", report.get("next_safe_command"), "ok"),
+            ),
+        ),
+        CliSection(
+            "Artifact and trust",
+            (
+                CliRow("artifact", artifact.get("actual_filename") or artifact.get("selected_artifact") or "none", "ok"),
+                CliRow("sha256_present", artifact.get("sha256_present"), "ok" if artifact.get("sha256_present") else "fail"),
+                CliRow("signature_state", signature.get("state"), "warn" if signature.get("state") != "signed" else "ok"),
+                CliRow("signature_verified", signature.get("verified"), "warn" if not signature.get("verified") else "ok"),
+            ),
+        ),
+        CliSection(
+            "Execution boundary",
+            (
+                CliRow("manual_apply", report.get("manual_apply"), "ok"),
+                CliRow("forced_update_enabled", report.get("forced_update_enabled"), "fail" if report.get("forced_update_enabled") else "ok"),
+                CliRow("auto_update_apply_enabled", report.get("auto_update_apply_enabled"), "fail" if report.get("auto_update_apply_enabled") else "ok"),
+                CliRow("path_mutation", report.get("path_mutation"), "fail" if report.get("path_mutation") else "ok"),
+                CliRow("admin_required", report.get("admin_required"), "fail" if report.get("admin_required") else "ok"),
+                CliRow("service_installed", report.get("service_installed"), "fail" if report.get("service_installed") else "ok"),
+                CliRow("registry_modified", report.get("registry_modified"), "fail" if report.get("registry_modified") else "ok"),
+            ),
+        ),
+        CliSection(
+            "Next",
+            (
+                CliRow("message", report.get("message_en") or report.get("message_ja"), "ok" if report.get("ok") else "warn"),
+                CliRow("interactive_command", report.get("next_interactive_command"), "ok"),
+            ),
+        ),
+    )
+    return render_report("YonerAI update apply", sections, color=color)
+
+
 def format_update_choice_pretty(report: dict[str, Any]) -> str:
     choices = report.get("choices") if isinstance(report.get("choices"), list) else []
     lines = [
@@ -203,7 +254,7 @@ def format_update_choice_pretty(report: dict[str, Any]) -> str:
     lines.extend(
         [
             "",
-            f"  次: {_safe(report.get('next_step_ja') or 'yonerai update stable または yonerai update alpha')}",
+            f"  次: {_safe(report.get('next_step_ja') or 'yonerai update stable または yonerai update beta')}",
             "  ここではダウンロード、インストール、PATH変更、自動適用は行いません。",
             "  実際のインストール確認は表示された安全な次のコマンドで進めます。",
             "",
@@ -225,7 +276,7 @@ def format_update_check_pretty(report: dict[str, Any], *, color: ColorMode = "au
                 CliRow("current_version", report["current_version"], "ok"),
                 CliRow("latest_manifest_version", report["latest_manifest_version"], "ok"),
                 CliRow("latest_stable", report.get("latest_stable", "unknown"), "ok"),
-                CliRow("channel", report.get("channel") or "unknown", "ok" if report.get("channel") else "fail"),
+                CliRow("channel", _display_channel(report.get("channel"), lang="en"), "ok" if report.get("channel") else "fail"),
                 CliRow("update_available", report["update_available"], "warn" if report["update_available"] else "ok"),
                 CliRow("security_update", bool(report.get("security_update")), "warn" if report.get("security_update") else "ok"),
                 CliRow("critical_update", bool(report.get("critical_update")), "fail" if report.get("critical_update") else "ok"),
@@ -295,6 +346,19 @@ def _update_version_comparison_level(report: dict[str, Any]) -> str:
     return "ok" if report["ok"] else "warn"
 
 
+def _display_channel(channel: Any, *, lang: str) -> str:
+    value = str(channel or "").strip()
+    if lang == "ja":
+        if value == "stable":
+            return "安定版"
+        if value == "alpha":
+            return "ベータ版"
+        return _safe(value or "不明")
+    if value == "alpha":
+        return "beta"
+    return _safe(value or "unknown")
+
+
 def _format_update_check(report: dict[str, Any], *, lang: str) -> str:
     if report.get("schema_version") == "yonerai-update-choice/v0.1":
         return format_update_choice_pretty(report)
@@ -304,12 +368,28 @@ def _format_update_check(report: dict[str, Any], *, lang: str) -> str:
     actions = report.get("actions_not_performed") if isinstance(report.get("actions_not_performed"), list) else []
     warnings = report.get("warnings") if isinstance(report.get("warnings"), list) else []
     if lang == "ja":
+        if report.get("schema_version") == "yonerai-update-apply/v0.1":
+            lines = [
+                "更新適用",
+                f"  チャンネル: {_display_channel(report.get('channel'), lang='ja')}",
+                f"  現在のバージョン: {_safe(report.get('current_version') or '不明')}",
+                f"  対象バージョン: {_safe(report.get('latest_manifest_version') or '不明')}",
+                f"  更新あり: {_value_label(bool(report.get('update_available')), lang='ja')}",
+                f"  確認が必要: {_yes_no(bool(report.get('confirmation_required')), lang='ja')}",
+                f"  状態: {_safe(report.get('apply_state') or '未実行')}",
+                f"  次の安全なコマンド: {_safe(report.get('next_safe_command') or '')}",
+                f"  TUIで実行: {_safe(report.get('next_interactive_command') or '')}",
+                f"  説明: {_safe(report.get('message_ja') or '')}",
+                "  自動適用なし / 強制サイレント更新なし / PATH変更なし / 管理者要求なし",
+                "",
+            ]
+            return "\n".join(lines)
         lines = [
             "更新確認",
             f"  現在のバージョン: {_safe(report.get('current_version') or '不明')}",
             f"  manifest上のバージョン: {_safe(report.get('latest_manifest_version') or '不明')}",
-            f"  最新stable: {_safe(report.get('latest_stable') or '不明')}",
-            f"  チャンネル: {_safe(report.get('channel') or '不明')}",
+                f"  最新安定版: {_safe(report.get('latest_stable') or '不明')}",
+            f"  チャンネル: {_display_channel(report.get('channel'), lang='ja')}",
             f"  更新あり: {_value_label(bool(report.get('update_available')), lang='ja')}",
             f"  比較結果: {_safe(report.get('version_comparison') or '不明')}",
             f"  artifact: {_safe(artifact.get('actual_filename') or artifact.get('selected_artifact') or '未選択')}",
@@ -337,13 +417,30 @@ def _format_update_check(report: dict[str, Any], *, lang: str) -> str:
                 lines.append(f"    - {_safe(warning)}")
         lines.append("")
         return "\n".join(lines)
+    if report.get("schema_version") == "yonerai-update-apply/v0.1":
+        return "\n".join(
+            (
+                "Update apply",
+                f"  channel: {_display_channel(report.get('channel'), lang='en')}",
+                f"  current_version: {_safe(report.get('current_version') or 'unknown')}",
+                f"  target_version: {_safe(report.get('latest_manifest_version') or 'unknown')}",
+                f"  update_available: {bool(report.get('update_available'))}",
+                f"  confirmation_required: {bool(report.get('confirmation_required'))}",
+                f"  apply_state: {_safe(report.get('apply_state') or 'not_started')}",
+                f"  next_safe_command: {_safe(report.get('next_safe_command') or '')}",
+                f"  interactive_command: {_safe(report.get('next_interactive_command') or '')}",
+                f"  message: {_safe(report.get('message_en') or '')}",
+                "  no auto-apply / no forced silent update / no PATH mutation / no admin request",
+                "",
+            )
+        )
     return "\n".join(
         (
             "Update check",
             f"  current_version: {_safe(report.get('current_version') or 'unknown')}",
             f"  latest_manifest_version: {_safe(report.get('latest_manifest_version') or 'unknown')}",
             f"  latest_stable: {_safe(report.get('latest_stable') or 'unknown')}",
-            f"  channel: {_safe(report.get('channel') or 'unknown')}",
+            f"  channel: {_display_channel(report.get('channel'), lang='en')}",
             f"  update_available: {bool(report.get('update_available'))}",
             f"  version_comparison: {_safe(report.get('version_comparison') or 'unknown')}",
             f"  selected_artifact: {_safe(artifact.get('actual_filename') or artifact.get('selected_artifact') or 'none')}",

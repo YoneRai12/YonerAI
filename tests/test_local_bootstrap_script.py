@@ -39,6 +39,10 @@ def test_install_script_is_plan_first_verified_github_release_bootstrap() -> Non
     assert "Invoke-Expression" not in script
     assert "PATH mutation: disabled unless -SetPath" in script
     assert "[switch]$SetPath" in script
+    assert "[switch]$Shortcut" in script
+    assert "optional shortcuts: disabled unless -Shortcut" in script
+    assert "CreateShortcut" in script
+    assert "New-YonerAIShortcut" in script
     assert "SetEnvironmentVariable" in script
     assert re.search(r"\bsetx\b", script, flags=re.IGNORECASE) is None
 
@@ -173,6 +177,8 @@ def test_install_script_plan_mode_does_not_install_when_powershell_available() -
     assert "install.yonerai.com" in result.stdout
     assert "-Execute" in result.stdout
     assert "PATH mutation" in result.stdout
+    assert "-Shortcut" in result.stdout
+    assert "Optional shortcuts" in result.stdout
 
 
 def _powershell_executable() -> Path | None:

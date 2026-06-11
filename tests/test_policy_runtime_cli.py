@@ -298,6 +298,6 @@ def test_interactive_home_policy_line_uses_policy_callback(tmp_path: Path) -> No
     assert "ファイル=無効" in output
     assert "ツール=disabled" in output
     assert "任意shell=無効" in output
-    assert "本番Oracle=無効" in output
+    assert "公式Oracle=無効" in output
     assert "local->cloud自動同期=なし" in output
     assert str(tmp_path) not in output

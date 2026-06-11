@@ -8,6 +8,7 @@ from yonerai_cli.screens.update import format_install_pretty, format_update_pret
 from yonerai_cli.services.update_service import (
     UpdateServiceError,
     build_install_report,
+    build_update_apply_report,
     build_update_choice_report,
     build_update_report,
 )
@@ -89,15 +90,52 @@ def add_update_parser(
     update_stable.set_defaults(channel="stable")
 
     update_alpha = update_subcommands.add_parser(
-        "alpha",
-        aliases=["アルファ", "アルファ版", "最新アルファ"],
-        help="Check the latest alpha prerelease. Short form for update check --channel alpha.",
+        "beta",
+        aliases=[
+            "alpha",
+            "ベータ",
+            "ベータ版",
+            "アルファ",
+            "アルファ版",
+        ],
+        help="Check the beta build. Short form for the prerelease update channel.",
     )
     update_alpha_output = update_alpha.add_mutually_exclusive_group()
     update_alpha_output.add_argument("--json", action="store_true", default=argparse.SUPPRESS, help="Print stable machine-readable JSON.")
     update_alpha_output.add_argument("--pretty", action="store_true", default=argparse.SUPPRESS, help="Print a readable update check.")
     update_alpha.add_argument("--color", choices=color_choices, default="auto", help="Pretty output color mode. Default: auto.")
     update_alpha.set_defaults(channel="alpha")
+
+    update_apply = update_subcommands.add_parser(
+        "apply",
+        aliases=["適用"],
+        help="Apply a selected update only after explicit confirmation. No silent auto-update.",
+    )
+    update_apply.add_argument(
+        "channel",
+        choices=(
+            "stable",
+            "alpha",
+            "beta",
+            "安定版",
+            "ベータ",
+            "ベータ版",
+            "アルファ版",
+        ),
+        nargs="?",
+        default="stable",
+    )
+    update_apply.add_argument(
+        "--yes",
+        "--confirm",
+        action="store_true",
+        dest="confirmed",
+        help="Required to run the manual update apply action.",
+    )
+    update_apply_output = update_apply.add_mutually_exclusive_group()
+    update_apply_output.add_argument("--json", action="store_true", default=argparse.SUPPRESS, help="Print stable machine-readable JSON.")
+    update_apply_output.add_argument("--pretty", action="store_true", default=argparse.SUPPRESS, help="Print a readable update apply report.")
+    update_apply.add_argument("--color", choices=color_choices, default="auto", help="Pretty output color mode. Default: auto.")
 
 
 def handle_install_command(
@@ -128,6 +166,13 @@ def handle_update_command(
     try:
         if args.update_command is None:
             report = build_update_choice_report(repo_root=repo_root, current_version=current_version)
+        elif args.update_command in {"apply", "適用"}:
+            report = build_update_apply_report(
+                channel=_normalize_apply_channel(getattr(args, "channel", "stable")),
+                confirmed=bool(getattr(args, "confirmed", False)),
+                repo_root=repo_root,
+                current_version=current_version,
+            )
         else:
             args = _normalize_short_update_args(args)
             report = build_update_report(args, repo_root=repo_root, current_version=current_version)
@@ -141,10 +186,30 @@ def handle_update_command(
     return 0 if report["ok"] else 1
 
 
+def _normalize_apply_channel(value: str) -> str:
+    if value in {
+        "alpha",
+        "beta",
+        "ベータ",
+        "ベータ版",
+        "アルファ版",
+    }:
+        return "alpha"
+    return "stable"
+
+
 def _normalize_short_update_args(args: argparse.Namespace) -> argparse.Namespace:
     command = getattr(args, "update_command", None)
-    if command in {"stable", "release", "安定版", "リリース", "alpha", "アルファ", "アルファ版", "最新アルファ"}:
-        channel = "alpha" if command in {"alpha", "アルファ", "アルファ版", "最新アルファ"} else "stable"
+    alpha_aliases = {
+        "beta",
+        "alpha",
+        "ベータ",
+        "ベータ版",
+        "アルファ",
+        "アルファ版",
+    }
+    if command in {"stable", "release", "安定版", "リリース", *alpha_aliases}:
+        channel = "alpha" if command in alpha_aliases else "stable"
         return argparse.Namespace(
             **{
                 **vars(args),

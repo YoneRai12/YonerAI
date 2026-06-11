@@ -130,6 +130,7 @@ class InteractiveCallbacks:
     status_check: Callable[[str], dict[str, Any]] | None = None
     evolve_status: Callable[[str], dict[str, Any]] | None = None
     api_status: Callable[[str], dict[str, Any]] | None = None
+    rate_limit_status: Callable[[str], dict[str, Any]] | None = None
     sync_status: Callable[[str], dict[str, Any]] | None = None
     whoami: Callable[[str], dict[str, Any]] | None = None
     project_status: Callable[[str], dict[str, Any]] | None = None
@@ -138,6 +139,7 @@ class InteractiveCallbacks:
     memory_status: Callable[[str], dict[str, Any]] | None = None
     memory_action: Callable[[str, list[str], str, str | None], dict[str, Any]] | None = None
     policy_status: Callable[[dict[str, object]], dict[str, Any]] | None = None
+    update_apply: Callable[[str, bool, str], dict[str, Any]] | None = None
 
 
 @dataclass(frozen=True)
@@ -680,7 +682,7 @@ def _handle_slash_command(
     if command == "/login":
         _write(output_stream, format_staging_login_hint(lang=lang))
         return {}
-    if command in {"/api", "/project", "/sessions", "/audit"}:
+    if command in {"/api", "/project", "/sessions", "/audit", "/rate-limit"}:
         _write(output_stream, format_control_spine_callback(command, callbacks, lang=lang) or _format_api_unavailable(lang))
         return {}
     if command == "/privacy":
@@ -721,6 +723,28 @@ def _handle_slash_command(
     if command == "/update":
         if callbacks.update_check is None:
             _write(output_stream, _update_unavailable(lang))
+            return {}
+        if args and _canonical_value(args[0]) in {"apply", "適用"}:
+            if callbacks.update_apply is None:
+                _write(output_stream, _update_unavailable(lang))
+                return {}
+            channel = _update_channel_from_args(args[1:]) or "stable"
+            confirmed = _update_apply_confirmed(args[1:])
+            try:
+                report = callbacks.update_apply(channel, confirmed, lang)
+            except Exception as exc:
+                _write(output_stream, _format_update_error(exc, lang=lang))
+                return {}
+            _write(output_stream, _format_update_check(report, lang=lang))
+            return {}
+        channel = _update_channel_from_args(args)
+        if channel is not None:
+            try:
+                report = callbacks.update_check(channel, lang)
+            except Exception as exc:
+                _write(output_stream, _format_update_error(exc, lang=lang))
+                return {}
+            _write(output_stream, _format_update_check(report, lang=lang))
             return {}
         try:
             report = callbacks.update_check(_joined_arg_after_command(text, parts[0]), lang)
@@ -815,8 +839,67 @@ def _handle_slash_command(
             return {}
         result["update_notice_changed"] = True
         return result
-    _write(output_stream, _unknown(lang))
+    _write(output_stream, _unknown_with_encoding_hint(text, lang))
     return {}
+
+
+def _update_channel_from_args(args: list[str]) -> str | None:
+    for arg in args:
+        value = _canonical_value(arg)
+        if value in {"stable", "release", "安定版", "リリース"}:
+            return "stable"
+        if value in {
+            "alpha",
+            "beta",
+            "ベータ",
+            "ベータ版",
+            "アルファ",
+            "アルファ版",
+            "最新アルファ版",
+        }:
+            return "alpha"
+    return None
+
+
+def _unknown_with_encoding_hint(text: str, lang: str) -> str:
+    hint = _script_encoding_hint(text, lang)
+    return hint if hint is not None else _unknown(lang)
+
+
+def _script_encoding_hint(text: str, lang: str) -> str | None:
+    if not text.startswith("/"):
+        return None
+    body = text[1:].strip()
+    if not body:
+        return None
+    tokens = [token for token in body.split() if token]
+    if not tokens:
+        return None
+    question_only = sum(1 for token in tokens if set(token) <= {"?"})
+    if question_only == 0 or question_only < max(1, len(tokens) // 2):
+        return None
+    if lang == "ja":
+        return (
+            "コマンドが文字化けした可能性があります。Windows PowerShell のパイプ入力では"
+            " 日本語コマンドが `?` に化けることがあります。`/quit` や"
+            " `/update beta` など ASCII の別名を使うか、"
+            " `$OutputEncoding = [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)`"
+            " を設定してから再実行してください。\n"
+        )
+    return (
+        "This command may have been mojibake-corrupted by Windows PowerShell pipeline"
+        " encoding. Use ASCII aliases such as `/quit` or `/update beta`, or set"
+        " `$OutputEncoding = [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)`"
+        " before retrying.\n"
+    )
+
+
+def _update_apply_confirmed(args: list[str]) -> bool:
+    for arg in args:
+        value = _canonical_value(arg)
+        if value in {"confirm", "confirmed", "yes", "y", "true", "1", "確認", "はい", "実行"}:
+            return True
+    return False
 
 
 

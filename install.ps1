@@ -11,6 +11,7 @@ param(
     [switch]$CleanRetry,
     [switch]$SetPath,
     [switch]$NoPath,
+    [switch]$Shortcut,
     [string]$Manifest = "",
     [string]$Artifact = ""
 )
@@ -512,6 +513,43 @@ function Set-YonerAIUserPath {
     Write-Host "  open a new PowerShell window before typing: yonerai"
 }
 
+function New-YonerAIShortcut {
+    param([string]$YoneraiExe)
+    if (-not $Shortcut) {
+        return
+    }
+    if (-not (Test-Path -LiteralPath $YoneraiExe -PathType Leaf)) {
+        throw "Installed yonerai.exe was not found after local bootstrap."
+    }
+    $shellPath = Get-CurrentPowerShellPath
+    $escapedExe = $YoneraiExe.Replace("'", "''")
+    $arguments = "-NoProfile -ExecutionPolicy Bypass -NoExit -Command `"& '$escapedExe'`""
+    $wsh = New-Object -ComObject WScript.Shell
+    $targets = @()
+    $desktop = [Environment]::GetFolderPath("Desktop")
+    if (-not [string]::IsNullOrWhiteSpace($desktop)) {
+        $targets += (Join-Path $desktop "YonerAI.lnk")
+    }
+    $programs = [Environment]::GetFolderPath("Programs")
+    if (-not [string]::IsNullOrWhiteSpace($programs)) {
+        $folder = Join-Path $programs "YonerAI"
+        if (-not (Test-Path -LiteralPath $folder -PathType Container)) {
+            New-Item -ItemType Directory -Path $folder | Out-Null
+        }
+        $targets += (Join-Path $folder "YonerAI.lnk")
+    }
+    foreach ($target in $targets) {
+        $shortcutFile = $wsh.CreateShortcut($target)
+        $shortcutFile.TargetPath = $shellPath
+        $shortcutFile.Arguments = $arguments
+        $shortcutFile.WorkingDirectory = [Environment]::GetFolderPath("UserProfile")
+        $shortcutFile.IconLocation = "$shellPath,0"
+        $shortcutFile.Description = "Start YonerAI CLI"
+        $shortcutFile.Save()
+    }
+    Write-Host "  shortcuts installed: Start Menu and Desktop when available"
+}
+
 function Start-YonerAI {
     param([string]$YoneraiExe)
     if (-not $Launch) {
@@ -536,6 +574,7 @@ Write-Host "  PATH mutation: disabled unless -SetPath"
 Write-Host "  not performed unless -Execute: release lookup, download, extraction, pip install, launch"
 Write-Host "  never performed: service install, admin request, provider key storage"
 Write-Host "  optional user PATH wrapper: disabled unless -SetPath"
+Write-Host "  optional shortcuts: disabled unless -Shortcut"
 
 if (-not [string]::IsNullOrWhiteSpace($Manifest) -or -not [string]::IsNullOrWhiteSpace($Artifact)) {
     Stop-YonerAI "Custom manifest/artifact inputs are not accepted by install.ps1. Use GitHub Release assets for install, or use 'yonerai install plan' for local dry-run planning."
@@ -552,6 +591,8 @@ if (-not $Execute) {
     Write-Host "  & ([scriptblock]::Create((irm $GitHubLatestInstallScript))) -Channel alpha -Execute -Launch"
     Write-Host "Optional PATH wrapper:"
     Write-Host "  add -SetPath if you want a user PATH wrapper for future PowerShell windows"
+    Write-Host "Optional shortcuts:"
+    Write-Host "  add -Shortcut if you want Start Menu and Desktop shortcuts"
     Show-YonerAICommandDiagnostic -ExpectedInstall "" -ExpectedWrapperDisplay "$(Get-DisplayBinDir)\yonerai.cmd"
     exit 0
 }
@@ -600,6 +641,7 @@ try {
     Invoke-VerifiedLocalBootstrap -InstallLocalPath ([string]$expanded.InstallLocalPath)
     $yoneraiExe = Join-Path ([string]$expanded.SourceRoot) ".venv\Scripts\yonerai.exe"
     Set-YonerAIUserPath -YoneraiExe $yoneraiExe
+    New-YonerAIShortcut -YoneraiExe $yoneraiExe
     Show-YonerAICommandDiagnostic -ExpectedInstall $targetDir -ExpectedWrapperDisplay "$(Get-DisplayBinDir)\yonerai.cmd"
     Start-YonerAI -YoneraiExe $yoneraiExe
 }

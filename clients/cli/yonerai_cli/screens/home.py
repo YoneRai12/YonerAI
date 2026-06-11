@@ -31,7 +31,7 @@ def build_home_policy_line(report: dict[str, Any] | None, *, lang: str) -> str:
         live = "外部live=" + ("オン" if provider.get("live_external_provider_enabled") else "オフ")
         shell = "任意shell=" + ("有効" if permission.get("arbitrary_shell_execution") else "無効")
         cloud = "公式cloud=" + ("有効" if runtime.get("official_cloud_runtime_in_public_repo") else "無効")
-        oracle = "本番Oracle=" + ("有効" if runtime.get("production_oracle_in_public_repo") else "無効")
+        oracle = "公式Oracle=" + ("有効" if runtime.get("production_oracle_in_public_repo") else "無効")
         update_state = "自動更新=" + ("有効" if update.get("auto_apply_enabled") else "なし")
         memory_state = "local->cloud自動同期=" + ("有効" if memory.get("local_private_auto_upload") else "なし")
         return " / ".join((source, live, shell, cloud, oracle, update_state, memory_state))
@@ -106,7 +106,7 @@ def _welcome(
                 f"  履歴: {ledger}（秘匿済みローカル履歴）",
                 f"  安全: {safety_line}",
                 f"  ライブ接続: {'オン（明示許可）' if live else 'オフ（初期値）'} / 設定={'既存' if config_exists else '初期値'}",
-                f"  更新通知: {update_notice}（安定版/アルファ版の確認のみ）",
+                f"  更新通知: {update_notice}（安定版/ベータ版の確認のみ）",
                 f"  ポリシー: {policy_line}",
                 "  認証/同期/プライバシー: Google OAuthドライランのみ / local->cloud自動同期なし / 共有トラフィックオフ",
                 "  自己進化: proposal-only / 合成signalだけ / 自動PR・deployなし",

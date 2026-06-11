@@ -2,6 +2,29 @@
 
 This page is a public-safe index of current release notes and progress checkpoints.
 
+## v0.8.0 Normal Talkable CLI
+
+- GitHub release target: `v0.8.0`.
+- Release title: `2026.06.12 - YonerAI CLI Local Runtime v0.8.0`.
+- Release date: `2026-06-12`.
+- Public release body: `docs/releases/0.8.0.md`.
+- Status: stable CLI Local Runtime after `v0.7.0`; latest prerelease carry-in
+  before promotion was `v0.21.0-alpha.2`.
+- What users can try now:
+  `irm https://install.yonerai.com | iex`, `yonerai`, `yonerai chat`,
+  `yonerai update`, `yonerai update stable`, `yonerai update beta`,
+  `yonerai login`, `yonerai whoami`, `yonerai sessions`, `yonerai projects`,
+  `yonerai ping`, `yonerai rate-limit`, and TUI `/設定`, `/更新`, `/ログイン`,
+  `/認証`, `/セッション`, `/プロジェクト`, `/API`, `/レート`, `/同期`, `/記憶`,
+  `/ヘルプ`, `/終了`.
+- Boundary: stable for the local CLI runtime slice only; no production Google
+  login, no Google token/refresh storage, no provider keys, no OpenAI shared
+  traffic, no production Oracle/cloud runtime, no live Discord, no arbitrary
+  shell/file/tool execution, no automatic local-to-cloud upload, and no
+  production signing/trust store.
+- Primary traceability range: `v0.7.0..v0.8.0`; every merged PR in that range
+  is listed in `docs/releases/0.8.0.md`.
+
 ## v0.20.0-alpha.1 Web CLI API Control Spine
 
 - GitHub pre-release target: `v0.20.0-alpha.1`.

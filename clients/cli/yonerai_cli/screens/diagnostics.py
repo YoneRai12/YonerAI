@@ -133,7 +133,7 @@ def _status_api_section(report: dict[str, Any]) -> CliSection | None:
             CliRow("status", status_api.get("status"), "warn"),
             CliRow("component_count", status_api.get("component_count"), "ok"),
             CliRow("latest_stable", releases.get("latest_stable"), "ok"),
-            CliRow("latest_alpha", releases.get("latest_alpha"), "ok"),
+            CliRow("latest_beta", releases.get("latest_alpha"), "ok"),
             CliRow(
                 "production_backend_included",
                 status_api.get("production_backend_included"),
@@ -299,7 +299,7 @@ def _install_update_rows(report: dict[str, Any], *, lang: str = "en") -> tuple[C
         return (CliRow("status", unavailable, "warn"),)
     if lang == "ja":
         return (
-            CliRow("最新stable", install_update.get("latest_stable", "unknown"), "ok"),
+            CliRow("最新安定版", install_update.get("latest_stable", "unknown"), "ok"),
             CliRow("Quick install", install_update.get("quick_install_command", "unavailable"), "ok"),
             CliRow("Verified install", install_update.get("verified_install_page", "unavailable"), "ok"),
             CliRow(

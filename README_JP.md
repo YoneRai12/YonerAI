@@ -28,9 +28,9 @@ YonerAI は単なる Discord bot でも、単なる model router でもありま
 ## Install and start YonerAI
 
 これは YonerAI CLI Local Runtime のインストール手順です。full YonerAI cloud
-production ではありません。最新 stable は `v0.7.0` です。stable channel が既定で、
-alpha を試す場合だけ `-Channel alpha` を明示します。install 後は `yonerai` だけで
-対話 CLI が起動します。
+production ではありません。最新安定版は `v0.8.0` です。安定版が既定で、
+ベータ版は明示的に選ぶ導線だけにしています。install 後は `yonerai` だけで
+対話 CLI が起動し、普通の文章を入力すると安全なローカル既定で返答します。
 
 ### Quick install
 
@@ -82,20 +82,14 @@ try {
 }
 ```
 
-alpha channel を明示して試す場合:
-
-```powershell
-iex "& { $(irm https://github.com/YoneRai12/YonerAI/releases/latest/download/install.ps1) } -Channel alpha -Execute -Launch"
-```
-
 ### GitHub Release の ZIP を解凍したあと
 
-GitHub Release の `YonerAI-0.6.3.zip` をダウンロードして ZIP を展開したら、
+GitHub Release の `YonerAI-0.8.0.zip` をダウンロードして ZIP を展開したら、
 PowerShell で展開後のフォルダへ移動してから以下を実行します。フォルダ名は環境に
 よって違うので、`cd` は実際の展開先に合わせてください。
 
 ```powershell
-cd "$HOME\Downloads\YonerAI-0.6.3"
+cd "$HOME\Downloads\YonerAI-0.8.0"
 python --version
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
@@ -190,7 +184,7 @@ pipe入力では従来の1行入力に戻ります。
 /認証       Google認証のドライラン状態
 /同期       cloud/local同期境界
 /プライバシー 共有と秘匿境界
-/更新       安定版/アルファ版の更新確認
+/更新       安定版/ベータ版の更新確認
 /更新通知   起動時の更新案内設定
 /終了       終了
 ```
@@ -202,7 +196,7 @@ yonerai
 yonerai chat
 yonerai update
 yonerai update stable
-yonerai update alpha
+yonerai update beta
 yonerai auth status --pretty --lang ja
 yonerai sync status --pretty --lang ja
 yonerai sync preview --direction cloud-to-local --json
@@ -212,8 +206,8 @@ yonerai config set model llama3.1 --pretty --lang ja
 yonerai providers --pretty --lang ja
 ```
 
-`yonerai update` はまず安定版とアルファ版の選択肢を表示します。
-`yonerai update stable` と `yonerai update alpha` はローカルの `VERSION` と
+`yonerai update` はまず安定版とベータ版の選択肢を表示します。
+`yonerai update stable` と `yonerai update beta` はローカルの `VERSION` と
 ローカルmanifestだけを読みます。download、install、PATH変更、remote code実行、
 forced update、auto-apply、admin要求は行いません。
 
@@ -236,10 +230,10 @@ yonerai demo --pretty
 yonerai demo --json
 yonerai doctor --pretty --lang ja
 yonerai status --pretty --lang ja
-yonerai manifest verify manifest.v0.7.0.json --pretty --lang ja
-yonerai install plan --manifest manifest.v0.7.0.json --pretty
-yonerai update check --manifest manifest.v0.7.0.json --pretty
-yonerai update plan --manifest manifest.v0.7.0.json --pretty
+yonerai manifest verify releases/manifest.v0.8.0.json --pretty --lang ja
+yonerai install plan --manifest releases/manifest.v0.8.0.json --pretty
+yonerai update check --manifest releases/manifest.v0.8.0.json --pretty
+yonerai update plan --manifest releases/manifest.v0.8.0.json --pretty
 ```
 
 `yonerai quickstart` は `yonerai demo` の alias です。
@@ -263,7 +257,7 @@ fallbackできる安全な対話 shell です。文章を入力すると `ask --
 /認証                 Google OAuth のドライラン状態を見る。本番ログインはしません
 /同期                 cloudからlocalへの選択同期とlocalからcloudへの明示承認境界を見る
 /プライバシー         OpenAI共有トラフィックと非公開/ローカル内容の共有境界を見る
-/更新                 安定版/アルファ版の更新確認を選ぶ
+/更新                 安定版/ベータ版の更新確認を選ぶ
 /更新通知 オン|オフ   起動時の更新案内設定を変更
 /言語 日本語|英語     表示言語を変更
 /提供元選択 自動|モック|ローカル|オープンAI互換|アンソロピック|ジェミニ
@@ -311,7 +305,7 @@ yonerai runs list --ledger .yonerai-runs.jsonl --json
 - `yonerai config show/set` は、secretを保存せず、local preferenceだけを
   扱います。
 - `yonerai start --guided --lang ja` は、mock provider で安全に試す手順、local LLM の状態、ワークスペース内ファイルアクセス制御の例、ledger の例、現在の制限を表示します。
-- `yonerai demo --pretty` は、現在の alpha slice を credential なしで表示します。
+- `yonerai demo --pretty` は、現在の公開安全なローカルsliceを credential なしで表示します。
 - `yonerai doctor --pretty --lang ja` は、ローカル setup、manifest、provider setup、安全境界を確認します。
 - `yonerai start --guided --lang ja` は、Ollama / LM Studio 風の local LLM endpoint を loopback の metadata 確認だけで検出します。
 - mock `ask` は public-safe な `run_id` を返します。
