@@ -43,6 +43,7 @@ from yonerai_cli.services.core_api_service import (
     safe_http_error as _safe_http_error,
 )
 from yonerai_cli.services import interactive_service
+from yonerai_cli.services import control_spine_callbacks
 from yonerai_cli.services.interactive_service import InteractiveServiceError
 
 
@@ -131,6 +132,10 @@ def _interactive_callbacks():
         status_check=_interactive_status_check,
         api_status=_interactive_api_status,
         sync_status=_interactive_sync_status,
+        whoami=control_spine_callbacks.interactive_whoami,
+        project_status=control_spine_callbacks.interactive_project_status,
+        session_status=control_spine_callbacks.interactive_session_status,
+        audit_status=control_spine_callbacks.interactive_audit_status,
         evolve_status=_interactive_evolve_status,
         memory_status=_interactive_memory_status,
         memory_action=_interactive_memory_action,
@@ -196,6 +201,9 @@ def _interactive_status_check(_lang: str) -> dict[str, Any]:
 
 
 def _interactive_api_status(_lang: str) -> dict[str, Any]:
+    control_spine_report = control_spine_callbacks.interactive_api_status(_lang)
+    if control_spine_report is not None:
+        return control_spine_report
     try:
         return interactive_service.build_interactive_api_status(
             prepare_import_paths=_prepare_trusted_cli_import_paths,

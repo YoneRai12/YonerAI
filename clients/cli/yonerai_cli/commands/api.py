@@ -2,9 +2,18 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
+import os
 from typing import Any, Callable
 
 from yonerai_cli.output import CliRow, CliSection, ColorMode, render_report
+from yonerai_cli.screens.control_spine import format_control_spine_pretty
+from yonerai_cli.services.control_spine_service import (
+    CONTROL_SPINE_SCHEMA_VERSION,
+    build_control_spine_ping_report,
+    build_control_spine_rate_limit_report,
+    build_control_spine_status_report,
+    load_config_for_control_spine,
+)
 
 
 class ApiCommandError(Exception):
@@ -29,10 +38,10 @@ def add_api_parser(
     lang_choices: tuple[str, ...],
     color_choices: tuple[str, ...],
 ) -> None:
-    api = subcommands.add_parser("api", help="Inspect official API contracts without contacting production cloud.")
+    api = subcommands.add_parser("api", help="Inspect official API contracts and explicit staging API state.")
     api_subcommands = api.add_subparsers(dest="api_command", required=True)
 
-    status = api_subcommands.add_parser("status", help="Show official API readiness and fixture-only boundaries.")
+    status = api_subcommands.add_parser("status", help="Show official API readiness or staging Control Spine status.")
     status.add_argument("--auth-state", choices=SYNC_AUTH_STATE_CHOICES, default="dry_run")
     status.add_argument(
         "--status-source",
@@ -44,13 +53,19 @@ def add_api_parser(
         help="Explicitly allow fetching an allowlisted HTTPS status URL. Disabled by default.",
     )
     status.add_argument("--status-profile", choices=STATUS_PROFILE_CHOICES, default="operational")
+    _add_staging_options(status)
     _add_output_and_locale(status, lang_choices=lang_choices, color_choices=color_choices, pretty_help="Print readable official API status.")
 
     contract = api_subcommands.add_parser("contract", help="Show the official API fixture contract.")
     _add_output_and_locale(contract, lang_choices=lang_choices, color_choices=color_choices, pretty_help="Print readable official API contract.")
 
-    rate_limit = api_subcommands.add_parser("rate-limit", help="Show official API rate-limit policy contract.")
+    rate_limit = api_subcommands.add_parser("rate-limit", help="Show rate-limit policy or explicit staging rate-limit state.")
+    _add_staging_options(rate_limit)
     _add_output_and_locale(rate_limit, lang_choices=lang_choices, color_choices=color_choices, pretty_help="Print readable official API rate-limit policy.")
+
+    ping = api_subcommands.add_parser("ping", help="Ping the explicit staging Control Spine API when configured.")
+    _add_staging_options(ping)
+    _add_output_and_locale(ping, lang_choices=lang_choices, color_choices=color_choices, pretty_help="Print readable staging API ping.")
 
 
 def handle_api_command(
@@ -68,6 +83,28 @@ def handle_api_command(
 
 
 def build_api_report(args: argparse.Namespace, *, prepare_import_paths: Callable[[], None]) -> dict[str, Any]:
+    if args.api_command == "ping":
+        return build_control_spine_ping_report(
+            config=load_config_for_control_spine(getattr(args, "config_path", None)),
+            env=os.environ,
+            claim_path=getattr(args, "config_path", None),
+            timeout_seconds=float(getattr(args, "timeout_seconds", 10.0)),
+        )
+    if args.api_command == "status" and _staging_origin_configured():
+        return build_control_spine_status_report(
+            config=load_config_for_control_spine(getattr(args, "config_path", None)),
+            env=os.environ,
+            claim_path=getattr(args, "config_path", None),
+            timeout_seconds=float(getattr(args, "timeout_seconds", 10.0)),
+        )
+    if args.api_command == "rate-limit" and _staging_origin_configured():
+        return build_control_spine_rate_limit_report(
+            config=load_config_for_control_spine(getattr(args, "config_path", None)),
+            env=os.environ,
+            claim_path=getattr(args, "config_path", None),
+            timeout_seconds=float(getattr(args, "timeout_seconds", 10.0)),
+        )
+
     prepare_import_paths()
     importlib.invalidate_caches()
     official_available = (
@@ -102,6 +139,9 @@ def build_api_report(args: argparse.Namespace, *, prepare_import_paths: Callable
 
 
 def format_api_pretty(report: dict[str, Any], *, lang: str = "ja", color: ColorMode = "auto") -> str:
+    if report.get("schema_version") == CONTROL_SPINE_SCHEMA_VERSION:
+        return format_control_spine_pretty(report, lang=lang, color=color)
+
     title = "YonerAI Official API" if lang != "ja" else "YonerAI 公式API"
     rows = [
         CliRow("schema_version", report.get("schema_version"), "ok"),
@@ -141,6 +181,16 @@ def format_api_pretty(report: dict[str, Any], *, lang: str = "ja", color: ColorM
     return render_report(title, tuple(sections), color=color)
 
 
+def _add_staging_options(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--config-path", help="Optional local CLI config path.")
+    parser.add_argument(
+        "--timeout-seconds",
+        type=float,
+        default=10.0,
+        help="Network timeout for explicit staging API calls. Default: 10.",
+    )
+
+
 def _add_output_and_locale(
     parser: argparse.ArgumentParser,
     *,
@@ -153,3 +203,7 @@ def _add_output_and_locale(
     output.add_argument("--pretty", action="store_true", help=pretty_help)
     parser.add_argument("--lang", choices=lang_choices, default="ja", help="Pretty output language. Default: ja.")
     parser.add_argument("--color", choices=color_choices, default="auto", help="Pretty output color mode. Default: auto.")
+
+
+def _staging_origin_configured() -> bool:
+    return bool(os.environ.get("YONERAI_STAGING_AUTH_ORIGIN") or os.environ.get("YONERAI_OFFICIAL_API_STAGING_ORIGIN"))

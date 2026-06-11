@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
@@ -173,7 +174,7 @@ def build_interactive_api_status(*, prepare_import_paths: Callable[[], None]) ->
 def build_interactive_sync_status(*, prepare_import_paths: Callable[[], None]) -> dict[str, Any]:
     from yonerai_cli.services.staging_sync_service import build_staging_sync_status
 
-    return build_staging_sync_status(config={})
+    return build_staging_sync_status(config={}, env=os.environ)
 
 
 def build_interactive_evolve_status(*, prepare_import_paths: Callable[[], None]) -> dict[str, Any]:

@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 
 from yonerai_cli.commands.api import STATUS_PROFILE_CHOICES, add_api_parser
+from yonerai_cli.commands.audit import add_audit_parser
 from yonerai_cli.commands.ask import add_ask_parser, add_plan_parser
 from yonerai_cli.commands.auth import add_auth_parser, add_privacy_parser
 from yonerai_cli.commands.config import add_config_parser
@@ -15,6 +16,7 @@ from yonerai_cli.commands.node import add_node_parser, add_relay_parser
 from yonerai_cli.commands.ops import add_ops_parser
 from yonerai_cli.commands.oracle import add_oracle_parser
 from yonerai_cli.commands.policy import add_policy_parser
+from yonerai_cli.commands.project import add_project_parser
 from yonerai_cli.commands.providers import add_providers_parser
 from yonerai_cli.commands.route import add_route_parser
 from yonerai_cli.commands.runs import add_runs_parser
@@ -55,6 +57,30 @@ def build_parser() -> argparse.ArgumentParser:
     )
     subcommands = parser.add_subparsers(dest="command", required=False)
 
+    login = subcommands.add_parser("login", help="Start staging Google login for the public CLI. Production login is disabled.")
+    login.add_argument("--staging", action="store_true", default=True, help="Use staging login. This is the only supported mode.")
+    login.add_argument("--bridge", action="store_true", help="Call the staging CLI auth bridge start endpoint.")
+    login.add_argument("--open-browser", action="store_true", help="Open the staging Google auth URL after bridge start.")
+    login.add_argument("--wait-linked", action="store_true", help="Poll until the staging CLI bridge links or times out.")
+    login.add_argument("--timeout-seconds", type=float, default=10.0, help="Network timeout. Default: 10.")
+    login.add_argument("--max-wait-seconds", type=float, default=120.0, help="Maximum wait for --wait-linked. Default: 120.")
+    login.add_argument("--poll-interval-seconds", type=float, default=2.0, help="Polling interval. Default: 2.")
+    login.add_argument("--config-path", help="Optional local CLI config path.")
+    login_output = login.add_mutually_exclusive_group()
+    login_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
+    login_output.add_argument("--pretty", action="store_true", help="Print a readable staging login report.")
+    login.add_argument("--lang", choices=LANG_CHOICES, default="ja", help="Pretty output language. Default: ja.")
+    login.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
+
+    whoami = subcommands.add_parser("whoami", help="Show the linked staging account without exposing tokens.")
+    whoami.add_argument("--config-path", help="Optional local CLI config path.")
+    whoami.add_argument("--timeout-seconds", type=float, default=10.0, help="Network timeout. Default: 10.")
+    whoami_output = whoami.add_mutually_exclusive_group()
+    whoami_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
+    whoami_output.add_argument("--pretty", action="store_true", help="Print a readable account report.")
+    whoami.add_argument("--lang", choices=LANG_CHOICES, default="ja", help="Pretty output language. Default: ja.")
+    whoami.add_argument("--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto.")
+
     chat = subcommands.add_parser(
         "chat", aliases=["interactive"], help="Start the Japanese-first interactive YonerAI terminal."
     )
@@ -79,6 +105,8 @@ def build_parser() -> argparse.ArgumentParser:
     add_auth_parser(subcommands, lang_choices=LANG_CHOICES, color_choices=COLOR_CHOICES)
     add_privacy_parser(subcommands, lang_choices=LANG_CHOICES, color_choices=COLOR_CHOICES)
     add_api_parser(subcommands, lang_choices=LANG_CHOICES, color_choices=COLOR_CHOICES)
+    add_project_parser(subcommands, lang_choices=LANG_CHOICES, color_choices=COLOR_CHOICES)
+    add_audit_parser(subcommands, lang_choices=LANG_CHOICES, color_choices=COLOR_CHOICES)
     add_sync_parser(subcommands, lang_choices=LANG_CHOICES, color_choices=COLOR_CHOICES)
     add_evolve_parser(subcommands, lang_choices=LANG_CHOICES, color_choices=COLOR_CHOICES)
 

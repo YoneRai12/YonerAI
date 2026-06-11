@@ -13,7 +13,13 @@ from yonerai_cli.auth_policy import (
 )
 from yonerai_cli.config import ConfigError, load_cli_config
 from yonerai_cli.output import CliRow, CliSection, ColorMode, render_report
+from yonerai_cli.screens.control_spine import format_control_spine_pretty
 from yonerai_cli.services.auth_session_service import save_staging_auth_claim
+from yonerai_cli.services.control_spine_service import (
+    build_session_report,
+    build_whoami_report,
+    load_config_for_control_spine,
+)
 from yonerai_cli.services.staging_session_service import (
     build_staging_session_status,
     clear_staging_session,
@@ -66,6 +72,13 @@ def add_auth_parser(
     auth_logout_output.add_argument("--pretty", action="store_true", help="Print a readable logout result.")
     auth_logout.add_argument("--lang", choices=lang_choices, default="ja", help="Pretty output language. Default: ja.")
     auth_logout.add_argument("--color", choices=color_choices, default="auto", help="Pretty output color mode. Default: auto.")
+
+    auth_sessions = auth_subcommands.add_parser("sessions", help="List staging CLI sessions if the backend supports it.")
+    _add_control_spine_output(auth_sessions, lang_choices=lang_choices, color_choices=color_choices)
+
+    auth_revoke = auth_subcommands.add_parser("revoke-session", help="Revoke a staging CLI session if the backend supports it.")
+    auth_revoke.add_argument("session_id", help="Session id returned by `yonerai auth sessions`.")
+    _add_control_spine_output(auth_revoke, lang_choices=lang_choices, color_choices=color_choices)
 
     auth_google = auth_subcommands.add_parser("google", help="Preview Google OAuth installed-app flow contracts.")
     auth_google_subcommands = auth_google.add_subparsers(dest="auth_google_command", required=True)
@@ -146,6 +159,21 @@ def add_privacy_parser(
     )
 
 
+def _add_control_spine_output(
+    parser: argparse.ArgumentParser,
+    *,
+    lang_choices: tuple[str, ...],
+    color_choices: tuple[str, ...],
+) -> None:
+    parser.add_argument("--config-path", help="Optional local CLI config path.")
+    parser.add_argument("--timeout-seconds", type=float, default=10.0, help="Network timeout. Default: 10.")
+    output = parser.add_mutually_exclusive_group()
+    output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
+    output.add_argument("--pretty", action="store_true", help="Print a readable staging session report.")
+    parser.add_argument("--lang", choices=lang_choices, default="ja", help="Pretty output language. Default: ja.")
+    parser.add_argument("--color", choices=color_choices, default="auto", help="Pretty output color mode. Default: auto.")
+
+
 def handle_auth_command(args: argparse.Namespace, *, print_json: Callable[[dict[str, Any]], None]) -> int:
     if args.auth_command == "status":
         report = build_google_auth_status(_load_config(args), claim_path=getattr(args, "config_path", None))
@@ -158,6 +186,25 @@ def handle_auth_command(args: argparse.Namespace, *, print_json: Callable[[dict[
             raise AuthCommandError("auth logout requires --staging in the public repo.")
         report = clear_staging_session(getattr(args, "config_path", None))
         formatter = format_session_pretty
+    elif args.auth_command == "sessions":
+        report = build_session_report(
+            "list",
+            config=load_config_for_control_spine(getattr(args, "config_path", None)),
+            env=os.environ,
+            claim_path=getattr(args, "config_path", None),
+            timeout_seconds=float(getattr(args, "timeout_seconds", 10.0)),
+        )
+        formatter = format_control_spine_pretty
+    elif args.auth_command == "revoke-session":
+        report = build_session_report(
+            "revoke",
+            session_id=getattr(args, "session_id", None),
+            config=load_config_for_control_spine(getattr(args, "config_path", None)),
+            env=os.environ,
+            claim_path=getattr(args, "config_path", None),
+            timeout_seconds=float(getattr(args, "timeout_seconds", 10.0)),
+        )
+        formatter = format_control_spine_pretty
     elif args.auth_command == "google" and args.auth_google_command == "login":
         if args.staging:
             if args.open_browser and not args.bridge:
@@ -258,6 +305,48 @@ def _persist_staging_claim_if_linked(report: dict[str, Any], *, config_path: str
     report["staging_linked_claim"] = saved
     report["staging_claim_saved"] = True
     report["staging_session_token_stored"] = False
+
+
+def handle_login_alias_command(args: argparse.Namespace, *, print_json: Callable[[dict[str, Any]], None]) -> int:
+    if not getattr(args, "staging", True):
+        raise AuthCommandError("public CLI login is staging-only in this build.")
+    if getattr(args, "open_browser", False) and not getattr(args, "bridge", False):
+        raise AuthCommandError("--open-browser requires --bridge.")
+    if getattr(args, "wait_linked", False) and not getattr(args, "bridge", False):
+        raise AuthCommandError("--wait-linked requires --bridge.")
+    report = build_google_login_staging(
+        _load_config(args),
+        bridge=bool(getattr(args, "bridge", False)),
+        timeout_seconds=float(getattr(args, "timeout_seconds", 10.0)),
+        open_browser=bool(getattr(args, "open_browser", False)),
+        wait_linked=bool(getattr(args, "wait_linked", False)),
+        max_wait_seconds=float(getattr(args, "max_wait_seconds", 120.0)),
+        poll_interval_seconds=float(getattr(args, "poll_interval_seconds", 2.0)),
+        session_claim_handler=_staging_session_handler(
+            getattr(args, "config_path", None),
+            origin=_configured_staging_origin(),
+        ),
+    )
+    _persist_staging_claim_if_linked(report, config_path=getattr(args, "config_path", None))
+    if args.json:
+        print_json(report)
+    else:
+        print(format_auth_pretty(report, lang=args.lang, color=args.color))
+    return 0 if report["ok"] else 1
+
+
+def handle_whoami_command(args: argparse.Namespace, *, print_json: Callable[[dict[str, Any]], None]) -> int:
+    report = build_whoami_report(
+        config=load_config_for_control_spine(getattr(args, "config_path", None)),
+        env=os.environ,
+        claim_path=getattr(args, "config_path", None),
+        timeout_seconds=float(getattr(args, "timeout_seconds", 10.0)),
+    )
+    if args.json:
+        print_json(report)
+    else:
+        print(format_control_spine_pretty(report, lang=args.lang, color=args.color))
+    return 0 if report.get("ok", True) else 1
 
 
 def handle_privacy_command(args: argparse.Namespace, *, print_json: Callable[[dict[str, Any]], None]) -> int:
