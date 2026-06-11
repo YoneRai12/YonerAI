@@ -1,4 +1,4 @@
-# YonerAI Cloudflare install wrapper
+﻿# YonerAI Cloudflare install wrapper
 
 This Worker is the short one-command installer wrapper for:
 

@@ -315,7 +315,7 @@ def dispatch_command(args: argparse.Namespace, hooks: CliRuntimeHooks) -> int:
             return handle_install_command(args, print_json=hooks.print_json, repo_root=hooks.repo_root())
         except InstallUpdateCommandError as exc:
             raise CliDispatchError(str(exc), exit_code=2) from exc
-    if args.command == "update" and args.update_command in {"plan", "check"}:
+    if args.command == "update":
         try:
             return handle_update_command(
                 args,

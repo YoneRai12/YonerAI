@@ -21,12 +21,12 @@ WINDOWS_INSTALL_PLAN_SCHEMA_VERSION = "yonerai-windows-install-plan/v0.1"
 UPDATE_PLAN_SCHEMA_VERSION = "yonerai-update-plan/v0.1"
 UPDATE_CHECK_SCHEMA_VERSION = "yonerai-update-check/v0.1"
 SHA256_RE = re.compile(r"^[a-f0-9]{64}$")
-LATEST_STABLE_VERSION = "0.6.4"
+LATEST_STABLE_VERSION = "0.7.0"
 YONERAI_INSTALL_PAGE = "https://yonerai.com/install"
 GITHUB_LATEST_INSTALL_BASE_URL = "https://github.com/YoneRai12/YonerAI/releases/latest/download"
 GITHUB_RELEASE_DOWNLOAD_BASE_URL = "https://github.com/YoneRai12/YonerAI/releases/download"
 TRUSTED_INSTALL_RELEASE_TAG = f"v{LATEST_STABLE_VERSION}"
-TRUSTED_INSTALL_SCRIPT_SHA256 = "f33681434ee33d100970f65a160accbc506ee3547f9322be2662b780d24f9de5"
+TRUSTED_INSTALL_SCRIPT_SHA256 = "3db7cdace412d2c2978c74d77e2a2fce664bee4e6ee710f79b2349c0e89f3874"
 TRUSTED_INSTALL_SCRIPT_SHA256_BY_TAG = {
     TRUSTED_INSTALL_RELEASE_TAG: TRUSTED_INSTALL_SCRIPT_SHA256,
 }
@@ -336,9 +336,9 @@ def build_update_plan(manifest_path: str, *, current_version: str) -> dict[str, 
     }
 
 
-def build_update_plan_from_default(repo_root: Path, *, current_version: str) -> dict[str, Any]:
+def build_update_plan_from_default(repo_root: Path, *, current_version: str, channel: str = "stable") -> dict[str, Any]:
     return build_update_plan(
-        str(default_update_manifest_path(repo_root, include_prerelease=_is_prerelease_version(current_version))),
+        str(default_update_manifest_path(repo_root, include_prerelease=channel == "alpha")),
         current_version=current_version,
     )
 
@@ -394,9 +394,9 @@ def build_update_check(manifest_path: str, *, current_version: str) -> dict[str,
     }
 
 
-def build_update_check_from_default(repo_root: Path, *, current_version: str) -> dict[str, Any]:
+def build_update_check_from_default(repo_root: Path, *, current_version: str, channel: str = "stable") -> dict[str, Any]:
     return build_update_check(
-        str(default_update_manifest_path(repo_root, include_prerelease=_is_prerelease_version(current_version))),
+        str(default_update_manifest_path(repo_root, include_prerelease=channel == "alpha")),
         current_version=current_version,
     )
 

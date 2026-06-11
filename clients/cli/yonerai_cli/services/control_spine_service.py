@@ -416,6 +416,7 @@ def _safe_request(
             transport=transport,
             timeout_seconds=timeout_seconds,
         )
+        payload = _public_payload_for_path(path, payload)
         _assert_public_safe_payload(payload)
     except ControlSpineServiceError as exc:
         return {
@@ -582,7 +583,7 @@ def _contract_skew_from_health(payload: Mapping[str, object]) -> dict[str, objec
         "missing_field_policy": "debug_only_no_user_warning",
         "skew_detected": below_minimum,
         "warning": (
-            "YonerAI CLI is older than the staging API minimum. Run `yonerai update check` and re-login if needed."
+            "YonerAI CLI is older than the staging API minimum. Run `yonerai update` and re-login if needed."
             if below_minimum
             else None
         ),
@@ -723,6 +724,83 @@ def _safe_text(value: object, *, fallback: object) -> object:
     if any(ord(char) < 32 or ord(char) == 127 for char in text):
         return fallback
     return text[:240]
+
+
+def _public_payload_for_path(path: str, payload: Mapping[str, object]) -> Mapping[str, object]:
+    if path != RATE_LIMIT_PATH:
+        return payload
+    allowed_top_level = {
+        "allowed",
+        "scope",
+        "fallback_reason",
+        "retry_after_seconds",
+        "quota_exceeded",
+        "api_gateway_usage_plan_is_cost_control_boundary",
+        "contract_version",
+        "conversation_sync",
+        "shared_traffic",
+        "control_spine",
+    }
+    private_known_drop = {"cost_guard"}
+    unknown = {
+        key: value
+        for key, value in payload.items()
+        if key not in allowed_top_level and key not in private_known_drop
+    }
+    if unknown:
+        _assert_public_safe_payload(unknown)
+
+    control = payload.get("control_spine") if isinstance(payload.get("control_spine"), Mapping) else {}
+    raw_scopes = control.get("scopes") if isinstance(control.get("scopes"), list) else []
+    raw_admin_disabled = control.get("admin_scopes_disabled")
+    admin_disabled = raw_admin_disabled if isinstance(raw_admin_disabled, list) else []
+    raw_session_scopes = control.get("session_scopes")
+    session_scopes = raw_session_scopes if isinstance(raw_session_scopes, list) else []
+    public_control = {
+        "contract_version": _safe_text(control.get("contract_version"), fallback="unknown"),
+        "admin_scopes_disabled": [
+            _safe_scope(item) for item in admin_disabled if isinstance(item, str)
+        ],
+        "session_scopes": [
+            _safe_scope(item) for item in session_scopes if isinstance(item, str)
+        ],
+        "scopes": [
+            {
+                "name": _safe_scope(item.get("name")) if isinstance(item.get("name"), str) else "scope:redacted",
+                "enabled_by_default": bool(item.get("enabled_by_default")),
+                "summary": _safe_text(item.get("summary"), fallback=""),
+            }
+            for item in raw_scopes
+            if isinstance(item, Mapping)
+        ],
+    }
+    conversation_sync = (
+        payload.get("conversation_sync") if isinstance(payload.get("conversation_sync"), Mapping) else {}
+    )
+    public_conversation_sync = {
+        "mode": _safe_text(conversation_sync.get("mode"), fallback="unknown"),
+        "cloud_to_local": _safe_text(conversation_sync.get("cloud_to_local"), fallback="unknown"),
+        "local_to_cloud": _safe_text(conversation_sync.get("local_to_cloud"), fallback="unknown"),
+        "shared_traffic": _safe_text(conversation_sync.get("shared_traffic"), fallback="off"),
+    }
+    return {
+        "allowed": bool(payload.get("allowed")),
+        "scope": _safe_text(payload.get("scope"), fallback="unknown"),
+        "fallback_reason": _safe_text(payload.get("fallback_reason"), fallback="unknown"),
+        "retry_after_seconds": (
+            payload.get("retry_after_seconds")
+            if isinstance(payload.get("retry_after_seconds"), int)
+            else None
+        ),
+        "quota_exceeded": bool(payload.get("quota_exceeded")),
+        "api_gateway_usage_plan_is_cost_control_boundary": bool(
+            payload.get("api_gateway_usage_plan_is_cost_control_boundary")
+        ),
+        "contract_version": _safe_text(payload.get("contract_version"), fallback="unknown"),
+        "conversation_sync": public_conversation_sync,
+        "shared_traffic": _safe_text(payload.get("shared_traffic"), fallback="off"),
+        "control_spine": public_control,
+    }
 
 
 def _assert_public_safe_payload(payload: object) -> None:

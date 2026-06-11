@@ -336,5 +336,5 @@ def _contract_skew_message(skew: dict[str, Any], lang: str) -> str:
     if not skew.get("skew_detected"):
         return "問題なし" if lang == "ja" else "ok"
     if lang == "ja":
-        return "CLIがステージングAPIの最小対応バージョンより古い可能性があります。`yonerai update check` を確認してください。"
-    return str(skew.get("warning") or "Run `yonerai update check`.")
+        return "CLIがステージングAPIの最小対応バージョンより古い可能性があります。`yonerai update` を確認してください。"
+    return str(skew.get("warning") or "Run `yonerai update`.")

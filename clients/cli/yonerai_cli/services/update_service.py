@@ -74,6 +74,77 @@ def build_update_report(args: argparse.Namespace, *, repo_root: Path, current_ve
         raise UpdateServiceError(str(exc)) from exc
 
 
+def build_update_choice_report(*, repo_root: Path, current_version: str) -> dict[str, Any]:
+    choices: list[dict[str, Any]] = []
+    errors: list[dict[str, str]] = []
+    for channel, label_ja, label_en, command in (
+        ("stable", "安定版", "Stable release", "yonerai update stable"),
+        ("alpha", "最新アルファ版", "Latest alpha", "yonerai update alpha"),
+    ):
+        try:
+            channel_args = argparse.Namespace(update_command="check", manifest=None, channel=channel)
+            report = build_update_report(channel_args, repo_root=repo_root, current_version=current_version)
+        except UpdateServiceError as exc:
+            errors.append({"channel": channel, "message": str(exc)})
+            choices.append(
+                {
+                    "id": channel,
+                    "label_ja": label_ja,
+                    "label_en": label_en,
+                    "command": command,
+                    "available": False,
+                    "error": str(exc),
+                }
+            )
+            continue
+        choices.append(
+            {
+                "id": channel,
+                "label_ja": label_ja,
+                "label_en": label_en,
+                "command": command,
+                "available": bool(report.get("ok")),
+                "latest_version": report.get("latest_manifest_version"),
+                "update_available": bool(report.get("update_available")),
+                "version_comparison": report.get("version_comparison"),
+                "selected_artifact": (report.get("artifact_status") or {}).get("actual_filename")
+                if isinstance(report.get("artifact_status"), dict)
+                else None,
+                "signature_state": (report.get("signature_status") or {}).get("state")
+                if isinstance(report.get("signature_status"), dict)
+                else None,
+                "next_safe_command": report.get("next_safe_command"),
+            }
+        )
+    return {
+        "schema_version": "yonerai-update-choice/v0.1",
+        "ok": any(choice.get("available") for choice in choices) and not errors,
+        "dry_run": True,
+        "command": "yonerai update",
+        "current_version": current_version,
+        "default_channel": "stable",
+        "choices": choices,
+        "errors": errors,
+        "actions_not_performed": [
+            "no download",
+            "no install",
+            "no PATH mutation",
+            "no remote execution",
+            "no forced update",
+            "no auto-apply update",
+        ],
+        "next_step_ja": "安定版なら `yonerai update stable`、アルファ版なら `yonerai update alpha` を実行してください。",
+        "next_step_en": "Run `yonerai update stable` for stable, or `yonerai update alpha` for the latest alpha.",
+        "forced_update_enabled": False,
+        "auto_update_apply_enabled": False,
+        "download_performed": False,
+        "install_performed": False,
+        "path_mutation": False,
+        "remote_code_executed": False,
+        "network_required": False,
+    }
+
+
 def _call_default_update_builder(builder: Any, repo_root: Path, *, current_version: str, channel: str) -> dict[str, Any]:
     parameters = inspect.signature(builder).parameters
     if "channel" in parameters:

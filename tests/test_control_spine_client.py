@@ -110,6 +110,146 @@ def test_control_spine_status_reads_scopes_without_tokens(tmp_path: Path, monkey
     assert str(tmp_path) not in serialized
 
 
+def test_rate_limit_drops_known_private_operational_metadata(tmp_path: Path, monkeypatch) -> None:
+    from yonerai_cli.services.control_spine_service import build_control_spine_rate_limit_report
+
+    monkeypatch.setenv("YONERAI_STAGING_AUTH_ORIGIN", "https://api-staging.yonerai.com")
+
+    def transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, dict[str, object], dict[str, str]]:
+        assert url.endswith("/v1/rate-limit")
+        return (
+            200,
+            {
+                "allowed": True,
+                "scope": "anonymous",
+                "fallback_reason": "within_quota",
+                "quota_exceeded": False,
+                "control_spine": {
+                    "contract_version": "yonerai.control-spine.v0.1",
+                    "scopes": [
+                        {"name": "profile:read", "enabled_by_default": True, "summary": "read profile"},
+                        {"name": "agent:run", "enabled_by_default": True, "summary": "requires gate"},
+                    ],
+                },
+                "cost_guard": {
+                    "secrets_lifecycle": {"google_client_secret": {"storage": "aws_secrets_manager_reference_only"}},
+                    "notification_channel": "yonerai_staging_alerts_sns_topic",
+                },
+            },
+            {"X-YonerAI-RateLimit-Scope": "anonymous"},
+        )
+
+    report = build_control_spine_rate_limit_report(
+        config={},
+        env={"YONERAI_STAGING_AUTH_ORIGIN": "https://api-staging.yonerai.com"},
+        claim_path=str(tmp_path / "cli-config.json"),
+        transport=transport,
+        timeout_seconds=3.0,
+    )
+    serialized = json.dumps(report, ensure_ascii=False, sort_keys=True)
+
+    assert report["ok"] is True
+    assert report["rate_limit"]["body"]["scope"] == "anonymous"
+    assert "cost_guard" not in serialized
+    assert "google_client_secret" not in serialized
+    assert "yonerai_staging_alerts_sns_topic" not in serialized
+    agent_scope = next(scope for scope in report["scopes"] if scope["name"] == "agent:run")
+    assert agent_scope["enabled_by_default"] is False
+    assert agent_scope["requires_threat_model"] is True
+
+
+def test_rate_limit_public_sanitizer_handles_null_and_bad_scope_shapes(tmp_path: Path, monkeypatch) -> None:
+    from yonerai_cli.services.control_spine_service import build_control_spine_rate_limit_report
+
+    monkeypatch.setenv("YONERAI_STAGING_AUTH_ORIGIN", "https://api-staging.yonerai.com")
+
+    def transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, dict[str, object], dict[str, str]]:
+        assert url.endswith("/v1/rate-limit")
+        return (
+            200,
+            {
+                "allowed": True,
+                "scope": "anonymous",
+                "fallback_reason": "within_quota",
+                "quota_exceeded": False,
+                "control_spine": {
+                    "contract_version": "yonerai.control-spine.v0.1",
+                    "admin_scopes_disabled": None,
+                    "session_scopes": None,
+                    "scopes": [
+                        {"name": None, "enabled_by_default": True, "summary": "missing name"},
+                        {"name": 123, "enabled_by_default": True, "summary": "bad name"},
+                        {"name": "profile:read", "enabled_by_default": True, "summary": "read profile"},
+                    ],
+                },
+            },
+            {"X-YonerAI-RateLimit-Scope": "anonymous"},
+        )
+
+    report = build_control_spine_rate_limit_report(
+        config={},
+        env={"YONERAI_STAGING_AUTH_ORIGIN": "https://api-staging.yonerai.com"},
+        claim_path=str(tmp_path / "cli-config.json"),
+        transport=transport,
+        timeout_seconds=3.0,
+    )
+    serialized = json.dumps(report, ensure_ascii=False, sort_keys=True)
+
+    assert report["ok"] is True
+    control = report["rate_limit"]["body"]["control_spine"]
+    assert control["admin_scopes_disabled"] == []
+    assert control["session_scopes"] == []
+    assert [scope["name"] for scope in control["scopes"]] == [
+        "scope:redacted",
+        "scope:redacted",
+        "profile:read",
+    ]
+    assert "Traceback" not in serialized
+    assert str(tmp_path) not in serialized
+
+
+def test_rate_limit_rejects_unexpected_token_fields(tmp_path: Path, monkeypatch) -> None:
+    from yonerai_cli.services.control_spine_service import build_control_spine_rate_limit_report
+
+    monkeypatch.setenv("YONERAI_STAGING_AUTH_ORIGIN", "https://api-staging.yonerai.com")
+
+    def transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, dict[str, object], dict[str, str]]:
+        assert url.endswith("/v1/rate-limit")
+        return 200, {"allowed": True, "scope": "anonymous", "access_token": "must-not-print"}, {}
+
+    report = build_control_spine_rate_limit_report(
+        config={},
+        env={"YONERAI_STAGING_AUTH_ORIGIN": "https://api-staging.yonerai.com"},
+        claim_path=str(tmp_path / "cli-config.json"),
+        transport=transport,
+        timeout_seconds=3.0,
+    )
+    serialized = json.dumps(report, ensure_ascii=False, sort_keys=True)
+
+    assert report["ok"] is False
+    assert report["error"]["code"] == "control_spine_private_payload_rejected"
+    assert "must-not-print" not in serialized
+    assert str(tmp_path) not in serialized
+
+
 def test_whoami_uses_saved_staging_session_without_printing_it(tmp_path: Path, monkeypatch) -> None:
     from yonerai_cli.screens.control_spine import format_control_spine_pretty
     from yonerai_cli.services.control_spine_service import build_whoami_report
@@ -196,6 +336,16 @@ def test_expired_session_mid_command_has_guided_japanese_relogin(tmp_path: Path,
     assert str(tmp_path) not in serialized
 
 
+def test_localized_session_expired_message_is_case_insensitive() -> None:
+    from yonerai_cli.cli import _localized_cli_error
+
+    rendered = _localized_cli_error("Saved Session Expired", [])
+
+    assert "yonerai login" in rendered
+    assert "期限" in rendered
+    assert "Saved Session Expired" not in rendered
+
+
 def test_contract_skew_warns_when_backend_requires_newer_cli(tmp_path: Path, monkeypatch) -> None:
     from yonerai_cli.screens.control_spine import format_control_spine_pretty
     from yonerai_cli.services.control_spine_service import build_control_spine_status_report
@@ -228,7 +378,7 @@ def test_contract_skew_warns_when_backend_requires_newer_cli(tmp_path: Path, mon
 
     assert report["ok"] is True
     assert report["contract_skew"]["skew_detected"] is True
-    assert "yonerai update check" in rendered
+    assert "yonerai update" in rendered
     assert str(tmp_path) not in serialized
 
 

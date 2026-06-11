@@ -483,6 +483,63 @@ def test_cli_update_check_pretty_is_readable_and_color_safe(capsys) -> None:
     assert "\033[" not in output
 
 
+def test_cli_update_short_choice_screen_is_safe(capsys) -> None:
+    _prepare_paths()
+    from yonerai_cli import cli
+
+    assert cli.main(["update", "--json"]) == 0
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["schema_version"] == "yonerai-update-choice/v0.1"
+    assert output["command"] == "yonerai update"
+    assert output["default_channel"] == "stable"
+    assert [choice["id"] for choice in output["choices"]] == ["stable", "alpha"]
+    assert output["choices"][0]["command"] == "yonerai update stable"
+    assert output["choices"][1]["command"] == "yonerai update alpha"
+    assert output["download_performed"] is False
+    assert output["install_performed"] is False
+    assert output["path_mutation"] is False
+    assert output["remote_code_executed"] is False
+    assert output["auto_update_apply_enabled"] is False
+    assert output["forced_update_enabled"] is False
+
+
+def test_cli_update_short_stable_and_alpha_select_expected_channels(capsys) -> None:
+    _prepare_paths()
+    from yonerai_cli import cli
+
+    assert cli.main(["update", "--json", "stable"]) == 0
+    stable_parent_json = json.loads(capsys.readouterr().out)
+    assert stable_parent_json["schema_version"] == "yonerai-update-check/v0.1"
+    assert stable_parent_json["channel"] == "stable"
+
+    assert cli.main(["update", "stable", "--json"]) == 0
+    stable = json.loads(capsys.readouterr().out)
+    assert stable["schema_version"] == "yonerai-update-check/v0.1"
+    assert stable["channel"] == "stable"
+    assert stable["latest_manifest_version"] == "0.7.0"
+    assert stable["download_performed"] is False
+    assert stable["install_performed"] is False
+
+    assert cli.main(["update", "alpha", "--json"]) == 0
+    alpha = json.loads(capsys.readouterr().out)
+    assert alpha["schema_version"] == "yonerai-update-check/v0.1"
+    assert alpha["channel"] == "alpha"
+    assert alpha["latest_manifest_version"] == "0.21.0-alpha.2"
+    assert alpha["download_performed"] is False
+    assert alpha["install_performed"] is False
+
+
+def test_cli_update_short_japanese_alias_selects_alpha(capsys) -> None:
+    _prepare_paths()
+    from yonerai_cli import cli
+
+    assert cli.main(["update", "アルファ版", "--json"]) == 0
+    output = json.loads(capsys.readouterr().out)
+    assert output["channel"] == "alpha"
+    assert output["latest_manifest_version"] == "0.21.0-alpha.2"
+
+
 def test_cli_update_plan_pretty_is_readable(capsys) -> None:
     _prepare_paths()
     from yonerai_cli import cli

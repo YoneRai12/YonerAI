@@ -1,4 +1,4 @@
-# YonerAI Local CLI Smoke
+﻿# YonerAI Local CLI Smoke
 
 `clients/cli` is the YonerAI CLI Local Runtime surface. It is the main
 public-safe command surface for provider readiness, auto routing, local-dev
@@ -13,7 +13,7 @@ package and commercial use requires a separate license.
 ## Install and start YonerAI
 
 This is the CLI Local Runtime path, not full YonerAI cloud production. The
-latest stable is `v0.6.4`. Stable is the default channel; alpha requires an
+latest stable is `v0.7.0`. Stable is the default channel; alpha requires an
 explicit `-Channel alpha` flag.
 
 ### Quick install
@@ -40,8 +40,8 @@ Use this when you want to verify `install.ps1` before execution:
 
 ```powershell
 $ErrorActionPreference = "Stop"
-$base = "https://github.com/YoneRai12/YonerAI/releases/download/v0.6.4"
-$expected = "f33681434ee33d100970f65a160accbc506ee3547f9322be2662b780d24f9de5"
+$base = "https://github.com/YoneRai12/YonerAI/releases/download/v0.7.0"
+$expected = "3db7cdace412d2c2978c74d77e2a2fce664bee4e6ee710f79b2349c0e89f3874"
 $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("yonerai-bootstrap-" + [guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory -Path $tmp | Out-Null
 try {
@@ -66,13 +66,13 @@ try {
 
 ### If you downloaded the GitHub Release ZIP
 
-Download `YonerAI-0.6.4.zip` from the
-[v0.6.4 release](https://github.com/YoneRai12/YonerAI/releases/tag/v0.6.4),
+Download `YonerAI-0.7.0.zip` from the
+[v0.7.0 release](https://github.com/YoneRai12/YonerAI/releases/tag/v0.7.0),
 extract it, then run PowerShell inside the extracted folder. The extracted
 folder name can vary; change the `cd` command to match the folder you see.
 
 ```powershell
-cd "$HOME\Downloads\YonerAI-0.6.4"
+cd "$HOME\Downloads\YonerAI-0.7.0"
 python --version
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
@@ -158,10 +158,10 @@ yonerai start --guided --lang ja
 yonerai providers --pretty --lang ja
 yonerai ask "hello" --auto --pretty --lang ja
 yonerai chat --script --lang ja
-yonerai manifest verify manifest.v0.6.4.json --pretty
-yonerai install plan --manifest manifest.v0.6.4.json --pretty
-yonerai update check --manifest manifest.v0.6.4.json --pretty
-yonerai update plan --manifest manifest.v0.6.4.json --pretty
+yonerai manifest verify manifest.v0.7.0.json --pretty
+yonerai install plan --manifest manifest.v0.7.0.json --pretty
+yonerai update check --manifest manifest.v0.7.0.json --pretty
+yonerai update plan --manifest manifest.v0.7.0.json --pretty
 yonerai demo --pretty
 yonerai demo --json
 ```
@@ -216,9 +216,11 @@ Japanese mode shows Japanese command labels such as `/設定`, `/モデル`, `/�
 `/安全`, `/履歴`, `/タスク`, `/エージェント`, `/認証`, `/同期`, `/プライバシー`, `/更新`, and `/終了`. English aliases remain
 accepted for compatibility, but they are not the primary Japanese UI.
 
-`yonerai update check --pretty` reads local VERSION and a local release
-manifest, then reports whether a newer manifest target exists. It does not
-download, install, mutate PATH, execute remote code, or require admin rights.
+`yonerai update` shows stable/alpha choices first. `yonerai update stable` and
+`yonerai update alpha` read local VERSION and local release manifests, then
+report whether a newer manifest target exists. They do not download, install,
+mutate PATH, execute remote code, force update, auto-apply updates, or require
+admin rights.
 
 `yonerai sync status --pretty --lang ja` shows the public account-sync
 contract. Cloud conversation sync down requires a linked account and

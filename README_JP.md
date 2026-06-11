@@ -1,4 +1,4 @@
-# YonerAI
+﻿# YonerAI
 
 YonerAI は、公式・ローカル・self-hosted の実行環境が変わっても、同じ利用体験と同じ境界を保つための provider-independent AI execution foundation です。
 
@@ -28,7 +28,7 @@ YonerAI は単なる Discord bot でも、単なる model router でもありま
 ## Install and start YonerAI
 
 これは YonerAI CLI Local Runtime のインストール手順です。full YonerAI cloud
-production ではありません。最新 stable は `v0.6.3` です。stable channel が既定で、
+production ではありません。最新 stable は `v0.7.0` です。stable channel が既定で、
 alpha を試す場合だけ `-Channel alpha` を明示します。install 後は `yonerai` だけで
 対話 CLI が起動します。
 
@@ -190,7 +190,7 @@ pipe入力では従来の1行入力に戻ります。
 /認証       Google認証のドライラン状態
 /同期       cloud/local同期境界
 /プライバシー 共有と秘匿境界
-/更新       更新確認
+/更新       安定版/アルファ版の更新確認
 /更新通知   起動時の更新案内設定
 /終了       終了
 ```
@@ -200,8 +200,9 @@ pipe入力では従来の1行入力に戻ります。
 ```powershell
 yonerai
 yonerai chat
-yonerai update check --pretty
-yonerai update check --json
+yonerai update
+yonerai update stable
+yonerai update alpha
 yonerai auth status --pretty --lang ja
 yonerai sync status --pretty --lang ja
 yonerai sync preview --direction cloud-to-local --json
@@ -211,9 +212,10 @@ yonerai config set model llama3.1 --pretty --lang ja
 yonerai providers --pretty --lang ja
 ```
 
-`yonerai update check` はローカルの `VERSION` とローカルmanifestだけを読みます。
-download、install、PATH変更、remote code実行、forced update、auto-apply、
-admin要求は行いません。
+`yonerai update` はまず安定版とアルファ版の選択肢を表示します。
+`yonerai update stable` と `yonerai update alpha` はローカルの `VERSION` と
+ローカルmanifestだけを読みます。download、install、PATH変更、remote code実行、
+forced update、auto-apply、admin要求は行いません。
 
 ## Quickstart: public demo
 
@@ -234,10 +236,10 @@ yonerai demo --pretty
 yonerai demo --json
 yonerai doctor --pretty --lang ja
 yonerai status --pretty --lang ja
-yonerai manifest verify manifest.v0.6.3.json --pretty --lang ja
-yonerai install plan --manifest manifest.v0.6.3.json --pretty
-yonerai update check --manifest manifest.v0.6.3.json --pretty
-yonerai update plan --manifest manifest.v0.6.3.json --pretty
+yonerai manifest verify manifest.v0.7.0.json --pretty --lang ja
+yonerai install plan --manifest manifest.v0.7.0.json --pretty
+yonerai update check --manifest manifest.v0.7.0.json --pretty
+yonerai update plan --manifest manifest.v0.7.0.json --pretty
 ```
 
 `yonerai quickstart` は `yonerai demo` の alias です。
@@ -261,7 +263,7 @@ fallbackできる安全な対話 shell です。文章を入力すると `ask --
 /認証                 Google OAuth のドライラン状態を見る。本番ログインはしません
 /同期                 cloudからlocalへの選択同期とlocalからcloudへの明示承認境界を見る
 /プライバシー         OpenAI共有トラフィックと非公開/ローカル内容の共有境界を見る
-/更新                 ローカルmanifestで更新を確認
+/更新                 安定版/アルファ版の更新確認を選ぶ
 /更新通知 オン|オフ   起動時の更新案内設定を変更
 /言語 日本語|英語     表示言語を変更
 /提供元選択 自動|モック|ローカル|オープンAI互換|アンソロピック|ジェミニ

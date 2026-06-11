@@ -89,6 +89,8 @@ def format_install_status_pretty(report: dict[str, Any], *, color: ColorMode = "
 
 
 def format_update_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -> str:
+    if report.get("schema_version") == "yonerai-update-choice/v0.1":
+        return format_update_choice_pretty(report)
     if report.get("schema_version") == "yonerai-update-check/v0.1":
         return format_update_check_pretty(report, color=color)
     manifest = report["manifest"]
@@ -169,6 +171,45 @@ def format_update_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -
     if errors:
         sections = (*sections, CliSection("Errors", errors))
     return render_report("YonerAI update plan", sections, color=color)
+
+
+def format_update_choice_pretty(report: dict[str, Any]) -> str:
+    choices = report.get("choices") if isinstance(report.get("choices"), list) else []
+    lines = [
+        "YonerAI 更新",
+        f"  現在のバージョン: {_safe(report.get('current_version') or '不明')}",
+        "  どちらを確認しますか？",
+        "",
+    ]
+    for index, choice in enumerate(choices, start=1):
+        if not isinstance(choice, dict):
+            continue
+        label = _safe(choice.get("label_ja") or choice.get("label_en") or choice.get("id") or f"choice-{index}")
+        command = _safe(choice.get("command") or "")
+        latest = _safe(choice.get("latest_version") or "不明")
+        available = "利用可" if choice.get("available") else "確認不可"
+        update_available = "更新あり" if choice.get("update_available") else "更新なし"
+        signature = _safe(choice.get("signature_state") or "不明")
+        lines.extend(
+            [
+                f"  {index}. {label}",
+                f"     コマンド: {command}",
+                f"     最新: {latest} / {update_available} / {available}",
+                f"     署名/信頼: {signature}",
+            ]
+        )
+        if choice.get("error"):
+            lines.append(f"     エラー: {_safe(choice.get('error'))}")
+    lines.extend(
+        [
+            "",
+            f"  次: {_safe(report.get('next_step_ja') or 'yonerai update stable または yonerai update alpha')}",
+            "  ここではダウンロード、インストール、PATH変更、自動適用は行いません。",
+            "  実際のインストール確認は表示された安全な次のコマンドで進めます。",
+            "",
+        ]
+    )
+    return "\n".join(lines)
 
 
 def format_update_check_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -> str:
@@ -255,6 +296,8 @@ def _update_version_comparison_level(report: dict[str, Any]) -> str:
 
 
 def _format_update_check(report: dict[str, Any], *, lang: str) -> str:
+    if report.get("schema_version") == "yonerai-update-choice/v0.1":
+        return format_update_choice_pretty(report)
     artifact = report.get("artifact_status") if isinstance(report.get("artifact_status"), dict) else {}
     signature = report.get("signature_status") if isinstance(report.get("signature_status"), dict) else {}
     policy = report.get("update_policy") if isinstance(report.get("update_policy"), dict) else {}
@@ -343,7 +386,7 @@ def _format_update_notice(report: dict[str, Any] | None, lang: str, *, phase: st
                 f"  update_available: {_value_label(bool(report.get('update_available')), lang='ja')}",
                 f"  critical_update: {_value_label(bool(report.get('critical_update')), lang='ja')}",
                 f"  behavior: {_safe(policy.get('active_session_behavior') or 'warn_only_do_not_interrupt')}",
-                f"  next: {_safe(report.get('next_safe_command') or 'yonerai update check --pretty')}",
+                f"  next: {_safe(report.get('next_safe_command') or 'yonerai update')}",
                 "  自動適用なし / 強制サイレント更新なし / ローカルmock chatは継続できます",
                 "",
             )
@@ -357,7 +400,7 @@ def _format_update_notice(report: dict[str, Any] | None, lang: str, *, phase: st
             f"  update_available: {bool(report.get('update_available'))}",
             f"  critical_update: {bool(report.get('critical_update'))}",
             f"  behavior: {_safe(policy.get('active_session_behavior') or 'warn_only_do_not_interrupt')}",
-            f"  next: {_safe(report.get('next_safe_command') or 'yonerai update check --pretty')}",
+            f"  next: {_safe(report.get('next_safe_command') or 'yonerai update')}",
             "  no auto-apply / no forced silent update / local mock chat remains available",
             "",
         )
@@ -365,5 +408,5 @@ def _format_update_notice(report: dict[str, Any] | None, lang: str, *, phase: st
 
 def _update_unavailable(lang: str) -> str:
     if lang == "ja":
-        return "更新確認はこのビルドでは利用できません。yonerai update check --pretty を試してください。\n"
-    return "Update check is unavailable in this build. Try yonerai update check --pretty.\n"
+        return "更新確認はこのビルドでは利用できません。yonerai update を試してください。\n"
+    return "Update check is unavailable in this build. Try yonerai update.\n"
