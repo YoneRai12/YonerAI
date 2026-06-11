@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.util
 import re
 import subprocess
 import sys
@@ -7,6 +8,16 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def _load_current_truth_module():
+    module_path = ROOT / "scripts" / "generate_current_truth.py"
+    spec = importlib.util.spec_from_file_location("generate_current_truth", module_path)
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def test_current_truth_has_public_safe_anchor_fields() -> None:
@@ -45,3 +56,34 @@ def test_current_truth_generator_is_deterministic_for_known_date() -> None:
         assert "- staging_api_base_host: api-staging.yonerai.com" in text
     finally:
         generated.unlink(missing_ok=True)
+
+
+def test_current_truth_generator_ignores_legacy_release_tag_families(monkeypatch) -> None:
+    module = _load_current_truth_module()
+
+    def fake_run_git(args: list[str]) -> str:
+        if args[:3] == ["tag", "--list", "v*"]:
+            return "\n".join(
+                [
+                    "v0.7.0",
+                    "v0.20.0-alpha.1",
+                    "v0.21.0-alpha.1",
+                    "v1.0.0",
+                    "v1.1.0-alpha.1",
+                    "v5.1.14",
+                    "v2026.5.21",
+                    "v2026.3.8-security",
+                ]
+            )
+        if args[:2] == ["rev-parse", "--short"]:
+            return "abcdef0"
+        return ""
+
+    monkeypatch.setattr(module, "_run_git", fake_run_git)
+
+    text = module.build_current_truth(generated_date="2026-06-11")
+
+    assert "- latest_stable_tag: v1.0.0" in text
+    assert "- latest_prerelease_tag: v1.1.0-alpha.1" in text
+    assert "v2026." not in text
+    assert "v5.1." not in text

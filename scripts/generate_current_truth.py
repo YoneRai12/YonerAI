@@ -10,6 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SEMVER_TAG_RE = re.compile(r"^v(?P<version>[0-9]+(?:\.[0-9]+){2}(?:-[0-9A-Za-z.-]+)?)$")
 STAGING_API_HOST = "api-staging.yonerai.com"
+LEGACY_RELEASE_PREFIXES = ("5.", "2026.")
 
 
 def _run_git(args: list[str]) -> str:
@@ -51,6 +52,8 @@ def _latest_tags() -> tuple[str, str]:
         if not match:
             continue
         version = match.group("version")
+        if not _is_current_cli_release_line(version):
+            continue
         row = (_version_key(version), tag.strip())
         if "-" in version:
             prerelease.append(row)
@@ -59,6 +62,17 @@ def _latest_tags() -> tuple[str, str]:
     latest_stable = max(stable)[1] if stable else "unknown"
     latest_prerelease = max(prerelease)[1] if prerelease else "unknown"
     return latest_stable, latest_prerelease
+
+
+def _is_current_cli_release_line(version: str) -> bool:
+    """Limit CURRENT_TRUTH to the public CLI release lineage.
+
+    This repository still has older date/version tags. YonerAI CLI releases are
+    tracked by excluding known legacy tag families instead of pinning to v0.x,
+    so future v1+ CLI releases are not silently hidden.
+    """
+
+    return not version.startswith(LEGACY_RELEASE_PREFIXES)
 
 
 def _main_head_short() -> str:
