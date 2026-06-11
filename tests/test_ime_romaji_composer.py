@@ -100,6 +100,20 @@ def test_revert_restores_romaji_buffer() -> None:
     assert composer.commit() is None
 
 
+def test_append_after_conversion_invalidates_candidate() -> None:
+    composer = RomajiComposer()
+    composer.enable()
+    composer.append("konnichiha")
+    composer.convert()
+    assert composer.state.converted_candidate is not None
+
+    buffer_text = composer.append("sekai")
+
+    assert buffer_text == "konnichiha sekai"
+    assert composer.state.converted_candidate is None
+    assert composer.commit() is None
+
+
 def test_convert_empty_buffer_rejected() -> None:
     composer = RomajiComposer()
     result = composer.convert()
@@ -185,6 +199,25 @@ def test_local_llm_failure_falls_back_to_deterministic() -> None:
     assert result["candidate"] == "こんにちは"
     assert result["route"] == "deterministic"
     assert "fallback" in str(result["notice"])
+
+
+def test_local_llm_skips_sensitive_buffer_before_transport() -> None:
+    calls: list[str] = []
+
+    def fake_transport(request: urllib.request.Request, timeout: float) -> bytes:
+        calls.append(request.full_url)
+        return json.dumps({"choices": [{"message": {"content": "should not run"}}]}).encode("utf-8")
+
+    composer = RomajiComposer(transport=fake_transport)
+    composer.set_local_llm_endpoint("http://127.0.0.1:8080")
+    composer.set_provider_mode("local_llm")
+    composer.append("C:\\Users\\owner\\secret.txt")
+
+    result = composer.convert()
+
+    assert calls == []
+    assert result["route"] == "deterministic"
+    assert "sensitive marker" in str(result["notice"])
 
 
 # --- cloud gate: disabled by default ---
@@ -297,6 +330,16 @@ def test_interactive_dictionary_and_style(tmp_path: Path) -> None:
     assert "辞書に追加しました" in output
     assert sent_tasks and sent_tasks[0].startswith("東京")
     assert "文体を設定しました" in output
+
+
+def test_interactive_dictionary_preserves_add_prefix_keys(tmp_path: Path) -> None:
+    output, sent_tasks = _run_interactive(
+        tmp_path,
+        "/ime on\n/dict add address=住所\naddress\n/convert\n/commit\n/quit\n",
+        lang="en",
+    )
+    assert "Dictionary entry added." in output
+    assert sent_tasks == ["住所"]
 
 
 def test_interactive_ime_status_and_cloud_gate(tmp_path: Path) -> None:

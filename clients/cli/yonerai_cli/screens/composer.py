@@ -280,10 +280,13 @@ def _handle_composer_command(
         _write(output_stream, _composer_buffer_preview(restored, lang))
         return {}
     if command == "/dict":
-        joined = " ".join(args)
+        dict_args = list(args)
+        if dict_args and _canonical_value(dict_args[0]) == "add":
+            dict_args.pop(0)
+        joined = " ".join(dict_args)
         if "=" in joined:
             romaji, _, japanese = joined.partition("=")
-            romaji = romaji.removeprefix("add").strip()
+            romaji = romaji.strip()
             try:
                 composer.add_dictionary_entry(romaji, japanese)
             except ValueError:

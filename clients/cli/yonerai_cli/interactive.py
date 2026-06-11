@@ -103,7 +103,7 @@ from yonerai_cli.screens.status_api import (
     _format_status_check,
 )
 from yonerai_cli.ime import RomajiComposer
-from yonerai_cli.tui.themes import THEME_CHOICES_HELP, normalize_theme, theme_label
+from yonerai_cli.tui.themes import THEME_CHOICES_HELP, normalize_theme, theme_from_input, theme_label
 from yonerai_cli.services.onboarding_service import run_auth_onboarding
 from yonerai_cli.startup_home import render_startup_home_header
 from yonerai_cli.tui.aliases import canonical_agent_mode_value as _canonical_agent_mode_value
@@ -415,9 +415,8 @@ def _select_theme(
         output_stream.write("  Pick a look for your terminal (change later with /theme)\n")
     output_stream.write(f"  {THEME_CHOICES_HELP}\n> ")
     output_stream.flush()
-    choice = input_stream.readline().strip().lower()
-    mapping = {"1": "auto", "2": "dark", "3": "light", "4": "mono"}
-    theme = mapping.get(choice, choice if choice in {"auto", "dark", "light", "mono"} else "auto")
+    choice = _canonical_value(input_stream.readline().strip())
+    theme = theme_from_input(choice) or "auto"
     config["theme"] = theme
     save_cli_config(config, options.config_path)
     label = theme_label(theme, lang=lang)

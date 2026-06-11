@@ -14,6 +14,22 @@ ThemeName = Literal["auto", "dark", "light", "mono"]
 # Ordered choices used by the onboarding picker (number -> theme name).
 THEME_CHOICES: tuple[str, ...] = ("auto", "dark", "light", "mono")
 THEME_CHOICES_HELP = "1) auto  2) dark  3) light  4) mono"
+_THEME_INPUT_ALIASES: dict[str, ThemeName] = {
+    "1": "auto",
+    "auto": "auto",
+    "自動": "auto",
+    "オート": "auto",
+    "2": "dark",
+    "dark": "dark",
+    "ダーク": "dark",
+    "3": "light",
+    "light": "light",
+    "ライト": "light",
+    "4": "mono",
+    "mono": "mono",
+    "モノ": "mono",
+    "モノクロ": "mono",
+}
 
 
 # Each theme maps a logical role to a hex gradient palette used by
@@ -37,11 +53,13 @@ _THEME_PALETTES: dict[str, dict[str, list[str]]] = {
 }
 
 
+def theme_from_input(theme: str | None) -> ThemeName | None:
+    value = (theme or "").strip().lower()
+    return _THEME_INPUT_ALIASES.get(value)
+
+
 def normalize_theme(theme: str | None) -> ThemeName:
-    value = (theme or "auto").strip().lower()
-    if value in {"auto", "dark", "light", "mono"}:
-        return value  # type: ignore[return-value]
-    return "auto"
+    return theme_from_input(theme) or "auto"
 
 
 def theme_uses_truecolor(theme: str | None) -> bool:

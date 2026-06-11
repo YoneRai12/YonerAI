@@ -53,6 +53,9 @@ class RomajiComposer:
         self.state.composer_enabled = False
 
     def append(self, text: str) -> str:
+        if self.state.converted_candidate is not None:
+            self.state.converted_candidate = None
+            self._undo_buffer = None
         if self.state.raw_buffer:
             self.state.raw_buffer = f"{self.state.raw_buffer} {text}"
         else:
@@ -98,17 +101,20 @@ class RomajiComposer:
         notice = ""
         candidate = convert_text(raw, dictionary=self.state.user_dictionary)
         if self.state.provider_mode == "local_llm" and self.state.local_llm_endpoint:
-            try:
-                candidate = enhance_with_local_llm(
-                    raw,
-                    endpoint=self.state.local_llm_endpoint,
-                    style_profile=self.state.style_profile,
-                    dictionary=self.state.user_dictionary,
-                    transport=self._transport,
-                )
-                route = "local_llm_loopback"
-            except EnhancerError as exc:
-                notice = f"local llm fallback: {exc}"
+            if privacy.contains_sensitive_markers(raw):
+                notice = "local llm skipped: sensitive marker detected; deterministic result returned."
+            else:
+                try:
+                    candidate = enhance_with_local_llm(
+                        raw,
+                        endpoint=self.state.local_llm_endpoint,
+                        style_profile=self.state.style_profile,
+                        dictionary=self.state.user_dictionary,
+                        transport=self._transport,
+                    )
+                    route = "local_llm_loopback"
+                except EnhancerError as exc:
+                    notice = f"local llm fallback: {exc}"
         elif self.state.provider_mode == "cloud_opt_in":
             # Cloud enhancement is contract-only in this build: the gate exists,
             # but no external call is wired. Deterministic output is returned.
