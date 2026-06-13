@@ -466,21 +466,115 @@ def test_cli_update_check_pretty_is_readable_and_color_safe(capsys) -> None:
     assert cli.main(["update", "check", "--manifest", "releases/manifest.example.json", "--pretty", "--color", "never"]) == 0
 
     output = capsys.readouterr().out
+    assert "更新確認" in output
+    assert "現在のバージョン" in output
+    assert "最新安定版" in output
+    assert "チャンネル" in output
+    assert "強制更新" in output
+    assert "自動適用" in output
+    assert "セキュリティ更新" in output
+    assert "クリティカル更新" in output
+    assert "基本ローカルmockチャット" in output
+    assert "no forced update" in output
+    assert "\033[" not in output
+
+
+def test_cli_update_check_pretty_accepts_japanese_language(capsys) -> None:
+    _prepare_paths()
+    from yonerai_cli import cli
+
+    assert (
+        cli.main(
+            [
+                "update",
+                "check",
+                "--manifest",
+                "releases/manifest.example.json",
+                "--pretty",
+                "--lang",
+                "ja",
+                "--color",
+                "never",
+            ]
+        )
+        == 0
+    )
+
+    output = capsys.readouterr().out
+    assert "更新確認" in output
+    assert "現在のバージョン" in output
+    assert "チャンネル" in output
+    assert "強制更新" in output
+    assert "自動適用" in output
+    assert "次:" in output
+    assert "\033[" not in output
+
+
+def test_cli_update_check_pretty_accepts_english_language(capsys) -> None:
+    _prepare_paths()
+    from yonerai_cli import cli
+
+    assert (
+        cli.main(
+            [
+                "update",
+                "check",
+                "--manifest",
+                "releases/manifest.example.json",
+                "--pretty",
+                "--lang",
+                "en",
+                "--color",
+                "never",
+            ]
+        )
+        == 0
+    )
+
+    output = capsys.readouterr().out
     assert "YonerAI update check" in output
     assert "Update check" in output
-    assert "latest_manifest_version" in output
-    assert "latest_stable" in output
-    assert "channel" in output
-    assert "quick_install_command" in output
+    assert "current_version" in output
     assert "forced_update_enabled" in output
-    assert "auto_update_apply_enabled" in output
-    assert "security_update" in output
-    assert "critical_update" in output
-    assert "basic_local_mock_chat_allowed" in output
-    assert "download_performed" in output
-    assert "network_required" in output
-    assert "false" in output
     assert "\033[" not in output
+
+
+def test_cli_update_choice_pretty_is_japanese_first(capsys) -> None:
+    _prepare_paths()
+    from yonerai_cli import cli
+
+    assert cli.main(["update", "--pretty", "--lang", "ja", "--color", "never"]) == 0
+
+    output = capsys.readouterr().out
+    assert "YonerAI 更新" in output
+    assert "安定版" in output
+    assert "ベータ版" in output
+    assert "ここではダウンロード、インストール、PATH変更、自動適用は行いません" in output
+
+
+def test_cli_update_choice_pretty_can_show_english(capsys) -> None:
+    _prepare_paths()
+    from yonerai_cli import cli
+
+    assert cli.main(["update", "--pretty", "--lang", "en", "--color", "never"]) == 0
+
+    output = capsys.readouterr().out
+    assert "YonerAI update" in output
+    assert "Which channel do you want to check?" in output
+    assert "This command does not download, install, mutate PATH, or auto-apply updates." in output
+
+
+def test_cli_update_json_ignores_language_flag_and_keeps_stable_schema(capsys) -> None:
+    _prepare_paths()
+    from yonerai_cli import cli
+
+    assert cli.main(["update", "check", "--manifest", "releases/manifest.example.json", "--json", "--lang", "ja"]) == 0
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["schema_version"] == "yonerai-update-check/v0.1"
+    assert output["download_performed"] is False
+    assert output["install_performed"] is False
+    assert "lang" not in output
 
 
 def test_cli_update_short_choice_screen_is_safe(capsys) -> None:

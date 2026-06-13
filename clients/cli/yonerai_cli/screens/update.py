@@ -88,12 +88,14 @@ def format_install_status_pretty(report: dict[str, Any], *, color: ColorMode = "
     return render_report("YonerAI install status", sections, color=color)
 
 
-def format_update_pretty(report: dict[str, Any], *, color: ColorMode = "auto") -> str:
+def format_update_pretty(report: dict[str, Any], *, color: ColorMode = "auto", lang: str = "ja") -> str:
     if report.get("schema_version") == "yonerai-update-choice/v0.1":
-        return format_update_choice_pretty(report)
-    if report.get("schema_version") == "yonerai-update-apply/v0.1":
-        return _format_update_apply_pretty(report, color=color)
-    if report.get("schema_version") == "yonerai-update-check/v0.1":
+        return format_update_choice_pretty(report, lang=lang)
+    if report.get("schema_version") in {"yonerai-update-apply/v0.1", "yonerai-update-check/v0.1"}:
+        if lang == "ja":
+            return _format_update_check(report, lang=lang)
+        if report.get("schema_version") == "yonerai-update-apply/v0.1":
+            return _format_update_apply_pretty(report, color=color)
         return format_update_check_pretty(report, color=color)
     manifest = report["manifest"]
     signature = report["signature_status"]
@@ -224,8 +226,44 @@ def _format_update_apply_pretty(report: dict[str, Any], *, color: ColorMode = "a
     return render_report("YonerAI update apply", sections, color=color)
 
 
-def format_update_choice_pretty(report: dict[str, Any]) -> str:
+def format_update_choice_pretty(report: dict[str, Any], *, lang: str = "ja") -> str:
     choices = report.get("choices") if isinstance(report.get("choices"), list) else []
+    if lang != "ja":
+        lines = [
+            "YonerAI update",
+            f"  current_version: {_safe(report.get('current_version') or 'unknown')}",
+            "  Which channel do you want to check?",
+            "",
+        ]
+        for index, choice in enumerate(choices, start=1):
+            if not isinstance(choice, dict):
+                continue
+            label = _safe(choice.get("label_en") or choice.get("label_ja") or choice.get("id") or f"choice-{index}")
+            command = _safe(choice.get("command") or "")
+            latest = _safe(choice.get("latest_version") or "unknown")
+            available = "available" if choice.get("available") else "unavailable"
+            update_available = "update available" if choice.get("update_available") else "no update"
+            signature = _safe(choice.get("signature_state") or "unknown")
+            lines.extend(
+                [
+                    f"  {index}. {label}",
+                    f"     command: {command}",
+                    f"     latest: {latest} / {update_available} / {available}",
+                    f"     signature/trust: {signature}",
+                ]
+            )
+            if choice.get("error"):
+                lines.append(f"     error: {_safe(choice.get('error'))}")
+        lines.extend(
+            [
+                "",
+                f"  next: {_safe(report.get('next_step_en') or '/update stable or /update beta')}",
+                "  This command does not download, install, mutate PATH, or auto-apply updates.",
+                "  Use the displayed safe command when you are ready to inspect or apply an update.",
+                "",
+            ]
+        )
+        return "\n".join(lines)
     lines = [
         "YonerAI 更新",
         f"  現在のバージョン: {_safe(report.get('current_version') or '不明')}",
