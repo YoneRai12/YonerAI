@@ -1,6 +1,9 @@
 ﻿from __future__ import annotations
 
 
+from difflib import SequenceMatcher
+
+
 COMMAND_ALIASES = {
     "/?": "/help",
     "/状態": "/status",
@@ -57,6 +60,8 @@ COMMAND_ALIASES = {
     "/auth": "/auth",
     "/ログイン": "/login",
     "/login": "/login",
+    "/アカウント": "/whoami",
+    "/whoami": "/whoami",
     "/API": "/api",
     "/api": "/api",
     "/公式": "/api",
@@ -64,10 +69,17 @@ COMMAND_ALIASES = {
     "/レート制限": "/rate-limit",
     "/rate-limit": "/rate-limit",
     "/ratelimit": "/rate-limit",
+    "/疎通": "/ping",
+    "/ping": "/ping",
     "/プロジェクト": "/project",
+    "/projects": "/project",
     "/project": "/project",
     "/セッション": "/sessions",
     "/sessions": "/sessions",
+    "/ログアウト": "/logout",
+    "/logout": "/logout",
+    "/取り消し": "/revoke",
+    "/revoke": "/revoke",
     "/監査": "/audit",
     "/audit": "/audit",
     "/同期": "/sync",
@@ -90,6 +102,10 @@ COMMAND_ALIASES = {
     "/update-notice": "/update-notice",
     "/言語": "/language",
     "/language": "/language",
+    "/表示方式": "/display",
+    "/コマンド表示": "/display",
+    "/display": "/display",
+    "/display-mode": "/display",
     "/テーマ": "/theme",
     "/配色": "/theme",
     "/theme": "/theme",
@@ -131,6 +147,12 @@ COMMAND_ALIASES = {
 VALUE_ALIASES = {
     "日本語": "ja",
     "英語": "en",
+    "日本語だけ": "ja_only",
+    "日本語+英語": "ja_with_en",
+    "日本語＋英語": "ja_with_en",
+    "英語+日本語": "en_with_ja",
+    "英語＋日本語": "en_with_ja",
+    "英語だけ": "en_only",
     "自動": "auto",
     "モック": "mock",
     "ローカル": "local",
@@ -174,9 +196,46 @@ VALUE_ALIASES = {
     "履歴オフ": "off",
 }
 
+COMMAND_ALIASES_CASEFOLD = {alias.lower(): canonical for alias, canonical in COMMAND_ALIASES.items()}
+
+
+def _best_fuzzy_command_alias(value: str) -> str | None:
+    raw = value.strip()
+    if not raw.startswith("/"):
+        return None
+    fragment = raw.lower().lstrip("/")
+    if len(fragment) < 4:
+        return None
+    scored_matches: list[tuple[float, str]] = []
+    for alias, canonical in sorted(COMMAND_ALIASES.items(), key=lambda item: item[0].casefold()):
+        alias_lower = alias.lower()
+        body = alias_lower.lstrip("/")
+        if not body or body[0] != fragment[0]:
+            continue
+        score = SequenceMatcher(None, fragment, body).ratio()
+        if body.startswith(fragment):
+            score += 0.15
+        if fragment.startswith(body):
+            score += 0.05
+        if score < 0.74:
+            continue
+        scored_matches.append((score, canonical))
+    if not scored_matches:
+        return None
+    best_score = max(score for score, _canonical in scored_matches)
+    canonical_matches = {canonical for score, canonical in scored_matches if best_score - score < 0.02}
+    if len(canonical_matches) != 1:
+        return None
+    return sorted(canonical_matches)[0]
+
 def canonical_command(value: str) -> str:
     raw = value.strip()
-    return COMMAND_ALIASES.get(raw, COMMAND_ALIASES.get(raw.lower(), raw.lower()))
+    exact = COMMAND_ALIASES.get(raw)
+    if exact is None:
+        exact = COMMAND_ALIASES_CASEFOLD.get(raw.lower(), raw.lower())
+    if exact != raw.lower():
+        return exact
+    return _best_fuzzy_command_alias(raw) or exact
 
 
 def canonical_value(value: str) -> str:

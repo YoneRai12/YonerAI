@@ -107,6 +107,9 @@ def _state_label(value: object, *, lang: str) -> str:
         "ready_now": "今すぐ利用可能",
         "ready_for_explicit_local_live": "明示許可でローカル利用可能",
         "configured_for_explicit_live": "明示許可で利用可能",
+        "loopback_server_detected_enable_env": "検出済み（有効化待ち）",
+        "not_enabled_or_not_detected": "未有効または未検出",
+        "needs_live_opt_in": "明示liveが必要",
         "not_configured": "未設定",
         "missing_configuration": "設定不足",
         "disabled": "無効",
@@ -166,6 +169,8 @@ def _setting_label(value: object, *, lang: str) -> str:
         return _safe(value)
     labels = {
         "language": "表示言語",
+        "command_display": "コマンド表示",
+        "command_display_mode": "コマンド表示",
         "provider": "提供元（AI接続元）",
         "model": "モデル（AIモデル）",
         "agent_mode": "作業モード",
@@ -189,6 +194,14 @@ def _value_label(value: object, *, lang: str) -> str:
         return _safe(value)
     if value in {"ja", "en"}:
         return _language_label(value, lang=lang)
+    command_display_labels = {
+        "ja_only": "日本語だけ",
+        "ja_with_en": "日本語 + 英語",
+        "en_with_ja": "英語 + 日本語",
+        "en_only": "英語だけ",
+    }
+    if value in command_display_labels:
+        return command_display_labels[str(value)]
     if value in PROVIDER_PREFERENCES:
         return _provider_label(value, lang=lang)
     if value in AGENT_MODES:

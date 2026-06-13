@@ -36,6 +36,8 @@ SETTINGS_CATEGORY_ALIASES = {
     "モデル": "models",
     "model": "models",
     "models": "models",
+    "表示": "display",
+    "display": "display",
     "安全": "safety",
     "safety": "safety",
     "ポリシー": "policy",
@@ -56,6 +58,19 @@ SETTINGS_CATEGORY_ALIASES = {
     "back": "back",
 }
 
+
+def _command_display_label(mode: object, *, lang: str) -> str:
+    raw = str(mode or ("ja_only" if lang == "ja" else "en_only"))
+    if lang == "ja":
+        return {
+            "ja_only": "日本語だけ",
+            "ja_with_en": "日本語 + 英語",
+            "en_with_ja": "英語 + 日本語",
+            "en_only": "英語だけ",
+        }.get(raw, raw)
+    return raw
+
+
 def _format_settings(
     config: dict[str, object],
     *,
@@ -72,63 +87,54 @@ def _format_settings(
         return format_settings_screen(
             (
                 "設定",
-                "  まとめて全設定を流しません。カテゴリを選んで1つずつ確認・切替します。",
-                "",
-                "カテゴリ",
-                "  1. 言語: " + _language_label(values["language"] or "ja", lang="ja") + "  /設定 言語",
-                "  - コマンド表示: "
-                + _safe(values.get("command_display_mode") or "ja_only")
-                + "  変更: config set command_display ja_only|ja_with_en|en_with_ja|en_only",
-                "  2. 提供元: " + _provider_label(provider, lang="ja") + "  /設定 提供元",
-                "  3. モデル: " + _safe(values.get("model_preference") or "auto") + "  /設定 モデル",
-                "  4. モード: " + _agent_mode_label(values.get("agent_mode"), lang="ja") + "  /設定 モード",
-                "  5. 安全: 承認="
+                "  現在: "
+                + _language_label(values["language"] or "ja", lang="ja")
+                + " / "
+                + _provider_label(provider, lang="ja")
+                + " / "
+                + _safe(values.get("model_preference") or "auto")
+                + " / "
+                + _agent_mode_label(values.get("agent_mode"), lang="ja"),
+                "  補助: 表示="
+                + _command_display_label(values.get("command_display_mode"), lang="ja")
+                + " / ローカルLLM="
+                + _state_label(local_state, lang="ja")
+                + " / 更新通知="
+                + update_notice,
+                "  安全: 承認="
                 + _approval_label(values["approval_mode"], lang="ja")
                 + " / ファイル="
                 + _file_access_label(values["file_access_mode"], lang="ja")
-                + "  /設定 安全",
-                "  6. 記憶: ローカル優先 / local->cloud自動同期なし  /設定 記憶",
-                "  7. 更新: 通知=" + update_notice + " / 自動適用なし  /設定 更新",
-                "  8. 認証: Google OAuthドライラン契約のみ  /設定 認証",
-                "  9. プライバシー: 共有トラフィックオフ  /設定 プライバシー",
-                "  - ポリシー: 提供元・権限・更新・記憶の方針  /設定 ポリシー",
-                "",
-                "個別切替",
-                "  /選択 1 日本語|英語",
-                "  /選択 2 自動|モック|ローカル|OpenAI互換|アンソロピック|ジェミニ",
-                "  /選択 3 毎回確認|拒否",
-                "  /選択 4 ワークスペース内のみ|無効",
-                "  /選択 5 オン|オフ  （履歴記録）",
-                "  /選択 6 オン|オフ  （ライブ接続）",
-                "  /選択 7 オン|オフ  （ネットワーク）",
-                "  /選択 8 自動|llama3.1  （モデル）",
-                "  /選択 9 オン|オフ  （更新通知）",
-                "  /選択 10 計画|安全実行|レビュー|記憶  （作業モード）",
-                "",
-                f"状態: ローカルLLM={_state_label(local_state, lang='ja')} / 履歴={ledger} / ライブ={'オン' if live else 'オフ'}",
-                "秘密情報（APIキーなど）は表示・保存しません。ローカルパスは出力しません。",
+                + " / 履歴="
+                + ledger
+                + " / live="
+                + ("オン" if live else "オフ"),
+                "  開く: 1 言語  2 提供元  3 モデル  4 安全  5 記憶",
+                "        6 表示  7 更新    8 認証    9 プライバシー  10 ポリシー",
+                "  次: /設定 <項目名>  または  /選択 <番号>",
                 "",
             )
         )
     return format_settings_screen(
         (
             "Settings",
-            "  Open one category instead of dumping every setting:",
-            "  /settings language",
-            "  /settings providers",
-            "  /settings models",
-            "  /settings mode",
-            "  /settings safety",
-            "  /settings memory",
-            "  /settings update",
-            "  /settings auth",
-            "  /settings privacy",
-            "  /settings policy",
-            f"  current: language={values['language'] or 'ja'} provider={provider} model={values.get('model_preference') or 'auto'} agent_mode={values.get('agent_mode')} local_llm={local_state}",
-            f"  command_display: {values.get('command_display_mode') or 'en_only'}",
-            f"  toggles: ledger={ledger} live={'on' if live else 'off'} network={'on' if values['network_enabled'] else 'off'} update_notice={update_notice}",
-            "  numbered fallback: /select 1 en, /select 2 mock, /select 8 llama3.1, /select 9 on, /select 10 review",
-            "  secrets and local paths are not printed.",
+            "  current: "
+            + f"language={values['language'] or 'ja'}"
+            + f" / provider={provider}"
+            + f" / model={values.get('model_preference') or 'auto'}"
+            + f" / agent_mode={values.get('agent_mode')}",
+            "  assist: "
+            + f"display={values.get('command_display_mode') or 'en_only'}"
+            + f" / local_llm={local_state}"
+            + f" / update_notice={update_notice}",
+            "  safety: "
+            + f"approval={values['approval_mode']}"
+            + f" / file_access={values['file_access_mode']}"
+            + f" / ledger={ledger}"
+            + f" / live={'on' if live else 'off'}",
+            "  open: 1 language  2 providers  3 models  4 safety  5 memory",
+            "        6 display   7 update     8 auth    9 privacy 10 policy",
+            "  next: /settings <category>  or  /select <number>",
             "",
         )
     )
@@ -179,13 +185,13 @@ def _format_settings_update(config: dict[str, object], *, lang: str) -> str:
             (
                 "設定: 更新",
                 f"  更新通知: {'オン' if enabled else 'オフ'}",
-                "  通常更新: 通知だけ。作業中は割り込まない",
-                "  セキュリティ更新: 警告だけ。自動適用しない",
-                "  クリティカル更新: 次回起動時に先に表示。基本のローカルmockチャットは止めない",
+                "  通常: 通知だけ。作業中は割り込まない",
+                "  セキュリティ: 警告だけ。自動適用しない",
+                "  クリティカル: 次回起動時に先に表示。基本のローカルmockチャットは止めない",
                 "  自動更新: なし",
                 "  強制サイレント更新: なし",
-                "  変更: /更新通知 オン|オフ または /選択 9 オン|オフ",
-                "  確認: /更新",
+                "  変更: /更新通知 オン|オフ  または  /選択 9 オン|オフ",
+                "  確認: /更新 → 安定版 / ベータ版 を選ぶ",
                 "  戻る: /設定",
                 "",
             )
@@ -206,6 +212,37 @@ def _format_settings_update(config: dict[str, object], *, lang: str) -> str:
         )
     )
 
+
+def _format_settings_display(config: dict[str, object], *, lang: str) -> str:
+    values = build_config_report(config, exists=True)["config"]
+    current = str(values.get("command_display_mode") or ("ja_only" if lang == "ja" else "en_only"))
+    if lang == "ja":
+        return "\n".join(
+            (
+                "設定: 表示方式",
+                f"  現在: {_command_display_label(current, lang='ja')}",
+                "  選択肢:",
+                f"{_selector('ja_only', current)} 日本語だけ",
+                f"{_selector('ja_with_en', current)} 日本語+英語",
+                f"{_selector('en_with_ja', current)} 英語+日本語",
+                f"{_selector('en_only', current)} 英語だけ",
+                "  変更: /表示方式 日本語だけ",
+                "  変更: /表示方式 日本語+英語",
+                "  戻る: /設定",
+                "",
+            )
+        )
+    return "\n".join(
+        (
+            "Settings: display",
+            f"  current: {current}",
+            "  choices: ja_only, ja_with_en, en_with_ja, en_only",
+            "  change: /display ja_with_en",
+            "  back: /settings",
+            "",
+        )
+    )
+
 def _format_settings_memory(config: dict[str, object], status_report: dict[str, Any] | None, *, lang: str) -> str:
     values = build_config_report(config, exists=True)["config"]
     status = status_report or {}
@@ -215,25 +252,13 @@ def _format_settings_memory(config: dict[str, object], status_report: dict[str, 
     if lang == "ja":
         lines = [
             "設定: 記憶",
-            f"  記憶: {'オン' if enabled else 'オフ'}",
-            f"  既定スコープ: {_safe(scope)}",
-            f"  active件数: {_safe(count)}",
-            f"  cloud -> local preview: {'オン' if values.get('memory_cloud_to_local_preview_enabled') else 'オフ'}",
-            "  local -> cloud: 承認必須 / 自動同期なし",
-            f"  self-evolution signal memory: {'オン' if values.get('memory_self_evolution_signal_enabled') else 'オフ'}",
-            "  shared traffic: オフ",
-            "  変更:",
-            "    /設定 記憶 オン|オフ",
-            "    /設定 記憶 scope local_private|procedural|shared_preference|project|session",
-            "    /設定 記憶 cloud-preview オン|オフ",
-            "    /設定 記憶 self-evolution オン|オフ",
-            "  操作:",
-            "    /記憶 add <内容>",
-            "    /記憶 list",
-            "    /記憶 forget <memory_id>",
-            "    /記憶 sync preview cloud-to-local",
-            "    /記憶 sync preview local-to-cloud",
-            "  ローカルprivate記憶はcloudへ自動同期しません。secret/local path形状はredactされます。",
+            f"  記憶: {'オン' if enabled else 'オフ'} / default={_safe(scope)} / 件数={_safe(count)}",
+            f"  cloud→local preview: {'オン' if values.get('memory_cloud_to_local_preview_enabled') else 'オフ'}",
+            "  local→cloud: 承認必須 / 自動同期なし",
+            f"  self-evolution signal: {'オン' if values.get('memory_self_evolution_signal_enabled') else 'オフ'}",
+            "  操作: /記憶 list /記憶 add <内容> /記憶 forget <id>",
+            "  同期確認: /記憶 sync preview cloud-to-local / local-to-cloud",
+            "  private 記憶は cloud へ送りません。secret と local path は redact します。",
         ]
         lines.append("")
         return "\n".join(lines)

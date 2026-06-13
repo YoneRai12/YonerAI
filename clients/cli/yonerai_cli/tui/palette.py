@@ -5,7 +5,13 @@ import unicodedata
 
 from yonerai_cli.config import COMMAND_DISPLAY_MODES
 from yonerai_cli.output import ColorMode
-from yonerai_cli.tui.keymap import JAPANESE_SLASH_ALIASES, SLASH_COMMANDS, SlashCommandSpec
+from yonerai_cli.tui.keymap import (
+    JAPANESE_SLASH_ALIASES,
+    SLASH_COMMANDS,
+    TOP_LEVEL_COMMANDS,
+    SlashCommandSpec,
+    _best_insert_text,
+)
 
 
 CommandDisplayMode = str
@@ -22,12 +28,9 @@ class CommandPaletteCategory:
 
 
 COMMAND_PALETTE_CATEGORIES: tuple[CommandPaletteCategory, ...] = (
-    CommandPaletteCategory("ホーム", "Home", ("/status", "/palette", "/composer", "/help", "/quit")),
-    CommandPaletteCategory("設定", "Settings", ("/settings", "/models", "/providers", "/mode", "/permissions")),
-    CommandPaletteCategory("安全", "Safety", ("/safety", "/policy", "/file-access", "/network", "/live-provider")),
-    CommandPaletteCategory("作業", "Work", ("/plan", "/review", "/progress", "/tasks", "/agents", "/context")),
-    CommandPaletteCategory("履歴と記憶", "History and memory", ("/runs", "/show", "/memory", "/ledger")),
-    CommandPaletteCategory("公式境界", "Official boundary", ("/auth", "/api", "/rate-limit", "/sync", "/privacy", "/evolve", "/update")),
+    CommandPaletteCategory("すぐ始める", "Get started", ("/login", "/local-llm", "/update")),
+    CommandPaletteCategory("アカウントとAPI", "Account and API", ("/whoami", "/sessions", "/projects", "/ping", "/rate-limit")),
+    CommandPaletteCategory("設定と同期", "Settings and sync", ("/settings", "/sync", "/auth")),
 )
 
 
@@ -35,7 +38,7 @@ def normalize_command_display_mode(value: object, *, lang: str) -> CommandDispla
     raw = str(value or "").strip()
     if raw in COMMAND_DISPLAY_MODES:
         return raw
-    return "ja_only" if lang == "ja" else "en_only"
+    return "ja_with_en" if lang == "ja" else "en_with_ja"
 
 
 def format_command_palette(
@@ -48,24 +51,17 @@ def format_command_palette(
     if mode.startswith("ja"):
         lines = [
             "コマンドパレット",
-            "  / を入力すると候補が出ます。Tab/矢印が使えない端末では、この一覧と /選択 を使います。",
-            "  普通は短い日本語コマンドだけで使えます。英語コマンドは互換用の別名です。",
-            "  参照は @planner / @reviewer / @researcher と、/コンテキスト の公開安全な候補だけです。",
-            "  検索: / の後に文字を続けると候補を絞ります。長い一覧はカテゴリごとに見ます。",
-            "  番号fallback: /設定 で番号を確認し、/選択 <番号> <値> で変更します。",
-            "  表示設定: config set command_display ja_only|ja_with_en|en_with_ja|en_only",
-            "  ページ: 端末が狭い場合はカテゴリ単位でスクロールしてください。",
+            "  / で候補を開きます。/l や /p のように打つと、その場で絞り込みます。",
+            "  Enter で実行、Esc で閉じます。",
+            "  まずはよく使う短いコマンドだけを前に出します。",
             "",
         ]
     else:
         lines = [
             "Command palette",
-            "  Type / for suggestions. If Tab/arrows are unavailable, use this list and /select numbered fallback.",
-            "  English aliases remain available. Japanese mode shows Japanese commands first.",
-            "  Context references are limited to public-safe @planner/@reviewer/@researcher and /context guidance.",
-            "  Search: keep typing after / to filter candidates. Long lists are grouped by category.",
-            "  Numbered fallback: use /settings to inspect numbers, then /select <number> <value>.",
-            "  Paging: scroll by category on narrow terminals.",
+            "  / opens suggestions. Type fragments like /l or /p to filter in place.",
+            "  Enter runs the selection. Esc closes it.",
+            "  Common short commands are shown first.",
             "",
         ]
     specs = _spec_by_canonical()
@@ -78,8 +74,25 @@ def format_command_palette(
                 continue
             lines.append(_format_palette_command(spec, mode=mode, color=color))
         lines.append("")
-    lines.append("全コマンド" if mode.startswith("ja") else "All commands")
-    lines.append(slash_command_summary(lang, display_mode=mode, color=color).rstrip())
+    return "\n".join(lines)
+
+
+def format_command_palette_query(
+    lang: str,
+    query: str,
+    *,
+    display_mode: CommandDisplayMode | None = None,
+    color: ColorMode = "auto",
+) -> str:
+    mode = normalize_command_display_mode(display_mode, lang=lang)
+    items = command_palette_dialog_items(lang, display_mode=mode, query=query)
+    lines = [f"絞り込み: {query}" if mode.startswith("ja") else f"Matches: {query}"]
+    if not items:
+        lines.append("  一致するコマンドはありません。" if mode.startswith("ja") else "  No matching commands.")
+        lines.append("")
+        return "\n".join(lines)
+    for _value, label in items[:8]:
+        lines.append(f"  {label}")
     lines.append("")
     return "\n".join(lines)
 
@@ -98,6 +111,55 @@ def slash_command_summary(
     return "\n".join(lines)
 
 
+def command_palette_dialog_items(
+    lang: str,
+    *,
+    display_mode: CommandDisplayMode | None = None,
+    query: str | None = None,
+) -> list[tuple[str, str]]:
+    mode = normalize_command_display_mode(display_mode, lang=lang)
+    specs = _spec_by_canonical()
+    query_text = str(query or "").strip().casefold()
+    items: list[tuple[str, str]] = []
+    for canonical in TOP_LEVEL_COMMANDS:
+        spec = specs.get(canonical)
+        if spec is None:
+            continue
+        primary, description, secondary = _command_parts(
+            spec,
+            mode=mode,
+            query=query_text,
+        )
+        secondary = _candidate_secondary_alias(
+            spec,
+            lang=lang,
+            primary=primary,
+            secondary=secondary,
+        )
+        command_terms = " ".join(
+            part
+            for part in (
+                canonical,
+                spec.command,
+                " ".join(spec.aliases),
+                " ".join(JAPANESE_SLASH_ALIASES.get(spec.canonical, ())),
+                primary,
+                secondary,
+            )
+            if part
+        ).casefold()
+        full_terms = " ".join(part for part in (command_terms, description) if part).casefold()
+        haystack = command_terms if query_text.startswith("/") else full_terms
+        fuzzy_command = bool(query_text.startswith("/") and _best_insert_text(spec, fragment=query_text))
+        if query_text and query_text not in haystack and not fuzzy_command:
+            continue
+        label = f"{_pad_display_width(primary, 16)} {description}"
+        if secondary:
+            label = f"{label}  {secondary}"
+        items.append((canonical, label))
+    return items
+
+
 def _spec_by_canonical() -> dict[str, SlashCommandSpec]:
     return {spec.canonical: spec for spec in SLASH_COMMANDS}
 
@@ -105,35 +167,67 @@ def _spec_by_canonical() -> dict[str, SlashCommandSpec]:
 def _format_palette_command(spec: SlashCommandSpec, *, mode: CommandDisplayMode, color: ColorMode) -> str:
     primary, description, secondary = _command_parts(spec, mode=mode)
     secondary_text = f"  {_dim(secondary, color=color)}" if secondary else ""
-    if mode.startswith("ja"):
-        return f"  {_pad_display_width(primary, 14)} {description}{secondary_text}"
-    return f"  {primary:<16} {description}{secondary_text}"
+    return f"  {_pad_display_width(primary, 16)} {description}{secondary_text}"
 
 
 def _format_summary_command(spec: SlashCommandSpec, *, mode: CommandDisplayMode, color: ColorMode) -> str:
     primary, description, secondary = _command_parts(spec, mode=mode)
     secondary_text = f" {_dim(secondary, color=color)}" if secondary else ""
-    if mode.startswith("ja"):
-        return f"  {_pad_display_width(primary, 10)} {description}{secondary_text}"
-    return f"  {primary:<10} {description}{secondary_text}"
+    return f"  {_pad_display_width(primary, 12)} {description}{secondary_text}"
 
 
-def _command_parts(spec: SlashCommandSpec, *, mode: CommandDisplayMode) -> tuple[str, str, str]:
-    english = spec.aliases[0] if spec.aliases else spec.canonical
+def _ascii_command_query(query: str) -> bool:
+    if not query.startswith("/"):
+        return False
+    body = query[1:]
+    return bool(body) and all(ord(ch) < 128 for ch in body)
+
+
+def _japanese_command_query(query: str) -> bool:
+    if not query.startswith("/"):
+        return False
+    body = query[1:]
+    return any(ord(ch) >= 128 for ch in body)
+
+
+def _command_parts(
+    spec: SlashCommandSpec,
+    *,
+    mode: CommandDisplayMode,
+    query: str | None = None,
+) -> tuple[str, str, str]:
+    english = spec.canonical
     japanese_aliases = tuple(alias for alias in JAPANESE_SLASH_ALIASES.get(spec.canonical, ()) if alias != spec.command)
+    query_text = str(query or "")
+    if mode.startswith("ja") and _ascii_command_query(query_text):
+        return english, spec.description_ja, spec.command
+    if mode.startswith("en") and _japanese_command_query(query_text):
+        return spec.command, spec.description_en, english
     if mode == "ja_only":
         return spec.command, spec.description_ja, " ".join(japanese_aliases)
     if mode == "ja_with_en":
-        return spec.command, spec.description_ja, f"({english})"
+        return spec.command, spec.description_ja, english
     if mode == "en_with_ja":
-        fallback = spec.command if spec.command.startswith("/") else ""
-        japanese = fallback or (japanese_aliases[0] if japanese_aliases else "")
-        return english, spec.description_en, f"({japanese})" if japanese else ""
+        return english, spec.description_en, spec.command
     return english, spec.description_en, ""
 
 
+def _candidate_secondary_alias(
+    spec: SlashCommandSpec,
+    *,
+    lang: str,
+    primary: str,
+    secondary: str,
+) -> str:
+    parts = [part for part in str(secondary).split() if part]
+    preferred = spec.canonical if lang == "ja" else spec.command
+    if preferred and preferred != primary and preferred not in parts:
+        parts.append(preferred)
+    return " ".join(parts)
+
+
 def _dim(value: str, *, color: ColorMode) -> str:
-    if color == "always":
+    if color != "never":
         return f"{DIM}{value}{RESET}"
     return value
 

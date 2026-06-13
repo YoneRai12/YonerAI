@@ -150,3 +150,12 @@ def _csv(value: object) -> str:
     if value is None:
         return "none"
     return str(value)
+
+_original_format_policy_status_pretty = format_policy_status_pretty
+
+
+def format_policy_status_pretty(report: dict[str, Any], *, lang: str = "ja", color: ColorMode = "auto") -> str:
+    rendered = _original_format_policy_status_pretty(report, lang=lang, color=color).rstrip()
+    if lang == "ja":
+        return f"ポリシー: ローカル設定 + 公開契約\n{rendered}\n次: /ポリシー /設定\n"
+    return f"Policy: local settings + public contracts\n{rendered}\nnext: /policy /settings\n"

@@ -247,6 +247,8 @@ def test_install_script_keeps_explicit_execute_and_path_mutation_boundaries() ->
     assert "Invoke-Expression" not in script
     assert "Invoke-VerifiedLocalBootstrap" in script
     assert "PATH mutation: disabled unless -SetPath" in script
+    assert "user wrapper: refreshed on install at %LOCALAPPDATA%\\YonerAI\\bin\\yonerai.cmd" in script
+    assert "Write-YonerAIUserWrapper" in script
     assert "[switch]$SetPath" in script
     assert re.search(r"\biwr\b", script, flags=re.IGNORECASE) is None
     assert "SetEnvironmentVariable" in script

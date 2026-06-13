@@ -118,7 +118,7 @@ def build_update_apply_report(
         "artifact_status": check.get("artifact_status"),
         "signature_status": check.get("signature_status"),
         "next_safe_command": _manual_update_command(channel),
-        "next_interactive_command": f"/更新 適用 {'安定版' if channel == 'stable' else 'ベータ版'} 確認",
+        "next_interactive_command": _interactive_update_apply_command(channel),
         "quick_install_command": QUICK_INSTALL_COMMAND,
         "github_install_fallback_command": GITHUB_INSTALL_FALLBACK_COMMAND,
         "verified_install_command": VERIFIED_INSTALL_COMMAND,
@@ -150,7 +150,13 @@ def build_update_apply_report(
             "no forced update",
             "no auto-apply update",
         ]
-        base_report["message_ja"] = "更新を適用するには `/更新 適用 安定版 確認` または `/更新 適用 ベータ版 確認` を入力してください。"
+        base_report["message_ja"] = (
+            "更新を適用するには "
+            "更新 適用 安定版 確認 (/更新 適用 安定版 確認 / update apply stable confirm) "
+            "または "
+            "更新 適用 ベータ版 確認 (/更新 適用 ベータ版 確認 / update apply beta confirm) "
+            "を入力してください。"
+        )
         base_report["message_en"] = "Type `/update apply stable confirm` or `/update apply beta confirm` to apply manually."
         return base_report
 
@@ -322,8 +328,8 @@ def build_update_choice_report(*, repo_root: Path, current_version: str) -> dict
             "no forced update",
             "no auto-apply update",
         ],
-        "next_step_ja": "安定版なら `yonerai update stable`、ベータ版なら `yonerai update beta` を実行してください。",
-        "next_step_en": "Run `yonerai update stable` for stable, or `yonerai update beta` for the beta build.",
+        "next_step_ja": "対話アプリでは `/更新 安定版` または `/更新 ベータ版` を選んでください。",
+        "next_step_en": "Inside the app, choose `/update stable` or `/update beta`.",
         "forced_update_enabled": False,
         "auto_update_apply_enabled": False,
         "download_performed": False,
@@ -338,6 +344,12 @@ def _manual_update_command(channel: str) -> str:
     if channel == "alpha":
         return "yonerai update apply beta --yes"
     return "yonerai update apply stable --yes"
+
+
+def _interactive_update_apply_command(channel: str) -> str:
+    if channel == "alpha":
+        return "/更新 適用 ベータ版 確認"
+    return "/更新 適用 安定版 確認"
 
 
 def _call_default_update_builder(builder: Any, repo_root: Path, *, current_version: str, channel: str) -> dict[str, Any]:

@@ -82,18 +82,21 @@ def dispatch_command(args: argparse.Namespace, hooks: CliRuntimeHooks) -> int:
         except AuthCommandError as exc:
             raise CliDispatchError(str(exc), exit_code=2) from exc
     if args.command == "whoami":
+        args.short_command = True
         try:
             return handle_whoami_command(args, print_json=hooks.print_json)
         except AuthCommandError as exc:
             raise CliDispatchError(str(exc), exit_code=2) from exc
     if args.command == "sessions":
         args.auth_command = "sessions"
+        args.short_command = True
         try:
             return handle_auth_command(args, print_json=hooks.print_json)
         except AuthCommandError as exc:
             raise CliDispatchError(str(exc), exit_code=2) from exc
     if args.command == "revoke":
         args.auth_command = "revoke-session"
+        args.short_command = True
         try:
             return handle_auth_command(args, print_json=hooks.print_json)
         except AuthCommandError as exc:
@@ -101,6 +104,7 @@ def dispatch_command(args: argparse.Namespace, hooks: CliRuntimeHooks) -> int:
     if args.command == "logout":
         args.auth_command = "logout"
         args.staging = True
+        args.short_command = True
         try:
             return handle_auth_command(args, print_json=hooks.print_json)
         except AuthCommandError as exc:
@@ -129,6 +133,7 @@ def dispatch_command(args: argparse.Namespace, hooks: CliRuntimeHooks) -> int:
             raise CliDispatchError(str(exc), exit_code=2) from exc
     if args.command in {"ping", "rate-limit"}:
         args.api_command = "ping" if args.command == "ping" else "rate-limit"
+        args.short_command = True
         try:
             return handle_api_command(
                 args, print_json=hooks.print_json, prepare_import_paths=hooks.prepare_import_paths
@@ -142,6 +147,7 @@ def dispatch_command(args: argparse.Namespace, hooks: CliRuntimeHooks) -> int:
             raise CliDispatchError(str(exc), exit_code=2) from exc
     if args.command == "projects":
         args.project_command = args.project_short_command
+        args.short_command = True
         try:
             return handle_project_command(args, print_json=hooks.print_json)
         except ProjectCommandError as exc:

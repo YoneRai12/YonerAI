@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import io
 import importlib.util
@@ -328,8 +328,10 @@ def test_cli_without_args_tty_runs_first_launch_language_selection(tmp_path: Pat
     output = capsys.readouterr().out
 
     assert "YonerAI language / 表示言語" in output
-    assert "YonerAI ミッションコントロール CLI" in output
-    assert "日本語モード" in output
+    assert "会話: そのまま入力" in output
+    assert "コマンド: / で候補を開く" in output
+    assert "近道:" in output
+    assert "/ /" not in output
     assert json.loads(config_path.read_text(encoding="utf-8"))["language"] == "ja"
     assert str(tmp_path) not in output
 
@@ -350,9 +352,11 @@ def test_first_launch_auth_onboarding_can_show_staging_contract(tmp_path: Path, 
     assert "YonerAI account / auth" in output
     assert "Use local only" in output
     assert "Check Google login" in output
-    assert "Staging Google login" in output
-    assert "https://api-staging.yonerai.com/auth/google/start" in output
-    assert "token_exchange_performed" in output
+    assert "Uses staging if configured, otherwise dry-run." in output
+    assert "staging_origin: https://api-staging.yonerai.com" in output
+    assert "google_login: available (staging)" in output
+    assert "no Google token storage / no refresh token storage / no private auto-upload" in output
+    assert "/login" in output
     assert stored["language"] == "en"
     assert stored["auth_onboarding_seen"] is True
     assert str(tmp_path) not in output
@@ -385,12 +389,11 @@ def test_chat_script_runs_ask_auto_and_persists_language_without_path_leak(tmp_p
     )
     output = capsys.readouterr().out
 
-    assert "YonerAI ミッションコントロール CLI" in output
-    assert "YonerAI ミッションコントロール" in output
-    assert "実行ID（run_id）" in output
-    assert "提供元（AI接続元）: モック（テスト用）" in output
-    assert "進行状況" in output
-    assert "エージェント計画" in output
+    assert "会話: そのまま入力" in output
+    assert "経路: ローカルで即時実行" in output
+    assert "提供元: モック（テスト用）" in output
+    assert "run_id:" in output
+    assert "YonerAI mock provider response" in output
     assert "終了しました" in output
     assert config_path.exists()
     assert ledger_path.exists()
@@ -414,27 +417,24 @@ def test_chat_accepts_english_commands_while_showing_japanese_ui(tmp_path: Path,
     output = capsys.readouterr().out
 
     assert "設定" in output
-    assert "カテゴリ" in output
-    assert "/設定 記憶" in output
-    assert "/選択 5 オン|オフ" in output
+    assert "開く:" in output
+    assert "/選択 <番号>" in output
+    assert "現在: 日本語" in output
     assert "提供元（AI接続元）" in output
-    assert "次に試す" in output
+    assert "必要なものだけ明示して有効化します。" in output
     assert "キーの値は表示・保存しません" in output
     assert "安全設定" in output
     assert "タスク" in output
-    assert "ローカルLLMセットアップ" in output
-    assert "検出状態" in output
-    assert "確認した候補" in output
-    assert "\n  検出状態" in output
-    assert "\n    - Ollama" in output
+    assert "ローカルLLM:" in output
+    assert ("検出: Ollama" in output) or ("アプリあり / 未起動" in output) or ("未検出" in output)
+    assert ("次: /ローカルLLM 使う" in output) or ("次: /ローカルLLM" in output)
     assert "認証" in output
     assert "同期" in output
     assert "プライバシー" in output
-    assert "Google OAuth" in output
-    assert "not_configured" in output
-    assert "公式バックエンド" in output
-    assert "local -> cloud" in output
-    assert "OpenAI共有トラフィック" in output
+    assert "Google α-staging" in output
+    assert "認証 / API" in output
+    assert "接続先: https://api-staging.yonerai.com" in output
+    assert "境界: token保存なし / refresh保存なし / private自動アップロードなし" in output
     assert "実行履歴" in output
     assert "設定を変更しました: ライブ接続（外部/ローカル実行）=オン" in output
     assert "設定を変更しました: ネットワーク（外部通信）=オン" in output
@@ -457,11 +457,11 @@ def test_chat_auth_screen_shows_staging_and_sync_boundaries(tmp_path: Path, monk
     output = capsys.readouterr().out
 
     assert "Auth" in output
-    assert "staging_login: available" in output
+    assert "state: not linked (staging only) / Google alpha-staging" in output
+    assert "account: not linked" in output
     assert "staging_origin: https://api-staging.yonerai.com" in output
-    assert "account_sync: off" in output
-    assert "local_private_upload: disabled" in output
-    assert "local_to_cloud_enabled_by_default: False" in output
+    assert "guide: use `/login` (Japanese: `/ログイン`) to start browser sign-in" in output
+    assert "Sync" in output
     assert "local_to_cloud_requires_approval: True" in output
     assert "private_content_exclusion_active: True" in output
     assert "openai_shared_traffic_enabled: False" in output
@@ -491,8 +491,8 @@ def test_chat_auth_screen_shows_linked_staging_claim_without_raw_email(
     assert cli.main(["chat", "--script", "--lang", "en", "--config-path", str(config_path), "--color", "never"]) == 0
     output = capsys.readouterr().out
 
-    assert "staging_auth_state: linked" in output
-    assert "linked_account: o***@example.com" in output
+    assert "state: previously linked / Google alpha-staging" in output
+    assert "account: o***@example.com" in output
     assert "owner@example.com" not in output
     assert str(tmp_path) not in output
 
@@ -520,9 +520,9 @@ def test_chat_auth_screen_uses_display_name_when_email_is_not_linked(
     assert cli.main(["chat", "--script", "--lang", "en", "--config-path", str(config_path), "--color", "never"]) == 0
     output = capsys.readouterr().out
 
-    assert "staging_auth_state: linked" in output
-    assert "linked_account: linked staging account" in output
-    assert "linked_account: not-linked" not in output
+    assert "state: previously linked / Google alpha-staging" in output
+    assert "account: saved staging account" in output
+    assert "account: not linked" not in output
     assert str(tmp_path) not in output
 
 
@@ -722,13 +722,13 @@ def test_chat_japanese_commands_and_values_are_accepted(tmp_path: Path, monkeypa
     output = capsys.readouterr().out
 
     assert "/設定" in output
-    assert "/settings" not in output
+    assert "/settings" in output
     assert "ネットワーク（外部通信）" in output
     assert "ファイルアクセス（ファイル読み取り）" in output
     assert "ツール（操作機能）" in output
-    assert "本番Googleログインはまだ有効にしていません" in output
-    assert "local->cloud自動同期なし" in output
-    assert "private/local内容の除外" in output
+    assert "本番: 使えません" in output
+    assert "local→cloud自動同期なし" in output
+    assert "private/local 除外" in output
     assert "提供元（AI接続元）=モック（テスト用）" in output
     assert "言語=日本語" in output
     assert str(tmp_path) not in output
@@ -755,7 +755,7 @@ def test_chat_accepts_readable_japanese_commands_and_values(tmp_path: Path, monk
     assert stored["language"] == "ja"
     assert stored["ledger_enabled"] is True
     assert stored["update_notice_enabled"] is True
-    assert output.count("YonerAI ミッションコントロール CLI") >= 2
+    assert "会話: そのまま入力" in output
     assert "Unknown command" not in output
     assert str(tmp_path) not in output
 
@@ -800,7 +800,7 @@ def test_chat_numbered_settings_and_ledger_are_usable_in_japanese(tmp_path: Path
     assert "設定を変更しました: ライブ接続（外部/ローカル実行）=オフ" in output
     assert "設定を変更しました: ネットワーク（外部通信）=オフ" in output
     assert "設定を変更しました: 更新通知（安定版/ベータ版確認）=オン" in output
-    assert "YonerAI ミッションコントロール" in output
+    assert "経路: ローカルで即時実行" in output
     assert "タスク" in output
     assert "実行履歴" in output
     assert default_ledger.exists()
@@ -824,17 +824,17 @@ def test_chat_settings_category_screens_are_individual_and_japanese(tmp_path: Pa
     assert cli.main(["chat", "--script", "--lang", "ja", "--config-path", str(config_path), "--color", "never"]) == 0
     output = capsys.readouterr().out
 
-    assert "まとめて全設定を流しません" in output
+    assert "次: /設定 <項目名>  または  /選択 <番号>" in output
     assert "設定: 言語" in output
     assert "安全設定" in output
     assert "記憶" in output
-    assert "local -> cloud" in output
+    assert "local→cloud: 承認必須 / 自動同期なし" in output
     assert "承認必須" in output
-    assert "自動同期しません" in output
+    assert "cloud→local preview" in output
     assert "設定: 更新" in output
-    assert "通常更新: 通知だけ" in output
-    assert "クリティカル更新" in output
-    assert "本番Googleログインはまだ有効にしていません" in output
+    assert "通常: 通知だけ" in output
+    assert "クリティカル: 次回起動時に先に表示" in output
+    assert "Google α-staging" in output
     assert "OpenAI共有トラフィック" in output
     assert "Settings" not in output
     assert str(tmp_path) not in output
@@ -855,7 +855,7 @@ def test_chat_invalid_language_and_provider_keep_shell_alive(tmp_path: Path, mon
     output = capsys.readouterr().out
 
     assert output.count("値が正しくありません") == 2
-    assert "YonerAI ミッションコントロール" in output
+    assert "経路: ローカルで即時実行" in output
     assert "Traceback" not in output
     assert str(tmp_path) not in output
 
@@ -910,7 +910,7 @@ def test_chat_setting_write_failure_is_not_reported_as_invalid_input(tmp_path: P
     assert "Could not save config: fixture write failure" in output
     assert "Changed setting: provider=mock" not in output
     assert "Invalid value" not in output
-    assert "YonerAI response" in output
+    assert "handled hello" in output
     assert providers_used == ["local"]
     assert "Traceback" not in output
     assert str(tmp_path) not in output
@@ -947,7 +947,8 @@ def test_first_launch_language_selection_persists_choice(tmp_path: Path) -> None
     assert "YonerAI language / 表示言語" in output
     assert "YonerAI account / auth" in output
     assert "Local CLI works without login" in output
-    assert "English mode" in output
+    assert "chat: type normally" in output
+    assert "commands: use / for suggestions" in output
     stored = json.loads(config_path.read_text(encoding="utf-8"))
     assert stored["language"] == "en"
     assert stored["auth_onboarding_seen"] is True
@@ -984,10 +985,9 @@ def test_first_launch_google_auth_onboarding_is_dry_run_only(tmp_path: Path) -> 
     output = stdout.getvalue()
     assert "YonerAI account / 認証" in output
     assert "Googleログイン dry-run" in output
-    assert "production_login_enabled" in output
-    assert "token_printed" in output
-    assert "no production Google login" in output
-    assert "no token printing" in output
+    assert "本番ログイン: 使えません" in output
+    assert "Google token保存なし / refresh token保存なし / private自動アップロードなし" in output
+    assert "/ログイン" in output
     assert "Traceback" not in output
     assert str(tmp_path) not in output
     stored = json.loads(config_path.read_text(encoding="utf-8"))
@@ -1029,7 +1029,7 @@ def test_existing_language_config_skips_first_launch_prompt(tmp_path: Path) -> N
     assert rc == 0
     assert "YonerAI language / 表示言語" not in output
     assert "YonerAI account / 認証" not in output
-    assert "YonerAI ミッションコントロール CLI" in output
+    assert "会話: そのまま入力" in output
     assert json.loads(config_path.read_text(encoding="utf-8"))["language"] == "ja"
     assert str(tmp_path) not in output
 
@@ -1116,10 +1116,10 @@ def test_agent_console_palette_modes_permissions_and_mentions(tmp_path: Path) ->
 
     assert rc == 0
     assert "コマンドパレット" in output
-    assert "検索" in output
-    assert "番号fallback" in output
-    assert "入力欄" in output
-    assert "Enterで送信" in output
+    assert "/ で候補を開きます。" in output
+    assert "まずはよく使う短いコマンドだけを前に出します。" in output
+    assert "/l や /p のように打つと、その場で絞り込みます" in output
+    assert "Enter で実行、Esc で閉じます。" in output
     assert "コンテキスト" in output
     assert "@file は未実装" in output
     assert "@implementer" in output
@@ -1182,6 +1182,30 @@ def test_permissions_dry_run_only_resets_read_only_approval(tmp_path: Path) -> N
     output = stdout.getvalue()
     assert "permissions=dry_run_only" in output
     assert "approval: prompt" in output
+
+
+def test_compact_chat_turn_keeps_route_preview_and_answer_compact() -> None:
+    from yonerai_cli.interactive import _format_chat_turn, _format_chat_view
+
+    report = {
+        "auto": {"route": "instant_local"},
+        "provider": {"provider_id": "mock"},
+        "run": {"run_id": "run_test_123"},
+        "response": {"output_text": "YonerAI mock provider response."},
+    }
+
+    block = _format_chat_turn("こんにちは", report, lang="ja", compact=True)
+    assert "あなた:" not in block
+    assert "YonerAI:" not in block
+    assert "経路:" in block
+    assert "提供元:" in block
+    assert "run_id: run_test_123" in block
+    assert "YonerAI mock provider response." in block
+
+    view = _format_chat_view([block], lang="ja")
+    assert "会話" not in view
+    assert "そのまま入力して会話します" not in view
+    assert "YonerAI mock provider response." in view
 
 
 def test_permission_profiles_disable_live_and_network_execution(tmp_path: Path) -> None:
@@ -1702,34 +1726,26 @@ def test_slash_command_summary_is_japanese_first() -> None:
     summary = slash_command_summary("ja")
     report = tui_capability_report()
 
-    assert words[:15] == [
+    assert words[:10] == [
         "/状態",
+        "/ホーム",
         "/設定",
         "/コマンド",
+        "/パレット",
         "/入力",
-        "/モデル",
-        "/提供元",
-        "/安全",
-        "/ポリシー",
-        "/履歴",
-        "/表示",
-        "/進行",
-        "/タスク",
-        "/エージェント",
-        "/コンテキスト",
-        "/モード",
-    ]
-    assert words[15:19] == [
-        "/計画",
-        "/レビュー",
-        "/権限",
+        "/入力欄",
+        "/ログイン",
         "/認証",
+        "/アカウント",
     ]
+    assert "/セッション" in words[:14]
+    assert "/ログアウト" in words[:14]
+    assert "/取り消し" in words[:16]
+    assert "/プロジェクト" in words[:16]
     assert "/同期" in words
     assert "/プライバシー" in words
     assert "/設定" in summary
     assert "/状態" in summary
-    assert "/ホーム" in summary
     assert "/モデル" in summary
     assert "/認証" in summary
     assert "/レート" in summary
@@ -1749,7 +1765,7 @@ def test_slash_command_summary_is_japanese_first() -> None:
     assert "/記憶" in summary
     assert "/記憶" in words
     assert "/メモリ" in words
-    assert "/memory" not in words
+    assert "/memory" in words
     assert "/更新" in summary
     assert "/進行" in summary
     assert "/設定" in words
@@ -1768,11 +1784,14 @@ def test_slash_command_summary_is_japanese_first() -> None:
     assert "/提供元" in summary
     assert "/設定 / /設定" not in summary
     assert "/提供元 / /提供元" not in summary
-    assert "/settings" not in words
-    assert "/settings" not in summary
-    assert "/palette" not in words
-    assert "/composer" not in words
-    assert "/provider" not in words
+    assert "/settings" in words
+    assert "/settings" in summary
+    assert "/palette" in words
+    assert "/composer" in words
+    assert "/provider" in words
+    assert "/login" in words
+    assert "/logout" in words
+    assert "/revoke" in words
     assert report["plain_fallback"] is True
     assert report["json_ansi_output"] is False
     assert report["command_palette_categories"] is True
@@ -1821,7 +1840,7 @@ def test_slash_value_completion_is_context_aware_and_japanese_first() -> None:
     assert slash_value_words("/ライブ ", "ja") == ["オン", "オフ"]
     assert slash_value_words("/更新通知 ", "ja") == ["オン", "オフ"]
     assert slash_command_value_group("/設定 ") == "settings_category"
-    assert slash_value_words("/設定 ", "ja")[:5] == ["言語", "提供元", "モデル", "モード", "安全"]
+    assert slash_value_words("/設定 ", "ja")[:6] == ["言語", "表示方式", "提供元", "モデル", "モード", "安全"]
     assert "memory" not in slash_value_words("/設定 ", "ja")
     assert "Anthropic" in slash_value_words("/provider ", "en")
     assert "Gemini" in slash_value_words("/provider ", "en")
@@ -1855,7 +1874,7 @@ def test_startup_home_header_uses_compact_logo_on_narrow_terminals() -> None:
     rendered = render_startup_home_header(color="never", width=80)
 
     assert "YonerAI" in rendered
-    assert "CLI • build / sync / evolve" in rendered
+    assert "CLI | build / sync / evolve" in rendered
     assert "██████" not in rendered
 
 
@@ -1897,9 +1916,10 @@ def test_chat_models_and_update_commands_are_usable(tmp_path: Path, monkeypatch,
     stored = json.loads(config_path.read_text(encoding="utf-8"))
     assert "候補" in output
     assert "/設定" in output
-    assert "/settings" not in output
+    assert "/settings" in output
     assert "モデル（AIモデル）" in output
-    assert "ローカルLLM（PC内モデル）" in output
+    assert "ローカルLLM" in output
+    assert "Ollama 127.0.0.1:11434" in output
     assert "設定を変更しました: モデル（AIモデル）=llama3.1" in output
     assert "更新確認" in output
     assert "最新安定版" in output
@@ -1928,11 +1948,12 @@ def test_chat_update_command_without_manifest_shows_channel_choices(tmp_path: Pa
     assert cli.main(["chat", "--script", "--lang", "ja", "--config-path", str(config_path), "--color", "never"]) == 0
     output = capsys.readouterr().out
 
-    assert "YonerAI 更新" in output
-    assert "どちらを確認しますか" in output
-    assert "yonerai update stable" in output
-    assert "yonerai update beta" in output
-    assert "ダウンロード" in output
+    assert "安定版を適用" in output
+    assert "ベータ版を適用" in output
+    assert "自動適用なし / 強制サイレント更新なし" in output
+    assert "/更新 安定版 (/update stable)" in output
+    assert "/更新 ベータ版 (/update beta)" in output
+    assert "repair 案内だけ出します" in output
     assert str(tmp_path) not in output
 
 
@@ -1950,7 +1971,7 @@ def test_chat_update_beta_and_apply_are_short_safe_defaults(tmp_path: Path, monk
     assert "チャンネル: ベータ版" in output
     assert "更新適用" in output
     assert "確認が必要: はい" in output
-    assert "/更新 適用 ベータ版 確認" in output
+    assert "更新 適用 ベータ版 確認 (/更新 適用 ベータ版 確認 / update apply beta confirm)" in output
     assert "自動適用なし" in output
     assert "Traceback" not in output
     assert str(tmp_path) not in output
@@ -1987,12 +2008,15 @@ def test_chat_rate_limit_short_command_is_safe_without_staging_origin(tmp_path: 
     monkeypatch.delenv("YONERAI_STAGING_AUTH_ORIGIN", raising=False)
     monkeypatch.delenv("YONERAI_OFFICIAL_API_STAGING_ORIGIN", raising=False)
     config_path = tmp_path / "cli-config.json"
-    monkeypatch.setattr(sys, "stdin", _PlainStringIO("/レート\n/終了\n"))
+    monkeypatch.setattr(sys, "stdin", _PlainStringIO("/rate-limit\n/quit\n"))
 
     assert cli.main(["chat", "--script", "--lang", "ja", "--config-path", str(config_path), "--color", "never"]) == 0
     output = capsys.readouterr().out
 
-    assert "公式API状態はこのビルドでは表示できません" in output
+    assert "レート制限" in output
+    assert "scope: anonymous" in output
+    assert "次: /疎通 (/ping) ・ /更新 (/update)" in output
+    assert "境界: shared trafficオフ / private upload無効 / 本番ログイン無効" in output
     assert "Traceback" not in output
     assert str(tmp_path) not in output
 
@@ -2071,3 +2095,61 @@ def test_config_set_agent_mode_supports_japanese_aliases(tmp_path: Path, monkeyp
     captured = capsys.readouterr()
     assert "agent mode must be plan_readonly" in captured.err
     assert "Traceback" not in captured.err
+
+
+def test_slash_login_uses_interactive_tty_even_without_prompt_toolkit(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    import yonerai_cli.interactive as interactive_module
+    from yonerai_cli.interactive import InteractiveCallbacks, InteractiveOptions, run_interactive_cli
+
+    calls: list[tuple[str, bool]] = []
+
+    def providers() -> dict[str, Any]:
+        return {"providers": []}
+
+    def ask_auto(*_args: Any) -> dict[str, Any]:
+        return {"ok": True}
+
+    def runs_list(*_args: Any) -> dict[str, Any]:
+        return {"runs": []}
+
+    def runs_show(*_args: Any) -> dict[str, Any]:
+        return {"ok": False}
+
+    def auth_login(lang: str, interactive_tty: bool) -> dict[str, Any]:
+        calls.append((lang, interactive_tty))
+        return {
+            "ok": True,
+            "configured": True,
+            "staging": {"configured": True, "origin": "https://api-staging.yonerai.com"},
+            "authorization_url": "https://api-staging.yonerai.com/auth/google/start",
+            "browser_opened": interactive_tty,
+            "next_safe_command": "yonerai login",
+            "cli_bridge": {},
+        }
+
+    config_path = tmp_path / "cli-config.json"
+    config_path.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(interactive_module, "_can_use_prompt_toolkit", lambda *_args, **_kwargs: False)
+
+    stdout = _TTYStringIO()
+    rc = run_interactive_cli(
+        InteractiveOptions(config_path=str(config_path), lang="ja", color="never"),
+        InteractiveCallbacks(
+            providers=providers,
+            ask_auto=ask_auto,
+            runs_list=runs_list,
+            runs_show=runs_show,
+            auth_login=auth_login,
+        ),
+        stdin=_TTYStringIO("/login\n/quit\n"),
+        stdout=stdout,
+    )
+
+    assert rc == 0
+    assert calls == [("ja", True)]
+    rendered = stdout.getvalue()
+    assert "ログイン" in rendered
+    assert str(tmp_path) not in rendered

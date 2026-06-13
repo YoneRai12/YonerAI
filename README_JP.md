@@ -1,4 +1,4 @@
-# YonerAI
+﻿# YonerAI
 
 YonerAI は、公式・ローカル・self-hosted の実行環境が変わっても、同じ利用体験と同じ境界を保つための provider-independent AI execution foundation です。
 
@@ -28,7 +28,7 @@ YonerAI は単なる Discord bot でも、単なる model router でもありま
 ## Install and start YonerAI
 
 これは YonerAI CLI Local Runtime のインストール手順です。full YonerAI cloud
-production ではありません。最新安定版は `v0.8.0` です。安定版が既定で、
+production ではありません。最新安定版は `v0.8.1` です。安定版が既定で、
 ベータ版は明示的に選ぶ導線だけにしています。install 後は `yonerai` だけで
 対話 CLI が起動し、普通の文章を入力すると安全なローカル既定で返答します。
 
@@ -84,12 +84,12 @@ try {
 
 ### GitHub Release の ZIP を解凍したあと
 
-GitHub Release の `YonerAI-0.8.0.zip` をダウンロードして ZIP を展開したら、
+GitHub Release の `YonerAI-0.8.1.zip` をダウンロードして ZIP を展開したら、
 PowerShell で展開後のフォルダへ移動してから以下を実行します。フォルダ名は環境に
 よって違うので、`cd` は実際の展開先に合わせてください。
 
 ```powershell
-cd "$HOME\Downloads\YonerAI-0.8.0"
+cd "$HOME\Downloads\YonerAI-0.8.1"
 python --version
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
@@ -155,48 +155,43 @@ python -m pip install -e clients/cli
 yonerai
 ```
 
-install 後は `yonerai` だけで対話 CLI が起動します。明示したい場合は
-`yonerai chat`、script/CI では `yonerai chat --script` または
-`yonerai ask --auto` を使います。
+install 後は `yonerai` だけで対話アプリが起動します。まずは普通の文章を
+そのまま入力してください。初期状態ではモックAIで応答するため、APIキーなし・
+ネットワークなしでも最初の会話ができます。
 
-この対話 CLI は YonerAI ミッションコントロール CLI です。プロバイダー、経路、
-ローカルノード、履歴、安全モード、実行ID、進行状況、計画係/レビュー係などの
-担当計画を表示します。実サブエージェントを勝手に起動したり、ライブプロバイダー
-を初期値で呼び出したりはしません。
+### 対話アプリで使う短いコマンド
 
-### Interactive CLI controls
-
-v0.6 TUI runtime では、対応している端末なら `prompt_toolkit` による
-slash command 候補と Rich panel 表示を使います。対応していない端末、CI、
-pipe入力では従来の1行入力に戻ります。
-
-日本語モードでは `/` を入力すると、日本語の候補を優先して表示します。
-`prompt_toolkit` が有効な場合は Tab / 矢印キーで候補を選べます。
+通常ユーザーは `yonerai login` や長い `--bridge --open-browser ...` を
+覚える必要はありません。`yonerai` を開いたあと、入力欄で `/` を押すと候補が
+出ます。日本語モードでも `/login` や `/local-llm` など英語 alias は使えます。
+対応端末では Tab / 矢印キーで候補を選べます。非対応端末やCIでは1行入力に
+戻ります。
 
 ```text
-/設定       設定
-/モデル     モデルとローカルLLM
-/提供元     AI接続先
-/安全       安全境界
-/履歴       履歴
-/タスク     進行状況
-/エージェント 担当計画
-/認証       Google認証のドライラン状態
-/同期       cloud/local同期境界
-/プライバシー 共有と秘匿境界
-/更新       安定版/ベータ版の更新確認
-/更新通知   起動時の更新案内設定
-/終了       終了
+/ログイン      Google α/staging ログインを開く
+/更新          安定版/ベータ版を選んで確認、明示確認後だけ適用
+/ローカルLLM   Ollama / LM Studio を自動検出して設定案内
+/設定          言語、表示方式、提供元、安全、記憶、更新を変更
+/認証          ログイン状態、共有オフ、private upload無効を確認
+/同期          cloud→local preview / local→cloud は承認必須
+/記憶          ローカル記憶を追加、一覧、忘却、同期preview
+/履歴          redacted run history
+/API           staging API状態
+/レート        rate-limit状態
+/終了          終了
 ```
 
-よく使う確認コマンド:
+PowerShell から直接実行する短いコマンドも残していますが、通常は対話アプリ内の
+`/ログイン`、`/更新`、`/ローカルLLM` を使ってください。次は上級者/CI向けです。
 
 ```powershell
 yonerai
 yonerai chat
+yonerai ask --auto "hello"
 yonerai update
 yonerai update stable
 yonerai update beta
+yonerai login
 yonerai auth status --pretty --lang ja
 yonerai sync status --pretty --lang ja
 yonerai sync preview --direction cloud-to-local --json
@@ -206,10 +201,10 @@ yonerai config set model llama3.1 --pretty --lang ja
 yonerai providers --pretty --lang ja
 ```
 
-`yonerai update` はまず安定版とベータ版の選択肢を表示します。
-`yonerai update stable` と `yonerai update beta` はローカルの `VERSION` と
-ローカルmanifestだけを読みます。download、install、PATH変更、remote code実行、
-forced update、auto-apply、admin要求は行いません。
+対話アプリ内の `/更新` はまず安定版とベータ版の選択肢を表示します。
+適用は `/更新 適用 安定版 確認` または `/更新 適用 ベータ版 確認` のように
+明示した時だけです。download、install、PATH変更、remote code実行、forced
+update、silent auto-apply、admin要求は行いません。
 
 ## Quickstart: public demo
 
@@ -230,10 +225,10 @@ yonerai demo --pretty
 yonerai demo --json
 yonerai doctor --pretty --lang ja
 yonerai status --pretty --lang ja
-yonerai manifest verify releases/manifest.v0.8.0.json --pretty --lang ja
-yonerai install plan --manifest releases/manifest.v0.8.0.json --pretty
-yonerai update check --manifest releases/manifest.v0.8.0.json --pretty
-yonerai update plan --manifest releases/manifest.v0.8.0.json --pretty
+yonerai manifest verify releases/manifest.v0.8.1.json --pretty --lang ja
+yonerai install plan --manifest releases/manifest.v0.8.1.json --pretty
+yonerai update check --manifest releases/manifest.v0.8.1.json --pretty
+yonerai update plan --manifest releases/manifest.v0.8.1.json --pretty
 ```
 
 `yonerai quickstart` は `yonerai demo` の alias です。

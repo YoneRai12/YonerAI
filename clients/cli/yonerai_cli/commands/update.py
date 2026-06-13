@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 from typing import Any, Callable
 
@@ -12,6 +13,7 @@ from yonerai_cli.services.update_service import (
     build_update_choice_report,
     build_update_report,
 )
+from yonerai_cli.tui import open_choice_dialog
 
 
 class InstallUpdateCommandError(Exception):
@@ -167,7 +169,19 @@ def handle_update_command(
 ) -> int:
     try:
         if args.update_command is None:
-            report = build_update_choice_report(repo_root=repo_root, current_version=current_version)
+            selected_channel = _maybe_prompt_update_channel(args)
+            if selected_channel in {"stable", "alpha"}:
+                args = argparse.Namespace(
+                    **{
+                        **vars(args),
+                        "update_command": "check",
+                        "channel": selected_channel,
+                        "manifest": None,
+                    }
+                )
+                report = build_update_report(args, repo_root=repo_root, current_version=current_version)
+            else:
+                report = build_update_choice_report(repo_root=repo_root, current_version=current_version)
         elif args.update_command in {"apply", "適用"}:
             report = build_update_apply_report(
                 channel=_normalize_apply_channel(getattr(args, "channel", "stable")),
@@ -186,6 +200,32 @@ def handle_update_command(
     else:
         print(format_update_pretty(report, color=args.color))
     return 0 if report["ok"] else 1
+
+
+def _maybe_prompt_update_channel(args: argparse.Namespace) -> str | None:
+    if bool(getattr(args, "json", False)):
+        return None
+    if not _interactive_stdio_ready():
+        return None
+    opened, selection = open_choice_dialog(
+        title="YonerAI / 更新",
+        text="どちらを確認しますか。",
+        values=[
+            ("stable", "安定版を確認"),
+            ("alpha", "ベータ版を確認"),
+        ],
+        ok_text="開く",
+        cancel_text="閉じる",
+    )
+    if opened and selection in {"stable", "alpha"}:
+        return selection
+    return None
+
+
+def _interactive_stdio_ready() -> bool:
+    stdin_is_tty = bool(getattr(sys.stdin, "isatty", lambda: False)())
+    stdout_is_tty = bool(getattr(sys.stdout, "isatty", lambda: False)())
+    return stdin_is_tty and stdout_is_tty
 
 
 def _normalize_apply_channel(value: str) -> str:

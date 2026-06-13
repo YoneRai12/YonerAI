@@ -10,10 +10,10 @@ from typing import Any
 from yonerai_cli import __version__
 from yonerai_cli.cli_dispatch import CliDispatchError, CliRuntimeHooks, dispatch_command
 from yonerai_cli.commands import diagnostics as diagnostics_command
+from yonerai_cli.commands.providers import build_providers_report as _build_interactive_providers_report
 from yonerai_cli.commands.diagnostics import (
     DiagnosticsCommandError,
     _build_doctor_report,
-    _build_providers_report,
     _build_start_report,
     _build_status_report,
     _prepare_trusted_cli_import_paths,
@@ -120,18 +120,74 @@ def _load_config_for_policy(args: argparse.Namespace) -> dict[str, object]:
         raise CliError(str(exc), exit_code=2) from exc
 
 
+def _interactive_runtime_env(config_path: str | None = None) -> dict[str, str]:
+    env = dict(os.environ)
+    try:
+        config = load_cli_config(config_path)
+    except ConfigError:
+        return env
+    if config.get("local_llm_enabled") is not True:
+        return env
+    try:
+        from yonerai_cli.first_run import detect_local_llm
+    except Exception:
+        return env
+    detected = detect_local_llm(env)
+    if detected.get("status") != "detected":
+        return env
+    provider = str(detected.get("detected_provider") or "ollama")
+    base_url = str(detected.get("setup_base_url") or "")
+    if not base_url:
+        return env
+    env["ORA_LOCAL_LLM_ENABLED"] = "1"
+    env["ORA_LOCAL_LLM_PROVIDER"] = provider
+    env["ORA_LOCAL_LLM_BASE_URL"] = base_url
+    return env
+
+
+def _interactive_providers_report(config_path: str | None = None) -> dict[str, Any]:
+    return _build_interactive_providers_report(
+        prepare_import_paths=_prepare_trusted_cli_import_paths,
+        env=_interactive_runtime_env(config_path),
+    )
+
+
+def _interactive_auth_login(lang: str, interactive_tty: bool, *, config_path: str | None = None) -> dict[str, Any]:
+    from yonerai_cli.commands.auth import build_staging_login_report
+
+    try:
+        return build_staging_login_report(
+            config_path,
+            lang=lang,
+            bridge=True,
+            open_browser=interactive_tty,
+            wait_linked=interactive_tty,
+        )
+    except ConfigError as exc:
+        raise CliError(str(exc), exit_code=2) from exc
+
+
 def _interactive_callbacks(config_path: str | None = None):
     from yonerai_cli.interactive import InteractiveCallbacks
 
     return InteractiveCallbacks(
-        providers=_build_providers_report,
-        ask_auto=_interactive_ask_auto,
+        providers=lambda: _interactive_providers_report(config_path),
+        ask_auto=lambda task, provider, live, ledger_path, lang, memory_store_path=None: _call_interactive_ask_auto(
+            task,
+            provider,
+            live,
+            ledger_path,
+            lang,
+            memory_store_path,
+            config_path=config_path,
+        ),
         runs_list=_interactive_runs_list,
         runs_show=_interactive_runs_show,
         update_check=_interactive_update_check,
         update_apply=_interactive_update_apply,
         status_check=_interactive_status_check,
         api_status=lambda lang: _interactive_api_status(lang, config_path=config_path),
+        ping_status=lambda lang: control_spine_callbacks.interactive_ping_status(lang, config_path=config_path),
         rate_limit_status=lambda lang: control_spine_callbacks.interactive_rate_limit_status(
             lang, config_path=config_path
         ),
@@ -139,12 +195,64 @@ def _interactive_callbacks(config_path: str | None = None):
         whoami=lambda lang: control_spine_callbacks.interactive_whoami(lang, config_path=config_path),
         project_status=lambda lang: control_spine_callbacks.interactive_project_status(lang, config_path=config_path),
         session_status=lambda lang: control_spine_callbacks.interactive_session_status(lang, config_path=config_path),
+        auth_logout=lambda lang: control_spine_callbacks.interactive_logout(lang, config_path=config_path),
+        session_revoke=lambda lang, session_id: control_spine_callbacks.interactive_session_revoke(
+            lang,
+            session_id,
+            config_path=config_path,
+        ),
         audit_status=lambda lang: control_spine_callbacks.interactive_audit_status(lang, config_path=config_path),
         evolve_status=_interactive_evolve_status,
         memory_status=_interactive_memory_status,
         memory_action=_interactive_memory_action,
         policy_status=_interactive_policy_status,
+        auth_login=lambda lang, interactive_tty: _interactive_auth_login(
+            lang,
+            interactive_tty,
+            config_path=config_path,
+        ),
     )
+
+
+def _call_interactive_ask_auto(
+    task: str,
+    provider: str,
+    live: bool,
+    ledger_path: str | None,
+    lang: str,
+    memory_store_path: str | None = None,
+    *,
+    config_path: str | None = None,
+) -> dict[str, Any]:
+    import inspect
+
+    callback = _interactive_ask_auto
+    try:
+        signature = inspect.signature(callback)
+    except (TypeError, ValueError):
+        signature = None
+    supports_config_path = False
+    supports_varargs = False
+    supports_memory_store_path = False
+    positional_capacity = 0
+    if signature is not None:
+        parameters = tuple(signature.parameters.values())
+        supports_varargs = any(parameter.kind == inspect.Parameter.VAR_POSITIONAL for parameter in parameters)
+        supports_config_path = "config_path" in signature.parameters or any(
+            parameter.kind == inspect.Parameter.VAR_KEYWORD for parameter in parameters
+        )
+        supports_memory_store_path = "memory_store_path" in signature.parameters
+        positional_capacity = sum(
+            1
+            for parameter in parameters
+            if parameter.kind in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
+        )
+    call_args: list[Any] = [task, provider, live, ledger_path, lang]
+    if supports_memory_store_path or supports_varargs or positional_capacity >= 6:
+        call_args.append(memory_store_path)
+    if supports_config_path:
+        return callback(*call_args, config_path=config_path)
+    return callback(*call_args)
 
 
 def _interactive_ask_auto(
@@ -154,6 +262,8 @@ def _interactive_ask_auto(
     ledger_path: str | None,
     _lang: str,
     memory_store_path: str | None = None,
+    *,
+    config_path: str | None = None,
 ) -> dict[str, Any]:
     return interactive_service.build_interactive_ask_report(
         task,
@@ -162,7 +272,7 @@ def _interactive_ask_auto(
         ledger_path,
         memory_store_path,
         prepare_import_paths=_prepare_trusted_cli_import_paths,
-        env=os.environ,
+        env=_interactive_runtime_env(config_path),
     )
 
 
@@ -310,7 +420,10 @@ def _runtime_hooks() -> CliRuntimeHooks:
         print_start_pretty=_print_start_pretty,
         build_doctor_report=_build_doctor_report,
         print_doctor_pretty=_print_doctor_pretty,
-        build_providers_report=_build_providers_report,
+        build_providers_report=lambda: _build_interactive_providers_report(
+            prepare_import_paths=_prepare_trusted_cli_import_paths,
+            env=os.environ,
+        ),
         prepare_import_paths=_prepare_trusted_cli_import_paths,
         load_config_for_policy=_load_config_for_policy,
         build_status_report=_build_status_report,

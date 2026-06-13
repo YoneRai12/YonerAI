@@ -71,6 +71,20 @@ def build_google_auth_status(
     staging_session_claim = build_staging_session_status(claim_path)
     staging_ready = bool(staging["configured"]) and bool(redirect_report["valid"])
     preferred_lang = _preferred_lang(config)
+    session_state = str(staging_session_claim.get("auth_state") or "unauthenticated")
+    claim_state = str(staging_claim.get("auth_state") or "unauthenticated")
+    effective_state = session_state if session_state in {"linked", "pending", "expired", "revoked"} else claim_state
+    effective_account = (
+        {
+            "account_ref": staging_session_claim.get("account_id"),
+            "display_name": staging_session_claim.get("display_name"),
+            "email_redacted": staging_session_claim.get("redacted_email"),
+            "raw_email_stored": False,
+            "raw_subject_stored": False,
+        }
+        if effective_state in {"linked", "pending", "expired", "revoked"} and session_state in {"linked", "pending", "expired", "revoked"}
+        else staging_claim.get("account")
+    )
     error = None
     if not (configured or staging_ready):
         error = _google_auth_unconfigured_error(
@@ -85,8 +99,8 @@ def build_google_auth_status(
         "staging": staging,
         "staging_session": staging_claim,
         "staging_session_claim": staging_session_claim,
-        "staging_auth_state": staging_claim.get("auth_state", "unauthenticated"),
-        "staging_account": staging_claim.get("account"),
+        "staging_auth_state": effective_state,
+        "staging_account": effective_account,
         "google_auth_enabled": auth_enabled,
         "production_login_enabled": False,
         "live_oauth_enabled": False,
@@ -98,11 +112,7 @@ def build_google_auth_status(
         "flow": _google_flow_contract(redirect_report),
         "storage": _google_token_storage_contract(),
         "session_storage": storage_capability(),
-        "next_safe_command": (
-            "yonerai login"
-            if staging_ready
-            else f"yonerai auth google login --dry-run --pretty --lang {preferred_lang}"
-        ),
+        "next_safe_command": "yonerai login",
         "actions_not_performed": _google_auth_non_actions(),
         "error": error,
     }
@@ -288,6 +298,7 @@ def build_google_login_staging(
         "operation": "google_login_staging",
         "dry_run": False,
         "staging_login": True,
+        "staging_login_available": bool(staging.get("configured")),
         "staging": staging,
         "configured": configured,
         "production_login_enabled": False,
@@ -312,6 +323,7 @@ def build_google_login_staging(
         "staging_linked_claim": linked_claim,
         "staging_claim_saved": False,
         "staging_session_token_stored": False,
+        "next_safe_command": "yonerai login",
         "staging_session_claim_stored": bool(
             isinstance(bridge_report.get("poll"), Mapping)
             and isinstance(bridge_report["poll"].get("session_storage"), Mapping)

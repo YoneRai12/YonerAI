@@ -4,7 +4,7 @@ import argparse
 import os
 from typing import Any, Callable
 
-from yonerai_cli.screens.control_spine import format_control_spine_pretty
+from yonerai_cli.screens.control_spine import format_control_spine_compact, format_control_spine_pretty
 from yonerai_cli.services.control_spine_service import (
     ControlSpineServiceError,
     build_project_report,
@@ -51,7 +51,10 @@ def handle_project_command(args: argparse.Namespace, *, print_json: Callable[[di
     if args.json:
         print_json(report)
     else:
-        print(format_control_spine_pretty(report, lang=args.lang, color=args.color))
+        if getattr(args, "short_command", False):
+            print(format_control_spine_compact(report, lang=args.lang))
+        else:
+            print(format_control_spine_pretty(report, lang=args.lang, color=args.color))
     return 0 if report.get("ok", True) else 1
 
 

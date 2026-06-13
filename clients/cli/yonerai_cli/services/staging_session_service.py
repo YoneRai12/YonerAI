@@ -46,12 +46,56 @@ class StagingSessionStorageError(ValueError):
 
 def default_staging_session_claim_path(config_path: str | Path | None = None) -> Path:
     base = Path(config_path).expanduser() if config_path is not None else default_config_path()
-    return base.with_name("staging-session-claim.json")
+    if config_path is None and not str(os.environ.get("YONERAI_CLI_CONFIG_PATH") or "").strip():
+        return base.with_name("staging-session-claim.json")
+    return base.with_name(f"{base.stem}.staging-session-claim.json")
 
 
 def default_staging_session_secret_path(config_path: str | Path | None = None) -> Path:
     base = Path(config_path).expanduser() if config_path is not None else default_config_path()
+    if config_path is None and not str(os.environ.get("YONERAI_CLI_CONFIG_PATH") or "").strip():
+        return base.with_name("staging-session-token.dpapi")
+    return base.with_name(f"{base.stem}.staging-session-token.dpapi")
+
+
+def legacy_staging_session_claim_path(config_path: str | Path | None = None) -> Path:
+    base = Path(config_path).expanduser() if config_path is not None else default_config_path()
+    return base.with_name("staging-session-claim.json")
+
+
+def legacy_staging_session_secret_path(config_path: str | Path | None = None) -> Path:
+    base = Path(config_path).expanduser() if config_path is not None else default_config_path()
     return base.with_name("staging-session-token.dpapi")
+
+
+def _candidate_staging_session_claim_paths(config_path: str | Path | None = None) -> tuple[Path, ...]:
+    return _dedupe_paths(
+        (
+            default_staging_session_claim_path(config_path),
+            legacy_staging_session_claim_path(config_path),
+        )
+    )
+
+
+def _candidate_staging_session_secret_paths(config_path: str | Path | None = None) -> tuple[Path, ...]:
+    return _dedupe_paths(
+        (
+            default_staging_session_secret_path(config_path),
+            legacy_staging_session_secret_path(config_path),
+        )
+    )
+
+
+def _dedupe_paths(paths: tuple[Path, ...]) -> tuple[Path, ...]:
+    seen: set[str] = set()
+    result: list[Path] = []
+    for path in paths:
+        key = str(path)
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append(path)
+    return tuple(result)
 
 
 def build_staging_session_claim(
@@ -171,22 +215,28 @@ def save_staging_session(
 
 
 def load_staging_session_claim(config_path: str | Path | None = None) -> dict[str, object]:
+    claim, _path = _load_staging_session_claim_with_path(config_path)
+    return claim
+
+
+def _load_staging_session_claim_with_path(config_path: str | Path | None = None) -> tuple[dict[str, object], Path | None]:
     memory = _MEMORY_SESSIONS.get(_memory_key(config_path))
     if memory is not None:
-        return validate_staging_session_claim(memory[1])
-    claim_path = default_staging_session_claim_path(config_path)
-    if not claim_path.exists():
-        return empty_staging_session_claim()
-    try:
-        raw = json.loads(claim_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return empty_staging_session_claim()
-    if not isinstance(raw, dict):
-        return empty_staging_session_claim()
-    try:
-        return validate_staging_session_claim(raw)
-    except ValueError:
-        return empty_staging_session_claim()
+        return validate_staging_session_claim(memory[1]), None
+    for claim_path in _candidate_staging_session_claim_paths(config_path):
+        if not claim_path.exists():
+            continue
+        try:
+            raw = json.loads(claim_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if not isinstance(raw, dict):
+            continue
+        try:
+            return validate_staging_session_claim(raw), claim_path
+        except ValueError:
+            continue
+    return empty_staging_session_claim(), None
 
 
 def load_staging_session_token(config_path: str | Path | None = None) -> tuple[str | None, dict[str, object]]:
@@ -199,35 +249,43 @@ def load_staging_session_token(config_path: str | Path | None = None) -> tuple[s
             return token, validated
         return None, empty_staging_session_claim()
 
-    claim = load_staging_session_claim(config_path)
+    claim, claim_path = _load_staging_session_claim_with_path(config_path)
     if claim.get("auth_state") != "linked" or claim.get("storage_backend") != "windows_dpapi_file":
         return None, claim
-    secret_path = default_staging_session_secret_path(config_path)
-    try:
-        raw = secret_path.read_text(encoding="ascii").strip()
-    except OSError:
-        return None, claim
-    if not raw.startswith("dpapi:v1:"):
-        return None, claim
-    try:
-        protected = base64.b64decode(raw.removeprefix("dpapi:v1:").encode("ascii"), validate=True)
-        token = _dpapi_unprotect(protected).decode("utf-8")
-    except (ValueError, UnicodeDecodeError, StagingSessionStorageError):
-        return None, claim
-    try:
-        token = _validate_session_token(token)
-    except StagingSessionStorageError:
-        return None, claim
-    if _session_hash(token) != claim.get("session_hash"):
-        return None, claim
-    return token, claim
+    secret_paths = list(_candidate_staging_session_secret_paths(config_path))
+    if claim_path == legacy_staging_session_claim_path(config_path):
+        legacy_secret = legacy_staging_session_secret_path(config_path)
+        secret_paths = [legacy_secret, *[path for path in secret_paths if path != legacy_secret]]
+    for secret_path in secret_paths:
+        try:
+            raw = secret_path.read_text(encoding="ascii").strip()
+        except OSError:
+            continue
+        if not raw.startswith("dpapi:v1:"):
+            continue
+        try:
+            protected = base64.b64decode(raw.removeprefix("dpapi:v1:").encode("ascii"), validate=True)
+            token = _dpapi_unprotect(protected).decode("utf-8")
+        except (ValueError, UnicodeDecodeError, StagingSessionStorageError):
+            continue
+        try:
+            token = _validate_session_token(token)
+        except StagingSessionStorageError:
+            continue
+        if _session_hash(token) != claim.get("session_hash"):
+            continue
+        return token, claim
+    return None, claim
 
 
 def clear_staging_session(config_path: str | Path | None = None) -> dict[str, object]:
     memory_removed = _MEMORY_SESSIONS.pop(_memory_key(config_path), None) is not None
     removed = memory_removed
     delete_failed = False
-    for path in (default_staging_session_claim_path(config_path), default_staging_session_secret_path(config_path)):
+    for path in (
+        *_candidate_staging_session_claim_paths(config_path),
+        *_candidate_staging_session_secret_paths(config_path),
+    ):
         try:
             if path.exists():
                 path.unlink()

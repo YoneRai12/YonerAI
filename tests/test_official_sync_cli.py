@@ -181,6 +181,35 @@ def test_api_status_contract_and_rate_limit_commands_are_fixture_only(capsys) ->
     assert rate_report["shared_traffic"]["openai_shared_traffic_enabled"] is False
 
 
+def test_api_status_and_rate_limit_ignore_malformed_config_without_staging(
+    tmp_path: Path,
+    monkeypatch,
+    capsys,
+) -> None:
+    from yonerai_cli import cli
+
+    config_path = tmp_path / "broken-config.json"
+    config_path.write_text("{not json", encoding="utf-8")
+    monkeypatch.delenv("YONERAI_STAGING_AUTH_ORIGIN", raising=False)
+    monkeypatch.delenv("YONERAI_OFFICIAL_API_STAGING_ORIGIN", raising=False)
+
+    assert cli.main(["api", "status", "--json", "--config-path", str(config_path)]) == 0
+    status_report = json.loads(capsys.readouterr().out)
+    serialized_status = json.dumps(status_report, sort_keys=True)
+    assert status_report["official_api_configured"] is False
+    assert status_report["official_backend_called"] is False
+    assert str(tmp_path) not in serialized_status
+    assert "Traceback" not in serialized_status
+
+    assert cli.main(["api", "rate-limit", "--json", "--config-path", str(config_path)]) == 0
+    rate_report = json.loads(capsys.readouterr().out)
+    serialized_rate = json.dumps(rate_report, sort_keys=True)
+    assert "Retry-After" in rate_report["headers"]
+    assert rate_report["shared_traffic"]["openai_shared_traffic_enabled"] is False
+    assert str(tmp_path) not in serialized_rate
+    assert "Traceback" not in serialized_rate
+
+
 def test_api_missing_core_returns_controlled_error(monkeypatch) -> None:
     from yonerai_cli.commands import api
 

@@ -5,8 +5,9 @@ import importlib.util
 import os
 from typing import Any, Callable
 
+from yonerai_cli.auth_policy import STAGING_AUTH_ORIGIN_ENV_KEYS
 from yonerai_cli.output import CliRow, CliSection, ColorMode, render_report
-from yonerai_cli.screens.control_spine import format_control_spine_pretty
+from yonerai_cli.screens.control_spine import format_control_spine_compact, format_control_spine_pretty
 from yonerai_cli.services.control_spine_service import (
     CONTROL_SPINE_SCHEMA_VERSION,
     build_control_spine_ping_report,
@@ -14,6 +15,7 @@ from yonerai_cli.services.control_spine_service import (
     build_control_spine_status_report,
     load_config_for_control_spine,
 )
+from yonerai_cli.services.staging_session_service import load_staging_session_token
 
 
 class ApiCommandError(Exception):
@@ -78,7 +80,10 @@ def handle_api_command(
     if args.json:
         print_json(report)
     else:
-        print(format_api_pretty(report, lang=args.lang, color=args.color))
+        if getattr(args, "short_command", False):
+            print(format_api_compact(report, lang=args.lang, color=args.color))
+        else:
+            print(format_api_pretty(report, lang=args.lang, color=args.color))
     return 0 if report.get("ok", True) else 1
 
 
@@ -90,14 +95,14 @@ def build_api_report(args: argparse.Namespace, *, prepare_import_paths: Callable
             claim_path=getattr(args, "config_path", None),
             timeout_seconds=float(getattr(args, "timeout_seconds", 10.0)),
         )
-    if args.api_command == "status" and _staging_origin_configured():
+    if args.api_command == "status" and _control_spine_origin_configured(args):
         return build_control_spine_status_report(
             config=load_config_for_control_spine(getattr(args, "config_path", None)),
             env=os.environ,
             claim_path=getattr(args, "config_path", None),
             timeout_seconds=float(getattr(args, "timeout_seconds", 10.0)),
         )
-    if args.api_command == "rate-limit" and _staging_origin_configured():
+    if args.api_command == "rate-limit" and _control_spine_origin_configured(args):
         return build_control_spine_rate_limit_report(
             config=load_config_for_control_spine(getattr(args, "config_path", None)),
             env=os.environ,
@@ -136,6 +141,14 @@ def build_api_report(args: argparse.Namespace, *, prepare_import_paths: Callable
     except ValueError as exc:
         raise ApiCommandError(str(exc)) from exc
     raise ApiCommandError("unknown api command")
+
+
+def _control_spine_origin_configured(args: argparse.Namespace) -> bool:
+    if any(str(os.environ.get(key) or "").strip() for key in STAGING_AUTH_ORIGIN_ENV_KEYS):
+        return True
+    session_token, session_claim = load_staging_session_token(getattr(args, "config_path", None))
+    session_origin = str(session_claim.get("origin") or "").strip()
+    return bool(session_token and session_origin and session_origin != "not_configured")
 
 
 def format_api_pretty(report: dict[str, Any], *, lang: str = "ja", color: ColorMode = "auto") -> str:
@@ -181,6 +194,12 @@ def format_api_pretty(report: dict[str, Any], *, lang: str = "ja", color: ColorM
     return render_report(title, tuple(sections), color=color)
 
 
+def format_api_compact(report: dict[str, Any], *, lang: str = "ja", color: ColorMode = "auto") -> str:
+    if report.get("schema_version") == CONTROL_SPINE_SCHEMA_VERSION:
+        return format_control_spine_compact(report, lang=lang)
+    return format_api_pretty(report, lang=lang, color=color)
+
+
 def _add_staging_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--config-path", help="Optional local CLI config path.")
     parser.add_argument(
@@ -203,7 +222,3 @@ def _add_output_and_locale(
     output.add_argument("--pretty", action="store_true", help=pretty_help)
     parser.add_argument("--lang", choices=lang_choices, default="ja", help="Pretty output language. Default: ja.")
     parser.add_argument("--color", choices=color_choices, default="auto", help="Pretty output color mode. Default: auto.")
-
-
-def _staging_origin_configured() -> bool:
-    return bool(os.environ.get("YONERAI_STAGING_AUTH_ORIGIN") or os.environ.get("YONERAI_OFFICIAL_API_STAGING_ORIGIN"))

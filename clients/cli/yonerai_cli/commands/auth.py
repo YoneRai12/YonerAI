@@ -14,7 +14,13 @@ from yonerai_cli.auth_policy import (
 )
 from yonerai_cli.config import ConfigError, load_cli_config
 from yonerai_cli.output import CliRow, CliSection, ColorMode, render_report
-from yonerai_cli.screens.control_spine import format_control_spine_pretty
+from yonerai_cli.screens.auth_privacy import format_auth_status_report
+from yonerai_cli.screens.control_spine import (
+    format_control_spine_compact,
+    format_control_spine_pretty,
+    format_login_flow_compact,
+)
+from yonerai_cli.screens.labels import _safe
 from yonerai_cli.services.auth_session_service import save_staging_auth_claim
 from yonerai_cli.services.control_spine_service import (
     ControlSpineServiceError,
@@ -187,7 +193,7 @@ def handle_auth_command(args: argparse.Namespace, *, print_json: Callable[[dict[
         if not args.staging:
             raise AuthCommandError("auth logout requires --staging in the public repo.")
         report = clear_staging_session(getattr(args, "config_path", None))
-        formatter = format_session_pretty
+        formatter = format_control_spine_compact if getattr(args, "short_command", False) else format_session_pretty
     elif args.auth_command == "sessions":
         try:
             report = build_session_report(
@@ -199,7 +205,7 @@ def handle_auth_command(args: argparse.Namespace, *, print_json: Callable[[dict[
             )
         except ControlSpineServiceError as exc:
             raise AuthCommandError(exc.message) from exc
-        formatter = format_control_spine_pretty
+        formatter = format_control_spine_compact if getattr(args, "short_command", False) else format_control_spine_pretty
     elif args.auth_command == "revoke-session":
         try:
             report = build_session_report(
@@ -212,7 +218,7 @@ def handle_auth_command(args: argparse.Namespace, *, print_json: Callable[[dict[
             )
         except ControlSpineServiceError as exc:
             raise AuthCommandError(exc.message) from exc
-        formatter = format_control_spine_pretty
+        formatter = format_control_spine_compact if getattr(args, "short_command", False) else format_control_spine_pretty
     elif args.auth_command == "google" and args.auth_google_command == "login":
         if args.staging:
             if args.open_browser and not args.bridge:
@@ -248,7 +254,10 @@ def handle_auth_command(args: argparse.Namespace, *, print_json: Callable[[dict[
     if args.json:
         print_json(report)
     else:
-        print(formatter(report, lang=args.lang, color=args.color))
+        if formatter is format_control_spine_compact:
+            print(formatter(report, lang=args.lang))
+        else:
+            print(formatter(report, lang=args.lang, color=args.color))
     return 0 if report["ok"] else 1
 
 
@@ -315,6 +324,42 @@ def _persist_staging_claim_if_linked(report: dict[str, Any], *, config_path: str
     report["staging_session_token_stored"] = False
 
 
+def build_staging_login_report(
+    config_path: str | None,
+    *,
+    lang: str,
+    bridge: bool,
+    open_browser: bool,
+    wait_linked: bool,
+    timeout_seconds: float = 10.0,
+    max_wait_seconds: float = 120.0,
+    poll_interval_seconds: float = 2.0,
+) -> dict[str, Any]:
+    login_env = dict(os.environ)
+    if not any(str(login_env.get(key) or "").strip() for key in ("YONERAI_STAGING_AUTH_ORIGIN", "YONERAI_OFFICIAL_API_STAGING_ORIGIN")):
+        login_env["YONERAI_STAGING_AUTH_ORIGIN"] = _configured_staging_origin()
+    try:
+        config = load_cli_config(config_path)
+    except ConfigError as exc:
+        raise AuthCommandError(str(exc)) from exc
+    report = build_google_login_staging(
+        config,
+        env=login_env,
+        bridge=bridge,
+        timeout_seconds=timeout_seconds,
+        open_browser=open_browser,
+        wait_linked=wait_linked,
+        max_wait_seconds=max_wait_seconds,
+        poll_interval_seconds=poll_interval_seconds,
+        session_claim_handler=_staging_session_handler(
+            config_path,
+            origin=_configured_staging_origin(),
+        ),
+    )
+    _persist_staging_claim_if_linked(report, config_path=config_path)
+    return report
+
+
 def handle_login_alias_command(args: argparse.Namespace, *, print_json: Callable[[dict[str, Any]], None]) -> int:
     if not getattr(args, "staging", True):
         raise AuthCommandError("public CLI login is staging-only in this build.")
@@ -333,24 +378,20 @@ def handle_login_alias_command(args: argparse.Namespace, *, print_json: Callable
         raise AuthCommandError("--open-browser requires --bridge.")
     if wait_linked and not bridge:
         raise AuthCommandError("--wait-linked requires --bridge.")
-    report = build_google_login_staging(
-        _load_config(args),
+    report = build_staging_login_report(
+        getattr(args, "config_path", None),
+        lang=args.lang,
         bridge=bridge,
-        timeout_seconds=float(getattr(args, "timeout_seconds", 10.0)),
         open_browser=open_browser,
         wait_linked=wait_linked,
+        timeout_seconds=float(getattr(args, "timeout_seconds", 10.0)),
         max_wait_seconds=float(getattr(args, "max_wait_seconds", 120.0)),
         poll_interval_seconds=float(getattr(args, "poll_interval_seconds", 2.0)),
-        session_claim_handler=_staging_session_handler(
-            getattr(args, "config_path", None),
-            origin=_configured_staging_origin(),
-        ),
     )
-    _persist_staging_claim_if_linked(report, config_path=getattr(args, "config_path", None))
     if args.json:
         print_json(report)
     else:
-        print(format_auth_pretty(report, lang=args.lang, color=args.color))
+        print(format_login_flow_compact(report, lang=args.lang))
     return 0 if report["ok"] else 1
 
 
@@ -364,7 +405,11 @@ def handle_whoami_command(args: argparse.Namespace, *, print_json: Callable[[dic
     if args.json:
         print_json(report)
     else:
-        print(format_control_spine_pretty(report, lang=args.lang, color=args.color))
+        formatter = format_control_spine_compact if getattr(args, "short_command", False) else format_control_spine_pretty
+        if formatter is format_control_spine_compact:
+            print(formatter(report, lang=args.lang))
+        else:
+            print(formatter(report, lang=args.lang, color=args.color))
     return 0 if report.get("ok", True) else 1
 
 
@@ -381,165 +426,8 @@ def handle_privacy_command(args: argparse.Namespace, *, print_json: Callable[[di
 
 
 def format_auth_pretty(report: dict[str, Any], *, lang: str = "ja", color: ColorMode = "auto") -> str:
-    flow = report.get("flow") if isinstance(report.get("flow"), dict) else {}
-    storage = report.get("storage") if isinstance(report.get("storage"), dict) else {}
-    staging = report.get("staging") if isinstance(report.get("staging"), dict) else {}
-    staging_api = report.get("staging_api") if isinstance(report.get("staging_api"), dict) else {}
-    staging_session = report.get("staging_session") if isinstance(report.get("staging_session"), dict) else {}
-    session_claim = report.get("staging_session_claim") if isinstance(report.get("staging_session_claim"), dict) else {}
-    session_storage = report.get("staging_session_storage") if isinstance(report.get("staging_session_storage"), dict) else {}
-    linked_claim = report.get("staging_linked_claim") if isinstance(report.get("staging_linked_claim"), dict) else {}
-    cli_bridge = report.get("cli_bridge") if isinstance(report.get("cli_bridge"), dict) else {}
-    account_me = cli_bridge.get("account_me") if isinstance(cli_bridge.get("account_me"), dict) else {}
-    account = (
-        linked_claim.get("account")
-        if isinstance(linked_claim.get("account"), dict)
-        else staging_session.get("account")
-        if isinstance(staging_session.get("account"), dict)
-        else {}
-    )
-    error = report.get("error") if isinstance(report.get("error"), dict) else None
-    if lang == "ja":
-        title = "YonerAI 認証ステータス"
-        flow_title = "Google OAuth 契約"
-        staging_title = "ステージング Google ログイン"
-        storage_title = "保存ポリシー"
-        boundary_title = "実行しないこと"
-    else:
-        title = "YonerAI auth status"
-        flow_title = "Google OAuth contract"
-        staging_title = "Staging Google login"
-        storage_title = "Storage policy"
-        boundary_title = "Non-actions"
-    flow_rows = (
-        CliRow("configured", report.get("configured"), "ok" if report.get("configured") else "warn"),
-        CliRow(
-            "production_login_enabled",
-            report.get("production_login_enabled"),
-            "fail" if report.get("production_login_enabled") else "ok",
-        ),
-        CliRow("live_oauth_enabled", report.get("live_oauth_enabled"), "fail" if report.get("live_oauth_enabled") else "ok"),
-        CliRow("scopes", " ".join(str(scope) for scope in flow.get("scopes", [])), "ok"),
-        CliRow("pkce_required", flow.get("pkce_required"), "ok" if flow.get("pkce_required") else "fail"),
-        CliRow("state_required", flow.get("state_required"), "ok" if flow.get("state_required") else "fail"),
-        CliRow("loopback_redirect_only", flow.get("loopback_redirect_only"), "ok" if flow.get("loopback_redirect_only") else "fail"),
-        CliRow(
-            "embedded_webview_allowed",
-            flow.get("embedded_webview_allowed"),
-            "fail" if flow.get("embedded_webview_allowed") else "ok",
-        ),
-        CliRow("token_printed", report.get("token_printed"), "fail" if report.get("token_printed") else "ok"),
-    )
-    session_available = bool(session_claim.get("session_available", False) or session_storage.get("stored", False))
-    staging_available = bool(report.get("staging_login_available") or report.get("staging_login") or staging.get("configured"))
-    session_auth_state = (
-        report.get("staging_auth_state")
-        or staging_session.get("auth_state")
-        or ("linked" if linked_claim else "unauthenticated")
-    )
-    session_expires_at = (
-        session_claim.get("expires_at")
-        or session_storage.get("expires_at")
-        or staging_session.get("expires_at")
-        or linked_claim.get("expires_at")
-    )
-    staging_rows = (
-        CliRow("staging_login_available", staging_available, "ok" if staging_available else "warn"),
-        CliRow("origin", staging.get("origin", "not_configured"), "ok" if staging.get("configured") else "warn"),
-        CliRow(
-            "auth_state",
-            session_auth_state,
-            "ok" if session_auth_state == "linked" else "warn",
-        ),
-        CliRow("session_expires_at", session_expires_at or "not-linked", "ok" if session_expires_at else "warn"),
-        CliRow(
-            "relogin_action",
-            "yonerai login" if session_auth_state in {"expired", "revoked", "unauthenticated"} else "not_needed",
-            "warn" if session_auth_state in {"expired", "revoked", "unauthenticated"} else "ok",
-        ),
-        CliRow("linked_account", _staging_account_label(account), "ok" if account else "warn"),
-        CliRow(
-            "authorization_url",
-            report.get("authorization_url", "not_started_or_not_configured"),
-            "ok" if report.get("authorization_url") else "warn",
-        ),
-        CliRow("browser_opened", report.get("browser_opened", False), "ok" if report.get("browser_opened") else "warn"),
-        CliRow("client_secret_required", report.get("client_secret_required", False), "fail" if report.get("client_secret_required") else "ok"),
-        CliRow(
-            "token_exchange_performed",
-            report.get("token_exchange_performed", False),
-            "fail" if report.get("token_exchange_performed") else "ok",
-        ),
-        CliRow("account_sync_performed", False, "ok"),
-        CliRow("staging_contract_fixture_only", staging_api.get("fixture_only", True), "ok"),
-        CliRow("bridge_network_called", cli_bridge.get("network_called", False), "warn" if cli_bridge.get("network_called") else "ok"),
-        CliRow("bridge_request_id", cli_bridge.get("request_id") or "not_started", "ok" if cli_bridge.get("request_id") else "warn"),
-        CliRow("bridge_poll_status", cli_bridge.get("poll_status") or "not_started", "ok"),
-        CliRow(
-            "staging_session_received",
-            cli_bridge.get("staging_session_received", False),
-            "ok" if cli_bridge.get("staging_session_received") else "warn",
-        ),
-        CliRow("staging_claim_saved", report.get("staging_claim_saved", False), "ok" if report.get("staging_claim_saved") else "warn"),
-        CliRow(
-            "staging_session_claim_stored",
-            report.get("staging_session_claim_stored", False),
-            "ok" if report.get("staging_session_claim_stored") else "warn",
-        ),
-        CliRow("staging_session_available", session_available, "ok" if session_available else "warn"),
-        CliRow(
-            "staging_session_storage",
-            session_claim.get("storage_backend") or session_storage.get("storage_backend") or "none",
-            "ok" if session_available else "warn",
-        ),
-        CliRow(
-            "staging_session_hash",
-            session_claim.get("session_hash") or session_storage.get("session_hash") or "not-linked",
-            "ok" if (session_claim.get("session_hash") or session_storage.get("session_hash")) else "warn",
-        ),
-        CliRow("account_me_status", account_me.get("status_code") or "not_called", "ok" if account_me.get("ok") else "warn"),
-        CliRow(
-            "staging_session_token_printed",
-            bool(cli_bridge.get("staging_session_token_printed", False) or session_claim.get("token_printed", False)),
-            "fail" if (cli_bridge.get("staging_session_token_printed") or session_claim.get("token_printed")) else "ok",
-        ),
-        CliRow(
-            "google_access_token_stored",
-            session_claim.get("google_access_token_stored", False),
-            "fail" if session_claim.get("google_access_token_stored", False) else "ok",
-        ),
-        CliRow(
-            "google_refresh_token_stored",
-            session_claim.get("google_refresh_token_stored", False),
-            "fail" if session_claim.get("google_refresh_token_stored", False) else "ok",
-        ),
-        CliRow(
-            "plaintext_session_token_stored",
-            bool(session_claim.get("plaintext_session_token_stored", False) or session_storage.get("plaintext_session_token_stored", False)),
-            "fail"
-            if (session_claim.get("plaintext_session_token_stored", False) or session_storage.get("plaintext_session_token_stored", False))
-            else "ok",
-        ),
-    )
-    storage_rows = (
-        CliRow("refresh_token_storage", storage.get("refresh_token_storage"), "ok"),
-        CliRow(
-            "plain_text_token_storage_allowed",
-            storage.get("plain_text_token_storage_allowed"),
-            "fail" if storage.get("plain_text_token_storage_allowed") else "ok",
-        ),
-        CliRow("keyring_only_future", storage.get("keyring_only_future"), "ok" if storage.get("keyring_only_future") else "warn"),
-    )
-    non_action_rows = tuple(CliRow(item, True, "ok") for item in report.get("actions_not_performed", []))
-    sections = (
-        CliSection(flow_title, flow_rows),
-        CliSection(staging_title, staging_rows),
-        CliSection(storage_title, storage_rows),
-        CliSection(boundary_title, non_action_rows),
-    )
-    if error:
-        sections = (*sections, CliSection("Error", (CliRow(str(error.get("code")), error.get("message"), "warn"),)))
-    return render_report(title, sections, color=color)
+    del color
+    return format_auth_status_report(report, lang=lang)
 
 
 def format_session_pretty(report: dict[str, Any], *, lang: str = "ja", color: ColorMode = "auto") -> str:
@@ -608,6 +496,101 @@ def _staging_account_label(account: Mapping[str, object]) -> object:
     if email and email != "not-linked":
         return email
     return account.get("display_name") or "not-linked"
+
+
+def _friendly_auth_state(state: str, *, lang: str) -> str:
+    if lang == "ja":
+        return {
+            "linked": "連携済み (α/stagingのみ)",
+            "pending": "ログイン待ち (α/stagingのみ)",
+            "expired": "期限切れ (α/stagingのみ)",
+            "revoked": "失効済み (α/stagingのみ)",
+            "unauthenticated": "未連携 (α/stagingのみ)",
+        }.get(state, f"{state} (α/stagingのみ)")
+    return {
+        "linked": "linked (staging only)",
+        "pending": "waiting for login (staging only)",
+        "expired": "expired (staging only)",
+        "revoked": "revoked (staging only)",
+        "unauthenticated": "not linked (staging only)",
+    }.get(state, f"{state} (staging only)")
+
+
+def _friendly_auth_account_label(report: Mapping[str, Any], *, lang: str) -> str:
+    for candidate in (
+        report.get("staging_account"),
+        report.get("staging_session_claim"),
+        report.get("staging_linked_claim"),
+        report.get("staging_session"),
+    ):
+        if isinstance(candidate, Mapping):
+            email = str(candidate.get("email_redacted") or candidate.get("redacted_email") or "").strip()
+            if email and email != "not-linked":
+                return email
+            display_name = str(candidate.get("display_name") or "").strip()
+            if display_name and display_name != "not-linked":
+                return display_name
+            account = candidate.get("account")
+            if isinstance(account, Mapping):
+                nested_email = str(account.get("email_redacted") or account.get("redacted_email") or "").strip()
+                if nested_email and nested_email != "not-linked":
+                    return nested_email
+                nested_display_name = str(account.get("display_name") or "").strip()
+                if nested_display_name and nested_display_name != "not-linked":
+                    return nested_display_name
+    return "未連携" if lang == "ja" else "not linked"
+
+
+def _friendly_staging_label(*, staging_ready: bool, error_code: str, lang: str) -> str:
+    if staging_ready:
+        return "利用可 (α/staging)" if lang == "ja" else "available (staging)"
+    if error_code.startswith("staging_origin_") and error_code != "staging_auth_origin_not_configured":
+        return (
+            "設定が無効です。allowlisted HTTPS host に直してください"
+            if lang == "ja"
+            else "configured value is invalid; use an allowlisted HTTPS host"
+        )
+    return (
+        "簡単ログイン可 (既定の staging 接続先)"
+        if lang == "ja"
+        else "ready via the default staging origin"
+    )
+
+
+def _friendly_auth_note(
+    *,
+    raw_state: str,
+    error_code: str,
+    error_message: str,
+    lang: str,
+) -> str:
+    if raw_state == "unauthenticated":
+        return (
+            "まだクラウド連携していません。`yonerai login` でブラウザ連携を始められます。"
+            if lang == "ja"
+            else "Your cloud account is not linked yet. Run `yonerai login` to start browser sign-in."
+        )
+    if error_code == "google_oauth_client_not_configured":
+        return (
+            "Google client secret はこの CLI に保存しません。staging 側でログインを完結させます。"
+            if lang == "ja"
+            else "This CLI does not keep a Google client secret. Sign-in is completed on the staging side."
+        )
+    if error_code == "staging_auth_origin_not_configured":
+        return (
+            "接続先を変えない限り環境変数は不要です。既定では https://api-staging.yonerai.com を使います。"
+            if lang == "ja"
+            else "You do not need env vars unless you want a different staging target. The default is https://api-staging.yonerai.com."
+        )
+    if error_code.startswith("staging_origin_"):
+        return (
+            "現在の staging 接続先設定が無効です。allowlisted HTTPS host に直してください。"
+            if lang == "ja"
+            else "The current staging origin setting is invalid. Replace it with an allowlisted HTTPS host."
+        )
+    if error_message:
+        return error_message
+    return ""
 
 
 def format_privacy_pretty(report: dict[str, Any], *, lang: str = "ja", color: ColorMode = "auto") -> str:
