@@ -22,9 +22,11 @@ DEFAULT_CONFIG: dict[str, object] = {
     "schema_version": CONFIG_SCHEMA_VERSION,
     "language": None,
     "theme": "auto",
-    "command_display_mode": "ja_only",
+    "command_display_mode": "ja_with_en",
+    "command_display_mode_explicitly_set": False,
     "provider_preference": "auto",
     "model_preference": "auto",
+    "local_llm_enabled": False,
     "agent_mode": "plan_readonly",
     "approval_mode": "prompt",
     "file_access_mode": "workspace_only",
@@ -46,6 +48,10 @@ DEFAULT_CONFIG: dict[str, object] = {
 
 class ConfigError(ValueError):
     pass
+
+
+def default_command_display_mode(language: object) -> str:
+    return "en_with_ja" if language == "en" else "ja_with_en"
 
 
 def default_config_path(env: Mapping[str, str | None] | None = None) -> Path:
@@ -102,7 +108,12 @@ def set_cli_config_value(
 ) -> dict[str, object]:
     config = load_cli_config(path, env=env)
     normalized_key = normalize_config_key(key)
-    config[normalized_key] = parse_config_value(normalized_key, value)
+    parsed_value = parse_config_value(normalized_key, value)
+    config[normalized_key] = parsed_value
+    if normalized_key == "command_display_mode":
+        config["command_display_mode_explicitly_set"] = True
+    elif normalized_key == "language" and not bool(config.get("command_display_mode_explicitly_set")):
+        config["command_display_mode"] = default_command_display_mode(parsed_value)
     return save_cli_config(config, path, env=env)
 
 
@@ -112,9 +123,13 @@ def validate_cli_config(config: Mapping[str, object]) -> dict[str, object]:
         if key in config:
             merged[key] = config[key]
     merged["schema_version"] = CONFIG_SCHEMA_VERSION
+    if type(merged.get("command_display_mode_explicitly_set")) is not bool:
+        raise ConfigError("command_display_mode_explicitly_set must be a boolean.")
     language = merged.get("language")
     if language is not None and language not in LANGUAGES:
         raise ConfigError("language must be ja or en.")
+    if not bool(merged.get("command_display_mode_explicitly_set")):
+        merged["command_display_mode"] = default_command_display_mode(language)
     if merged.get("theme") not in THEMES:
         raise ConfigError("theme is invalid.")
     if merged.get("command_display_mode") not in COMMAND_DISPLAY_MODES:
@@ -131,6 +146,8 @@ def validate_cli_config(config: Mapping[str, object]) -> dict[str, object]:
     if merged.get("file_access_mode") not in FILE_ACCESS_MODES:
         raise ConfigError("file_access_mode is invalid.")
     for key in (
+        "command_display_mode_explicitly_set",
+        "local_llm_enabled",
         "live_provider_enabled",
         "network_enabled",
         "ledger_enabled",
@@ -160,6 +177,8 @@ def normalize_config_key(key: str) -> str:
         "provider": "provider_preference",
         "model": "model_preference",
         "model_preference": "model_preference",
+        "local_llm": "local_llm_enabled",
+        "local_llm_enabled": "local_llm_enabled",
         "agent_mode": "agent_mode",
         "mode": "agent_mode",
         "language": "language",
@@ -284,6 +303,7 @@ def parse_config_value(key: str, value: str) -> object:
             return True
         raise ConfigError("local-to-cloud memory approval cannot be disabled in the public runtime.")
     if key in {
+        "local_llm_enabled",
         "live_provider_enabled",
         "network_enabled",
         "ledger_enabled",
@@ -315,6 +335,7 @@ def build_config_report(config: Mapping[str, object], *, exists: bool) -> dict[s
             "command_display_mode": validated["command_display_mode"],
             "provider_preference": validated["provider_preference"],
             "model_preference": validated["model_preference"],
+            "local_llm_enabled": validated["local_llm_enabled"],
             "agent_mode": validated["agent_mode"],
             "approval_mode": validated["approval_mode"],
             "file_access_mode": validated["file_access_mode"],

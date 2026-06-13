@@ -18,7 +18,7 @@ from yonerai_cli.screens.runs import (
     _progress_summary_label,
     _run_progress_events,
 )
-from yonerai_cli.tui.palette import format_command_palette
+from yonerai_cli.tui.palette import format_command_palette, format_command_palette_query
 
 
 def _format_chat_response(report: dict[str, Any], *, lang: str) -> str:
@@ -198,6 +198,10 @@ def _agent_role_label(value: object, *, lang: str) -> str:
 
 def _format_command_palette(lang: str, *, display_mode: str | None = None, color: str = "auto") -> str:
     return format_command_palette(lang, display_mode=display_mode, color=color)  # type: ignore[arg-type]
+
+
+def _format_command_palette_query(lang: str, query: str, *, display_mode: str | None = None, color: str = "auto") -> str:
+    return format_command_palette_query(lang, query, display_mode=display_mode, color=color)  # type: ignore[arg-type]
 
 
 def _format_mode_state(config: dict[str, object], *, lang: str) -> str:

@@ -54,7 +54,7 @@ def test_control_spine_status_reads_scopes_without_tokens(tmp_path: Path, monkey
                 {
                     "status": "ok",
                     "api_version": "yonerai.control-spine.v0.1",
-                    "min_cli_version": "0.20.0-alpha.1",
+                        "min_cli_version": "0.8.0",
                     "control_spine": {"mode": "staging"},
                 },
                 {"X-YonerAI-RateLimit-Scope": "staging"},
@@ -296,6 +296,43 @@ def test_whoami_uses_saved_staging_session_without_printing_it(tmp_path: Path, m
     assert str(tmp_path) not in serialized
 
 
+def test_whoami_fallback_uses_top_level_saved_session_account(tmp_path: Path, monkeypatch) -> None:
+    from yonerai_cli.services.control_spine_service import build_whoami_report
+    from yonerai_cli.services.staging_session_service import save_staging_session
+
+    config_path = tmp_path / "cli-config.json"
+    save_staging_session(
+        session_token="opaque-session-value-123456789",
+        origin="https://api-staging.yonerai.com",
+        account={"email": "owner@example.test", "display_name": "Owner"},
+        config_path=config_path,
+    )
+
+    def transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, dict[str, object], dict[str, str]]:
+        return 503, {"error": {"code": "temporary_unavailable"}}, {"X-YonerAI-RateLimit-Scope": "staging"}
+
+    report = build_whoami_report(
+        config={},
+        env={"YONERAI_STAGING_AUTH_ORIGIN": "https://api-staging.yonerai.com"},
+        claim_path=str(config_path),
+        transport=transport,
+    )
+    serialized = json.dumps(report, ensure_ascii=False, sort_keys=True)
+
+    assert report["ok"] is False
+    assert report["account_linked"] is True
+    assert report["linked_claim_account"]["display_name"] == "Owner"  # type: ignore[index]
+    assert report["linked_claim_account"]["email_redacted"] == "o***@example.test"  # type: ignore[index]
+    assert "opaque-session-value" not in serialized
+    assert str(tmp_path) not in serialized
+
+
 def test_expired_session_mid_command_has_guided_japanese_relogin(tmp_path: Path, monkeypatch) -> None:
     from yonerai_cli.screens.control_spine import format_control_spine_pretty
     from yonerai_cli.services.control_spine_service import build_whoami_report
@@ -331,7 +368,7 @@ def test_expired_session_mid_command_has_guided_japanese_relogin(tmp_path: Path,
     assert report["ok"] is False
     assert report["auth_state"] == "expired"
     assert report["error"]["code"] == "staging_auth_required"
-    assert "yonerai login" in rendered
+    assert "/ログイン" in rendered
     assert "Traceback" not in serialized
     assert str(tmp_path) not in serialized
 
@@ -378,7 +415,7 @@ def test_contract_skew_warns_when_backend_requires_newer_cli(tmp_path: Path, mon
 
     assert report["ok"] is True
     assert report["contract_skew"]["skew_detected"] is True
-    assert "yonerai update" in rendered
+    assert "/更新" in rendered
     assert str(tmp_path) not in serialized
 
 
@@ -445,7 +482,11 @@ def test_control_spine_rejects_private_or_token_payload(tmp_path: Path) -> None:
     assert str(tmp_path) not in serialized
 
 
-def test_public_cli_control_spine_commands_fail_closed_without_origin(tmp_path: Path, monkeypatch, capsys) -> None:
+def test_public_cli_control_spine_commands_do_not_default_to_staging_origin(
+    tmp_path: Path,
+    monkeypatch,
+    capsys,
+) -> None:
     from yonerai_cli import cli
 
     monkeypatch.setenv("YONERAI_CLI_CONFIG_PATH", str(tmp_path / "cli-config.json"))
@@ -454,14 +495,23 @@ def test_public_cli_control_spine_commands_fail_closed_without_origin(tmp_path: 
 
     assert cli.main(["whoami", "--json"]) == 1
     whoami = json.loads(capsys.readouterr().out)
+    assert whoami["backend_url"] == "not_configured"
+    assert whoami["staging_origin_configured"] is False
+    assert whoami["official_backend_called"] is False
     assert whoami["error"]["code"] == "staging_origin_not_configured"
 
     assert cli.main(["project", "list", "--json"]) == 1
     projects = json.loads(capsys.readouterr().out)
+    assert projects["backend_url"] == "not_configured"
+    assert projects["staging_origin_configured"] is False
+    assert projects["official_backend_called"] is False
     assert projects["error"]["code"] == "staging_origin_not_configured"
 
     assert cli.main(["audit", "list", "--json"]) == 1
     audit = json.loads(capsys.readouterr().out)
+    assert audit["backend_url"] == "not_configured"
+    assert audit["staging_origin_configured"] is False
+    assert audit["official_backend_called"] is False
     assert audit["error"]["code"] == "staging_origin_not_configured"
 
     serialized = json.dumps([whoami, projects, audit], sort_keys=True)
@@ -482,6 +532,50 @@ def test_login_alias_prints_staging_url_without_network(tmp_path: Path, monkeypa
     assert report["official_backend_called"] is False
     assert report["production_login_enabled"] is False
     assert report["token_printed"] is False
+    assert report["staging_login_available"] is True
+
+
+def test_format_login_flow_compact_uses_staging_report_without_legacy_flag() -> None:
+    from yonerai_cli.screens.control_spine import format_login_flow_compact
+
+    report = {
+        "ok": True,
+        "configured": True,
+        "staging": {
+            "configured": True,
+            "origin": "https://api-staging.yonerai.com",
+        },
+        "authorization_url": "https://api-staging.yonerai.com/auth/google/start",
+        "browser_opened": False,
+        "next_safe_command": "yonerai login",
+        "cli_bridge": {},
+    }
+
+    rendered = format_login_flow_compact(report, lang="ja")
+
+    assert "ステージング Google ログインだけ利用できます。" not in rendered
+    assert "次のURLをブラウザで開いてください。" in rendered
+    assert "https://api-staging.yonerai.com/auth/google/start" in rendered
+
+
+def test_format_control_spine_compact_keeps_short_user_facing_output() -> None:
+    from yonerai_cli.screens.control_spine import format_control_spine_compact
+
+    report = {
+        "ok": True,
+        "operation": "whoami",
+        "account": {"email_redacted": "o***@example.test"},
+        "session_expires_at": "2030-01-01T00:00:00Z",
+    }
+
+    rendered = format_control_spine_compact(report, lang="ja")
+
+    assert "アカウント" in rendered
+    assert "o***@example.test" in rendered
+    assert "/セッション" in rendered
+    assert "/ログアウト" in rendered
+    assert "staging のみ" in rendered
+    assert "Control Spine" not in rendered
 
 
 def test_login_alias_no_staging_is_controlled_error(tmp_path: Path, monkeypatch, capsys) -> None:
@@ -544,6 +638,36 @@ def test_interactive_callbacks_honor_custom_config_path(tmp_path: Path, monkeypa
     assert seen["config_path"] == str(tmp_path / "custom-config.json")
 
 
+def test_interactive_ping_does_not_inject_staging_origin_when_env_is_missing(tmp_path: Path, monkeypatch) -> None:
+    from yonerai_cli.services import control_spine_callbacks
+
+    monkeypatch.delenv("YONERAI_STAGING_AUTH_ORIGIN", raising=False)
+    monkeypatch.delenv("YONERAI_OFFICIAL_API_STAGING_ORIGIN", raising=False)
+
+    seen: dict[str, object] = {}
+
+    def fake_build_ping_report(*, config, env, claim_path, transport=None, timeout_seconds=10.0):  # type: ignore[no-untyped-def]
+        seen["env"] = dict(env)
+        seen["claim_path"] = claim_path
+        return {
+            "ok": False,
+            "operation": "api_ping",
+            "backend_url": env.get("YONERAI_STAGING_AUTH_ORIGIN", "not_configured"),
+            "staging_origin_configured": "YONERAI_STAGING_AUTH_ORIGIN" in env,
+        }
+
+    monkeypatch.setattr(control_spine_callbacks, "build_control_spine_ping_report", fake_build_ping_report)
+
+    report = control_spine_callbacks.interactive_ping_status("ja", config_path=str(tmp_path / "cli-config.json"))
+
+    assert report is not None
+    assert report["backend_url"] == "not_configured"
+    assert report["staging_origin_configured"] is False
+    assert seen["claim_path"] == str(tmp_path / "cli-config.json")
+    assert isinstance(seen["env"], dict)
+    assert "YONERAI_STAGING_AUTH_ORIGIN" not in seen["env"]
+
+
 def test_control_spine_context_handles_missing_session_claim(tmp_path: Path, monkeypatch) -> None:
     from yonerai_cli.services import control_spine_service
 
@@ -566,10 +690,18 @@ def test_control_spine_slash_commands_are_visible() -> None:
     words = slash_command_words("ja")
 
     assert canonical_command("/ログイン") == "/login"
+    assert canonical_command("/loguin") == "/login"
+    assert canonical_command("/ローカルLLM") == "/local-llm"
+    assert canonical_command("/ローカルllm") == "/local-llm"
+    assert canonical_command("/更新") == "/update"
+    assert canonical_command("/アカウント") == "/whoami"
     assert canonical_command("/プロジェクト") == "/project"
     assert canonical_command("/セッション") == "/sessions"
+    assert canonical_command("/疎通") == "/ping"
     assert canonical_command("/監査") == "/audit"
     assert "/ログイン" in words
+    assert "/アカウント" in words
     assert "/プロジェクト" in words
     assert "/セッション" in words
+    assert "/疎通" in words
     assert "/監査" in words

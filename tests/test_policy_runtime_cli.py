@@ -217,7 +217,7 @@ def test_tui_exposes_policy_command_and_settings_category() -> None:
 
     assert "/ポリシー" in words
     assert "/方針" in words
-    assert "/policy" not in words
+    assert "/policy" in words
     assert "/ポリシー" in summary
 
 
@@ -232,7 +232,7 @@ def test_interactive_policy_screen_uses_callback(tmp_path: Path, monkeypatch, ca
 
     assert "YonerAI ポリシー状態" in output
     assert "提供元とモデル" in output
-    assert "/設定 ポリシー" in output
+    assert "/ポリシー" in output
     assert "ポリシー: ローカル設定 + 公開契約" in output
     assert str(tmp_path) not in output
 
@@ -293,11 +293,6 @@ def test_interactive_home_policy_line_uses_policy_callback(tmp_path: Path) -> No
     output = stdout.getvalue()
 
     assert rc == 0
-    assert "外部live=オン" in output
-    assert "承認=拒否" in output
-    assert "ファイル=無効" in output
-    assert "ツール=disabled" in output
-    assert "任意shell=無効" in output
-    assert "公式Oracle=無効" in output
-    assert "local->cloud自動同期=なし" in output
+    assert "安全: 注意" in output
+    assert "外部liveオン" in output
     assert str(tmp_path) not in output

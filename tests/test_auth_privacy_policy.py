@@ -62,6 +62,20 @@ def test_auth_status_uses_staging_without_local_google_client_id(tmp_path: Path,
     assert str(tmp_path) not in serialized
 
 
+def test_auth_status_without_saved_session_stays_unauthenticated(tmp_path: Path, monkeypatch, capsys) -> None:
+    from yonerai_cli import cli
+
+    monkeypatch.setenv("YONERAI_CLI_CONFIG_PATH", str(tmp_path / "cli-config.json"))
+    monkeypatch.setenv("YONERAI_STAGING_AUTH_ORIGIN", "https://api-staging.yonerai.com")
+    monkeypatch.delenv("YONERAI_GOOGLE_OAUTH_CLIENT_ID", raising=False)
+
+    assert cli.main(["auth", "status", "--json"]) == 0
+    report = json.loads(capsys.readouterr().out)
+
+    assert report["staging_auth_state"] == "unauthenticated"
+    assert report["staging_account"]["email_redacted"] == "not-linked"
+
+
 def test_auth_status_localizes_staging_next_command(tmp_path: Path, monkeypatch, capsys) -> None:
     from yonerai_cli import cli
 
@@ -74,6 +88,82 @@ def test_auth_status_localizes_staging_next_command(tmp_path: Path, monkeypatch,
     report = json.loads(capsys.readouterr().out)
 
     assert report["next_safe_command"] == "yonerai login"
+
+
+def test_auth_status_pretty_uses_compact_japanese_staging_guidance(tmp_path: Path, monkeypatch, capsys) -> None:
+    from yonerai_cli import cli
+
+    monkeypatch.setenv("YONERAI_CLI_CONFIG_PATH", str(tmp_path / "cli-config.json"))
+    monkeypatch.delenv("YONERAI_GOOGLE_OAUTH_CLIENT_ID", raising=False)
+
+    assert cli.main(["auth", "status", "--pretty", "--lang", "ja"]) == 0
+    output = capsys.readouterr().out
+
+    assert "認証" in output
+    assert "状態: 未ログイン / Google α-staging" in output
+    assert "接続先: https://api-staging.yonerai.com" in output
+    assert "/ログイン" in output
+    assert "client secret" not in output.lower()
+    assert str(tmp_path) not in output
+
+
+def test_auth_status_pretty_shows_redacted_linked_account_without_raw_email(
+    tmp_path: Path,
+    monkeypatch,
+    capsys,
+) -> None:
+    from yonerai_cli import cli
+    from yonerai_cli.services.auth_session_service import build_staging_auth_claim, save_staging_auth_claim
+
+    config_path = tmp_path / "cli-config.json"
+    save_staging_auth_claim(
+        build_staging_auth_claim(
+            origin="https://api-staging.yonerai.com",
+            account={"email": "owner@example.com", "display_name": "Owner"},
+        ),
+        config_path=config_path,
+    )
+    monkeypatch.setenv("YONERAI_CLI_CONFIG_PATH", str(config_path))
+    monkeypatch.setenv("YONERAI_STAGING_AUTH_ORIGIN", "https://api-staging.yonerai.com")
+
+    assert cli.main(["auth", "status", "--pretty", "--lang", "en"]) == 0
+    output = capsys.readouterr().out
+
+    assert "state: previously linked / Google alpha-staging" in output
+    assert "account: o***@example.com" in output
+    assert "backend_check: saved from a previous link." in output
+    assert "owner@example.com" not in output
+    assert str(tmp_path) not in output
+
+
+def test_auth_status_pretty_uses_saved_session_wording_and_backend_verify_hint(
+    tmp_path: Path,
+    monkeypatch,
+    capsys,
+) -> None:
+    from yonerai_cli import cli
+    from yonerai_cli.services.staging_session_service import save_staging_session
+
+    config_path = tmp_path / "cli-config.json"
+    save_staging_session(
+        session_token="staging-session-token-1234567890",
+        origin="https://api-staging.yonerai.com",
+        account={"email": "owner@example.com", "display_name": "Owner"},
+        config_path=config_path,
+    )
+    monkeypatch.setenv("YONERAI_CLI_CONFIG_PATH", str(config_path))
+    monkeypatch.setenv("YONERAI_STAGING_AUTH_ORIGIN", "https://api-staging.yonerai.com")
+
+    assert cli.main(["auth", "status", "--pretty", "--lang", "ja"]) == 0
+    output = capsys.readouterr().out
+
+    assert "状態: 保存済みセッションあり / Google α-staging" in output
+    assert "backend確認: まだしていません。`/アカウント`（英語: `/whoami`）で今の状態を確認します。" in output
+    assert "次:" in output
+    assert "/whoami" in output
+    assert "同期 (/同期 / sync)" in output
+    assert "owner@example.com" not in output
+    assert str(tmp_path) not in output
 
 
 def test_google_login_dry_run_requires_client_configuration_without_traceback(tmp_path: Path, monkeypatch, capsys) -> None:
@@ -157,6 +247,21 @@ def test_google_login_staging_requires_configured_allowlisted_origin(tmp_path: P
     assert report["error"]["code"] == "staging_auth_origin_not_configured"
     assert "YONERAI_GOOGLE_OAUTH_CLIENT_SECRET" not in serialized
     assert str(tmp_path) not in serialized
+
+
+def test_login_alias_malformed_config_is_controlled_error(tmp_path: Path, monkeypatch, capsys) -> None:
+    from yonerai_cli import cli
+
+    config_path = tmp_path / "broken-config.json"
+    config_path.write_text("{not json", encoding="utf-8")
+    monkeypatch.setenv("YONERAI_STAGING_AUTH_ORIGIN", "https://api-staging.yonerai.com")
+
+    assert cli.main(["login", "--json", "--config-path", str(config_path)]) == 2
+    output = capsys.readouterr()
+
+    assert "config could not be read as JSON" in output.err
+    assert "Traceback" not in output.err
+    assert str(tmp_path) not in output.err
 
 
 def test_google_login_staging_generates_public_safe_auth_url(tmp_path: Path, monkeypatch, capsys) -> None:
@@ -1047,6 +1152,88 @@ def test_auth_session_status_reads_safe_staging_session_without_printing_token(
     assert "ystg_session_fixture_123" not in serialized
     assert "owner@example.com" not in serialized
     assert str(tmp_path) not in serialized
+
+
+def test_explicit_config_paths_do_not_share_staging_auth_sidecars(tmp_path: Path) -> None:
+    from yonerai_cli.auth_policy import build_google_auth_status
+    from yonerai_cli.services.auth_session_service import (
+        build_staging_auth_claim,
+        default_staging_auth_claim_path,
+        save_staging_auth_claim,
+    )
+    from yonerai_cli.services.staging_session_service import (
+        default_staging_session_claim_path,
+        default_staging_session_secret_path,
+        save_staging_session,
+    )
+
+    first_config = tmp_path / "first.json"
+    second_config = tmp_path / "second.json"
+    save_staging_auth_claim(
+        build_staging_auth_claim(
+            origin="https://api-staging.yonerai.com",
+            account={"email": "owner@example.com", "display_name": "Owner", "sub": "google-subject-private"},
+        ),
+        config_path=first_config,
+    )
+    save_staging_session(
+        session_token="ystg_session_fixture_123",
+        origin="https://api-staging.yonerai.com",
+        account={"email": "owner@example.com", "display_name": "Owner"},
+        expires_at="2099-06-06T00:30:00Z",
+        config_path=first_config,
+    )
+
+    assert default_staging_auth_claim_path(first_config).name == "first.staging-auth-claim.json"
+    assert default_staging_session_claim_path(first_config).name == "first.staging-session-claim.json"
+    assert default_staging_session_secret_path(first_config).name == "first.staging-session-token.dpapi"
+
+    first = build_google_auth_status({}, claim_path=str(first_config))
+    second = build_google_auth_status({}, claim_path=str(second_config))
+
+    assert first["staging_auth_state"] == "linked"
+    assert second["staging_auth_state"] == "unauthenticated"
+
+
+def test_staging_session_loads_and_clears_legacy_sidecar_names(tmp_path: Path, monkeypatch) -> None:
+    import base64
+
+    from yonerai_cli.services import staging_session_service
+    from yonerai_cli.services.staging_session_service import (
+        build_staging_session_claim,
+        clear_staging_session,
+        default_staging_session_claim_path,
+        legacy_staging_session_claim_path,
+        legacy_staging_session_secret_path,
+        load_staging_session_token,
+    )
+
+    config_path = tmp_path / "custom-cli-config.json"
+    token = "ystg_session_fixture_legacy_123"
+    claim = build_staging_session_claim(
+        session_token=token,
+        origin="https://api-staging.yonerai.com",
+        account={"email": "owner@example.com", "display_name": "Owner"},
+        expires_at="2099-06-06T00:30:00Z",
+        storage_backend="windows_dpapi_file",
+    )
+    legacy_claim = legacy_staging_session_claim_path(config_path)
+    legacy_secret = legacy_staging_session_secret_path(config_path)
+    legacy_claim.write_text(json.dumps(claim, ensure_ascii=False), encoding="utf-8")
+    legacy_secret.write_text("dpapi:v1:" + base64.b64encode(b"wrapped-secret").decode("ascii"), encoding="ascii")
+
+    monkeypatch.setattr(staging_session_service, "_dpapi_unprotect", lambda _data: token.encode("utf-8"))
+
+    loaded_token, loaded_claim = load_staging_session_token(config_path)
+    assert loaded_token == token
+    assert loaded_claim["auth_state"] == "linked"
+    assert not default_staging_session_claim_path(config_path).exists()
+
+    report = clear_staging_session(config_path)
+    assert report["ok"] is True
+    assert report["session_removed"] is True
+    assert not legacy_claim.exists()
+    assert not legacy_secret.exists()
 
 
 def test_auth_logout_staging_clears_safe_session_without_printing_paths(

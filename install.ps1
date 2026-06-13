@@ -473,11 +473,8 @@ function Invoke-VerifiedLocalBootstrap {
     }
 }
 
-function Set-YonerAIUserPath {
+function Write-YonerAIUserWrapper {
     param([string]$YoneraiExe)
-    if (-not $SetPath -or $NoPath) {
-        return
-    }
     if (-not (Test-Path -LiteralPath $YoneraiExe -PathType Leaf)) {
         throw "Installed yonerai.exe was not found after local bootstrap."
     }
@@ -491,13 +488,21 @@ function Set-YonerAIUserPath {
     }
     $cmdPath = Join-Path $bin "yonerai.cmd"
     "@echo off`r`n`"$YoneraiExe`" %*`r`n" | Set-Content -LiteralPath $cmdPath -Encoding ASCII
+    Write-Host "  user wrapper refreshed: %LOCALAPPDATA%\YonerAI\bin\yonerai.cmd"
+}
+
+function Set-YonerAIUserPath {
+    param([string]$BinDir)
+    if (-not $SetPath -or $NoPath) {
+        return
+    }
     $currentUserPath = [Environment]::GetEnvironmentVariable("Path", "User")
     if ([string]::IsNullOrWhiteSpace($currentUserPath)) {
-        $newPath = $bin
+        $newPath = $BinDir
     }
     else {
         $parts = @($currentUserPath -split ";") | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
-        $normalizedBin = Get-NormalizedPathText -PathText $bin
+        $normalizedBin = Get-NormalizedPathText -PathText $BinDir
         $alreadyPresent = $parts | Where-Object {
             (Get-NormalizedPathText -PathText $_) -ieq $normalizedBin
         } | Select-Object -First 1
@@ -505,11 +510,11 @@ function Set-YonerAIUserPath {
             $newPath = $currentUserPath
         }
         else {
-            $newPath = "$bin;$currentUserPath"
+            $newPath = "$BinDir;$currentUserPath"
         }
     }
     [Environment]::SetEnvironmentVariable("Path", $newPath, "User")
-    Write-Host "  user PATH wrapper installed: %LOCALAPPDATA%\YonerAI\bin\yonerai.cmd"
+    Write-Host "  user PATH updated for %LOCALAPPDATA%\YonerAI\bin"
     Write-Host "  open a new PowerShell window before typing: yonerai"
 }
 
@@ -576,9 +581,9 @@ Write-Host "  recommended script source: $GitHubLatestInstallScript"
 Write-Host "  artifact source: GitHub Release assets only"
 Write-Host "  production signature/trust store: not included"
 Write-Host "  PATH mutation: disabled unless -SetPath"
+Write-Host "  user wrapper: refreshed on install at %LOCALAPPDATA%\YonerAI\bin\yonerai.cmd"
 Write-Host "  not performed unless -Execute: release lookup, download, extraction, pip install, launch"
 Write-Host "  never performed: service install, admin request, provider key storage"
-Write-Host "  optional user PATH wrapper: disabled unless -SetPath"
 Write-Host "  optional shortcuts: disabled unless -Shortcut"
 
 if (-not [string]::IsNullOrWhiteSpace($Manifest) -or -not [string]::IsNullOrWhiteSpace($Artifact)) {
@@ -594,8 +599,8 @@ if (-not $Execute) {
     Write-Host "  & ([scriptblock]::Create((irm $GitHubLatestInstallScript))) -Repair -Execute -Launch"
     Write-Host "Run this only when you explicitly want the latest alpha channel:"
     Write-Host "  & ([scriptblock]::Create((irm $GitHubLatestInstallScript))) -Channel alpha -Execute -Launch"
-    Write-Host "Optional PATH wrapper:"
-    Write-Host "  add -SetPath if you want a user PATH wrapper for future PowerShell windows"
+    Write-Host "PATH environment update:"
+    Write-Host "  add -SetPath only if %LOCALAPPDATA%\\YonerAI\\bin is not already on PATH"
     Write-Host "Optional shortcuts:"
     Write-Host "  add -Shortcut if you want Start Menu and Desktop shortcuts"
     Show-YonerAICommandDiagnostic -ExpectedInstall "" -ExpectedWrapperDisplay "$(Get-DisplayBinDir)\yonerai.cmd"
@@ -645,7 +650,12 @@ try {
     $expanded = Expand-VerifiedArtifact -ZipPath $artifactPath -Destination $targetDir
     Invoke-VerifiedLocalBootstrap -InstallLocalPath ([string]$expanded.InstallLocalPath)
     $yoneraiExe = Join-Path ([string]$expanded.SourceRoot) ".venv\Scripts\yonerai.exe"
-    Set-YonerAIUserPath -YoneraiExe $yoneraiExe
+    Write-YonerAIUserWrapper -YoneraiExe $yoneraiExe
+    $base = $env:LOCALAPPDATA
+    if ([string]::IsNullOrWhiteSpace($base)) {
+        $base = Join-Path $HOME "AppData\Local"
+    }
+    Set-YonerAIUserPath -BinDir (Join-Path $base "YonerAI\bin")
     New-YonerAIShortcut -YoneraiExe $yoneraiExe
     Show-YonerAICommandDiagnostic -ExpectedInstall $targetDir -ExpectedWrapperDisplay "$(Get-DisplayBinDir)\yonerai.cmd"
     Start-YonerAI -YoneraiExe $yoneraiExe

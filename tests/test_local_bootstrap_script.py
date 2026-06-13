@@ -38,11 +38,13 @@ def test_install_script_is_plan_first_verified_github_release_bootstrap() -> Non
     assert "Custom manifest/artifact inputs are not accepted by install.ps1" in script
     assert "Invoke-Expression" not in script
     assert "PATH mutation: disabled unless -SetPath" in script
+    assert "user wrapper: refreshed on install at %LOCALAPPDATA%\\YonerAI\\bin\\yonerai.cmd" in script
     assert "[switch]$SetPath" in script
     assert "[switch]$Shortcut" in script
     assert "optional shortcuts: disabled unless -Shortcut" in script
     assert "CreateShortcut" in script
     assert "New-YonerAIShortcut" in script
+    assert "Write-YonerAIUserWrapper" in script
     assert "Write-Warning \"Failed to create shortcuts; continuing without them.\"" in script
     assert "SetEnvironmentVariable" in script
     assert re.search(r"\bsetx\b", script, flags=re.IGNORECASE) is None
@@ -178,6 +180,7 @@ def test_install_script_plan_mode_does_not_install_when_powershell_available() -
     assert "install.yonerai.com" in result.stdout
     assert "-Execute" in result.stdout
     assert "PATH mutation" in result.stdout
+    assert "user wrapper: refreshed on install" in result.stdout
     assert "-Shortcut" in result.stdout
     assert "Optional shortcuts" in result.stdout
 

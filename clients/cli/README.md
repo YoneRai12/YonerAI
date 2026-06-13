@@ -1,4 +1,4 @@
-# YonerAI Local CLI Smoke
+﻿# YonerAI Local CLI Smoke
 
 `clients/cli` is the YonerAI CLI Local Runtime surface. It is the main
 public-safe command surface for provider readiness, auto routing, local-dev
@@ -13,7 +13,7 @@ package and commercial use requires a separate license.
 ## Install and start YonerAI
 
 This is the CLI Local Runtime path, not full YonerAI cloud production. The
-latest stable is `v0.8.0`. Stable is the default channel. Beta/prerelease
+latest stable is `v0.8.1`. Stable is the default channel. Beta/prerelease
 builds stay explicit and are compatibility-mapped to existing prerelease
 manifests.
 
@@ -41,8 +41,8 @@ Use this when you want to verify `install.ps1` before execution:
 
 ```powershell
 $ErrorActionPreference = "Stop"
-$base = "https://github.com/YoneRai12/YonerAI/releases/download/v0.8.0"
-$expected = "968dbeee3375fd8ee233d995592037d897d5be3b02ec0a9130ce7bff9ab9a29c"
+$base = "https://github.com/YoneRai12/YonerAI/releases/download/v0.8.1"
+$expected = "2ca04db3e1dc7519563e006a3d117d4cb04c7b205656fac6ea9ff7fb483cd0b8"
 $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("yonerai-bootstrap-" + [guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory -Path $tmp | Out-Null
 try {
@@ -67,13 +67,13 @@ try {
 
 ### If you downloaded the GitHub Release ZIP
 
-Download `YonerAI-0.8.0.zip` from the
-[v0.8.0 release](https://github.com/YoneRai12/YonerAI/releases/tag/v0.8.0),
+Download `YonerAI-0.8.1.zip` from the
+[v0.8.1 release](https://github.com/YoneRai12/YonerAI/releases/tag/v0.8.1),
 extract it, then run PowerShell inside the extracted folder. The extracted
 folder name can vary; change the `cd` command to match the folder you see.
 
 ```powershell
-cd "$HOME\Downloads\YonerAI-0.8.0"
+cd "$HOME\Downloads\YonerAI-0.8.1"
 python --version
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
@@ -124,26 +124,34 @@ python -m pip install -e clients/cli
 yonerai
 ```
 
-`yonerai` starts the interactive CLI when stdin is a TTY. `yonerai chat` starts
-the same screen explicitly, and `yonerai ask --auto` remains the scriptable
+`yonerai` starts the interactive app when stdin is a TTY. Type a normal message
+first; the default mock provider works offline with no API key. `yonerai chat`
+starts the same app explicitly, and `yonerai ask --auto` remains the scriptable
 runtime path.
 
-This screen is the YonerAI Mission Control CLI. It shows provider, route, local
-node, ledger, safety mode, run_id, task progress, and the deterministic
-reviewer/subagent plan. It does not start uncontrolled agents or turn on live
-providers by default.
+When `prompt_toolkit` and Rich are available, `/` opens command suggestions near
+the input box and Tab/arrow keys select candidates. If not, YonerAI falls back to
+plain text. Japanese mode shows Japanese commands first while English aliases
+such as `/login`, `/update`, and `/local-llm` remain accepted.
 
-When `prompt_toolkit` and Rich are available, the interactive shell shows
-completion candidates and colored panels. If not, it falls back to plain text.
-In Japanese mode, type `/` to see Japanese-first candidates; Tab and arrow-key
-selection are available in compatible terminals.
+Normal users should use the in-app commands:
 
-Readable Japanese aliases are accepted for the main TUI actions, including
-`/設定`, `/モデル`, `/提供元`, `/安全`, `/履歴`, `/タスク`, `/認証`,
-`/プライバシー`, `/自己進化`, `/更新`, `/更新通知`, and `/終了`. Legacy
-aliases remain accepted for compatibility. The interactive shell is still a
-local terminal surface: it does not enable live providers, arbitrary shell/tool
-execution, production cloud, Google login, or live Discord.
+```text
+/ログイン      Google α/staging login
+/更新          stable/beta update choice; apply only after explicit confirmation
+/ローカルLLM   detect Ollama / LM Studio and show setup guidance
+/設定          language, display, provider, safety, memory, update settings
+/認証          auth state, shared traffic off, private upload disabled
+/同期          cloud-to-local preview; local-to-cloud requires approval
+/記憶          local memory add/list/forget/sync preview
+/履歴          redacted run history
+/API           staging API status
+/レート        rate-limit status
+/終了          quit
+```
+
+The interactive app does not enable live providers, arbitrary shell/tool
+execution, production cloud, production Google login, or live Discord.
 
 ## Public Demo
 
@@ -159,10 +167,10 @@ yonerai start --guided --lang ja
 yonerai providers --pretty --lang ja
 yonerai ask "hello" --auto --pretty --lang ja
 yonerai chat --script --lang ja
-yonerai manifest verify releases/manifest.v0.8.0.json --pretty
-yonerai install plan --manifest releases/manifest.v0.8.0.json --pretty
-yonerai update check --manifest releases/manifest.v0.8.0.json --pretty
-yonerai update plan --manifest releases/manifest.v0.8.0.json --pretty
+yonerai manifest verify releases/manifest.v0.8.1.json --pretty
+yonerai install plan --manifest releases/manifest.v0.8.1.json --pretty
+yonerai update check --manifest releases/manifest.v0.8.1.json --pretty
+yonerai update plan --manifest releases/manifest.v0.8.1.json --pretty
 yonerai demo --pretty
 yonerai demo --json
 ```
@@ -185,43 +193,36 @@ proposal-only self-evolution.
 
 `yonerai` and `yonerai chat` start the interactive terminal app when stdin is a
 TTY. It is Japanese-first, uses the same `ask --auto` runtime path as the
-command CLI, and exposes settings through slash commands:
+command CLI, and exposes settings through slash commands. English aliases are
+available, but Japanese users should not need to type shell commands or long
+flags.
 
-- `/settings`
-- `/models`
-- `/providers`
-- `/safety`
-- `/tasks`
-- `/agents`
-- `/runs`
-- `/show <run_id>`
-- `/local-llm`
-- `/auth`
-- `/privacy`
-- `/update`
-- `/update-notice on|off`
-- `/language ja|en`
-- `/provider auto|mock|local|openai-compatible|anthropic|gemini`
-- `/ledger on|off`
-- `/live on|off`
-- `/network on|off`
-- `/select <n> <value>`
-- `/quit`
+Core in-app commands:
+
+- `/ログイン` or `/login`
+- `/更新` or `/update`
+- `/ローカルLLM` or `/local-llm`
+- `/設定` or `/settings`
+- `/認証` or `/auth`
+- `/同期` or `/sync`
+- `/記憶` or `/memory`
+- `/履歴` or `/runs`
+- `/API` or `/api`
+- `/レート` or `/rate-limit`
+- `/終了` or `/quit`
 
 First interactive launch asks for Japanese or English and stores only local
 non-secret preferences. Non-TTY execution prints fallback instructions instead
 of hanging. `yonerai chat --script` intentionally reads lines from stdin for
 tests or scripted demos.
 
-Japanese mode shows Japanese command labels such as `/設定`, `/モデル`, `/提供元`,
-`/安全`, `/履歴`, `/タスク`, `/エージェント`, `/認証`, `/同期`, `/プライバシー`, `/更新`, and `/終了`. English aliases remain
-accepted for compatibility, but they are not the primary Japanese UI.
+Japanese mode shows Japanese command labels first. If you type `/l`, English
+aliases such as `/login` and `/local-llm` still appear. The secondary alias is
+dimmed when color is available.
 
-`yonerai update` shows stable/beta choices first. `yonerai update stable` and
-`yonerai update beta` read local VERSION and local release manifests, then
-report whether a newer manifest target exists. They do not download, install,
-mutate PATH, execute remote code, force update, auto-apply updates, or require
-admin rights.
+Inside the app, `/更新` shows stable/beta choices first. Applying an update
+requires explicit confirmation. There is no silent update, forced update, PATH
+mutation, remote script execution, or admin requirement.
 
 `yonerai sync status --pretty --lang ja` shows the public account-sync
 contract. Cloud conversation sync down requires a linked account and

@@ -23,6 +23,7 @@ for path in (CLIENTS_CLI, CORE_SRC):
 
 from yonerai_cli.config import DEFAULT_CONFIG, ConfigError, THEMES, save_cli_config, validate_cli_config
 from yonerai_cli.startup_home import render_startup_home_header
+from yonerai_cli.tui.renderer import render_panel, render_text_block
 from yonerai_cli.tui.themes import normalize_theme, theme_from_input, theme_palette, theme_uses_truecolor
 
 
@@ -84,14 +85,56 @@ def test_header_mono_has_no_ansi_escape() -> None:
     assert "\x1b[38;2;" not in out
 
 
-def test_header_dark_has_ansi_escape_when_color_always() -> None:
+def test_header_dark_stays_plain_even_when_color_always() -> None:
     out = render_startup_home_header(color="always", theme="dark", width=140)
-    assert "\x1b[38;2;" in out
+    assert "\x1b[38;2;" not in out
 
 
 def test_header_never_color_ignores_theme() -> None:
     out = render_startup_home_header(color="never", theme="dark", width=140)
     assert "\x1b[38;2;" not in out
+
+
+def test_header_auto_color_stays_plain_for_startup_safety() -> None:
+    out = render_startup_home_header(color="auto", theme="dark", width=140)
+    assert "\x1b[38;2;" not in out
+
+
+def test_header_uses_compact_branding_even_on_wide_terminal() -> None:
+    out = render_startup_home_header(color="never", theme="dark", width=160)
+    assert "YonerAI" in out
+    assert "CLI | build / sync" in out
+    assert "/ evolve" in out
+    assert "██████" not in out
+
+
+def test_render_panel_converts_ansi_header_without_leaking_escape_fragments() -> None:
+    stream = _PlainStringIO()
+    header = render_startup_home_header(color="always", theme="dark", width=140)
+
+    ok = render_panel(header, title="YonerAI", stream=stream, color="never")
+
+    assert ok is True
+    out = stream.getvalue()
+    assert "\x1b[" not in out
+    assert "[38;2;" not in out
+    assert "CLI | build / sync" in out
+    assert "/ evolve" in out
+
+
+def test_render_text_block_strips_broken_truecolor_fragments() -> None:
+    stream = _PlainStringIO()
+    broken = "YonerAI\n[38;2;123;255mCLI\n8;2;127;123;255m"
+
+    ok = render_text_block(broken, stream=stream, color="never")
+
+    assert ok is True
+    out = stream.getvalue()
+    assert "\x1b[" not in out
+    assert "[38;2;" not in out
+    assert "8;2;127;123;255m" not in out
+    assert "YonerAI" in out
+    assert "CLI" in out
 
 
 # --- onboarding + slash command ---

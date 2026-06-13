@@ -254,7 +254,7 @@ def format_update_choice_pretty(report: dict[str, Any]) -> str:
     lines.extend(
         [
             "",
-            f"  次: {_safe(report.get('next_step_ja') or 'yonerai update stable または yonerai update beta')}",
+            f"  次: {_safe(report.get('next_step_ja') or '/更新 安定版 または /更新 ベータ版')}",
             "  ここではダウンロード、インストール、PATH変更、自動適用は行いません。",
             "  実際のインストール確認は表示された安全な次のコマンドで進めます。",
             "",
@@ -359,6 +359,43 @@ def _display_channel(channel: Any, *, lang: str) -> str:
     return _safe(value or "unknown")
 
 
+def _interactive_update_command(value: Any, *, lang: str) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return "/更新" if lang == "ja" else "/update"
+    if text.startswith("/"):
+        return _safe(text)
+    normalized = " ".join(text.split()).lower()
+    if lang == "ja":
+        mapping = (
+            ("yonerai update apply stable", "/更新 適用 安定版 確認 (/update apply stable confirm)"),
+            ("yonerai update apply alpha", "/更新 適用 ベータ版 確認 (/update apply beta confirm)"),
+            ("yonerai update apply beta", "/更新 適用 ベータ版 確認 (/update apply beta confirm)"),
+            ("yonerai update stable", "/更新 安定版 (/update stable)"),
+            ("yonerai update alpha", "/更新 ベータ版 (/update beta)"),
+            ("yonerai update beta", "/更新 ベータ版 (/update beta)"),
+            ("yonerai update check", "/更新 (/update)"),
+            ("yonerai update plan", "/更新 (/update)"),
+            ("yonerai update", "/更新 (/update)"),
+        )
+    else:
+        mapping = (
+            ("yonerai update apply stable", "/update apply stable confirm (/更新 適用 安定版 確認)"),
+            ("yonerai update apply alpha", "/update apply beta confirm (/更新 適用 ベータ版 確認)"),
+            ("yonerai update apply beta", "/update apply beta confirm (/更新 適用 ベータ版 確認)"),
+            ("yonerai update stable", "/update stable (/更新 安定版)"),
+            ("yonerai update alpha", "/update beta (/更新 ベータ版)"),
+            ("yonerai update beta", "/update beta (/更新 ベータ版)"),
+            ("yonerai update check", "/update (/更新)"),
+            ("yonerai update plan", "/update (/更新)"),
+            ("yonerai update", "/update (/更新)"),
+        )
+    for prefix, replacement in mapping:
+        if normalized.startswith(prefix):
+            return replacement
+    return _safe(text)
+
+
 def _format_update_check(report: dict[str, Any], *, lang: str) -> str:
     if report.get("schema_version") == "yonerai-update-choice/v0.1":
         return format_update_choice_pretty(report)
@@ -374,46 +411,41 @@ def _format_update_check(report: dict[str, Any], *, lang: str) -> str:
                 f"  チャンネル: {_display_channel(report.get('channel'), lang='ja')}",
                 f"  現在のバージョン: {_safe(report.get('current_version') or '不明')}",
                 f"  対象バージョン: {_safe(report.get('latest_manifest_version') or '不明')}",
-                f"  更新あり: {_value_label(bool(report.get('update_available')), lang='ja')}",
-                f"  確認が必要: {_yes_no(bool(report.get('confirmation_required')), lang='ja')}",
                 f"  状態: {_safe(report.get('apply_state') or '未実行')}",
-                f"  次の安全なコマンド: {_safe(report.get('next_safe_command') or '')}",
-                f"  TUIで実行: {_safe(report.get('next_interactive_command') or '')}",
+                f"  確認が必要: {_yes_no(bool(report.get('confirmation_required')), lang='ja')}",
+                f"  次: {_interactive_update_command(report.get('next_interactive_command') or report.get('next_safe_command'), lang='ja')}",
                 f"  説明: {_safe(report.get('message_ja') or '')}",
-                "  自動適用なし / 強制サイレント更新なし / PATH変更なし / 管理者要求なし",
+                "  自動適用なし / 強制サイレント更新なし / PATH変更なし",
                 "",
             ]
             return "\n".join(lines)
         lines = [
             "更新確認",
             f"  現在のバージョン: {_safe(report.get('current_version') or '不明')}",
-            f"  manifest上のバージョン: {_safe(report.get('latest_manifest_version') or '不明')}",
-                f"  最新安定版: {_safe(report.get('latest_stable') or '不明')}",
             f"  チャンネル: {_display_channel(report.get('channel'), lang='ja')}",
-            f"  更新あり: {_value_label(bool(report.get('update_available')), lang='ja')}",
-            f"  比較結果: {_safe(report.get('version_comparison') or '不明')}",
+            f"  最新安定版: {_safe(report.get('latest_stable') or report.get('latest_manifest_version') or '不明')}",
+            f"  最新: {_safe(report.get('latest_manifest_version') or report.get('latest_stable') or '不明')}",
+            f"  更新: {_value_label(bool(report.get('update_available')), lang='ja')}",
+            f"  trust: {_safe(signature.get('state') or '不明')} / sha256={'あり' if artifact.get('sha256_present') else 'なし'}",
             f"  artifact: {_safe(artifact.get('actual_filename') or artifact.get('selected_artifact') or '未選択')}",
-            f"  sha256: {'あり' if artifact.get('sha256_present') else 'なし'}",
-            f"  署名/信頼: {_safe(signature.get('state') or '不明')} / 検証済み={_yes_no(signature.get('verified'), lang='ja')}",
-            f"  rollback計画: {_value_label(bool(report.get('rollback_plan_available')), lang='ja')}",
-            f"  次の安全な確認: {_safe(report.get('next_safe_command') or 'yonerai update plan --pretty')}",
-            f"  Quick install: {_safe(report.get('quick_install_command') or '不明')}",
-            f"  GitHub fallback: {_safe(report.get('github_install_fallback_command') or '不明')}",
-            f"  Verified install: {_safe(report.get('verified_install_page') or 'https://yonerai.com/install')}",
-            f"  セキュリティ更新: {'あり' if report.get('security_update') else 'なし'}",
-            f"  クリティカル更新: {'あり' if report.get('critical_update') else 'なし'}",
             f"  強制更新: {'あり' if report.get('forced_update_enabled') else 'なし'}",
             f"  自動適用: {'あり' if report.get('auto_update_apply_enabled') else 'なし'}",
-            f"  作業中の扱い: {_safe(policy.get('active_session_behavior') or 'warn_only_do_not_interrupt')}",
-            f"  次回起動時: {_safe(policy.get('next_startup_behavior') or 'show_update_screen_first_only_if_critical')}",
+            f"  セキュリティ更新: {'あり' if report.get('security_update') else 'なし'}",
+            f"  クリティカル更新: {'あり' if report.get('critical_update') else 'なし'}",
+            f"  次: {_interactive_update_command(report.get('next_safe_command'), lang='ja')}",
+            f"  Quick install: {_safe(report.get('quick_install_command') or '不明')}",
+            f"  Verified install: {_safe(report.get('verified_install_page') or 'https://yonerai.com/install')}",
             f"  基本ローカルmockチャット: {'利用可' if policy.get('basic_local_mock_chat_allowed', True) else '制限'}",
             "  実行しなかったこと:",
         ]
-        for action in actions:
+        visible_actions = actions[:4]
+        for action in visible_actions:
             lines.append(f"    - {_safe(action)}")
+        if not any("forced update" in str(action).lower() for action in visible_actions):
+            lines.append("    - no forced update")
         if warnings:
             lines.append("  注意:")
-            for warning in warnings[:5]:
+            for warning in warnings[:3]:
                 lines.append(f"    - {_safe(warning)}")
         lines.append("")
         return "\n".join(lines)
@@ -427,8 +459,8 @@ def _format_update_check(report: dict[str, Any], *, lang: str) -> str:
                 f"  update_available: {bool(report.get('update_available'))}",
                 f"  confirmation_required: {bool(report.get('confirmation_required'))}",
                 f"  apply_state: {_safe(report.get('apply_state') or 'not_started')}",
-                f"  next_safe_command: {_safe(report.get('next_safe_command') or '')}",
-                f"  interactive_command: {_safe(report.get('next_interactive_command') or '')}",
+                f"  next_safe_command: {_interactive_update_command(report.get('next_safe_command'), lang='en')}",
+                f"  interactive_command: {_interactive_update_command(report.get('next_interactive_command'), lang='en')}",
                 f"  message: {_safe(report.get('message_en') or '')}",
                 "  no auto-apply / no forced silent update / no PATH mutation / no admin request",
                 "",
@@ -447,7 +479,7 @@ def _format_update_check(report: dict[str, Any], *, lang: str) -> str:
             f"  sha256_present: {bool(artifact.get('sha256_present'))}",
             f"  signature: {_safe(signature.get('state') or 'unknown')} verified={bool(signature.get('verified'))}",
             f"  rollback_plan_available: {bool(report.get('rollback_plan_available'))}",
-            f"  next_safe_command: {_safe(report.get('next_safe_command') or 'yonerai update plan --pretty')}",
+            f"  next_safe_command: {_interactive_update_command(report.get('next_safe_command'), lang='en')}",
             f"  quick_install_command: {_safe(report.get('quick_install_command') or 'unknown')}",
             f"  github_install_fallback_command: {_safe(report.get('github_install_fallback_command') or 'unknown')}",
             f"  verified_install_page: {_safe(report.get('verified_install_page') or 'https://yonerai.com/install')}",
@@ -483,7 +515,7 @@ def _format_update_notice(report: dict[str, Any] | None, lang: str, *, phase: st
                 f"  update_available: {_value_label(bool(report.get('update_available')), lang='ja')}",
                 f"  critical_update: {_value_label(bool(report.get('critical_update')), lang='ja')}",
                 f"  behavior: {_safe(policy.get('active_session_behavior') or 'warn_only_do_not_interrupt')}",
-                f"  next: {_safe(report.get('next_safe_command') or 'yonerai update')}",
+                f"  次: {_interactive_update_command(report.get('next_safe_command'), lang='ja')}",
                 "  自動適用なし / 強制サイレント更新なし / ローカルmock chatは継続できます",
                 "",
             )
@@ -497,7 +529,7 @@ def _format_update_notice(report: dict[str, Any] | None, lang: str, *, phase: st
             f"  update_available: {bool(report.get('update_available'))}",
             f"  critical_update: {bool(report.get('critical_update'))}",
             f"  behavior: {_safe(policy.get('active_session_behavior') or 'warn_only_do_not_interrupt')}",
-            f"  next: {_safe(report.get('next_safe_command') or 'yonerai update')}",
+            f"  next: {_interactive_update_command(report.get('next_safe_command'), lang='en')}",
             "  no auto-apply / no forced silent update / local mock chat remains available",
             "",
         )
@@ -505,5 +537,5 @@ def _format_update_notice(report: dict[str, Any] | None, lang: str, *, phase: st
 
 def _update_unavailable(lang: str) -> str:
     if lang == "ja":
-        return "更新確認はこのビルドでは利用できません。yonerai update を試してください。\n"
-    return "Update check is unavailable in this build. Try yonerai update.\n"
+        return "更新確認はこのビルドでは利用できません。`/更新` を試してください。\n"
+    return "Update check is unavailable in this build. Try `/update`.\n"

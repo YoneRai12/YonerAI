@@ -1,4 +1,4 @@
-# YonerAI
+﻿# YonerAI
 
 > [!WARNING]
 > **Do not treat this README as the single source of truth for the current prerelease state.**
@@ -34,7 +34,7 @@ See [LICENSE](LICENSE), [LICENSE_JP.md](LICENSE_JP.md), [NOTICE](NOTICE), and
 ## Install and start YonerAI
 
 This is the local CLI runtime path, not full YonerAI cloud production. The
-latest stable CLI Local Runtime is `v0.8.0`. Stable is the default channel.
+latest stable CLI Local Runtime is `v0.8.1`. Stable is the default channel.
 The beta/prerelease line remains explicit and compatibility-mapped to existing
 prerelease manifests. After install, `yonerai` launches the interactive CLI and
 plain text talks to the safe local runtime without remembering flags.
@@ -67,8 +67,8 @@ mismatched.
 
 ```powershell
 $ErrorActionPreference = "Stop"
-$base = "https://github.com/YoneRai12/YonerAI/releases/download/v0.8.0"
-$expected = "968dbeee3375fd8ee233d995592037d897d5be3b02ec0a9130ce7bff9ab9a29c"
+$base = "https://github.com/YoneRai12/YonerAI/releases/download/v0.8.1"
+$expected = "2ca04db3e1dc7519563e006a3d117d4cb04c7b205656fac6ea9ff7fb483cd0b8"
 $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("yonerai-bootstrap-" + [guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory -Path $tmp | Out-Null
 try {
@@ -96,13 +96,13 @@ the manual ZIP flow for explicit release selection.
 
 ### If you downloaded the GitHub Release ZIP
 
-Download `YonerAI-0.8.0.zip` from the
-[v0.8.0 release](https://github.com/YoneRai12/YonerAI/releases/tag/v0.8.0),
+Download `YonerAI-0.8.1.zip` from the
+[v0.8.1 release](https://github.com/YoneRai12/YonerAI/releases/tag/v0.8.1),
 extract it, then run PowerShell inside the extracted folder. The extracted
 folder name can vary; change the `cd` command to match the folder you see.
 
 ```powershell
-cd "$HOME\Downloads\YonerAI-0.8.0"
+cd "$HOME\Downloads\YonerAI-0.8.1"
 python --version
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
@@ -166,54 +166,45 @@ python -m pip install -e clients/cli
 yonerai
 ```
 
-After install, `yonerai` starts the interactive CLI when stdin is a TTY.
-`yonerai chat` starts the same screen explicitly. For CI, pipes, and scripted
-input, use `yonerai chat --script` or `yonerai ask --auto`.
+After install, `yonerai` starts the interactive app when stdin is a TTY.
+Type a normal message first. The default mock provider answers offline with no
+API key or setup. `yonerai chat` remains an explicit alias. For CI, pipes, and
+scripted input, use `yonerai chat --script` or `yonerai ask --auto`.
 
-The interactive CLI is now the YonerAI Mission Control CLI: it shows the
-selected provider, route, local node state, ledger state, safety mode, run_id,
-task progress, and the deterministic reviewer/subagent plan. It does not start
-uncontrolled agents or enable live providers by default.
+### In-app commands
 
-### Interactive CLI controls
-
-The v0.6 TUI runtime adds `prompt_toolkit` completion and Rich panels when the
-terminal supports them. If either library or terminal support is unavailable,
-YonerAI falls back to the plain line-by-line shell used by CI.
-
-In Japanese mode, type `/` to see Japanese-first command candidates. Tab and
-arrow-key selection are available when `prompt_toolkit` is active:
-
-Readable Japanese aliases are accepted for the primary actions: `/設定`,
-`/モデル`, `/提供元`, `/安全`, `/履歴`, `/タスク`, `/認証`, `/プライバシー`,
-`/自己進化`, `/更新`, `/更新通知`, and `/終了`. Compatibility aliases remain
-accepted, but they do not enable production cloud, live Discord, provider keys,
-arbitrary shell/tool execution, or Google login.
+Normal users should not need to memorize long shell flags such as
+`--bridge --open-browser --wait-linked`. Open `yonerai`, type `/`, and choose a
+command. Japanese mode shows Japanese commands first while English aliases such
+as `/login` and `/local-llm` still work. Tab and arrow-key selection are
+available when `prompt_toolkit` is active; otherwise YonerAI falls back to the
+plain line-by-line mode used by CI.
 
 ```text
-/設定       settings
-/モデル     model and local LLM setup
-/提供元     provider/API status
-/安全       safety boundaries
-/履歴       redacted run history
-/タスク     task progress
-/エージェント reviewer/subagent plan display
-/認証       Google OAuth dry-run status
-/同期       cloud/local sync boundary
-/プライバシー shared-traffic/privacy status
-/更新       choose stable/beta update check
-/更新通知   startup update notice setting
-/終了       quit
+/ログイン      open Google alpha/staging login
+/更新          choose stable/beta update; apply only after explicit confirmation
+/ローカルLLM   detect Ollama / LM Studio and show setup guidance
+/設定          language, display, provider, safety, memory, update settings
+/認証          auth state, shared traffic off, private upload disabled
+/同期          cloud-to-local preview; local-to-cloud requires approval
+/記憶          add/list/forget local memory and preview sync
+/履歴          redacted run history
+/API           staging API status
+/レート        rate-limit status
+/終了          quit
 ```
 
-Useful commands:
+Short shell commands are still available for advanced users and CI, but the
+normal path is the in-app `/ログイン`, `/更新`, and `/ローカルLLM` flow.
 
 ```powershell
 yonerai
 yonerai chat
+yonerai ask --auto "hello"
 yonerai update
 yonerai update stable
 yonerai update beta
+yonerai login
 yonerai auth status --pretty --lang ja
 yonerai sync status --pretty --lang ja
 yonerai sync preview --direction cloud-to-local --json
@@ -223,10 +214,10 @@ yonerai config set model llama3.1 --pretty --lang ja
 yonerai providers --pretty --lang ja
 ```
 
-`yonerai update` shows stable/beta choices first. `yonerai update stable` and
-`yonerai update beta` only read local VERSION and local release manifests. They
-do not download, install, mutate PATH, run remote code, force update,
-auto-apply updates, or require admin rights.
+Inside the app, `/更新` shows stable and beta choices first. Applying an update
+requires explicit confirmation such as `/更新 適用 安定版 確認` or
+`/更新 適用 ベータ版 確認`. There is no silent update, forced update, PATH
+mutation, remote script execution, or admin requirement.
 
 ## Quickstart: Public Demo
 
@@ -250,17 +241,17 @@ yonerai demo --json
 yonerai doctor --pretty
 yonerai doctor --pretty --lang ja
 yonerai status --pretty
-yonerai manifest verify releases/manifest.v0.8.0.json --pretty
-yonerai install plan --manifest releases/manifest.v0.8.0.json --pretty
-yonerai update check --manifest releases/manifest.v0.8.0.json --pretty
-yonerai update plan --manifest releases/manifest.v0.8.0.json --pretty
+yonerai manifest verify releases/manifest.v0.8.1.json --pretty
+yonerai install plan --manifest releases/manifest.v0.8.1.json --pretty
+yonerai update check --manifest releases/manifest.v0.8.1.json --pretty
+yonerai update plan --manifest releases/manifest.v0.8.1.json --pretty
 yonerai plan "summarize public docs" --json
 yonerai ask "summarize public docs" --provider mock --json
 yonerai hybrid run --pretty
 yonerai hybrid run --json
 yonerai search mock "YonerAI alpha2" --json
 yonerai ops plan git-status --json
-yonerai install plan --manifest releases/manifest.v0.8.0.json --json
+yonerai install plan --manifest releases/manifest.v0.8.1.json --json
 ```
 
 ## First 5 minutes

@@ -13,7 +13,6 @@ from yonerai_cli.screens.labels import (
     _yes_no,
 )
 from yonerai_cli.screens.settings import _provider_state
-from yonerai_cli.tui import tui_capability_report
 
 
 def format_providers_pretty(report: dict[str, Any], *, lang: str = "ja", color: ColorMode = "auto") -> str:
@@ -279,82 +278,195 @@ def _provider_non_action_ja(value: str) -> str:
 
 def _format_providers(report: dict[str, Any], *, lang: str) -> str:
     providers = report.get("providers") if isinstance(report.get("providers"), list) else []
+    local_llm = report.get("local_llm") if isinstance(report.get("local_llm"), dict) else {}
+    detected_label = _safe(local_llm.get("detected_label") or local_llm.get("endpoint_label") or "未検出")
     lines = ["提供元（AI接続元）" if lang == "ja" else "Providers"]
-    for item in providers:
-        if not isinstance(item, dict):
-            continue
-        capabilities = item.get("capabilities") if isinstance(item.get("capabilities"), dict) else {}
-        command = _safe(item.get("command") or 'yonerai ask "hello" --auto --json')
-        if lang == "ja":
-            lines.append(
-                f"  {_provider_label(item.get('provider_id'), lang='ja')}: "
-                f"{_state_label(item.get('plain_state') or item.get('setup_status'), lang='ja')} "
-                f"（設定={_yes_no(item.get('configured'), lang='ja')}）"
-            )
-            lines.append(f"    次に試す: {command}")
-            lines.append(f"    セットアップ: {_provider_hint_ja(item)}")
-            lines.append(f"    できること: {_capability_summary(capabilities, lang=lang)}")
-            lines.append(f"    しないこと: {_safe(item.get('does_not') or 'キー表示、既定のlive呼び出し、任意操作はしません')}")
-        else:
-            lines.append(
-                f"  {item.get('provider_id')}: {item.get('plain_state') or item.get('setup_status')} "
-                f"(configured={item.get('configured')})"
-            )
-            lines.append(f"    next: {command}")
-            lines.append(f"    setup: {_safe(item.get('setup_hint') or 'No setup hint.')}")
-            lines.append(f"    capabilities: {_capability_summary(capabilities, lang=lang)}")
-            lines.append(f"    does_not: {_safe(item.get('does_not') or '')}")
-    lines.append("  キー（秘密情報）: 表示しません。設定にも保存しません" if lang == "ja" else "  keys: redacted / not printed")
+    by_id = {
+        str(item.get("provider_id") or "unknown"): item
+        for item in providers
+        if isinstance(item, dict)
+    }
     if lang == "ja":
-        lines.append("  ローカルLLM: localhost / 127.0.0.1 / ::1 だけを許可します")
-        lines.append("  外部API: --live と provider別 env opt-in がある時だけ呼びます")
-    lines.append("")
+        mock_state = _state_label(by_id.get("mock", {}).get("plain_state") or by_id.get("mock", {}).get("setup_status"), lang="ja")
+        local_state = _state_label(by_id.get("local", {}).get("plain_state") or by_id.get("local", {}).get("setup_status"), lang="ja")
+        external_states = [
+            f"OpenAI互換={_state_label(by_id.get('openai-compatible', {}).get('plain_state') or by_id.get('openai-compatible', {}).get('setup_status'), lang='ja')}",
+            f"Anthropic={_state_label(by_id.get('anthropic', {}).get('plain_state') or by_id.get('anthropic', {}).get('setup_status'), lang='ja')}",
+            f"Gemini={_state_label(by_id.get('gemini', {}).get('plain_state') or by_id.get('gemini', {}).get('setup_status'), lang='ja')}",
+        ]
+        lines.extend(
+            (
+                f"  既定: モック ({mock_state})",
+                "    そのまま入力すれば安全な mock 応答を返します。",
+                f"  ローカルLLM: {local_state}",
+                f"    自動検出: {detected_label}",
+                "    すぐ使う: /ローカルLLM 使う",
+                "  外部API: 既定オフ",
+                "    " + " / ".join(external_states),
+                "    必要なものだけ明示して有効化します。",
+                "  境界: キーの値は表示・保存しません / local LLM は loopback のみ / private file は自動送信しません",
+                "",
+            )
+        )
+    else:
+        lines.extend(
+            (
+                f"  default: mock ({by_id.get('mock', {}).get('plain_state') or by_id.get('mock', {}).get('setup_status') or 'unknown'})",
+                "    plain text works immediately with the mock provider.",
+                f"  local LLM: {by_id.get('local', {}).get('plain_state') or by_id.get('local', {}).get('setup_status') or 'unknown'}",
+                f"    autodetect: {detected_label}",
+                "    next: /local-llm use",
+                "  external APIs: off by default",
+                "    enable only what you need explicitly.",
+                "  boundaries: keys never printed or stored / local LLM must be loopback / private files are not auto-uploaded",
+                "",
+            )
+        )
     return "\n".join(_safe(line) for line in lines)
+
+
+def format_providers_compact(report: dict[str, Any], *, lang: str) -> str:
+    providers = report.get("providers") if isinstance(report.get("providers"), list) else []
+    local_llm = report.get("local_llm") if isinstance(report.get("local_llm"), dict) else {}
+    by_id = {
+        str(item.get("provider_id") or "unknown"): item
+        for item in providers
+        if isinstance(item, dict)
+    }
+    mock_state = _state_label(
+        by_id.get("mock", {}).get("plain_state") or by_id.get("mock", {}).get("setup_status"),
+        lang=lang,
+    )
+    local_state = _state_label(
+        by_id.get("local", {}).get("plain_state") or by_id.get("local", {}).get("setup_status"),
+        lang=lang,
+    )
+    detected_label = _safe(
+        local_llm.get("detected_label")
+        or local_llm.get("endpoint_label")
+        or ("未検出" if lang == "ja" else "not detected")
+    )
+    detected_label_compact = detected_label.replace(" / ", " ")
+    if lang == "ja":
+        return "\n".join(
+            (
+                "提供元",
+                f"  既定: モック ({mock_state})",
+                f"  ローカルLLM: {local_state} / {detected_label_compact}",
+                "  外部API: 既定オフ",
+                "  必要なものだけ明示して有効化します。",
+                "  次: /ローカルLLM 使う  または  /提供元選択 ローカル",
+                "  境界: キーの値は表示・保存しません / private自動送信なし / loopbackのみ",
+                "",
+            )
+        )
+    return "\n".join(
+        (
+            "Providers",
+            f"  default: mock ({mock_state})",
+            f"  local LLM: {local_state} / {detected_label_compact}",
+            "  external APIs: off by default",
+            "  next: /local-llm use  or  /provider local",
+            "  boundaries: no key storage / no private auto-upload / loopback only",
+            "",
+        )
+    )
+
 
 def _format_models(config: dict[str, object], report: dict[str, Any], *, lang: str) -> str:
     model = _safe(config.get("model_preference") or "auto")
     local_state = _provider_state(report, "local")
-    capabilities = tui_capability_report()
+    local_llm = report.get("local_llm") if isinstance(report.get("local_llm"), dict) else {}
+    detected = _safe(local_llm.get("detected_label") or local_llm.get("endpoint_label") or "未検出")
     if lang == "ja":
         return "\n".join(
             (
                 "モデル（AIモデル）",
-                f"  現在のモデル指定: {model}",
-                f"  ローカルLLM（PC内モデル）: {_state_label(local_state, lang='ja')}",
-                f"  補完UI: {'利用可能' if capabilities['slash_completion'] else '通常入力にフォールバック'}",
-                "  変更: /モデル auto または /モデル llama3.1 など",
-                "  ローカルLLM設定: localhost / 127.0.0.1 / ::1 のみ。非ループバックURLは拒否します。",
-                "  Ollama例: ORA_LOCAL_LLM_ENABLED=1, ORA_LOCAL_LLM_PROVIDER=ollama, ORA_LOCAL_LLM_BASE_URL=http://127.0.0.1:11434",
-                "  LM Studio例: ORA_LOCAL_LLM_ENABLED=1, ORA_LOCAL_LLM_PROVIDER=lmstudio, ORA_LOCAL_LLM_BASE_URL=http://127.0.0.1:1234/v1",
-                "  実行しないこと: モデルの自動インストール、外部URL探索、APIキー保存、プロンプト送信",
+                f"  現在: {model}",
+                f"  ローカルLLM: {_state_label(local_state, lang='ja')}",
+                f"  自動検出: {detected}",
+                "  候補: Ollama 127.0.0.1:11434 / LM Studio 127.0.0.1:1234/v1",
+                "  すぐ使う: /ローカルLLM 使う",
+                "  変える: /モデル auto  または  /モデル llama3.1",
+                "  しないこと: 自動インストール / 外部URL探索 / APIキー保存",
                 "",
             )
         )
     return "\n".join(
         (
             "Models",
-            f"  model_preference: {model}",
+            f"  current: {model}",
             f"  local_llm: {local_state}",
-            f"  slash_completion: {capabilities['slash_completion']}",
+            f"  autodetect: {detected}",
+            "  candidates: Ollama 127.0.0.1:11434 / LM Studio 127.0.0.1:1234/v1",
             "  change: /model auto or /model llama3.1",
-            "  local LLM endpoints: localhost / 127.0.0.1 / ::1 only",
-            "  not_performed: no model installation, no external probing, no key storage, no prompt sent",
+            "  use: /local-llm use",
+            "  not_performed: no model installation, no external probing, no key storage",
             "",
         )
     )
+
+
+def format_models_compact(config: dict[str, object], report: dict[str, Any], *, lang: str) -> str:
+    model = _safe(config.get("model_preference") or "auto")
+    local_state = _provider_state(report, "local")
+    local_llm = report.get("local_llm") if isinstance(report.get("local_llm"), dict) else {}
+    detected = _safe(
+        local_llm.get("detected_label")
+        or local_llm.get("endpoint_label")
+        or ("未検出" if lang == "ja" else "not detected")
+    )
+    detected_compact = detected.replace(" / ", " ")
+    local_enabled = config.get("local_llm_enabled") is True and str(config.get("provider_preference") or "auto") == "local"
+    if lang == "ja":
+        next_line = "そのまま話す" if local_enabled else "/ローカルLLM 使う  または  /モデル llama3.1"
+        return "\n".join(
+            (
+                "モデル",
+                f"  現在: {model}",
+                f"  ローカルLLM: {_state_label(local_state, lang='ja')} / {detected_compact}",
+                "  候補: Ollama / LM Studio",
+                "  endpoint: Ollama 127.0.0.1:11434 / LM Studio 127.0.0.1:1234/v1",
+                f"  次: {next_line}",
+                "  境界: 自動インストールなし / 外部URL探索なし / APIキー保存なし",
+                "",
+            )
+        )
+    next_line = "type normally" if local_enabled else "/local-llm use  or  /model llama3.1"
+    return "\n".join(
+        (
+            "Models",
+            f"  current: {model}",
+            f"  local LLM: {_state_label(local_state, lang='en')} / {detected_compact}",
+            "  candidates: Ollama / LM Studio",
+            "  endpoints: Ollama 127.0.0.1:11434 / LM Studio 127.0.0.1:1234/v1",
+            f"  next: {next_line}",
+            "  boundaries: no model auto-install / no external probing / no key storage",
+            "",
+        )
+    )
+
 
 def _format_local_llm_setup(report: dict[str, Any], *, lang: str) -> str:
     local_state = _provider_state(report, "local")
     local_llm = report.get("local_llm") if isinstance(report.get("local_llm"), dict) else {}
     probes = local_llm.get("probes") if isinstance(local_llm.get("probes"), list) else []
+    installed_apps = local_llm.get("installed_apps") if isinstance(local_llm.get("installed_apps"), list) else []
     detected = str(local_llm.get("status") or "unknown")
     endpoint_label = _safe(local_llm.get("endpoint_label") or local_llm.get("detected_label") or "未検出")
+    installed_labels = [
+        _safe(app.get("label") or "")
+        for app in installed_apps
+        if isinstance(app, dict) and app.get("installed") is True
+    ]
+    installed_labels = [label for label in installed_labels if label]
     if lang == "ja":
         lines = [
             "ローカルLLMセットアップ",
             f"  現在の状態: {_state_label(local_state, lang='ja')}",
             f"  検出状態: {_local_llm_status_label(detected, lang='ja')}",
             f"  検出endpoint: {endpoint_label}",
+            f"  ローカルアプリ: {' / '.join(installed_labels[:2]) if installed_labels else '未検出'}",
             "  対応形態: Ollama系 / LM Studio系 / OpenAI互換のローカルHTTP API",
             "  許可する接続先: localhost / 127.0.0.1 / ::1 のみ",
             "  例（Ollama）: ORA_LOCAL_LLM_ENABLED=1, ORA_LOCAL_LLM_PROVIDER=ollama, ORA_LOCAL_LLM_BASE_URL=http://127.0.0.1:11434",
@@ -379,6 +491,7 @@ def _format_local_llm_setup(report: dict[str, Any], *, lang: str) -> str:
             f"  current_state: {_safe(local_state)}",
             f"  detection_status: {_safe(detected)}",
             f"  endpoint: {endpoint_label}",
+            f"  installed_apps: {' / '.join(installed_labels[:2]) if installed_labels else 'not detected'}",
             "  supported: Ollama-style / LM Studio-style / local OpenAI-compatible HTTP API",
             "  allowed_endpoint: localhost / 127.0.0.1 / ::1 only",
             "  Ollama example: ORA_LOCAL_LLM_ENABLED=1, ORA_LOCAL_LLM_PROVIDER=ollama, ORA_LOCAL_LLM_BASE_URL=http://127.0.0.1:11434",

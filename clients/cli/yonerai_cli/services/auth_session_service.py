@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 from datetime import UTC, datetime
 from pathlib import Path
@@ -21,7 +22,9 @@ _SAFE_TEXT_RE = re.compile(r"^[A-Za-z0-9_.:@+\-*(),!\[\]&\s]{0,160}$")
 
 def default_staging_auth_claim_path(config_path: str | Path | None = None) -> Path:
     base = Path(config_path).expanduser() if config_path is not None else default_config_path()
-    return base.with_name("staging-auth-claim.json")
+    if config_path is None and not str(os.environ.get("YONERAI_CLI_CONFIG_PATH") or "").strip():
+        return base.with_name("staging-auth-claim.json")
+    return base.with_name(f"{base.stem}.staging-auth-claim.json")
 
 
 def empty_staging_auth_claim() -> dict[str, object]:

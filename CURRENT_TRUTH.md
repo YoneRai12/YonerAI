@@ -5,10 +5,10 @@ release, CLI, API, or status claims. It intentionally avoids private
 runtime inventory, internal URLs, secrets, local paths, and control-plane
 details.
 
-- generated_date_utc: 2026-06-11
-- latest_stable_tag: v0.7.0
+- generated_date_utc: 2026-06-12
+- latest_stable_tag: v0.8.0
 - latest_prerelease_tag: v0.21.0-alpha.2
-- main_head_short: 57eee92a
+- main_head_short: 1fa583cc
 - staging_api_base_host: api-staging.yonerai.com
 
 ## Open Production Blockers

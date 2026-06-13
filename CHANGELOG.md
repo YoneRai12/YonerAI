@@ -2,6 +2,32 @@
 
 See also: `docs/RELEASE_NOTES.md` (curated summary, v5.0.0 -> current).
 
+## v0.8.1 (2026-06-13) - Talkable CLI UX Repair
+- Repaired the v0.8.0 interactive CLI path so normal text produces a compact
+  route/provider/run_id preview plus an answer instead of a giant Mission
+  Control dump.
+- Made app-internal slash flows the normal path for users: `/ログイン`,
+  `/更新`, `/ローカルLLM`, `/設定`, `/認証`, `/同期`, `/記憶`, `/履歴`, `/API`,
+  `/レート`, and `/終了`.
+- Kept English aliases visible/usable in Japanese mode, including `/login`,
+  `/update`, `/local-llm`, and `/settings`, and improved `/lo` completion.
+- Moved update guidance from shell-first commands to in-app stable/beta choices
+  and fixed interactive next actions to use slash commands.
+- Added local LLM setup guidance that shows Ollama/LM Studio candidates without
+  probing non-loopback endpoints or sending prompts.
+- Hardened broken-config startup recovery and isolated staging auth/session
+  sidecar files for explicit config paths.
+- Updated README, README_JP, CLI docs, yonerai.com install content, stable
+  version constants, and trusted install.ps1 SHA256 for `v0.8.1`.
+- Added focused tests for compact chat, short commands, command display modes,
+  popup placement, staging sidecar isolation, update apply guidance, and install
+  boundary behavior.
+- Preserved boundaries: no production Google login, no Google token/refresh
+  storage, no provider keys, no OpenAI shared traffic, no production
+  Oracle/cloud runtime, no live Discord, no arbitrary shell/file execution, no
+  automatic local-to-cloud upload, and no production signing/trust store.
+- Full traceability from `v0.8.0..v0.8.1`: `docs/releases/0.8.1.md`.
+
 ## v0.8.0 (2026-06-12) - Normal Talkable CLI
 - Promoted the current trunk into a stable CLI Local Runtime slice after the
   v0.12-v0.21 prerelease line.

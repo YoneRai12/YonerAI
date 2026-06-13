@@ -17,6 +17,7 @@ from yonerai_cli.services.staging_session_service import load_staging_session_to
 
 CONTROL_SPINE_SCHEMA_VERSION = "yonerai-control-spine-client/v0.1"
 CONTRACT_VERSION_POLICY = "yonerai-official-api-contract/v0.14"
+DEFAULT_STAGING_CONTROL_SPINE_ORIGIN = "https://api-staging.yonerai.com"
 STATUS_PATH = "/v1/status"
 HEALTH_PATH = "/v1/health"
 RATE_LIMIT_PATH = "/v1/rate-limit"
@@ -54,12 +55,19 @@ def build_control_spine_context(
     env: Mapping[str, str | None] | None = None,
     claim_path: str | None = None,
 ) -> dict[str, object]:
-    auth = build_google_auth_status(config or {}, env=env, claim_path=claim_path)
+    source = _control_spine_env(env)
+    auth = build_google_auth_status(config or {}, env=source, claim_path=claim_path)
     staging = auth.get("staging") if isinstance(auth.get("staging"), Mapping) else {}
     session_token, session_claim = load_staging_session_token(claim_path)
     session_claim_map = session_claim if isinstance(session_claim, Mapping) else {}
-    origin_configured = bool(staging.get("configured"))
-    origin = str(staging.get("origin") or "not_configured") if origin_configured else "not_configured"
+    session_origin = str(session_claim_map.get("origin") or "").strip()
+    origin_configured = bool(staging.get("configured")) or bool(session_token and session_origin)
+    if bool(staging.get("configured")):
+        origin = str(staging.get("origin") or "not_configured")
+    elif session_token and session_origin:
+        origin = session_origin
+    else:
+        origin = "not_configured"
     auth_state = str(session_claim_map.get("auth_state") or auth.get("staging_auth_state") or "unauthenticated")
     return {
         "origin_configured": origin_configured,
@@ -339,6 +347,14 @@ def build_audit_report(
 
 def _base_report(operation: str, context: Mapping[str, object]) -> dict[str, object]:
     session_claim = context.get("session_claim") if isinstance(context.get("session_claim"), Mapping) else {}
+    linked_claim_account = session_claim.get("account") if isinstance(session_claim.get("account"), Mapping) else {}
+    linked_claim_display_name = linked_claim_account.get("display_name") or session_claim.get("display_name")
+    linked_claim_email = (
+        linked_claim_account.get("email_redacted")
+        or linked_claim_account.get("redacted_email")
+        or session_claim.get("email_redacted")
+        or session_claim.get("redacted_email")
+    )
     return {
         "schema_version": CONTROL_SPINE_SCHEMA_VERSION,
         "ok": True,
@@ -350,6 +366,10 @@ def _base_report(operation: str, context: Mapping[str, object]) -> dict[str, obj
         "account_linked": bool(context.get("account_linked")),
         "staging_session_available": bool(context.get("session_available")),
         "session_expires_at": _safe_text(session_claim.get("expires_at"), fallback=None),
+        "linked_claim_account": {
+            "display_name": _safe_text(linked_claim_display_name, fallback="not-linked"),
+            "email_redacted": _safe_text(linked_claim_email, fallback="not-linked"),
+        },
         "session_storage": {
             "storage_backend": _safe_text(session_claim.get("storage_backend"), fallback="none"),
             "session_hash": _safe_text(session_claim.get("session_hash"), fallback=None),
@@ -383,6 +403,10 @@ def _base_report(operation: str, context: Mapping[str, object]) -> dict[str, obj
             "no arbitrary shell or file execution",
         ],
     }
+
+
+def _control_spine_env(env: Mapping[str, str | None] | None) -> dict[str, str | None]:
+    return dict(env or {})
 
 
 def _safe_get(

@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Mapping
 from urllib.parse import urlparse
 
@@ -87,6 +89,7 @@ def detect_local_llm(
     *,
     candidates: tuple[LocalLLMProbeCandidate, ...] | None = None,
 ) -> dict[str, object]:
+    installed_apps = _detect_local_llm_apps(env)
     configured, config_error = _configured_candidate(env)
     if config_error is not None:
         return {
@@ -98,6 +101,7 @@ def detect_local_llm(
             "detected_provider": None,
             "detected_label": None,
             "endpoint_label": None,
+            "installed_apps": installed_apps,
             "message": _local_llm_message("blocked"),
             "probes": [],
         }
@@ -116,6 +120,7 @@ def detect_local_llm(
             "detected_label": detected["label"],
             "endpoint_label": detected["endpoint_label"],
             "setup_base_url": detected["setup_base_url"],
+            "installed_apps": installed_apps,
             "message": _local_llm_message("detected"),
             "probes": list(probes),
         }
@@ -128,6 +133,7 @@ def detect_local_llm(
         "detected_provider": None,
         "detected_label": None,
         "endpoint_label": None,
+        "installed_apps": installed_apps,
         "message": _local_llm_message("unavailable"),
         "probes": list(probes),
     }
@@ -241,6 +247,26 @@ def _classify_config_error(exc: Exception) -> str:
     if "loopback" in message or "credential" in message or "query" in message or "fragment" in message:
         return "non_loopback_rejected"
     return "invalid_configuration"
+
+
+def _detect_local_llm_apps(env: Mapping[str, str | None]) -> list[dict[str, object]]:
+    local_appdata = Path(str(env.get("LOCALAPPDATA") or (Path.home() / "AppData" / "Local")))
+    lm_studio_candidates = (
+        local_appdata / "Programs" / "LM Studio" / "LM Studio.exe",
+        local_appdata / "Programs" / "LM Studio" / "bin" / "LM Studio.exe",
+    )
+    return [
+        {
+            "provider": "ollama",
+            "label": "Ollama",
+            "installed": bool(shutil.which("ollama")),
+        },
+        {
+            "provider": "openai_compatible_local",
+            "label": "LM Studio",
+            "installed": any(path.exists() for path in lm_studio_candidates),
+        },
+    ]
 
 
 def _default_base_url_for_provider(provider: str) -> str:

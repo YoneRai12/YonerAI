@@ -187,9 +187,9 @@ def test_tui_slash_completion_includes_evolve_without_english_alias_in_japanese(
     summary = slash_command_summary("ja")
 
     assert "/自己進化" in words
-    assert "/evolve" not in words
+    assert "/evolve" in words
     assert "/自己進化" in summary
-    assert "Self-evolution" not in summary
+    assert "/evolve" in summary
 
 
 def test_cli_evolve_rejects_missing_or_private_fixture_without_traceback(tmp_path: Path, capsys) -> None:

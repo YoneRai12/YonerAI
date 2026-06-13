@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 import os
@@ -517,7 +517,7 @@ def test_cli_update_short_stable_and_alpha_select_expected_channels(capsys) -> N
     stable = json.loads(capsys.readouterr().out)
     assert stable["schema_version"] == "yonerai-update-check/v0.1"
     assert stable["channel"] == "stable"
-    assert stable["latest_manifest_version"] == "0.8.0"
+    assert stable["latest_manifest_version"] == "0.8.1"
     assert stable["download_performed"] is False
     assert stable["install_performed"] is False
 

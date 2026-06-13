@@ -1,12 +1,12 @@
-YonerAI install
+﻿YonerAI install
 
 Quick install:
 irm https://install.yonerai.com | iex
 
 Verified install:
 $ErrorActionPreference = "Stop"
-$base = "https://github.com/YoneRai12/YonerAI/releases/download/v0.8.0"
-$expected = "968dbeee3375fd8ee233d995592037d897d5be3b02ec0a9130ce7bff9ab9a29c"
+$base = "https://github.com/YoneRai12/YonerAI/releases/download/v0.8.1"
+$expected = "2ca04db3e1dc7519563e006a3d117d4cb04c7b205656fac6ea9ff7fb483cd0b8"
 $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("yonerai-bootstrap-" + [guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory -Path $tmp | Out-Null
 try {
@@ -32,14 +32,14 @@ Japanese note:
 Quick install downloads a static wrapper from install.yonerai.com.
 The wrapper only downloads install.ps1 and install.ps1.sha256 from the trusted
 GitHub Release tag, verifies the trusted SHA256, then downloads the versioned
-manifest and YonerAI-0.8.0.zip from GitHub Release assets.
+manifest and YonerAI-0.8.1.zip from GitHub Release assets.
 
 Install source:
 GitHub Releases only.
-https://github.com/YoneRai12/YonerAI/releases/download/v0.8.0/install.ps1
-https://github.com/YoneRai12/YonerAI/releases/download/v0.8.0/install.ps1.sha256
-https://github.com/YoneRai12/YonerAI/releases/download/v0.8.0/manifest.v0.8.0.json
-https://github.com/YoneRai12/YonerAI/releases/download/v0.8.0/YonerAI-0.8.0.zip
+https://github.com/YoneRai12/YonerAI/releases/download/v0.8.1/install.ps1
+https://github.com/YoneRai12/YonerAI/releases/download/v0.8.1/install.ps1.sha256
+https://github.com/YoneRai12/YonerAI/releases/download/v0.8.1/manifest.v0.8.1.json
+https://github.com/YoneRai12/YonerAI/releases/download/v0.8.1/YonerAI-0.8.1.zip
 
 Not served from yonerai.com:
 install.ps1
