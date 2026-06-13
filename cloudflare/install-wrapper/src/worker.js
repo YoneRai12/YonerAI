@@ -1,7 +1,7 @@
 const GITHUB_LATEST_BASE_URL =
   "https://github.com/YoneRai12/YonerAI/releases/latest/download";
 const TRUSTED_INSTALL_SCRIPT_SHA256_BY_TAG = {
-  "v0.8.1": "2ca04db3e1dc7519563e006a3d117d4cb04c7b205656fac6ea9ff7fb483cd0b8",
+  "v0.8.1": "a52c3f918bd45e7fe87b7a396c80b879ede4bccdf16a7efdf05320388eaa9fea",
 };
 const TRUSTED_INSTALL_RELEASE_TAG = "v0.8.1";
 const TRUSTED_INSTALL_SCRIPT_SHA256 =
@@ -11,7 +11,7 @@ const INSTALL_WRAPPER = String.raw`$ErrorActionPreference = "Stop"
 Set-StrictMode -Version 3.0
 
 $tag = "v0.8.1"
-$expected = "2ca04db3e1dc7519563e006a3d117d4cb04c7b205656fac6ea9ff7fb483cd0b8"
+$expected = "a52c3f918bd45e7fe87b7a396c80b879ede4bccdf16a7efdf05320388eaa9fea"
 $base = "https://github.com/YoneRai12/YonerAI/releases/download/$tag"
 $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("yonerai-bootstrap-" + [System.Guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory -Path $tmp | Out-Null
