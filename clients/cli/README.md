@@ -42,7 +42,7 @@ Use this when you want to verify `install.ps1` before execution:
 ```powershell
 $ErrorActionPreference = "Stop"
 $base = "https://github.com/YoneRai12/YonerAI/releases/download/v0.8.1"
-$expected = "2ca04db3e1dc7519563e006a3d117d4cb04c7b205656fac6ea9ff7fb483cd0b8"
+$expected = "a52c3f918bd45e7fe87b7a396c80b879ede4bccdf16a7efdf05320388eaa9fea"
 $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("yonerai-bootstrap-" + [guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory -Path $tmp | Out-Null
 try {

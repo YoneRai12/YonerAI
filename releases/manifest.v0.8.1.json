@@ -48,7 +48,7 @@
       "os": "any",
       "arch": "any",
       "url": "https://github.com/YoneRai12/YonerAI/releases/download/v0.8.1/YonerAI-0.8.1.zip",
-      "sha256": "0fdca80a19e3d65f83acd793f3595c714f6165f2b7c07abd996ebab10f81b268",
+      "sha256": "f1ec97437869fd8133252c9fc9810b02dfe7b440b99cada69c9d72e23c84d21f",
       "size_bytes": 16743767,
       "signature": {
         "status": "placeholder_non_production",
