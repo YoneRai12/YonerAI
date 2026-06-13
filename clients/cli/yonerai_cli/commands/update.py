@@ -15,6 +15,8 @@ from yonerai_cli.services.update_service import (
 )
 from yonerai_cli.tui import open_choice_dialog
 
+LANG_CHOICES = ("ja", "en")
+
 
 class InstallUpdateCommandError(Exception):
     pass
@@ -61,6 +63,7 @@ def add_update_parser(
     update_output = update.add_mutually_exclusive_group()
     update_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
     update_output.add_argument("--pretty", action="store_true", help="Print a readable update choice screen.")
+    update.add_argument("--lang", choices=LANG_CHOICES, default="ja", help="Pretty output language. Default: ja.")
     update.add_argument("--color", choices=color_choices, default="auto", help="Pretty output color mode. Default: auto.")
     update_subcommands = update.add_subparsers(dest="update_command", required=False)
 
@@ -70,6 +73,7 @@ def add_update_parser(
     update_plan_output = update_plan.add_mutually_exclusive_group()
     update_plan_output.add_argument("--json", action="store_true", default=argparse.SUPPRESS, help="Print stable machine-readable JSON.")
     update_plan_output.add_argument("--pretty", action="store_true", default=argparse.SUPPRESS, help="Print a readable update plan.")
+    update_plan.add_argument("--lang", choices=LANG_CHOICES, default="ja", help="Pretty output language. Default: ja.")
     update_plan.add_argument("--color", choices=color_choices, default="auto", help="Pretty output color mode. Default: auto.")
 
     update_check = update_subcommands.add_parser("check", help="Check local manifest update status without downloading or installing.")
@@ -78,6 +82,7 @@ def add_update_parser(
     update_check_output = update_check.add_mutually_exclusive_group()
     update_check_output.add_argument("--json", action="store_true", default=argparse.SUPPRESS, help="Print stable machine-readable JSON.")
     update_check_output.add_argument("--pretty", action="store_true", default=argparse.SUPPRESS, help="Print a readable update check.")
+    update_check.add_argument("--lang", choices=LANG_CHOICES, default="ja", help="Pretty output language. Default: ja.")
     update_check.add_argument("--color", choices=color_choices, default="auto", help="Pretty output color mode. Default: auto.")
 
     update_stable = update_subcommands.add_parser(
@@ -88,6 +93,7 @@ def add_update_parser(
     update_stable_output = update_stable.add_mutually_exclusive_group()
     update_stable_output.add_argument("--json", action="store_true", default=argparse.SUPPRESS, help="Print stable machine-readable JSON.")
     update_stable_output.add_argument("--pretty", action="store_true", default=argparse.SUPPRESS, help="Print a readable update check.")
+    update_stable.add_argument("--lang", choices=LANG_CHOICES, default="ja", help="Pretty output language. Default: ja.")
     update_stable.add_argument("--color", choices=color_choices, default="auto", help="Pretty output color mode. Default: auto.")
     update_stable.set_defaults(channel="stable")
 
@@ -106,6 +112,7 @@ def add_update_parser(
     update_alpha_output = update_alpha.add_mutually_exclusive_group()
     update_alpha_output.add_argument("--json", action="store_true", default=argparse.SUPPRESS, help="Print stable machine-readable JSON.")
     update_alpha_output.add_argument("--pretty", action="store_true", default=argparse.SUPPRESS, help="Print a readable update check.")
+    update_alpha.add_argument("--lang", choices=LANG_CHOICES, default="ja", help="Pretty output language. Default: ja.")
     update_alpha.add_argument("--color", choices=color_choices, default="auto", help="Pretty output color mode. Default: auto.")
     update_alpha.set_defaults(channel="alpha")
 
@@ -139,6 +146,7 @@ def add_update_parser(
     update_apply_output = update_apply.add_mutually_exclusive_group()
     update_apply_output.add_argument("--json", action="store_true", default=argparse.SUPPRESS, help="Print stable machine-readable JSON.")
     update_apply_output.add_argument("--pretty", action="store_true", default=argparse.SUPPRESS, help="Print a readable update apply report.")
+    update_apply.add_argument("--lang", choices=LANG_CHOICES, default="ja", help="Pretty output language. Default: ja.")
     update_apply.add_argument("--color", choices=color_choices, default="auto", help="Pretty output color mode. Default: auto.")
 
 
@@ -198,7 +206,7 @@ def handle_update_command(
     if args.json:
         print_json(report)
     else:
-        print(format_update_pretty(report, color=args.color))
+        print(format_update_pretty(report, color=args.color, lang=getattr(args, "lang", "ja")))
     return 0 if report["ok"] else 1
 
 
