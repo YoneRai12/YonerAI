@@ -13,11 +13,29 @@ import json
 import urllib.error
 import urllib.parse
 import urllib.request
-from typing import Callable
+from typing import Any, Callable
 
 
 class EnhancerError(Exception):
     pass
+
+
+class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def redirect_request(
+        self,
+        req: urllib.request.Request,
+        fp: Any,
+        code: int,
+        msg: str,
+        headers: Any,
+        newurl: str,
+    ) -> None:
+        return None
+
+
+def _open_loopback_request(request: urllib.request.Request, timeout: float) -> Any:
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRedirectHandler())
+    return opener.open(request, timeout=timeout)
 
 
 def is_loopback_endpoint(endpoint: str) -> bool:
@@ -82,7 +100,7 @@ def enhance_with_local_llm(
         if transport is not None:
             body = transport(request, timeout)
         else:
-            with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310 (loopback enforced above)
+            with _open_loopback_request(request, timeout=timeout) as response:
                 body = response.read()
     except (urllib.error.URLError, OSError, TimeoutError) as exc:
         raise EnhancerError(f"local llm enhancement failed: {type(exc).__name__}") from exc
