@@ -180,7 +180,7 @@ def build_interactive_status_check(*, prepare_import_paths: Callable[[], None]) 
     try:
         from yonerai_cli.services.status_snapshot_service import build_status_snapshot_report
 
-        return build_status_snapshot_report(source="live", timeout_seconds=5.0)
+        return build_status_snapshot_report(source="fixture", timeout_seconds=5.0)
     except ValueError as exc:
         raise InteractiveServiceError(str(exc), exit_code=2) from exc
 

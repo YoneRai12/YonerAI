@@ -63,6 +63,18 @@ def test_status_snapshot_json_has_no_ansi(capsys) -> None:
     assert "C:\\Users" not in output
 
 
+def test_status_snapshot_negative_timeout_is_controlled_json(capsys) -> None:
+    from yonerai_cli import cli
+
+    assert cli.main(["status", "--source", "fixture", "--timeout-seconds", "-1", "--json"]) == 1
+    report = json.loads(capsys.readouterr().out)
+
+    assert report["ok"] is False
+    assert report["error"]["code"] == "status_snapshot_timeout_invalid"
+    assert report["error"]["local_path_printed"] is False
+    assert report["error"]["token_printed"] is False
+
+
 def test_legacy_status_check_still_works(capsys) -> None:
     from yonerai_cli import cli
 

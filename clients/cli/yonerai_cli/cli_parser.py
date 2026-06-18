@@ -197,8 +197,8 @@ def build_parser() -> argparse.ArgumentParser:
     status.add_argument(
         "--source",
         choices=("live", "fixture", "local"),
-        default="live",
-        help="Status source. Default: live.",
+        default="fixture",
+        help="Status source. Default: fixture. Use --source live to fetch staging status.",
     )
     status.add_argument(
         "--status-source",
