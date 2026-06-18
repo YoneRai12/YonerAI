@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import json
 import os
@@ -536,6 +536,34 @@ def test_cli_update_check_pretty_accepts_english_language(capsys) -> None:
     assert "Update check" in output
     assert "current_version" in output
     assert "forced_update_enabled" in output
+    assert "\033[" not in output
+
+
+def test_cli_update_parent_language_reaches_check_subcommand(capsys) -> None:
+    _prepare_paths()
+    from yonerai_cli import cli
+
+    assert (
+        cli.main(
+            [
+                "update",
+                "--lang",
+                "en",
+                "--color",
+                "never",
+                "check",
+                "--manifest",
+                "releases/manifest.example.json",
+                "--pretty",
+            ]
+        )
+        == 0
+    )
+
+    output = capsys.readouterr().out
+    assert "YonerAI update check" in output
+    assert "Update check" in output
+    assert "更新確認" not in output
     assert "\033[" not in output
 
 
