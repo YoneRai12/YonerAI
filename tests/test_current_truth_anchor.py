@@ -27,6 +27,8 @@ def test_current_truth_has_public_safe_anchor_fields() -> None:
     assert re.search(r"latest_prerelease_tag: v\d+\.\d+\.\d+-[0-9A-Za-z.-]+", text)
     assert re.search(r"main_head_short: [0-9a-f]{7,12}", text)
     assert "staging_api_base_host: api-staging.yonerai.com" in text
+    assert "status_snapshot_schema: yonerai.status.v1" in text
+    assert "official_api_contract_policy: yonerai-official-api-contract/v0.14" in text
     assert "Production Google login is not enabled" in text
     assert "agent:run" in text
     assert "admin:*" in text
@@ -54,6 +56,7 @@ def test_current_truth_generator_is_deterministic_for_known_date() -> None:
         text = generated.read_text(encoding="utf-8")
         assert "- generated_date_utc: 2026-06-11" in text
         assert "- staging_api_base_host: api-staging.yonerai.com" in text
+        assert "- status_snapshot_schema: yonerai.status.v1" in text
     finally:
         generated.unlink(missing_ok=True)
 

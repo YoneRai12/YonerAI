@@ -46,7 +46,7 @@ def test_api_status_can_read_local_status_feed_fixture(capsys) -> None:
     from yonerai_cli import cli
 
     fixture = ROOT / "docs" / "contracts" / "fixtures" / "status-api-0.1" / "status-feed.fixture.json"
-    assert cli.main(["api", "status", "--status-source", str(fixture), "--json"]) == 0
+    assert cli.main(["api", "status", "--config-path", "__isolated__", "--status-source", str(fixture), "--json"]) == 0
     report = json.loads(capsys.readouterr().out)
 
     assert report["status_bridge"]["source"]["kind"] == "local_file"
@@ -58,7 +58,20 @@ def test_api_status_can_read_local_status_feed_fixture(capsys) -> None:
 def test_api_status_rejects_url_source_without_explicit_network(capsys) -> None:
     from yonerai_cli import cli
 
-    assert cli.main(["api", "status", "--status-source", "https://status.yonerai.com/status.json", "--json"]) == 2
+    assert (
+        cli.main(
+            [
+                "api",
+                "status",
+                "--config-path",
+                "__isolated__",
+                "--status-source",
+                "https://status.yonerai.com/status.json",
+                "--json",
+            ]
+        )
+        == 2
+    )
     captured = capsys.readouterr()
 
     assert "requires --allow-network-status-fetch" in captured.err
@@ -69,7 +82,7 @@ def test_api_status_rejects_missing_local_status_source_without_traceback(capsys
     from yonerai_cli import cli
 
     missing = tmp_path / "missing-status-feed.json"
-    assert cli.main(["api", "status", "--status-source", str(missing), "--json"]) == 2
+    assert cli.main(["api", "status", "--config-path", "__isolated__", "--status-source", str(missing), "--json"]) == 2
     captured = capsys.readouterr()
 
     assert "failed to read status source file" in captured.err
@@ -82,7 +95,7 @@ def test_api_status_rejects_invalid_local_status_source_without_traceback(capsys
 
     invalid = tmp_path / "bad-status-feed.json"
     invalid.write_text("{not json", encoding="utf-8")
-    assert cli.main(["api", "status", "--status-source", str(invalid), "--json"]) == 2
+    assert cli.main(["api", "status", "--config-path", "__isolated__", "--status-source", str(invalid), "--json"]) == 2
     captured = capsys.readouterr()
 
     assert "status source file is not valid JSON" in captured.err
@@ -107,7 +120,7 @@ def test_api_status_rejects_private_endpoint_without_printing_it(capsys, tmp_pat
     fixture = tmp_path / "status-feed.json"
     fixture.write_text(json.dumps(feed, ensure_ascii=False), encoding="utf-8")
 
-    assert cli.main(["api", "status", "--status-source", str(fixture), "--json"]) == 2
+    assert cli.main(["api", "status", "--config-path", "__isolated__", "--status-source", str(fixture), "--json"]) == 2
     captured = capsys.readouterr()
 
     assert "non-public marker" in captured.err
@@ -146,7 +159,7 @@ def test_interactive_status_screen_shows_status_bridge(monkeypatch, capsys) -> N
     output = capsys.readouterr().out
 
     assert "状態" in output
-    assert "component数" in output
-    assert "status.yonerai.com" in output
-    assert "本番AWS/Oracle" in output
+    assert "公式実行ワーカー" in output
+    assert "offline/unavailable/staging" in output
+    assert "本番クラウド: 未主張" in output
     assert "Traceback" not in output

@@ -50,6 +50,7 @@ from yonerai_cli.commands.project import ProjectCommandError, handle_project_com
 from yonerai_cli.commands.route import RouteCommandError, handle_route_command
 from yonerai_cli.commands.runs import RunsCommandError, handle_runs_command
 from yonerai_cli.commands.search import SearchCommandError, handle_search_command
+from yonerai_cli.commands.status_snapshot import StatusSnapshotCommandError, handle_status_snapshot_command
 from yonerai_cli.commands.sync import SyncCommandError, handle_sync_command
 from yonerai_cli.commands.update import InstallUpdateCommandError, handle_install_command, handle_update_command
 
@@ -222,8 +223,14 @@ def dispatch_command(args: argparse.Namespace, hooks: CliRuntimeHooks) -> int:
         except ValueError as exc:
             raise CliDispatchError(str(exc), exit_code=2) from exc
     if args.command == "status":
+        if getattr(args, "status_command", None) != "check":
+            try:
+                return handle_status_snapshot_command(args, print_json=hooks.print_json)
+            except StatusSnapshotCommandError as exc:
+                raise CliDispatchError(str(exc), exit_code=2) from exc
+        legacy_source = args.source if args.source in {"local", "fixture"} else "local"
         report = hooks.build_status_report(
-            source=args.source,
+            source=legacy_source,
             status_source=getattr(args, "status_source", None),
             allow_network_status_fetch=bool(getattr(args, "allow_network_status_fetch", False)),
             profile=getattr(args, "profile", "operational"),

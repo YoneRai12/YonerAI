@@ -6,6 +6,10 @@ from yonerai_cli.screens.labels import _safe
 
 
 def _format_status_check(report: dict[str, Any], *, lang: str) -> str:
+    if report.get("schema_version") == "yonerai-status-snapshot-client/v0.1":
+        from yonerai_cli.screens.status_snapshot import format_status_snapshot_compact
+
+        return format_status_snapshot_compact(report, lang=lang)
     releases = report.get("releases") if isinstance(report.get("releases"), dict) else {}
     install = report.get("install") if isinstance(report.get("install"), dict) else {}
     source = report.get("source") if isinstance(report.get("source"), dict) else {}
