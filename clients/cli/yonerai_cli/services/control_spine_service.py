@@ -30,6 +30,31 @@ SESSION_REVOKE_PATH_TEMPLATE = "/v1/sessions/{session_id}/revoke"
 AUDIT_EVENTS_PATH = "/v1/audit/events"
 PROJECT_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{1,120}$")
 SESSION_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{1,160}$")
+PUBLIC_PAYLOAD_FORBIDDEN_MARKERS = (
+    "access_token",
+    "refresh_token",
+    "id_token",
+    "client_secret",
+    "authorization",
+    "authorization_code",
+    "google_token",
+    "staging_session_token",
+    "session_token",
+    "api_key",
+    "password",
+    "bearer",
+    "secret",
+    "token",
+    "c:\\users",
+    "\\\\",
+    "/users/",
+    "/home/",
+    "/root/",
+    "http://10.",
+    "http://192.168.",
+    "http://127.",
+    "169.254.169.254",
+)
 
 HeaderJsonTransport = Callable[
     [str, str, Mapping[str, str], Mapping[str, object] | None, float],
@@ -699,27 +724,7 @@ def _safe_text(value: object, *, fallback: object) -> object:
     if not text:
         return fallback
     lowered = text.lower()
-    forbidden = (
-        "access_token",
-        "refresh_token",
-        "id_token",
-        "client_secret",
-        "authorization_code",
-        "google_token",
-        "staging_session_token",
-        "api_key",
-        "password",
-        "c:\\users",
-        "\\\\",
-        "/users/",
-        "/home/",
-        "/root/",
-        "http://10.",
-        "http://192.168.",
-        "http://127.",
-        "169.254.169.254",
-    )
-    if any(marker in lowered for marker in forbidden):
+    if any(marker in lowered for marker in PUBLIC_PAYLOAD_FORBIDDEN_MARKERS):
         return fallback
     if any(ord(char) < 32 or ord(char) == 127 for char in text):
         return fallback
@@ -805,27 +810,7 @@ def _public_payload_for_path(path: str, payload: Mapping[str, object]) -> Mappin
 
 def _assert_public_safe_payload(payload: object) -> None:
     serialized = json.dumps(payload, ensure_ascii=False, sort_keys=True).lower()
-    forbidden_markers = (
-        "access_token",
-        "refresh_token",
-        "id_token",
-        "client_secret",
-        "authorization_code",
-        "google_token",
-        "staging_session_token",
-        "api_key",
-        "password",
-        "c:\\users",
-        "\\\\",
-        "/users/",
-        "/home/",
-        "/root/",
-        "http://10.",
-        "http://192.168.",
-        "http://127.",
-        "169.254.169.254",
-    )
-    if any(marker in serialized for marker in forbidden_markers):
+    if any(marker in serialized for marker in PUBLIC_PAYLOAD_FORBIDDEN_MARKERS):
         raise ControlSpineServiceError(
             "control_spine_private_payload_rejected",
             "Staging control spine returned non-public fields.",

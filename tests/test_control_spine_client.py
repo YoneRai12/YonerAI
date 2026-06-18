@@ -250,6 +250,98 @@ def test_rate_limit_rejects_unexpected_token_fields(tmp_path: Path, monkeypatch)
     assert str(tmp_path) not in serialized
 
 
+def test_status_rejects_generic_session_token_payload(tmp_path: Path, monkeypatch) -> None:
+    from yonerai_cli.services.control_spine_service import build_control_spine_status_report
+
+    monkeypatch.setenv("YONERAI_STAGING_AUTH_ORIGIN", "https://api-staging.yonerai.com")
+
+    def transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, dict[str, object], dict[str, str]]:
+        if url.endswith("/v1/status"):
+            return 200, {"status": "ok", "session_token": "must-not-print"}, {}
+        if url.endswith("/v1/health"):
+            return 200, {"status": "ok"}, {}
+        if url.endswith("/v1/rate-limit"):
+            return 200, {"scope": "staging", "allowed": True, "quota_exceeded": False}, {}
+        raise AssertionError(url)
+
+    report = build_control_spine_status_report(
+        config={},
+        env={"YONERAI_STAGING_AUTH_ORIGIN": "https://api-staging.yonerai.com"},
+        claim_path=str(tmp_path / "cli-config.json"),
+        transport=transport,
+    )
+    serialized = json.dumps(report, ensure_ascii=False, sort_keys=True)
+
+    assert report["backend_status"]["ok"] is False
+    assert report["backend_status"]["error"]["code"] == "control_spine_private_payload_rejected"
+    assert "must-not-print" not in serialized
+    assert str(tmp_path) not in serialized
+
+
+def test_rate_limit_rejects_generic_token_payload(tmp_path: Path, monkeypatch) -> None:
+    from yonerai_cli.services.control_spine_service import build_control_spine_rate_limit_report
+
+    monkeypatch.setenv("YONERAI_STAGING_AUTH_ORIGIN", "https://api-staging.yonerai.com")
+
+    def transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, dict[str, object], dict[str, str]]:
+        assert url.endswith("/v1/rate-limit")
+        return 200, {"allowed": True, "scope": "anonymous", "token": "must-not-print"}, {}
+
+    report = build_control_spine_rate_limit_report(
+        config={},
+        env={"YONERAI_STAGING_AUTH_ORIGIN": "https://api-staging.yonerai.com"},
+        claim_path=str(tmp_path / "cli-config.json"),
+        transport=transport,
+        timeout_seconds=3.0,
+    )
+    serialized = json.dumps(report, ensure_ascii=False, sort_keys=True)
+
+    assert report["ok"] is False
+    assert report["error"]["code"] == "control_spine_private_payload_rejected"
+    assert "must-not-print" not in serialized
+    assert str(tmp_path) not in serialized
+
+
+def test_error_detail_rejects_bearer_secret_text(tmp_path: Path, monkeypatch) -> None:
+    from yonerai_cli.services.control_spine_service import build_control_spine_ping_report
+
+    monkeypatch.setenv("YONERAI_STAGING_AUTH_ORIGIN", "https://api-staging.yonerai.com")
+
+    def transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, dict[str, object], dict[str, str]]:
+        return 400, {"detail": {"reason": "Bearer must-not-print-secret"}}, {}
+
+    report = build_control_spine_ping_report(
+        config={},
+        env={"YONERAI_STAGING_AUTH_ORIGIN": "https://api-staging.yonerai.com"},
+        claim_path=str(tmp_path / "cli-config.json"),
+        transport=transport,
+    )
+    serialized = json.dumps(report, ensure_ascii=False, sort_keys=True)
+
+    assert report["ok"] is False
+    assert report["error"]["code"] == "control_spine_private_payload_rejected"
+    assert "must-not-print" not in serialized
+    assert str(tmp_path) not in serialized
+
+
 def test_whoami_uses_saved_staging_session_without_printing_it(tmp_path: Path, monkeypatch) -> None:
     from yonerai_cli.screens.control_spine import format_control_spine_pretty
     from yonerai_cli.services.control_spine_service import build_whoami_report
