@@ -178,10 +178,9 @@ def build_interactive_policy_status(
 
 def build_interactive_status_check(*, prepare_import_paths: Callable[[], None]) -> dict[str, Any]:
     try:
-        prepare_import_paths()
-        from ora_core.official import build_status_check_report
+        from yonerai_cli.services.status_snapshot_service import build_status_snapshot_report
 
-        return build_status_check_report(profile="operational")
+        return build_status_snapshot_report(source="live", timeout_seconds=5.0)
     except ValueError as exc:
         raise InteractiveServiceError(str(exc), exit_code=2) from exc
 

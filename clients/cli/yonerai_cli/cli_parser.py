@@ -188,13 +188,17 @@ def build_parser() -> argparse.ArgumentParser:
 
     add_policy_parser(subcommands, lang_choices=LANG_CHOICES, color_choices=COLOR_CHOICES)
 
-    status = subcommands.add_parser("status", help="Print offline public demo and installer readiness status.")
-    status.add_argument("status_command", nargs="?", choices=("check",), default="check")
+    status = subcommands.add_parser("status", help="Show public-safe YonerAI StatusSnapshot v1.")
+    status.add_argument("status_command", nargs="?", choices=("check", "component"), default=None)
+    status.add_argument("component_id", nargs="?", help="Component id for `yonerai status component <id>`.")
     status_output = status.add_mutually_exclusive_group()
     status_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
     status_output.add_argument("--pretty", action="store_true", help="Print a readable status summary.")
     status.add_argument(
-        "--source", choices=("local", "fixture"), default="local", help="Status source. Default: local."
+        "--source",
+        choices=("live", "fixture", "local"),
+        default="live",
+        help="Status source. Default: live.",
     )
     status.add_argument(
         "--status-source",
@@ -206,6 +210,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Explicitly allow fetching an allowlisted HTTPS status URL. Disabled by default.",
     )
     status.add_argument("--profile", choices=STATUS_PROFILE_CHOICES, default="operational")
+    status.add_argument("--timeout-seconds", type=float, default=10.0, help="Network timeout. Default: 10.")
     status.add_argument("--lang", choices=LANG_CHOICES, default="en", help="Pretty output language. Default: en.")
     status.add_argument(
         "--color", choices=COLOR_CHOICES, default="auto", help="Pretty output color mode. Default: auto."

@@ -10,6 +10,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SEMVER_TAG_RE = re.compile(r"^v(?P<version>[0-9]+(?:\.[0-9]+){2}(?:-[0-9A-Za-z.-]+)?)$")
 STAGING_API_HOST = "api-staging.yonerai.com"
+STATUS_SNAPSHOT_SCHEMA = "yonerai.status.v1"
+OFFICIAL_API_CONTRACT_POLICY = "yonerai-official-api-contract/v0.14"
 LEGACY_RELEASE_PREFIXES = ("5.", "2026.")
 
 
@@ -101,6 +103,8 @@ def build_current_truth(*, generated_date: str | None = None) -> str:
             f"- latest_prerelease_tag: {latest_prerelease}",
             f"- main_head_short: {main_head}",
             f"- staging_api_base_host: {STAGING_API_HOST}",
+            f"- status_snapshot_schema: {STATUS_SNAPSHOT_SCHEMA}",
+            f"- official_api_contract_policy: {OFFICIAL_API_CONTRACT_POLICY}",
             "",
             "## Open Production Blockers",
             "",
