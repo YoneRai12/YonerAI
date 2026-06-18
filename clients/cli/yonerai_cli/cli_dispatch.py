@@ -28,6 +28,13 @@ from yonerai_cli.commands.evolve import EvolveCommandError, handle_evolve_comman
 from yonerai_cli.commands.hybrid import HybridCommandError, handle_hybrid_command
 from yonerai_cli.commands.manifest import ManifestCommandError, handle_manifest_command
 from yonerai_cli.commands.memory import MemoryCommandError, MemoryCommandUserInputError, handle_memory_command
+from yonerai_cli.commands.native_run import (
+    NativeRunCommandError,
+    handle_capability_command,
+    handle_module_command,
+    handle_native_run_command,
+    handle_worker_command,
+)
 from yonerai_cli.commands.node import (
     NodeCommandError,
     NodeCommandUserInputError,
@@ -37,6 +44,7 @@ from yonerai_cli.commands.node import (
 from yonerai_cli.commands.ops import OpsCommandError, handle_ops_command
 from yonerai_cli.commands.oracle import OracleCommandError, handle_oracle_command
 from yonerai_cli.commands.policy import handle_policy_command
+from yonerai_cli.commands.provider import ProviderCommandError, handle_provider_command
 from yonerai_cli.commands.providers import ProvidersCommandError, handle_providers_command
 from yonerai_cli.commands.project import ProjectCommandError, handle_project_command
 from yonerai_cli.commands.route import RouteCommandError, handle_route_command
@@ -119,7 +127,7 @@ def dispatch_command(args: argparse.Namespace, hooks: CliRuntimeHooks) -> int:
             return handle_auth_command(args, print_json=hooks.print_json)
         except AuthCommandError as exc:
             raise CliDispatchError(str(exc), exit_code=2) from exc
-    if args.command == "privacy" and args.privacy_command == "status":
+    if args.command == "privacy":
         try:
             return handle_privacy_command(args, print_json=hooks.print_json)
         except AuthCommandError as exc:
@@ -202,6 +210,11 @@ def dispatch_command(args: argparse.Namespace, hooks: CliRuntimeHooks) -> int:
             )
         except ProvidersCommandError as exc:
             raise CliDispatchError(str(exc), exit_code=1) from exc
+    if args.command == "provider":
+        try:
+            return handle_provider_command(args, print_json=hooks.print_json)
+        except ProviderCommandError as exc:
+            raise CliDispatchError(str(exc), exit_code=2) from exc
     if args.command == "policy":
         hooks.prepare_import_paths()
         try:
@@ -302,6 +315,32 @@ def dispatch_command(args: argparse.Namespace, hooks: CliRuntimeHooks) -> int:
             )
         except RunsCommandError as exc:
             raise CliDispatchError(str(exc), exit_code=1) from exc
+    if args.command == "run":
+        if args.run_command == "local-smoke":
+            prompt = hooks.prompt_from_args(args.prompt)
+            hooks.print_json(
+                hooks.request_json("POST", args.api_origin, "/api/v1/agent/run", {"prompt": prompt, "mode": args.mode})
+            )
+            return 0
+        try:
+            return handle_native_run_command(args, print_json=hooks.print_json)
+        except NativeRunCommandError as exc:
+            raise CliDispatchError(str(exc), exit_code=2) from exc
+    if args.command == "worker":
+        try:
+            return handle_worker_command(args, print_json=hooks.print_json)
+        except NativeRunCommandError as exc:
+            raise CliDispatchError(str(exc), exit_code=2) from exc
+    if args.command == "capability":
+        try:
+            return handle_capability_command(args, print_json=hooks.print_json)
+        except NativeRunCommandError as exc:
+            raise CliDispatchError(str(exc), exit_code=2) from exc
+    if args.command == "module":
+        try:
+            return handle_module_command(args, print_json=hooks.print_json)
+        except NativeRunCommandError as exc:
+            raise CliDispatchError(str(exc), exit_code=2) from exc
     if args.command == "search":
         try:
             return handle_search_command(
@@ -351,12 +390,6 @@ def dispatch_command(args: argparse.Namespace, hooks: CliRuntimeHooks) -> int:
         prompt = hooks.prompt_from_args(args.prompt)
         hooks.print_json(
             hooks.request_json("POST", args.api_origin, "/v1/public/messages", {"message": prompt, "mode": args.mode})
-        )
-        return 0
-    if args.command == "run":
-        prompt = hooks.prompt_from_args(args.prompt)
-        hooks.print_json(
-            hooks.request_json("POST", args.api_origin, "/api/v1/agent/run", {"prompt": prompt, "mode": args.mode})
         )
         return 0
     raise CliDispatchError("unknown command", exit_code=2)

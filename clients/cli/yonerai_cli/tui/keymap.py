@@ -36,6 +36,10 @@ SLASH_COMMANDS: tuple[SlashCommandSpec, ...] = (
     SlashCommandSpec("/プロジェクト", "/projects", "現在の staging プロジェクトを表示", "Show the current staging project", ("/projects", "/project")),
     SlashCommandSpec("/疎通", "/ping", "staging API の疎通確認", "Ping the staging API", ("/ping",)),
     SlashCommandSpec("/監査", "/audit", "監査イベントを表示", "Show audit events", ("/audit",)),
+    SlashCommandSpec("/実行", "/run", "Native Run の送信/状態/結果を見る", "Show Native Run submit/status/result help", ("/run", "/Run"), "native_run"),
+    SlashCommandSpec("/ワーカー", "/worker", "Official Execution Worker の状態を見る", "Show Official Execution Worker status", ("/worker", "/Worker")),
+    SlashCommandSpec("/能力", "/capabilities", "Native Run の能力一覧を見る", "Show Native Run capability list", ("/capability", "/capabilities")),
+    SlashCommandSpec("/モジュール", "/modules", "Native Run のモジュール一覧を見る", "Show Native Run module list", ("/module", "/modules")),
     SlashCommandSpec("/API", "/api", "Control Spine と API の状態を表示", "Show Control Spine and API status", ("/api", "/公式")),
     SlashCommandSpec("/レート", "/rate-limit", "API レート制限を表示", "Show the API rate limit", ("/rate-limit", "/ratelimit")),
     SlashCommandSpec("/同期", "/sync", "クラウド同期の境界を表示", "Show the cloud sync boundary", ("/sync", "/cloud")),
@@ -81,6 +85,7 @@ TOP_LEVEL_COMMANDS: tuple[str, ...] = (
     "/whoami",
     "/projects",
     "/sessions",
+    "/run",
 )
 
 MAX_TOP_LEVEL_COMPLETIONS = 7
@@ -92,6 +97,10 @@ JAPANESE_SLASH_ALIASES: dict[str, tuple[str, ...]] = {
     "/palette": ("/パレット",),
     "/composer": ("/入力欄",),
     "/api": ("/公式",),
+    "/run": ("/実行",),
+    "/worker": ("/ワーカー",),
+    "/capabilities": ("/能力",),
+    "/modules": ("/モジュール",),
     "/sync": ("/クラウド",),
     "/memory": ("/メモリ",),
     "/policy": ("/方針",),
@@ -129,6 +138,13 @@ SLASH_VALUE_GROUPS: dict[str, tuple[SlashValueSpec, ...]] = {
         SlashValueSpec("OpenAI互換", "OpenAI 互換 API", "OpenAI-compatible", ("openai-compatible",)),
         SlashValueSpec("アンソロピック", "Anthropic", "Anthropic", ("anthropic", "Anthropic")),
         SlashValueSpec("ジェミニ", "Gemini", "Gemini", ("gemini", "Gemini")),
+    ),
+    "native_run": (
+        SlashValueSpec("送信", "短い文を staging Native Run に送る", "Submit a short staging Native Run", ("submit",)),
+        SlashValueSpec("状態", "run_id の状態を見る", "Show status by run_id", ("status",)),
+        SlashValueSpec("イベント", "run_id のイベントを見る", "Show events by run_id", ("events",)),
+        SlashValueSpec("結果", "run_id の結果概要を見る", "Show result by run_id", ("result",)),
+        SlashValueSpec("キャンセル", "queued/claimed の実行をキャンセルする", "Cancel a queued/claimed run", ("cancel",)),
     ),
     "model": (
         SlashValueSpec("自動", "提供元に合わせて自動選択", "Auto model", ("auto",)),

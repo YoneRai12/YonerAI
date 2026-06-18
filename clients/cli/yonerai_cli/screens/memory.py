@@ -106,6 +106,8 @@ def _format_memory_status(report: dict[str, Any], *, lang: str) -> str:
     )
 
 def _format_sync_status(report: dict[str, Any], *, lang: str) -> str:
+    if str(report.get("schema_version") or "").startswith("yonerai-conversation-sync-policy/"):
+        return _format_conversation_sync_policy_status(report, lang=lang)
     cloud_link = report.get("cloud_link") if isinstance(report.get("cloud_link"), dict) else {}
     directions = report.get("directions") if isinstance(report.get("directions"), dict) else {}
     cloud_to_local = directions.get("cloud_to_local") if isinstance(directions.get("cloud_to_local"), dict) else {}
@@ -158,6 +160,53 @@ def _format_sync_status(report: dict[str, Any], *, lang: str) -> str:
             "",
         )
     )
+
+
+def _format_conversation_sync_policy_status(report: dict[str, Any], *, lang: str) -> str:
+    counts = report.get("policy_counts") if isinstance(report.get("policy_counts"), dict) else {}
+    actions = report.get("actions_not_performed") if isinstance(report.get("actions_not_performed"), list) else []
+    defaults = report.get("defaults") if isinstance(report.get("defaults"), dict) else {}
+    if lang == "ja":
+        lines = [
+            "会話同期ポリシー",
+            f"  会話数: {_safe(report.get('conversation_count') or 0)}",
+            f"  ローカル作成の初期値: {_safe(defaults.get('local_origin') or 'local_only')}",
+            f"  クラウド/Web作成の初期値: {_safe(defaults.get('cloud_origin') or 'cloud_to_local')}",
+            f"  local_only: {_safe(counts.get('local_only') or 0)}",
+            f"  cloud_to_local: {_safe(counts.get('cloud_to_local') or 0)}",
+            f"  bidirectional_explicit: {_safe(counts.get('bidirectional_explicit') or 0)}",
+            f"  paused: {_safe(counts.get('paused') or 0)}",
+            "  local_only: 公式workerへ投げず、ローカルloopbackだけを許可します",
+            "  local -> cloud: 会話ごとの明示承認なしでは実行しません",
+            "  記憶: 会話ポリシーを継承します。local_only記憶はcloud indexへ同期しません",
+            "  試す: yonerai sync conversation list --pretty --lang ja",
+            "  試す: yonerai sync conversation set <conversation_id> local_only --pretty --lang ja",
+            "  試す: yonerai sync conversation set <conversation_id> bidirectional_explicit --confirm --pretty --lang ja",
+            "  実行しないこと:",
+        ]
+        for action in actions[:8]:
+            lines.append(f"    - {_safe(action)}")
+        lines.append("")
+        return "\n".join(lines)
+    lines = [
+        "Conversation sync policy",
+        f"  conversation_count: {_safe(report.get('conversation_count') or 0)}",
+        f"  local_origin_default: {_safe(defaults.get('local_origin') or 'local_only')}",
+        f"  cloud_origin_default: {_safe(defaults.get('cloud_origin') or 'cloud_to_local')}",
+        f"  local_only: {_safe(counts.get('local_only') or 0)}",
+        f"  cloud_to_local: {_safe(counts.get('cloud_to_local') or 0)}",
+        f"  bidirectional_explicit: {_safe(counts.get('bidirectional_explicit') or 0)}",
+        f"  paused: {_safe(counts.get('paused') or 0)}",
+        "  local_only: official worker dispatch is rejected; local loopback only",
+        "  local_to_cloud: requires explicit per-conversation approval",
+        "  memory: inherits the conversation policy; local_only memory never syncs to cloud index",
+        "  try: yonerai sync conversation list --pretty --lang en",
+        "  try: yonerai sync conversation set <conversation_id> local_only --pretty --lang en",
+        "  try: yonerai sync conversation set <conversation_id> bidirectional_explicit --confirm --pretty --lang en",
+        "  actions_not_performed: " + ", ".join(_safe(action) for action in actions[:8]),
+        "",
+    ]
+    return "\n".join(lines)
 
 def _format_sync_unavailable(lang: str) -> str:
     if lang == "ja":

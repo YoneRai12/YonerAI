@@ -5,6 +5,7 @@ import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from threading import Thread
+from types import SimpleNamespace
 
 import pytest
 
@@ -262,6 +263,55 @@ def test_login_alias_malformed_config_is_controlled_error(tmp_path: Path, monkey
     assert "config could not be read as JSON" in output.err
     assert "Traceback" not in output.err
     assert str(tmp_path) not in output.err
+
+
+def test_login_alias_short_default_uses_cli_bridge_without_tty_wait(tmp_path: Path, monkeypatch, capsys) -> None:
+    from yonerai_cli.commands import auth as auth_command
+
+    captured: dict[str, object] = {}
+
+    def fake_build_staging_login_report(config_path: str | None, **kwargs: object) -> dict[str, object]:
+        captured["config_path"] = config_path
+        captured.update(kwargs)
+        return {
+            "ok": True,
+            "operation": "google_login_staging",
+            "configured": True,
+            "authorization_url": "https://api-staging.yonerai.com/auth/google/start?cli_request_id=cli_fixture",
+            "cli_bridge": {
+                "network_called": True,
+                "request_id": "cli_fixture",
+                "browser_start_url": "https://api-staging.yonerai.com/auth/google/start?cli_request_id=cli_fixture",
+            },
+            "staging_linked": False,
+            "staging_session_token_stored": False,
+            "next_safe_command": "yonerai login",
+        }
+
+    monkeypatch.setattr(auth_command, "build_staging_login_report", fake_build_staging_login_report)
+    monkeypatch.setattr(auth_command, "format_login_flow_compact", lambda report, *, lang: "bridge login ready")
+
+    args = SimpleNamespace(
+        staging=True,
+        json=False,
+        bridge=False,
+        open_browser=False,
+        wait_linked=False,
+        config_path=str(tmp_path / "cli-config.json"),
+        lang="ja",
+        timeout_seconds=10.0,
+        max_wait_seconds=120.0,
+        poll_interval_seconds=2.0,
+    )
+
+    assert auth_command.handle_login_alias_command(args, print_json=lambda report: None) == 0
+    output = capsys.readouterr().out
+
+    assert captured["bridge"] is True
+    assert captured["open_browser"] is False
+    assert captured["wait_linked"] is False
+    assert captured["config_path"] == str(tmp_path / "cli-config.json")
+    assert "bridge login ready" in output
 
 
 def test_google_login_staging_generates_public_safe_auth_url(tmp_path: Path, monkeypatch, capsys) -> None:

@@ -191,7 +191,7 @@ def _interactive_callbacks(config_path: str | None = None):
         rate_limit_status=lambda lang: control_spine_callbacks.interactive_rate_limit_status(
             lang, config_path=config_path
         ),
-        sync_status=_interactive_sync_status,
+        sync_status=lambda lang: _interactive_sync_status(lang, config_path=config_path),
         whoami=lambda lang: control_spine_callbacks.interactive_whoami(lang, config_path=config_path),
         project_status=lambda lang: control_spine_callbacks.interactive_project_status(lang, config_path=config_path),
         session_status=lambda lang: control_spine_callbacks.interactive_session_status(lang, config_path=config_path),
@@ -202,6 +202,16 @@ def _interactive_callbacks(config_path: str | None = None):
             config_path=config_path,
         ),
         audit_status=lambda lang: control_spine_callbacks.interactive_audit_status(lang, config_path=config_path),
+        native_run_status=lambda lang: control_spine_callbacks.interactive_native_run_help(
+            lang,
+            config_path=config_path,
+        ),
+        worker_status=lambda lang: control_spine_callbacks.interactive_worker_status(lang, config_path=config_path),
+        capability_list=lambda lang: control_spine_callbacks.interactive_capability_list(
+            lang,
+            config_path=config_path,
+        ),
+        module_list=lambda lang: control_spine_callbacks.interactive_module_list(lang, config_path=config_path),
         evolve_status=_interactive_evolve_status,
         memory_status=_interactive_memory_status,
         memory_action=_interactive_memory_action,
@@ -339,13 +349,16 @@ def _interactive_api_status(_lang: str, *, config_path: str | None = None) -> di
         raise CliError(str(exc), exit_code=exc.exit_code) from exc
 
 
-def _interactive_sync_status(_lang: str) -> dict[str, Any]:
+def _interactive_sync_status(_lang: str, *, config_path: str | None = None) -> dict[str, Any]:
     try:
-        return interactive_service.build_interactive_sync_status(
-            prepare_import_paths=_prepare_trusted_cli_import_paths,
+        from yonerai_cli.services.conversation_sync_policy_service import (
+            ConversationSyncPolicyError,
+            build_conversation_policy_status_report,
         )
-    except InteractiveServiceError as exc:
-        raise CliError(str(exc), exit_code=exc.exit_code) from exc
+
+        return build_conversation_policy_status_report(config_path=config_path)
+    except ConversationSyncPolicyError as exc:
+        raise CliError(str(exc), exit_code=1) from exc
 
 
 def _interactive_evolve_status(_lang: str) -> dict[str, Any]:
