@@ -1,0 +1,135 @@
+{
+  "schema_version": "yonerai.status.v1",
+  "snapshot_id": "preview-2026-06-01T00:00:00Z",
+  "generated_at": "2026-06-01T00:00:00Z",
+  "stale_after_seconds": 60,
+  "overall": {
+    "health": "degraded",
+    "availability": "limited",
+    "stage": "staging",
+    "message": {
+      "ja": "YonerAI Status はstaging/previewの公開safeステータスです。本番稼働や24時間運用は主張していません。",
+      "en": "YonerAI Status is a public-safe staging/preview status surface. It does not claim production or 24/7 operation."
+    }
+  },
+  "components": [
+    {
+      "id": "api",
+      "health": "operational",
+      "availability": "available",
+      "stage": "staging",
+      "message": {
+        "ja": "API status endpoint は公開safeな集約だけを表示します。",
+        "en": "The API status endpoint displays only public-safe aggregates."
+      },
+      "updated_at": "2026-06-01T00:00:00Z",
+      "stale": false,
+      "incident_ref": null
+    },
+    {
+      "id": "auth",
+      "health": "unknown",
+      "availability": "limited",
+      "stage": "staging",
+      "message": {
+        "ja": "Google Login 完了は主張しません。公開safeな状態だけを表示します。",
+        "en": "Google Login is not claimed complete. Only public-safe status is displayed."
+      },
+      "updated_at": "2026-06-01T00:00:00Z",
+      "stale": false,
+      "incident_ref": null
+    },
+    {
+      "id": "provider_gateway",
+      "health": "degraded",
+      "availability": "limited",
+      "stage": "staging",
+      "message": {
+        "ja": "provider gateway は official worker liveness とは別componentとして表示します。",
+        "en": "Provider gateway is displayed separately from official worker liveness."
+      },
+      "updated_at": "2026-06-01T00:00:00Z",
+      "stale": false,
+      "incident_ref": null
+    },
+    {
+      "id": "official_execution_worker",
+      "health": "offline",
+      "availability": "unavailable",
+      "stage": "staging",
+      "message": {
+        "ja": "worker heartbeat が stale のため、公式実行は利用不可です。",
+        "en": "Official execution is unavailable because the worker heartbeat is stale."
+      },
+      "updated_at": "2026-06-01T00:00:00Z",
+      "stale": true,
+      "incident_ref": null
+    },
+    {
+      "id": "run_queue",
+      "health": "degraded",
+      "availability": "limited",
+      "stage": "staging",
+      "message": {
+        "ja": "run queue はstaging/previewの制限付き表示です。",
+        "en": "Run queue is shown as limited in staging/preview."
+      },
+      "updated_at": "2026-06-01T00:00:00Z",
+      "stale": false,
+      "incident_ref": null
+    },
+    {
+      "id": "realtime_sync",
+      "health": "unknown",
+      "availability": "limited",
+      "stage": "preview",
+      "message": {
+        "ja": "realtime sync はstaging/preview限定です。live Firestore claim はしません。",
+        "en": "Realtime sync is staging/preview-limited. No live Firestore claim is made."
+      },
+      "updated_at": "2026-06-01T00:00:00Z",
+      "stale": false,
+      "incident_ref": null
+    },
+    {
+      "id": "web",
+      "health": "operational",
+      "availability": "available",
+      "stage": "staging",
+      "message": {
+        "ja": "Web preview の表示状態です。本番運用claimではありません。",
+        "en": "Web preview display state. This is not a production operation claim."
+      },
+      "updated_at": "2026-06-01T00:00:00Z",
+      "stale": false,
+      "incident_ref": null
+    },
+    {
+      "id": "audit",
+      "health": "unknown",
+      "availability": "limited",
+      "stage": "staging",
+      "message": {
+        "ja": "audit は詳細ログを公開せず、公開safeな集約だけを扱います。",
+        "en": "Audit does not expose detailed logs; only public-safe aggregates are handled."
+      },
+      "updated_at": "2026-06-01T00:00:00Z",
+      "stale": false,
+      "incident_ref": null
+    },
+    {
+      "id": "discord",
+      "health": "unknown",
+      "availability": "unavailable",
+      "stage": "staging",
+      "message": {
+        "ja": "Discord はstaging runtime statusではdisabledです。Live Discord restored は主張しません。",
+        "en": "Discord is disabled in staging runtime status. Live Discord restored is not claimed."
+      },
+      "updated_at": "2026-06-01T00:00:00Z",
+      "stale": false,
+      "incident_ref": null
+    }
+  ],
+  "incidents": []
+}

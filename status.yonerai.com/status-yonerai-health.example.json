@@ -1,0 +1,32 @@
+{
+  "schema_version": "yonerai.status.yonerai-health.v1",
+  "generated_at": "2026-06-18T00:00:00+09:00",
+  "source": "example only",
+  "components": [
+    {
+      "category_id": "core-api",
+      "component_id": "yonerai-api",
+      "state": "operational",
+      "message": {
+        "ja": "YonerAI API health summary example: operational",
+        "en": "YonerAI API health summary example: operational"
+      },
+      "checked_at": "2026-06-18T00:00:00Z",
+      "latency_ms": 142,
+      "status_code": 200
+    },
+    {
+      "category_id": "core-api",
+      "component_id": "run-api",
+      "state": "operational",
+      "message": {
+        "ja": "Run API health summary example: operational",
+        "en": "Run API health summary example: operational"
+      },
+      "checked_at": "2026-06-18T00:00:00Z",
+      "latency_ms": 188,
+      "status_code": 200
+    }
+  ],
+  "incidents": []
+}

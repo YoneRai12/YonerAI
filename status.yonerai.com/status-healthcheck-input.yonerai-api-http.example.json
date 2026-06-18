@@ -1,0 +1,133 @@
+{
+  "schema_version": "yonerai.status.healthcheck.v1",
+  "generated_at": "2026-06-18T00:00:00+09:00",
+  "locale_default": "ja",
+  "range": {
+    "start": "2026-06-18",
+    "days": 90
+  },
+  "states": {
+    "operational": {
+      "color": "#26c6a3",
+      "label": {
+        "ja": "稼働中",
+        "en": "Operational"
+      }
+    },
+    "degraded": {
+      "color": "#ffbf2f",
+      "label": {
+        "ja": "性能低下",
+        "en": "Degraded"
+      }
+    },
+    "major_outage": {
+      "color": "#ef4e45",
+      "label": {
+        "ja": "重大障害",
+        "en": "Major outage"
+      }
+    },
+    "not_started": {
+      "color": "#aeb6c2",
+      "label": {
+        "ja": "準備中",
+        "en": "Not started"
+      }
+    }
+  },
+  "categories": [
+    {
+      "id": "core-api",
+      "name": {
+        "ja": "コアAPI",
+        "en": "Core API"
+      },
+      "components": [
+        {
+          "id": "yonerai-api",
+          "name": {
+            "ja": "YonerAI API",
+            "en": "YonerAI API"
+          },
+          "fact": {
+            "ja": "API /health を直接監視します。",
+            "en": "Directly checks API /health endpoint."
+          },
+          "monitoring": {
+            "ja": "HTTP healthcheck",
+            "en": "HTTP healthcheck"
+          },
+          "claim": {
+            "ja": "本番運用の可用性は実運用接続時のみ主張します。",
+            "en": "Production operation claim is only valid once live checks are connected."
+          },
+          "default_state": "not_started",
+          "checks": [
+            {
+              "type": "http",
+              "url": "https://api.yonerai.com/health",
+              "method": "GET",
+              "status_min": 200,
+              "status_max": 399,
+              "timeout_ms": 5000,
+              "degraded_ms": 800,
+              "label": "yonerai-api-health",
+              "message": {
+                "ja": "API ヘルスチェックを実行",
+                "en": "Run API healthcheck"
+              },
+              "message_on_error": {
+                "ja": "API ヘルスチェックに失敗しました。",
+                "en": "API healthcheck failed."
+              },
+              "headers": {
+                "Authorization": "__REPLACE_WITH_BEARER_TOKEN__"
+              }
+            }
+          ]
+        },
+        {
+          "id": "run-api",
+          "name": {
+            "ja": "Run API",
+            "en": "Run API"
+          },
+          "fact": {
+            "ja": "run API エンドポイントのヘルスチェックです。",
+            "en": "Healthcheck for run API endpoint."
+          },
+          "monitoring": {
+            "ja": "HTTP healthcheck",
+            "en": "HTTP healthcheck"
+          },
+          "claim": {
+            "ja": "本番運用の可用性は実運用接続時のみ主張します。",
+            "en": "Production operation claim is only valid once live checks are connected."
+          },
+          "default_state": "not_started",
+          "checks": [
+            {
+              "type": "http",
+              "url": "https://api.yonerai.com/run/health",
+              "method": "GET",
+              "status_min": 200,
+              "status_max": 399,
+              "timeout_ms": 5000,
+              "degraded_ms": 1200,
+              "label": "yonerai-run-health",
+              "message": {
+                "ja": "Run API ヘルスチェックを実行",
+                "en": "Run API healthcheck"
+              },
+              "message_on_error": {
+                "ja": "Run API のヘルスチェックに失敗しました。",
+                "en": "Run API healthcheck failed."
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

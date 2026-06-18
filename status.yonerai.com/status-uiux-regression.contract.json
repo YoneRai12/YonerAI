@@ -1,0 +1,189 @@
+{
+  "schema_version": "yonerai.status.uiux-regression.v1",
+  "purpose": "Regression contract for preserving YonerAI Status UI/UX while feed/runtime internals change.",
+  "scope": [
+    "hover tooltip",
+    "touch tooltip",
+    "selected bar highlight",
+    "bar cascade animation",
+    "disclosure open and close animation",
+    "detail and incident panel uniqueness",
+    "runtime feed re-render safety",
+    "mobile layout safety"
+  ],
+  "runtime_prerequisites": {
+    "required_global": "window.YonerAIStatusRuntime",
+    "required_methods": [
+      "trySetFeed",
+      "clearInteractionState",
+      "syncRoute",
+      "getState",
+      "getFeed"
+    ],
+    "required_feed_schema": "yonerai.status.feed.v1"
+  },
+  "selectors": {
+    "root": "html",
+    "page": ".page",
+    "category": ".category",
+    "category_summary": ".category-summary",
+    "children": ".children",
+    "child": ".child",
+    "child_summary": ".child-summary",
+    "bars": ".bars",
+    "bar": ".bar",
+    "selected_bar": ".bar.is-selected",
+    "hovered_bar": ".bar.is-hovered",
+    "tooltip": "#barTooltip",
+    "bar_detail_panel": "#barDetailPanel",
+    "incident_detail_panel": "#incidentDetailPanel",
+    "affected_timeline": ".affected-timeline",
+    "theme_toggle": "#themeToggle"
+  },
+  "invariants": {
+    "tooltip_singleton": {
+      "severity": "blocker",
+      "rule": "There must be exactly one #barTooltip node.",
+      "why": "Duplicate tooltip nodes caused flicker and wrong positioning."
+    },
+    "tooltip_not_pointer_target": {
+      "severity": "blocker",
+      "rule": "The tooltip must not steal pointer events from bars.",
+      "why": "Pointer capture by tooltip can create hover flicker."
+    },
+    "selected_bar_singleton": {
+      "severity": "blocker",
+      "rule": "At most one .bar.is-selected may exist after route sync.",
+      "why": "Stale selected highlights broke bar cascade and made reopened panels feel corrupted."
+    },
+    "selected_bar_route_match": {
+      "severity": "blocker",
+      "rule": "If a selected bar exists, its dataset.route must match the parsed current hash route.",
+      "why": "Highlight must represent the current detail route only."
+    },
+    "detail_panel_singleton": {
+      "severity": "blocker",
+      "rule": "At most one #barDetailPanel and at most one #incidentDetailPanel may exist.",
+      "why": "Double panels caused layout jumps and confusing hover/click behavior."
+    },
+    "panel_mode_exclusive": {
+      "severity": "blocker",
+      "rule": "A bar detail panel and incident detail panel must not both be visible for a single route unless explicitly supported.",
+      "why": "Mixed panels caused status detail pages to collapse into incorrect content."
+    },
+    "feed_update_clears_invalid_selection": {
+      "severity": "blocker",
+      "rule": "After trySetFeed with a feed that does not contain the selected route, selectedCount must become 0 and the route must be safe.",
+      "why": "Feed-driven runtime must not keep highlights for deleted data."
+    },
+    "bar_count_matches_feed": {
+      "severity": "blocker",
+      "rule": "Rendered bar count must equal sum(categories.children.days.length) plus category overview bars when category bars are rendered.",
+      "why": "Missing bars means feed is not represented faithfully."
+    },
+    "category_overview_derived_from_children": {
+      "severity": "blocker",
+      "rule": "Category overview status bars must be derived from child component day states and severity, not hand-written category day data.",
+      "why": "Overview must behave like real status systems and represent component aggregation."
+    },
+    "hover_does_not_select": {
+      "severity": "major",
+      "rule": "Pointer hover may set hover state and tooltip, but must not create .is-selected.",
+      "why": "Hover and selected detail state must remain separate."
+    },
+    "touch_pin_persists_until_outside_or_scroll": {
+      "severity": "major",
+      "rule": "On touch devices, a tapped/navigated bar tooltip may remain pinned until outside pointerdown or scroll.",
+      "why": "Mobile users cannot hover, so touch tooltip persistence is required."
+    },
+    "mobile_tooltip_above_finger": {
+      "severity": "major",
+      "rule": "On coarse pointers, tooltip should prefer placement above the touch point and stay inside the viewport.",
+      "why": "Tooltip below the finger is hidden by the user's finger."
+    },
+    "tooltip_viewport_clamped": {
+      "severity": "major",
+      "rule": "Tooltip left/top must be clamped inside the viewport.",
+      "why": "Overflowing tooltip caused unreadable mobile and desktop edge cases."
+    },
+    "bar_cursor_stable": {
+      "severity": "major",
+      "rule": "Pointer movement across bars must not switch cursor shape unexpectedly.",
+      "why": "Cursor flicker made the bar strip feel broken."
+    },
+    "bar_cascade_single_pass": {
+      "severity": "major",
+      "rule": "Bar cascade animation must play once per render/open cycle, not double-fire fallback and primary animation together.",
+      "why": "Double cascade was visible as two waves."
+    },
+    "bar_cascade_left_to_right": {
+      "severity": "major",
+      "rule": "Bar cascade must visually originate from the left edge in document order, not from center transform origin.",
+      "why": "Center-origin bars made the animation feel wrong."
+    },
+    "disclosure_layout_animates_open_and_close": {
+      "severity": "major",
+      "rule": "Opening and closing category/child disclosures must animate layout height without a final snap.",
+      "why": "The page previously jumped at the end of close animation."
+    },
+    "reduced_motion_supported": {
+      "severity": "major",
+      "rule": "prefers-reduced-motion must disable or shorten non-essential animation without hiding content.",
+      "why": "Accessibility must not break status visibility."
+    },
+    "dark_mode_surface_coverage": {
+      "severity": "major",
+      "rule": "Detail cards, incident panels, update timeline, affected rows, and tooltip must all use theme variables.",
+      "why": "Mixed dark/light surfaces produced unreadable black text and white seams."
+    },
+    "mobile_range_header_no_wrap_glitch": {
+      "severity": "major",
+      "rule": "The date range and arrow controls must not split into vertical text at common mobile and scaled desktop widths.",
+      "why": "Range label wrapping broke the status overview header."
+    }
+  },
+  "manual_viewports": [
+    {
+      "name": "mobile-safari-like",
+      "width": 390,
+      "height": 844,
+      "pointer": "coarse",
+      "checks": [
+        "touch tooltip appears",
+        "tooltip stays above finger",
+        "range header does not break",
+        "disclosure open/close has no snap"
+      ]
+    },
+    {
+      "name": "desktop-default",
+      "width": 1440,
+      "height": 1000,
+      "pointer": "fine",
+      "checks": [
+        "hover tooltip is smooth",
+        "bar cascade is left-to-right",
+        "selected highlight follows route"
+      ]
+    },
+    {
+      "name": "4k-200-percent-effective",
+      "width": 1920,
+      "height": 1600,
+      "pointer": "fine",
+      "checks": [
+        "scale labels stay horizontal",
+        "today label has enough padding",
+        "status scale line length remains stable"
+      ]
+    }
+  ],
+  "runtime_probe_expectations": {
+    "getState.selectedCount": "0 or 1",
+    "getState.statusPanels": "0 or 1",
+    "getState.incidentPanels": "0 or 1",
+    "getState.error": "empty string for valid feed",
+    "document.querySelectorAll('#barTooltip').length": 1,
+    "document.documentElement.scrollWidth <= document.documentElement.clientWidth + 2": true
+  }
+}

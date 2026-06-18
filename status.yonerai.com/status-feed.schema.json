@@ -1,0 +1,425 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://status.yonerai.com/status-feed.schema.json",
+  "title": "YonerAI Status Feed",
+  "description": "Feed contract for rendering YonerAI Status categories, components, 90-day bars, status detail panels, affected component bars, and incident update timelines.",
+  "type": "object",
+  "required": ["schema_version", "generated_at", "range", "states", "categories", "incidents"],
+  "properties": {
+    "schema_version": {
+      "const": "yonerai.status.feed.v1"
+    },
+    "generated_at": {
+      "type": "string"
+    },
+    "mode": {
+      "type": "string"
+    },
+    "locale_default": {
+      "type": "string",
+      "enum": ["ja", "en"]
+    },
+    "range": {
+      "$ref": "#/$defs/range"
+    },
+    "summary": {
+      "$ref": "#/$defs/localizedString"
+    },
+    "contract_note": {
+      "$ref": "#/$defs/localizedString"
+    },
+    "states": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/stateDef"
+      }
+    },
+    "categories": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/category"
+      }
+    },
+    "incidents": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/incident"
+      }
+    }
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "localizedString": {
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "ja": {
+              "type": "string"
+            },
+            "en": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "localizedStringList": {
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+    },
+    "color": {
+      "type": "string",
+      "pattern": "^#[0-9A-Fa-f]{6}$"
+    },
+    "date": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+    },
+    "range": {
+      "type": "object",
+      "required": ["days", "start", "end"],
+      "properties": {
+        "days": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 120
+        },
+        "start": {
+          "$ref": "#/$defs/date"
+        },
+        "end": {
+          "$ref": "#/$defs/date"
+        }
+      },
+      "additionalProperties": true
+    },
+    "stateDef": {
+      "type": "object",
+      "properties": {
+        "color": {
+          "$ref": "#/$defs/color"
+        },
+        "label": {
+          "$ref": "#/$defs/localizedString"
+        },
+        "className": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "category": {
+      "type": "object",
+      "required": ["id", "name", "children"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "name": {
+          "$ref": "#/$defs/localizedString"
+        },
+        "state": {
+          "type": "string"
+        },
+        "window_days": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "children": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/component"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "component": {
+      "type": "object",
+      "required": ["id", "name", "days"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "name": {
+          "$ref": "#/$defs/localizedString"
+        },
+        "state": {
+          "type": "string"
+        },
+        "fact": {
+          "$ref": "#/$defs/localizedString"
+        },
+        "monitoring": {
+          "$ref": "#/$defs/localizedString"
+        },
+        "claim": {
+          "$ref": "#/$defs/localizedString"
+        },
+        "window_days": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "days": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/day"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "day": {
+      "type": "object",
+      "required": ["index", "date", "state"],
+      "properties": {
+        "index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "date": {
+          "$ref": "#/$defs/date"
+        },
+        "date_label": {
+          "$ref": "#/$defs/localizedString"
+        },
+        "state": {
+          "type": "string"
+        },
+        "label": {
+          "$ref": "#/$defs/localizedString"
+        },
+        "source": {
+          "type": "string"
+        },
+        "message": {
+          "$ref": "#/$defs/localizedString"
+        },
+        "color": {
+          "$ref": "#/$defs/color"
+        },
+        "incident_id": {
+          "$ref": "#/$defs/id"
+        },
+        "detail": {
+          "type": "object",
+          "properties": {
+            "title": {
+              "$ref": "#/$defs/localizedString"
+            },
+            "summary": {
+              "$ref": "#/$defs/localizedStringList"
+            }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "incident": {
+      "type": "object",
+      "required": ["id", "date", "state", "title", "updates"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "date": {
+          "$ref": "#/$defs/date"
+        },
+        "state": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "severity": {
+          "type": "string"
+        },
+        "title": {
+          "$ref": "#/$defs/localizedString"
+        },
+        "meta": {
+          "$ref": "#/$defs/localizedStringList"
+        },
+        "summary": {
+          "$ref": "#/$defs/localizedStringList"
+        },
+        "footer": {
+          "$ref": "#/$defs/localizedString"
+        },
+        "affected": {
+          "$ref": "#/$defs/affected"
+        },
+        "updates": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/update"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "affected": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/localizedString"
+        },
+        "count": {
+          "$ref": "#/$defs/localizedString"
+        },
+        "category_id": {
+          "$ref": "#/$defs/id"
+        },
+        "component_id": {
+          "$ref": "#/$defs/id"
+        },
+        "components": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/affectedComponent"
+          }
+        },
+        "window": {
+          "type": "object",
+          "properties": {
+            "start_label": {
+              "$ref": "#/$defs/localizedString"
+            },
+            "middle_label": {
+              "$ref": "#/$defs/localizedString"
+            },
+            "end_label": {
+              "$ref": "#/$defs/localizedString"
+            }
+          },
+          "additionalProperties": true
+        },
+        "tooltip": {
+          "$ref": "#/$defs/localizedString"
+        },
+        "segments": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/affectedSegment"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "affectedComponent": {
+      "type": "object",
+      "required": ["category_id", "component_id", "name"],
+      "properties": {
+        "category_id": {
+          "$ref": "#/$defs/id"
+        },
+        "component_id": {
+          "$ref": "#/$defs/id"
+        },
+        "name": {
+          "$ref": "#/$defs/localizedString"
+        },
+        "state": {
+          "type": "string"
+        },
+        "date": {
+          "$ref": "#/$defs/date"
+        },
+        "end_date": {
+          "$ref": "#/$defs/date"
+        },
+        "date_label": {
+          "$ref": "#/$defs/localizedString"
+        },
+        "end_date_label": {
+          "$ref": "#/$defs/localizedString"
+        }
+      },
+      "additionalProperties": true
+    },
+    "affectedSegment": {
+      "type": "object",
+      "required": ["state", "percent"],
+      "properties": {
+        "state": {
+          "type": "string"
+        },
+        "percent": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "tooltip": {
+          "$ref": "#/$defs/localizedString"
+        },
+        "color": {
+          "$ref": "#/$defs/color"
+        }
+      },
+      "additionalProperties": true
+    },
+    "update": {
+      "type": "object",
+      "required": ["status", "label", "body"],
+      "properties": {
+        "status": {
+          "type": "string"
+        },
+        "label": {
+          "$ref": "#/$defs/localizedString"
+        },
+        "body": {
+          "$ref": "#/$defs/localizedStringList"
+        },
+        "utc": {
+          "type": "string"
+        },
+        "jst": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    }
+  }
+}
