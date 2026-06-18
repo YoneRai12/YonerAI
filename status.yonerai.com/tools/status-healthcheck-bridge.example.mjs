@@ -76,6 +76,21 @@ function runNode(args, env = {}) {
   });
 }
 
+function outputText(value) {
+  return String(value || "").trim();
+}
+
+function printProcessOutput(result) {
+  const stdout = outputText(result.stdout);
+  const stderr = outputText(result.stderr);
+  if (stdout) console.error(stdout);
+  if (stderr) console.error(stderr);
+}
+
+function logProcessOutput(result) {
+  const stdout = outputText(result.stdout);
+  if (stdout) console.log(stdout);
+}
 function runOnce(config) {
   fs.mkdirSync(config.pipelineDir, { recursive: true });
   const monitorPath = resolve(config.pipelineDir, "status-monitor-results.generated.json");
@@ -86,8 +101,7 @@ function runOnce(config) {
   ]);
   if (validation.status !== 0) {
     console.error("Status healthcheck input validation failed. Public feed was not changed.");
-    if (validation.stdout.trim()) console.error(validation.stdout.trim());
-    if (validation.stderr.trim()) console.error(validation.stderr.trim());
+    printProcessOutput(validation);
     return false;
   }
 
@@ -98,8 +112,7 @@ function runOnce(config) {
   ]);
   if (collect.status !== 0) {
     console.error("Status healthcheck collection failed. Public feed was not changed.");
-    if (collect.stdout.trim()) console.error(collect.stdout.trim());
-    if (collect.stderr.trim()) console.error(collect.stderr.trim());
+    printProcessOutput(collect);
     return false;
   }
 
@@ -112,14 +125,13 @@ function runOnce(config) {
   });
   if (bridge.status !== 0) {
     console.error("Status feed bridge failed. Public feed was not changed.");
-    if (bridge.stdout.trim()) console.error(bridge.stdout.trim());
-    if (bridge.stderr.trim()) console.error(bridge.stderr.trim());
+    printProcessOutput(bridge);
     return false;
   }
 
-  if (validation.stdout.trim()) console.log(validation.stdout.trim());
-  if (collect.stdout.trim()) console.log(collect.stdout.trim());
-  if (bridge.stdout.trim()) console.log(bridge.stdout.trim());
+  logProcessOutput(validation);
+  logProcessOutput(collect);
+  logProcessOutput(bridge);
   return true;
 }
 

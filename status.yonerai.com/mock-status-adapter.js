@@ -439,7 +439,8 @@
         (item.segments || []).forEach((segment, segmentIndex) => {
           const segmentPath = `${affectedPath}.segments[${segmentIndex}]`;
           assertFeed(segment && typeof segment === "object" && !Array.isArray(segment), `${segmentPath} must be an object`);
-          assertKnownState(stateIds, segment.status, `${segmentPath}.status`);
+          assertKnownState(stateIds, segment.state || segment.status, `${segmentPath}.state`);
+          if (segment.percent != null) assertFeed(Number(segment.percent) > 0, `${segmentPath}.percent must be positive`);
           if (segment.weight != null) assertFeed(Number(segment.weight) > 0, `${segmentPath}.weight must be positive`);
         });
       });
@@ -1270,11 +1271,11 @@ function hideTooltip(force = false) {
       const timeline = el("div", "affected-timeline");
       timeline.dataset.tooltip = local(affected.tooltip, local(incident.title, incident.id));
       (affected.segments || []).forEach((segment) => {
-        const status = sid(segment.status);
+        const status = sid(segment.state || segment.status);
         const seg = el("span", "segment");
         seg.dataset.status = status;
         seg.dataset.label = local(segment.label, stateLabel(status));
-        const weight = Number(segment.weight || segment.width || 1);
+        const weight = Number(segment.percent ?? segment.weight ?? segment.width ?? 1);
         const color = stateColor(status);
         seg.style.setProperty("--segment-weight", weight);
         seg.style.setProperty("--segment-color", color);

@@ -26,7 +26,7 @@ check("feed schema is v1", () => window.YonerAIStatusRuntime?.getFeed?.()?.schem
 check("categories rendered from feed", () => document.querySelectorAll("#categoryList .category").length > 0);
 check("components rendered from feed", () => document.querySelectorAll("#categoryList .child").length > 0);
 check("feed bars rendered", () => document.querySelectorAll(".bar[data-status-runtime='feed']").length > 0);
-check("no duplicate runtime status panel", () => document.querySelectorAll("#runtimeStatusPanel").length <= 1);
+check("no duplicate runtime status panel", () => document.querySelectorAll("#barDetailPanel").length <= 1);
 check("no duplicate incident detail panel", () => document.querySelectorAll("#incidentDetailPanel").length <= 1);
 check("selected bars are single-owner", () => document.querySelectorAll(".bar.is-selected").length <= 1);
 check("runtime css is loaded", () => Array.from(document.styleSheets).some((sheet) => String(sheet.href || "").includes("runtime-status.css")));
@@ -81,11 +81,11 @@ async function main() {
       const day = component.days.find((item) => item.incident_id) || component.days[component.days.length - 1];
       window.location.hash = `status/${category.id}/${component.id}/${day.date}/${day.state}`;
     });
-    await page.waitForSelector("#runtimeStatusPanel.is-visible", { timeout: 5000 });
+    await page.waitForSelector("#barDetailPanel.is-visible", { timeout: 5000 });
 
     const statusRouteOk = await page.evaluate(() => ({
       selected: document.querySelectorAll(".bar.is-selected").length,
-      panels: document.querySelectorAll("#runtimeStatusPanel").length,
+      panels: document.querySelectorAll("#barDetailPanel").length,
       route: document.documentElement.dataset.statusRoute,
     }));
     if (statusRouteOk.selected !== 1 || statusRouteOk.panels !== 1 || statusRouteOk.route !== "status") {
@@ -125,7 +125,7 @@ async function main() {
             feedError: document.documentElement.dataset.statusFeedError || "",
             categoryCount: document.querySelectorAll("#categoryList .category").length,
             selected: document.querySelectorAll(".bar.is-selected").length,
-            runtimePanels: document.querySelectorAll("#runtimeStatusPanel").length,
+            runtimePanels: document.querySelectorAll("#barDetailPanel").length,
             incidentPanels: document.querySelectorAll("#incidentDetailPanel").length,
           });
         }, 50);
@@ -192,7 +192,7 @@ async function main() {
         bars: document.querySelectorAll(".bar[data-status-runtime='feed']").length,
         beforeCategories,
         beforeBars,
-        runtimePanels: document.querySelectorAll("#runtimeStatusPanel").length,
+        runtimePanels: document.querySelectorAll("#barDetailPanel").length,
         incidentPanels: document.querySelectorAll("#incidentDetailPanel").length,
       };
     });
@@ -249,7 +249,7 @@ async function main() {
             liveState: document.documentElement.dataset.statusLive || "",
             categories: document.querySelectorAll("#categoryList .category").length,
             selected: document.querySelectorAll(".bar.is-selected").length,
-            runtimePanels: document.querySelectorAll("#runtimeStatusPanel").length,
+            runtimePanels: document.querySelectorAll("#barDetailPanel").length,
             incidentPanels: document.querySelectorAll("#incidentDetailPanel").length,
           });
         }, 50);
@@ -330,7 +330,7 @@ async function main() {
             generatedAt: runtime.getFeed()?.generated_at,
             pendingCascade: document.querySelectorAll(".is-cascade-pending,.is-runtime-cascade,.is-cascading").length,
             selected: document.querySelectorAll(".bar.is-selected").length,
-            panels: document.querySelectorAll("#runtimeStatusPanel,#incidentDetailPanel").length,
+            panels: document.querySelectorAll("#barDetailPanel,#incidentDetailPanel").length,
           });
         }, 50);
       }, { once: true });
@@ -378,7 +378,7 @@ async function main() {
       runtime.setFeed(feed, { animate: false, source: "acceptance-presentation" });
       window.location.hash = `status/${category.id}/${component.id}/${day.date}/${day.state}`;
       window.setTimeout(() => {
-        const panel = document.querySelector("#runtimeStatusPanel");
+        const panel = document.querySelector("#barDetailPanel");
         const bar = document.querySelector(`.bar.is-selected[data-date="${CSS.escape(day.date)}"]`);
         resolve({
           panelExists: Boolean(panel),

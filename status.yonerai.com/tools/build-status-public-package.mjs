@@ -19,7 +19,10 @@ const statusRoot = path.resolve(scriptDir, "..");
 
 const requiredRuntimeFiles = [
   "index.html",
+  "jp/index.html",
+  "en/index.html",
   "styles.css",
+  "runtime-status.css",
   "mock-status-adapter.js"
 ];
 
@@ -103,9 +106,9 @@ function copyFile(source, destination) {
 
 function cleanOutputDir(outDir) {
   const resolved = path.resolve(outDir);
-  const relative = path.relative(statusRoot, resolved);
-  if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) {
-    throw new Error(`output directory must stay inside status root: ${outDir}`);
+  const relative = path.relative(statusRoot, resolved).replaceAll("\\", "/");
+  if (!relative || relative.startsWith("..") || path.isAbsolute(relative) || !relative.startsWith("generated/")) {
+    throw new Error(`output directory must stay inside status generated/ directory: ${outDir}`);
   }
   fs.rmSync(resolved, { recursive: true, force: true });
   fs.mkdirSync(resolved, { recursive: true });

@@ -44,12 +44,10 @@ function resolveTemplate(value) {
     }
     return value;
   }
-  if (value.startsWith("${") && value.endsWith("}") && value.length > 3) {
-    const envName = value.slice(2, -1);
+  return value.replace(/\$\{([^}]+)\}/g, (match, envName) => {
     const envValue = process.env[envName];
-    if (envValue != null) return envValue;
-  }
-  return value;
+    return envValue != null ? envValue : match;
+  });
 }
 
 function usage() {
