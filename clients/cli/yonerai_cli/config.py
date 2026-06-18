@@ -206,6 +206,10 @@ def parse_config_value(key: str, value: str) -> object:
         if raw not in LANGUAGES:
             raise ConfigError("language must be ja or en.")
         return raw
+    if key == "theme":
+        if raw not in THEMES:
+            raise ConfigError("theme must be auto, dark, light, or mono.")
+        return raw
     if key == "provider_preference":
         if raw not in PROVIDER_PREFERENCES:
             raise ConfigError("provider must be auto, mock, local, openai-compatible, anthropic, or gemini.")
@@ -312,6 +316,7 @@ def build_config_report(config: Mapping[str, object], *, exists: bool) -> dict[s
         "secrets_supported": False,
         "config": {
             "language": validated["language"],
+            "theme": validated["theme"],
             "command_display_mode": validated["command_display_mode"],
             "provider_preference": validated["provider_preference"],
             "model_preference": validated["model_preference"],

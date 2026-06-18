@@ -8,6 +8,7 @@ command, and that themes never alter JSON/behavior boundaries.
 from __future__ import annotations
 
 import io
+import json
 import sys
 from pathlib import Path
 from typing import Any
@@ -21,7 +22,14 @@ for path in (CLIENTS_CLI, CORE_SRC):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
-from yonerai_cli.config import DEFAULT_CONFIG, ConfigError, THEMES, save_cli_config, validate_cli_config
+from yonerai_cli.config import (
+    DEFAULT_CONFIG,
+    ConfigError,
+    THEMES,
+    save_cli_config,
+    set_cli_config_value,
+    validate_cli_config,
+)
 from yonerai_cli.startup_home import render_startup_home_header
 from yonerai_cli.tui.themes import normalize_theme, theme_from_input, theme_palette, theme_uses_truecolor
 
@@ -92,6 +100,43 @@ def test_header_dark_has_ansi_escape_when_color_always() -> None:
 def test_header_never_color_ignores_theme() -> None:
     out = render_startup_home_header(color="never", theme="dark", width=140)
     assert "\x1b[38;2;" not in out
+
+
+def test_theme_config_setter_persists_supported_theme(tmp_path: Path) -> None:
+    config_path = tmp_path / "c.json"
+
+    saved = set_cli_config_value("theme", "dark", config_path)
+
+    assert saved["theme"] == "dark"
+
+    persisted = json.loads(config_path.read_text(encoding="utf-8"))
+    assert persisted["theme"] == "dark"
+
+
+def test_theme_config_setter_rejects_invalid_theme(tmp_path: Path) -> None:
+    config_path = tmp_path / "c.json"
+
+    with pytest.raises(ConfigError, match="theme must be auto, dark, light, or mono"):
+        set_cli_config_value("theme", "neon", config_path)
+
+
+def test_theme_config_cli_set_accepts_theme_choice(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from yonerai_cli import cli
+
+    config_path = tmp_path / "cli-config.json"
+    monkeypatch.setenv("YONERAI_CLI_CONFIG_PATH", str(config_path))
+
+    assert cli.main(["config", "set", "theme", "mono", "--json"]) == 0
+    output = capsys.readouterr()
+
+    report = json.loads(output.out)
+    assert report["config"]["theme"] == "mono"
+    assert str(tmp_path) not in json.dumps(report)
+    assert output.err == ""
 
 
 # --- onboarding + slash command ---
