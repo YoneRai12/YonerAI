@@ -118,6 +118,36 @@ def test_status_snapshot_rejects_ipv6_private_endpoint_without_printing_it() -> 
     assert "fc00" not in exc.value.message
 
 
+def test_status_snapshot_allows_explicit_https_443_status_url() -> None:
+    from yonerai_cli.services.status_snapshot_service import build_status_snapshot_report
+
+    payload = _fixture()
+
+    def transport(method: str, url: str, headers: object, body: object, timeout_seconds: float) -> tuple[int, dict, dict]:
+        del method, headers, body, timeout_seconds
+        assert url == "https://api-staging.yonerai.com/v1/status"
+        return 200, payload, {}
+
+    report = build_status_snapshot_report(
+        status_source="https://api-staging.yonerai.com:443/v1/status",
+        allow_network_status_fetch=True,
+        transport=transport,
+    )
+
+    assert report["ok"] is True
+
+
+def test_status_snapshot_normalizes_safe_message_whitespace() -> None:
+    from yonerai_cli.services.status_snapshot_service import normalize_status_snapshot
+
+    payload = _fixture()
+    payload["components"][0]["message"] = "Line one\nLine two\tLine three"
+
+    snapshot = normalize_status_snapshot(payload)
+
+    assert snapshot["components"][0]["message"] == "Line one Line two Line three"
+
+
 def test_unknown_component_is_safe_but_not_canonical() -> None:
     from yonerai_cli.services.status_snapshot_service import normalize_status_snapshot
 

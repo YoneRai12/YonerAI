@@ -406,7 +406,7 @@ def _validate_status_url(value: str) -> tuple[str, str]:
         raise StatusSnapshotError("status_snapshot_url_invalid", "Status URL must not include credentials.")
     if parsed.scheme != "https":
         raise StatusSnapshotError("status_snapshot_url_invalid", "Status URL must use HTTPS.")
-    if host not in ALLOWED_STATUS_HOSTS or parsed.port is not None:
+    if host not in ALLOWED_STATUS_HOSTS or (parsed.port is not None and parsed.port != 443):
         raise StatusSnapshotError("status_snapshot_url_invalid", "Status URL host is not allowlisted.")
     if _is_private_host(host):
         raise StatusSnapshotError("status_snapshot_url_invalid", "Status URL host is not public.")
@@ -631,8 +631,9 @@ def _safe_text(value: object, *, fallback: object, max_length: int = 240) -> obj
     text = str(value).strip()
     if not text:
         return fallback
-    if any(ord(char) < 32 or ord(char) == 127 for char in text):
+    if any((ord(char) < 32 and char not in "\r\n\t") or ord(char) == 127 for char in text):
         return fallback
+    text = re.sub(r"[\r\n\t]+", " ", text)
     lowered = text.lower()
     forbidden = (
         "access_token",
