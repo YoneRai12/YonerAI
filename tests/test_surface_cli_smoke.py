@@ -1350,7 +1350,7 @@ def test_cli_run_command_uses_surface_api_run_contract(monkeypatch, capsys):
 
     monkeypatch.setattr(cli, "request_json", fake_request_json)
 
-    assert cli.main(["run", "--mode", "mock", "hello"]) == 0
+    assert cli.main(["run", "local-smoke", "--mode", "mock", "hello"]) == 0
 
     assert calls == [
         (

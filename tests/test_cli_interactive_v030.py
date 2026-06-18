@@ -461,8 +461,9 @@ def test_chat_auth_screen_shows_staging_and_sync_boundaries(tmp_path: Path, monk
     assert "account: not linked" in output
     assert "staging_origin: https://api-staging.yonerai.com" in output
     assert "guide: use `/login` (Japanese: `/ログイン`) to start browser sign-in" in output
-    assert "Sync" in output
-    assert "local_to_cloud_requires_approval: True" in output
+    assert "Conversation sync policy" in output
+    assert "local_to_cloud: requires explicit per-conversation approval" in output
+    assert "memory: inherits the conversation policy" in output
     assert "private_content_exclusion_active: True" in output
     assert "openai_shared_traffic_enabled: False" in output
     assert str(tmp_path) not in output
@@ -1990,7 +1991,8 @@ def test_chat_update_apply_accepts_japanese_confirm_token(tmp_path: Path, monkey
 
     assert "更新適用" in output
     assert "確認が必要: いいえ" in output
-    assert "状態: test_mode_not_installed" in output
+    assert "状態: already_current" in output
+    assert "このチャンネルはすでに最新です" in output
     assert "Traceback" not in output
     assert str(tmp_path) not in output
 

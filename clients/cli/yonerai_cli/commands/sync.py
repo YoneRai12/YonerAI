@@ -7,6 +7,14 @@ from typing import Any, Callable
 
 from yonerai_cli.config import ConfigError, load_cli_config
 from yonerai_cli.output import CliRow, CliSection, ColorMode, render_report
+from yonerai_cli.services.conversation_sync_policy_service import (
+    ConversationSyncPolicyError,
+    SYNC_POLICIES,
+    build_conversation_policy_list_report,
+    build_conversation_policy_pause_report,
+    build_conversation_policy_set_report,
+    build_conversation_policy_status_report,
+)
 from yonerai_cli.services.staging_sync_service import (
     StagingSyncServiceError,
     build_staging_conversation_show_report,
@@ -62,6 +70,73 @@ def add_sync_parser(
 
     conversation = sync_subcommands.add_parser("conversation", help="Inspect one staging cloud conversation ref.")
     conversation_subcommands = conversation.add_subparsers(dest="sync_conversation_command", required=True)
+    conversation_status = conversation_subcommands.add_parser(
+        "status",
+        help="Show local conversation sync policy boundaries. No sync is performed.",
+    )
+    conversation_status.add_argument("--store", help="Optional local conversation policy store path.")
+    conversation_status.add_argument("--config-path", help="Optional local CLI config path.")
+    _add_output_and_locale(
+        conversation_status,
+        lang_choices=lang_choices,
+        color_choices=color_choices,
+        pretty_help="Print readable conversation sync policy status.",
+    )
+
+    conversation_list = conversation_subcommands.add_parser(
+        "list",
+        help="List local conversation sync policies. No raw conversation body is stored.",
+    )
+    conversation_list.add_argument("--store", help="Optional local conversation policy store path.")
+    conversation_list.add_argument("--config-path", help="Optional local CLI config path.")
+    _add_output_and_locale(
+        conversation_list,
+        lang_choices=lang_choices,
+        color_choices=color_choices,
+        pretty_help="Print readable conversation sync policies.",
+    )
+
+    conversation_set = conversation_subcommands.add_parser(
+        "set",
+        help="Set a conversation sync policy. bidirectional_explicit requires --confirm.",
+    )
+    conversation_set.add_argument("conversation_id", help="Public-safe conversation id.")
+    conversation_set.add_argument("sync_policy", choices=SYNC_POLICIES, help="Conversation sync policy.")
+    conversation_set.add_argument("--origin", choices=("local", "cloud", "web"), help="Conversation origin.")
+    conversation_set.add_argument("--confirm", action="store_true", help="Required for bidirectional_explicit.")
+    conversation_set.add_argument(
+        "--audit-reason",
+        default="public_cli_conversation_policy_set",
+        help="Public metadata-only audit reason.",
+    )
+    conversation_set.add_argument("--store", help="Optional local conversation policy store path.")
+    conversation_set.add_argument("--config-path", help="Optional local CLI config path.")
+    _add_output_and_locale(
+        conversation_set,
+        lang_choices=lang_choices,
+        color_choices=color_choices,
+        pretty_help="Print readable conversation sync policy decision.",
+    )
+
+    conversation_pause = conversation_subcommands.add_parser(
+        "pause",
+        help="Pause sync for a conversation. No upload is performed.",
+    )
+    conversation_pause.add_argument("conversation_id", help="Public-safe conversation id.")
+    conversation_pause.add_argument(
+        "--audit-reason",
+        default="public_cli_conversation_policy_pause",
+        help="Public metadata-only audit reason.",
+    )
+    conversation_pause.add_argument("--store", help="Optional local conversation policy store path.")
+    conversation_pause.add_argument("--config-path", help="Optional local CLI config path.")
+    _add_output_and_locale(
+        conversation_pause,
+        lang_choices=lang_choices,
+        color_choices=color_choices,
+        pretty_help="Print readable conversation pause decision.",
+    )
+
     conversation_show = conversation_subcommands.add_parser("show", help="Show a redacted staging cloud conversation summary.")
     conversation_show.add_argument("conversation_id", help="Cloud conversation id returned by sync conversations.")
     conversation_show.add_argument("--config-path", help="Optional local CLI config path.")
@@ -141,7 +216,7 @@ def handle_sync_command(
     if args.json:
         print_json(report)
     else:
-        print(format_sync_pretty(report, lang=args.lang, color=args.color))
+        print(format_sync_pretty_v2(report, lang=args.lang, color=args.color))
     return 0 if report.get("ok", True) else 1
 
 
@@ -181,6 +256,33 @@ def build_sync_report(args: argparse.Namespace, *, prepare_import_paths: Callabl
                 claim_path=getattr(args, "config_path", None),
                 timeout_seconds=float(getattr(args, "timeout_seconds", 10.0)),
             )
+        if args.sync_command == "conversation" and args.sync_conversation_command == "status":
+            return build_conversation_policy_status_report(
+                store_path=getattr(args, "store", None),
+                config_path=getattr(args, "config_path", None),
+            )
+        if args.sync_command == "conversation" and args.sync_conversation_command == "list":
+            return build_conversation_policy_list_report(
+                store_path=getattr(args, "store", None),
+                config_path=getattr(args, "config_path", None),
+            )
+        if args.sync_command == "conversation" and args.sync_conversation_command == "set":
+            return build_conversation_policy_set_report(
+                str(getattr(args, "conversation_id", "")),
+                str(getattr(args, "sync_policy", "")),
+                origin=getattr(args, "origin", None),
+                confirm=bool(getattr(args, "confirm", False)),
+                audit_reason=str(getattr(args, "audit_reason", "public_cli_conversation_policy_set")),
+                store_path=getattr(args, "store", None),
+                config_path=getattr(args, "config_path", None),
+            )
+        if args.sync_command == "conversation" and args.sync_conversation_command == "pause":
+            return build_conversation_policy_pause_report(
+                str(getattr(args, "conversation_id", "")),
+                audit_reason=str(getattr(args, "audit_reason", "public_cli_conversation_policy_pause")),
+                store_path=getattr(args, "store", None),
+                config_path=getattr(args, "config_path", None),
+            )
         if args.sync_command == "preview":
             direction = _effective_sync_direction(args)
             if _staging_origin_configured() or direction == "local-to-cloud":
@@ -216,7 +318,7 @@ def build_sync_report(args: argparse.Namespace, *, prepare_import_paths: Callabl
             return builders()["api"]()
         if args.sync_command == "rate-limit":
             return builders()["rate_limit"]()
-    except (ConfigError, StagingSyncServiceError, ValueError) as exc:
+    except (ConfigError, ConversationSyncPolicyError, StagingSyncServiceError, ValueError) as exc:
         raise SyncCommandError(str(exc)) from exc
     raise SyncCommandError("unknown sync command")
 
@@ -291,6 +393,124 @@ def format_sync_pretty(report: dict[str, Any], *, lang: str = "ja", color: Color
     if actions:
         sections.append(CliSection("Non-actions", actions))
     return render_report(title, tuple(sections), color=color)
+
+
+def format_sync_pretty_v2(report: dict[str, Any], *, lang: str = "ja", color: ColorMode = "auto") -> str:
+    title = "YonerAI sync boundary" if lang != "ja" else "YonerAI 同期境界"
+    rows = [
+        CliRow("schema_version", report.get("schema_version"), "ok"),
+        CliRow("ok", report.get("ok", True), "ok" if report.get("ok", True) else "fail"),
+    ]
+    for key in (
+        "operation",
+        "direction",
+        "auth_state",
+        "staging_origin",
+        "staging_claim_present",
+        "staging_session_available",
+        "preview_only",
+        "sync_allowed",
+        "sync_performed",
+        "local_to_cloud_upload_performed",
+        "official_worker_dispatch_performed",
+        "official_backend_called",
+        "backend_status_code",
+        "conversation_count",
+    ):
+        if key in report:
+            status = "ok"
+            if key == "staging_session_available" and report.get(key) is False:
+                status = "warn"
+            if key in {"sync_performed", "local_to_cloud_upload_performed", "official_worker_dispatch_performed"} and report.get(key) is True:
+                status = "fail"
+            rows.append(CliRow(key, report.get(key), status))
+    decision = report.get("decision") if isinstance(report.get("decision"), dict) else {}
+    if decision:
+        state = decision.get("state")
+        rows.append(CliRow("decision", state, "warn" if state == "approval_required" else "ok"))
+        rows.append(CliRow("reason", decision.get("reason"), "ok"))
+    error = report.get("error") if isinstance(report.get("error"), dict) else {}
+    if error:
+        rows.append(CliRow("error", error.get("code"), "fail"))
+        rows.append(CliRow("message", error.get("message"), "warn"))
+
+    conversations = report.get("conversations") if isinstance(report.get("conversations"), list) else []
+    conversation = report.get("conversation") if isinstance(report.get("conversation"), dict) else {}
+    cloud_rows = tuple(
+        CliRow(str(item.get("cloud_conversation_id") or "cloud"), item.get("title"), "ok")
+        for item in conversations
+        if isinstance(item, dict) and item.get("cloud_conversation_id")
+    )
+    cloud_detail_rows = tuple(
+        CliRow(key, conversation.get(key), "ok")
+        for key in (
+            "cloud_conversation_id",
+            "title",
+            "summary",
+            "selected_by_user",
+            "created_at",
+            "updated_at",
+            "message_count",
+            "raw_body_included",
+        )
+        if key in conversation
+    )
+    policy_rows = tuple(
+        CliRow(str(item.get("conversation_id") or "conversation"), item.get("sync_policy"), _policy_status(item))
+        for item in conversations
+        if isinstance(item, dict) and item.get("conversation_id")
+    )
+    policy_counts = report.get("policy_counts") if isinstance(report.get("policy_counts"), dict) else {}
+    policy_count_rows = tuple(CliRow(str(key), value, "ok") for key, value in policy_counts.items())
+    policy_detail_rows = _conversation_policy_detail_rows(conversation)
+    actions = tuple(
+        CliRow(f"action_{idx}", item, "ok") for idx, item in enumerate(report.get("actions_not_performed", []), start=1)
+    )
+
+    sections = [CliSection("Status", tuple(rows))]
+    if cloud_rows:
+        sections.append(CliSection("Cloud conversations", cloud_rows))
+    if cloud_detail_rows:
+        sections.append(CliSection("Cloud conversation", cloud_detail_rows))
+    if policy_count_rows:
+        sections.append(CliSection("Conversation policy counts", policy_count_rows))
+    if policy_rows:
+        sections.append(CliSection("Conversation sync policies", policy_rows))
+    if policy_detail_rows:
+        sections.append(CliSection("Conversation policy boundary", policy_detail_rows))
+    if actions:
+        sections.append(CliSection("Non-actions", actions))
+    return render_report(title, tuple(sections), color=color)
+
+
+def _policy_status(item: dict[str, Any]) -> str:
+    policy = str(item.get("sync_policy") or "")
+    if policy == "local_only":
+        return "warn"
+    if policy == "paused":
+        return "fail"
+    return "ok"
+
+
+def _conversation_policy_detail_rows(conversation: dict[str, Any]) -> tuple[CliRow, ...]:
+    if not conversation or "sync_policy" not in conversation:
+        return ()
+    rows = [
+        CliRow("conversation_id", conversation.get("conversation_id"), "ok"),
+        CliRow("origin", conversation.get("origin"), "ok"),
+        CliRow("sync_policy", conversation.get("sync_policy"), _policy_status(conversation)),
+    ]
+    execution = conversation.get("execution") if isinstance(conversation.get("execution"), dict) else {}
+    memory = conversation.get("memory") if isinstance(conversation.get("memory"), dict) else {}
+    for key in ("official_worker_allowed", "local_loopback_required", "decision", "reason"):
+        if key in execution:
+            status = "fail" if key == "official_worker_allowed" and execution.get(key) is False else "ok"
+            rows.append(CliRow(f"execution.{key}", execution.get(key), status))
+    for key in ("inherits_conversation_policy", "memory_scope", "cloud_memory_index_allowed", "local_to_cloud_memory_sync"):
+        if key in memory:
+            status = "warn" if key == "cloud_memory_index_allowed" and memory.get(key) is False else "ok"
+            rows.append(CliRow(f"memory.{key}", memory.get(key), status))
+    return tuple(rows)
 
 
 def _add_output_and_locale(

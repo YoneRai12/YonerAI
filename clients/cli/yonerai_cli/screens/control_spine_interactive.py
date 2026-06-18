@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from yonerai_cli.screens.native_run import format_native_run_compact
 from yonerai_cli.screens.labels import _safe
 
 _DEFAULT_BACKEND = "https://api-staging.yonerai.com"
@@ -17,6 +18,10 @@ def format_control_spine_callback(command: str, callbacks: Any, *, lang: str = "
         "/projects": getattr(callbacks, "project_status", None),
         "/sessions": getattr(callbacks, "session_status", None),
         "/audit": getattr(callbacks, "audit_status", None),
+        "/run": getattr(callbacks, "native_run_status", None),
+        "/worker": getattr(callbacks, "worker_status", None),
+        "/capabilities": getattr(callbacks, "capability_list", None),
+        "/modules": getattr(callbacks, "module_list", None),
     }
     callback = mapping.get(command)
     if callback is None:
@@ -24,6 +29,8 @@ def format_control_spine_callback(command: str, callbacks: Any, *, lang: str = "
     report = callback(lang)
     if report is None:
         return None
+    if command in {"/run", "/worker", "/capabilities", "/modules"}:
+        return format_native_run_compact(report, lang=lang)
     return format_control_spine_tui(report, lang=lang)
 
 

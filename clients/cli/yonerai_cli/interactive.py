@@ -161,6 +161,10 @@ class InteractiveCallbacks:
     auth_logout: Callable[[str], dict[str, Any]] | None = None
     session_revoke: Callable[[str, str], dict[str, Any]] | None = None
     audit_status: Callable[[str], dict[str, Any]] | None = None
+    native_run_status: Callable[[str], dict[str, Any]] | None = None
+    worker_status: Callable[[str], dict[str, Any]] | None = None
+    capability_list: Callable[[str], dict[str, Any]] | None = None
+    module_list: Callable[[str], dict[str, Any]] | None = None
     memory_status: Callable[[str], dict[str, Any]] | None = None
     memory_action: Callable[[str, list[str], str, str | None], dict[str, Any]] | None = None
     policy_status: Callable[[dict[str, object]], dict[str, Any]] | None = None
@@ -1366,7 +1370,20 @@ def _handle_slash_command(
             interactive_tty=interactive_tty,
         )
         return {}
-    if command in {"/api", "/project", "/projects", "/whoami", "/sessions", "/audit", "/rate-limit", "/ping"}:
+    if command in {
+        "/api",
+        "/project",
+        "/projects",
+        "/whoami",
+        "/sessions",
+        "/audit",
+        "/rate-limit",
+        "/ping",
+        "/run",
+        "/worker",
+        "/capabilities",
+        "/modules",
+    }:
         _present_screen(
             output_stream,
             format_control_spine_callback(command, callbacks, lang=lang) or _format_api_unavailable(lang),

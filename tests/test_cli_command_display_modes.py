@@ -173,9 +173,11 @@ def test_command_palette_dialog_items_stay_short_and_user_facing() -> None:
         "/whoami",
         "/projects",
         "/sessions",
+        "/run",
     ]
     assert any("/login" in label for _value, label in items)
     assert any("/local-llm" in label for _value, label in items)
+    assert any("/run" in label for _value, label in items)
 
 
 def test_command_palette_dialog_items_support_query_filter() -> None:

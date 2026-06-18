@@ -12,10 +12,12 @@ from yonerai_cli.commands.evolve import add_evolve_parser
 from yonerai_cli.commands.hybrid import add_hybrid_parser
 from yonerai_cli.commands.manifest import add_manifest_parser
 from yonerai_cli.commands.memory import add_memory_parser
+from yonerai_cli.commands.native_run import add_native_run_parsers
 from yonerai_cli.commands.node import add_node_parser, add_relay_parser
 from yonerai_cli.commands.ops import add_ops_parser
 from yonerai_cli.commands.oracle import add_oracle_parser
 from yonerai_cli.commands.policy import add_policy_parser
+from yonerai_cli.commands.provider import add_provider_parser
 from yonerai_cli.commands.project import add_project_parser
 from yonerai_cli.commands.providers import add_providers_parser
 from yonerai_cli.commands.route import add_route_parser
@@ -182,6 +184,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     add_providers_parser(subcommands, lang_choices=LANG_CHOICES, color_choices=COLOR_CHOICES)
+    add_provider_parser(subcommands, lang_choices=LANG_CHOICES, color_choices=COLOR_CHOICES)
 
     add_policy_parser(subcommands, lang_choices=LANG_CHOICES, color_choices=COLOR_CHOICES)
 
@@ -249,13 +252,10 @@ def build_parser() -> argparse.ArgumentParser:
     add_memory_parser(subcommands, lang_choices=LANG_CHOICES, color_choices=COLOR_CHOICES)
 
     add_runs_parser(subcommands, lang_choices=LANG_CHOICES, color_choices=COLOR_CHOICES)
+    add_native_run_parsers(subcommands, lang_choices=LANG_CHOICES, color_choices=COLOR_CHOICES)
 
     message = subcommands.add_parser("message", parents=[shared], help="Send a local public message smoke request.")
     message.add_argument("--mode", choices=["mock", "offline", "local"], default="mock")
     message.add_argument("prompt", nargs="+")
-
-    run = subcommands.add_parser("run", parents=[shared], help="Create a local Surface API run smoke request.")
-    run.add_argument("--mode", choices=["mock", "offline", "local"], default="mock")
-    run.add_argument("prompt", nargs="+")
 
     return parser

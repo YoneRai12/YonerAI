@@ -28,6 +28,12 @@ from yonerai_cli.services.control_spine_service import (
     build_whoami_report,
     load_config_for_control_spine,
 )
+from yonerai_cli.services.provider_sharing_service import (
+    ProviderSharingError,
+    build_provider_sharing_disable_report,
+    build_provider_sharing_enable_report,
+    build_provider_sharing_status_report,
+)
 from yonerai_cli.services.staging_session_service import (
     build_staging_session_status,
     clear_staging_session,
@@ -163,6 +169,57 @@ def add_privacy_parser(
     privacy_status_output.add_argument("--pretty", action="store_true", help="Print a readable privacy status.")
     privacy_status.add_argument("--lang", choices=lang_choices, default="ja", help="Pretty output language. Default: ja.")
     privacy_status.add_argument(
+        "--color", choices=color_choices, default="auto", help="Pretty output color mode. Default: auto."
+    )
+
+    sharing = privacy_subcommands.add_parser(
+        "provider-sharing",
+        help="Inspect or change per-conversation provider-sharing consent. Default is off.",
+    )
+    sharing_subcommands = sharing.add_subparsers(dest="privacy_provider_sharing_command", required=True)
+    sharing_status = sharing_subcommands.add_parser("status", help="Show provider-sharing consent status.")
+    sharing_status.add_argument("conversation_id", nargs="?", help="Optional conversation id.")
+    sharing_status.add_argument("--store", dest="provider_sharing_store", help="Optional consent store path.")
+    sharing_status.add_argument("--config-path", help="Optional local CLI config path.")
+    sharing_status_output = sharing_status.add_mutually_exclusive_group()
+    sharing_status_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
+    sharing_status_output.add_argument("--pretty", action="store_true", help="Print readable provider-sharing status.")
+    sharing_status.add_argument("--lang", choices=lang_choices, default="ja", help="Pretty output language. Default: ja.")
+    sharing_status.add_argument(
+        "--color", choices=color_choices, default="auto", help="Pretty output color mode. Default: auto."
+    )
+
+    sharing_enable = sharing_subcommands.add_parser(
+        "enable",
+        help="Enable OpenAI shared traffic for one conversation after explicit confirmation.",
+    )
+    sharing_enable.add_argument("conversation_id", help="Conversation id to enable.")
+    sharing_enable.add_argument(
+        "--sync-policy",
+        choices=("cloud_to_local", "bidirectional_explicit", "paused", "local_only"),
+        default="cloud_to_local",
+        help="Current sync policy for this conversation.",
+    )
+    sharing_enable.add_argument("--confirm", action="store_true", help="Record explicit per-conversation consent.")
+    sharing_enable.add_argument("--store", dest="provider_sharing_store", help="Optional consent store path.")
+    sharing_enable.add_argument("--config-path", help="Optional local CLI config path.")
+    sharing_enable_output = sharing_enable.add_mutually_exclusive_group()
+    sharing_enable_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
+    sharing_enable_output.add_argument("--pretty", action="store_true", help="Print readable consent result.")
+    sharing_enable.add_argument("--lang", choices=lang_choices, default="ja", help="Pretty output language. Default: ja.")
+    sharing_enable.add_argument(
+        "--color", choices=color_choices, default="auto", help="Pretty output color mode. Default: auto."
+    )
+
+    sharing_disable = sharing_subcommands.add_parser("disable", help="Disable future provider sharing for one conversation.")
+    sharing_disable.add_argument("conversation_id", help="Conversation id to disable.")
+    sharing_disable.add_argument("--store", dest="provider_sharing_store", help="Optional consent store path.")
+    sharing_disable.add_argument("--config-path", help="Optional local CLI config path.")
+    sharing_disable_output = sharing_disable.add_mutually_exclusive_group()
+    sharing_disable_output.add_argument("--json", action="store_true", help="Print stable machine-readable JSON.")
+    sharing_disable_output.add_argument("--pretty", action="store_true", help="Print readable consent result.")
+    sharing_disable.add_argument("--lang", choices=lang_choices, default="ja", help="Pretty output language. Default: ja.")
+    sharing_disable.add_argument(
         "--color", choices=color_choices, default="auto", help="Pretty output color mode. Default: auto."
     )
 
@@ -364,13 +421,12 @@ def handle_login_alias_command(args: argparse.Namespace, *, print_json: Callable
     if not getattr(args, "staging", True):
         raise AuthCommandError("public CLI login is staging-only in this build.")
     interactive_tty = bool(sys.stdin.isatty() and sys.stdout.isatty())
-    implicit_user_login = (
-        not bool(getattr(args, "json", False))
-        and not bool(getattr(args, "bridge", False))
-        and not bool(getattr(args, "open_browser", False))
-        and not bool(getattr(args, "wait_linked", False))
-        and interactive_tty
+    explicit_flow_flags = (
+        bool(getattr(args, "bridge", False))
+        or bool(getattr(args, "open_browser", False))
+        or bool(getattr(args, "wait_linked", False))
     )
+    implicit_user_login = not bool(getattr(args, "json", False)) and not explicit_flow_flags
     bridge = bool(getattr(args, "bridge", False) or implicit_user_login)
     open_browser = bool(getattr(args, "open_browser", False) or (implicit_user_login and interactive_tty))
     wait_linked = bool(getattr(args, "wait_linked", False) or (implicit_user_login and interactive_tty))
@@ -414,14 +470,42 @@ def handle_whoami_command(args: argparse.Namespace, *, print_json: Callable[[dic
 
 
 def handle_privacy_command(args: argparse.Namespace, *, print_json: Callable[[dict[str, Any]], None]) -> int:
-    if args.privacy_command != "status":
+    if args.privacy_command == "status":
+        report = build_privacy_status(_load_config(args))
+        formatter = format_privacy_pretty
+    elif args.privacy_command == "provider-sharing":
+        try:
+            if args.privacy_provider_sharing_command == "status":
+                report = build_provider_sharing_status_report(
+                    conversation_id=getattr(args, "conversation_id", None),
+                    store_path=getattr(args, "provider_sharing_store", None),
+                    config_path=getattr(args, "config_path", None),
+                )
+            elif args.privacy_provider_sharing_command == "enable":
+                report = build_provider_sharing_enable_report(
+                    str(args.conversation_id),
+                    sync_policy=str(getattr(args, "sync_policy", "cloud_to_local")),
+                    confirm=bool(getattr(args, "confirm", False)),
+                    store_path=getattr(args, "provider_sharing_store", None),
+                    config_path=getattr(args, "config_path", None),
+                )
+            elif args.privacy_provider_sharing_command == "disable":
+                report = build_provider_sharing_disable_report(
+                    str(args.conversation_id),
+                    store_path=getattr(args, "provider_sharing_store", None),
+                    config_path=getattr(args, "config_path", None),
+                )
+            else:
+                raise AuthCommandError("unknown provider-sharing command")
+        except ProviderSharingError as exc:
+            raise AuthCommandError(exc.message) from exc
+        formatter = format_provider_sharing_pretty
+    else:
         raise AuthCommandError("unknown privacy command")
-
-    report = build_privacy_status(_load_config(args))
     if args.json:
         print_json(report)
     else:
-        print(format_privacy_pretty(report, lang=args.lang, color=args.color))
+        print(formatter(report, lang=args.lang, color=args.color))
     return 0 if report["ok"] else 1
 
 
@@ -668,6 +752,68 @@ def format_privacy_pretty(report: dict[str, Any], *, lang: str = "ja", color: Co
         ),
         color=color,
     )
+
+
+def format_provider_sharing_pretty(report: dict[str, Any], *, lang: str = "ja", color: ColorMode = "auto") -> str:
+    title = "YonerAI provider sharing consent" if lang != "ja" else "YonerAI provider sharing consent"
+    rows = [
+        CliRow("ok", report.get("ok", True), "ok" if report.get("ok", True) else "fail"),
+        CliRow("operation", report.get("operation"), "ok"),
+        CliRow("shared_traffic_default", report.get("shared_traffic_default"), "fail" if report.get("shared_traffic_default") else "ok"),
+        CliRow("implicit_consent_allowed", report.get("implicit_consent_allowed"), "fail" if report.get("implicit_consent_allowed") else "ok"),
+        CliRow("sync_policy_is_separate", report.get("sync_policy_is_separate"), "ok" if report.get("sync_policy_is_separate") else "fail"),
+        CliRow("provider_data_policy_is_separate", report.get("provider_data_policy_is_separate"), "ok" if report.get("provider_data_policy_is_separate") else "fail"),
+        CliRow("local_only_openai_allowed", report.get("local_only_openai_allowed"), "fail" if report.get("local_only_openai_allowed") else "ok"),
+    ]
+    conversation = report.get("conversation") if isinstance(report.get("conversation"), dict) else {}
+    if conversation:
+        conversation_rows = (
+            CliRow("conversation_id", conversation.get("conversation_id"), "ok"),
+            CliRow("provider_data_policy", conversation.get("provider_data_policy"), "warn" if conversation.get("provider_data_policy") == "openai_shared_explicit" else "ok"),
+            CliRow("sync_policy_at_consent", conversation.get("sync_policy_at_consent"), "ok"),
+            CliRow("consent_state", conversation.get("consent_state"), "ok" if conversation.get("consent_state") == "enabled" else "warn"),
+            CliRow("consent_version", conversation.get("consent_version"), "ok"),
+            CliRow("raw_body_stored", conversation.get("raw_body_stored"), "fail" if conversation.get("raw_body_stored") else "ok"),
+            CliRow("provider_key_stored", conversation.get("provider_key_stored"), "fail" if conversation.get("provider_key_stored") else "ok"),
+            CliRow("google_token_stored", conversation.get("google_token_stored"), "fail" if conversation.get("google_token_stored") else "ok"),
+            CliRow("local_path_stored", conversation.get("local_path_stored"), "fail" if conversation.get("local_path_stored") else "ok"),
+        )
+    else:
+        conversation_rows = (
+            CliRow("conversation_count", report.get("conversation_count", 0), "ok"),
+            CliRow("empty_state", report.get("empty_state") or "has records", "warn" if report.get("empty_state") else "ok"),
+        )
+    consent_copy = report.get("consent_copy") if isinstance(report.get("consent_copy"), dict) else {}
+    consent_rows = tuple(
+        CliRow(key, consent_copy.get(key), "warn" if consent_copy.get(key) is True else "ok")
+        for key in (
+            "selected_conversation_content_sent_to_openai",
+            "inputs_and_outputs_shared_under_openai_data_sharing_settings",
+            "may_be_used_for_evaluation_improvement_or_training",
+            "revocation_stops_future_sharing",
+            "already_submitted_data_recall_promised",
+            "local_only_excluded",
+        )
+        if key in consent_copy
+    )
+    decision = report.get("decision") if isinstance(report.get("decision"), dict) else {}
+    decision_rows = tuple(CliRow(key, value, "warn" if key == "state" and value != "written" else "ok") for key, value in decision.items())
+    error = report.get("error") if isinstance(report.get("error"), dict) else {}
+    error_rows = tuple(CliRow(key, value, "fail" if key == "code" else "warn") for key, value in error.items())
+    action_rows = tuple(CliRow(f"boundary_{idx}", item, "ok") for idx, item in enumerate(report.get("actions_not_performed", []), start=1))
+    sections = [
+        CliSection("Status", tuple(rows)),
+        CliSection("Conversation", conversation_rows),
+    ]
+    if consent_rows:
+        sections.append(CliSection("Consent text", consent_rows))
+    if decision_rows:
+        sections.append(CliSection("Decision", decision_rows))
+    if error_rows:
+        sections.append(CliSection("Error", error_rows))
+    if action_rows:
+        sections.append(CliSection("Non-actions", action_rows))
+    return render_report(title, tuple(sections), color=color)
 
 
 def _load_config(args: argparse.Namespace) -> dict[str, object]:
