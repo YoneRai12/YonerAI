@@ -16,6 +16,19 @@ import urllib.request
 from typing import Callable
 
 
+class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Block redirects so loopback prompts cannot be replayed off-host."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):  # type: ignore[no-untyped-def]
+        raise urllib.error.HTTPError(req.full_url, code, "redirect blocked for loopback-only enhancer", headers, fp)
+
+
+def _open_loopback_request(request: urllib.request.Request, timeout: float):
+    """Open a loopback request without process proxy configuration or redirects."""
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRedirectHandler())
+    return opener.open(request, timeout=timeout)  # noqa: S310 (loopback enforced by caller; proxies disabled)
+
+
 class EnhancerError(Exception):
     pass
 
@@ -82,7 +95,7 @@ def enhance_with_local_llm(
         if transport is not None:
             body = transport(request, timeout)
         else:
-            with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310 (loopback enforced above)
+            with _open_loopback_request(request, timeout=timeout) as response:
                 body = response.read()
     except (urllib.error.URLError, OSError, TimeoutError) as exc:
         raise EnhancerError(f"local llm enhancement failed: {type(exc).__name__}") from exc

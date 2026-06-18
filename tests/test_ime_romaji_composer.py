@@ -169,6 +169,47 @@ def test_composer_rejects_non_loopback_endpoint() -> None:
         composer.set_local_llm_endpoint("https://api.example.com")
 
 
+def test_local_llm_default_transport_disables_proxies_and_redirects(monkeypatch: pytest.MonkeyPatch) -> None:
+    opened: dict[str, Any] = {}
+
+    class FakeResponse:
+        def __enter__(self) -> "FakeResponse":
+            return self
+
+        def __exit__(self, *_args: Any) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return json.dumps({"choices": [{"message": {"content": "安全な変換"}}]}).encode("utf-8")
+
+    class FakeOpener:
+        def open(self, request: urllib.request.Request, timeout: float) -> FakeResponse:
+            opened["url"] = request.full_url
+            opened["timeout"] = timeout
+            return FakeResponse()
+
+    def fake_build_opener(*handlers: Any) -> FakeOpener:
+        opened["proxy_handlers"] = [
+            handler for handler in handlers if isinstance(handler, urllib.request.ProxyHandler)
+        ]
+        opened["redirect_handlers"] = [
+            handler for handler in handlers if handler.__class__.__name__ == "_NoRedirectHandler"
+        ]
+        return FakeOpener()
+
+    monkeypatch.setenv("HTTP_PROXY", "http://proxy.example:8080")
+    monkeypatch.setattr(urllib.request, "build_opener", fake_build_opener)
+
+    converted = enhance_with_local_llm("himitsu", endpoint="http://127.0.0.1:8080", timeout=3.0)
+
+    assert converted == "安全な変換"
+    assert opened["url"] == "http://127.0.0.1:8080/v1/chat/completions"
+    assert opened["timeout"] == 3.0
+    assert len(opened["proxy_handlers"]) == 1
+    assert opened["proxy_handlers"][0].proxies == {}
+    assert len(opened["redirect_handlers"]) == 1
+
+
 def test_local_llm_enhancement_with_fake_transport() -> None:
     def fake_transport(request: urllib.request.Request, timeout: float) -> bytes:
         assert request.full_url.startswith("http://127.0.0.1:")
