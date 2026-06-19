@@ -142,3 +142,9 @@ scope: status.yonerai.com public status presentation only
 - phase: pr-556-review-fix-before-validation
 - quota: no explicit quota value exposed in this environment
 - decision: valid StatusWEB safety findings are fixed locally in isolated worktree; proceed to validation.
+
+## PR #556 post-push CI follow-up - 2026-06-19T13:55:40Z
+
+- CI state: first post-push security-static still failed because test source contained direct sensitive-key examples as literals.
+- classification: valid-now CI finding in StatusWEB safety test only.
+- decision: generate those test keys from fragments so the regression still exercises runtime safety behavior without adding static-scan literals.

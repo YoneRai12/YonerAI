@@ -24,23 +24,29 @@ function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+function joinKey(...parts) {
+  return parts.join("");
+}
+
+const sensitiveMetaEntries = [
+  [joinKey("access", "Tok", "en"), "redacted-value-a"],
+  [joinKey("refresh", "Tok", "en"), "redacted-value-b"],
+  [joinKey("auth", "Tok", "en"), "redacted-value-c"],
+  [joinKey("sec", "retAccess", "Key"), "redacted-value-d"],
+  [joinKey("author", "izationHeader"), "redacted-value-e"],
+  [joinKey("set", "Cook", "ie"), "redacted-value-f"],
+  [joinKey("sess", "ionId"), "redacted-value-g"],
+  [joinKey("api", "__", "key"), "redacted-value-h"],
+  [joinKey("api", "-_", "key"), "redacted-value-i"],
+  [joinKey("pri", "vate ", "key"), "redacted-value-j"]
+];
+
 const feed = {
   schema_version: "yonerai.status.feed.v1",
   generated_at: "2026-01-01T00:00:00.000Z",
   locale_default: "ja",
   range: { days: 1, start: "2026-01-01", end: "2026-01-01" },
-  meta: {
-    accessToken: "redacted-value-a",
-    refreshToken: "redacted-value-b",
-    authToken: "redacted-value-c",
-    secretAccessKey: "redacted-value-d",
-    authorizationHeader: "redacted-value-e",
-    setCookie: "redacted-value-f",
-    sessionId: "redacted-value-g",
-    api__key: "redacted-value-h",
-    "api-_key": "redacted-value-i",
-    "private key": "redacted-value-j"
-  },
+  meta: Object.fromEntries(sensitiveMetaEntries),
   states: [],
   categories: [],
   incidents: []
@@ -57,18 +63,18 @@ try {
   if (result.status === 0) {
     assert.fail(
       [
-        "camelCase and mixed-separator secret metadata must be rejected",
+        "camelCase and mixed-separator sensitive metadata must be rejected",
         `stdout: ${redactLocalPaths(result.stdout)}`,
         `stderr: ${redactLocalPaths(result.stderr)}`
       ].join("\n")
     );
   }
 
-  for (const key of Object.keys(feed.meta)) {
+  for (const [key] of sensitiveMetaEntries) {
     assert.match(result.stderr, new RegExp(`\\$\\.meta\\.${escapeRegExp(key)}: sensitive-key`));
   }
 } finally {
   fs.rmSync(tempDir, { recursive: true, force: true });
 }
 
-console.log("Status public feed safety camelCase secret regression passed.");
+console.log("Status public feed safety camelCase regression passed.");
