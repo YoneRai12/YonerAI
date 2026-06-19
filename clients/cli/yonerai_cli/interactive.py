@@ -2060,12 +2060,14 @@ def _format_local_llm_quickstart(
     if lang == "ja":
         lines = ["ローカルLLM"]
         lines.append(f"  状態: {state}")
+        detected_line = {
+            "detected": f"  検出: {detected_label}",
+            "blocked": "  検出: 拒否",
+        }.get(detected, "  検出: 未検出")
+        lines.append(detected_line)
         if detected == "detected":
             lines.append(f"  現在: {detected_label} / {endpoint}")
-            if enabled:
-                lines.append("  やること: そのまま話す")
-            else:
-                lines.append("  やること: /ローカルLLM 使う")
+            lines.append("  次: そのまま話す" if enabled else "  次: /ローカルLLM 使う")
         elif detected == "blocked":
             lines.append("  現在: loopback 以外の URL は拒否します")
             lines.append("  許可: localhost / 127.0.0.1 / ::1")
@@ -2079,7 +2081,7 @@ def _format_local_llm_quickstart(
         if app_labels:
             lines.append(f"  候補: {', '.join(app_labels[:2])}")
         if detected != "detected":
-            lines.append("  やること: Ollama か LM Studio を起動して /ローカルLLM")
+            lines.append("  次: Ollama か LM Studio を起動して /ローカルLLM")
         lines.append("  個別案内: /ローカルLLM ollama / lmstudio")
         lines.append("  境界: 外部API送信なし / key保存なし / 自動インストールなし")
         lines.append("")
