@@ -33,6 +33,7 @@ Before scoped work, read:
 - `docs/process/YONERAI_CODEX_WORKFLOW.md`
 - `docs/process/YONERAI_GOAL_TEMPLATE.md`
 - `docs/process/YONERAI_LANE_RULES.md`
+- `docs/process/YONERAI_PR_REVIEW_INTAKE.md`
 - `docs/process/YONERAI_RELEASE_GOVERNANCE.md` for release or checkpoint work
 - relevant lane docs under `docs/contracts/`, `docs/architecture/`, `docs/design/`, `docs/roadmap/`, or `docs/maintenance/`
 

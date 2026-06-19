@@ -250,6 +250,215 @@ def test_rate_limit_rejects_unexpected_token_fields(tmp_path: Path, monkeypatch)
     assert str(tmp_path) not in serialized
 
 
+def test_status_rejects_generic_session_token_payload(tmp_path: Path, monkeypatch) -> None:
+    from yonerai_cli.services.control_spine_service import build_control_spine_status_report
+
+    monkeypatch.setenv("YONERAI_STAGING_AUTH_ORIGIN", "https://api-staging.yonerai.com")
+
+    def transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, dict[str, object], dict[str, str]]:
+        if url.endswith("/v1/status"):
+            return 200, {"status": "ok", "session_token": "must-not-print"}, {}
+        if url.endswith("/v1/health"):
+            return 200, {"status": "ok"}, {}
+        if url.endswith("/v1/rate-limit"):
+            return 200, {"scope": "staging", "allowed": True, "quota_exceeded": False}, {}
+        raise AssertionError(url)
+
+    report = build_control_spine_status_report(
+        config={},
+        env={"YONERAI_STAGING_AUTH_ORIGIN": "https://api-staging.yonerai.com"},
+        claim_path=str(tmp_path / "cli-config.json"),
+        transport=transport,
+    )
+    serialized = json.dumps(report, ensure_ascii=False, sort_keys=True)
+
+    assert report["backend_status"]["ok"] is False
+    assert report["backend_status"]["error"]["code"] == "control_spine_private_payload_rejected"
+    assert "must-not-print" not in serialized
+    assert str(tmp_path) not in serialized
+
+
+def test_rate_limit_rejects_generic_token_payload(tmp_path: Path, monkeypatch) -> None:
+    from yonerai_cli.services.control_spine_service import build_control_spine_rate_limit_report
+
+    monkeypatch.setenv("YONERAI_STAGING_AUTH_ORIGIN", "https://api-staging.yonerai.com")
+
+    def transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, dict[str, object], dict[str, str]]:
+        assert url.endswith("/v1/rate-limit")
+        return 200, {"allowed": True, "scope": "anonymous", "token": "must-not-print"}, {}
+
+    report = build_control_spine_rate_limit_report(
+        config={},
+        env={"YONERAI_STAGING_AUTH_ORIGIN": "https://api-staging.yonerai.com"},
+        claim_path=str(tmp_path / "cli-config.json"),
+        transport=transport,
+        timeout_seconds=3.0,
+    )
+    serialized = json.dumps(report, ensure_ascii=False, sort_keys=True)
+
+    assert report["ok"] is False
+    assert report["error"]["code"] == "control_spine_private_payload_rejected"
+    assert "must-not-print" not in serialized
+    assert str(tmp_path) not in serialized
+
+
+def test_status_rejects_https_private_endpoint_payload(tmp_path: Path, monkeypatch) -> None:
+    from yonerai_cli.services.control_spine_service import build_control_spine_status_report
+
+    monkeypatch.setenv("YONERAI_STAGING_AUTH_ORIGIN", "https://api-staging.yonerai.com")
+
+    def transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, dict[str, object], dict[str, str]]:
+        if url.endswith("/v1/status"):
+            return 200, {"status": "ok", "runbook": "https://10.0.0.5/runbook"}, {}
+        if url.endswith("/v1/health"):
+            return 200, {"status": "ok"}, {}
+        if url.endswith("/v1/rate-limit"):
+            return 200, {"scope": "staging", "allowed": True, "quota_exceeded": False}, {}
+        raise AssertionError(url)
+
+    report = build_control_spine_status_report(
+        config={},
+        env={"YONERAI_STAGING_AUTH_ORIGIN": "https://api-staging.yonerai.com"},
+        claim_path=str(tmp_path / "cli-config.json"),
+        transport=transport,
+    )
+    serialized = json.dumps(report, ensure_ascii=False, sort_keys=True)
+
+    assert report["backend_status"]["ok"] is False
+    assert report["backend_status"]["error"]["code"] == "control_spine_private_payload_rejected"
+    assert "10.0.0.5" not in serialized
+    assert str(tmp_path) not in serialized
+
+
+def test_status_rejects_172_private_endpoint_payload(tmp_path: Path, monkeypatch) -> None:
+    from yonerai_cli.services.control_spine_service import build_control_spine_status_report
+
+    monkeypatch.setenv("YONERAI_STAGING_AUTH_ORIGIN", "https://api-staging.yonerai.com")
+
+    def transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, dict[str, object], dict[str, str]]:
+        if url.endswith("/v1/status"):
+            return 200, {"status": "ok", "runbook": "http://172.20.1.5/runbook"}, {}
+        if url.endswith("/v1/health"):
+            return 200, {"status": "ok"}, {}
+        if url.endswith("/v1/rate-limit"):
+            return 200, {"scope": "staging", "allowed": True, "quota_exceeded": False}, {}
+        raise AssertionError(url)
+
+    report = build_control_spine_status_report(
+        config={},
+        env={"YONERAI_STAGING_AUTH_ORIGIN": "https://api-staging.yonerai.com"},
+        claim_path=str(tmp_path / "cli-config.json"),
+        transport=transport,
+    )
+    serialized = json.dumps(report, ensure_ascii=False, sort_keys=True)
+
+    assert report["backend_status"]["ok"] is False
+    assert report["backend_status"]["error"]["code"] == "control_spine_private_payload_rejected"
+    assert "172.20.1.5" not in serialized
+    assert str(tmp_path) not in serialized
+
+
+def test_error_detail_rejects_bearer_secret_text(tmp_path: Path, monkeypatch) -> None:
+    from yonerai_cli.services.control_spine_service import build_control_spine_ping_report
+
+    monkeypatch.setenv("YONERAI_STAGING_AUTH_ORIGIN", "https://api-staging.yonerai.com")
+
+    def transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, dict[str, object], dict[str, str]]:
+        return 400, {"detail": {"reason": "Bearer must-not-print-secret"}}, {}
+
+    report = build_control_spine_ping_report(
+        config={},
+        env={"YONERAI_STAGING_AUTH_ORIGIN": "https://api-staging.yonerai.com"},
+        claim_path=str(tmp_path / "cli-config.json"),
+        transport=transport,
+    )
+    serialized = json.dumps(report, ensure_ascii=False, sort_keys=True)
+
+    assert report["ok"] is False
+    assert report["error"]["code"] == "control_spine_private_payload_rejected"
+    assert "must-not-print" not in serialized
+    assert str(tmp_path) not in serialized
+
+
+def test_whoami_accepts_contract_account_id_after_sanitizing(tmp_path: Path, monkeypatch) -> None:
+    from yonerai_cli.services.control_spine_service import build_whoami_report
+    from yonerai_cli.services.staging_session_service import save_staging_session
+
+    config_path = tmp_path / "cli-config.json"
+    session_value = "opaque-session-value-123456789"
+    raw_account_id = "acct_contract_visible_123"
+    save_staging_session(
+        session_token=session_value,
+        origin="https://api-staging.yonerai.com",
+        account={"email": "owner@example.test", "display_name": "Owner"},
+        config_path=config_path,
+    )
+
+    def transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, dict[str, object], dict[str, str]]:
+        assert url == "https://api-staging.yonerai.com/v1/account/me"
+        return (
+            200,
+            {
+                "account": {
+                    "account_id": raw_account_id,
+                    "email": "owner@example.test",
+                    "display_name": "Owner",
+                }
+            },
+            {"X-YonerAI-RateLimit-Scope": "staging"},
+        )
+
+    report = build_whoami_report(
+        config={},
+        env={"YONERAI_STAGING_AUTH_ORIGIN": "https://api-staging.yonerai.com"},
+        claim_path=str(config_path),
+        transport=transport,
+    )
+    serialized = json.dumps(report, ensure_ascii=False, sort_keys=True)
+
+    assert report["ok"] is True
+    assert report["account"]["account_ref"].startswith("staging-account-")
+    assert report["account"]["email_redacted"] == "o***@example.test"
+    assert raw_account_id not in serialized
+    assert session_value not in serialized
+    assert str(tmp_path) not in serialized
+
 def test_whoami_uses_saved_staging_session_without_printing_it(tmp_path: Path, monkeypatch) -> None:
     from yonerai_cli.screens.control_spine import format_control_spine_pretty
     from yonerai_cli.services.control_spine_service import build_whoami_report
@@ -276,7 +485,14 @@ def test_whoami_uses_saved_staging_session_without_printing_it(tmp_path: Path, m
         assert headers["Authorization"] == f"Bearer {session_value}"
         return (
             200,
-            {"account": {"email": "owner@example.test", "display_name": "Owner", "sub": "google-subject"}},
+            {
+                "account": {
+                    "email": "owner@example.test",
+                    "display_name": "Owner",
+                    "account_id": "acct_contract_safe_ref_123",
+                    "sub": "google-subject",
+                }
+            },
             {"X-YonerAI-RateLimit-Scope": "staging"},
         )
 
@@ -291,6 +507,8 @@ def test_whoami_uses_saved_staging_session_without_printing_it(tmp_path: Path, m
 
     assert report["ok"] is True
     assert report["account"]["email_redacted"] == "o***@example.test"
+    assert str(report["account"]["account_ref"]).startswith("staging-account-")
+    assert "acct_contract_safe_ref_123" not in serialized
     assert session_value not in serialized
     assert "google-subject" not in serialized
     assert str(tmp_path) not in serialized
@@ -682,6 +900,56 @@ def test_control_spine_context_handles_missing_session_claim(tmp_path: Path, mon
     assert context["auth_state"] == "unauthenticated"
     assert context["session_claim"] == {}
 
+
+
+def test_control_spine_ignores_invalid_saved_session_origin(tmp_path: Path, monkeypatch) -> None:
+    from yonerai_cli.commands import api as api_command
+    from yonerai_cli.services import control_spine_service
+
+    def fail_transport(*_args: object, **_kwargs: object) -> tuple[int, dict[str, object], dict[str, str]]:
+        raise AssertionError("invalid origin must not call transport")
+
+    monkeypatch.delenv("YONERAI_STAGING_AUTH_ORIGIN", raising=False)
+    monkeypatch.delenv("YONERAI_OFFICIAL_API_STAGING_ORIGIN", raising=False)
+    monkeypatch.setattr(
+        control_spine_service,
+        "load_staging_session_token",
+        lambda _path: ("opaque-session-value-123456789", {"auth_state": "linked", "origin": "configured"}),
+    )
+    monkeypatch.setattr(
+        api_command,
+        "load_staging_session_token",
+        lambda _path: ("opaque-session-value-123456789", {"auth_state": "linked", "origin": "configured"}),
+    )
+
+    context = control_spine_service.build_control_spine_context(config={}, env={}, claim_path=str(tmp_path / "cli.json"))
+    report = control_spine_service.build_control_spine_status_report(
+        config={},
+        env={},
+        claim_path=str(tmp_path / "cli.json"),
+        transport=fail_transport,
+    )
+
+    assert context["origin_configured"] is False
+    assert context["origin"] == "not_configured"
+    assert report["ok"] is True
+    assert report["error"]["code"] == "staging_origin_not_configured"
+    assert api_command._control_spine_origin_configured(SimpleNamespace(config_path=str(tmp_path / "cli.json"))) is False
+
+
+def test_staging_session_claim_preserves_allowlisted_origin() -> None:
+    from yonerai_cli.services.staging_session_service import build_staging_session_claim, validate_staging_session_claim
+
+    claim = build_staging_session_claim(
+        session_token="opaque-session-value-123456789",
+        origin="https://api-staging.yonerai.com/",
+        account={"email": "owner@example.com", "display_name": "Owner"},
+        storage_backend="memory_session_only",
+    )
+    loaded = validate_staging_session_claim(claim)
+
+    assert claim["origin"] == "https://api-staging.yonerai.com"
+    assert loaded["origin"] == "https://api-staging.yonerai.com"
 
 def test_control_spine_slash_commands_are_visible() -> None:
     from yonerai_cli.tui.aliases import canonical_command

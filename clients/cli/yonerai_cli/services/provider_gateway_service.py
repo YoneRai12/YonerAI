@@ -4,7 +4,7 @@ import json
 from collections.abc import Callable, Mapping
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
-from urllib.request import Request
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from yonerai_cli.services.control_spine_service import (
     DEFAULT_STAGING_CONTROL_SPINE_ORIGIN,
@@ -203,9 +203,15 @@ def _request_json(
             request.add_header(key, value)
         if data is not None:
             request.add_header("Content-Type", "application/json")
-        with __import__("urllib.request").request.urlopen(request, timeout=timeout_seconds) as response:  # noqa: S310 - allowlisted staging host only.
+        with _NO_REDIRECT_OPENER.open(request, timeout=timeout_seconds) as response:  # noqa: S310 - allowlisted staging host only.
             return int(response.status), _read_json(response.read()), dict(response.headers)
     except HTTPError as exc:
+        if 300 <= int(exc.code) < 400:
+            raise NativeRunServiceError(
+                "provider_gateway_redirect_forbidden",
+                "Staging provider gateway attempted to redirect.",
+                status_code=int(exc.code),
+            ) from exc
         try:
             return int(exc.code), _read_json(exc.read()), dict(exc.headers)
         except NativeRunServiceError:
@@ -229,6 +235,14 @@ def _is_allowed_staging_origin(value: str) -> bool:
     if host not in {"api-staging.yonerai.com", "staging.yonerai.com"}:
         return False
     return parsed.scheme == "https" and parsed.port is None
+
+
+class _NoRedirectHandler(HTTPRedirectHandler):
+    def redirect_request(self, req: object, fp: object, code: int, msg: str, headers: object, newurl: str) -> None:
+        return None
+
+
+_NO_REDIRECT_OPENER = build_opener(_NoRedirectHandler)
 
 
 def _read_json(raw: bytes) -> Mapping[str, object]:

@@ -22,9 +22,11 @@ Enable these contexts as required status checks for `main`:
 - `windows-installer-manifest`
 - `macos-cli-smoke`
 - `macos-installer-manifest`
+- `review-intake-required`
 
 `core-test` and `build-and-test (3.11)` are the existing baseline checks.
-The other contexts come from `.github/workflows/quality-wall.yml`.
+Most contexts come from `.github/workflows/quality-wall.yml`.
+`review-intake-required` comes from `.github/workflows/pr-intake-gate.yml`.
 
 ## Quality Wall Coverage Notes
 
@@ -41,6 +43,9 @@ The other contexts come from `.github/workflows/quality-wall.yml`.
 - `release-gate` blocks tag/version/manifest mismatch, mutable or unversioned
   release assets, SHA256 mismatch, prerelease flag mismatch, unresolved blocker
   markers, and public release overclaim phrasing.
+- `review-intake-required` marks new, updated, or newly reviewed PRs as
+  `needs-intake` and blocks merge until a maintainer-controlled
+  `intake-reviewed` label confirms current PR/review/comment/CI intake.
 
 ## GitHub UI Setup
 

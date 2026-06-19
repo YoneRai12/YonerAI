@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import json
 import sys
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from threading import Thread
+
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -112,6 +115,62 @@ def test_provider_gateway_rejects_private_payload(monkeypatch) -> None:
     assert report["error"]["code"] == "provider_gateway_private_payload_rejected"
     assert "10.0.0.5" not in serialized
     assert "secret" not in serialized
+
+
+def test_provider_gateway_default_transport_rejects_redirect_before_forwarding_auth(monkeypatch) -> None:
+    from yonerai_cli.services.provider_gateway_service import build_provider_gateway_report
+
+    captured: list[str | None] = []
+
+    class RedirectHandler(BaseHTTPRequestHandler):
+        def do_GET(self) -> None:  # noqa: N802 - http.server callback name
+            self.send_response(302)
+            self.send_header("Location", f"http://127.0.0.1:{target_server.server_port}/capture")
+            self.end_headers()
+
+        def log_message(self, format: str, *args: object) -> None:
+            return
+
+    class TargetHandler(BaseHTTPRequestHandler):
+        def do_GET(self) -> None:  # noqa: N802 - http.server callback name
+            captured.append(self.headers.get("Authorization"))
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(b'{"ok": true}')
+
+        def log_message(self, format: str, *args: object) -> None:
+            return
+
+    target_server = ThreadingHTTPServer(("127.0.0.1", 0), TargetHandler)
+    redirect_server = ThreadingHTTPServer(("127.0.0.1", 0), RedirectHandler)
+    target_thread = Thread(target=target_server.serve_forever, daemon=True)
+    redirect_thread = Thread(target=redirect_server.serve_forever, daemon=True)
+    target_thread.start()
+    redirect_thread.start()
+    try:
+        context = dict(_context())
+        context["origin"] = f"http://127.0.0.1:{redirect_server.server_port}"
+        monkeypatch.setattr(
+            "yonerai_cli.services.provider_gateway_service.build_control_spine_context",
+            lambda **_kwargs: dict(context),
+        )
+
+        report = build_provider_gateway_report("status", config={}, env={}, claim_path=None, timeout_seconds=2.0)
+    finally:
+        redirect_server.shutdown()
+        target_server.shutdown()
+        redirect_thread.join(timeout=5)
+        target_thread.join(timeout=5)
+        redirect_server.server_close()
+        target_server.server_close()
+
+    serialized = json.dumps(report, ensure_ascii=False)
+    assert report["ok"] is False
+    assert report["error"]["code"] == "provider_gateway_redirect_forbidden"
+    assert report["error"]["status_code"] == 302
+    assert captured == []
+    assert "opaque-yonerai-session" not in serialized
 
 
 def test_provider_gateway_cli_disable(capsys) -> None:

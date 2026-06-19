@@ -9,7 +9,12 @@ from urllib.parse import quote
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from yonerai_cli import __version__
-from yonerai_cli.auth_policy import build_google_auth_status
+from yonerai_cli.auth_policy import (
+    STAGING_AUTH_ALLOW_LOCALHOST_DEV_ENV,
+    build_google_auth_status,
+    _env_truthy,
+    _validate_staging_auth_origin,
+)
 from yonerai_cli.config import load_cli_config
 from yonerai_cli.services.auth_session_service import sanitize_staging_account
 from yonerai_cli.services.staging_session_service import load_staging_session_token
@@ -31,6 +36,37 @@ SESSION_REVOKE_PATH_TEMPLATE = "/v1/sessions/{session_id}/revoke"
 AUDIT_EVENTS_PATH = "/v1/audit/events"
 PROJECT_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{1,120}$")
 SESSION_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{1,160}$")
+PRIVATE_URL_RE = re.compile(
+    r"https?://(?:localhost\b|10\.|127\.|169\.254\.|192\.168\.|"
+    r"172\.(?:1[6-9]|2[0-9]|3[0-1])\.|\[::1\])",
+    re.IGNORECASE,
+)
+PUBLIC_PAYLOAD_FORBIDDEN_MARKERS = (
+    "access_token",
+    "refresh_token",
+    "id_token",
+    "client_secret",
+    "authorization",
+    "authorization_code",
+    "google_token",
+    "staging_session_token",
+    "session_token",
+    "api_key",
+    "password",
+    "bearer",
+    "secret",
+    "token",
+    "c:\\users",
+    "\\\\",
+    "/users/",
+    "/home/",
+    "/root/",
+    "arn:",
+    "internal_hostname",
+    "worker_identity",
+    "account_id",
+    "169.254.169.254",
+)
 
 HeaderJsonTransport = Callable[
     [str, str, Mapping[str, str], Mapping[str, object] | None, float],
@@ -60,7 +96,7 @@ def build_control_spine_context(
     staging = auth.get("staging") if isinstance(auth.get("staging"), Mapping) else {}
     session_token, session_claim = load_staging_session_token(claim_path)
     session_claim_map = session_claim if isinstance(session_claim, Mapping) else {}
-    session_origin = str(session_claim_map.get("origin") or "").strip()
+    session_origin = _validated_session_origin(session_claim_map.get("origin"), source)
     origin_configured = bool(staging.get("configured")) or bool(session_token and session_origin)
     if bool(staging.get("configured")):
         origin = str(staging.get("origin") or "not_configured")
@@ -82,6 +118,17 @@ def build_control_spine_context(
         "shared_traffic_enabled": False,
         "local_private_upload_enabled": False,
     }
+
+
+def _validated_session_origin(value: object, env: Mapping[str, str | None]) -> str:
+    raw_origin = str(value or "").strip()
+    if not raw_origin:
+        return ""
+    localhost_dev_allowed = _env_truthy(env.get(STAGING_AUTH_ALLOW_LOCALHOST_DEV_ENV))
+    report = _validate_staging_auth_origin(raw_origin, localhost_dev_allowed=localhost_dev_allowed)
+    if not report.get("valid"):
+        return ""
+    return str(report.get("origin") or "").strip()
 
 
 def build_control_spine_status_report(
@@ -723,34 +770,23 @@ def _safe_text(value: object, *, fallback: object) -> object:
     if not text:
         return fallback
     lowered = text.lower()
-    forbidden = (
-        "access_token",
-        "refresh_token",
-        "id_token",
-        "client_secret",
-        "authorization_code",
-        "google_token",
-        "staging_session_token",
-        "api_key",
-        "password",
-        "c:\\users",
-        "\\\\",
-        "/users/",
-        "/home/",
-        "/root/",
-        "http://10.",
-        "http://192.168.",
-        "http://127.",
-        "169.254.169.254",
-    )
-    if any(marker in lowered for marker in forbidden):
+    if _contains_forbidden_public_marker(lowered):
         return fallback
     if any(ord(char) < 32 or ord(char) == 127 for char in text):
         return fallback
     return text[:240]
 
 
+def _public_account_payload(payload: Mapping[str, object]) -> Mapping[str, object]:
+    account_source = payload.get("account") or payload.get("identity") or payload.get("profile") or payload
+    if not isinstance(account_source, Mapping):
+        account_source = {}
+    return {"account": sanitize_staging_account(account_source)}
+
+
 def _public_payload_for_path(path: str, payload: Mapping[str, object]) -> Mapping[str, object]:
+    if path == ACCOUNT_ME_PATH:
+        return _public_account_payload(payload)
     if path != RATE_LIMIT_PATH:
         return payload
     allowed_top_level = {
@@ -829,31 +865,15 @@ def _public_payload_for_path(path: str, payload: Mapping[str, object]) -> Mappin
 
 def _assert_public_safe_payload(payload: object) -> None:
     serialized = json.dumps(payload, ensure_ascii=False, sort_keys=True).lower()
-    forbidden_markers = (
-        "access_token",
-        "refresh_token",
-        "id_token",
-        "client_secret",
-        "authorization_code",
-        "google_token",
-        "staging_session_token",
-        "api_key",
-        "password",
-        "c:\\users",
-        "\\\\",
-        "/users/",
-        "/home/",
-        "/root/",
-        "http://10.",
-        "http://192.168.",
-        "http://127.",
-        "169.254.169.254",
-    )
-    if any(marker in serialized for marker in forbidden_markers):
+    if _contains_forbidden_public_marker(serialized):
         raise ControlSpineServiceError(
             "control_spine_private_payload_rejected",
             "Staging control spine returned non-public fields.",
         )
+
+
+def _contains_forbidden_public_marker(text: str) -> bool:
+    return any(marker in text for marker in PUBLIC_PAYLOAD_FORBIDDEN_MARKERS) or bool(PRIVATE_URL_RE.search(text))
 
 
 def _rate_limit_headers_present(headers: Mapping[str, str]) -> list[str]:

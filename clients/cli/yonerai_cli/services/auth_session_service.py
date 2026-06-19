@@ -100,7 +100,7 @@ def build_staging_auth_claim(
 def sanitize_staging_account(account: Mapping[str, object]) -> dict[str, object]:
     raw_email = _first_text(account, ("email_redacted", "display_email_redacted", "email"))
     raw_name = _first_text(account, ("display_name", "name", "login", "account_name"))
-    raw_ref = _first_text(account, ("account_ref", "subject_ref", "sub", "id", "user_id"))
+    raw_ref = _first_text(account, ("account_ref", "subject_ref", "account_id", "sub", "id", "user_id"))
     return {
         "account_ref": _safe_account_ref(raw_ref or raw_email or raw_name),
         "display_name": _safe_public_text(raw_name, fallback="linked staging account"),
