@@ -122,3 +122,47 @@ Validation for this checkpoint:
 - `git diff --check` passed with CRLF warnings only.
 - `ci_quality_scans.py --changed` passed.
 - Live staging smoke confirmed `/v1/health`, `/v1/capabilities`, and `/v1/modules` return 200, provider quota returns 200, and saved legacy session is rejected with controlled repair guidance.
+
+## 2026-06-20 Staging Opaque Session Poll Checkpoint
+
+- last_scan_at: 2026-06-20T06:23:19+09:00
+- highest_seen_pr_number: 560
+- current_main_head: b5dd674
+- branch: codex/staging-opaque-session-poll-fix
+- lane: Public staging auth/session contract and Native Run smoke
+
+Checked in this checkpoint:
+
+- PR #560 reviews/comments/checks after final push and squash merge.
+- Open PR list after #560 merge.
+- Private AWS public-safe notice that `/auth/cli/poll/{request_id}` now exposes an opaque YonerAI staging session contract.
+- Live staging safe-smoke for `/v1/health`, `/v1/status`, `/v1/capabilities`, `/v1/modules`, `whoami`, and Native Run submit/status/events/result/cancel.
+
+| PR / issue / notice | classification | review/comment state | CI / evidence state | decision |
+| --- | --- | --- | --- | --- |
+| #560 | valid-but-already-fixed | Gemini flagged two readability cleanups; both were fixed before merge and inline comments were answered | Product checks passed; review-intake was classified with `intake-reviewed`; squash merge produced `b5dd674` | Complete. |
+| AWS opaque session notice | valid-now | AWS reports CLI poll can return opaque YonerAI staging session material; no Google token, refresh token, auth code, or provider key is part of the contract | Initial Public sanitizer rejected allowed nested opaque session metadata when `session.token_returned=true` | Current branch allows only `session.staging_session_token` or `session.staging_session_claim` as opaque YonerAI session fields and continues forbidden-token scanning for all other response fields. |
+| Live staging auth | valid-now | Browser login and poll completed through `api-staging.yonerai.com` | `whoami` now returns linked status through the staging API using the saved opaque YonerAI session | Auth mismatch root cause is closed on this branch, subject to PR/CI. |
+| Live staging Native Run | owner-only-blocker for worker completion | Account-auth `run.echo` submit/status/events/result/cancel works; capabilities/modules return 200 | Submitted run remained queued because live worker heartbeat was stale/offline, then was canceled | Public CLI can prove API/session path, but full worker-completed E2E still requires owner worker heartbeat/claim loop online. No release until worker completion is proven. |
+| #552 sync proposal | deferred-with-tracked-issue | AWS ACK is recorded; YonerAIWEB ACK is still missing | Not a CI surface | Do not send `[SYNC-CONTRACT-ACCEPTED]` yet. |
+
+Validation for this checkpoint:
+
+- Targeted tests: `129 passed` for auth/privacy, Control Spine, Native Run, and provider gateway CLI tests.
+- `ruff` passed for touched Python paths.
+- `compileall` passed for touched Python paths.
+- `git diff --check` passed with CRLF warnings only.
+- `ci_quality_scans.py --changed` passed.
+
+## 2026-06-20 PR #561 Intake Update
+
+- last_scan_at: 2026-06-20T06:31:00+09:00
+- highest_seen_pr_number: 561
+- current_main_head: b5dd674
+- branch: codex/staging-opaque-session-poll-fix
+- PR: #561
+
+| PR / issue / notice | classification | review/comment state | CI / evidence state | decision |
+| --- | --- | --- | --- | --- |
+| #561 Codex usage-limit comment | stale / non-actionable | The only initial PR comment is a Codex usage-limit notice, not a code finding | `review-intake-required` failed closed until classification | Applied `intake-reviewed` after classification; continue to read new review/comments after each push and before merge. |
+| #561 implementation | valid-now | No inline review thread at creation scan | Local tests and scans passed; GitHub product checks pending | Keep PR scoped to accepting only AWS-issued opaque YonerAI staging session fields while preserving forbidden token scans. |

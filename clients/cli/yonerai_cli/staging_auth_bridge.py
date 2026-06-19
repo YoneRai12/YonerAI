@@ -252,7 +252,7 @@ def _safe_poll_report(safe_request_id: str, body: Mapping[str, object]) -> dict[
     linked = bool(body.get("linked")) or status in {"linked", "completed", "complete"}
     session_token = _session_token_from_body(body)
     session_source = body.get("session") if isinstance(body.get("session"), Mapping) else {}
-    if session_source.get("token_returned") is True:
+    if session_source.get("token_returned") is True and not session_token:
         raise StagingAuthBridgeError("staging_bridge_token_return_forbidden", "Staging CLI bridge attempted to return tokens.")
     cli_session_available = bool(session_token)
     account_source = body.get("account") or body.get("identity") or body.get("profile")
@@ -283,9 +283,10 @@ def _session_token_from_body(body: Mapping[str, object]) -> str | None:
             candidates.append(value)
     session = body.get("session")
     if isinstance(session, Mapping):
-        value = session.get("staging_session_token")
-        if value is not None:
-            candidates.append(value)
+        for key in ("staging_session_token", "staging_session_claim"):
+            value = session.get(key)
+            if value is not None:
+                candidates.append(value)
     if not candidates:
         return None
     normalized: list[str] = []
@@ -315,7 +316,8 @@ def _safe_session_metadata(session: Mapping[str, object]) -> dict[str, object]:
         "type": _safe_optional_public_scalar(session.get("type"), "session_type"),
         "token_returned": False,
         "token_field": _safe_optional_public_scalar(session.get("token_field"), "session_token_field"),
-        "opaque_session_available": isinstance(session.get("staging_session_token"), str),
+        "opaque_session_available": isinstance(session.get("staging_session_token"), str)
+        or isinstance(session.get("staging_session_claim"), str),
         "bearer_authorization_supported": bool(session.get("bearer_authorization_supported", False)),
         "browser_cookie_session_present": bool(session.get("cookie_name")),
         "expires_at": _safe_optional_public_scalar(session.get("expires_at"), "session_expires_at"),
@@ -447,7 +449,7 @@ def _body_without_allowed_opaque_session(body: Mapping[str, object]) -> Mapping[
             sanitized[key] = {
                 nested_key: nested_value
                 for nested_key, nested_value in value.items()
-                if not (nested_key == "staging_session_token" and isinstance(nested_value, str))
+                if not (nested_key in {"staging_session_token", "staging_session_claim"} and isinstance(nested_value, str))
             }
             continue
         sanitized[key] = value
