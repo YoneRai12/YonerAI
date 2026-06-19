@@ -983,6 +983,8 @@ def test_control_spine_ignores_invalid_saved_session_origin(tmp_path: Path, monk
 
     assert context["origin_configured"] is False
     assert context["origin"] == "not_configured"
+    assert context["session_origin_mismatch"] is False
+    assert context["session_schema_mismatch"] is False
     assert report["ok"] is True
     assert report["error"]["code"] == "staging_origin_not_configured"
     assert api_command._control_spine_origin_configured(SimpleNamespace(config_path=str(tmp_path / "cli.json"))) is False

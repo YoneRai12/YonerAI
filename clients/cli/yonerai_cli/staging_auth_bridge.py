@@ -178,7 +178,7 @@ def wait_for_cli_bridge_link(
             timeout_seconds=timeout_seconds,
         )
         if session_claim_handler is not None and account_report.get("ok") is True:
-            session_storage_report = session_claim_handler(linked_session_token, account_report, last_report)
+            session_storage_report = session_claim_handler(linked_session_token, last_report, account_report)
     last_report.update(
         {
             "poll_attempts": attempts,
@@ -295,9 +295,8 @@ def _session_token_from_body(body: Mapping[str, object]) -> str | None:
         text = value.strip()
         if any(ord(char) < 32 or ord(char) == 127 for char in text):
             raise StagingAuthBridgeError("staging_session_claim_invalid", "Staging session claim is invalid.")
-        if text:
-            normalized.append(text)
-    if not normalized:
+        normalized.append(text)
+    if not any(normalized):
         return None
     first = normalized[0]
     if any(value != first for value in normalized):

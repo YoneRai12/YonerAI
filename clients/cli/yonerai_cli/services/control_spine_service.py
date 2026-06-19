@@ -122,7 +122,11 @@ def build_control_spine_context(
             and session_origin_raw not in {"configured", "not_configured"}
             and not session_origin
         ),
-        "session_schema_mismatch": bool(session_token and not session_origin),
+        "session_schema_mismatch": bool(
+            session_token
+            and not session_origin
+            and session_origin_raw not in {"configured", "not_configured"}
+        ),
         "production_login_enabled": False,
         "production_backend_enabled": False,
         "shared_traffic_enabled": False,
