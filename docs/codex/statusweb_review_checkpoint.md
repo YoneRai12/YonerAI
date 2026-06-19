@@ -1,4 +1,4 @@
-﻿# StatusWEB review checkpoint
+# StatusWEB review checkpoint
 
 last_scan_at: 2026-06-19T06:28:21Z
 highest_seen_pr_number: 553
@@ -124,3 +124,21 @@ scope: status.yonerai.com public status presentation only
 - phase: post-push-review-fix-before-second-push
 - quota: no explicit quota value exposed in this environment
 - decision: commit/push the two valid P2 fixes, then reread review/CI before merge.
+
+## PR #556 - fix: block camelCase status feed secret keys
+
+- url: https://github.com/YoneRai12/YonerAI/pull/556
+- updated_at: 2026-06-19T07:08:19Z during checkpoint
+- classification: StatusWEB current-lane public feed safety PR
+- review/comment state:
+  - valid-now security: discussion_r3440920624 key normalization must collapse repeated underscores, hyphens, and spaces before sensitive-key matching
+  - valid-now P2/privacy-test: discussion_r3440920616 temp feed test must clean up temporary files and include redacted stdout/stderr if rejection unexpectedly passes
+  - non-material: Codex usage-limit PR comment has no code action
+- CI state: security-static failed on test literal wording before this fix; other checks were passing
+- decision: fix current PR, run targeted safety tests and security scan locally, push, then reread PR reviews/comments/checks before any final report
+- replacement PR or tracking issue: PR #556 remains canonical StatusWEB safety follow-up
+
+[PHASE-CHECKPOINT]
+- phase: pr-556-review-fix-before-validation
+- quota: no explicit quota value exposed in this environment
+- decision: valid StatusWEB safety findings are fixed locally in isolated worktree; proceed to validation.
