@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import ipaddress
 import json
+import math
 import re
 from collections.abc import Callable, Mapping
 from datetime import datetime, timezone
@@ -74,12 +75,13 @@ def build_status_snapshot_report(
 ) -> dict[str, object]:
     report = _base_report("status_snapshot")
     try:
+        safe_timeout_seconds = _safe_timeout_seconds(timeout_seconds)
         status_payload, status_headers = _load_status_payload(
             source=source,
             status_source=status_source,
             allow_network_status_fetch=allow_network_status_fetch,
             transport=transport,
-            timeout_seconds=timeout_seconds,
+            timeout_seconds=safe_timeout_seconds,
         )
         health_payload: Mapping[str, object] = {}
         health_headers: Mapping[str, str] = {}
@@ -89,7 +91,7 @@ def build_status_snapshot_report(
                     DEFAULT_STATUS_ORIGIN,
                     HEALTH_PATH,
                     transport=transport,
-                    timeout_seconds=timeout_seconds,
+                    timeout_seconds=safe_timeout_seconds,
                 )
             except StatusSnapshotError:
                 health_payload = {}
@@ -135,7 +137,14 @@ def normalize_status_snapshot(
 
 
 def _snapshot_from_v1(payload: Mapping[str, object]) -> dict[str, object]:
-    components = payload.get("components") if isinstance(payload.get("components"), list) else []
+    if payload.get("private_runtime_details_included") is True:
+        raise StatusSnapshotError(
+            "status_snapshot_private_payload_rejected",
+            "Status snapshot declared private runtime details.",
+        )
+    components = payload.get("components")
+    if not isinstance(components, list) or not components:
+        raise StatusSnapshotError("status_snapshot_schema_invalid", "Status snapshot components are required.")
     return {
         "schema_version": STATUS_SNAPSHOT_SCHEMA_VERSION,
         "snapshot_id": _safe_token(payload.get("snapshot_id"), fallback=_snapshot_id(payload)),
@@ -425,6 +434,8 @@ def _validate_snapshot(snapshot: Mapping[str, object]) -> None:
     components = snapshot.get("components")
     if not isinstance(overall, Mapping) or not isinstance(components, list):
         raise StatusSnapshotError("status_snapshot_schema_invalid", "Status snapshot shape is invalid.")
+    if not components:
+        raise StatusSnapshotError("status_snapshot_schema_invalid", "Status snapshot components are required.")
     _normalize_overall(overall)
     for item in components:
         if not isinstance(item, Mapping):
@@ -715,6 +726,29 @@ def _reject_private_text(text: str) -> None:
                 "status_snapshot_private_payload_rejected",
                 "Status snapshot included non-public fields.",
             )
+    for match in re.finditer(r"(?<![A-Za-z0-9])(?:[0-9A-Fa-f]{0,4}:){2,}[0-9A-Fa-f:.%]*(?![A-Za-z0-9])", text):
+        try:
+            address = ipaddress.ip_address(match.group(0).strip("[]"))
+        except ValueError:
+            continue
+        if (
+            address.is_private
+            or address.is_loopback
+            or address.is_link_local
+            or address.is_multicast
+            or address.is_reserved
+        ):
+            raise StatusSnapshotError(
+                "status_snapshot_private_payload_rejected",
+                "Status snapshot included non-public fields.",
+            )
+    for match in re.finditer(r"\b(?:localhost|[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)\b", lowered):
+        host = match.group(0).strip(".")
+        if _is_private_host(host):
+            raise StatusSnapshotError(
+                "status_snapshot_private_payload_rejected",
+                "Status snapshot included non-public fields.",
+            )
 
 
 def _safe_timestamp(value: object) -> str:
@@ -730,6 +764,22 @@ def _safe_int(value: object, *, fallback: int, minimum: int, maximum: int) -> in
     except (TypeError, ValueError):
         return fallback
     return max(minimum, min(maximum, number))
+
+
+def _safe_timeout_seconds(value: object) -> float:
+    try:
+        timeout = float(value)
+    except (TypeError, ValueError) as exc:
+        raise StatusSnapshotError(
+            "status_snapshot_timeout_invalid",
+            "Status timeout must be a positive finite number.",
+        ) from exc
+    if not math.isfinite(timeout) or timeout <= 0 or timeout > 60:
+        raise StatusSnapshotError(
+            "status_snapshot_timeout_invalid",
+            "Status timeout must be a positive finite number no greater than 60 seconds.",
+        )
+    return timeout
 
 
 def _safe_version(value: object) -> str | None:
@@ -858,6 +908,8 @@ def _iter_payload_text(payload: object) -> list[str]:
 
 
 def _is_private_host(host: str) -> bool:
+    if host.lower().strip(".") == "localhost":
+        return True
     try:
         address = ipaddress.ip_address(host)
     except ValueError:

@@ -105,6 +105,32 @@ def test_status_snapshot_rejects_internal_hostname_without_printing_it() -> None
     assert "worker.internal" not in exc.value.message
 
 
+def test_status_snapshot_rejects_bare_internal_hostname_without_printing_it() -> None:
+    from yonerai_cli.services.status_snapshot_service import StatusSnapshotError, normalize_status_snapshot
+
+    payload = _fixture()
+    payload["components"][0]["message"] = "worker.internal stale"
+
+    with pytest.raises(StatusSnapshotError) as exc:
+        normalize_status_snapshot(payload)
+
+    assert exc.value.code == "status_snapshot_private_payload_rejected"
+    assert "worker.internal" not in exc.value.message
+
+
+def test_status_snapshot_rejects_bare_localhost_without_printing_it() -> None:
+    from yonerai_cli.services.status_snapshot_service import StatusSnapshotError, normalize_status_snapshot
+
+    payload = _fixture()
+    payload["components"][0]["message"] = "localhost stale"
+
+    with pytest.raises(StatusSnapshotError) as exc:
+        normalize_status_snapshot(payload)
+
+    assert exc.value.code == "status_snapshot_private_payload_rejected"
+    assert "localhost" not in exc.value.message
+
+
 def test_status_snapshot_rejects_ipv6_private_endpoint_without_printing_it() -> None:
     from yonerai_cli.services.status_snapshot_service import StatusSnapshotError, normalize_status_snapshot
 
@@ -116,6 +142,56 @@ def test_status_snapshot_rejects_ipv6_private_endpoint_without_printing_it() -> 
 
     assert exc.value.code == "status_snapshot_private_payload_rejected"
     assert "fc00" not in exc.value.message
+
+
+def test_status_snapshot_rejects_bare_ipv6_private_endpoint_without_printing_it() -> None:
+    from yonerai_cli.services.status_snapshot_service import StatusSnapshotError, normalize_status_snapshot
+
+    payload = _fixture()
+    payload["components"][0]["message"] = "fc00::1 stale"
+
+    with pytest.raises(StatusSnapshotError) as exc:
+        normalize_status_snapshot(payload)
+
+    assert exc.value.code == "status_snapshot_private_payload_rejected"
+    assert "fc00" not in exc.value.message
+
+
+def test_status_snapshot_rejects_private_runtime_details_flag() -> None:
+    from yonerai_cli.services.status_snapshot_service import StatusSnapshotError, normalize_status_snapshot
+
+    payload = _fixture()
+    payload["private_runtime_details_included"] = True
+
+    with pytest.raises(StatusSnapshotError) as exc:
+        normalize_status_snapshot(payload)
+
+    assert exc.value.code == "status_snapshot_private_payload_rejected"
+
+
+@pytest.mark.parametrize("components", ([], "not-a-list"))
+def test_status_snapshot_rejects_missing_or_empty_components(components: object) -> None:
+    from yonerai_cli.services.status_snapshot_service import StatusSnapshotError, normalize_status_snapshot
+
+    payload = _fixture()
+    payload["components"] = components
+
+    with pytest.raises(StatusSnapshotError) as exc:
+        normalize_status_snapshot(payload)
+
+    assert exc.value.code == "status_snapshot_schema_invalid"
+
+
+@pytest.mark.parametrize("timeout_seconds", (-1, 0, float("inf"), float("nan")))
+def test_status_snapshot_timeout_validation_is_controlled(timeout_seconds: float) -> None:
+    from yonerai_cli.services.status_snapshot_service import build_status_snapshot_report
+
+    report = build_status_snapshot_report(source="fixture", timeout_seconds=timeout_seconds)
+
+    assert report["ok"] is False
+    assert report["error"]["code"] == "status_snapshot_timeout_invalid"
+    assert report["error"]["local_path_printed"] is False
+    assert report["error"]["token_printed"] is False
 
 
 def test_status_snapshot_allows_explicit_https_443_status_url() -> None:

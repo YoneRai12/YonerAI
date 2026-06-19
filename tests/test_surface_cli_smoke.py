@@ -1105,12 +1105,10 @@ def test_cli_status_reports_public_demo_and_installer_readiness(capsys):
 
     output = capsys.readouterr().out
     assert "YonerAI 状態" in output
-    assert "公開デモ" in output
-    assert "配布準備" in output
-    assert "インストール準備" in output
-    assert "未完了" in output
-    assert "Live Discord" in output
-    assert "不要" in output
+    assert "yonerai.status.v1" in output
+    assert "official_execution_worker" in output
+    assert "provider_gateway" in output
+    assert "本番 Oracle/cloud/login は含みません" in output
     assert "\033[" not in output
 
 
@@ -1125,9 +1123,11 @@ def test_cli_status_json_is_doctor_schema_without_network(monkeypatch, capsys):
     assert cli.main(["status", "--json"]) == 0
 
     output = json.loads(capsys.readouterr().out)
-    assert output["command"] == "yonerai status"
-    assert output["schema_version"] == "yonerai-doctor/v1"
-    assert output["boundaries"]["network_required"] is False
+    assert output["schema_version"] == "yonerai-status-snapshot-client/v0.1"
+    assert output["ok"] is True
+    assert output["official_backend_called"] is False
+    assert output["snapshot"]["schema_version"] == "yonerai.status.v1"
+    assert output["component_count"] >= 1
 
 
 def test_cli_manifest_verify_accepts_example_as_contract_not_install_ready(capsys):
