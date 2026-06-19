@@ -26,6 +26,18 @@ def test_pr_intake_gate_requires_maintainer_controlled_label() -> None:
     assert "core.setFailed(" in workflow
 
 
+def test_pr_intake_gate_invalidates_reviewed_label_on_new_review_or_comment() -> None:
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+
+    review_block = (
+        'if (eventName === "pull_request_review" || eventName === "pull_request_review_comment") {\n'
+        "              await addLabel(needs);\n"
+        "              await removeLabel(reviewed);\n"
+        "            }"
+    )
+    assert review_block in workflow
+
+
 def test_pr_intake_gate_does_not_execute_pr_code_or_merge() -> None:
     workflow = WORKFLOW.read_text(encoding="utf-8").lower()
 

@@ -4,11 +4,11 @@ Public repository review/comment intake for the current Public YonerAI lane.
 This file is public-safe: it avoids secrets, private runtime details, internal
 hostnames, account data, and local private paths.
 
-- last_scan_at: 2026-06-19T15:55:13+09:00
+- last_scan_at: 2026-06-19T22:51:36+09:00
 - current_main_head: bc0d9277
 - latest_stable: v0.8.1
 - latest_prerelease: v0.22.0-alpha.1
-- highest_seen_pr_number: 554
+- highest_seen_pr_number: 556
 - current_lane: public security/status gate before realtime sync
 
 ## Valid Findings Fixed In Current Lane
@@ -19,6 +19,8 @@ the current security intake branch instead of merging several stale PR branches:
 | Source | Finding | Severity | Current disposition |
 | --- | --- | --- | --- |
 | #554 | Stored staging session `origin` could be an invalid sanitized value and crash URL construction. | security/correctness | Fixed in this branch with origin allowlist validation before saving and reuse. |
+| #556 | Status public feed safety scan missed camelCase and mixed-separator secret-like metadata keys. | security/privacy | Fixed in this branch with normalized key scanning, path-redacted regression output, and temp cleanup. |
+| #555 | Provider gateway client could follow redirects before failing, risking auth header forwarding to another endpoint. | security/privacy | Fixed in this branch by disabling redirects and adding regression coverage that closes test servers. |
 | #543 / #540 / #541 | Loopback local LLM IME requests could honor environment proxies or redirects. | security/privacy | Fixed in this branch with proxy-disabled opener and redirect rejection. |
 | #539 | Control Spine public payload markers did not reject generic token/secret names or private endpoint forms broadly enough. | security/privacy | Fixed in this branch with centralized forbidden markers, private URL regex, and regression tests. |
 | #542 | Release note changes could skip generated artifact hash/size verification in Quality Wall. | release/security | Fixed in this branch with strict release-surface diff matching and regression tests. |
@@ -27,6 +29,8 @@ the current security intake branch instead of merging several stale PR branches:
 
 | PR | Title | Classification | Review/comment state | CI state | Decision / tracking |
 | --- | --- | --- | --- | --- | --- |
+| #556 | fix: block camelCase status feed secret keys | valid-now | Gemini robustness comment valid | security-static failed on PR branch | Superseded by current branch with stronger normalization and safer test output. |
+| #555 | fix: reject provider gateway redirects | valid-now | Gemini server cleanup comment valid | pass but behind main | Superseded by current branch with explicit server close. |
 | #554 | fix: validate stored staging session origins | valid-now | Gemini no-comment review; no unresolved thread | pass but behind main | Superseded by current branch canonical fix. |
 | #548 | chore(deps-dev): bump js-yaml | deferred-with-tracked-issue | Dependabot dependency update | not revalidated here | Dependency PR remains its tracker; not blocking realtime sync. |
 | #547 | fix: preserve update parent language option | deferred-with-tracked-issue | No P0/P1/security found in current intake | not revalidated here | UX/correctness PR remains its tracker; not blocking. |
@@ -66,6 +70,9 @@ the current security intake branch instead of merging several stale PR branches:
 
 - PR #553 is merged and fixed Public CLI StatusSnapshot review blockers.
 - PR #551 is merged and fixed StatusWEB StatusSnapshot review blockers.
+- PR #555 and PR #556 findings are consolidated into the current security
+  intake branch and should be closed as superseded after the replacement PR is
+  available.
 - Issue #549 has Public and StatusWEB readiness comments and AWS implementation
   evidence. Closing remains gated on owner/AWS final acknowledgement if exact
   `[AWS-STATUS-FINAL-ACK]` wording is required by the active goal.

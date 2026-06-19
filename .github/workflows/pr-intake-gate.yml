@@ -84,6 +84,7 @@ jobs:
             }
             if (eventName === "pull_request_review" || eventName === "pull_request_review_comment") {
               await addLabel(needs);
+              await removeLabel(reviewed);
             }
 
             const labels = await github.paginate(github.rest.issues.listLabelsOnIssue, {
