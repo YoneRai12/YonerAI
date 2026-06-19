@@ -58,5 +58,16 @@ Checked in this checkpoint:
 - classification: valid-now follow-up for merged PR #557 review/CI activity
 - review/comment state: merged PR #557 retained a P2 auth-error handling thread; post-merge issue_comment triggered review-intake-required failure.
 - CI state: product checks on #557 final head were passing before merge; review-intake-required failed after merge because label mutation was attempted on closed/merged PR activity.
-- decision: fix current main with PR #558; add regressions for auth guidance preservation, closed/merged PR intake skip, and warning-only intake marking to avoid stale failed check runs after classification.
+- decision: fix current main with PR #558; add regressions for auth guidance preservation, closed/merged PR intake skip, and fail-closed intake marking that can be cleared by the maintainer-controlled `intake-reviewed` label after classification.
 - lane boundary: Public/Status presentation support only; no production deploy, no Web chat, no Firestore listener, no provider consent/control, no quota mutation, no approval control.
+
+## 2026-06-20 PR #558 Bootstrap Follow-up
+
+- last_scan_at: 2026-06-20T02:20:00+09:00
+- current_main_head: b745e304
+- follow-up PR: #558
+- classification: valid-now
+- review/comment state: Gemini and Codex both flagged 401/403 sanitizer ordering; current PR branch handles 401/403 before path-specific payload sanitizers. Codex usage-limit comment was non-material.
+- CI state: product checks passed; `review-intake-required` failed because the PR updates the same `pull_request_target` workflow that is required before merge.
+- decision: keep the gate fail-closed for new review/comment/synchronize activity, handle label-write failures as controlled failures instead of unhandled exceptions, and allow a later maintainer `intake-reviewed` label event to clear the required check.
+- replacement PR or tracking issue: #558 remains the canonical current-main fix for this bootstrap/process issue.

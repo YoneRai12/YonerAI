@@ -27,6 +27,7 @@ def test_pr_intake_gate_requires_maintainer_controlled_label() -> None:
     assert "reopened" in workflow
     assert "ready_for_review" in workflow
     assert "core.setFailed(" in workflow
+    assert "core.warning(intakeMessage);" not in workflow
 
 
 def test_pr_intake_gate_invalidates_reviewed_label_on_new_review_or_comment() -> None:
@@ -57,9 +58,12 @@ def test_pr_intake_gate_ignores_closed_or_merged_pr_activity() -> None:
     assert 'prState.state !== "open" || prState.merged_at' in workflow
     assert "Ignoring review intake for closed or merged PR." in workflow
 
-def test_pr_intake_gate_marks_missing_intake_without_stale_failed_runs() -> None:
+def test_pr_intake_gate_fails_closed_on_new_activity_until_reviewed_label() -> None:
     workflow = WORKFLOW.read_text(encoding="utf-8")
 
-    assert "const intakeMessage =" in workflow
-    assert "core.warning(intakeMessage);" in workflow
+    assert "const intakeInvalidatingEvent =" in workflow
+    assert "const maintainerConfirmedEvent =" in workflow
+    assert "has new review/comment/synchronize activity" in workflow
+    assert "labelWriteErrors" in workflow
+    assert "review intake label update failed closed" in workflow
     assert "Add the maintainer-controlled" in workflow
