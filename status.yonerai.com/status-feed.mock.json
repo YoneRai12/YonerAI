@@ -1,0 +1,4877 @@
+{
+  "schema_version": "yonerai.status.feed.v1",
+  "generated_at": "2026-06-01T00:00:00+09:00",
+  "range": {
+    "start": "2026-02-27",
+    "days": 90,
+    "end": "2026-05-27"
+  },
+  "meta": {
+    "product": "YonerAI Status",
+    "source": "yonerai.status.feed.mock.v1",
+    "live_monitoring": true,
+    "refresh_ms": 0,
+    "note": {
+      "ja": "mock feed connected - yonerai.status.feed.v1",
+      "en": "mock feed connected - yonerai.status.feed.v1"
+    }
+  },
+  "states": {
+    "operational": {
+      "severity": 0,
+      "color": "#25c39a",
+      "labels": {
+        "ja": "稼働中",
+        "en": "Operational"
+      }
+    },
+    "alpha_only": {
+      "severity": 10,
+      "color": "#a9b0ba",
+      "labels": {
+        "ja": "alpha のみ",
+        "en": "Alpha only"
+      }
+    },
+    "not_started": {
+      "severity": 20,
+      "color": "#a9b0ba",
+      "labels": {
+        "ja": "準備中",
+        "en": "Preparing"
+      }
+    },
+    "maintenance": {
+      "severity": 30,
+      "color": "#f97316",
+      "labels": {
+        "ja": "メンテナンス",
+        "en": "Maintenance"
+      }
+    },
+    "degraded": {
+      "severity": 40,
+      "color": "#f6bd3f",
+      "labels": {
+        "ja": "性能低下",
+        "en": "Degraded"
+      }
+    },
+    "partial_outage": {
+      "severity": 50,
+      "color": "#ff7a59",
+      "labels": {
+        "ja": "一部障害",
+        "en": "Partial outage"
+      }
+    },
+    "major_outage": {
+      "severity": 60,
+      "color": "#ef5b4a",
+      "labels": {
+        "ja": "重大障害",
+        "en": "Major outage"
+      }
+    },
+    "resolved": {
+      "severity": 0,
+      "color": "#25c39a",
+      "labels": {
+        "ja": "解決済み",
+        "en": "Resolved"
+      }
+    },
+    "monitoring": {
+      "severity": 45,
+      "color": "#3a9dff",
+      "labels": {
+        "ja": "監視中",
+        "en": "Monitoring"
+      }
+    },
+    "identified": {
+      "severity": 42,
+      "color": "#f6bd3f",
+      "labels": {
+        "ja": "原因特定",
+        "en": "Identified"
+      }
+    },
+    "investigating": {
+      "severity": 48,
+      "color": "#ff6b6b",
+      "labels": {
+        "ja": "調査中",
+        "en": "Investigating"
+      }
+    }
+  },
+  "categories": [
+    {
+      "id": "public-surfaces",
+      "name": {
+        "ja": "公開サーフェス",
+        "en": "Public surfaces"
+      },
+      "state": "not_started",
+      "children": [
+        {
+          "id": "website",
+          "name": "Website",
+          "fact": {
+            "ja": "yonerai.com のステータス監視は未接続です。",
+            "en": "yonerai.com status monitoring is not connected."
+          },
+          "monitoring": {
+            "ja": "未接続",
+            "en": "Not connected"
+          },
+          "claim": {
+            "ja": "本番運用は未主張",
+            "en": "No production operation claim"
+          },
+          "state": "not_started",
+          "days": [
+            {
+              "date": "2026-02-27",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-02-28",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-01",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-02",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-03",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-04",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-05",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-06",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-07",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-08",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-09",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-10",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-11",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-12",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-13",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-14",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-15",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-16",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-17",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-18",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-19",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-20",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-21",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-22",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-23",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-24",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-25",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-26",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-27",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-28",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-29",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-30",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-31",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-01",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-02",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-03",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-04",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-05",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-06",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-07",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-08",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-09",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-10",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-11",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-12",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-13",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-14",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-15",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-16",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-17",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-18",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-19",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-20",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-21",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-22",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-23",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-24",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-25",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-26",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-27",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-28",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-29",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-30",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-01",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-02",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-03",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-04",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-05",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-06",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-07",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-08",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-09",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-10",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-11",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-12",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-13",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-14",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-15",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-16",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-17",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-18",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-19",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-20",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-21",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-22",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-23",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-24",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-25",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-26",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-27",
+              "state": "not_started"
+            }
+          ]
+        },
+        {
+          "id": "web-demo",
+          "name": "Web demo",
+          "fact": {
+            "ja": "Web demo は運用中サービスとして監視していません。",
+            "en": "The web demo is not monitored as an operated service."
+          },
+          "monitoring": {
+            "ja": "未接続",
+            "en": "Not connected"
+          },
+          "claim": {
+            "ja": "本番運用は未主張",
+            "en": "No production operation claim"
+          },
+          "state": "not_started",
+          "days": [
+            {
+              "date": "2026-02-27",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-02-28",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-01",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-02",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-03",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-04",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-05",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-06",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-07",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-08",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-09",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-10",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-11",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-12",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-13",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-14",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-15",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-16",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-17",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-18",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-19",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-20",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-21",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-22",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-23",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-24",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-25",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-26",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-27",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-28",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-29",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-30",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-31",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-01",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-02",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-03",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-04",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-05",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-06",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-07",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-08",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-09",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-10",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-11",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-12",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-13",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-14",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-15",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-16",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-17",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-18",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-19",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-20",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-21",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-22",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-23",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-24",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-25",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-26",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-27",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-28",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-29",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-30",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-01",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-02",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-03",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-04",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-05",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-06",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-07",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-08",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-09",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-10",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-11",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-12",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-13",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-14",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-15",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-16",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-17",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-18",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-19",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-20",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-21",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-22",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-23",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-24",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-25",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-26",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-27",
+              "state": "not_started"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "core-api",
+      "name": {
+        "ja": "コアAPI",
+        "en": "Core API"
+      },
+      "state": "not_started",
+      "children": [
+        {
+          "id": "api",
+          "name": "API",
+          "fact": {
+            "ja": "External API の可用性データはまだ収集していません。",
+            "en": "External API availability is not collected yet."
+          },
+          "monitoring": {
+            "ja": "未接続",
+            "en": "Not connected"
+          },
+          "claim": {
+            "ja": "本番運用は未主張",
+            "en": "No production operation claim"
+          },
+          "state": "not_started",
+          "days": [
+            {
+              "date": "2026-02-27",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-02-28",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-01",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-02",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-03",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-04",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-05",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-06",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-07",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-08",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-09",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-10",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-11",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-12",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-13",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-14",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-15",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-16",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-17",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-18",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-19",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-20",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-21",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-22",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-23",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-24",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-25",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-26",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-27",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-28",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-29",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-30",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-31",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-01",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-02",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-03",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-04",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-05",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-06",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-07",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-08",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-09",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-10",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-11",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-12",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-13",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-14",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-15",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-16",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-17",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-18",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-19",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-20",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-21",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-22",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-23",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-24",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-25",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-26",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-27",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-28",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-29",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-30",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-01",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-02",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-03",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-04",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-05",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-06",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-07",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-08",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-09",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-10",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-11",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-12",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-13",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-14",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-15",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-16",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-17",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-18",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-19",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-20",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-21",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-22",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-23",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-24",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-25",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-26",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-27",
+              "state": "not_started"
+            }
+          ]
+        },
+        {
+          "id": "run-api",
+          "name": "Run API",
+          "fact": {
+            "ja": "Run API は公開運用サーフェスとして提示していません。",
+            "en": "Run API is not presented as an operated public surface."
+          },
+          "monitoring": {
+            "ja": "未接続",
+            "en": "Not connected"
+          },
+          "claim": {
+            "ja": "本番運用は未主張",
+            "en": "No production operation claim"
+          },
+          "state": "not_started",
+          "days": [
+            {
+              "date": "2026-02-27",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-02-28",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-01",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-02",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-03",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-04",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-05",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-06",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-07",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-08",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-09",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-10",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-11",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-12",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-13",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-14",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-15",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-16",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-17",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-18",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-19",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-20",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-21",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-22",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-23",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-24",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-25",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-26",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-27",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-28",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-29",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-30",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-31",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-01",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-02",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-03",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-04",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-05",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-06",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-07",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-08",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-09",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-10",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-11",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-12",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-13",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-14",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-15",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-16",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-17",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-18",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-19",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-20",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-21",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-22",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-23",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-24",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-25",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-26",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-27",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-28",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-29",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-30",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-01",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-02",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-03",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-04",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-05",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-06",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-07",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-08",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-09",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-10",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-11",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-12",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-13",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-14",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-15",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-16",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-17",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-18",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-19",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-20",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-21",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-22",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-23",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-24",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-25",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-26",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-27",
+              "state": "not_started"
+            }
+          ]
+        },
+        {
+          "id": "provider-integrations",
+          "name": "Provider integrations",
+          "fact": {
+            "ja": "Provider integrations のヘルスチェックはまだ公開していません。",
+            "en": "Provider integration health checks are not published yet."
+          },
+          "monitoring": {
+            "ja": "未接続",
+            "en": "Not connected"
+          },
+          "claim": {
+            "ja": "本番運用は未主張",
+            "en": "No production operation claim"
+          },
+          "state": "not_started",
+          "days": [
+            {
+              "date": "2026-02-27",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-02-28",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-01",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-02",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-03",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-04",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-05",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-06",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-07",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-08",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-09",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-10",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-11",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-12",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-13",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-14",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-15",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-16",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-17",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-18",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-19",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-20",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-21",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-22",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-23",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-24",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-25",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-26",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-27",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-28",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-29",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-30",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-31",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-01",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-02",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-03",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-04",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-05",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-06",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-07",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-08",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-09",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-10",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-11",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-12",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-13",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-14",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-15",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-16",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-17",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-18",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-19",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-20",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-21",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-22",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-23",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-24",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-25",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-26",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-27",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-28",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-29",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-30",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-01",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-02",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-03",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-04",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-05",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-06",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-07",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-08",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-09",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-10",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-11",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-12",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-13",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-14",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-15",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-16",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-17",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-18",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-19",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-20",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-21",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-22",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-23",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-24",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-25",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-26",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-27",
+              "state": "not_started"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "identity-access",
+      "name": {
+        "ja": "認証とアクセス",
+        "en": "Identity and access"
+      },
+      "state": "not_started",
+      "children": [
+        {
+          "id": "auth",
+          "name": "Auth",
+          "fact": {
+            "ja": "ログインとセッションの監視はまだ開始していません。",
+            "en": "Login and session monitoring has not started."
+          },
+          "monitoring": {
+            "ja": "未接続",
+            "en": "Not connected"
+          },
+          "claim": {
+            "ja": "本番運用は未主張",
+            "en": "No production operation claim"
+          },
+          "state": "not_started",
+          "days": [
+            {
+              "date": "2026-02-27",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-02-28",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-01",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-02",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-03",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-04",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-05",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-06",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-07",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-08",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-09",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-10",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-11",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-12",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-13",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-14",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-15",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-16",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-17",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-18",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-19",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-20",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-21",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-22",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-23",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-24",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-25",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-26",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-27",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-28",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-29",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-30",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-31",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-01",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-02",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-03",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-04",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-05",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-06",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-07",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-08",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-09",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-10",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-11",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-12",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-13",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-14",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-15",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-16",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-17",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-18",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-19",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-20",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-21",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-22",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-23",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-24",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-25",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-26",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-27",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-28",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-29",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-30",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-01",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-02",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-03",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-04",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-05",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-06",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-07",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-08",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-09",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-10",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-11",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-12",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-13",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-14",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-15",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-16",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-17",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-18",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-19",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-20",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-21",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-22",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-23",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-24",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-25",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-26",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-27",
+              "state": "not_started"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "developer-release",
+      "name": {
+        "ja": "開発者・リリース",
+        "en": "Developer and release"
+      },
+      "state": "not_started",
+      "children": [
+        {
+          "id": "docs",
+          "name": "Docs",
+          "fact": {
+            "ja": "ドキュメントの可用性はまだこのページで監視していません。",
+            "en": "Documentation availability is not monitored here yet."
+          },
+          "monitoring": {
+            "ja": "未接続",
+            "en": "Not connected"
+          },
+          "claim": {
+            "ja": "本番運用は未主張",
+            "en": "No production operation claim"
+          },
+          "state": "not_started",
+          "days": [
+            {
+              "date": "2026-02-27",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-02-28",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-01",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-02",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-03",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-04",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-05",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-06",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-07",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-08",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-09",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-10",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-11",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-12",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-13",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-14",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-15",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-16",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-17",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-18",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-19",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-20",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-21",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-22",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-23",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-24",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-25",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-26",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-27",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-28",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-29",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-30",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-31",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-01",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-02",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-03",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-04",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-05",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-06",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-07",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-08",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-09",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-10",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-11",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-12",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-13",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-14",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-15",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-16",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-17",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-18",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-19",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-20",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-21",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-22",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-23",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-24",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-25",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-26",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-27",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-28",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-29",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-30",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-01",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-02",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-03",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-04",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-05",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-06",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-07",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-08",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-09",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-10",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-11",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-12",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-13",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-14",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-15",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-16",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-17",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-18",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-19",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-20",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-21",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-22",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-23",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-24",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-25",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-26",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-27",
+              "state": "not_started"
+            }
+          ]
+        },
+        {
+          "id": "github-repository",
+          "name": "GitHub repository",
+          "fact": {
+            "ja": "このページでは GitHub repository の状態をポーリングしていません。",
+            "en": "This page does not poll GitHub repository status."
+          },
+          "monitoring": {
+            "ja": "未接続",
+            "en": "Not connected"
+          },
+          "claim": {
+            "ja": "本番運用は未主張",
+            "en": "No production operation claim"
+          },
+          "state": "not_started",
+          "days": [
+            {
+              "date": "2026-02-27",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-02-28",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-01",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-02",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-03",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-04",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-05",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-06",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-07",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-08",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-09",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-10",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-11",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-12",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-13",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-14",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-15",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-16",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-17",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-18",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-19",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-20",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-21",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-22",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-23",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-24",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-25",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-26",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-27",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-28",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-29",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-30",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-31",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-01",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-02",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-03",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-04",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-05",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-06",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-07",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-08",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-09",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-10",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-11",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-12",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-13",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-14",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-15",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-16",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-17",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-18",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-19",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-20",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-21",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-22",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-23",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-24",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-25",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-26",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-27",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-28",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-29",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-30",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-01",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-02",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-03",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-04",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-05",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-06",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-07",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-08",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-09",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-10",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-11",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-12",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-13",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-14",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-15",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-16",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-17",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-18",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-19",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-20",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-21",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-22",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-23",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-24",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-25",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-26",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-27",
+              "state": "not_started"
+            }
+          ]
+        },
+        {
+          "id": "local-runtime-docs",
+          "name": "Local runtime docs",
+          "fact": {
+            "ja": "Local runtime docs はライブ監視対象ではありません。",
+            "en": "Local runtime docs are not a live monitored surface."
+          },
+          "monitoring": {
+            "ja": "未接続",
+            "en": "Not connected"
+          },
+          "claim": {
+            "ja": "本番運用は未主張",
+            "en": "No production operation claim"
+          },
+          "state": "not_started",
+          "days": [
+            {
+              "date": "2026-02-27",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-02-28",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-01",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-02",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-03",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-04",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-05",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-06",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-07",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-08",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-09",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-10",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-11",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-12",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-13",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-14",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-15",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-16",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-17",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-18",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-19",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-20",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-21",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-22",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-23",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-24",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-25",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-26",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-27",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-28",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-29",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-30",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-31",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-01",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-02",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-03",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-04",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-05",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-06",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-07",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-08",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-09",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-10",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-11",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-12",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-13",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-14",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-15",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-16",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-17",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-18",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-19",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-20",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-21",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-22",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-23",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-24",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-25",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-26",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-27",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-28",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-29",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-30",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-01",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-02",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-03",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-04",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-05",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-06",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-07",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-08",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-09",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-10",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-11",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-12",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-13",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-14",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-15",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-16",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-17",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-18",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-19",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-20",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-21",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-22",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-23",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-24",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-25",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-26",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-27",
+              "state": "not_started"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "status-bar-test",
+      "name": {
+        "ja": "Statusバー表示テスト",
+        "en": "Status bar display test"
+      },
+      "state": "major_outage",
+      "children": [
+        {
+          "id": "status-bar-test-component",
+          "name": {
+            "ja": "Statusバー表示テスト",
+            "en": "Status bar display test"
+          },
+          "fact": {
+            "ja": "これは色付きバーとクリック詳細の表示テストです。実際のYonerAI監視データではありません。",
+            "en": "This component tests colored bars and click details. It is not real YonerAI monitoring data."
+          },
+          "monitoring": {
+            "ja": "未接続",
+            "en": "Not connected"
+          },
+          "claim": {
+            "ja": "本番運用は未主張",
+            "en": "No production operation claim"
+          },
+          "state": "operational",
+          "days": [
+            {
+              "date": "2026-02-27",
+              "state": "operational"
+            },
+            {
+              "date": "2026-02-28",
+              "state": "operational"
+            },
+            {
+              "date": "2026-03-01",
+              "state": "operational"
+            },
+            {
+              "date": "2026-03-02",
+              "state": "operational"
+            },
+            {
+              "date": "2026-03-03",
+              "state": "operational"
+            },
+            {
+              "date": "2026-03-04",
+              "state": "operational"
+            },
+            {
+              "date": "2026-03-05",
+              "state": "operational"
+            },
+            {
+              "date": "2026-03-06",
+              "state": "operational"
+            },
+            {
+              "date": "2026-03-07",
+              "state": "degraded",
+              "message": {
+                "ja": "mock feed connected",
+                "en": "mock feed connected"
+              }
+            },
+            {
+              "date": "2026-03-08",
+              "state": "operational"
+            },
+            {
+              "date": "2026-03-09",
+              "state": "operational"
+            },
+            {
+              "date": "2026-03-10",
+              "state": "operational"
+            },
+            {
+              "date": "2026-03-11",
+              "state": "operational"
+            },
+            {
+              "date": "2026-03-12",
+              "state": "degraded",
+              "message": {
+                "ja": "mock feed connected",
+                "en": "mock feed connected"
+              }
+            },
+            {
+              "date": "2026-03-13",
+              "state": "operational"
+            },
+            {
+              "date": "2026-03-14",
+              "state": "operational"
+            },
+            {
+              "date": "2026-03-15",
+              "state": "maintenance",
+              "message": {
+                "ja": "mock feed connected",
+                "en": "mock feed connected"
+              }
+            },
+            {
+              "date": "2026-03-16",
+              "state": "operational"
+            },
+            {
+              "date": "2026-03-17",
+              "state": "operational"
+            },
+            {
+              "date": "2026-03-18",
+              "state": "operational"
+            },
+            {
+              "date": "2026-03-19",
+              "state": "operational"
+            },
+            {
+              "date": "2026-03-20",
+              "state": "operational"
+            },
+            {
+              "date": "2026-03-21",
+              "state": "operational"
+            },
+            {
+              "date": "2026-03-22",
+              "state": "degraded",
+              "message": {
+                "ja": "mock feed connected",
+                "en": "mock feed connected"
+              }
+            },
+            {
+              "date": "2026-03-23",
+              "state": "operational"
+            },
+            {
+              "date": "2026-03-24",
+              "state": "operational"
+            },
+            {
+              "date": "2026-03-25",
+              "state": "operational"
+            },
+            {
+              "date": "2026-03-26",
+              "state": "operational"
+            },
+            {
+              "date": "2026-03-27",
+              "state": "operational"
+            },
+            {
+              "date": "2026-03-28",
+              "state": "major_outage",
+              "message": {
+                "ja": "mock feed connected",
+                "en": "mock feed connected"
+              },
+              "incident_id": "incident-test-29-major_outage"
+            },
+            {
+              "date": "2026-03-29",
+              "state": "operational"
+            },
+            {
+              "date": "2026-03-30",
+              "state": "operational"
+            },
+            {
+              "date": "2026-03-31",
+              "state": "operational"
+            },
+            {
+              "date": "2026-04-01",
+              "state": "operational"
+            },
+            {
+              "date": "2026-04-02",
+              "state": "operational"
+            },
+            {
+              "date": "2026-04-03",
+              "state": "operational"
+            },
+            {
+              "date": "2026-04-04",
+              "state": "operational"
+            },
+            {
+              "date": "2026-04-05",
+              "state": "operational"
+            },
+            {
+              "date": "2026-04-06",
+              "state": "operational"
+            },
+            {
+              "date": "2026-04-07",
+              "state": "operational"
+            },
+            {
+              "date": "2026-04-08",
+              "state": "operational"
+            },
+            {
+              "date": "2026-04-09",
+              "state": "operational"
+            },
+            {
+              "date": "2026-04-10",
+              "state": "operational"
+            },
+            {
+              "date": "2026-04-11",
+              "state": "operational"
+            },
+            {
+              "date": "2026-04-12",
+              "state": "major_outage",
+              "message": {
+                "ja": "mock feed connected",
+                "en": "mock feed connected"
+              },
+              "incident_id": "incident-test-44-major_outage"
+            },
+            {
+              "date": "2026-04-13",
+              "state": "operational"
+            },
+            {
+              "date": "2026-04-14",
+              "state": "operational"
+            },
+            {
+              "date": "2026-04-15",
+              "state": "operational"
+            },
+            {
+              "date": "2026-04-16",
+              "state": "operational"
+            },
+            {
+              "date": "2026-04-17",
+              "state": "operational"
+            },
+            {
+              "date": "2026-04-18",
+              "state": "maintenance",
+              "message": {
+                "ja": "mock feed connected",
+                "en": "mock feed connected"
+              }
+            },
+            {
+              "date": "2026-04-19",
+              "state": "operational"
+            },
+            {
+              "date": "2026-04-20",
+              "state": "operational"
+            },
+            {
+              "date": "2026-04-21",
+              "state": "major_outage",
+              "message": {
+                "ja": "mock feed connected",
+                "en": "mock feed connected"
+              },
+              "incident_id": "incident-test-53-major_outage"
+            },
+            {
+              "date": "2026-04-22",
+              "state": "operational"
+            },
+            {
+              "date": "2026-04-23",
+              "state": "operational"
+            },
+            {
+              "date": "2026-04-24",
+              "state": "operational"
+            },
+            {
+              "date": "2026-04-25",
+              "state": "operational"
+            },
+            {
+              "date": "2026-04-26",
+              "state": "degraded",
+              "message": {
+                "ja": "mock feed connected",
+                "en": "mock feed connected"
+              },
+              "incident_id": "incident-test-59-degraded"
+            },
+            {
+              "date": "2026-04-27",
+              "state": "operational"
+            },
+            {
+              "date": "2026-04-28",
+              "state": "operational"
+            },
+            {
+              "date": "2026-04-29",
+              "state": "operational"
+            },
+            {
+              "date": "2026-04-30",
+              "state": "operational"
+            },
+            {
+              "date": "2026-05-01",
+              "state": "operational"
+            },
+            {
+              "date": "2026-05-02",
+              "state": "operational"
+            },
+            {
+              "date": "2026-05-03",
+              "state": "operational"
+            },
+            {
+              "date": "2026-05-04",
+              "state": "operational"
+            },
+            {
+              "date": "2026-05-05",
+              "state": "operational"
+            },
+            {
+              "date": "2026-05-06",
+              "state": "operational"
+            },
+            {
+              "date": "2026-05-07",
+              "state": "operational"
+            },
+            {
+              "date": "2026-05-08",
+              "state": "operational"
+            },
+            {
+              "date": "2026-05-09",
+              "state": "operational"
+            },
+            {
+              "date": "2026-05-10",
+              "state": "degraded",
+              "message": {
+                "ja": "mock feed connected",
+                "en": "mock feed connected"
+              }
+            },
+            {
+              "date": "2026-05-11",
+              "state": "operational"
+            },
+            {
+              "date": "2026-05-12",
+              "state": "operational"
+            },
+            {
+              "date": "2026-05-13",
+              "state": "operational"
+            },
+            {
+              "date": "2026-05-14",
+              "state": "operational"
+            },
+            {
+              "date": "2026-05-15",
+              "state": "operational"
+            },
+            {
+              "date": "2026-05-16",
+              "state": "operational"
+            },
+            {
+              "date": "2026-05-17",
+              "state": "operational"
+            },
+            {
+              "date": "2026-05-18",
+              "state": "operational"
+            },
+            {
+              "date": "2026-05-19",
+              "state": "operational"
+            },
+            {
+              "date": "2026-05-20",
+              "state": "maintenance",
+              "message": {
+                "ja": "mock feed connected",
+                "en": "mock feed connected"
+              },
+              "incident_id": "incident-test-81-maintenance"
+            },
+            {
+              "date": "2026-05-21",
+              "state": "operational"
+            },
+            {
+              "date": "2026-05-22",
+              "state": "operational"
+            },
+            {
+              "date": "2026-05-23",
+              "state": "operational"
+            },
+            {
+              "date": "2026-05-24",
+              "state": "operational"
+            },
+            {
+              "date": "2026-05-25",
+              "state": "operational"
+            },
+            {
+              "date": "2026-05-26",
+              "state": "operational"
+            },
+            {
+              "date": "2026-05-27",
+              "state": "major_outage",
+              "message": {
+                "ja": "mock feed connected",
+                "en": "mock feed connected"
+              },
+              "incident_id": "incident-test-89-major_outage"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "infrastructure",
+      "name": {
+        "ja": "インフラ",
+        "en": "Infrastructure"
+      },
+      "state": "not_started",
+      "children": [
+        {
+          "id": "aws-staging",
+          "name": "AWS staging",
+          "fact": {
+            "ja": "AWS staging は公開運用ステータス対象ではありません。",
+            "en": "AWS staging is not a public operated status target."
+          },
+          "monitoring": {
+            "ja": "未接続",
+            "en": "Not connected"
+          },
+          "claim": {
+            "ja": "本番運用は未主張",
+            "en": "No production operation claim"
+          },
+          "state": "not_started",
+          "days": [
+            {
+              "date": "2026-02-27",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-02-28",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-01",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-02",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-03",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-04",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-05",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-06",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-07",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-08",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-09",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-10",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-11",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-12",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-13",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-14",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-15",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-16",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-17",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-18",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-19",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-20",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-21",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-22",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-23",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-24",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-25",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-26",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-27",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-28",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-29",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-30",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-03-31",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-01",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-02",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-03",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-04",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-05",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-06",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-07",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-08",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-09",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-10",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-11",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-12",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-13",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-14",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-15",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-16",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-17",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-18",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-19",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-20",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-21",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-22",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-23",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-24",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-25",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-26",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-27",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-28",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-29",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-04-30",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-01",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-02",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-03",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-04",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-05",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-06",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-07",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-08",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-09",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-10",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-11",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-12",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-13",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-14",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-15",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-16",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-17",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-18",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-19",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-20",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-21",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-22",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-23",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-24",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-25",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-26",
+              "state": "not_started"
+            },
+            {
+              "date": "2026-05-27",
+              "state": "not_started"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "incidents": [
+    {
+      "id": "incident-test-29-major_outage",
+      "date": "2026-03-28",
+      "category_id": "status-bar-test",
+      "component_id": "status-bar-test-component",
+      "state": "major_outage",
+      "impact": "partial_outage",
+      "kind": "display_test",
+      "title": {
+        "ja": "表示テスト: ランタイムサービス停止",
+        "en": "Display test: runtime service outage"
+      },
+      "status_label": {
+        "ja": "解決済み",
+        "en": "Resolved"
+      },
+      "impact_label": {
+        "ja": "一部障害",
+        "en": "Partial outage"
+      },
+      "kind_label": {
+        "ja": "表示テスト",
+        "en": "Display test"
+      },
+      "summary": {
+        "ja": "これは障害発生時の詳細ページ型UIを確認するための表示テストです。実際のYonerAI監視データではありません。",
+        "en": "This is a display test for the incident detail UI. It is not real YonerAI monitoring data."
+      },
+      "description": {
+        "ja": "選択したバーの日付・状態・対象コンポーネントを使って、将来の障害詳細ページに近い情報構造を表示します。",
+        "en": "The selected bar date, state, and component are used to render an incident detail structure close to the future production page."
+      },
+      "affected": {
+        "category_id": "status-bar-test",
+        "component_id": "status-bar-test-component",
+        "start_label": "2026-03-28 08:05",
+        "end_label": "08:40",
+        "component_label": {
+          "ja": "Statusバー表示テスト",
+          "en": "Status bar display test"
+        },
+        "count_label": {
+          "ja": "1 affected component",
+          "en": "1 affected component"
+        },
+        "tooltip": {
+          "ja": "2026-03-28 08:05 → 08:40\nStatusバー表示テスト: 重大障害",
+          "en": "2026-03-28 08:05 -> 08:40\nStatus bar display test: Major outage"
+        },
+        "segments": [
+          {
+            "state": "operational",
+            "percent": 8
+          },
+          {
+            "state": "major_outage",
+            "percent": 84
+          },
+          {
+            "state": "operational",
+            "percent": 8
+          }
+        ]
+      },
+      "updates": [
+        {
+          "status": "resolved",
+          "title": {
+            "ja": "解決済み",
+            "en": "Resolved"
+          },
+          "body": {
+            "ja": "この表示テストの問題は解決済みとしてマークされました。",
+            "en": "This display test issue has been marked as resolved."
+          },
+          "time_utc": "2026-05-07 11:44 UTC",
+          "time_local": "2026-05-07 20:44 JST",
+          "state": "resolved"
+        },
+        {
+          "status": "monitoring",
+          "title": {
+            "ja": "監視中",
+            "en": "Monitoring"
+          },
+          "body": {
+            "ja": "修正パッチを適用し、自動復旧システムにより対象コンポーネントを順次復旧させています。\n\n引き続き状況を監視します。",
+            "en": "A corrective patch has been applied and affected components are being recovered.\n\nWe are continuing to monitor the situation."
+          },
+          "time_utc": "2026-05-07 11:26 UTC",
+          "time_local": "2026-05-07 20:26 JST",
+          "state": "monitoring"
+        },
+        {
+          "status": "identified",
+          "title": {
+            "ja": "原因特定",
+            "en": "Identified"
+          },
+          "body": {
+            "ja": "致命的なエラーとなった原因を確認し、修正パッチを適用している想定の更新です。",
+            "en": "The cause has been identified and a corrective patch is being applied."
+          },
+          "time_utc": "2026-05-07 11:22 UTC",
+          "time_local": "2026-05-07 20:22 JST",
+          "state": "identified"
+        },
+        {
+          "status": "investigating",
+          "title": {
+            "ja": "調査中",
+            "en": "Investigating"
+          },
+          "body": {
+            "ja": "対象サービスで異常なエラー増加を検知しました。\n\n現在エンジニアリングチームが原因を調査しています。",
+            "en": "An abnormal error increase was detected.\n\nThe engineering team is investigating."
+          },
+          "time_utc": "2026-05-07 10:39 UTC",
+          "time_local": "2026-05-07 19:39 JST",
+          "state": "investigating"
+        }
+      ]
+    },
+    {
+      "id": "incident-test-44-major_outage",
+      "date": "2026-04-12",
+      "category_id": "status-bar-test",
+      "component_id": "status-bar-test-component",
+      "state": "major_outage",
+      "impact": "partial_outage",
+      "kind": "display_test",
+      "title": {
+        "ja": "表示テスト: API応答エラー増加",
+        "en": "Display test: elevated API errors"
+      },
+      "status_label": {
+        "ja": "解決済み",
+        "en": "Resolved"
+      },
+      "impact_label": {
+        "ja": "一部障害",
+        "en": "Partial outage"
+      },
+      "kind_label": {
+        "ja": "表示テスト",
+        "en": "Display test"
+      },
+      "summary": {
+        "ja": "これは重大障害表示の表示テストです。",
+        "en": "This is a major outage display test."
+      },
+      "description": {
+        "ja": "対象コンポーネントの復旧後表示を確認します。",
+        "en": "This checks the recovered display for an affected component."
+      },
+      "affected": {
+        "category_id": "status-bar-test",
+        "component_id": "status-bar-test-component",
+        "start_label": "2026-04-12 08:05",
+        "end_label": "08:40",
+        "component_label": {
+          "ja": "Statusバー表示テスト",
+          "en": "Status bar display test"
+        },
+        "count_label": {
+          "ja": "1 affected component",
+          "en": "1 affected component"
+        },
+        "tooltip": {
+          "ja": "2026-04-12 08:05 → 08:40\nStatusバー表示テスト: 重大障害",
+          "en": "2026-04-12 08:05 -> 08:40\nStatus bar display test: Major outage"
+        },
+        "segments": [
+          {
+            "state": "operational",
+            "percent": 8
+          },
+          {
+            "state": "major_outage",
+            "percent": 84
+          },
+          {
+            "state": "operational",
+            "percent": 8
+          }
+        ]
+      },
+      "updates": [
+        {
+          "status": "resolved",
+          "title": {
+            "ja": "解決済み",
+            "en": "Resolved"
+          },
+          "body": {
+            "ja": "対象コンポーネントは復旧済みとして表示しています。",
+            "en": "Affected components are shown as recovered."
+          },
+          "time_utc": "2026-05-07 11:44 UTC",
+          "time_local": "2026-05-07 20:44 JST",
+          "state": "resolved"
+        }
+      ]
+    },
+    {
+      "id": "incident-test-53-major_outage",
+      "date": "2026-04-21",
+      "category_id": "status-bar-test",
+      "component_id": "status-bar-test-component",
+      "state": "major_outage",
+      "impact": "partial_outage",
+      "kind": "display_test",
+      "title": {
+        "ja": "表示テスト: 重大障害表示",
+        "en": "Display test: major outage state"
+      },
+      "status_label": {
+        "ja": "解決済み",
+        "en": "Resolved"
+      },
+      "impact_label": {
+        "ja": "一部障害",
+        "en": "Partial outage"
+      },
+      "kind_label": {
+        "ja": "表示テスト",
+        "en": "Display test"
+      },
+      "summary": {
+        "ja": "重大障害表示のUI確認用データです。",
+        "en": "This is data for checking the major outage UI."
+      },
+      "description": {
+        "ja": "タイムラインと影響コンポーネントの表示を確認します。",
+        "en": "This checks timeline and affected component display."
+      },
+      "affected": {
+        "category_id": "status-bar-test",
+        "component_id": "status-bar-test-component",
+        "start_label": "2026-04-21 08:05",
+        "end_label": "08:40",
+        "component_label": {
+          "ja": "Statusバー表示テスト",
+          "en": "Status bar display test"
+        },
+        "count_label": {
+          "ja": "1 affected component",
+          "en": "1 affected component"
+        },
+        "tooltip": {
+          "ja": "2026-04-21 08:05 → 08:40\nStatusバー表示テスト: 重大障害",
+          "en": "2026-04-21 08:05 -> 08:40\nStatus bar display test: Major outage"
+        },
+        "segments": [
+          {
+            "state": "operational",
+            "percent": 8
+          },
+          {
+            "state": "major_outage",
+            "percent": 84
+          },
+          {
+            "state": "operational",
+            "percent": 8
+          }
+        ]
+      },
+      "updates": [
+        {
+          "status": "resolved",
+          "title": {
+            "ja": "解決済み",
+            "en": "Resolved"
+          },
+          "body": {
+            "ja": "重大障害表示テストは終了しました。",
+            "en": "The major outage display test has ended."
+          },
+          "time_utc": "2026-05-07 11:44 UTC",
+          "time_local": "2026-05-07 20:44 JST",
+          "state": "resolved"
+        }
+      ]
+    },
+    {
+      "id": "incident-test-59-degraded",
+      "date": "2026-04-26",
+      "category_id": "status-bar-test",
+      "component_id": "status-bar-test-component",
+      "state": "degraded",
+      "impact": "degraded",
+      "kind": "display_test",
+      "title": {
+        "ja": "表示テスト: 性能低下",
+        "en": "Display test: degraded performance"
+      },
+      "status_label": {
+        "ja": "解決済み",
+        "en": "Resolved"
+      },
+      "impact_label": {
+        "ja": "性能低下",
+        "en": "Degraded"
+      },
+      "kind_label": {
+        "ja": "表示テスト",
+        "en": "Display test"
+      },
+      "summary": {
+        "ja": "性能低下バーの表示テストです。",
+        "en": "This is a degraded bar display test."
+      },
+      "description": {
+        "ja": "黄色系バーの選択、ホバー、詳細表示を確認します。",
+        "en": "This checks selection, hover, and details for a degraded bar."
+      },
+      "updates": [
+        {
+          "status": "monitoring",
+          "title": {
+            "ja": "監視中",
+            "en": "Monitoring"
+          },
+          "body": {
+            "ja": "性能低下バーの色、ハイライト、詳細表示を確認しています。",
+            "en": "The degraded bar color, highlight, and detail display are being checked."
+          },
+          "time_utc": "2026-05-07 10:39 UTC",
+          "time_local": "2026-05-07 19:39 JST",
+          "state": "monitoring"
+        }
+      ]
+    },
+    {
+      "id": "incident-test-81-maintenance",
+      "date": "2026-05-20",
+      "category_id": "status-bar-test",
+      "component_id": "status-bar-test-component",
+      "state": "maintenance",
+      "impact": "maintenance",
+      "kind": "display_test",
+      "title": {
+        "ja": "表示テスト: メンテナンス",
+        "en": "Display test: maintenance"
+      },
+      "status_label": {
+        "ja": "解決済み",
+        "en": "Resolved"
+      },
+      "impact_label": {
+        "ja": "メンテナンス",
+        "en": "Maintenance"
+      },
+      "kind_label": {
+        "ja": "表示テスト",
+        "en": "Display test"
+      },
+      "summary": {
+        "ja": "メンテナンス表示テストです。",
+        "en": "This is a maintenance display test."
+      },
+      "description": {
+        "ja": "メンテナンス時系列の表示を確認します。",
+        "en": "This checks maintenance timeline display."
+      },
+      "affected": {
+        "category_id": "status-bar-test",
+        "component_id": "status-bar-test-component",
+        "start_label": "2026-05-20 08:05",
+        "end_label": "08:40",
+        "component_label": {
+          "ja": "Statusバー表示テスト",
+          "en": "Status bar display test"
+        },
+        "count_label": {
+          "ja": "1 affected component",
+          "en": "1 affected component"
+        },
+        "tooltip": {
+          "ja": "2026-05-20 08:05 → 08:40\nStatusバー表示テスト: メンテナンス",
+          "en": "2026-05-20 08:05 -> 08:40\nStatus bar display test: Maintenance"
+        },
+        "segments": [
+          {
+            "state": "operational",
+            "percent": 8
+          },
+          {
+            "state": "maintenance",
+            "percent": 84
+          },
+          {
+            "state": "operational",
+            "percent": 8
+          }
+        ]
+      },
+      "updates": [
+        {
+          "status": "resolved",
+          "title": {
+            "ja": "完了",
+            "en": "Completed"
+          },
+          "body": {
+            "ja": "メンテナンス表示テストは完了としてマークされました。",
+            "en": "The maintenance display test was marked complete."
+          },
+          "time_utc": "2026-05-07 11:00 UTC",
+          "time_local": "2026-05-07 20:00 JST",
+          "state": "resolved"
+        },
+        {
+          "status": "maintenance",
+          "title": {
+            "ja": "実施中",
+            "en": "In progress"
+          },
+          "body": {
+            "ja": "メンテナンスウィンドウ内の更新として表示しています。",
+            "en": "This is displayed as an update inside a maintenance window."
+          },
+          "time_utc": "2026-05-07 10:30 UTC",
+          "time_local": "2026-05-07 19:30 JST",
+          "state": "maintenance"
+        }
+      ]
+    },
+    {
+      "id": "incident-test-89-major_outage",
+      "date": "2026-05-27",
+      "category_id": "status-bar-test",
+      "component_id": "status-bar-test-component",
+      "state": "major_outage",
+      "impact": "partial_outage",
+      "kind": "display_test",
+      "title": {
+        "ja": "表示テスト: 右端バー重大障害",
+        "en": "Display test: edge bar major outage"
+      },
+      "status_label": {
+        "ja": "解決済み",
+        "en": "Resolved"
+      },
+      "impact_label": {
+        "ja": "一部障害",
+        "en": "Partial outage"
+      },
+      "kind_label": {
+        "ja": "表示テスト",
+        "en": "Display test"
+      },
+      "summary": {
+        "ja": "右端付近のバー選択とハイライトを確認する表示です。",
+        "en": "This verifies edge-bar selection and highlight behavior."
+      },
+      "description": {
+        "ja": "ホバー、選択、詳細パネルの連動を確認します。",
+        "en": "This checks hover, selection, and detail panel linking."
+      },
+      "updates": [
+        {
+          "status": "resolved",
+          "title": {
+            "ja": "解決済み",
+            "en": "Resolved"
+          },
+          "body": {
+            "ja": "右端付近のバー選択とハイライトを確認するための表示です。",
+            "en": "This verifies edge-bar selection and highlight behavior."
+          },
+          "time_utc": "2026-05-07 11:44 UTC",
+          "time_local": "2026-05-07 20:44 JST",
+          "state": "resolved"
+        }
+      ]
+    }
+  ]
+}

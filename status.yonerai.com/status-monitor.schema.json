@@ -1,0 +1,464 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://status.yonerai.com/status-monitor.schema.json",
+  "title": "YonerAI Status monitor result v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "range",
+    "categories"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "yonerai.status.monitor.v1"
+    },
+    "generated_at": {
+      "type": "string"
+    },
+    "locale_default": {
+      "type": "string",
+      "enum": [
+        "ja",
+        "en"
+      ]
+    },
+    "range": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "start",
+        "days"
+      ],
+      "properties": {
+        "start": {
+          "$ref": "#/$defs/date"
+        },
+        "days": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 120
+        }
+      }
+    },
+    "contract_note": {
+      "$ref": "#/$defs/localizedText"
+    },
+    "states": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "color": {
+            "type": "string",
+            "pattern": "^#[0-9a-fA-F]{6}$"
+          },
+          "label": {
+            "$ref": "#/$defs/localizedText"
+          },
+          "className": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "categories": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/monitorCategory"
+      }
+    },
+    "incidents": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/publicIncident"
+      }
+    }
+  },
+  "$defs": {
+    "date": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._-]+$",
+      "not": {
+        "const": "__category__"
+      }
+    },
+    "state": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._-]+$"
+    },
+    "localizedText": {
+      "oneOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "minProperties": 1,
+          "properties": {
+            "ja": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              ]
+            },
+            "en": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/localizedText"
+          }
+        }
+      ]
+    },
+    "monitorCategory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "name": {
+          "$ref": "#/$defs/localizedText"
+        },
+        "description": {
+          "$ref": "#/$defs/localizedText"
+        },
+        "children": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/monitorComponent"
+          }
+        },
+        "components": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/monitorComponent"
+          }
+        }
+      },
+      "oneOf": [
+        {
+          "required": [
+            "children"
+          ]
+        },
+        {
+          "required": [
+            "components"
+          ]
+        }
+      ]
+    },
+    "monitorComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "default_state"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "name": {
+          "$ref": "#/$defs/localizedText"
+        },
+        "fact": {
+          "$ref": "#/$defs/localizedText"
+        },
+        "monitoring": {
+          "$ref": "#/$defs/localizedText"
+        },
+        "claim": {
+          "$ref": "#/$defs/localizedText"
+        },
+        "state": {
+          "$ref": "#/$defs/state"
+        },
+        "default_state": {
+          "$ref": "#/$defs/state"
+        },
+        "default_message": {
+          "$ref": "#/$defs/localizedText"
+        },
+        "results": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/monitorResult"
+          }
+        }
+      }
+    },
+    "monitorResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "date",
+        "state"
+      ],
+      "properties": {
+        "date": {
+          "$ref": "#/$defs/date"
+        },
+        "state": {
+          "$ref": "#/$defs/state"
+        },
+        "label": {
+          "$ref": "#/$defs/localizedText"
+        },
+        "message": {
+          "$ref": "#/$defs/localizedText"
+        },
+        "detail": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/localizedText"
+            },
+            {
+              "type": "object",
+              "additionalProperties": true,
+              "properties": {
+                "title": {
+                  "$ref": "#/$defs/localizedText"
+                },
+                "summary": {
+                  "$ref": "#/$defs/localizedText"
+                }
+              }
+            }
+          ]
+        },
+        "color": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "date_label": {
+          "$ref": "#/$defs/localizedText"
+        },
+        "incident_id": {
+          "$ref": "#/$defs/id"
+        },
+        "source": {
+          "type": "string"
+        }
+      }
+    },
+    "publicIncident": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "id",
+        "state",
+        "title"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "state": {
+          "$ref": "#/$defs/state"
+        },
+        "status": {
+          "type": "string"
+        },
+        "date": {
+          "$ref": "#/$defs/date"
+        },
+        "title": {
+          "$ref": "#/$defs/localizedText"
+        },
+        "meta": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/localizedText"
+          }
+        },
+        "summary": {
+          "$ref": "#/$defs/localizedText"
+        },
+        "footer": {
+          "$ref": "#/$defs/localizedText"
+        },
+        "affected": {
+          "$ref": "#/$defs/affected"
+        },
+        "updates": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/incidentUpdate"
+          }
+        }
+      }
+    },
+    "affected": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/localizedText"
+        },
+        "count": {
+          "$ref": "#/$defs/localizedText"
+        },
+        "category_id": {
+          "$ref": "#/$defs/id"
+        },
+        "component_id": {
+          "$ref": "#/$defs/id"
+        },
+        "components": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/affectedComponent"
+          }
+        },
+        "segments": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/affectedSegment"
+          }
+        },
+        "window": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "start_label": {
+              "$ref": "#/$defs/localizedText"
+            },
+            "end_label": {
+              "$ref": "#/$defs/localizedText"
+            }
+          }
+        }
+      }
+    },
+    "affectedComponent": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "category_id",
+        "component_id"
+      ],
+      "properties": {
+        "category_id": {
+          "$ref": "#/$defs/id"
+        },
+        "component_id": {
+          "$ref": "#/$defs/id"
+        },
+        "name": {
+          "$ref": "#/$defs/localizedText"
+        },
+        "state": {
+          "$ref": "#/$defs/state"
+        },
+        "date": {
+          "$ref": "#/$defs/date"
+        },
+        "end_date": {
+          "$ref": "#/$defs/date"
+        },
+        "date_label": {
+          "$ref": "#/$defs/localizedText"
+        },
+        "end_date_label": {
+          "$ref": "#/$defs/localizedText"
+        }
+      }
+    },
+    "affectedSegment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "percent"
+      ],
+      "properties": {
+        "state": {
+          "$ref": "#/$defs/state"
+        },
+        "percent": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "color": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "tooltip": {
+          "$ref": "#/$defs/localizedText"
+        }
+      }
+    },
+    "incidentUpdate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "label",
+        "body"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "minLength": 1
+        },
+        "label": {
+          "$ref": "#/$defs/localizedText"
+        },
+        "body": {
+          "$ref": "#/$defs/localizedText"
+        },
+        "utc": {
+          "type": "string",
+          "minLength": 1
+        },
+        "jst": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}
