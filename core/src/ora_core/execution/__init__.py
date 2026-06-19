@@ -11,6 +11,19 @@ from .ledger import (
     InMemoryRunLedger,
     build_run_ledger_from_env,
 )
+from .legacy_text import legacy_text_normalizer_status, normalize_legacy_generated_text
+
+
+def build_auto_runtime_report(*args, **kwargs):
+    from .auto_runtime import build_auto_runtime_report as _build_auto_runtime_report
+
+    return _build_auto_runtime_report(*args, **kwargs)
+
+
+def build_auto_runtime_status_report(*args, **kwargs):
+    from .auto_runtime import build_auto_runtime_status_report as _build_auto_runtime_status_report
+
+    return _build_auto_runtime_status_report(*args, **kwargs)
 
 
 def execute_task(*args, **kwargs):
@@ -35,7 +48,11 @@ __all__ = [
     "InMemoryRunLedger",
     "SearchBoundaryAdapter",
     "ToolBoundaryAdapter",
+    "build_auto_runtime_report",
+    "build_auto_runtime_status_report",
     "build_boundary_checks_for_task",
     "build_run_ledger_from_env",
     "execute_task",
+    "legacy_text_normalizer_status",
+    "normalize_legacy_generated_text",
 ]

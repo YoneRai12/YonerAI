@@ -24,9 +24,11 @@ _SECRET_PATTERNS = (
     re.compile(r"sk-[A-Za-z0-9_-]{10,}"),
     re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
     re.compile(
-        r"(api[_-]?key|access[_-]?token|refresh[_-]?token|discord[_-]?token|private[_-]?key|client[_-]?secret|authorization)",
+        r"(?:api[_-]?key|access[_-]?token|refresh[_-]?token|discord[_-]?token|private[_-]?key|client[_-]?secret)\s*(?:=|:)\s*[^\s,;]+",
         re.IGNORECASE,
     ),
+    re.compile(r"authorization\s*:\s*bearer\s+[^\s,;]+", re.IGNORECASE),
+    re.compile(r"authorization\s+bearer\s+[^\s,;]+", re.IGNORECASE),
 )
 
 
@@ -58,6 +60,7 @@ class ExecutionRun:
     disabled_reason: str | None = None
     error_summary: str | None = None
     result_summary: str | None = None
+    memory_used: list[str] = field(default_factory=list)
 
     def to_public_dict(self) -> dict[str, object]:
         return {
@@ -75,11 +78,13 @@ class ExecutionRun:
             "disabled_reason": self.disabled_reason,
             "error_summary": self.error_summary,
             "result_summary": self.result_summary,
+            "memory_used": list(self.memory_used),
             "persistence": {
                 "raw_prompt_persisted": False,
                 "raw_completion_persisted": False,
                 "provider_key_persisted": False,
-                "memory_persisted": False,
+                "memory_persisted": bool(self.memory_used),
+                "raw_memory_content_persisted": False,
             },
         }
 
@@ -114,6 +119,7 @@ class ExecutionRun:
             disabled_reason=_optional_text(payload.get("disabled_reason")),
             error_summary=_optional_text(payload.get("error_summary")),
             result_summary=_optional_text(payload.get("result_summary")),
+            memory_used=_safe_memory_ids(payload.get("memory_used")),
         )
 
 
@@ -131,6 +137,9 @@ class RunLedger(Protocol):
         ...
 
     def append_event(self, run_id: RunId, name: str, status: str, summary: str) -> ExecutionRun:
+        ...
+
+    def record_memory_usage(self, run_id: RunId, memory_ids: list[str]) -> ExecutionRun:
         ...
 
     def complete_run(self, run_id: RunId, *, result_summary: str | None = None) -> ExecutionRun:
@@ -194,6 +203,13 @@ class InMemoryRunLedger:
         self._persist()
         return run
 
+    def record_memory_usage(self, run_id: RunId, memory_ids: list[str]) -> ExecutionRun:
+        run = self._require_run(run_id)
+        run.memory_used = _safe_memory_ids(memory_ids)
+        run.updated_at = _now()
+        self._persist()
+        return run
+
     def complete_run(self, run_id: RunId, *, result_summary: str | None = None) -> ExecutionRun:
         run = self._require_run(run_id)
         run.status = "completed"
@@ -250,9 +266,27 @@ class FileRunLedger(InMemoryRunLedger):
                 self._runs[run.run_id] = run
 
     def _persist(self) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         payload = "\n".join(json.dumps(run.to_public_dict(), ensure_ascii=False, sort_keys=True) for run in self.list_runs(limit=1000))
-        self.path.write_text(payload + ("\n" if payload else ""), encoding="utf-8")
+        _write_private_text(self.path, payload + ("\n" if payload else ""))
+
+
+def _write_private_text(path: Path, text: str) -> None:
+    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
+    opener_flags = flags | getattr(os, "O_NOFOLLOW", 0)
+    fd = os.open(path, opener_flags, 0o600)
+    try:
+        if hasattr(os, "fchmod"):
+            try:
+                os.fchmod(fd, 0o600)
+            except OSError:
+                pass
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            fd = -1
+            handle.write(text)
+    finally:
+        if fd != -1:
+            os.close(fd)
 
 
 def build_run_ledger_from_env(path: str | None = None) -> RunLedger:
@@ -270,6 +304,9 @@ def safe_summary(value: object, *, max_chars: int = 500) -> str:
     text = " ".join(str(value or "").split())
     if not text:
         return ""
+    from .legacy_text import normalize_legacy_generated_text
+
+    text = normalize_legacy_generated_text(text)
     try:
         from src.utils.redaction import redact_text
 
@@ -304,3 +341,16 @@ def _optional_text(value: object) -> str | None:
         return None
     text = safe_summary(value)
     return text or None
+
+
+def _safe_memory_ids(value: object) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    ids: list[str] = []
+    for item in value:
+        text = safe_summary(item, max_chars=80)
+        if not re.fullmatch(r"mem_[A-Za-z0-9_-]{6,40}", text):
+            continue
+        if text not in ids:
+            ids.append(text)
+    return ids[:20]

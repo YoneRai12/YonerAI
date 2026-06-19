@@ -34,6 +34,12 @@ def test_public_docs_route_is_contract_only_in_managed_cloud() -> None:
     assert decision.disabled is False
     assert "preview_only_no_execution" in decision.non_claims
     assert "official_managed_cloud_runtime_not_in_public_repo" in decision.non_claims
+    payload = decision.to_public_dict()
+    assert payload["route_strategy"] == "cloud_contract_only"
+    assert payload["privacy_class"] == "public"
+    assert payload["cloud_escape_reason"] == "official_managed_cloud_runtime_not_included_in_public_repo"
+    assert payload["cloud_escape_erased_approval_audit_args_hash"] is False
+    assert payload["audit_requirements"]["cloud_escape_preserves_approval"] is True
 
 
 def test_managed_cloud_refuses_private_file_access() -> None:
@@ -59,14 +65,178 @@ def test_hybrid_private_routes_private_file_work_to_local_node_requirement() -> 
     )
 
     assert missing_node.route == "local_node_required"
+    assert missing_node.to_public_dict()["route_strategy"] == "deny"
     assert missing_node.local_node_required is True
     assert missing_node.approval_required is True
     assert missing_node.unavailable_reason == "local_node_missing"
     assert with_node.route == "hybrid_coordination_preview"
+    assert with_node.to_public_dict()["route_strategy"] == "hybrid"
     assert with_node.private_data_allowed is True
     assert with_node.approval_required is True
     assert with_node.signed_origin_verified is False
     assert with_node.public_repo_execution_available is False
+
+
+def test_hybrid_public_reasoning_can_be_cloud_contract_candidate_without_private_content() -> None:
+    route_preview = _load_route_preview_module()
+
+    decision = route_preview.preview_route(
+        "hard public reasoning over public API docs",
+        mode="official_hybrid_private",
+    )
+    payload = decision.to_public_dict()
+
+    assert decision.route == "cloud_contract_candidate"
+    assert payload["route_strategy"] == "cloud_contract_candidate"
+    assert decision.requested_capability == "cloud_orchestration"
+    assert payload["task_class"] == "public_reasoning"
+    assert payload["privacy_class"] == "public"
+    assert decision.cloud_allowed is True
+    assert decision.approval_required is True
+    assert payload["cloud_contract_candidate"] is True
+    assert payload["audit_requirements"]["cloud_escape"] is True
+    assert payload["audit_requirements"]["cloud_escape_preserves_approval"] is True
+    assert payload["audit_requirements"]["cloud_escape_preserves_args_hash"] is True
+    assert payload["audit_requirements"]["args_hash_required"] is True
+    assert payload["private_file_content_sent_to_cloud"] is False
+    assert payload["provider_key_sent_to_cloud"] is False
+    assert payload["raw_prompt_body_sent_to_cloud"] is False
+    assert payload["oracle_stub_eligible"] is True
+    assert payload["oracle_stub_status"] == "eligible_local_dev_stub"
+
+
+def test_hybrid_public_reasoning_with_dangerous_terms_is_not_downgraded_to_cloud_candidate() -> None:
+    route_preview = _load_route_preview_module()
+
+    decision = route_preview.preview_route(
+        "hard public reasoning to format disk",
+        mode="official_hybrid_private",
+    )
+    payload = decision.to_public_dict()
+
+    assert decision.route == "local_node_required"
+    assert payload["route_strategy"] == "deny"
+    assert payload["task_class"] == "dangerous"
+    assert decision.requested_capability == "dangerous_operations"
+    assert decision.dangerous_operation is True
+    assert payload["privacy_class"] == "restricted"
+    assert payload["cloud_contract_candidate"] is False
+    assert payload["oracle_stub_eligible"] is False
+    assert payload["oracle_stub_status"] == "not_eligible"
+
+
+def test_delete_terms_are_classified_as_dangerous_before_pc_operation() -> None:
+    route_preview = _load_route_preview_module()
+
+    decision = route_preview.preview_route(
+        "delete public docs after hard public reasoning",
+        mode="official_hybrid_private",
+    )
+    payload = decision.to_public_dict()
+
+    assert payload["task_class"] == "dangerous"
+    assert decision.requested_capability == "dangerous_operations"
+    assert payload["route_strategy"] == "deny"
+    assert payload["cloud_contract_candidate"] is False
+    assert payload["oracle_stub_eligible"] is False
+
+
+def test_deployment_word_variants_do_not_bypass_disabled_gate() -> None:
+    route_preview = _load_route_preview_module()
+
+    for task in (
+        "deploying the production service",
+        "redeploy public docs service",
+        "redeploying production",
+        "redeployment plan",
+    ):
+        decision = route_preview.preview_route(task, mode="official_hybrid_private")
+        payload = decision.to_public_dict()
+
+        assert decision.operation_class == "deployment"
+        assert decision.requested_capability == "production_deploy"
+        assert decision.route == "disabled"
+        assert decision.unavailable_reason == "capability_disabled"
+        assert payload["route_strategy"] == "deny"
+        assert payload["cloud_contract_candidate"] is False
+        assert payload["oracle_stub_eligible"] is False
+
+
+def test_route_keyword_matching_avoids_partial_word_false_positives() -> None:
+    route_preview = _load_route_preview_module()
+
+    undelete_decision = route_preview.preview_route(
+        "explain undelete behavior in public docs",
+        mode="official_hybrid_private",
+    )
+    indestructible_decision = route_preview.preview_route(
+        "summarize indestructible public material",
+        mode="official_hybrid_private",
+    )
+    run_decision = route_preview.preview_route(
+        "start the run",
+        mode="official_hybrid_private",
+    )
+    pc_operations_decision = route_preview.preview_route(
+        "plan pc operations",
+        mode="official_hybrid_private",
+    )
+
+    assert undelete_decision.operation_class == "public_docs"
+    assert indestructible_decision.operation_class == "public_docs"
+    assert run_decision.operation_class == "pc_operation"
+    assert pc_operations_decision.operation_class == "pc_operation"
+
+
+def test_plural_private_file_terms_still_block_cloud_candidate() -> None:
+    route_preview = _load_route_preview_module()
+
+    decision = route_preview.preview_route(
+        "hard public reasoning over my private files",
+        mode="official_hybrid_private",
+    )
+    payload = decision.to_public_dict()
+
+    assert decision.operation_class == "private_data"
+    assert payload["route_strategy"] == "deny"
+    assert payload["privacy_class"] == "private"
+    assert payload["cloud_contract_candidate"] is False
+    assert payload["private_file_content_sent_to_cloud"] is False
+    assert payload["oracle_stub_eligible"] is False
+
+
+def test_plural_local_tool_terms_stay_local_gated() -> None:
+    route_preview = _load_route_preview_module()
+
+    local_tools_decision = route_preview.preview_route(
+        "reason over public data in local tools",
+        mode="official_hybrid_private",
+    )
+    tool_executions_decision = route_preview.preview_route(
+        "plan tool executions over public data",
+        mode="official_hybrid_private",
+    )
+
+    assert local_tools_decision.operation_class == "local_tool"
+    assert local_tools_decision.to_public_dict()["route_strategy"] == "deny"
+    assert tool_executions_decision.operation_class == "local_tool"
+    assert tool_executions_decision.to_public_dict()["route_strategy"] == "deny"
+
+
+def test_hybrid_private_reasoning_with_private_file_stays_local_node_gated() -> None:
+    route_preview = _load_route_preview_module()
+
+    decision = route_preview.preview_route(
+        "hard reasoning over my private file",
+        mode="official_hybrid_private",
+    )
+    payload = decision.to_public_dict()
+
+    assert decision.route == "local_node_required"
+    assert payload["route_strategy"] == "deny"
+    assert payload["privacy_class"] == "private"
+    assert payload["cloud_contract_candidate"] is False
+    assert payload["private_file_content_sent_to_cloud"] is False
 
 
 def test_shell_command_preview_requires_local_node_and_approval() -> None:
@@ -79,6 +249,7 @@ def test_shell_command_preview_requires_local_node_and_approval() -> None:
     )
 
     assert decision.route == "hybrid_coordination_preview"
+    assert decision.to_public_dict()["route_strategy"] == "hybrid"
     assert decision.requested_capability == "pc_operations"
     assert decision.local_node_required is True
     assert decision.approval_required is True
@@ -253,12 +424,54 @@ def test_self_host_routes_local_work_to_owner_responsibility() -> None:
     decision = route_preview.preview_route("run local heavy work", mode="full_private_self_host", has_local_node=True)
 
     assert decision.route == "self_host_local_preview"
+    assert decision.to_public_dict()["route_strategy"] == "local_only"
     assert decision.cloud_allowed is False
     assert decision.approval_required is True
     assert decision.local_node_required is False
     assert decision.runtime_available_in_public_repo is True
     assert decision.public_repo_support_status == "public_local_supported"
     assert decision.public_repo_execution_available is False
+
+
+def test_self_host_public_docs_are_local_preferred() -> None:
+    route_preview = _load_route_preview_module()
+
+    decision = route_preview.preview_route("summarize public docs", mode="full_private_self_host", has_local_node=True)
+
+    assert decision.route == "self_host_local_preview"
+    assert decision.to_public_dict()["route_strategy"] == "local_preferred"
+
+
+def test_self_host_public_reasoning_is_local_preferred() -> None:
+    route_preview = _load_route_preview_module()
+
+    decision = route_preview.preview_route(
+        "hard public reasoning over public API docs",
+        mode="full_private_self_host",
+        has_local_node=True,
+    )
+
+    assert decision.route == "self_host_local_preview"
+    assert decision.operation_class == "public_reasoning"
+    assert decision.requested_capability == "local_tools"
+    assert decision.to_public_dict()["route_strategy"] == "local_preferred"
+
+
+def test_snake_case_dangerous_risk_hint_is_denied() -> None:
+    route_preview = _load_route_preview_module()
+
+    decision = route_preview.preview_route(
+        "hard public reasoning over public API docs",
+        mode="official_hybrid_private",
+        risk_hint="dangerous_operation",
+    )
+    payload = decision.to_public_dict()
+
+    assert decision.operation_class == "dangerous"
+    assert decision.dangerous_operation is True
+    assert payload["route_strategy"] == "deny"
+    assert payload["approval_state"] == "required"
+    assert payload["cloud_contract_candidate"] is False
 
 
 def test_unknown_requested_capability_is_disabled() -> None:

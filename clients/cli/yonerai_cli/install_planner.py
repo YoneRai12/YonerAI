@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import os
 import re
+import shlex
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -17,7 +19,132 @@ from yonerai_cli.release_manifest import (
 INSTALL_PLAN_SCHEMA_VERSION = "yonerai-install-plan/v0.1"
 WINDOWS_INSTALL_PLAN_SCHEMA_VERSION = "yonerai-windows-install-plan/v0.1"
 UPDATE_PLAN_SCHEMA_VERSION = "yonerai-update-plan/v0.1"
+UPDATE_CHECK_SCHEMA_VERSION = "yonerai-update-check/v0.1"
 SHA256_RE = re.compile(r"^[a-f0-9]{64}$")
+LATEST_STABLE_VERSION = "0.8.1"
+YONERAI_INSTALL_PAGE = "https://yonerai.com/install"
+GITHUB_LATEST_INSTALL_BASE_URL = "https://github.com/YoneRai12/YonerAI/releases/latest/download"
+GITHUB_RELEASE_DOWNLOAD_BASE_URL = "https://github.com/YoneRai12/YonerAI/releases/download"
+TRUSTED_INSTALL_RELEASE_TAG = f"v{LATEST_STABLE_VERSION}"
+TRUSTED_INSTALL_SCRIPT_SHA256 = "a52c3f918bd45e7fe87b7a396c80b879ede4bccdf16a7efdf05320388eaa9fea"
+TRUSTED_INSTALL_SCRIPT_SHA256_BY_TAG = {
+    TRUSTED_INSTALL_RELEASE_TAG: TRUSTED_INSTALL_SCRIPT_SHA256,
+}
+GITHUB_TRUSTED_INSTALL_BASE_URL = f"{GITHUB_RELEASE_DOWNLOAD_BASE_URL}/{TRUSTED_INSTALL_RELEASE_TAG}"
+QUICK_INSTALL_COMMAND = "irm https://install.yonerai.com | iex"
+GITHUB_INSTALL_FALLBACK_COMMAND = (
+    "$ErrorActionPreference='Stop'; "
+    f"$base='{GITHUB_TRUSTED_INSTALL_BASE_URL}'; "
+    f"$expected='{TRUSTED_INSTALL_SCRIPT_SHA256}'; "
+    "$tmp=Join-Path ([System.IO.Path]::GetTempPath()) "
+    "('yonerai-bootstrap-'+[System.Guid]::NewGuid().ToString('N')); "
+    "New-Item -ItemType Directory -Path $tmp | Out-Null; "
+    "try { "
+    "$script=Join-Path $tmp 'install.ps1'; "
+    "$sidecar=Join-Path $tmp 'install.ps1.sha256'; "
+    'irm "$base/install.ps1" -OutFile $script; '
+    'irm "$base/install.ps1.sha256" -OutFile $sidecar; '
+    "$sidecarExpected=((Get-Content -LiteralPath $sidecar -Raw) -split '\\s+')[0].ToLowerInvariant(); "
+    "if ($sidecarExpected -notmatch '^[a-f0-9]{64}$') { throw 'install.ps1 sidecar SHA256 is invalid' }; "
+    "if ($sidecarExpected -ne $expected) { throw 'install.ps1 sidecar does not match trusted digest' }; "
+    "$actual=(Get-FileHash -LiteralPath $script -Algorithm SHA256).Hash.ToLowerInvariant(); "
+    "if ($actual -ne $expected) { throw 'install.ps1 hash mismatch' }; "
+    "$scriptText=Get-Content -LiteralPath $script -Raw; "
+    "if ($scriptText -notmatch 'Invoke-VerifiedLocalBootstrap' -or "
+    "$scriptText -match 'install.ps1 is still plan-only') { "
+    "throw 'install.ps1 is not an executable bootstrap. Refusing to launch.' "
+    "}; "
+    "& (Get-Process -Id $PID).Path -NoProfile -ExecutionPolicy Bypass -File $script -Execute -Launch "
+    "} finally { "
+    "if (Test-Path -LiteralPath $tmp) { Remove-Item -LiteralPath $tmp -Recurse -Force } "
+    "}"
+)
+VERIFIED_INSTALL_COMMAND = (
+    "$ErrorActionPreference='Stop'; "
+    f"$base='{GITHUB_TRUSTED_INSTALL_BASE_URL}'; "
+    f"$expected='{TRUSTED_INSTALL_SCRIPT_SHA256}'; "
+    "$tmp=Join-Path ([System.IO.Path]::GetTempPath()) "
+    "('yonerai-bootstrap-'+[System.Guid]::NewGuid().ToString('N')); "
+    "New-Item -ItemType Directory -Path $tmp | Out-Null; "
+    "try { "
+    "$script=Join-Path $tmp 'install.ps1'; "
+    "$sidecar=Join-Path $tmp 'install.ps1.sha256'; "
+    'irm "$base/install.ps1" -OutFile $script; '
+    'irm "$base/install.ps1.sha256" -OutFile $sidecar; '
+    "$sidecarExpected=((Get-Content -LiteralPath $sidecar -Raw) -split '\\s+')[0].ToLowerInvariant(); "
+    "if ($sidecarExpected -notmatch '^[a-f0-9]{64}$') { throw 'install.ps1 sidecar SHA256 is invalid' }; "
+    "if ($sidecarExpected -ne $expected) { throw 'install.ps1 sidecar does not match trusted digest' }; "
+    "$actual=(Get-FileHash -LiteralPath $script -Algorithm SHA256).Hash.ToLowerInvariant(); "
+    "if ($actual -ne $expected) { throw 'install.ps1 hash mismatch' }; "
+    "$scriptText=Get-Content -LiteralPath $script -Raw; "
+    "if ($scriptText -notmatch 'Invoke-VerifiedLocalBootstrap' -or "
+    "$scriptText -match 'install.ps1 is still plan-only') { "
+    "throw 'install.ps1 is not an executable bootstrap. Refusing to launch.' "
+    "}; "
+    "& (Get-Process -Id $PID).Path -NoProfile -ExecutionPolicy Bypass -File $script -Execute -Launch "
+    "} finally { "
+    "if (Test-Path -LiteralPath $tmp) { Remove-Item -LiteralPath $tmp -Recurse -Force } "
+    "}"
+)
+FORCED_UPDATE_ENABLED = False
+AUTO_UPDATE_APPLY_ENABLED = False
+
+
+def build_deferred_update_policy(*, update_available: bool = False) -> dict[str, Any]:
+    update_class = "normal" if update_available else "none"
+    return {
+        "schema_version": "yonerai-deferred-update-policy/v0.1",
+        "update_class": update_class,
+        "normal_update": bool(update_available),
+        "recommended_update": bool(update_available),
+        "security_update": False,
+        "critical_update": False,
+        "active_session_behavior": "warn_only_do_not_interrupt",
+        "after_task_behavior": "show_update_prompt_if_notice_enabled",
+        "next_startup_behavior": "show_update_screen_first_only_if_critical",
+        "basic_local_mock_chat_allowed": True,
+        "auto_apply_enabled": False,
+        "forced_silent_update_enabled": False,
+        "risk_feature_restrictions_if_critical": [
+            "live_external_provider",
+            "cloud_contract_candidate",
+            "shared_traffic",
+        ],
+        "actions_not_performed": [
+            "no silent update",
+            "no auto-apply update",
+            "no forced update",
+            "no PATH mutation",
+            "no service install",
+            "no registry modification",
+            "no admin request",
+        ],
+    }
+
+
+def build_install_update_status() -> dict[str, Any]:
+    return {
+        "latest_stable": LATEST_STABLE_VERSION,
+        "stable_channel_default": True,
+        "alpha_requires_explicit_channel": True,
+        "quick_install_command": QUICK_INSTALL_COMMAND,
+        "github_install_fallback_command": GITHUB_INSTALL_FALLBACK_COMMAND,
+        "verified_install_command": VERIFIED_INSTALL_COMMAND,
+        "verified_install_page": YONERAI_INSTALL_PAGE,
+        "github_latest_install_base_url": GITHUB_LATEST_INSTALL_BASE_URL,
+        "github_trusted_install_base_url": GITHUB_TRUSTED_INSTALL_BASE_URL,
+        "trusted_install_release_tag": TRUSTED_INSTALL_RELEASE_TAG,
+        "trusted_install_script_sha256": TRUSTED_INSTALL_SCRIPT_SHA256,
+        "trusted_install_script_sha256_by_tag": dict(TRUSTED_INSTALL_SCRIPT_SHA256_BY_TAG),
+        "forced_update_enabled": FORCED_UPDATE_ENABLED,
+        "auto_update_apply_enabled": AUTO_UPDATE_APPLY_ENABLED,
+        "security_update": False,
+        "critical_update": False,
+        "update_policy": build_deferred_update_policy(update_available=False),
+        "forced_update_policy": "disabled",
+        "no_forced_update": not FORCED_UPDATE_ENABLED,
+        "no_auto_update_apply": not AUTO_UPDATE_APPLY_ENABLED,
+    }
 
 
 def build_install_plan(manifest_path: str, *, target_category: str = "windows-user") -> dict[str, Any]:
@@ -113,14 +240,17 @@ def build_update_plan(manifest_path: str, *, current_version: str) -> dict[str, 
         placeholder_non_production=placeholder_non_production,
         contract_valid=verification["contract_valid"],
     )
+    update_available = comparison == "target_newer"
     return {
         "schema_version": UPDATE_PLAN_SCHEMA_VERSION,
         "ok": verification["contract_valid"] and comparison != "unknown",
         "dry_run": True,
         "command": "yonerai update plan",
+        "channel": verification["channel"],
+        "latest_stable": LATEST_STABLE_VERSION,
         "current_version": current_version,
         "target_version": target_version,
-        "update_available": comparison == "target_newer",
+        "update_available": update_available,
         "version_comparison": comparison,
         "selected_artifact": selected_artifact,
         "sha256_present": sha256_present,
@@ -166,6 +296,8 @@ def build_update_plan(manifest_path: str, *, current_version: str) -> dict[str, 
             "no registry modification",
             "no service install",
             "no admin request",
+            "no forced update",
+            "no auto-apply update",
         ],
         "rollback_plan": [
             "record current installed version before a future real update",
@@ -190,12 +322,96 @@ def build_update_plan(manifest_path: str, *, current_version: str) -> dict[str, 
         "remote_code_executed": False,
         "network_required": False,
         "admin_required": False,
+        "quick_install_command": QUICK_INSTALL_COMMAND,
+        "github_install_fallback_command": GITHUB_INSTALL_FALLBACK_COMMAND,
+        "verified_install_command": VERIFIED_INSTALL_COMMAND,
+        "verified_install_page": YONERAI_INSTALL_PAGE,
+        "forced_update_enabled": FORCED_UPDATE_ENABLED,
+        "auto_update_apply_enabled": AUTO_UPDATE_APPLY_ENABLED,
+        "security_update": False,
+        "critical_update": False,
+        "update_policy": build_deferred_update_policy(update_available=update_available),
+        "forced_update_policy": "disabled",
         "warnings": warnings,
     }
 
 
-def build_update_plan_from_default(repo_root: Path, *, current_version: str) -> dict[str, Any]:
-    return build_update_plan(str(repo_root / "releases" / "manifest.example.json"), current_version=current_version)
+def build_update_plan_from_default(repo_root: Path, *, current_version: str, channel: str = "stable") -> dict[str, Any]:
+    return build_update_plan(
+        str(default_update_manifest_path(repo_root, include_prerelease=channel == "alpha")),
+        current_version=current_version,
+    )
+
+
+def build_update_check(manifest_path: str, *, current_version: str) -> dict[str, Any]:
+    plan = build_update_plan(manifest_path, current_version=current_version)
+    artifact = plan.get("selected_artifact") if isinstance(plan.get("selected_artifact"), dict) else {}
+    manifest_display = _display_manifest_path(manifest_path)
+    next_safe_command_shell = _detect_cli_shell()
+    next_safe_commands = _next_safe_update_commands(manifest_display)
+    next_safe_command = next_safe_commands[next_safe_command_shell]
+    return {
+        "schema_version": UPDATE_CHECK_SCHEMA_VERSION,
+        "ok": plan["ok"],
+        "dry_run": True,
+        "command": "yonerai update check",
+        "manifest": manifest_display,
+        "channel": plan["channel"],
+        "latest_stable": LATEST_STABLE_VERSION,
+        "current_version": plan["current_version"],
+        "latest_manifest_version": plan["target_version"],
+        "update_available": plan["update_available"],
+        "version_comparison": plan["version_comparison"],
+        "artifact_status": {
+            "selected_artifact": artifact.get("artifact_id"),
+            "filename_matches": artifact.get("filename_matches"),
+            "sha256_present": plan["sha256_present"],
+            "expected_filename": artifact.get("expected_filename"),
+            "actual_filename": artifact.get("actual_filename"),
+        },
+        "signature_status": plan["signature_status"],
+        "rollback_plan_available": bool(plan.get("rollback_plan_available")),
+        "next_safe_command": next_safe_command,
+        "next_safe_command_shell": next_safe_command_shell,
+        "next_safe_commands": next_safe_commands,
+        "actions_not_performed": plan["actions_not_performed"],
+        "download_performed": False,
+        "install_performed": False,
+        "path_mutation": False,
+        "remote_code_executed": False,
+        "network_required": False,
+        "quick_install_command": QUICK_INSTALL_COMMAND,
+        "github_install_fallback_command": GITHUB_INSTALL_FALLBACK_COMMAND,
+        "verified_install_command": VERIFIED_INSTALL_COMMAND,
+        "verified_install_page": YONERAI_INSTALL_PAGE,
+        "forced_update_enabled": FORCED_UPDATE_ENABLED,
+        "auto_update_apply_enabled": AUTO_UPDATE_APPLY_ENABLED,
+        "security_update": False,
+        "critical_update": False,
+        "update_policy": build_deferred_update_policy(update_available=bool(plan["update_available"])),
+        "forced_update_policy": "disabled",
+        "warnings": plan["warnings"],
+    }
+
+
+def build_update_check_from_default(repo_root: Path, *, current_version: str, channel: str = "stable") -> dict[str, Any]:
+    return build_update_check(
+        str(default_update_manifest_path(repo_root, include_prerelease=channel == "alpha")),
+        current_version=current_version,
+    )
+
+
+def default_update_manifest_path(repo_root: Path, *, include_prerelease: bool = False) -> Path:
+    releases = repo_root / "releases"
+    candidates = [
+        path
+        for path in releases.glob("manifest.v*.json")
+        if (version := _version_from_manifest_filename(path)) is not None
+        and (include_prerelease or not _is_prerelease_version(version))
+    ]
+    if not candidates:
+        return releases / "manifest.example.json"
+    return max(candidates, key=lambda path: _version_key(_version_from_manifest_filename(path)) or (0, 0, 0, ()))
 
 
 def _artifact_plan_rows(manifest: dict[str, Any]) -> list[dict[str, Any]]:
@@ -267,7 +483,10 @@ def _version_key(version: str | None) -> tuple[int, int, int, tuple[tuple[int, i
     match = SEMVER_RE.match(version)
     if match is None:
         return None
-    major, minor, patch = (int(match.group(index)) for index in (1, 2, 3))
+    try:
+        major, minor, patch = (int(match.group(index)) for index in (1, 2, 3))
+    except ValueError:
+        return None
     prerelease = match.group(4)
     if prerelease is None:
         return major, minor, patch, ((2, ""),)
@@ -276,7 +495,10 @@ def _version_key(version: str | None) -> tuple[int, int, int, tuple[tuple[int, i
 
 def _prerelease_token(token: str) -> tuple[int, int | str]:
     if token.isdigit():
-        return 0, int(token)
+        try:
+            return 0, int(token)
+        except ValueError:
+            return 1, token
     return 1, token
 
 
@@ -288,13 +510,106 @@ def _artifact_filename(url: object) -> str | None:
     return name or None
 
 
+def _version_from_manifest_filename(path: Path) -> str | None:
+    name = path.name
+    if not name.startswith("manifest.v") or not name.endswith(".json"):
+        return None
+    version = name.removeprefix("manifest.v").removesuffix(".json")
+    return version if SEMVER_RE.match(version) else None
+
+
+def _is_prerelease_version(version: str) -> bool:
+    return "-" in version.split("+", 1)[0]
+
+
+def _display_manifest_path(path: str) -> str:
+    normalized = Path(path)
+    resolved = normalized.resolve()
+    cwd = Path.cwd().resolve()
+    try:
+        relative = resolved.relative_to(cwd)
+        return relative.as_posix()
+    except Exception:
+        repo_root = _source_repo_root()
+        if repo_root is not None:
+            try:
+                resolved.relative_to(repo_root)
+                return Path(os.path.relpath(resolved, cwd)).as_posix()
+            except Exception:
+                pass
+        return normalized.name or "<local-manifest>"
+
+
+def _source_repo_root() -> Path | None:
+    candidates = [Path(__file__).resolve().parents[3], Path.cwd().resolve()]
+    for candidate in candidates:
+        try:
+            if (candidate / "releases").is_dir() and (candidate / "VERSION").is_file():
+                return candidate
+        except Exception:
+            continue
+    return None
+
+
+def _next_safe_update_commands(manifest_display: str) -> dict[str, str]:
+    return {
+        shell: f"yonerai update plan --manifest {_quote_cli_path(manifest_display, shell=shell)} --pretty"
+        for shell in ("powershell", "cmd", "posix")
+    }
+
+
+def _detect_cli_shell(*, platform: str | None = None, env: dict[str, str] | None = None) -> str:
+    platform_name = platform or os.name
+    if platform_name != "nt":
+        return "posix"
+    values = env if env is not None else os.environ
+    explicit = (values.get("YONERAI_CLI_SHELL") or "").lower()
+    if explicit in {"powershell", "pwsh"}:
+        return "powershell"
+    if explicit in {"cmd", "cmd.exe", "command_prompt"}:
+        return "cmd"
+    prompt_hint = values.get("PROMPT")
+    comspec_hint = (values.get("COMSPEC") or "").lower()
+    if prompt_hint and "cmd.exe" in comspec_hint:
+        return "cmd"
+    return "powershell"
+
+
+def _quote_cli_path(path: str, *, platform: str | None = None, shell: str | None = None) -> str:
+    if not path:
+        return "''"
+    shell_name = shell or _detect_cli_shell(platform=platform)
+    if shell_name == "powershell":
+        return _quote_powershell_path(path)
+    if shell_name == "cmd":
+        return _quote_cmd_path(path)
+    return shlex.quote(path)
+
+
+def _quote_powershell_path(path: str) -> str:
+    if re.search(r"[\s;&|<>()`$'\"\[\]{}]", path) is None:
+        return path
+    return "'" + path.replace("'", "''") + "'"
+
+
+def _quote_cmd_path(path: str) -> str:
+    if re.search(r'[\s&|<>()^%!"]', path) is None:
+        return path
+    escaped = path.replace("^", "^^").replace("%", "^%").replace("!", "^!").replace('"', '""')
+    return f'"{escaped}"'
+
+
 __all__ = [
     "INSTALL_PLAN_SCHEMA_VERSION",
     "UPDATE_PLAN_SCHEMA_VERSION",
+    "UPDATE_CHECK_SCHEMA_VERSION",
     "WINDOWS_INSTALL_PLAN_SCHEMA_VERSION",
     "ManifestError",
+    "build_install_update_status",
     "build_install_plan",
     "build_install_plan_from_default",
+    "build_update_check",
+    "build_update_check_from_default",
     "build_update_plan",
     "build_update_plan_from_default",
     "build_windows_install_plan",

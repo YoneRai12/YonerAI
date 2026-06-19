@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://yonerai.com/contracts/official-api-0.1/sync-preview.response.schema.json",
+  "title": "YonerAI Official API sync preview response 0.1",
+  "type": "object",
+  "required": ["ok", "decision", "private_content_exclusion"],
+  "properties": {
+    "ok": {"type": "boolean"},
+    "decision": {
+      "type": "object",
+      "required": ["state", "reason", "requires_explicit_approval"],
+      "properties": {
+        "state": {"enum": ["allowed", "blocked", "approval_required"]},
+        "reason": {"type": "string"},
+        "requires_explicit_approval": {"type": "boolean"}
+      },
+      "additionalProperties": false
+    },
+    "private_content_exclusion": {"type": "object"}
+  },
+  "additionalProperties": false
+}

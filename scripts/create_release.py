@@ -1,7 +1,13 @@
 import argparse
+import fnmatch
 import subprocess
 import sys
 from pathlib import Path
+from zipfile import ZIP_STORED, ZipFile, ZipInfo
+
+
+REPRODUCIBLE_ARCHIVE_MTIME = "2000-01-01T00:00:00Z"
+REPRODUCIBLE_ARCHIVE_DATETIME = (2000, 1, 1, 0, 0, 0)
 
 
 def _read_product_name(repo_root: Path) -> str:
@@ -15,6 +21,72 @@ def _read_product_name(repo_root: Path) -> str:
     return name or "ORA"
 
 
+def _git_bytes(repo_root: Path, args: list[str]) -> bytes:
+    return subprocess.run(
+        ["git", *args],
+        check=True,
+        cwd=str(repo_root),
+        capture_output=True,
+    ).stdout
+
+
+def _export_ignore_patterns(repo_root: Path) -> tuple[str, ...]:
+    attributes = repo_root / ".gitattributes"
+    try:
+        lines = attributes.read_text(encoding="utf-8", errors="ignore").splitlines()
+    except OSError:
+        return ()
+    patterns: list[str] = []
+    for raw_line in lines:
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = line.split()
+        if len(parts) < 2 or "export-ignore" not in parts[1:]:
+            continue
+        patterns.append(parts[0].lstrip("/"))
+    return tuple(patterns)
+
+
+def _is_export_ignored(path: str, patterns: tuple[str, ...]) -> bool:
+    normalized = path.replace("\\", "/")
+    for pattern in patterns:
+        if fnmatch.fnmatchcase(normalized, pattern):
+            return True
+        if "/" not in pattern and fnmatch.fnmatchcase(Path(normalized).name, pattern):
+            return True
+    return False
+
+
+def _head_blobs(repo_root: Path) -> list[tuple[str, str, str]]:
+    raw = _git_bytes(repo_root, ["ls-tree", "-rz", "-r", "HEAD"])
+    blobs: list[tuple[str, str, str]] = []
+    for entry in raw.split(b"\0"):
+        if not entry:
+            continue
+        metadata, raw_path = entry.split(b"\t", 1)
+        mode, object_type, object_id = metadata.decode("ascii").split()
+        if object_type != "blob":
+            continue
+        path = raw_path.decode("utf-8")
+        blobs.append((mode, object_id, path))
+    return blobs
+
+
+def _write_deterministic_zip(repo_root: Path, output_path: Path) -> None:
+    ignored = _export_ignore_patterns(repo_root)
+    with ZipFile(output_path, "w", compression=ZIP_STORED) as archive:
+        for mode, object_id, path in _head_blobs(repo_root):
+            if _is_export_ignored(path, ignored):
+                continue
+            data = _git_bytes(repo_root, ["cat-file", "blob", object_id])
+            info = ZipInfo(path, date_time=REPRODUCIBLE_ARCHIVE_DATETIME)
+            info.compress_type = ZIP_STORED
+            info.create_system = 3
+            info.external_attr = (int(mode, 8) & 0o777) << 16
+            archive.writestr(info, data)
+
+
 def create_release_zip(version):
     repo_root = Path(__file__).parent.parent
     product = _read_product_name(repo_root)
@@ -24,13 +96,9 @@ def create_release_zip(version):
     print(f"Creating release archive for version {version}...")
     
     try:
-        # Use git archive to create a clean zip of tracked files only
-        # This automatically excludes .env, .venv, logs, etc. if they are not tracked.
-        subprocess.run(
-            ["git", "archive", "--format=zip", "--output", str(output_path), "HEAD"],
-            check=True,
-            cwd=str(repo_root)
-        )
+        # Build from tracked HEAD blobs instead of `git archive` so the release
+        # asset hash is stable across Windows, macOS, and Ubuntu git/zlib builds.
+        _write_deterministic_zip(repo_root, output_path)
         print(f"Created: {output_path}")
         return output_path
     except subprocess.CalledProcessError as e:

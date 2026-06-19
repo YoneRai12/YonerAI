@@ -26,6 +26,12 @@ _PUBLIC_ENV_KEYS = (
     "ORA_LOCAL_LLM_BASE_URL",
     "ORA_LOCAL_LLM_ENABLED",
     "ORA_LOCAL_LLM_PUBLIC_TOKEN",
+    "YONERAI_OPENAI_COMPATIBLE_API_KEY",
+    "YONERAI_OPENAI_COMPATIBLE_BASE_URL",
+    "YONERAI_OPENAI_COMPATIBLE_LIVE",
+    "YONERAI_OPENAI_COMPATIBLE_MODEL",
+    "YONERAI_ANTHROPIC_API_KEY",
+    "YONERAI_GEMINI_API_KEY",
 )
 _PRIVATE_MARKERS = (
     re.compile(r"[A-Za-z]:[\\/]+[^\s\"'<>|]+", re.IGNORECASE),
@@ -45,6 +51,12 @@ _PUBLIC_CREDENTIAL_ENV_KEYS = (
     "ORA_LOCAL_LLM_BASE_URL",
     "ORA_LOCAL_LLM_ENABLED",
     "ORA_LOCAL_LLM_PUBLIC_TOKEN",
+    "YONERAI_OPENAI_COMPATIBLE_API_KEY",
+    "YONERAI_OPENAI_COMPATIBLE_BASE_URL",
+    "YONERAI_OPENAI_COMPATIBLE_LIVE",
+    "YONERAI_OPENAI_COMPATIBLE_MODEL",
+    "YONERAI_ANTHROPIC_API_KEY",
+    "YONERAI_GEMINI_API_KEY",
 )
 
 
@@ -95,6 +107,18 @@ def _assert_json_response(response: Any, *, endpoint: str) -> dict[str, Any]:
     if not isinstance(body, dict):
         raise AssertionError(f"{endpoint} returned non-object JSON")
     return body
+
+
+def _find_run_event(run: object, event_name: str) -> dict[str, Any] | None:
+    if not isinstance(run, dict):
+        return None
+    events = run.get("events", ())
+    if not isinstance(events, list):
+        return None
+    for event in events:
+        if isinstance(event, dict) and event.get("name") == event_name:
+            return event
+    return None
 
 
 def _public_core_checks() -> tuple[dict[str, object], ...]:
@@ -169,6 +193,10 @@ def _route_preview_checks() -> tuple[dict[str, object], ...]:
     from ora_core.route_preview import preview_route
 
     public_docs = preview_route("summarize public docs", mode="official_managed_cloud")
+    public_reasoning = preview_route(
+        "hard public reasoning over public API docs",
+        mode="official_hybrid_private",
+    )
     private_file = preview_route(
         "read my local file",
         mode="official_hybrid_private",
@@ -191,11 +219,19 @@ def _route_preview_checks() -> tuple[dict[str, object], ...]:
         risk_hint="dangerous",
     )
     assert public_docs.route == "managed_cloud_contract_only"
+    assert public_reasoning.route == "cloud_contract_candidate"
     assert private_file.route == "hybrid_coordination_preview"
     assert private_file.session_verified is True
     assert dangerous_shell.approval_required is True
     return (
         {"name": "public_docs_task", "status": "ok", "route": public_docs.route},
+        {
+            "name": "public_reasoning_task",
+            "status": "ok",
+            "route": public_reasoning.route,
+            "route_strategy": public_reasoning.to_public_dict()["route_strategy"],
+            "private_file_content_sent_to_cloud": False,
+        },
         {
             "name": "private_local_file_task",
             "status": "ok",
@@ -214,13 +250,20 @@ def _route_preview_checks() -> tuple[dict[str, object], ...]:
 def _provider_planner_checks() -> tuple[dict[str, object], ...]:
     from ora_core.planning import build_execution_plan
     from ora_core.planning.execution_plan import preview_mock_provider_response
-    from ora_core.providers import build_default_provider_registry
-    from ora_core.search import MockSearchAdapter, SearchRequest
+    from ora_core.providers import build_default_provider_registry, build_provider_setup_report
+    from ora_core.search import MockSearchAdapter, SearchRequest, build_live_search_disabled_boundary
 
     registry = build_default_provider_registry()
     statuses = {status["provider_id"]: status for status in registry.list_statuses()}
+    provider_setup = build_provider_setup_report(registry=registry)
+    setup_by_provider = {
+        str(provider["provider_id"]): provider
+        for provider in provider_setup["providers"]
+        if isinstance(provider, dict) and provider.get("provider_id")
+    }
     mock_response = preview_mock_provider_response("hello YonerAI provider planner demo")
     search_results = MockSearchAdapter().search(SearchRequest(query="YonerAI alpha2 capability slice"))
+    live_search_boundary = build_live_search_disabled_boundary("YonerAI alpha2 capability slice")
     public_plan = build_execution_plan("summarize public docs", mode="hybrid").to_public_dict()
     coding_plan = build_execution_plan("fix this Python test", mode="hybrid", provider="openai-compatible").to_public_dict()
     private_plan = build_execution_plan("read my local file", mode="hybrid").to_public_dict()
@@ -230,8 +273,13 @@ def _provider_planner_checks() -> tuple[dict[str, object], ...]:
     assert statuses["mock"]["available"] is True
     assert statuses["openai-compatible"]["available"] is False
     assert "anthropic" in statuses and "gemini" in statuses
+    assert provider_setup["network_probe_performed"] is False
+    assert setup_by_provider["local"]["loopback_only"] is True
+    assert "set YONERAI_OPENAI_COMPATIBLE_BASE_URL" in setup_by_provider["openai-compatible"]["setup_blockers"]
     assert mock_response["provider"] == "mock"
     assert search_results and search_results[0].source == "mock"
+    assert live_search_boundary["network_performed"] is False
+    assert live_search_boundary["reason"] == "live_search_not_implemented"
     assert public_plan["classification"]["category"] == "summarize_public"
     assert public_plan["side_effects"]["provider_call"] is False
     assert coding_plan["classification"]["category"] == "coding"
@@ -255,6 +303,29 @@ def _provider_planner_checks() -> tuple[dict[str, object], ...]:
             "anthropic": statuses["anthropic"]["available"],
             "gemini": statuses["gemini"]["available"],
             "live_call_performed": False,
+        },
+        {
+            "name": "provider_setup_blockers",
+            "status": "ok",
+            "local_provider_available": setup_by_provider["local"]["available"],
+            "local_provider_blockers": ",".join(str(item) for item in setup_by_provider["local"]["setup_blockers"]),
+            "local_loopback_only": setup_by_provider["local"]["loopback_only"],
+            "openai_compatible_live_ready": setup_by_provider["openai-compatible"]["live_ready"],
+            "openai_compatible_blockers": ",".join(
+                str(item) for item in setup_by_provider["openai-compatible"]["setup_blockers"]
+            ),
+            "network_probe_performed": provider_setup["network_probe_performed"],
+            "live_call_performed": provider_setup["live_call_performed"],
+        },
+        {
+            "name": "provider_runtime_e2e_fixtures",
+            "status": "ok",
+            "openai_compatible": "local_mock_http_server_tested",
+            "local_llm": "loopback_mock_http_server_tested",
+            "run_ledger": "redacted_success_and_error_paths_tested",
+            "network_probe_performed": False,
+            "live_call_performed": False,
+            "external_network_call_performed": False,
         },
         {
             "name": "mock_provider_response",
@@ -314,11 +385,32 @@ def _provider_planner_checks() -> tuple[dict[str, object], ...]:
             "result_count": len(search_results),
             "network_performed": False,
         },
+        {
+            "name": "live_search_boundary",
+            "status": "ok",
+            "adapter": "live",
+            "reason": live_search_boundary["reason"],
+            "network_performed": live_search_boundary["network_performed"],
+            "requires_explicit_live_provider": live_search_boundary["requires_explicit_live_provider"],
+            "actions_not_performed": ",".join(str(action) for action in live_search_boundary["actions_not_performed"]),
+        },
     )
 
 
 def _execution_spine_checks() -> tuple[dict[str, object], ...]:
-    from ora_core.execution import InMemoryRunLedger, execute_task
+    from ora_core.execution import (
+        FileRunLedger,
+        InMemoryRunLedger,
+        build_auto_runtime_report,
+        execute_task,
+        legacy_text_normalizer_status,
+        normalize_legacy_generated_text,
+    )
+    from ora_core.execution.workspace_files import (
+        build_workspace_file_access_event,
+        build_workspace_file_prompt,
+        read_workspace_text_file,
+    )
     from ora_core.memory import LocalMemoryStore
     from ora_core.providers import build_default_provider_registry
     import tempfile
@@ -336,7 +428,14 @@ def _execution_spine_checks() -> tuple[dict[str, object], ...]:
         provider="mock",
         ledger=ledger,
     ).to_public_dict()
+    auto_result = build_auto_runtime_report(
+        "hard public reasoning over public API docs",
+        provider="mock",
+        ledger=ledger,
+    )
     registry_statuses = {status["provider_id"]: status for status in build_default_provider_registry().list_statuses()}
+    legacy_status = legacy_text_normalizer_status()
+    cleaned_legacy_text = normalize_legacy_generated_text("<|final|>demo")
 
     assert mock_result["ok"] is True
     assert mock_result["response"]["provider"] == "mock"
@@ -345,6 +444,40 @@ def _execution_spine_checks() -> tuple[dict[str, object], ...]:
     assert dangerous_result["ok"] is False
     assert dangerous_result["run"]["status"] == "blocked"
     assert dangerous_result["error"]["code"] == "approval_required"
+    assert auto_result["ok"] is True
+    assert auto_result["auto"]["route"] == "cloud_contract_candidate"
+    assert auto_result["reviewer_plan"]["enabled"] is True
+    assert auto_result["oracle_stub"]["response"]["status"] == "completed"
+    assert auto_result["boundaries"]["private_file_content_sent_to_cloud_contract"] is False
+    assert legacy_status["execution_spine_connected"] is True
+    assert cleaned_legacy_text == "demo"
+    with tempfile.TemporaryDirectory(prefix="yonerai-demo-workspace-") as temp_dir:
+        temp_root = Path(temp_dir)
+        workspace = temp_root / "workspace"
+        workspace.mkdir()
+        (workspace / "note.txt").write_text("public alpha2 notes", encoding="utf-8")
+        file_context = read_workspace_text_file("note.txt", workspace=workspace)
+        file_ledger = FileRunLedger(temp_root / "runs.jsonl")
+        file_result = execute_task(
+            "summarize this file",
+            provider_prompt=build_workspace_file_prompt("summarize this file", file_context),
+            mode="self-host",
+            provider="mock",
+            ledger=file_ledger,
+            context_events=(build_workspace_file_access_event(file_context),),
+        ).to_public_dict()
+        persisted_file_run = FileRunLedger(temp_root / "runs.jsonl").get_run(str(file_result["run"]["run_id"]))
+        workspace_event = _find_run_event(file_result["run"], "workspace_file_access")
+        ledger_text = (temp_root / "runs.jsonl").read_text(encoding="utf-8")
+    assert file_result["ok"] is True
+    assert file_result["response"]["model"] == "mock-workspace-file-access-guard"
+    assert file_result["run"]["status"] == "completed"
+    assert persisted_file_run is not None, "workspace file run was not persisted"
+    assert workspace_event is not None, "workspace file access event missing from demo run"
+    assert workspace_event["status"] == "ok"
+    assert "raw_content_persisted=false" in workspace_event["summary"]
+    assert "public alpha2 notes" not in json.dumps(file_result)
+    assert "public alpha2 notes" not in ledger_text
     with tempfile.TemporaryDirectory(prefix="yonerai-demo-memory-") as temp_dir:
         memory_store = LocalMemoryStore(Path(temp_dir) / "memory.jsonl")
         memory_record = memory_store.add("demo memory sk-" + ("A" * 24), tags=("alpha2",))
@@ -361,11 +494,37 @@ def _execution_spine_checks() -> tuple[dict[str, object], ...]:
             "raw_prompt_persisted": mock_result["run"]["persistence"]["raw_prompt_persisted"],
         },
         {
+            "name": "auto_runtime_ask",
+            "status": "ok",
+            "route_strategy": auto_result["auto"]["route"],
+            "difficulty": auto_result["auto"]["difficulty"],
+            "privacy": auto_result["auto"]["privacy"],
+            "run_id": auto_result["run"]["run_id"],
+            "reviewer_plan": auto_result["reviewer_plan"]["enabled"],
+            "subtask_count": auto_result["reviewer_plan"]["subtask_count"],
+            "oracle_status": auto_result["oracle_stub"]["response"]["status"],
+            "private_file_content_sent_to_cloud": auto_result["boundaries"]["private_file_content_sent_to_cloud_contract"],
+            "live_call_performed": auto_result["live_call_performed"],
+        },
+        {
             "name": "dangerous_task_blocked",
             "status": "ok",
             "run_status": dangerous_result["run"]["status"],
             "approval_required": dangerous_result["run"]["approval_required"],
             "error": dangerous_result["error"]["code"],
+        },
+        {
+            "name": "workspace_file_provider_execution",
+            "status": "ok",
+            "provider": file_result["response"]["provider"],
+            "model": file_result["response"]["model"],
+            "run_id": file_result["run"]["run_id"],
+            "run_status": file_result["run"]["status"],
+            "ledger_file_backed": True,
+            "workspace_file_access_event": True,
+            "raw_content_persisted": False,
+            "raw_prompt_persisted": file_result["run"]["persistence"]["raw_prompt_persisted"],
+            "live_call_performed": file_result["live_call_performed"],
         },
         {
             "name": "local_provider_registry",
@@ -376,10 +535,25 @@ def _execution_spine_checks() -> tuple[dict[str, object], ...]:
             "loopback_only": True,
         },
         {
+            "name": "legacy_ora_text_normalizer",
+            "status": "ok",
+            "source": legacy_status["source"],
+            "execution_spine_connected": legacy_status["execution_spine_connected"],
+            "broad_ora_refactor": legacy_status["broad_ora_refactor"],
+        },
+        {
             "name": "search_tool_boundaries",
             "status": "ok",
             "web_search": mock_result["boundary_checks"]["web_search"]["status"],
             "tool_boundary": mock_result["boundary_checks"]["tool_boundary"]["status"],
+            "ora_tool_schema_boundary": mock_result["boundary_checks"]["ora_tool_schema_boundary"]["status"],
+            "ora_guardrail_response_interpreter": mock_result["boundary_checks"]["ora_guardrail_response_interpreter"][
+                "status"
+            ],
+            "ora_message_format_helper": mock_result["boundary_checks"]["ora_message_format_helper"]["status"],
+            "guardrail_provider_call_performed": mock_result["boundary_checks"]["ora_guardrail_response_interpreter"][
+                "provider_call_performed"
+            ],
             "live_tool_execution": False,
             "network_performed": False,
         },
@@ -399,6 +573,11 @@ def _hybrid_trust_checks() -> tuple[dict[str, object], ...]:
         LocalNodeEnrollmentRequest,
         action_args_hash,
         build_local_dev_enrolled_session_fixture,
+        build_hybrid_node_relay_contract_stub,
+        build_hybrid_wire_conformance_report,
+        build_hybrid_execution_slice_report,
+        build_oracle_stub_queue_report,
+        build_relay_status_report,
         build_test_local_node_manifest,
         build_unsigned_local_node_action_envelope,
         consume_pairing_code,
@@ -446,6 +625,7 @@ def _hybrid_trust_checks() -> tuple[dict[str, object], ...]:
         action_id="public-demo-action",
         node_id=session.enrolled_node_id,
         session_id=session.session_id,
+        manifest_id=session.manifest_id,
         mode=session.mode,
         capability="local_tools",
         args_hash=args_hash,
@@ -484,7 +664,19 @@ def _hybrid_trust_checks() -> tuple[dict[str, object], ...]:
     from ora_core.discord_gateway import SyntheticDiscordGatewayAdapter
 
     discord = SyntheticDiscordGatewayAdapter().handle_mention("hello from demo").to_public_dict()
+    wire_conformance = build_hybrid_wire_conformance_report()
+    relay_status = build_relay_status_report({})
+    node_relay_contract = build_hybrid_node_relay_contract_stub({})
+    hybrid_execution_slice = build_hybrid_execution_slice_report()
+    oracle_stub = build_oracle_stub_queue_report()
+    oracle_stub_private = build_oracle_stub_queue_report("hard public reasoning over my private files")
     assert trust_status.local_node.verification_state == "present_verified"
+    assert wire_conformance["ok"] is True
+    assert relay_status["ok"] is True
+    assert node_relay_contract["ok"] is True
+    assert hybrid_execution_slice["ok"] is True
+    assert oracle_stub["ok"] is True and oracle_stub["response"]["status"] == "completed"
+    assert oracle_stub_private["ok"] is False and oracle_stub_private["response"]["status"] == "denied"
     assert pairing_once.accepted is True and pairing_reuse.accepted is False
     assert verified_action.status == "approval_required"
     assert replay.status == "replayed_nonce"
@@ -492,6 +684,83 @@ def _hybrid_trust_checks() -> tuple[dict[str, object], ...]:
     assert discord["live_discord"] is False
     assert discord["final_once"] is True
     return (
+        {
+            "name": "hybrid_wire_contract_conformance",
+            "status": "ok",
+            "schema_version": wire_conformance["schema_version"],
+            "trust_state_count": len(wire_conformance["trust_states"]),
+            "node_posture_state_count": wire_conformance["required_node_posture_state_count"],
+            "node_posture_states": wire_conformance["required_node_posture_states"],
+            "extension_boundary_count": len(wire_conformance["extension_boundary"]),
+            "extension_boundary_statuses": [
+                item["status"] for item in wire_conformance["extension_boundary"]
+            ],
+            "session_token_hash_only": wire_conformance["session_token_hash_only"],
+            "message_body_persisted": wire_conformance["message_body_persisted"],
+            "audit_event_schema": wire_conformance["audit_event_schema"],
+            "route_preview_fixture_supported": wire_conformance["route_preview_fixture_supported"],
+            "orchestration_response_schema": wire_conformance["official_orchestration_stub"]["response"]["schema_name"],
+            "orchestration_public_execution": wire_conformance["official_orchestration_stub"]["response"][
+                "public_repo_execution_available"
+            ],
+            "route_orchestration_alignment": wire_conformance["route_orchestration_alignment"]["status"],
+            "official_cloud_runtime_implemented": wire_conformance["official_cloud_runtime_implemented"],
+            "network_required": wire_conformance["network_required"],
+        },
+        {
+            "name": "hybrid_node_relay_contract",
+            "status": "ok",
+            "schema_version": node_relay_contract["schema_version"],
+            "official_cloud_runtime_implemented": node_relay_contract["official_cloud_runtime_implemented"],
+            "production_oracle_used": node_relay_contract["production_oracle_used"],
+            "network_required": node_relay_contract["network_required"],
+            "message_body_persisted": node_relay_contract["relay"]["message_body_persisted"],
+        },
+        {
+            "name": "relay_local_dev_status",
+            "status": "ok",
+            "schema_version": relay_status["schema_version"],
+            "mode": relay_status["mode"],
+            "process_started": relay_status["relay"]["process_started"],
+            "health_probe_performed": relay_status["relay"]["health_probe_performed"],
+            "public_exposure_allowed": relay_status["relay"]["public_exposure_allowed"],
+            "message_body_persisted": relay_status["relay"]["message_body_persisted"],
+        },
+        {
+            "name": "oracle_stub_execution",
+            "status": "ok",
+            "schema_version": oracle_stub["schema_version"],
+            "route_strategy": oracle_stub["request"]["route_strategy"],
+            "request_schema": oracle_stub["request"]["schema_name"],
+            "response_schema": oracle_stub["response"]["schema_name"],
+            "response_status": oracle_stub["response"]["status"],
+            "private_candidate_denied": oracle_stub_private["response"]["status"] == "denied",
+            "network_required": oracle_stub["network_required"],
+            "provider_call_performed": oracle_stub["provider_call_performed"],
+            "production_oracle_used": oracle_stub["production_oracle_used"],
+            "official_cloud_runtime_implemented": oracle_stub["official_cloud_runtime_implemented"],
+            "raw_prompt_included": oracle_stub["response"]["raw_prompt_included"],
+            "private_file_content_included": oracle_stub["response"]["private_file_content_included"],
+        },
+        {
+            "name": "real_hybrid_execution_slice",
+            "status": "ok",
+            "schema_version": hybrid_execution_slice["schema_version"],
+            "selected_route_strategy": hybrid_execution_slice["selected_route"]["route_strategy"],
+            "provider": hybrid_execution_slice["provider_execution"]["response"]["provider"],
+            "provider_run_status": hybrid_execution_slice["provider_execution"]["run"]["status"],
+            "provider_run_id": hybrid_execution_slice["run_ids"]["provider_run_id"],
+            "oracle_run_id": hybrid_execution_slice["run_ids"]["oracle_run_id"],
+            "oracle_status": hybrid_execution_slice["oracle_stub_execution"]["response"]["status"],
+            "relay_proxy_status": hybrid_execution_slice["local_node_runtime"]["http_proxy_fixture"]["status"],
+            "route_matrix_count": len(hybrid_execution_slice["route_matrix"]),
+            "loopback_only": hybrid_execution_slice["boundaries"]["loopback_only"],
+            "in_process_relay_transport": hybrid_execution_slice["boundaries"]["in_process_relay_transport"],
+            "private_file_content_sent_to_oracle_stub": hybrid_execution_slice["boundaries"]["private_file_content_sent_to_oracle_stub"],
+            "raw_prompt_sent_to_oracle_stub": hybrid_execution_slice["boundaries"]["raw_prompt_sent_to_oracle_stub"],
+            "production_oracle_used": hybrid_execution_slice["boundaries"]["production_oracle_used"],
+            "official_cloud_runtime_implemented": hybrid_execution_slice["boundaries"]["official_cloud_runtime_implemented"],
+        },
         {"name": "signed_manifest_verified", "status": "ok", "verified": True},
         {"name": "enrollment_session_available", "status": "ok", "session_bound": True},
         {"name": "tamper_replay_rejected", "status": "ok", "replay_rejected": True},
@@ -760,6 +1029,9 @@ def format_pretty_demo(result: dict[str, object]) -> str:
                 "execution_performed",
                 "run_id",
                 "run_status",
+                "ledger_file_backed",
+                "workspace_file_access_event",
+                "raw_content_persisted",
                 "raw_prompt_persisted",
                 "loopback_only",
                 "web_search",
@@ -775,16 +1047,63 @@ def format_pretty_demo(result: dict[str, object]) -> str:
                 "trusted",
                 "memory_status",
                 "openai_compatible",
+                "local_llm",
+                "run_ledger",
                 "anthropic",
                 "gemini",
+                "local_provider_available",
+                "local_provider_blockers",
+                "local_loopback_only",
+                "openai_compatible_live_ready",
+                "openai_compatible_blockers",
                 "adapter",
                 "result_count",
+                "reason",
+                "requires_explicit_live_provider",
+                "actions_not_performed",
+                "external_network_call_performed",
+                "ora_message_format_helper",
                 "record_count",
                 "cloud_synced",
                 "synthetic",
                 "live_discord",
                 "final_once",
                 "token_required",
+                "schema_version",
+                "mode",
+                "process_started",
+                "health_probe_performed",
+                "public_exposure_allowed",
+                "trust_state_count",
+                "session_token_hash_only",
+                "message_body_persisted",
+                "audit_event_schema",
+                "route_preview_fixture_supported",
+                "route_strategy",
+                "difficulty",
+                "privacy",
+                "reviewer_plan",
+                "subtask_count",
+                "request_schema",
+                "response_schema",
+                "response_status",
+                "private_candidate_denied",
+                "provider_call_performed",
+                "selected_route_strategy",
+                "provider_run_status",
+                "provider_run_id",
+                "oracle_run_id",
+                "oracle_status",
+                "relay_proxy_status",
+                "route_matrix_count",
+                "loopback_only",
+                "in_process_relay_transport",
+                "private_file_content_sent_to_oracle_stub",
+                "raw_prompt_sent_to_oracle_stub",
+                "raw_prompt_included",
+                "private_file_content_included",
+                "production_oracle_used",
+                "official_cloud_runtime_implemented",
                 "official_cloud_runtime_included",
                 "oracle_control_plane_production_ready",
                 "dry_run",

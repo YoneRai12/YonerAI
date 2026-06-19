@@ -10,6 +10,21 @@ This is an MVP:
 Protocol reference (single source of truth):
 - `docs/PROTOCOL.md`
 
+## Inspect Local-Dev Status
+
+Before starting anything, inspect the public-safe local-dev status fixture:
+
+```powershell
+yonerai relay status --pretty
+yonerai relay status --json
+```
+
+This command does not start Relay, start the Node connector, probe the network,
+start Cloudflare, open a public tunnel, print pairing codes, print tokens, or
+persist message bodies. It reports the default loopback-only shape and blocks
+non-loopback configuration as public repo status, not as a production readiness
+claim.
+
 ## Start Relay
 
 ```powershell

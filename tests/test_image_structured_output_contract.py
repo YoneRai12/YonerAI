@@ -80,6 +80,34 @@ def test_generic_image_request_gets_structured_output_contract() -> None:
     asyncio.run(_run())
 
 
+def test_followup_intent_skips_broad_image_output_contract(monkeypatch: MonkeyPatch) -> None:
+    import ora_core.brain.context as context_mod
+
+    def _both_image_intents(*_args, **_kwargs) -> SimpleNamespace:
+        return SimpleNamespace(
+            generic_image_overview=True,
+            focused_image_question=False,
+            image_followup=True,
+            save_export_intent=False,
+        )
+
+    async def _run() -> None:
+        monkeypatch.setattr(context_mod, "classify_semantic_intent", _both_image_intents)
+        req = MessageRequest(
+            user_identity={"provider": "discord", "id": "u-followup-both"},
+            content="continue with the same screenshot",
+            attachments=[_image("https://example.com/current.png")],
+            idempotency_key="followup-both-001",
+            source="discord",
+        )
+        messages = await _build_context(req, _FakeRepo())
+        joined = "\n".join(_system_messages(messages))
+        assert "[IMAGE FOLLOW-UP CONTRACT]" in joined
+        assert "[IMAGE OUTPUT CONTRACT]" not in joined
+
+    asyncio.run(_run())
+
+
 def test_focused_image_request_does_not_get_broad_contract() -> None:
     async def _run() -> None:
         req = MessageRequest(
@@ -114,6 +142,7 @@ def test_followup_with_prior_image_keeps_image_and_followup_contract() -> None:
         messages = await _build_context(req, repo)
         joined = "\n".join(_system_messages(messages))
         assert "[IMAGE FOLLOW-UP CONTRACT]" in joined
+        assert "[IMAGE OUTPUT CONTRACT]" not in joined
         user_content = messages[-1]["content"]
         assert isinstance(user_content, list)
         assert any(part.get("type") == "image_url" for part in user_content)

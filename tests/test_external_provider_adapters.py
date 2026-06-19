@@ -111,6 +111,21 @@ def test_gemini_adapter_requires_env_and_redacts_key() -> None:
     assert pseudo_key not in json.dumps(public)
 
 
+def test_provider_setup_external_subagent_capability_requires_live_opt_in() -> None:
+    _prepare_core_path()
+    from ora_core.providers import build_provider_setup_report
+
+    report = build_provider_setup_report({"YONERAI_ANTHROPIC_API_KEY": "redaction-fixture-key"})
+    providers = {item["provider_id"]: item for item in report["providers"]}
+    anthropic = providers["anthropic"]
+
+    assert anthropic["setup_status"] == "live_opt_in_required"
+    assert anthropic["capabilities"]["chat"] is True
+    assert anthropic["capabilities"]["safe_for_subagents"] is False
+    assert anthropic["capabilities"]["subagent_fallback_reason"] == "live_opt_in_required"
+    assert "redaction-fixture-key" not in json.dumps(anthropic)
+
+
 def test_gemini_live_request_shape_and_response(monkeypatch: pytest.MonkeyPatch) -> None:
     _prepare_core_path()
     from ora_core.providers import ProviderRequest

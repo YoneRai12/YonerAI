@@ -1,4 +1,4 @@
-﻿"""Extended ORA-specific slash commands."""
+"""Extended ORA-specific slash commands."""
 # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 # CRITICAL PROTOCOL WARNING
 # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -32,7 +32,6 @@ except ImportError:
     pass
 import io as sys_io
 import shlex
-import zlib
 from collections import defaultdict
 from pathlib import Path
 
@@ -62,7 +61,15 @@ from ..utils.user_prefs import UserPrefs
 from .handlers.chat_handler import ChatHandler
 from .handlers.mention_music_handler import handle_mention_music
 from .handlers.vision_handler import VisionHandler
-from .ora_pure_helpers import clean_content as clean_ora_content
+from .ora_message_format_helpers import split_discord_message_chunks
+from .ora_pure_helpers import (
+    clean_content as clean_ora_content,
+    detect_spam as detect_ora_spam,
+    extract_json_objects as extract_ora_json_objects,
+    is_input_spam as is_ora_input_spam,
+    strip_route_json as strip_ora_route_json,
+)
+from .ora_guardrail_helpers import interpret_guardrail_response as interpret_ora_guardrail_response
 from .tools.tool_handler import ToolHandler
 
 logger = logging.getLogger(__name__)
@@ -1339,14 +1346,10 @@ class ORACog(commands.Cog):
         if not files:
             files = []
 
-        full_text = header + content
-        if len(full_text) <= 2000:
-            await message.reply(full_text, files=files, mention_author=False)
+        chunks = split_discord_message_chunks(content, header=header)
+        if len(chunks) == 1:
+            await message.reply(chunks[0], files=files, mention_author=False)
             return
-
-        # Simple splitting
-        chunk_size = 1900
-        chunks = [full_text[i : i + chunk_size] for i in range(0, len(full_text), chunk_size)]
 
         # Send first chunk with reply reference
         first = True
@@ -1361,55 +1364,12 @@ class ORACog(commands.Cog):
         return "Tool executed."
 
     def _detect_spam(self, text: str) -> bool:
-        """
-        Detects if text is repetitive spam using Compression Ratio.
-        If text is long (>500 chars) and compresses extremely well (<10%), it's likely spam.
-        """
-        if not text or len(text) < 500:
-            return False
-
-        # 1. Zlib Compression Ratio
-        compressed = zlib.compress(text.encode("utf-8"))
-        ratio = len(compressed) / len(text)
-
-        # Threshold: 0.12 (12%) implies 88% redundancy
-        # Normal text is usually 0.4 - 0.7
-        if ratio < 0.12:
-            logger.warning(f"🛡️ Spam Output Blocked: Length={len(text)}, Ratio={ratio:.3f}")
-            return True
-
-        return False
+        """Compatibility wrapper for the extracted ORA spam detector."""
+        return detect_ora_spam(text, warn=logger.warning)
 
     def _is_input_spam(self, text: str) -> bool:
-        """
-        Detects if input is spam/abuse (e.g. 'Repeat 10000 times', massive repetition).
-        Returns True if spam.
-        """
-        if not text:
-            return False
-
-        # 1. Check for Abuse Keywords
-        # "Repeat X times", "Limit", "Max", "10000" combined with repeat
-        abuse_patterns = [
-            r"(?i)(repeat|copy|write|print).{0,20}(\d{4,}|limit|max|infinity).{0,20}(times|lines|copies)",
-            r"(?i)(copy|repeat).{0,10}(\d{3,})",  # Simply removed corrupted Japanese regex part
-            r"(a{10,}|w{10,})",  # Simple repetition abuse (aaaa..., www...)
-        ]
-
-        for p in abuse_patterns:
-            if re.search(p, text):
-                logger.warning(f"🛡️ Input Spam Blocked (Pattern): {p}")
-                return True
-
-        # 2. Compression Ratio for long inputs
-        if len(text) > 400:
-            compressed = zlib.compress(text.encode("utf-8"))
-            ratio = len(compressed) / len(text)
-            if ratio < 0.12:  # Extremely repetitive input
-                logger.warning(f"🛡️ Input Spam Blocked (Ratio): {ratio:.3f}")
-                return True
-
-        return False
+        """Compatibility wrapper for the extracted ORA input spam detector."""
+        return is_ora_input_spam(text, warn=logger.warning)
 
     async def _perform_guardrail_check(self, prompt: str, user_id: int) -> dict:
         """
@@ -1452,21 +1412,7 @@ class ORACog(commands.Cog):
             else:
                 self.cost_manager.commit("stable", "openai", user_id, rid, est_usage)
 
-            # Parse Decision
-            if content:
-                # Extract JSON
-                json_objects = self._extract_json_objects(content)
-                if json_objects:
-                    try:
-                        return json.loads(json_objects[0])
-                    except Exception:
-                        pass  # Fallback to text check
-
-                # Fallback parsing
-                if '"safe": false' in content.lower():
-                    return {"safe": False, "reason": "Keyword detected"}
-
-            return {"safe": True, "reason": "Pass"}
+            return interpret_ora_guardrail_response(content, json_extractor=self._extract_json_objects)
 
         except Exception as e:
             logger.error(f"Guardrail Failed: {e}")
@@ -1475,50 +1421,8 @@ class ORACog(commands.Cog):
             return {"safe": True, "reason": "Guardrail Error"}
 
     def _extract_json_objects(self, text: str) -> list[str]:
-        """Extracts top-level JSON objects from text."""
-        objects = []
-
-        # Priority: Check for [TOOL_CALLS] hallucination format first.
-        # If this format is present, standard brace matching might incorrectly grab the inner JSON args.
-        if "[TOOL_CALLS]" in text:
-            import re
-
-            # Regex to capture tool name and args json
-            # Allow (ARGS) or [ARGS] or just ARGS
-            pattern = r"\[TOOL_CALLS\]\s*(\w+)\s*[\[\(]?ARGS[\]\)]?\s*(\{.*?\})"
-            matches = re.finditer(pattern, text, re.DOTALL)
-            found_regex = False
-            for match in matches:
-                found_regex = True
-                tool_name = match.group(1)
-                args_json = match.group(2)
-                # Construct valid JSON string
-                valid_call = f'{{"tool": "{tool_name}", "args": {args_json}}}'
-                objects.append(valid_call)
-                logger.warning(f"Recovered tool call from [TOOL_CALLS] format: {tool_name}")
-
-            # If regex found something, return it immediately to avoid confusion
-            if found_regex:
-                return objects
-
-        # Standard Extraction: Match balanced braces
-        stack = 0
-        start_index = -1
-
-        for i, char in enumerate(text):
-            if char == "{":
-                if stack == 0:
-                    start_index = i
-                stack += 1
-            elif char == "}":
-                if stack > 0:
-                    stack -= 1
-                    if stack == 0:
-                        json_str = text[start_index : i + 1]
-                        if "route_eval" not in json_str:
-                            objects.append(json_str)
-
-        return objects
+        """Compatibility wrapper for the extracted ORA JSON recovery helper."""
+        return extract_ora_json_objects(text, warn=logger.warning)
 
     def _clean_content(self, text: str) -> str:
         """Remove internal tags like <|channel|>... from the text."""
@@ -2979,83 +2883,30 @@ class ORACog(commands.Cog):
         Prevents usage of Discord-only tools in Web UI, or Web tools in Discord.
         Also includes Dynamically Loaded Skills from SKILL.md files.
         """
+        from src.cogs.ora_tool_schema_helpers import build_context_tool_schemas
         from src.utils.access_control import filter_tool_schemas_for_user
 
-        all_tools = self._get_tool_schemas()
-        
-        # [Clawdbot] Dynamic Skill Injection
-        if hasattr(self, "tool_handler") and hasattr(self.tool_handler, "skill_loader"):
-             dynamic_skills = self.tool_handler.skill_loader.skills
-             for skill_name in dynamic_skills.keys():
-                 schema = self.tool_handler.skill_loader.get_schema(skill_name)
-                 if isinstance(schema, dict) and schema.get("name"):
-                     all_tools.append(schema)
-
-        # [Registry] Dynamic tool injection (registered in tool registry)
+        registry_loader = None
         try:
             from src.cogs.tools.registry import get_tool_schemas as _get_registry_schemas
-            for s in _get_registry_schemas():
-                try:
-                    n = s.get("name")
-                except Exception:
-                    continue
-                # Include all registry tools; allowlists still restrict execution/visibility.
-                if isinstance(n, str) and n:
-                    all_tools.append(s)
+
+            registry_loader = _get_registry_schemas
         except Exception:
             pass
 
-        # De-duplicate by tool name (built-in takes priority)
-        deduped_tools = []
-        seen = set()
-        for tool in all_tools:
-            t_name = tool.get("name")
-            if not t_name or t_name in seen:
-                continue
-            deduped_tools.append(tool)
-            seen.add(t_name)
-        all_tools = deduped_tools
+        skill_loader = None
+        if hasattr(self, "tool_handler") and hasattr(self.tool_handler, "skill_loader"):
+            skill_loader = self.tool_handler.skill_loader
 
-        # Tools invalid for Discord (e.g. DOM manipulation, Browser events)
-        web_only = {"dom_click", "dom_read", "browser_nav"}
-        
-        # Tools invalid for Web (e.g. specific Discord voice channel ops? 
-        # Actually most are portable via API, but some like 'join_voice' rely on Discord connection)
-        discord_only = {
-            # Discord-only operations (require Discord connection / guild context)
-            "join_voice_channel",
-            "leave_voice_channel",
-            "join_voice",
-            "leave_voice",
-            "tts_speak",
-            "speak",
-            "manage_user_voice",
-            "create_channel",
-            "music_play",
-            "music_stop",
-            "music_control",
-            "music_queue",
-            "music_seek",
-            "music_tune",
-        }
-
-        filtered = []
-        for tool in all_tools:
-            name = tool["name"]
-            
-            if client_type == "discord":
-                if name in web_only:
-                    continue
-            elif client_type == "web":
-                if name in discord_only:
-                    continue
-            
-            filtered.append(tool)
-             
-        # Creator lock: Non-owner users only see a small safe allowlist of tools.
-        if user_id is not None:
-            return filter_tool_schemas_for_user(self.bot, user_id, filtered)
-        return filtered
+        return build_context_tool_schemas(
+            self._get_tool_schemas(),
+            client_type=client_type,
+            skill_loader=skill_loader,
+            registry_loader=registry_loader,
+            access_filter=filter_tool_schemas_for_user,
+            bot=self.bot,
+            user_id=user_id,
+        )
 
 
     async def handle_prompt(
@@ -3224,48 +3075,8 @@ class ORACog(commands.Cog):
         await ctx.send(response_text)
 
     def _strip_route_json(self, content: str) -> str:
-        """Removes the JSON block containing 'route_eval' by counting braces."""
-        if "route_eval" not in content:
-            return content
-
-        start_idx = content.find("{")
-        if start_idx == -1:
-            return content
-
-        # Brace Counting
-        count = 0
-        end_idx = -1
-        in_string = False
-        escape = False
-
-        for i, char in enumerate(content[start_idx:], start=start_idx):
-            # Handle strings to ignore braces inside them
-            if char == '"' and not escape:
-                in_string = not in_string
-
-            if char == "\\" and not escape:
-                escape = True
-            else:
-                escape = False
-
-            if not in_string:
-                if char == "{":
-                    count += 1
-                elif char == "}":
-                    count -= 1
-                    if count == 0:
-                        end_idx = i + 1
-                        break
-
-        if end_idx != -1:
-            json_block = content[start_idx:end_idx]
-            # Verify it's the route block
-            if "route_eval" in json_block:
-                logger.info(f"Stripped Route JSON: {json_block[:50]}...")
-                # Return content without this block
-                return (content[:start_idx] + content[end_idx:]).strip()
-
-        return content
+        """Compatibility wrapper for the extracted ORA route JSON stripper."""
+        return strip_ora_route_json(content, info=logger.info)
 
 
 async def setup(bot):

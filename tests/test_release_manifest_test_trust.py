@@ -138,6 +138,10 @@ def test_cli_manifest_verify_test_trust_ja_pretty_keeps_signature_details(capsys
     ) == 0
 
     output = capsys.readouterr().out
+    assert "YonerAI \u30de\u30cb\u30d5\u30a7\u30b9\u30c8\u691c\u8a3c" in output
+    assert "\u5951\u7d04" in output
+    assert "\u30bb\u30ad\u30e5\u30ea\u30c6\u30a3" in output
+    assert not any(marker in output for marker in ("\ufffd", "\u7e5d", "\u87fe", "\u8b8c", "\u87f9"))
     assert "test_trust_fixture_used" in output
     assert "production_trust_material" in output
     assert "Signature checks" in output

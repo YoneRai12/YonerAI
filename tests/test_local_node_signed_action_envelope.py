@@ -57,6 +57,7 @@ def _signed_action(
         action_id="action-1",
         node_id=session.enrolled_node_id,
         session_id=session.session_id,
+        manifest_id=session.manifest_id,
         mode="official_hybrid_private",
         capability=capability,
         args_hash=expected_args_hash,
@@ -157,6 +158,7 @@ def test_wrong_session_or_undeclared_capability_is_rejected() -> None:
         action_id="action-2",
         node_id=session2.enrolled_node_id,
         session_id=session2.session_id,
+        manifest_id=session2.manifest_id,
         mode="official_hybrid_private",
         capability="private_files",
         args_hash=args_hash,
@@ -175,6 +177,37 @@ def test_wrong_session_or_undeclared_capability_is_rejected() -> None:
 
     assert undeclared_result.status == "capability_not_declared"
     assert undeclared_result.execute_allowed is False
+
+
+def test_wrong_manifest_binding_is_rejected_before_preview() -> None:
+    hybrid, private_key_b64, public_key_b64, session = _session_fixture()
+    args_hash = hybrid.action_args_hash({"tool": "synthetic_inspection"})
+    unsigned = hybrid.build_unsigned_local_node_action_envelope(
+        action_id="action-wrong-manifest",
+        node_id=session.enrolled_node_id,
+        session_id=session.session_id,
+        manifest_id="other-manifest",
+        mode="official_hybrid_private",
+        capability="local_tools",
+        args_hash=args_hash,
+        nonce="action-nonce-wrong-manifest",
+    )
+    signed = hybrid.sign_local_node_action_envelope(unsigned, private_key_b64=private_key_b64)
+
+    result = hybrid.verify_local_node_action_envelope(
+        signed,
+        session=session,
+        public_key_b64=public_key_b64,
+        expected_args_hash=args_hash,
+        nonce_store=hybrid.InMemoryNonceStore(),
+        mode="official_hybrid_private",
+        now=NOW,
+    )
+
+    assert result.status == "manifest_mismatch"
+    assert result.session_bound is False
+    assert result.accepted_for_preview is False
+    assert result.execute_allowed is False
 
 
 def test_wrong_audience_is_rejected() -> None:

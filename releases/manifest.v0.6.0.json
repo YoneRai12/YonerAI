@@ -1,0 +1,50 @@
+{
+  "schema_version": "yonerai-installer-bootstrap-manifest/v1",
+  "product": "YonerAI",
+  "channel": "stable",
+  "version": "0.6.0",
+  "published_at": "2026-05-27T00:00:00Z",
+  "production_ready": false,
+  "release": {
+    "tag": "v0.6.0",
+    "github_release_url": "https://github.com/YoneRai12/YonerAI/releases/tag/v0.6.0",
+    "manifest_status": "unsigned_example"
+  },
+  "minimum_requirements": {
+    "python": ">=3.11",
+    "windows": "10 or newer for the documented PowerShell local CLI path",
+    "network_required": false
+  },
+  "install_methods": [
+    "manual_zip_venv",
+    "powershell_dry_run_plan",
+    "manifest_verify_only"
+  ],
+  "warnings": [
+    "stable local CLI runtime manifest; not a production network installer",
+    "production signature verification is not available in this public manifest",
+    "manual ZIP install requires the user to extract the archive and run local commands",
+    "install.ps1 is a dry-run skeleton and does not install anything",
+    "install-local.ps1 is plan-first and only installs into .venv when -Execute is explicit",
+    "no remote execution installer is included",
+    "no PATH mutation is performed by default"
+  ],
+  "artifacts": [
+    {
+      "id": "yonerai-0.6.0-source-archive",
+      "kind": "source_archive",
+      "target": "source-any",
+      "os": "any",
+      "arch": "any",
+      "url": "https://github.com/YoneRai12/YonerAI/releases/download/v0.6.0/YonerAI-0.6.0.zip",
+      "sha256": "30b31aa880a796d99a14a3c6db08e9f50d16eea65cc03cb05b67d438e29a56b3",
+      "size_bytes": 14891173,
+      "signature": {
+        "status": "placeholder_non_production",
+        "algorithm": "none",
+        "key_id": "PLACEHOLDER_NON_PRODUCTION_KEY",
+        "signature": "PLACEHOLDER_NON_PRODUCTION_SIGNATURE"
+      }
+    }
+  ]
+}

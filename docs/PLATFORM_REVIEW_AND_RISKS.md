@@ -30,7 +30,7 @@ iOS アプリで「ユーザーが自前で立てたサーバー（Node）に接
 「自分用」と「商用」を全く同じコードベースで管理するのは、コードが肥大化し、条件分岐だらけになる未来が見えます。
 - **リスク**: 商用版の修正が個人版を壊す（逆も然り）。
 - **別視点**:
-    - **Core Engine (OSS)** と **Platform Wrappers (Commercial)** の分離: 本体はシンプルな OSS とし、認証や Relay 接続機能は「プラグイン」や「ラッパー」として提供する構造の方が健全かもしれません。
+    - **Core Engine (source-available / noncommercial)** と **Platform Wrappers (Commercial license reserved)** の分離: 本体は public review 可能な source-available core とし、認証や Relay 接続機能は「プラグイン」や「ラッパー」として提供する構造の方が健全かもしれません。
 
 ---
 

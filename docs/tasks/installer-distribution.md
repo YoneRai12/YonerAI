@@ -77,6 +77,13 @@ include:
 
 `releases/manifest.schema.json` defines the future installer bootstrap release manifest. `releases/manifest.example.json` is an example contract fixture and is not a production installer manifest.
 
+`releases/manifest.v0.5.1.json` records the current v0.5.1 GitHub Release
+asset `YonerAI-0.5.1.zip` for local verification and dry-run planning. It is
+stable-channel metadata for the CLI Local Runtime release, but it is still not
+install-ready because the public repository does not include production signing
+keys, a production trust store, or an official signing service. Its signature
+status remains `placeholder_non_production`.
+
 The existing `core/src/ora_core/distribution/release.py` sidecar models remain the current Distribution Node MVP verification implementation. The installer bootstrap manifest is the future distribution source of truth for public install entry points and should be connected to signed sidecars in a later implementation PR.
 
 ## Artifact naming policy
@@ -131,6 +138,36 @@ production-capable installer in a future private/official lane must require
 signed manifests and fail closed when the production signature is not verified
 against the official trust source.
 
+For v0.5.1, users can run:
+
+```powershell
+yonerai manifest verify releases/manifest.v0.5.1.json --pretty
+yonerai install plan --manifest releases/manifest.v0.5.1.json --pretty
+yonerai update check --manifest releases/manifest.v0.5.1.json --pretty
+yonerai update plan --manifest releases/manifest.v0.5.1.json --pretty
+```
+
+These commands validate local manifest structure, artifact naming, SHA256 field
+presence and format, signature/trust status, and planned non-actions. They do
+not download the asset, execute scripts, install packages, mutate PATH, request
+admin privileges, or create services.
+
+## Future zero-trust signing path
+
+The public repository should continue to validate local manifest shape, artifact
+names, hashes, and non-production/test trust fixtures. Production distribution
+belongs to a future private/official lane:
+
+- TUF-style metadata roles for root, targets, snapshot, and timestamp.
+- SLSA provenance for release artifact build evidence.
+- Sigstore/Cosign or equivalent signing for artifact and manifest attestations.
+- Production trust material stored outside this public repository.
+- Key rotation, revocation, and incident response procedures maintained in the
+  official/private lane.
+
+Until that lane exists, public manifests must clearly report
+`production_signature_verified: false` and remain dry-run / verification-only.
+
 ## Implementation order
 
 1. Land manifest schema, example, and validation tests. Done for the alpha foundation.
@@ -141,36 +178,48 @@ against the official trust source.
 6. Add public alpha signed-manifest verification against an explicit
    non-production/test trust fixture only. Done for local test-fixture
    verification.
-7. Add `yonerai update plan` and manifest-to-release-asset consistency checks
+7. Add `yonerai update check`, `yonerai update plan`, and
+   manifest-to-release-asset consistency checks
    without live network use by default. Done for local-manifest update planning;
    manifest-to-release-asset consistency checks remain a separate public task.
-8. Add PowerShell dry-run bootstrap skeleton only after local verification,
-   rollback planning, logs, and safe mode are specified.
-9. Future private/official lane: connect release workflow to a signing service,
+8. Add a PowerShell local bootstrap helper only after local verification,
+   rollback planning, logs, and safe mode are specified. Done for
+   `install-local.ps1`: plan-first by default, explicit `-Execute` for local
+   `.venv` setup, no PATH mutation, no remote script execution, no service
+   install, and no admin request.
+9. Add a root `install.ps1` one-command installer skeleton. Done for v0.6 TUI
+   runtime preparation: dry-run only, no remote execution, no PATH mutation, and
+   points back to `install-local.ps1` for explicit local bootstrap.
+10. Future private/official lane: connect release workflow to a signing service,
    publish a signed manifest artifact, define production trust/key rotation, and
    verify signatures against the official trust source.
-10. Future private/official lane: add npm and winget bootstrap entry points that
+11. Future private/official lane: add npm and winget bootstrap entry points that
     read the same manifest.
 
 ## Next safe milestone
 
 The dry-run Windows installer planner and release artifact naming validation now
 exist, `yonerai install plan` consumes a local manifest without installing
-anything, `yonerai update plan` compares local `VERSION` with a local manifest
-without mutating the machine, and `yonerai manifest verify` can verify signed
-test manifests against an explicit non-production trust fixture. The next safe
-milestone is manifest-to-release-asset consistency checks. These steps must
+anything, `yonerai update check` gives a quick non-mutating update notice,
+`yonerai update plan` compares local `VERSION` with a local manifest without
+mutating the machine, `yonerai manifest verify` can verify signed test
+manifests against an explicit non-production trust fixture, `install-local.ps1`
+gives extracted archives/checkouts a plan-first local bootstrap path, and
+`install.ps1` is a dry-run-only future one-command installer skeleton. The next
+safe milestone is manifest-to-release-asset consistency checks. These steps must
 avoid remote code execution, PATH mutation, auto-download, npm publishing,
-winget publishing, production signing key generation, and production trust
-store creation.
+winget publishing, production signing key generation, and production trust store
+creation.
 
-## Issue #313 tracking state
+## Issue tracking state
 
-Issue #313 remains open as the parent installer bootstrap tracking issue.
-The original manifest-first definition is partly complete, but installer
-implementation work remains. On 2026-05-22, child issues #328 through #334 were
-closed as noisy duplicate trackers and consolidated back into #313. They remain
-historical references only; active tracking is now on #313.
+Issue #313 is closed as the original manifest-first installer/bootstrap
+definition tracker. Current public implementation tracking is consolidated in
+issue #436, without reopening the noisy child-issue set.
+
+On 2026-05-22, child issues #328 through #334 were closed as noisy duplicate
+trackers. They remain historical references only; active tracking is now on
+#436 and this document.
 
 Completed or substantially completed:
 
@@ -182,13 +231,19 @@ Completed or substantially completed:
 - Windows dry-run planning foundation: PR #320, `yonerai install plan-windows`.
 - Local install dry-run planning: PR #336, `yonerai install plan`.
 - Local update dry-run planning: PR #341, `yonerai update plan`.
+- Local update quick check: this v0.6 TUI runtime branch, `yonerai update check`.
+- PowerShell future installer skeleton: this v0.6 TUI runtime branch,
+  `install.ps1` dry-run only.
 - Local non-production/test signed manifest verification:
   `yonerai manifest verify <path> --test-trust-fixture <fixture>`.
 - Release artifact naming validation foundation: PR #326.
 
-Remaining tasks are tracked directly in #313:
+Remaining tasks are tracked directly in #436:
 
-- PowerShell dry-run installer skeleton that validates local inputs and prints planned actions only.
+- PowerShell local bootstrap helper hardening: this branch adds
+  `install-local.ps1`, which validates local inputs, prints the plan by default,
+  and installs only when `-Execute` is explicit; future work still needs
+  rollback/update/uninstall integration.
 - Safe install, rollback, update, and uninstall docs.
 - Manifest-to-release-asset hash and naming validation.
 - Public documentation that separates non-production/test trust fixtures from
@@ -196,7 +251,7 @@ Remaining tasks are tracked directly in #313:
   release signing service work.
 - Future install.yonerai.com / yonerai.com/install onboarding copy that does not present remote execution as ready-to-run behavior.
 
-The parent issue should stay open until the checklist in #313 is complete or
+The parent issue should stay open until the checklist in #436 is complete or
 the owner explicitly approves a different tracking model. See
 `docs/changelog/checkpoints/issue-313-installer-triage.md` and
 `docs/changelog/checkpoints/issue-313-installer-tracking.md`.

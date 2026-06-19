@@ -1,8 +1,19 @@
 [project]
 name = "yonerai-cli"
-version = "0.1.0"
-description = "Temporary YonerAI local public MVP smoke CLI"
+version = "0.22.0a1"
+description = "YonerAI local CLI runtime"
 requires-python = ">=3.11"
+license = { text = "PolyForm-Noncommercial-1.0.0" }
+classifiers = [
+    "License :: Other/Proprietary License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+]
+dependencies = [
+    "cryptography>=42,<47",
+    "prompt_toolkit>=3.0,<4.0",
+    "rich>=13,<15",
+]
 
 [project.scripts]
 yonerai = "yonerai_cli.cli:main"

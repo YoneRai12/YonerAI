@@ -2,6 +2,505 @@
 
 See also: `docs/RELEASE_NOTES.md` (curated summary, v5.0.0 -> current).
 
+## v0.8.1 (2026-06-13) - Talkable CLI UX Repair
+- Repaired the v0.8.0 interactive CLI path so normal text produces a compact
+  route/provider/run_id preview plus an answer instead of a giant Mission
+  Control dump.
+- Made app-internal slash flows the normal path for users: `/ログイン`,
+  `/更新`, `/ローカルLLM`, `/設定`, `/認証`, `/同期`, `/記憶`, `/履歴`, `/API`,
+  `/レート`, and `/終了`.
+- Kept English aliases visible/usable in Japanese mode, including `/login`,
+  `/update`, `/local-llm`, and `/settings`, and improved `/lo` completion.
+- Moved update guidance from shell-first commands to in-app stable/beta choices
+  and fixed interactive next actions to use slash commands.
+- Added local LLM setup guidance that shows Ollama/LM Studio candidates without
+  probing non-loopback endpoints or sending prompts.
+- Hardened broken-config startup recovery and isolated staging auth/session
+  sidecar files for explicit config paths.
+- Updated README, README_JP, CLI docs, yonerai.com install content, stable
+  version constants, and trusted install.ps1 SHA256 for `v0.8.1`.
+- Added focused tests for compact chat, short commands, command display modes,
+  popup placement, staging sidecar isolation, update apply guidance, and install
+  boundary behavior.
+- Preserved boundaries: no production Google login, no Google token/refresh
+  storage, no provider keys, no OpenAI shared traffic, no production
+  Oracle/cloud runtime, no live Discord, no arbitrary shell/file execution, no
+  automatic local-to-cloud upload, and no production signing/trust store.
+- Full traceability from `v0.8.0..v0.8.1`: `docs/releases/0.8.1.md`.
+
+## v0.8.0 (2026-06-12) - Normal Talkable CLI
+- Promoted the current trunk into a stable CLI Local Runtime slice after the
+  v0.12-v0.21 prerelease line.
+- Made `yonerai` the normal interactive app path: first launch language choice,
+  compact home screen, plain-text chat through `ask --auto`, command palette,
+  and Japanese-first slash commands.
+- Reframed update UX for normal users: `yonerai update` shows `stable/beta`,
+  `yonerai update beta` replaces user-facing alpha wording, and `/更新` can
+  prepare a manual apply only after explicit confirmation.
+- Added opt-in `install.ps1 -Shortcut` support for Desktop/Start Menu launchers
+  without admin rights, service install, registry mutation, or default PATH
+  mutation.
+- Brought memory, agent-console previews, staging auth/sync visibility, Status
+  API guardrails, Control Spine short commands, policy runtime, and Quality Wall
+  work into the stable local CLI runtime claim boundary.
+- Preserved boundaries: no production Google login, no Google token/refresh
+  storage, no provider keys, no OpenAI shared traffic, no production
+  Oracle/cloud runtime, no live Discord, no arbitrary shell/file execution, no
+  automatic local-to-cloud upload, and no production signing/trust store.
+- Full traceability from `v0.7.0..v0.8.0`: `docs/releases/0.8.0.md`.
+
+## v0.20.0-alpha.1 (2026-06-11) - Web CLI API Control Spine
+- Connected the public CLI to staging YonerAIAPI Control Spine surfaces:
+  `yonerai login`, `yonerai whoami`, `yonerai project`, `yonerai api ping`,
+  `yonerai auth sessions`, `yonerai auth revoke-session`, and
+  `yonerai audit list`.
+- Added TUI visibility for `/ログイン`, `/API`, `/プロジェクト`, `/セッション`,
+  and `/監査`, while keeping Japanese-first labels and English aliases.
+- Displayed staging scopes, rate-limit state, project state, session state, and
+  sanitized audit availability without printing Google tokens or opaque session
+  values.
+- Incorporated the security intake from PR #521 so linked auth state requires a
+  validated `account/me` response instead of poll-only data.
+- Preserved boundaries: no production Google login, no Google client secret, no
+  Google access/ID/refresh token storage, no local private upload, no OpenAI
+  shared traffic, no production Oracle/cloud runtime, and no live Discord.
+
+## v0.19.0-alpha.1 (2026-06-06) - Cloud Conversation Sync Preview
+- Connected the public CLI staging login path to account-required cloud
+  conversation sync preview endpoints on `https://api-staging.yonerai.com`.
+- Added safe local YonerAI staging session claim storage so the CLI can reuse
+  an opaque staging session for `/v1/account/me`, `/v1/conversations`, and
+  `/v1/sync/preview` without printing or storing Google tokens.
+- Added `yonerai auth session status` and `yonerai auth logout --staging` for
+  inspecting and clearing the local staging session claim.
+- Added `yonerai sync conversations`, `yonerai sync conversation show <id>`, and
+  staging-backed cloud-to-local sync preview behavior with metadata-only output.
+- Kept local-to-cloud disabled by default and preview-only in the public repo.
+- Preserved boundaries: no production Google login, no Google client secret, no
+  Google access/ID/refresh token storage, no local private upload, no OpenAI
+  shared traffic, no production Oracle/cloud runtime, and no live Discord.
+
+## v0.18.0-alpha.2 (2026-06-06) - Staging Google Login E2E
+- Published public-safe staging Google login E2E evidence for
+  `https://api-staging.yonerai.com`: bridge start, browser callback, poll
+  linked, and authenticated `GET /v1/account/me` with minimal profile.
+- Added `docs/evidence/STAGING_GOOGLE_LOGIN_E2E.md` without account email,
+  request id, auth code, tokens, client secrets, provider keys, private paths,
+  or private runtime inventory.
+- Hardened the public CLI staging bridge so backend-provided bridge paths reject
+  token-like query parameters and URL fragments before printing or joining URLs.
+- Kept top-level staging session claims usable only for linked-state validation
+  while continuing to reject nested token-like fields.
+- Kept production login off: no Google client secret in the public repo, no
+  Google token or refresh-token storage, no account sync, no shared traffic, no
+  local private upload, and no production Oracle/cloud runtime.
+
+## v0.18.0-alpha.1 (2026-06-06) - Staging Google Login Linked UX
+- Completed the public CLI linked-state side of staging Google login. Users can
+  run `yonerai auth google login --staging --bridge --open-browser --wait-linked
+  --pretty --lang ja` against `https://api-staging.yonerai.com`.
+- Added safe waiting/polling for the staging CLI bridge, minimal `account/me`
+  fetch after linked state, and redacted YonerAI staging account claim storage.
+- Added TUI `/認証` linked-state display and fixed linked accounts without an
+  email claim so they no longer appear as `not-linked`.
+- Kept production login off: no Google client secret in the public repo, no
+  Google token or refresh-token storage, no account sync, no shared traffic, no
+  local private upload, and no production Oracle/cloud runtime.
+- Live staging smoke reached linked state and `GET /v1/account/me` returned 200
+  with token printing/storage disabled.
+
+## v0.17.0-alpha.1 (2026-06-05) - Staging Google Login UX
+- Published staging Google login UX through PR #513. `yonerai auth google
+  login --staging` now generates a public-safe staging authorization URL when
+  an allowlisted staging origin is configured.
+- Added staging origin policy for `YONERAI_STAGING_AUTH_ORIGIN` and
+  `YONERAI_OFFICIAL_API_STAGING_ORIGIN`, with HTTPS allowlist checks,
+  credentialed URL rejection, private/non-allowlisted host rejection, controlled
+  malformed URL errors, and explicit localhost dev mode only.
+- Added TUI `/認証` staging state and first-launch account choices after
+  language selection: local-only, staging/dry-run Google login check, or later.
+- Kept production Google login off: no Google client secret in the public repo,
+  no token exchange, no refresh token plaintext storage, no browser launch by
+  default, no account sync, and no local private content upload.
+- Added regression coverage for staging origin, redirect, dry-run error,
+  onboarding, TUI auth, sync boundary, secret redaction, and JSON safety.
+
+## v0.16.0-alpha.1 (2026-06-05) - CLI Architecture and Policy Runtime
+- Published the CLI architecture split through PR #507. `cli.py` is now a thin
+  entrypoint, while command, screen, service, and TUI modules own focused
+  behavior.
+- Added policy runtime visibility through `yonerai policy status --pretty/--json`
+  and TUI `/ポリシー`.
+- Added first-launch auth onboarding after language selection while keeping
+  Google auth dry-run/contract only.
+- Added packaged fallback support for `yonerai demo` and `yonerai smoke` so
+  packaged execution does not require repo-only script files.
+- Hardened missing-core error handling for API/policy surfaces and fixed
+  `yonerai install status` handling for reports without an `ok` field.
+- Added `docs/architecture/RUST_BOUNDARY_PROPOSAL.md` for future launcher,
+  updater, verifier, local node, and relay-client boundary decisions.
+- Included PR #509 so explicit allowlisted status fetches reject redirects
+  before reaching loopback or private endpoints.
+- Preserved boundaries: no production Oracle/cloud runtime, no production
+  Google login, no OpenAI shared traffic runtime, no live Discord, no automatic
+  local-to-cloud private upload, no arbitrary shell/file/tool execution, no
+  provider key output/storage, no production signing/trust store, and no
+  production network installer.
+
+## v0.15.0-alpha.1 (2026-06-03) - Status API Bridge
+- Added the public Status API bridge through PR #500, covering status,
+  components, incidents, releases, install state, and rate-limit status for
+  status.yonerai.com and future private/AWS backend alignment.
+- Added fixture-only CLI/TUI readers: `yonerai status check`,
+  `yonerai api status`, TUI `/状態`, and doctor status summary integration.
+- Added public status fixtures, JSON schemas, and AWS status API handoff docs
+  without adding production AWS, production Oracle/cloud runtime, production
+  Google login, live Discord, provider keys, or private runtime inventory.
+- Hardened the Status API bridge through PR #501 so local or allowlisted status
+  feeds reject private/reserved IP URLs, internal hostnames, AWS ARNs, local
+  paths, and secret-like markers before printing public JSON.
+- Local status-source read and JSON parse failures now return controlled CLI
+  errors without echoing local absolute paths or raw private endpoints.
+
+## v0.14.0-alpha.1 (2026-06-02) - Official API Contract
+- Added the public official API contract through PR #498, covering status,
+  account, rate-limit, conversation, sync preview/approve, Oracle run, and
+  self-evolution proposal endpoints.
+- Added JSON schemas, a fixture, and conformance tests for the official API
+  contract while keeping production AWS, production Oracle, production Google
+  login, and private content upload out of the public repo.
+- Added `yonerai api status`, `yonerai api contract`, and
+  `yonerai api rate-limit`, plus TUI `/API`, `/api`, and `/公式`.
+- Added `docs/private_handoff/AWS_OFFICIAL_API_HANDOFF.md` and
+  `docs/policy/API_RATE_LIMIT_POLICY.md` for the private/AWS implementation
+  lane and public quota-contract behavior.
+- Included the read-only/live-boundary fix from PR #497 so displayed live state
+  matches the effective local safety boundary.
+- Release notes now support a hidden `release-title` metadata comment so the
+  GitHub Release title is not duplicated as a visible body heading.
+
+## v0.13.0-alpha.2 (2026-06-02) - Agent Console Dogfood Patch
+- Published a narrow dogfood patch through PR #494 after v0.13.0-alpha.1
+  testing found permission/profile and preview mismatches.
+- Made `/権限 read-only` and `/権限 dry-run-only` clear existing
+  live-provider and network permissions so older `/live on` or `/network on`
+  state is not preserved by stricter profiles.
+- Made `/計画 <task>` and `/レビュー <text>` show public-safe
+  planner/reviewer previews instead of only switching modes.
+- Batched permission profile config updates into one load/save path.
+- Added regression coverage for live/network clearing and `@researcher`
+  previews.
+- Stable promotion remains deferred: memory and agent-console UX still need
+  more dogfood before v0.7.0 stable.
+
+## v0.13.0-alpha.1 (2026-06-01) - Agent Console Runtime
+- Added a Codex/opencode-style interaction layer through PR #492: command
+  palette (`/コマンド`, `/パレット`, `/palette`), agent modes, planning/review
+  screens, approval profile display, and documented English aliases.
+- Added public-safe `@planner`, `@reviewer`, and `@researcher` previews. They
+  show role/task framing and safety reminders without spawning autonomous
+  workers, browsing, executing shell commands, pushing GitHub changes, creating
+  releases, deploying, or calling live providers by default.
+- Added regression coverage for `/mode plan`, `/mode build`, read-only aliases,
+  hyphenated `/permissions` aliases, and read-only -> dry-run-only approval
+  reset behavior.
+- Preserved boundaries: no production Oracle/cloud runtime, no production
+  Google login, no OpenAI shared traffic runtime, no live Discord, no
+  automatic local-to-cloud private upload, no deploy/public tunnel, no
+  arbitrary shell/file/tool execution, no provider key output/storage, no
+  production signing/trust store, and no production network installer.
+
+## v0.12.0-alpha.2 (2026-06-01) - Memory UX and Update Notice
+- Published the recovered memory UX work through PR #488: `/記憶`,
+  `/メモリ`, `/memory`, focused `/設定 記憶`, memory add/list/forget/sync
+  preview actions, and `memory_used` id-only display in TUI/runtime surfaces.
+- Kept memory status/settings metadata-only so they show counts and boundary
+  flags without printing memory contents; explicit list remains the redacted
+  memory-summary path.
+- Honored memory settings across TUI and standalone CLI: memory-off blocks
+  TUI writes, and `memory_cloud_preview off` blocks cloud-to-local preview.
+- Made update notices non-blocking and session-aware: startup checks are reused
+  after tasks, and disabling update notices during a session takes effect
+  immediately.
+- Hardened local memory path redaction for additional Unix-style local roots
+  while avoiding slash-command/API false positives.
+- Included current-main security and installer trust-root fixes from PRs #486
+  and #487 without enabling production cloud memory, Google login, OpenAI
+  shared traffic, live Discord, arbitrary shell/file/tool execution, production
+  signing/trust, npm/winget, or production installer behavior.
+
+## v0.12.0-alpha.1 (2026-06-01) - Memory Boundary Runtime
+- Added the first public local memory boundary runtime with `MemoryRecord`,
+  local JSONL storage, redacted summaries, local-private defaults, forget/delete
+  support, and explicit audit reasons.
+- Added `yonerai memory status`, `yonerai memory add`, `yonerai memory list`,
+  `yonerai memory forget`, and `yonerai memory sync preview` for local memory
+  inspection and contract-only sync decisions.
+- Connected `ask --auto` and the redacted run ledger to memory ids only, so
+  allowed procedural/shared preference memory can influence local runtime
+  decisions without persisting raw memory content in the ledger.
+- Added Japanese TUI memory commands `/記憶` and `/メモリ`.
+- Redesigned `/設定` into focused category screens for language, provider,
+  model, safety, memory, update, auth, and privacy instead of dumping every
+  setting at once.
+- Added deferred update policy fields for normal, recommended, security, and
+  critical update notices while keeping auto-apply and forced silent update
+  disabled.
+- Added low-resolution self-evolution signal memory validation that rejects raw
+  prompts, PII-like/private path data, and extra fields.
+- Preserved boundaries: no production Oracle/cloud runtime, no production
+  Google login, no OpenAI shared traffic runtime, no live Discord, no automatic
+  local-to-cloud private memory upload, no deploy/public tunnel, no arbitrary
+  shell/file/tool execution, no provider key output/storage, no production
+  signing/trust store, and no production network installer.
+
+## v0.11.0-alpha.1 (2026-05-31) - Account Sync and Oracle API Foundation
+- Added public account identity, Google auth dry-run, cloud/local sync,
+  sync-decision, sync-audit, Official API fixture, and rate-limit policy
+  contracts.
+- Added `yonerai sync status`, `yonerai sync preview`,
+  `yonerai sync approve --dry-run`, `yonerai sync api-contract`, and
+  `yonerai sync rate-limit`.
+- Added `/同期` and `/sync` interactive entries so Japanese-first users can
+  inspect the cloud/local sync boundary without enabling production cloud.
+- Added a sanitized private YonerAIOracle handoff for future official backend
+  alignment without committing private backend code to the public repository.
+- Added v0.11 manifest, release note, and yonerai.com release/press/install
+  content foundations for account sync and Official API contract testing.
+- Preserved boundaries: no production Oracle/cloud runtime, no production
+  Google login, no OpenAI shared traffic runtime, no live Discord, no
+  automatic local-to-cloud private upload, no deploy/public tunnel, no
+  arbitrary shell/file/tool execution, no provider key output/storage, no
+  production signing/trust store, and no production network installer.
+
+## v0.10.0-alpha.1 (2026-06-01) - Public Orchestration Boundary
+- Added the `/状態` and `/ホーム` interactive entries so Japanese-first users
+  can re-open the Mission Control status/header without remembering English
+  aliases.
+- Improved model/provider value completion while preserving loopback-only local
+  LLM guidance and explicit live-provider opt-in.
+- Fixed public Google OAuth web routes to return a dry-run contract response
+  instead of attempting a production OAuth redirect or token exchange.
+- Hardened Quality Wall scans across push/PR ranges, release-gate checks,
+  local-path scanning, hidden Unicode/mojibake detection, and secret allowlists.
+- Added v0.9/v0.10 yonerai.com release/press content foundations and moved the
+  plan-only `install.ps1` default manifest/artifact to the current prerelease.
+- Preserved boundaries: no production Oracle/cloud runtime, no production
+  Google login, no OpenAI shared traffic runtime, no live Discord, no
+  deploy/public tunnel, no arbitrary shell/file/tool execution, no provider key
+  output/storage, no production signing/trust store, and no production network
+  installer.
+
+## v0.9.0-alpha.1 (2026-05-31) - TUI Value Completion and Quality Wall
+- Added context-aware slash-command value completion for the Japanese-first
+  interactive TUI, including provider, language, approval, workspace file
+  access, ledger, live-provider, network, update-notice, and numbered settings.
+- Kept English slash aliases compatible while keeping Japanese mode visually
+  Japanese-first.
+- Fixed provider value completion so suggested Anthropic/Gemini choices are
+  accepted through the existing value canonicalization path.
+- Hardened pre-v0.9 provider/local LLM/auth/privacy/hybrid/self-evolution/
+  release-gate boundaries and expanded Quality Wall coverage.
+- Preserved boundaries: no production Oracle/cloud runtime, no production
+  Google login, no OpenAI shared traffic runtime, no live Discord, no
+  deploy/public tunnel, no arbitrary shell/file/tool execution, no provider key
+  output/storage, no production signing/trust store, and no production network
+  installer.
+
+## v0.8.0-alpha.1 (2026-05-31) - Official Install/Auth Boundary
+- Hardened `install.ps1` as a plan-only installer skeleton that can read a
+  local manifest and display artifact, SHA256, signature, and trust status
+  without downloading, installing, mutating PATH, or executing remote code.
+- Added v0.8 install/auth/privacy/self-evolution boundary planning and
+  yonerai.com release/press/install content foundations.
+- Added an official self-evolution boundary contract and a private/official
+  YonerAIOracle handoff stub.
+- Cleaned Japanese-first interactive CLI wording around provider/auth/privacy/
+  safety/self-evolution/update surfaces while preserving English aliases.
+- Preserved boundaries: no production Oracle/cloud runtime, no production
+  Google login, no OpenAI shared traffic runtime, no live Discord, no
+  deploy/public tunnel, no arbitrary shell/file/tool execution, no provider key
+  output/storage, no production signing/trust store, and no production network
+  installer.
+
+## v0.7.0-alpha.1 (2026-05-31) - Official Bridge Foundation
+- Added public-safe self-evolution proposal queue foundation with synthetic
+  low-resolution signals only.
+- Added `yonerai evolve status`, `yonerai evolve simulate`, and
+  `yonerai evolve proposals list/show`.
+- Added interactive `/自己進化` and `/evolve` status entry points.
+- Added v0.7 prerelease release/site/press content foundations and a local
+  prerelease manifest contract.
+- Preserved boundaries: no production Oracle/cloud runtime, no production
+  Google login, no OpenAI shared traffic runtime, no live Discord, no
+  deploy/public tunnel, no arbitrary shell/file/tool execution, no provider key
+  output/storage, no production signing/trust store, and no production network
+  installer.
+
+## v0.6.0 (2026-05-27) - CLI Local Runtime
+- Promoted the v0.6 TUI runtime from alpha to a stable local CLI runtime slice.
+- Added post-alpha product polish for the interactive home, settings, provider,
+  local LLM, auth, privacy, history, task, agent, and update screens.
+- Added Google OAuth dry-run and OpenAI shared-traffic status visibility while
+  keeping production Google login, refresh-token storage, and shared traffic
+  disabled.
+- Added `update_notice_enabled` as a local non-secret setting; default remains
+  off.
+- Preserved Japanese-first slash suggestions while keeping English aliases
+  compatible.
+- Included post-alpha Quality Wall/security hardening: network-off live
+  suppression, ledger permission hardening, update-check manifest path safety,
+  PowerShell shell detection, and CI review fixes.
+- Preserved boundaries: no production Oracle/cloud runtime, no live Discord, no
+  deploy/public tunnel, no arbitrary shell/file/tool execution, no default live
+  provider calls, no provider key output/storage, no production Google login,
+  no OpenAI shared traffic, and no production signing/trust store.
+
+## v0.6.0-alpha.1 (2026-05-27) - CLI TUI Runtime
+- Added `prompt_toolkit` slash command completion and Rich terminal panels/status
+  for the interactive `yonerai` / `yonerai chat` shell, with plain fallback for
+  non-TTY and CI.
+- Added Japanese-first slash candidates for `/設定`, `/モデル`, `/提供元`, `/安全`,
+  `/履歴`, `/タスク`, `/エージェント`, `/更新`, and `/終了` while preserving English
+  aliases.
+- Added local non-secret model preference support through `yonerai config set
+  model ...` and the interactive `/モデル` flow.
+- Added `yonerai update check` and TUI `/更新` for local manifest update status
+  without download, install, PATH mutation, remote execution, or admin request.
+- Added `install.ps1` as a dry-run-only future one-command installer skeleton.
+- Synchronized `releases/manifest.v0.6.0-alpha.1.json` with the actual
+  workflow-uploaded GitHub Release ZIP asset hash and size, without moving the
+  tag or changing the release asset.
+- Preserved boundaries: no production Oracle/cloud runtime, no live Discord, no
+  deploy/public tunnel, no arbitrary shell/file/tool execution, no default live
+  provider calls, no provider key output/storage, and no production
+  signing/trust store.
+
+## v0.5.1 (2026-05-26) - Distribution Trust Update
+- Hardened the local distribution path after v0.5.0 with a plan-first
+  `install-local.ps1` bootstrap helper for extracted archives/checkouts.
+- Added `releases/manifest.v0.5.1.json` for local manifest verification,
+  install planning, and update planning against the v0.5.1 release asset.
+- Made release archive generation content-tree based and excluded
+  release-specific manifests from generated source archives so asset hashes can
+  be recorded without a manifest/hash feedback loop.
+- Added yonerai.com install/release/press content for v0.5.1.
+- Kept the license posture source-available and noncommercial: PolyForm
+  Noncommercial code, CC BY-NC-ND docs/assets, and reserved brand identity.
+- Preserved boundaries: no production installer, no `irm ... | iex`, no remote
+  execution, no PATH mutation by default, no production signing/trust store, no
+  production Oracle/cloud runtime, no live Discord, and no npm/winget channel.
+
+## v0.5.0 (2026-05-26) - CLI Local Runtime
+- Promoted the local CLI runtime slice to the first non-prerelease semantic
+  release for `yonerai` install-and-run usage.
+- Validated that an installed `yonerai` console script starts the interactive
+  CLI from a clean virtual environment.
+- Added v0.5 Mission Control commands for task view, Local LLM setup guidance,
+  live-provider mode, and network mode while preserving Japanese-first output
+  and English aliases.
+- Added provider capability negotiation and subagent fallback visibility.
+- Fixed post-v0.4 review debt in task progress display and image context
+  selection.
+- Preserved boundaries: no production Oracle, no Official Managed Cloud runtime,
+  no live Discord, no deploy/public tunnel, no arbitrary shell/file/tool
+  execution, no default live provider calls, no provider key output/storage, and
+  no production installer/signing/trust store.
+
+## v0.4.0-alpha.1 (2026-05-26) - Mission Control CLI Slice
+- Added Mission Control status to `yonerai` and `yonerai chat`: provider, route,
+  local node, ledger, safety, live-provider state, run_id, progress, and plan.
+- Added task progress for `ask --auto` with classify/route/provider/execution/
+  review/result steps in JSON and redacted ledger events.
+- Added `/エージェント` / `/agents` to show deterministic planner/researcher/
+  implementer/tester/reviewer plans without starting uncontrolled agents.
+- Hardened interactive pretty output against terminal control characters.
+- Fixed current-main image follow-up review debt: stale prior image carryover and
+  conflicting broad/follow-up image contracts.
+- Preserved alpha runtime boundaries: no production Oracle, no Official Managed
+  Cloud runtime, no live Discord, no deploy/public tunnel, no arbitrary
+  shell/file/tool execution, no default live provider calls, and no provider key
+  output or storage.
+
+## v0.3.0-alpha.1 (2026-05-26) - Interactive CLI Slice
+- Added `yonerai` and `yonerai chat` as a Japanese-first interactive terminal
+  shell backed by the existing `ask --auto` runtime path.
+- Added first-launch language selection and local non-secret CLI preferences
+  through `yonerai config show/set`.
+- Added Japanese slash command UI for settings, provider status, safety
+  boundaries, run history, and run display while keeping English slash command
+  aliases such as `/settings` available for compatibility.
+- Fixed current-main P1/P2 review debt before release: public cloud-contract
+  route metadata, SemVer-compatible CLI package version reporting, and
+  controlled config/interactive setting errors.
+- Hardened additional release-gate review blockers: Oracle stub private/local
+  path routing, deployment word variants, relay `auto` URL trust checks, and
+  public extension manifest redaction.
+- Fixed post-merge P2 review debt before release: unknown extension
+  capabilities remain distinct until evaluation while public output stays
+  redacted, and relay pretty output treats `auto_resolved_loopback` as a safe
+  loopback state.
+- Fixed follow-up P1 review debt: duplicate unknown extension capabilities are
+  redacted in public decision payloads instead of exposing normalized private
+  capability names.
+- Fixed local-dev Oracle stub import failures so `ask --auto` returns a
+  controlled unavailable report when optional hybrid dependencies are missing.
+- This remains a semantic alpha pre-release. It is not the date-tagged
+  stable/latest GitHub Release stream (`v2026...`).
+- Preserved alpha runtime boundaries: no production Oracle, no Official Managed
+  Cloud runtime, no live Discord, no deploy/public tunnel, no arbitrary
+  shell/file/tool execution, no default live provider calls, and no provider key
+  output or storage.
+
+## v0.2.0-alpha.1 (2026-05-26) - Real CLI Runtime Slice
+- Added `yonerai providers` so users can inspect mock, local LLM,
+  OpenAI-compatible, Anthropic, and Gemini readiness without printing keys or
+  making provider calls.
+- Improved `yonerai ask --auto --pretty --lang ja` and
+  `yonerai runs list/show --pretty --lang ja` so non-engineers can see route,
+  privacy, provider, ledger, and non-action boundaries without reading JSON.
+- Reframed mock workspace-file behavior as Workspace File Access Guard, not a
+  real file summarization feature.
+- Added an AI CLI security/UX matrix and implemented release-gate guardrails
+  from current review debt: dangerous risk hints, self-host public reasoning,
+  strict bool audit flags, real task route metadata, Oracle ledger env support,
+  and Hybrid loopback pretty status.
+- Preserved hard boundaries: no production Oracle, no Official Managed Cloud
+  runtime, no live Discord, no deploy/public tunnel, no arbitrary
+  shell/file/tool execution, no default live provider calls, and no provider key
+  output.
+
+## v0.1.0-alpha.4 (2026-05-26) - CLI Auto Runtime Slice
+- Added `yonerai ask --auto`, which classifies task difficulty/privacy,
+  selects a safe route, executes mock/local-dev paths, returns a `run_id`, and
+  records redacted ledger events when a ledger is explicitly requested.
+- Connected auto routing to mock provider execution, loopback-only local LLM
+  opt-in, mock search, local-dev Oracle stub envelopes, reviewer/subtask
+  planning, workspace file access guard boundaries, and dangerous-task deny
+  behavior.
+- Extended `yonerai demo`, `yonerai doctor`, and `yonerai start --guided` so
+  users can see the auto runtime path without live services.
+- Preserved hard boundaries: no production Oracle, no Official Managed Cloud
+  runtime, no live Discord, no public tunnel/deploy, no arbitrary shell/file/tool
+  execution, no default live provider calls, and no private file content sent to
+  cloud-contract candidates.
+
+## v0.1.0-alpha.3 (2026-05-26) - Real Hybrid Execution Slice
+- Added `yonerai hybrid run --pretty/--json`, a public-safe local-dev Hybrid
+  execution slice that connects route preview, verified test Local Node session,
+  in-memory relay transport, mock provider execution, redacted ledger events,
+  and Oracle stub request/result envelopes with run IDs.
+- Extended `yonerai demo`, `yonerai doctor`, and `yonerai start --guided` so
+  non-engineers can see what runs locally, what is a stub, and what remains
+  outside the public repo.
+- Continued Hybrid wire/relay/route/oracle hardening through Local Node posture
+  states, relay transport, audit events, extension manifest boundaries, session
+  expiry validation, and dangerous cloud-candidate denial.
+- Preserved hard boundaries: no production Oracle, no Official Managed Cloud
+  runtime, no live Discord, no public tunnel/deploy, no production signing or
+  trust store, no arbitrary shell/file/tool execution, and no default live
+  provider calls.
+
 ## v0.1.0-alpha.2 (2026-05-22) - Capability Slice
 - Corrected the existing `v0.1.0-alpha.2` release note into operation-manual
   style with command-by-command run guidance, explicit non-actions, immutable

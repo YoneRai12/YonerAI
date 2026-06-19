@@ -1,4 +1,9 @@
-# YonerAI
+﻿# YonerAI
+
+> [!WARNING]
+> **Do not treat this README as the single source of truth for the current prerelease state.**
+> YonerAI is moving quickly, so this README can lag behind active releases and commits.  
+> Check [Alpha releases](https://github.com/YoneRai12/YonerAI/releases) and [latest commits](https://github.com/YoneRai12/YonerAI/commits/main) for the newest implementation status.
 
 Provider-independent AI execution foundation for keeping one reliable AI experience across official, local, and self-hosted runtimes.
 
@@ -12,6 +17,208 @@ It is not just a Discord bot and not just a model router. Discord, Web, relay, A
 
 This public README describes the public contract surface. It does not publish internal operations detail, credentials, live routes, or host-specific facts.
 
+## License and distribution
+
+YonerAI is source-available and noncommercial by default. It is not OSI open
+source.
+
+- Code: PolyForm Noncommercial License 1.0.0.
+- Documentation and assets: CC BY-NC-ND 4.0 unless a file says otherwise.
+- YonerAI name, logo, product identity, domains, and brand assets: All Rights
+  Reserved.
+- Commercial use requires a separate commercial license from YoneRai12.
+
+See [LICENSE](LICENSE), [LICENSE_JP.md](LICENSE_JP.md), [NOTICE](NOTICE), and
+[License policy](docs/legal/LICENSE_POLICY.md).
+
+## Install and start YonerAI
+
+This is the local CLI runtime path, not full YonerAI cloud production. The
+latest stable CLI Local Runtime is `v0.8.1`. Stable is the default channel.
+The beta/prerelease line remains explicit and compatibility-mapped to existing
+prerelease manifests. After install, `yonerai` launches the interactive CLI and
+plain text talks to the safe local runtime without remembering flags.
+
+### Quick install
+
+```powershell
+irm https://install.yonerai.com | iex
+```
+
+Quick install downloads a static Cloudflare wrapper from `install.yonerai.com`.
+That wrapper downloads `install.ps1` and `install.ps1.sha256` from the currently
+embedded trusted stable release tag, checks the sidecar against the embedded
+SHA256, and runs the bootstrap only after the downloaded script hash matches. It
+does not call the GitHub API from the user's terminal, fetch ZIPs, manifests, or
+sidecar hashes from `yonerai.com`, mutate PATH by default, edit the registry,
+install services, request admin rights, store provider keys, or enable
+production cloud behavior.
+
+Do not pipe `releases/latest/download/install.ps1` directly into
+`Invoke-Expression`; the short command goes through the trust-mapped wrapper.
+
+### Verified install
+
+Use this when you want to verify the bootstrap script hash before execution.
+It downloads `install.ps1` and `install.ps1.sha256` from the current trusted
+stable release tag and checks the sidecar against the embedded SHA256 before
+execution. It fails closed if the sidecar is missing, malformed, not trusted, or
+mismatched.
+
+```powershell
+$ErrorActionPreference = "Stop"
+$base = "https://github.com/YoneRai12/YonerAI/releases/download/v0.8.1"
+$expected = "a52c3f918bd45e7fe87b7a396c80b879ede4bccdf16a7efdf05320388eaa9fea"
+$tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("yonerai-bootstrap-" + [guid]::NewGuid().ToString("N"))
+New-Item -ItemType Directory -Path $tmp | Out-Null
+try {
+  $script = Join-Path $tmp "install.ps1"
+  $sidecar = Join-Path $tmp "install.ps1.sha256"
+  irm "$base/install.ps1" -OutFile $script
+  irm "$base/install.ps1.sha256" -OutFile $sidecar
+  $sidecarExpected = ((Get-Content -LiteralPath $sidecar -Raw) -split '\s+')[0].ToLowerInvariant()
+  if ($sidecarExpected -notmatch "^[a-f0-9]{64}$") { throw "install.ps1 sidecar SHA256 is invalid" }
+  if ($sidecarExpected -ne $expected) { throw "install.ps1 sidecar does not match trusted digest" }
+  $actual = (Get-FileHash -LiteralPath $script -Algorithm SHA256).Hash.ToLowerInvariant()
+  if ($actual -ne $expected) { throw "install.ps1 hash mismatch" }
+  $scriptText = Get-Content -LiteralPath $script -Raw
+  if ($scriptText -notmatch "Invoke-VerifiedLocalBootstrap" -or $scriptText -match "install.ps1 is still plan-only") {
+    throw "install.ps1 is not an executable bootstrap. Refusing to launch."
+  }
+  & (Get-Process -Id $PID).Path -NoProfile -ExecutionPolicy Bypass -File $script -Execute -Launch
+} finally {
+  if (Test-Path -LiteralPath $tmp) { Remove-Item -LiteralPath $tmp -Recurse -Force }
+}
+```
+
+Explicit beta/prerelease one-command remote execution is not advertised. Use
+the manual ZIP flow for explicit release selection.
+
+### If you downloaded the GitHub Release ZIP
+
+Download `YonerAI-0.8.1.zip` from the
+[v0.8.1 release](https://github.com/YoneRai12/YonerAI/releases/tag/v0.8.1),
+extract it, then run PowerShell inside the extracted folder. The extracted
+folder name can vary; change the `cd` command to match the folder you see.
+
+```powershell
+cd "$HOME\Downloads\YonerAI-0.8.1"
+python --version
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -U pip
+python -m pip install -r core/requirements.txt httpx
+python -m pip install -e clients/cli
+yonerai
+```
+
+If the extracted archive or checkout contains `install-local.ps1`, you can use
+the local bootstrap helper instead of typing the virtual-environment steps by
+hand:
+
+```powershell
+# Show the plan only. Nothing is installed.
+.\install-local.ps1
+
+# Create .venv, install the local CLI package, then start YonerAI.
+.\install-local.ps1 -Execute -Launch
+```
+
+`install.ps1` is also included as the GitHub Release bootstrap. Without
+`-Execute`, it prints the plan and performs no install:
+
+```powershell
+.\install.ps1
+```
+
+If PowerShell blocks local scripts, run the same helper without changing the
+machine-wide execution policy:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\install-local.ps1 -Execute -Launch
+```
+
+The helper is local-first: plan mode is the default, it refuses virtual
+environment paths outside the extracted YonerAI folder, and it does not mutate
+PATH, edit the registry, install services, request admin privileges, or run
+`irm ... | iex`. With `-Execute`, `pip` may fetch Python dependencies unless
+they are already cached.
+
+Use Python 3.11 or newer. If `python --version` does not work, install Python
+first or use the launcher command that exists on your machine.
+
+After `yonerai` opens, choose `日本語` or `English`, then type a normal
+message. You can open settings with `/設定` or `/settings`, check safety with
+`/安全`, see auth/privacy state with `/認証` and `/プライバシー`, see history
+with `/履歴`, and exit with `/終了` or `/quit`.
+
+If `yonerai` is not found, activate the virtual environment again:
+`.\.venv\Scripts\Activate.ps1`. This path does not mutate PATH permanently,
+does not run `irm ... | iex`, does not download or execute a remote installer,
+and does not enable live providers by default.
+
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+python -m pip install -U pip
+python -m pip install -r core/requirements.txt httpx
+python -m pip install -e clients/cli
+yonerai
+```
+
+After install, `yonerai` starts the interactive app when stdin is a TTY.
+Type a normal message first. The default mock provider answers offline with no
+API key or setup. `yonerai chat` remains an explicit alias. For CI, pipes, and
+scripted input, use `yonerai chat --script` or `yonerai ask --auto`.
+
+### In-app commands
+
+Normal users should not need to memorize long shell flags such as
+`--bridge --open-browser --wait-linked`. Open `yonerai`, type `/`, and choose a
+command. Japanese mode shows Japanese commands first while English aliases such
+as `/login` and `/local-llm` still work. Tab and arrow-key selection are
+available when `prompt_toolkit` is active; otherwise YonerAI falls back to the
+plain line-by-line mode used by CI.
+
+```text
+/ログイン      open Google alpha/staging login
+/更新          choose stable/beta update; apply only after explicit confirmation
+/ローカルLLM   detect Ollama / LM Studio and show setup guidance
+/設定          language, display, provider, safety, memory, update settings
+/認証          auth state, shared traffic off, private upload disabled
+/同期          cloud-to-local preview; local-to-cloud requires approval
+/記憶          add/list/forget local memory and preview sync
+/履歴          redacted run history
+/API           staging API status
+/レート        rate-limit status
+/終了          quit
+```
+
+Short shell commands are still available for advanced users and CI, but the
+normal path is the in-app `/ログイン`, `/更新`, and `/ローカルLLM` flow.
+
+```powershell
+yonerai
+yonerai chat
+yonerai ask --auto "hello"
+yonerai update
+yonerai update stable
+yonerai update beta
+yonerai login
+yonerai auth status --pretty --lang ja
+yonerai sync status --pretty --lang ja
+yonerai sync preview --direction cloud-to-local --json
+yonerai sync approve --dry-run --direction local-to-cloud --json
+yonerai privacy status --pretty --lang ja
+yonerai config set model llama3.1 --pretty --lang ja
+yonerai providers --pretty --lang ja
+```
+
+Inside the app, `/更新` shows stable and beta choices first. Applying an update
+requires explicit confirmation such as `/更新 適用 安定版 確認` or
+`/更新 適用 ベータ版 確認`. There is no silent update, forced update, PATH
+mutation, remote script execution, or admin requirement.
+
 ## Quickstart: Public Demo
 
 After clone, the fastest public-safe way to see the current YonerAI slice is the credential-free demo command. It runs in-process and does not require a Core API server, Discord token, Oracle access, provider API key, Google login, deployment, or persistent memory.
@@ -22,18 +229,154 @@ python -m venv .venv
 python -m pip install -U pip
 python -m pip install -r core/requirements.txt httpx
 python -m pip install -e clients/cli
+yonerai
+yonerai chat
+yonerai config show --pretty --lang ja
+yonerai start --guided --lang ja
+yonerai start --guided --json
+yonerai providers --pretty --lang ja
+yonerai ask "hello" --auto --pretty --lang ja
 yonerai demo --pretty
 yonerai demo --json
 yonerai doctor --pretty
 yonerai doctor --pretty --lang ja
 yonerai status --pretty
-yonerai manifest verify releases/manifest.example.json --pretty
+yonerai manifest verify releases/manifest.v0.8.1.json --pretty
+yonerai install plan --manifest releases/manifest.v0.8.1.json --pretty
+yonerai update check --manifest releases/manifest.v0.8.1.json --pretty
+yonerai update plan --manifest releases/manifest.v0.8.1.json --pretty
 yonerai plan "summarize public docs" --json
 yonerai ask "summarize public docs" --provider mock --json
+yonerai hybrid run --pretty
+yonerai hybrid run --json
 yonerai search mock "YonerAI alpha2" --json
 yonerai ops plan git-status --json
-yonerai install plan --manifest releases/manifest.example.json --json
+yonerai install plan --manifest releases/manifest.v0.8.1.json --json
 ```
+
+## First 5 minutes
+
+`yonerai` opens the local interactive terminal when stdin is a TTY.
+Use `yonerai chat` for the same screen explicitly. The interactive shell is a
+terminal app with plain fallback, not a full-screen GUI: type a message to run
+the same safe `ask --auto` path, or use slash commands.
+
+```text
+/settings        show language/provider/safety settings
+/providers       show mock/local/API provider readiness without printing keys
+/safety          show network/tool/file/provider boundaries
+/tasks           show current and recent task progress
+/agents          show the planned planner/researcher/reviewer roles
+/runs            list redacted local run history
+/show <run_id>   show one redacted run
+/local-llm       show loopback-only local LLM setup guidance
+/auth            show Google OAuth dry-run contract status
+/sync            show cloud/local sync boundary
+/privacy         show OpenAI shared-traffic and private-content policy
+/update          check local manifest update status
+/update-notice on|off toggle startup update notice setting
+/language ja|en  change UI language
+/provider auto|mock|local|openai-compatible|anthropic|gemini
+/ledger on|off   toggle redacted local run ledger
+/live on|off     toggle explicit live/local execution permission
+/network on|off  toggle explicit network permission
+/select <n> <v>  change a numbered setting from the settings screen
+/quit            exit
+```
+
+On first interactive launch, YonerAI asks for Japanese or English and stores
+only non-secret local preferences. Non-TTY use, for example pipes or CI, does
+not hang; it prints fallback instructions. Use `yonerai chat --script` when you
+intentionally want to feed scripted input.
+
+In Japanese mode, the primary slash commands are Japanese (`/設定`, `/タスク`,
+`/ローカルLLM`, `/安全`, `/履歴`, `/認証`, `/プライバシー`, `/更新`). English
+aliases such as `/settings`, `/auth`, and `/tasks` remain available for
+compatibility.
+
+`yonerai start --guided` is the guided path for a first local run. It is written
+for people who want copyable next actions, not for people already familiar with
+the internals.
+
+```powershell
+yonerai start --guided --lang ja
+yonerai chat
+yonerai config set language ja
+yonerai config show --pretty --lang ja
+yonerai start --guided --json
+yonerai demo --pretty
+yonerai doctor --pretty --lang ja
+yonerai ask "hello" --provider mock --json
+yonerai hybrid run --pretty
+yonerai ask "use this selected sample file" --file sample.txt --workspace .yonerai-sample-workspace --provider mock --json
+yonerai ask "hello" --provider mock --json --ledger .yonerai-runs.jsonl
+yonerai runs list --ledger .yonerai-runs.jsonl --pretty --lang ja
+```
+
+If you already have a local LLM server on loopback, for example Ollama on
+`127.0.0.1:11434` or an LM Studio / OpenAI-compatible server on
+`127.0.0.1:1234`, `yonerai start --guided` checks only local metadata endpoints.
+It does not send a prompt to the model. If a loopback endpoint is detected, the
+guided output prints the exact environment variables to set before you choose
+the local provider path. After you intentionally enable local execution, you can
+try:
+
+```powershell
+$env:ORA_LOCAL_LLM_ENABLED = "1"
+$env:ORA_LOCAL_LLM_PROVIDER = "ollama"
+$env:ORA_LOCAL_LLM_BASE_URL = "http://127.0.0.1:11434"
+$env:ORA_LOCAL_LLM_MODEL = "llama3.2"
+yonerai ask "hello" --provider local --live --json
+```
+
+For LM Studio or another OpenAI-compatible local server, keep the endpoint on
+loopback and use:
+
+```powershell
+$env:ORA_LOCAL_LLM_ENABLED = "1"
+$env:ORA_LOCAL_LLM_PROVIDER = "openai_compatible_local"
+$env:ORA_LOCAL_LLM_BASE_URL = "http://127.0.0.1:1234/v1"
+$env:ORA_LOCAL_LLM_MODEL = "local-model"
+yonerai ask "hello" --provider local --live --json
+```
+
+What this first path explains:
+
+- `yonerai` / `yonerai chat` starts a Japanese-first interactive shell with
+  chat, provider status, safety settings, and run history slash commands.
+- `yonerai config show/set` stores only local non-secret preferences such as
+  language, provider preference, approval mode, and file-access mode.
+- `yonerai start --guided --lang ja` prints a mock-first path, Local LLM status,
+  workspace file guard example, ledger example, and current limitations.
+- `yonerai providers --pretty --lang ja` shows which provider paths are usable
+  now, which require explicit `--live`, and which setup step is missing.
+- `yonerai ask "hello" --auto --pretty --lang ja` classifies the task, chooses a
+  safe route, shows the selected provider, and explains whether a ledger was
+  written.
+- `yonerai demo --pretty` shows the current public-safe local slice without credentials.
+- `yonerai doctor --pretty --lang ja` checks local setup without installing or
+  mutating PATH.
+- `yonerai hybrid run --pretty` runs a local-dev Hybrid slice: route preview,
+  verified test Local Node session, in-memory relay transport, mock provider
+  execution, redacted ledger events, and an Oracle stub request/result envelope.
+- Local LLM detection is loopback-only and metadata-only.
+- Mock `ask` returns a public-safe `run_id`.
+- `--ledger <local.jsonl>` is optional and writes redacted local-only run
+  history.
+- `yonerai runs list/show --pretty --lang ja` reads only the explicitly selected
+  local ledger path or `YONERAI_RUN_LEDGER_PATH`; it does not upload history.
+- Workspace file support is a Workspace File Access Guard: it reads only an
+  explicitly selected UTF-8 text file inside an explicit workspace allowlist.
+  The sample command expects you to create `.yonerai-sample-workspace/sample.txt`
+  yourself; `yonerai start --guided` does not create files, read files, or write
+  a ledger.
+
+Still not included: production readiness, Official Managed Cloud runtime,
+production Oracle, live Discord restoration, arbitrary shell execution,
+arbitrary local file access, folder crawling, PDF/image parsing, automatic file
+summarization, production installer, npm/winget distribution, Google login,
+production DB behavior, complete persistent memory, or a solved
+`src/cogs/ora.py`.
 
 ## What you can try in v0.1.0-alpha.2
 
@@ -43,7 +386,7 @@ production services, or live network calls:
 
 - Mock provider execution: `yonerai ask "summarize public docs" --provider mock --json`
 - Run trace preview/history surface: mock `ask` returns a public-safe `run_id`.
-- Workspace file summary: `yonerai ask "summarize this file" --file <path> --workspace <dir> --provider mock --json`
+- Workspace File Access Guard: `yonerai ask "use this selected file" --file <path> --workspace <dir> --provider mock --json`
 - Mock search: `yonerai search mock "YonerAI alpha2" --json`
 - SafeShell plan: `yonerai ops plan git-status --json`
 - Local memory: `yonerai memory add "local note" --store <local.jsonl> --confirm-local --json`
@@ -85,7 +428,7 @@ The demo shows one visible vertical slice:
 - test-only Local Node signed manifest, enrollment/session, signed envelope, replay rejection, and approval gate
 - managed download guard accepting managed file URLs and rejecting arbitrary unsafe URLs
 - synthetic proposal-only self-evolution scorecard and approval draft
-- alpha2 capability boundaries for opt-in providers, loopback local LLM, workspace file summarize, mock search, SafeShell planning, explicit local memory, synthetic Discord, status contracts, and installer dry-run planning
+- alpha2 capability boundaries for opt-in providers, loopback local LLM, Workspace File Access Guard, mock search, SafeShell planning, explicit local memory, synthetic Discord, status contracts, and installer dry-run planning
 - explicit limitations: no production Oracle, live Discord restoration, default/cloud memory, Google login, official cloud runtime in this repo, default live provider generation, arbitrary shell, arbitrary file access, or deploy
 
 ## Current Checkpoint
@@ -126,7 +469,11 @@ What works today:
 - run `yonerai doctor --pretty`, `yonerai doctor --pretty --lang ja`, and `yonerai status --pretty` for offline public-demo diagnostics
 - run `yonerai manifest verify releases/manifest.example.json --pretty` for local manifest contract verification without downloading or installing anything
 - run `yonerai plan "task"` and `yonerai ask "task" --provider mock` for public-safe planning and mock provider execution
-- run `yonerai ask "summarize this file" --file <path> --workspace <dir> --provider mock` for explicit workspace-only text file summarization
+- run `yonerai ask "use this selected file" --file <path> --workspace <dir> --provider mock` for explicit workspace-only text file access guard behavior
+- run `yonerai hybrid run --pretty` for a local-dev Hybrid execution slice that
+  keeps execution in process/loopback-only, records redacted run events, and
+  demonstrates Oracle stub envelopes without production Oracle or official cloud
+  runtime
 - run `yonerai search mock "query"` for deterministic mock search fixtures
 - run `yonerai ops plan git-status` for SafeShell diagnostic planning without arbitrary shell execution
 - run `yonerai memory add/list/delete/export --store <local.jsonl>` for explicit opt-in local-only memory records

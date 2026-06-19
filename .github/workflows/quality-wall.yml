@@ -1,0 +1,336 @@
+name: YonerAI Quality Wall
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+env:
+  PYTHON_VERSION: "3.11"
+  PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/core/src:${{ github.workspace }}/clients/cli
+  YONERAI_TEST_MODE: "1"
+
+jobs:
+  core-unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install core test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r core/requirements.txt pytest
+          python -m pip install -e clients/cli
+      - name: Run core unit tests
+        run: |
+          python -m pytest \
+            tests/test_runtime_env_loader.py \
+            tests/test_model_registry.py \
+            tests/test_execution_spine.py \
+            tests/test_auto_runtime.py \
+            tests/test_public_core_message_mvp.py \
+            tests/test_surface_api_run_contract.py \
+            -q
+
+  cli-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install CLI test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e clients/cli pytest
+      - name: Run CLI smoke tests
+        run: |
+          python -m pytest \
+            tests/test_cli_runtime_shell_v020.py \
+            tests/test_auth_privacy_policy.py \
+            -q
+
+  tui-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install TUI test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e clients/cli pytest
+      - name: Run TUI smoke tests
+        run: |
+          python -m pytest \
+            tests/test_cli_interactive_v030.py \
+            tests/test_cli_command_display_modes.py \
+            tests/test_cli_output_formatting.py \
+            -q -k "not install_like_entry_point_starts_yonerai"
+
+  provider-boundary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install provider test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r core/requirements.txt pytest pytest-asyncio
+          python -m pip install -e clients/cli
+      - name: Run provider boundary tests
+        run: |
+          python -m pytest \
+            tests/test_external_provider_adapters.py \
+            tests/test_provider_runtime_e2e.py \
+            tests/test_local_llm_provider.py \
+            tests/test_runtime_experience_planner.py \
+            tests/test_llm_client.py \
+            -q
+
+  hybrid-zero-trust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install hybrid test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r core/requirements.txt pytest
+          python -m pip install -e clients/cli
+      - name: Run hybrid zero-trust tests
+        run: |
+          python -m pytest \
+            tests/test_hybrid_signed_envelope_policy.py \
+            tests/test_hybrid_wire_contract.py \
+            tests/test_hybrid_node_posture.py \
+            tests/test_hybrid_node_relay_contract.py \
+            tests/test_hybrid_relay_node_e2e.py \
+            tests/test_local_node_manifest_signature.py \
+            tests/test_local_node_signed_action_envelope.py \
+            tests/test_local_node_enrollment_pairing.py \
+            tests/test_local_node_session_ref_contract.py \
+            tests/test_three_mode_route_preview.py \
+            tests/test_public_capability_boundary.py \
+            tests/test_hybrid_extension_manifest.py \
+            -q
+
+  installer-manifest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install installer test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e clients/cli pytest
+      - name: Run installer and manifest tests
+        run: |
+          python -m pytest \
+            tests/test_release_manifest_schema.py \
+            tests/test_release_manifest_test_trust.py \
+            tests/test_installer_install_plan.py \
+            tests/test_installer_update_plan.py \
+            tests/test_distribution_license_site.py \
+            tests/test_local_bootstrap_script.py \
+            tests/test_official_bridge_foundation.py \
+            tests/test_v080_install_auth_boundary.py \
+            -q
+
+  windows-cli-smoke:
+    runs-on: windows-latest
+    env:
+      PYTHONPATH: ${{ github.workspace }};${{ github.workspace }}\core\src;${{ github.workspace }}\clients\cli
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install Windows CLI test dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e clients/cli pytest
+      - name: Run Windows CLI and TUI smoke tests
+        shell: pwsh
+        run: |
+          python -m pytest `
+            tests/test_cli_runtime_shell_v020.py `
+            tests/test_auth_privacy_policy.py `
+            tests/test_cli_interactive_v030.py `
+            tests/test_cli_command_display_modes.py `
+            tests/test_cli_output_formatting.py `
+            -q -k "not install_like_entry_point_starts_yonerai"
+
+  windows-installer-manifest:
+    runs-on: windows-latest
+    env:
+      PYTHONPATH: ${{ github.workspace }};${{ github.workspace }}\core\src;${{ github.workspace }}\clients\cli
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install Windows installer test dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e clients/cli pytest
+      - name: Run Windows installer and manifest tests
+        shell: pwsh
+        run: |
+          python -m pytest `
+            tests/test_release_manifest_schema.py `
+            tests/test_release_manifest_test_trust.py `
+            tests/test_installer_install_plan.py `
+            tests/test_installer_update_plan.py `
+            tests/test_local_bootstrap_script.py `
+            tests/test_official_bridge_foundation.py `
+            tests/test_v080_install_auth_boundary.py `
+            -q
+
+  macos-cli-smoke:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install macOS CLI test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e clients/cli pytest
+      - name: Run macOS CLI and TUI smoke tests
+        run: |
+          python -m pytest \
+            tests/test_cli_runtime_shell_v020.py \
+            tests/test_auth_privacy_policy.py \
+            tests/test_cli_interactive_v030.py \
+            tests/test_cli_command_display_modes.py \
+            tests/test_cli_output_formatting.py \
+            -q -k "not install_like_entry_point_starts_yonerai"
+
+  macos-installer-manifest:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install macOS installer test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e clients/cli pytest
+      - name: Run macOS installer and manifest tests
+        run: |
+          python -m pytest \
+            tests/test_release_manifest_schema.py \
+            tests/test_release_manifest_test_trust.py \
+            tests/test_installer_install_plan.py \
+            tests/test_installer_update_plan.py \
+            tests/test_local_bootstrap_script.py \
+            tests/test_official_bridge_foundation.py \
+            tests/test_v080_install_auth_boundary.py \
+            -q
+
+  security-static:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install static/security test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r core/requirements.txt pytest pytest-asyncio ruff google-auth google-auth-oauthlib
+          python -m pip install -e clients/cli
+      - name: Formatting and static scans
+        run: |
+          git diff --check
+          python scripts/ci_quality_scans.py --changed
+          ruff check \
+            clients/cli/yonerai_cli/auth_policy.py \
+            clients/cli/yonerai_cli/config.py \
+            clients/cli/yonerai_cli/cli.py \
+            core/src/ora_core/execution/auto_runtime.py \
+            scripts/ci_quality_scans.py \
+            scripts/release_gate.py \
+            tests/test_auth_privacy_policy.py \
+            tests/test_release_gate.py \
+            tests/test_ci_quality_scans.py
+          python -m compileall clients/cli/yonerai_cli core/src/ora_core scripts
+      - name: Run security boundary tests
+        run: |
+          python -m pytest \
+            tests/test_ci_quality_scans.py \
+            tests/test_core_api_access_security.py \
+            tests/test_cloudflare_auth_security.py \
+            tests/test_web_auth_loopback_security.py \
+            tests/test_redaction_security.py \
+            tests/test_agent_trace_security.py \
+            tests/test_mcp_runtime_deny_policy.py \
+            tests/test_mcp_client_fail_open.py \
+            tests/test_tools_mcp_safe_subset_contract.py \
+            tests/test_policy_engine.py \
+            tests/test_workspace_file_capability.py \
+            tests/test_cli_output_formatting.py \
+            -q
+
+  release-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install release gate test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e clients/cli pytest
+      - name: Run release gate tests
+        run: |
+          python -m pytest \
+            tests/test_verify_version.py \
+            tests/test_release_workflow_prerelease.py \
+            tests/test_release_gate.py \
+            tests/test_current_truth_anchor.py \
+            tests/test_quality_wall_workflow.py \
+            -q
+      - name: Run source release gate checks
+        run: |
+          VERSION=$(cat VERSION | tr -d '[:space:]')
+          PRODUCT_NAME=$(cat PRODUCT_NAME | tr -d '[:space:]')
+          BASE_REF="${GITHUB_BASE_REF:-main}"
+          PUSH_BEFORE="${{ github.event.before }}"
+          if [ "${GITHUB_EVENT_NAME:-}" = "push" ] && [ -n "${PUSH_BEFORE}" ] && ! echo "${PUSH_BEFORE}" | grep -Eq '^0+$'; then
+            RELEASE_DIFF_RANGE="${PUSH_BEFORE}..HEAD"
+          else
+            git fetch --no-tags origin "${BASE_REF}" || true
+            RELEASE_DIFF_RANGE="origin/${BASE_REF}...HEAD"
+          fi
+          if git diff --name-only "${RELEASE_DIFF_RANGE}" 2>/dev/null | grep -E '^(VERSION|PRODUCT_NAME|releases/manifest)' >/dev/null; then
+            python scripts/create_release.py "${VERSION}"
+            python scripts/release_gate.py \
+              --tag "v${VERSION}" \
+              --artifact "${PRODUCT_NAME}-${VERSION}.zip" \
+              --github-prerelease auto
+          else
+            python scripts/release_gate.py \
+              --tag "v${VERSION}" \
+              --github-prerelease auto
+          fi

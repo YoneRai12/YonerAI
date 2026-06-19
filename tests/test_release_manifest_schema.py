@@ -123,6 +123,28 @@ def test_cli_manifest_validator_rejects_malformed_semver() -> None:
     assert "release tag is invalid." in report["errors"]
 
 
+def test_cli_manifest_validator_rejects_overlong_semver() -> None:
+    import sys
+
+    cli_src = ROOT / "clients" / "cli"
+    if str(cli_src) not in sys.path:
+        sys.path.insert(0, str(cli_src))
+    from yonerai_cli.release_manifest import verify_manifest
+
+    manifest = _load_manifest()
+    overlong_version = "1.0.0-" + ("a" * 300)
+    manifest["version"] = overlong_version
+    release = manifest["release"]
+    assert isinstance(release, dict)
+    release["tag"] = f"v{overlong_version}"
+
+    report = verify_manifest(manifest)
+
+    assert report["contract_valid"] is False
+    assert "version is invalid." in report["errors"]
+    assert "release tag is invalid." in report["errors"]
+
+
 def test_cli_manifest_validator_accepts_example_contract() -> None:
     import sys
 
@@ -172,6 +194,33 @@ def test_release_artifact_filename_policy_rejects_mutable_source_name() -> None:
 
     assert report["contract_valid"] is False
     assert "artifact 0 filename must be YonerAI-0.1.0-alpha.1.zip." in report["errors"]
+
+
+def test_release_artifact_filename_policy_rejects_common_mutable_source_names() -> None:
+    import sys
+
+    cli_src = ROOT / "clients" / "cli"
+    if str(cli_src) not in sys.path:
+        sys.path.insert(0, str(cli_src))
+    from yonerai_cli.release_manifest import verify_manifest
+
+    mutable_names = (
+        "YonerAI-latest.zip",
+        "YonerAI-main.zip",
+        "YonerAI-source.zip",
+        "source.zip",
+    )
+    for filename in mutable_names:
+        manifest = _load_manifest()
+        artifact = deepcopy(manifest["artifacts"][0])
+        assert isinstance(artifact, dict)
+        artifact["url"] = f"https://github.com/YoneRai12/YonerAI/releases/download/v0.1.0-alpha.1/{filename}"
+        manifest["artifacts"] = [artifact]
+
+        report = verify_manifest(manifest)
+
+        assert report["contract_valid"] is False
+        assert "artifact 0 filename must be YonerAI-0.1.0-alpha.1.zip." in report["errors"]
 
 
 def test_release_artifact_filename_policy_accepts_manifest_asset_name() -> None:

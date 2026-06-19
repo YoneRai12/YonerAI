@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://yonerai.com/contracts/official-api-0.1/evolve-proposals.request.schema.json",
+  "title": "YonerAI Official API evolve proposals request 0.1",
+  "type": "object",
+  "required": ["feature_id", "surface", "mode", "outcome", "complaint_class"],
+  "properties": {
+    "feature_id": {"type": "string"},
+    "surface": {"type": "string"},
+    "mode": {"type": "string"},
+    "outcome": {"type": "string"},
+    "dropoff_stage": {"type": ["string", "null"]},
+    "complaint_class": {"type": "string"},
+    "provider_class": {"type": ["string", "null"]},
+    "latency_bucket": {"type": ["string", "null"]}
+  },
+  "additionalProperties": false
+}

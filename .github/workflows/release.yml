@@ -4,9 +4,31 @@ on:
   push:
     tags:
       - 'v*'
+  schedule:
+    # Regenerate the public current-truth anchor weekly. This does not publish a release.
+    - cron: '17 3 * * 1'
+  workflow_dispatch:
 
 jobs:
+  current-truth:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Regenerate CURRENT_TRUTH.md
+        run: |
+          python scripts/generate_current_truth.py --output CURRENT_TRUTH.md
+          cat CURRENT_TRUTH.md
+
   release:
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -36,30 +58,79 @@ jobs:
         run: |
           test -f "docs/releases/${ORA_VERSION}.md"
 
+      - name: Read Release Title
+        run: |
+          RELEASE_TITLE=$(python - <<'PY'
+          from pathlib import Path
+          import os
+
+          version = os.environ["ORA_VERSION"]
+          release_note = Path("docs/releases") / f"{version}.md"
+          title = f"YonerAI {version}"
+          for line in release_note.read_text(encoding="utf-8").splitlines():
+              stripped = line.strip()
+              if stripped.startswith("<!-- release-title:") and stripped.endswith("-->"):
+                  title = stripped.removeprefix("<!-- release-title:").removesuffix("-->").strip()
+                  break
+              if line.startswith("# "):
+                  title = line[2:].strip()
+                  break
+          print(title)
+          PY
+          )
+          echo "RELEASE_TITLE=$RELEASE_TITLE" >> "$GITHUB_ENV"
+
       - name: Classify Release Channel
         run: |
-          case "$ORA_VERSION" in
-            *-alpha|*-alpha.*|*-alpha+*|*-beta|*-beta.*|*-beta+*|*-rc|*-rc.*|*-rc+*)
-              echo "ORA_PRERELEASE=true" >> "$GITHUB_ENV"
-              ;;
-            *)
-              echo "ORA_PRERELEASE=false" >> "$GITHUB_ENV"
-              ;;
-          esac
+          ORA_PRERELEASE=$(python - <<'PY'
+          import os
+
+          version = os.environ["ORA_VERSION"]
+          core = version.split("+", 1)[0]
+          print("true" if "-" in core else "false")
+          PY
+          )
+          echo "ORA_PRERELEASE=$ORA_PRERELEASE" >> "$GITHUB_ENV"
+
+      - name: Regenerate CURRENT_TRUTH.md for release archive
+        run: |
+          python scripts/generate_current_truth.py --output CURRENT_TRUTH.md
 
       - name: Generate Release Archive
         run: |
           VERSION=$(cat VERSION | tr -d '[:space:]')
           python scripts/create_release.py "$VERSION"
 
+      - name: Generate install.ps1 sidecar
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib
+
+          script = Path("install.ps1")
+          digest = hashlib.sha256(script.read_bytes()).hexdigest()
+          Path("install.ps1.sha256").write_text(f"{digest}  install.ps1\n", encoding="utf-8")
+          PY
+
+      - name: Run Release Gate
+        run: |
+          python scripts/release_gate.py \
+            --tag "${GITHUB_REF_NAME}" \
+            --artifact "${PRODUCT_NAME}-${ORA_VERSION}.zip" \
+            --github-prerelease "${ORA_PRERELEASE}"
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
-          files: ${{ env.PRODUCT_NAME }}-*.zip
+          files: |
+            ${{ env.PRODUCT_NAME }}-${{ env.ORA_VERSION }}.zip
+            releases/manifest.v${{ env.ORA_VERSION }}.json
+            install.ps1
+            install.ps1.sha256
           # Publish automatically (no manual "Draft -> Publish" step in the GitHub UI).
           draft: false
           prerelease: ${{ env.ORA_PRERELEASE }}
-          name: ${{ env.PRODUCT_NAME }} ${{ env.ORA_VERSION }}
+          name: ${{ env.RELEASE_TITLE }}
           body_path: docs/releases/${{ env.ORA_VERSION }}.md
           generate_release_notes: false
         env:

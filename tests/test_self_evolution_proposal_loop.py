@@ -113,6 +113,31 @@ def test_privacy_sensitive_event_is_redacted_and_rejected_without_auto_actions()
     assert "no_real_user_behavior_analytics" in proposal.non_actions
 
 
+def test_summary_with_private_markers_is_redacted_before_public_output() -> None:
+    unsafe_summary = "Synthetic report included C:\\Users\\owner\\secret.txt and token=alpha-fixture."
+
+    proposal = generate_evolution_proposal(
+        SyntheticEvolutionEvent(
+            event_type="bug_report",
+            summary=unsafe_summary,
+            severity=5,
+            confidence=0.9,
+        )
+    )
+    payload = proposal.to_public_dict()
+    serialized = str(payload)
+
+    assert proposal.category == "guardrail"
+    assert proposal.privacy_classification == "privacy_sensitive"
+    assert proposal.redacted_summary == "[redacted synthetic privacy-sensitive event]"
+    assert unsafe_summary not in serialized
+    assert "C:\\Users" not in serialized
+    assert "token=alpha-fixture" not in serialized
+    assert proposal.auto_issue_creation is False
+    assert proposal.github_write_allowed is False
+    assert proposal.deploy_allowed is False
+
+
 def test_no_auto_apply_action_exists_in_public_output() -> None:
     proposal = generate_evolution_proposal(
         SyntheticEvolutionEvent(

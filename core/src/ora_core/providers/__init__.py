@@ -14,6 +14,7 @@ from .local import LocalLLMProviderAdapter
 from .mock import MockProviderAdapter
 from .openai_compatible import OpenAICompatibleProviderAdapter
 from .registry import ProviderRegistry, build_default_provider_registry
+from .setup import build_provider_setup_report
 
 __all__ = [
     "AnthropicProviderAdapter",
@@ -29,4 +30,5 @@ __all__ = [
     "ProviderResponse",
     "ProviderStatus",
     "build_default_provider_registry",
+    "build_provider_setup_report",
 ]

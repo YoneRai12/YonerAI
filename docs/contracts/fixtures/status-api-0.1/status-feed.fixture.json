@@ -1,0 +1,386 @@
+{
+  "categories": [
+    {
+      "components": [
+        {
+          "claim": {
+            "en": "No production operation claim",
+            "ja": "本番運用は未主張"
+          },
+          "day_overrides": [],
+          "default_status": "operational",
+          "fact": {
+            "en": "CLI Local Runtime public release state.",
+            "ja": "CLI Local Runtime の公開リリース情報です。"
+          },
+          "id": "cli_release",
+          "monitoring": {
+            "en": "fixture",
+            "ja": "fixture"
+          },
+          "name": "CLI release",
+          "source": {
+            "provider": "yonerai",
+            "target": "public-status-contract",
+            "type": "fixture"
+          }
+        },
+        {
+          "claim": {
+            "en": "No production operation claim",
+            "ja": "本番運用は未主張"
+          },
+          "day_overrides": [],
+          "default_status": "operational",
+          "fact": {
+            "en": "Install path uses GitHub Release assets as source of truth.",
+            "ja": "GitHub Release assets を正本にした install 導線です。"
+          },
+          "id": "install",
+          "monitoring": {
+            "en": "fixture",
+            "ja": "fixture"
+          },
+          "name": "Install",
+          "source": {
+            "provider": "yonerai",
+            "target": "public-status-contract",
+            "type": "fixture"
+          }
+        },
+        {
+          "claim": {
+            "en": "No production operation claim",
+            "ja": "本番運用は未主張"
+          },
+          "day_overrides": [],
+          "default_status": "operational",
+          "fact": {
+            "en": "Update check and plan path without auto-apply.",
+            "ja": "自動適用なしの update check / plan 導線です。"
+          },
+          "id": "update",
+          "monitoring": {
+            "en": "fixture",
+            "ja": "fixture"
+          },
+          "name": "Update",
+          "source": {
+            "provider": "yonerai",
+            "target": "public-status-contract",
+            "type": "fixture"
+          }
+        }
+      ],
+      "default_status": "operational",
+      "id": "release-distribution",
+      "name": {
+        "en": "Release and distribution",
+        "ja": "リリースと配布"
+      }
+    },
+    {
+      "components": [
+        {
+          "claim": {
+            "en": "No production operation claim",
+            "ja": "本番運用は未主張"
+          },
+          "day_overrides": [],
+          "default_status": "alpha_only",
+          "fact": {
+            "en": "Official API is contract/fixture only in the public repo.",
+            "ja": "公式APIは public repo では契約/fixture のみです。"
+          },
+          "id": "official_api",
+          "monitoring": {
+            "en": "fixture",
+            "ja": "fixture"
+          },
+          "name": "Official API",
+          "source": {
+            "provider": "yonerai",
+            "target": "public-status-contract",
+            "type": "fixture"
+          }
+        },
+        {
+          "claim": {
+            "en": "No production operation claim",
+            "ja": "本番運用は未主張"
+          },
+          "day_overrides": [],
+          "default_status": "not_started",
+          "fact": {
+            "en": "Production Oracle is not included in the public repo.",
+            "ja": "production Oracle は public repo に含みません。"
+          },
+          "id": "oracle",
+          "monitoring": {
+            "en": "fixture",
+            "ja": "fixture"
+          },
+          "name": "Oracle",
+          "source": {
+            "provider": "yonerai",
+            "target": "public-status-contract",
+            "type": "fixture"
+          }
+        },
+        {
+          "claim": {
+            "en": "No production operation claim",
+            "ja": "本番運用は未主張"
+          },
+          "day_overrides": [],
+          "default_status": "alpha_only",
+          "fact": {
+            "en": "Google auth is dry-run contract only.",
+            "ja": "Google auth は dry-run 契約のみです。"
+          },
+          "id": "google_auth",
+          "monitoring": {
+            "en": "fixture",
+            "ja": "fixture"
+          },
+          "name": "Google auth",
+          "source": {
+            "provider": "yonerai",
+            "target": "public-status-contract",
+            "type": "fixture"
+          }
+        },
+        {
+          "claim": {
+            "en": "No production operation claim",
+            "ja": "本番運用は未主張"
+          },
+          "day_overrides": [],
+          "default_status": "not_started",
+          "fact": {
+            "en": "OpenAI shared traffic is off by default.",
+            "ja": "OpenAI shared traffic は既定で無効です。"
+          },
+          "id": "shared_traffic",
+          "monitoring": {
+            "en": "fixture",
+            "ja": "fixture"
+          },
+          "name": "Shared traffic",
+          "source": {
+            "provider": "yonerai",
+            "target": "public-status-contract",
+            "type": "fixture"
+          }
+        }
+      ],
+      "default_status": "alpha_only",
+      "id": "official-api",
+      "name": {
+        "en": "Official API contract",
+        "ja": "公式API契約"
+      }
+    },
+    {
+      "components": [
+        {
+          "claim": {
+            "en": "No production operation claim",
+            "ja": "本番運用は未主張"
+          },
+          "day_overrides": [],
+          "default_status": "alpha_only",
+          "fact": {
+            "en": "Local-to-cloud memory sync is disabled by default.",
+            "ja": "local -> cloud memory sync は既定で無効です。"
+          },
+          "id": "memory_sync",
+          "monitoring": {
+            "en": "fixture",
+            "ja": "fixture"
+          },
+          "name": "Memory sync",
+          "source": {
+            "provider": "yonerai",
+            "target": "public-status-contract",
+            "type": "fixture"
+          }
+        },
+        {
+          "claim": {
+            "en": "No production operation claim",
+            "ja": "本番運用は未主張"
+          },
+          "day_overrides": [],
+          "default_status": "alpha_only",
+          "fact": {
+            "en": "Public repo self-evolution is proposal-only.",
+            "ja": "public repo の self-evolution は proposal-only です。"
+          },
+          "id": "self_evolution",
+          "monitoring": {
+            "en": "fixture",
+            "ja": "fixture"
+          },
+          "name": "Self-evolution",
+          "source": {
+            "provider": "yonerai",
+            "target": "public-status-contract",
+            "type": "fixture"
+          }
+        },
+        {
+          "claim": {
+            "en": "No production operation claim",
+            "ja": "本番運用は未主張"
+          },
+          "day_overrides": [],
+          "default_status": "not_started",
+          "fact": {
+            "en": "Live Discord is not restored.",
+            "ja": "live Discord は復元されていません。"
+          },
+          "id": "discord",
+          "monitoring": {
+            "en": "fixture",
+            "ja": "fixture"
+          },
+          "name": "Discord",
+          "source": {
+            "provider": "yonerai",
+            "target": "public-status-contract",
+            "type": "fixture"
+          }
+        },
+        {
+          "claim": {
+            "en": "No production operation claim",
+            "ja": "本番運用は未主張"
+          },
+          "day_overrides": [],
+          "default_status": "operational",
+          "fact": {
+            "en": "Public-safe mock/local/provider runtime boundary.",
+            "ja": "mock/local/provider runtime の公開安全境界です。"
+          },
+          "id": "provider_runtime",
+          "monitoring": {
+            "en": "fixture",
+            "ja": "fixture"
+          },
+          "name": "Provider runtime",
+          "source": {
+            "provider": "yonerai",
+            "target": "public-status-contract",
+            "type": "fixture"
+          }
+        },
+        {
+          "claim": {
+            "en": "No production operation claim",
+            "ja": "本番運用は未主張"
+          },
+          "day_overrides": [],
+          "default_status": "alpha_only",
+          "fact": {
+            "en": "Hybrid Node is a local-dev/fixture boundary.",
+            "ja": "Hybrid Node は local-dev / fixture 境界です。"
+          },
+          "id": "hybrid_node",
+          "monitoring": {
+            "en": "fixture",
+            "ja": "fixture"
+          },
+          "name": "Hybrid node",
+          "source": {
+            "provider": "yonerai",
+            "target": "public-status-contract",
+            "type": "fixture"
+          }
+        }
+      ],
+      "default_status": "alpha_only",
+      "id": "runtime-boundaries",
+      "name": {
+        "en": "Runtime boundaries",
+        "ja": "ランタイム境界"
+      }
+    }
+  ],
+  "generated_at": "2026-06-02T00:00:00Z",
+  "incidents": [],
+  "meta": {
+    "environment": "public",
+    "live_monitoring": false,
+    "note": {
+      "en": "Public repository fixture. Production monitoring and private runtime are not included.",
+      "ja": "公開リポジトリの fixture です。本番監視運用や private runtime は含みません。"
+    },
+    "product": "YonerAI Status",
+    "refresh_ms": 0,
+    "source": "yonerai.status.feed.public.v1"
+  },
+  "range": {
+    "days": 90,
+    "start": "2026-06-02"
+  },
+  "schema_version": "yonerai.status.feed.v1",
+  "states": {
+    "alpha_only": {
+      "color": "#a9b0ba",
+      "label": {
+        "en": "Alpha only",
+        "ja": "alpha のみ"
+      },
+      "severity": 10
+    },
+    "degraded": {
+      "color": "#f6bd3f",
+      "label": {
+        "en": "Degraded",
+        "ja": "性能低下"
+      },
+      "severity": 40
+    },
+    "maintenance": {
+      "color": "#f97316",
+      "label": {
+        "en": "Maintenance",
+        "ja": "メンテナンス"
+      },
+      "severity": 30
+    },
+    "major_outage": {
+      "color": "#ef5b4a",
+      "label": {
+        "en": "Major outage",
+        "ja": "重大障害"
+      },
+      "severity": 60
+    },
+    "not_started": {
+      "color": "#a9b0ba",
+      "label": {
+        "en": "Preparing",
+        "ja": "準備中"
+      },
+      "severity": 20
+    },
+    "operational": {
+      "color": "#25c39a",
+      "label": {
+        "en": "Operational",
+        "ja": "稼働中"
+      },
+      "severity": 0
+    },
+    "partial_outage": {
+      "color": "#ff7a59",
+      "label": {
+        "en": "Partial outage",
+        "ja": "一部障害"
+      },
+      "severity": 50
+    }
+  }
+}

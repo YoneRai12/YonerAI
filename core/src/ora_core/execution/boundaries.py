@@ -44,7 +44,7 @@ class SearchBoundaryAdapter:
 
 
 class ToolBoundaryAdapter:
-    def status_for(self, tool_name: str | None) -> BoundaryDecision:
+    def status_for(self, tool_name: str | None, *, client_type: str = "discord") -> BoundaryDecision:
         name = str(tool_name or "").strip().lower()
         if not name:
             return BoundaryDecision(
@@ -62,6 +62,15 @@ class ToolBoundaryAdapter:
                 status="disabled",
                 reason="tool_live_execution_disabled",
             )
+        surface_reason = _ora_tool_schema_surface_reason(name, client_type)
+        if surface_reason:
+            return BoundaryDecision(
+                name="tool_boundary",
+                available=False,
+                execution_performed=False,
+                status="denied",
+                reason=surface_reason,
+            )
         try:
             from src.cogs.mcp_policy import is_mcp_tool_denied, load_mcp_deny_patterns
 
@@ -77,15 +86,79 @@ class ToolBoundaryAdapter:
         )
 
 
+def _ora_tool_schema_boundary_status() -> dict[str, object]:
+    try:
+        from src.cogs.ora_tool_schema_helpers import tool_schema_boundary_status
+    except Exception:
+        return {
+            "name": "ora_tool_schema_boundary",
+            "source": "src/cogs/ora_tool_schema_helpers.py",
+            "status": "unavailable",
+            "execution_performed": False,
+            "unknown_tool_execution_allowed": False,
+            "broad_ora_refactor": False,
+        }
+    return tool_schema_boundary_status()
+
+
+def _ora_guardrail_response_boundary_status() -> dict[str, object]:
+    try:
+        from src.cogs.ora_guardrail_helpers import guardrail_response_interpreter_status
+    except Exception:
+        return {
+            "name": "ora_guardrail_response_interpreter",
+            "source": "src/cogs/ora_guardrail_helpers.py",
+            "status": "unavailable",
+            "available": False,
+            "provider_call_performed": False,
+            "broad_ora_refactor": False,
+        }
+    return guardrail_response_interpreter_status()
+
+
+def _ora_tool_schema_surface_reason(tool_name: str, client_type: str) -> str | None:
+    normalized_client = str(client_type or "").strip().lower()
+    if normalized_client not in {"discord", "web"}:
+        return "unknown_client_type_denied_by_default"
+    try:
+        from src.cogs.ora_tool_schema_helpers import DISCORD_ONLY_TOOL_NAMES, WEB_ONLY_TOOL_NAMES
+    except Exception:
+        return "tool_schema_surface_policy_unavailable_denied_by_default"
+    if normalized_client == "discord" and tool_name in WEB_ONLY_TOOL_NAMES:
+        return "web_only_tool_not_available_for_discord"
+    if normalized_client == "web" and tool_name in DISCORD_ONLY_TOOL_NAMES:
+        return "discord_only_tool_not_available_for_web"
+    return None
+
+
+def _ora_message_format_boundary_status() -> dict[str, object]:
+    try:
+        from src.cogs.ora_message_format_helpers import message_format_helper_status
+    except Exception:
+        return {
+            "name": "ora_message_format_helper",
+            "source": "src/cogs/ora_message_format_helpers.py",
+            "status": "unavailable",
+            "available": False,
+            "discord_runtime_imported": False,
+            "broad_ora_refactor": False,
+        }
+    return message_format_helper_status()
+
+
 def build_boundary_checks_for_task(
     classification: Any,
     *,
     requested_tool: str | None = None,
     mock_search: bool = False,
+    client_type: str = "discord",
 ) -> dict[str, dict[str, object]]:
     search = SearchBoundaryAdapter(mock_enabled=mock_search).status(classification)
-    tool = ToolBoundaryAdapter().status_for(requested_tool)
+    tool = ToolBoundaryAdapter().status_for(requested_tool, client_type=client_type)
     return {
         "web_search": search.to_public_dict(),
         "tool_boundary": tool.to_public_dict(),
+        "ora_tool_schema_boundary": _ora_tool_schema_boundary_status(),
+        "ora_guardrail_response_interpreter": _ora_guardrail_response_boundary_status(),
+        "ora_message_format_helper": _ora_message_format_boundary_status(),
     }

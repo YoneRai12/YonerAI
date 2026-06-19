@@ -1,0 +1,13 @@
+{
+  "alpha_channel_status": "operational",
+  "auto_update_apply_enabled": false,
+  "docs_url": "https://yonerai.com/install",
+  "forced_update_enabled": false,
+  "latest_alpha": "v0.15.0-alpha.1",
+  "latest_stable": "v0.6.4",
+  "ok": true,
+  "release_channel": "stable",
+  "schema_version": "yonerai-status-api/v0.1",
+  "stable_channel_status": "operational",
+  "update_available": false
+}

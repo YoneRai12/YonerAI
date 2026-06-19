@@ -12,7 +12,14 @@ class ContextBuilder:
     """
     
     @staticmethod
-    async def build_context(req: MessageRequest, internal_user_id: str, conversation_id: str, repo: Any) -> list[dict]:
+    async def build_context(
+        req: MessageRequest,
+        internal_user_id: str,
+        conversation_id: str,
+        repo: Any,
+        *,
+        current_message_id: str | None = None,
+    ) -> list[dict]:
         """
         Builds the 4-layer context messages for the LLM.
         L1: Session History (from DB or client-provided)
@@ -129,7 +136,13 @@ class ContextBuilder:
                     history_msgs = await repo.get_messages(conversation_id, limit=10)
                 except Exception:
                     history_msgs = []
-            prior_image_attachments = ContextBuilder._latest_prior_user_image_attachments(history_msgs, limit=3)
+            prior_image_attachments = ContextBuilder._latest_prior_user_image_attachments(
+                history_msgs,
+                limit=3,
+                current_content=req.content or "",
+                current_attachments=current_attachments,
+                current_message_id=current_message_id,
+            )
 
         semantic_intent = classify_semantic_intent(
             req.content or "",
@@ -143,7 +156,11 @@ class ContextBuilder:
         if not effective_attachments and semantic_intent.image_followup and prior_image_attachments:
             effective_attachments = prior_image_attachments
 
-        if semantic_intent.generic_image_overview and ContextBuilder._filter_image_attachments(effective_attachments):
+        if (
+            semantic_intent.generic_image_overview
+            and not semantic_intent.image_followup
+            and ContextBuilder._filter_image_attachments(effective_attachments)
+        ):
             messages.append(
                 {
                     "role": "system",
@@ -235,15 +252,45 @@ class ContextBuilder:
         return out
 
     @staticmethod
-    def _latest_prior_user_image_attachments(history_msgs: list[Any], *, limit: int = 3) -> list[Any]:
+    def _latest_prior_user_image_attachments(
+        history_msgs: list[Any],
+        *,
+        limit: int = 3,
+        current_content: str = "",
+        current_attachments: list[Any] | None = None,
+        current_message_id: str | None = None,
+    ) -> list[Any]:
+        skipped_current_turn = False
         for msg in reversed(history_msgs or []):
             if str(getattr(msg, "author", "") or "") != "user":
+                continue
+            if not skipped_current_turn and ContextBuilder._looks_like_current_request_turn(
+                msg,
+                current_content=current_content,
+                current_attachments=current_attachments or [],
+                current_message_id=current_message_id,
+            ):
+                skipped_current_turn = True
                 continue
             attachments = list(getattr(msg, "attachments", None) or [])
             image_attachments = ContextBuilder._filter_image_attachments(attachments)
             if image_attachments:
                 return image_attachments[: max(1, int(limit))]
+            return []
         return []
+
+    @staticmethod
+    def _looks_like_current_request_turn(
+        msg: Any,
+        *,
+        current_content: str,
+        current_attachments: list[Any],
+        current_message_id: str | None,
+    ) -> bool:
+        del current_content, current_attachments
+        if not current_message_id:
+            return False
+        return str(getattr(msg, "id", "") or "") == str(current_message_id)
 
     @staticmethod
     def _generic_image_output_contract() -> str:

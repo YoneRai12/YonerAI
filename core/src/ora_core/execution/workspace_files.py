@@ -6,6 +6,8 @@ from pathlib import Path
 
 DEFAULT_MAX_FILE_BYTES = 64 * 1024
 MAX_PROMPT_CHARS = 6000
+WORKSPACE_FILE_ACCESS_CAPABILITY = "workspace_file_access"
+WORKSPACE_FILE_ACCESS_COMPAT_ALIASES = ("file_summary",)
 TEXT_EXTENSIONS = {
     ".cfg",
     ".csv",
@@ -36,9 +38,12 @@ class WorkspaceFileError(ValueError):
 
 @dataclass(frozen=True)
 class WorkspaceFileContext:
+    capability: str
     file_name: str
     extension: str
     size_bytes: int
+    line_count: int
+    word_count: int
     sha256_prefix: str
     preview_text: str
     truncated: bool
@@ -46,6 +51,7 @@ class WorkspaceFileContext:
     def to_public_dict(self) -> dict[str, object]:
         payload = asdict(self)
         payload.pop("preview_text", None)
+        payload.pop("sha256_prefix", None)
         payload["raw_content_persisted"] = False
         return payload
 
@@ -91,9 +97,12 @@ def read_workspace_text_file(
     if truncated:
         preview = preview[:MAX_PROMPT_CHARS]
     return WorkspaceFileContext(
+        capability=WORKSPACE_FILE_ACCESS_CAPABILITY,
         file_name=resolved_target.name,
         extension=suffix or "",
         size_bytes=size,
+        line_count=_line_count(text),
+        word_count=_word_count(text),
         sha256_prefix=_sha256_prefix(data),
         preview_text=preview,
         truncated=truncated,
@@ -104,14 +113,34 @@ def build_workspace_file_prompt(task_text: str, context: WorkspaceFileContext) -
     return (
         f"{task_text}\n\n"
         "Workspace file context follows. Do not infer local absolute paths or private runtime details.\n"
+        f"capability: {context.capability}\n"
         f"file_name: {context.file_name}\n"
         f"extension: {context.extension or 'none'}\n"
         f"size_bytes: {context.size_bytes}\n"
+        f"line_count: {context.line_count}\n"
+        f"word_count: {context.word_count}\n"
         f"sha256_prefix: {context.sha256_prefix}\n"
         f"truncated: {str(context.truncated).lower()}\n"
         "content_preview:\n"
         f"{context.preview_text}"
     )
+
+
+def build_workspace_file_access_event(context: WorkspaceFileContext) -> dict[str, str]:
+    return {
+        "name": WORKSPACE_FILE_ACCESS_CAPABILITY,
+        "status": "ok",
+        "summary": (
+            f"{WORKSPACE_FILE_ACCESS_CAPABILITY} "
+            f"file={context.file_name} "
+            f"extension={context.extension or 'none'} "
+            f"size_bytes={context.size_bytes} "
+            f"line_count={context.line_count} "
+            f"word_count={context.word_count} "
+            f"truncated={str(context.truncated).lower()} "
+            "raw_content_persisted=false"
+        ),
+    }
 
 
 def _resolve_existing_directory(path: str | Path) -> Path:
@@ -158,3 +187,13 @@ def _sha256_prefix(data: bytes) -> str:
     import hashlib
 
     return hashlib.sha256(data).hexdigest()[:16]
+
+
+def _line_count(text: str) -> int:
+    if not text:
+        return 0
+    return len(text.splitlines())
+
+
+def _word_count(text: str) -> int:
+    return len(text.split())

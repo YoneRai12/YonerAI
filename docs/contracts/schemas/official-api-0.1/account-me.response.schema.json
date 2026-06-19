@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://yonerai.com/contracts/official-api-0.1/account-me.response.schema.json",
+  "title": "YonerAI Official API account response 0.1",
+  "type": "object",
+  "required": ["ok", "auth_state", "account"],
+  "properties": {
+    "ok": {"type": "boolean"},
+    "auth_state": {"enum": ["unauthenticated", "dry_run", "pending", "linked", "expired", "revoked"]},
+    "account": {
+      "type": ["object", "null"],
+      "properties": {
+        "account_id": {"type": "string"},
+        "email_verified": {"type": "boolean"},
+        "display_name": {"type": "string"}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
