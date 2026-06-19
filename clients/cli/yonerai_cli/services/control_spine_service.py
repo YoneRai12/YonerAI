@@ -26,6 +26,7 @@ DEFAULT_STAGING_CONTROL_SPINE_ORIGIN = "https://api-staging.yonerai.com"
 STATUS_PATH = "/v1/status"
 HEALTH_PATH = "/v1/health"
 RATE_LIMIT_PATH = "/v1/rate-limit"
+WHOAMI_PATH = "/v1/whoami"
 ACCOUNT_ME_PATH = "/v1/account/me"
 PING_PATH = "/v1/ping"
 PROJECTS_PATH = "/v1/projects"
@@ -96,7 +97,8 @@ def build_control_spine_context(
     staging = auth.get("staging") if isinstance(auth.get("staging"), Mapping) else {}
     session_token, session_claim = load_staging_session_token(claim_path)
     session_claim_map = session_claim if isinstance(session_claim, Mapping) else {}
-    session_origin = _validated_session_origin(session_claim_map.get("origin"), source)
+    session_origin_raw = str(session_claim_map.get("origin") or "").strip()
+    session_origin = _validated_session_origin(session_origin_raw, source)
     origin_configured = bool(staging.get("configured")) or bool(session_token and session_origin)
     if bool(staging.get("configured")):
         origin = str(staging.get("origin") or "not_configured")
@@ -113,6 +115,18 @@ def build_control_spine_context(
         "session_available": session_token is not None,
         "session_token": session_token,
         "session_claim": dict(session_claim_map),
+        "session_origin_valid": bool(session_origin),
+        "session_origin_mismatch": bool(
+            session_token
+            and session_origin_raw
+            and session_origin_raw not in {"configured", "not_configured"}
+            and not session_origin
+        ),
+        "session_schema_mismatch": bool(
+            session_token
+            and not session_origin
+            and session_origin_raw not in {"configured", "not_configured"}
+        ),
         "production_login_enabled": False,
         "production_backend_enabled": False,
         "shared_traffic_enabled": False,
@@ -240,7 +254,9 @@ def build_whoami_report(
         report["ok"] = False
         report["error"] = _auth_required_error("Staging login is required before whoami.")
         return report
-    result = _safe_get(context, ACCOUNT_ME_PATH, transport=transport, timeout_seconds=timeout_seconds, auth=True)
+    result = _safe_get(context, WHOAMI_PATH, transport=transport, timeout_seconds=timeout_seconds, auth=True)
+    if result.get("status_code") == 404:
+        result = _safe_get(context, ACCOUNT_ME_PATH, transport=transport, timeout_seconds=timeout_seconds, auth=True)
     report["official_backend_called"] = bool(result.get("official_backend_called"))
     report["backend_status_code"] = result.get("status_code")
     report["rate_limit_headers_present"] = result.get("rate_limit_headers_present", [])
@@ -493,10 +509,7 @@ def _safe_request(
                 "official_backend_called": True,
                 "status_code": status_code,
                 "body": {},
-                "error": _auth_required_error(
-                    "Staging login is required or the saved session expired.",
-                    status_code=status_code,
-                ),
+                "error": _auth_error_for_response(context, payload, status_code=status_code),
                 "rate_limit_headers_present": _rate_limit_headers_present(headers),
             }
         payload = _public_payload_for_path(path, payload)
@@ -593,7 +606,7 @@ def _error_from_status(status_code: int, payload: Mapping[str, object]) -> dict[
     elif isinstance(detail, str):
         reason = _safe_text(detail, fallback=reason) or reason
     if status_code in {401, 403}:
-        return _auth_required_error("Staging login is required or the saved session expired.", status_code=status_code)
+        return _auth_error_for_response({}, payload, status_code=status_code)
     if status_code == 404:
         return _safe_error("control_spine_not_available", "This staging control spine endpoint is not available.", status_code=status_code)
     return _safe_error(str(reason), "Staging control spine request failed.", status_code=status_code)
@@ -797,7 +810,7 @@ def _public_account_payload(payload: Mapping[str, object]) -> Mapping[str, objec
 
 
 def _public_payload_for_path(path: str, payload: Mapping[str, object]) -> Mapping[str, object]:
-    if path == ACCOUNT_ME_PATH:
+    if path in {WHOAMI_PATH, ACCOUNT_ME_PATH}:
         return _public_account_payload(payload)
     if path != RATE_LIMIT_PATH:
         return payload
@@ -916,6 +929,41 @@ def _auth_required_error(message: str, *, status_code: int | None = None) -> dic
     error = _safe_error("staging_auth_required", message, status_code=status_code)
     error["next_safe_command"] = "yonerai login"
     return error
+
+
+def _auth_error_for_response(
+    context: Mapping[str, object],
+    payload: Mapping[str, object],
+    *,
+    status_code: int,
+) -> dict[str, object]:
+    reason = _safe_reason_from_payload(payload)
+    auth_state = str(context.get("auth_state") or "unauthenticated")
+    session_available = bool(context.get("session_available"))
+    if auth_state == "expired" or reason in {"expired", "session_expired", "staging_session_expired"}:
+        error = _safe_error("staging_session_expired", "Saved staging session expired. Run `yonerai login` again.", status_code=status_code)
+    elif auth_state == "revoked" or reason in {"revoked", "session_revoked", "staging_session_revoked"}:
+        error = _safe_error("staging_session_revoked", "Saved staging session was revoked. Run `yonerai login` again.", status_code=status_code)
+    elif session_available:
+        error = _safe_error(
+            "staging_session_rejected",
+            "Saved staging session was rejected by the staging backend. Run `yonerai logout` and then `yonerai login`.",
+            status_code=status_code,
+        )
+        error["backend_reason"] = reason
+        error["session_origin_mismatch"] = bool(context.get("session_origin_mismatch"))
+        error["session_schema_mismatch"] = bool(context.get("session_schema_mismatch"))
+    else:
+        error = _auth_required_error("Staging login is required before this command.", status_code=status_code)
+    error["next_safe_command"] = "yonerai login"
+    error["repair_command"] = "yonerai logout && yonerai login"
+    return error
+
+
+def _safe_reason_from_payload(payload: Mapping[str, object]) -> str:
+    detail = payload.get("detail") if isinstance(payload.get("detail"), Mapping) else payload
+    reason = detail.get("reason") if isinstance(detail, Mapping) else None
+    return str(_safe_text(reason, fallback="auth_rejected"))
 
 
 def load_config_for_control_spine(config_path: str | None) -> dict[str, object]:

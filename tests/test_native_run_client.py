@@ -290,11 +290,14 @@ def test_native_run_submit_marks_saved_session_rejected_on_backend_401(monkeypat
     report = build_native_run_submit_report("hello", config={}, env={}, claim_path=None, transport=transport)
 
     assert report["ok"] is False
-    assert report["error"]["code"] == "staging_auth_required"
+    assert report["error"]["code"] == "staging_session_rejected"
+    assert report["error"]["backend_reason"] == "missing_auth"
+    assert report["error"]["repair_command"] == "yonerai logout && yonerai login"
     assert report["auth_state"] == "staging_session_rejected"
     assert report["account_linked"] is False
     assert report["session_available"] is False
     assert report["staging_session_rejected"] is True
+    assert report["session_repair_action"] == "yonerai logout && yonerai login"
 
 
 def test_native_run_submit_preserves_approval_required_as_policy_error(monkeypatch) -> None:

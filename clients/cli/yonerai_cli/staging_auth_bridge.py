@@ -129,7 +129,7 @@ def wait_for_cli_bridge_link(
     attempts = 0
     last_report: dict[str, object] | None = None
     last_transient_error: StagingAuthBridgeError | None = None
-    session_token: str | None = None
+    linked_session_token: str | None = None
     while True:
         attempts += 1
         try:
@@ -148,13 +148,14 @@ def wait_for_cli_bridge_link(
             time.sleep(interval)
             continue
         last_report = _safe_poll_report(safe_request_id, body)
-        session_token = _session_token_from_body(body)
         status = str(last_report.get("status") or "unknown")
-        session_received = bool(last_report.get("staging_session_received"))
-        if session_received:
-            break
-        if status in {"linked", "completed", "complete"}:
-            last_report["linked_without_session_claim"] = True
+        linked = bool(last_report.get("linked")) or status in {"linked", "completed", "complete"}
+        if linked:
+            linked_session_token = _session_token_from_body(body)
+            last_report["waited_until_linked"] = True
+            if not bool(last_report.get("cli_session_available")):
+                last_report["linked_without_cli_session"] = True
+                last_report["linked_without_session_claim"] = True
             break
         if status in {"expired", "revoked", "error", "failed"} or time.monotonic() >= deadline:
             break
@@ -169,19 +170,19 @@ def wait_for_cli_bridge_link(
         raise StagingAuthBridgeError("staging_bridge_poll_failed", "Staging CLI bridge poll failed.")
     account_report: dict[str, object] | None = None
     session_storage_report: Mapping[str, object] | None = None
-    if fetch_account and session_token:
+    if linked_session_token and fetch_account:
         account_report = fetch_staging_account_me(
             origin,
-            session_token,
+            linked_session_token,
             transport=account_transport,
             timeout_seconds=timeout_seconds,
         )
-        if account_report.get("ok") is True and session_claim_handler is not None:
-            session_storage_report = session_claim_handler(session_token, last_report, account_report)
+        if session_claim_handler is not None and account_report.get("ok") is True:
+            session_storage_report = session_claim_handler(linked_session_token, last_report, account_report)
     last_report.update(
         {
             "poll_attempts": attempts,
-            "waited_until_linked": bool(last_report.get("staging_session_received")),
+            "waited_until_linked": bool(last_report.get("waited_until_linked")),
             "account_me": account_report,
             "session_storage": dict(session_storage_report or {}),
             "google_token_returned": False,
@@ -215,7 +216,7 @@ def fetch_staging_account_me(
         None,
         timeout_seconds,
     )
-    _assert_no_token_return(body, allow_session_placeholder=True)
+    _assert_no_token_return(body)
     account_source = body.get("account") or body.get("identity") or body.get("profile") or body
     account = sanitize_staging_account(account_source if isinstance(account_source, Mapping) else {})
     return {
@@ -248,35 +249,77 @@ def _poll_cli_bridge_body(
 
 def _safe_poll_report(safe_request_id: str, body: Mapping[str, object]) -> dict[str, object]:
     status = str(body.get("status") or "unknown")
-    session_received = _session_token_from_body(body) is not None
+    linked = bool(body.get("linked")) or status in {"linked", "completed", "complete"}
+    session_token = _session_token_from_body(body)
+    session_source = body.get("session") if isinstance(body.get("session"), Mapping) else {}
+    if session_source.get("token_returned") is True:
+        raise StagingAuthBridgeError("staging_bridge_token_return_forbidden", "Staging CLI bridge attempted to return tokens.")
+    cli_session_available = bool(session_token)
     account_source = body.get("account") or body.get("identity") or body.get("profile")
     account = sanitize_staging_account(account_source if isinstance(account_source, Mapping) else {})
     return {
         "status": status,
+        "linked": linked,
         "request_id": safe_request_id,
         "expires_at": _safe_optional_public_scalar(body.get("expires_at"), "expires_at"),
-        "staging_session_received": session_received,
+        "staging_session_received": cli_session_available,
+        "cli_session_available": cli_session_available,
+        "linked_without_cli_session": bool(linked and not cli_session_available),
         "staging_session_token_printed": False,
         "google_token_returned": False,
         "refresh_token_returned": False,
         "replay_protected": bool(body.get("replay_protected", False)),
-        "linked_identity": "staging_session_claim_received" if session_received else "not_linked_yet",
-        "account": account if session_received or account_source else None,
+        "linked_identity": "linked_without_cli_session" if linked and not cli_session_available else "not_linked_yet",
+        "account": account if account_source else None,
+        "session": _safe_session_metadata(session_source),
     }
 
 
 def _session_token_from_body(body: Mapping[str, object]) -> str | None:
-    value = body.get("staging_session_token")
-    if value is None:
-        value = body.get("staging_session_claim")
-    if value is None:
+    candidates: list[object] = []
+    for key in ("staging_session_token", "staging_session_claim"):
+        value = body.get(key)
+        if value is not None:
+            candidates.append(value)
+    session = body.get("session")
+    if isinstance(session, Mapping):
+        value = session.get("staging_session_token")
+        if value is not None:
+            candidates.append(value)
+    if not candidates:
         return None
-    if not isinstance(value, str):
+    normalized: list[str] = []
+    for value in candidates:
+        if not isinstance(value, str):
+            raise StagingAuthBridgeError("staging_session_claim_invalid", "Staging session claim is invalid.")
+        text = value.strip()
+        if any(ord(char) < 32 or ord(char) == 127 for char in text):
+            raise StagingAuthBridgeError("staging_session_claim_invalid", "Staging session claim is invalid.")
+        normalized.append(text)
+    if not any(normalized):
+        return None
+    first = normalized[0]
+    if any(value != first for value in normalized):
         raise StagingAuthBridgeError("staging_session_claim_invalid", "Staging session claim is invalid.")
-    text = value.strip()
-    if any(ord(char) < 32 or ord(char) == 127 for char in text):
-        raise StagingAuthBridgeError("staging_session_claim_invalid", "Staging session claim is invalid.")
-    return text or None
+    return first
+
+
+def _safe_session_metadata(session: Mapping[str, object]) -> dict[str, object]:
+    if not session:
+        return {
+            "token_returned": False,
+            "bearer_authorization_supported": False,
+            "browser_cookie_session_present": False,
+        }
+    return {
+        "type": _safe_optional_public_scalar(session.get("type"), "session_type"),
+        "token_returned": False,
+        "token_field": _safe_optional_public_scalar(session.get("token_field"), "session_token_field"),
+        "opaque_session_available": isinstance(session.get("staging_session_token"), str),
+        "bearer_authorization_supported": bool(session.get("bearer_authorization_supported", False)),
+        "browser_cookie_session_present": bool(session.get("cookie_name")),
+        "expires_at": _safe_optional_public_scalar(session.get("expires_at"), "session_expires_at"),
+    }
 
 
 def _default_json_transport(
@@ -387,19 +430,28 @@ def _safe_request_id(value: object) -> str:
 def _assert_no_token_return(body: Mapping[str, object], *, allow_session_placeholder: bool = False) -> None:
     if body.get("google_token_returned") is True or body.get("refresh_token_returned") is True:
         raise StagingAuthBridgeError("staging_bridge_token_return_forbidden", "Staging CLI bridge attempted to return tokens.")
-    forbidden_keys = set(_FORBIDDEN_TOKEN_KEYS) | {"staging_session_token", "staging_session_claim"}
-    body_to_scan: Mapping[str, object] = body
+    scan_body: Mapping[str, object] = body
     if allow_session_placeholder:
-        stripped: dict[str, object] = {}
-        for key, nested in body.items():
-            if _normalize_key(key) in {"staging_session_token", "staging_session_claim"}:
-                if isinstance(nested, Mapping | list | tuple):
-                    stripped[str(key)] = nested
-                continue
-            stripped[str(key)] = nested
-        body_to_scan = stripped
-    if _contains_forbidden_key(body_to_scan, forbidden_keys):
+        scan_body = _body_without_allowed_opaque_session(body)
+    forbidden_keys = set(_FORBIDDEN_TOKEN_KEYS) | {"staging_session_token", "staging_session_claim"}
+    if _contains_forbidden_key(scan_body, forbidden_keys):
         raise StagingAuthBridgeError("staging_bridge_token_return_forbidden", "Staging CLI bridge attempted to return tokens.")
+
+
+def _body_without_allowed_opaque_session(body: Mapping[str, object]) -> Mapping[str, object]:
+    sanitized: dict[str, object] = {}
+    for key, value in body.items():
+        if key in {"staging_session_token", "staging_session_claim"} and isinstance(value, str):
+            continue
+        if key == "session" and isinstance(value, Mapping):
+            sanitized[key] = {
+                nested_key: nested_value
+                for nested_key, nested_value in value.items()
+                if not (nested_key == "staging_session_token" and isinstance(nested_value, str))
+            }
+            continue
+        sanitized[key] = value
+    return sanitized
 
 
 def _safe_optional_public_scalar(value: object, field_name: str) -> object:

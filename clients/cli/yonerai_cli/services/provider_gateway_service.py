@@ -16,8 +16,8 @@ from yonerai_cli.services.native_run_service import NativeRunServiceError
 
 PROVIDER_GATEWAY_SCHEMA_VERSION = "yonerai-provider-gateway-client/v0.1"
 PROVIDER_STATUS_PATH = "/v1/provider-gateway/status"
-PROVIDER_QUOTA_PATH = "/v1/provider-gateway/status"
-PROVIDER_MODELS_PATH = "/v1/provider-gateway/status"
+PROVIDER_QUOTA_PATH = "/v1/provider-gateway/quota"
+PROVIDER_MODELS_PATH = "/v1/provider-gateway/models"
 
 HeaderJsonTransport = Callable[
     [str, str, Mapping[str, str], Mapping[str, object] | None, float],
@@ -101,20 +101,6 @@ def build_provider_gateway_report(
         report["quota"] = _sanitize_mapping(quota)
     elif command == "models":
         models = body.get("models") if isinstance(body.get("models"), list) else []
-        if not models:
-            model_policy = body.get("model_policy") if isinstance(body.get("model_policy"), Mapping) else {}
-            selected_model = model_policy.get("selected_model_hint")
-            if selected_model:
-                models = [
-                    {
-                        "model_id": selected_model,
-                        "configured": body.get("model_configured", False),
-                        "tools_enabled": model_policy.get("tools_enabled", False),
-                        "file_inputs_enabled": model_policy.get("file_inputs_enabled", False),
-                        "web_search_enabled": model_policy.get("web_search_enabled", False),
-                        "code_interpreter_enabled": model_policy.get("code_interpreter_enabled", False),
-                    }
-                ]
         report["models"] = [_sanitize_mapping(item) for item in models if isinstance(item, Mapping)]
     return report
 

@@ -416,15 +416,121 @@ def test_google_login_staging_bridge_poll_redacts_session_placeholder(tmp_path: 
 
     assert report["ok"] is True
     assert report["official_backend_called"] is True
+    assert report["error"] is None
     assert report["cli_bridge"]["poll_status"] == "completed"
     assert report["cli_bridge"]["staging_session_received"] is True
-    assert report["cli_bridge"]["poll"]["linked_identity"] == "staging_session_claim_received"
-    assert report["cli_bridge"]["account_me"] is None
     assert report["staging_linked"] is False
     assert report["staging_linked_claim"] is None
     assert report["staging_claim_saved"] is False
     assert "ystg_cli_secret_placeholder" not in serialized
     assert "staging_session_token_printed" in serialized
+    assert str(tmp_path) not in serialized
+
+
+def test_google_login_staging_accepts_nested_opaque_yonerai_session(tmp_path: Path, monkeypatch) -> None:
+    from yonerai_cli.auth_policy import build_google_login_staging
+
+    def transport(method: str, url: str, body: object, timeout: float) -> tuple[int, dict[str, object]]:
+        assert method == "GET"
+        assert url == "https://api-staging.yonerai.com/auth/cli/poll/cli_fixture_request"
+        return (
+            200,
+            {
+                "status": "linked",
+                "request_id": "cli_fixture_request",
+                "session": {
+                    "type": "yonerai_staging",
+                    "token_field": "staging_session_token",
+                    "staging_session_token": "ystg_cli_secret_placeholder",
+                    "token_returned": False,
+                    "bearer_authorization_supported": True,
+                },
+                "google_token_returned": False,
+                "refresh_token_returned": False,
+                "auth_code_returned": False,
+            },
+        )
+
+    monkeypatch.setenv("YONERAI_CLI_CONFIG_PATH", str(tmp_path / "cli-config.json"))
+    monkeypatch.setenv("YONERAI_STAGING_AUTH_ORIGIN", "https://api-staging.yonerai.com")
+
+    report = build_google_login_staging(poll_request_id="cli_fixture_request", transport=transport)
+    serialized = json.dumps(report, sort_keys=True)
+
+    assert report["ok"] is True
+    assert report["cli_bridge"]["poll_status"] == "linked"
+    assert report["cli_bridge"]["staging_session_received"] is True
+    assert report["cli_bridge"]["poll"]["session"]["token_field"] == "staging_session_token"
+    assert report["cli_bridge"]["poll"]["session"]["opaque_session_available"] is True
+    assert "ystg_cli_secret_placeholder" not in serialized
+    assert "google_access_token_secret" not in serialized
+    assert str(tmp_path) not in serialized
+
+
+def test_google_login_staging_rejects_mismatched_session_token_fields(tmp_path: Path, monkeypatch) -> None:
+    from yonerai_cli.auth_policy import build_google_login_staging
+
+    def transport(method: str, url: str, body: object, timeout: float) -> tuple[int, dict[str, object]]:
+        assert method == "GET"
+        return (
+            200,
+            {
+                "status": "linked",
+                "request_id": "cli_fixture_request",
+                "staging_session_token": "ystg_cli_secret_placeholder_a",
+                "session": {
+                    "staging_session_token": "ystg_cli_secret_placeholder_b",
+                    "token_returned": False,
+                },
+                "google_token_returned": False,
+                "refresh_token_returned": False,
+            },
+        )
+
+    monkeypatch.setenv("YONERAI_CLI_CONFIG_PATH", str(tmp_path / "cli-config.json"))
+    monkeypatch.setenv("YONERAI_STAGING_AUTH_ORIGIN", "https://api-staging.yonerai.com")
+
+    report = build_google_login_staging(poll_request_id="cli_fixture_request", transport=transport)
+    serialized = json.dumps(report, sort_keys=True)
+
+    assert report["ok"] is False
+    assert report["error"]["code"] == "staging_session_claim_invalid"
+    assert report["staging_linked"] is False
+    assert "ystg_cli_secret_placeholder_a" not in serialized
+    assert "ystg_cli_secret_placeholder_b" not in serialized
+    assert str(tmp_path) not in serialized
+
+
+def test_google_login_staging_rejects_empty_and_nonempty_session_token_mix(tmp_path: Path, monkeypatch) -> None:
+    from yonerai_cli.auth_policy import build_google_login_staging
+
+    def transport(method: str, url: str, body: object, timeout: float) -> tuple[int, dict[str, object]]:
+        assert method == "GET"
+        return (
+            200,
+            {
+                "status": "linked",
+                "request_id": "cli_fixture_request",
+                "staging_session_token": "   ",
+                "session": {
+                    "staging_session_token": "ystg_cli_secret_placeholder",
+                    "token_returned": False,
+                },
+                "google_token_returned": False,
+                "refresh_token_returned": False,
+            },
+        )
+
+    monkeypatch.setenv("YONERAI_CLI_CONFIG_PATH", str(tmp_path / "cli-config.json"))
+    monkeypatch.setenv("YONERAI_STAGING_AUTH_ORIGIN", "https://api-staging.yonerai.com")
+
+    report = build_google_login_staging(poll_request_id="cli_fixture_request", transport=transport)
+    serialized = json.dumps(report, sort_keys=True)
+
+    assert report["ok"] is False
+    assert report["error"]["code"] == "staging_session_claim_invalid"
+    assert report["staging_linked"] is False
+    assert "ystg_cli_secret_placeholder" not in serialized
     assert str(tmp_path) not in serialized
 
 
@@ -728,6 +834,7 @@ def test_staging_login_token_custody_scans_filesystem_config_and_ledger(
 ) -> None:
     from yonerai_cli.auth_policy import build_google_login_staging
     from yonerai_cli.commands.auth import _persist_staging_claim_if_linked, _staging_session_handler
+    from yonerai_cli.services.staging_session_service import load_staging_session_claim
 
     config_path = tmp_path / "cli-config.json"
     session_secret = "ystg_cli_secret_placeholder_custody"
@@ -819,6 +926,10 @@ def test_staging_login_token_custody_scans_filesystem_config_and_ledger(
 
     assert report["ok"] is True
     assert report["staging_claim_saved"] is True
+    saved_session_claim = load_staging_session_claim(config_path)
+    assert saved_session_claim["redacted_email"] == "o***@example.com"
+    assert saved_session_claim["display_name"] == "Owner"
+    assert saved_session_claim["expires_at"] == "2099-06-06T00:30:00Z"
     for path in tmp_path.rglob("*"):
         if not path.is_file():
             continue
@@ -955,7 +1066,7 @@ def test_google_login_staging_does_not_link_when_account_validation_fails(tmp_pa
     assert str(tmp_path) not in serialized
 
 
-def test_google_login_staging_does_not_link_without_session_claim(tmp_path: Path, monkeypatch) -> None:
+def test_google_login_staging_does_not_link_without_cli_session(tmp_path: Path, monkeypatch) -> None:
     from yonerai_cli.auth_policy import build_google_login_staging
 
     def transport(method: str, url: str, body: object, timeout: float) -> tuple[int, dict[str, object]]:
@@ -975,7 +1086,14 @@ def test_google_login_staging_does_not_link_without_session_claim(tmp_path: Path
             200,
             {
                 "status": "linked",
+                "linked": True,
                 "request_id": "cli_fixture_request",
+                "session": {
+                    "type": "browser_cookie",
+                    "token_returned": False,
+                    "bearer_authorization_supported": True,
+                    "cookie_name": "__Host-yonerai-staging",
+                },
                 "google_token_returned": False,
                 "refresh_token_returned": False,
             },
@@ -992,9 +1110,12 @@ def test_google_login_staging_does_not_link_without_session_claim(tmp_path: Path
     serialized = json.dumps(report, sort_keys=True)
 
     assert report["ok"] is False
-    assert report["error"]["code"] == "staging_session_claim_missing"
+    assert report["error"]["code"] == "staging_cli_session_unavailable"
+    assert report["cli_bridge"]["linked_without_cli_session"] is True
     assert report["cli_bridge"]["linked_without_session_claim"] is True
-    assert report["cli_bridge"]["waited_until_linked"] is False
+    assert report["cli_bridge"]["waited_until_linked"] is True
+    assert report["cli_bridge"]["poll"]["session"]["token_returned"] is False
+    assert report["cli_bridge"]["poll"]["session"]["bearer_authorization_supported"] is True
     assert report["staging_linked"] is False
     assert report["staging_linked_claim"] is None
     assert report["staging_session_token_stored"] is False
