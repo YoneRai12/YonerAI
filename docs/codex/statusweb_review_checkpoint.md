@@ -98,3 +98,29 @@ scope: status.yonerai.com public status presentation only
 - phase: review-fix-validation-before-push
 - quota: no explicit quota value exposed in this environment
 - decision: P1/security StatusWEB findings are fixed locally; proceed to commit/push and post-push reread.
+
+## Post-push review intake - 2026-06-19T06:38:06Z
+
+- PR #551 push head before additional review fixes: 3bf1df35cdc5ebe73dcdbcd71c15b3c6baa97266
+- GitHub CI on that head: all required checks PASS
+- Newly discovered active review threads after final push:
+  - discussion_r3440679735 P2: incident detail panel must add is-visible before append
+  - discussion_r3440679736 P2: adapter must honor per-day days[].color overrides
+- classification: valid-now P2, current StatusWEB lane
+- decision: fix in mock-status-adapter.js, add targeted browser probe evidence, push again, reread comments again.
+
+## Additional validation evidence - 2026-06-19T06:38:06Z
+
+- status-feed.scenarios.example.json validation: PASS
+- browser acceptance on live generated feed snapshot_id sts_03cbe305aaa845cb6f15: PASS
+- touch probe on live generated feed: PASS
+- targeted Playwright incident/color probe: PASS
+  - #incident/inc-1 rendered #incidentDetailPanel.is-visible
+  - incident panel computed opacity: 1
+  - day color override #123456 reached bar CSS/background color
+- git diff --check for mock-status-adapter.js: PASS
+
+[PHASE-CHECKPOINT]
+- phase: post-push-review-fix-before-second-push
+- quota: no explicit quota value exposed in this environment
+- decision: commit/push the two valid P2 fixes, then reread review/CI before merge.

@@ -548,6 +548,7 @@
         source: "component aggregate",
         message: source.message,
         incident_id: source.incident_id || null,
+        color: source.color,
       };
     });
     return {
@@ -587,6 +588,7 @@
         source: day.source || (day.status || day.state ? "status feed override" : "default_status"),
         message: day.message || component.fact || null,
         incident_id: day.incident_id || null,
+        color: day.color || null,
       };
     });
     return {
@@ -777,6 +779,10 @@
     $(".scale-end", node).textContent = t("scaleEnd");
   }
 
+  function dayColor(day) {
+    return day?.color || stateColor(day?.status);
+  }
+
   function buildBars(target, category, component, days, rowIndex) {
     target.replaceChildren();
     target.classList.add("is-animated");
@@ -789,7 +795,7 @@
     days.forEach((day, index) => {
       const bar = document.createElement("button");
       const status = sid(day.status);
-      const color = stateColor(status);
+      const color = dayColor(day);
       const route = routeFor(category.id, component ? component.id : "__category__", day.date, status);
       bar.type = "button";
       bar.className = `bar bar-state-${cssState(status)} is-clickable`;
@@ -1179,8 +1185,9 @@ function hideTooltip(force = false) {
     panel.dataset.state = sid(day.status);
     panel.dataset.severity = sid(day.status);
     panel.classList.add(`is-${cssState(day.status)}`, "is-entering");
-    panel.style.setProperty("--status-color", stateColor(day.status));
-    panel.style.setProperty("--status-rgb", rgbFromHex(stateColor(day.status)));
+    const color = dayColor(day);
+    panel.style.setProperty("--status-color", color);
+    panel.style.setProperty("--status-rgb", rgbFromHex(color));
     const incident = day.incident_id ? runtime.feed.incidents.get(day.incident_id) : null;
     panel.innerHTML = `
       <div class="bar-detail-shell" data-severity="${esc(sid(day.status))}">
@@ -1245,6 +1252,7 @@ function hideTooltip(force = false) {
     panel.id = "incidentDetailPanel";
     panel.dataset.feedDriven = "true";
     panel.dataset.state = sid(incident.state || "resolved");
+    panel.classList.add("is-visible", "is-entering");
     panel.style.setProperty("--status-color", stateColor(incident.state || "resolved"));
     panel.style.setProperty("--status-rgb", rgbFromHex(stateColor(incident.state || "resolved")));
 
