@@ -118,6 +118,19 @@ def test_status_snapshot_rejects_bare_internal_hostname_without_printing_it() ->
     assert "worker.internal" not in exc.value.message
 
 
+def test_status_snapshot_rejects_bare_localhost_without_printing_it() -> None:
+    from yonerai_cli.services.status_snapshot_service import StatusSnapshotError, normalize_status_snapshot
+
+    payload = _fixture()
+    payload["components"][0]["message"] = "localhost stale"
+
+    with pytest.raises(StatusSnapshotError) as exc:
+        normalize_status_snapshot(payload)
+
+    assert exc.value.code == "status_snapshot_private_payload_rejected"
+    assert "localhost" not in exc.value.message
+
+
 def test_status_snapshot_rejects_ipv6_private_endpoint_without_printing_it() -> None:
     from yonerai_cli.services.status_snapshot_service import StatusSnapshotError, normalize_status_snapshot
 

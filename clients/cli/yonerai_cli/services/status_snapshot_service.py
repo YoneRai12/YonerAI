@@ -908,6 +908,8 @@ def _iter_payload_text(payload: object) -> list[str]:
 
 
 def _is_private_host(host: str) -> bool:
+    if host.lower().strip(".") == "localhost":
+        return True
     try:
         address = ipaddress.ip_address(host)
     except ValueError:
