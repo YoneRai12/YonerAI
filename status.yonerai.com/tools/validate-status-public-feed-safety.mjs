@@ -15,16 +15,21 @@ import { fileURLToPath } from "node:url";
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const statusRoot = path.resolve(scriptDir, "..");
 
-const sensitiveKeyPattern = /(^|[_-])(token|secret|password|passwd|authorization|auth_header|api[_-]?key|access[_-]?key|private[_-]?key|credential|session|cookie)([_-]|$)/i;
+const sensitiveKeyPattern = /(^|[_-])(token|secret|password|passwd|authorization|auth_header|api[_-]?key|access[_-]?key|private[_-]?key|credential|session|cookie|account[_-]?id|account[_-]?detail|arn|hostname|host[_-]?name|internal[_-]?host|worker[_-]?(identity|pc)|pc[_-]?identity|run[_-]?contents|conversation|prompt|output|audit[_-]?detail|runtime[_-]?inventory|private[_-]?runtime)([_-]|$)/i;
 const sensitiveValuePatterns = [
   { name: "bearer-token", pattern: /\bBearer\s+[A-Za-z0-9._~+/-]+=*/i },
   { name: "aws-access-key", pattern: /\bAKIA[0-9A-Z]{16}\b/ },
+  { name: "aws-arn", pattern: /\barn:aws:[A-Za-z0-9_:/.-]+\b/i },
   { name: "aws-secret-like", pattern: /\baws_secret_access_key\b/i },
   { name: "openai-key", pattern: /\bsk-[A-Za-z0-9_-]{20,}\b/ },
   { name: "jwt-like", pattern: /\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/ },
   { name: "localhost-url", pattern: /\bhttps?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0)(?::\d+)?\b/i },
   { name: "private-ip-url", pattern: /\bhttps?:\/\/(?:10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3})(?::\d+)?\b/i },
   { name: "local-domain", pattern: /\bhttps?:\/\/[^/\s"]+\.local(?:[:/]|$)/i },
+  { name: "file-url", pattern: /\bfile:\/\/[^\s"']+/i },
+  { name: "windows-local-path", pattern: /\b[A-Z]:\\(?:Users|ProgramData|Windows|Temp|ORA|YonerAI)[^"'\n\r]*/i },
+  { name: "unix-private-path", pattern: /(?:^|[\s"'])(?:\/home\/|\/root\/|\/var\/log\/|\/etc\/)[^\s"']*/i },
+  { name: "internal-hostname", pattern: /\b(?:ip-\d+-\d+-\d+-\d+|[a-z0-9-]+\.(?:internal|corp|lan))(?:[.\s:/]|$)/i },
   { name: "private-runtime-word", pattern: /\b(private runtime inventory|break-glass|raw production inventory)\b/i }
 ];
 

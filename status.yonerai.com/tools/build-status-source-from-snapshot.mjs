@@ -246,7 +246,7 @@ function componentToSource(snapshot, component) {
       [currentDate]: {
         state: component.health,
         message: messageFor(component),
-        incident_id: null,
+        ...(component.incident_ref ? { incident_id: component.incident_ref } : {}),
         source: "status-snapshot-v1",
       },
     },
@@ -324,31 +324,36 @@ function affectedFor(snapshot, incident, categories) {
 }
 
 function incidentsToSource(snapshot, categories) {
-  return (snapshot.incidents || []).map((incident) => ({
-    id: incident.id,
-    state: incident.impact,
-    status: incident.status,
-    date: incidentDate(incident, snapshot),
-    title: local(incident.title, incident.id),
-    meta: [
-      stateLabel(incident.status || "monitoring"),
-      stateLabel(incident.impact || "unknown"),
-      { ja: `stage: ${snapshot.overall.stage}`, en: `stage: ${snapshot.overall.stage}` },
-    ],
-    summary: local(incident.summary, ""),
-    footer: {
-      ja: `${incidentDate(incident, snapshot)} ・ すべての更新を見る`,
-      en: `${incidentDate(incident, snapshot)} ・ View all updates`,
-    },
-    affected: affectedFor(snapshot, incident, categories),
-    updates: (incident.updates || []).map((update) => ({
-      status: update.status,
-      label: local(update.label, stateLabel(update.status)),
-      body: local(update.body, ""),
-      utc: update.at,
-      jst: update.at,
-    })),
-  }));
+  return (snapshot.incidents || []).map((incident) => {
+    const affected = affectedFor(snapshot, incident, categories);
+    return {
+      id: incident.id,
+      state: incident.impact,
+      status: incident.status,
+      date: incidentDate(incident, snapshot),
+      ...(affected.category_id ? { category_id: affected.category_id } : {}),
+      ...(affected.component_id ? { component_id: affected.component_id } : {}),
+      title: local(incident.title, incident.id),
+      meta: [
+        stateLabel(incident.status || "monitoring"),
+        stateLabel(incident.impact || "unknown"),
+        { ja: `stage: ${snapshot.overall.stage}`, en: `stage: ${snapshot.overall.stage}` },
+      ],
+      summary: local(incident.summary, ""),
+      footer: {
+        ja: `${incidentDate(incident, snapshot)} ・ すべての更新を見る`,
+        en: `${incidentDate(incident, snapshot)} ・ View all updates`,
+      },
+      affected,
+      updates: (incident.updates || []).map((update) => ({
+        status: update.status,
+        label: local(update.label, stateLabel(update.status)),
+        body: local(update.body, ""),
+        utc: update.at,
+        jst: update.at,
+      })),
+    };
+  });
 }
 
 function buildSource(snapshot) {

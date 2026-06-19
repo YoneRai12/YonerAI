@@ -44,8 +44,8 @@
         </div>
       </header>
 
-      <main>
-        <section class="notice" aria-labelledby="noticeTitle">
+      <main id="mainContent">
+        <section class="notice" id="noticePanel" aria-labelledby="noticeTitle">
           <div class="notice-head">
             <span class="notice-icon" aria-hidden="true"></span>
             <h1 id="noticeTitle">Preparing status monitoring</h1>
@@ -55,7 +55,7 @@
           </p>
         </section>
 
-        <section class="status-card" aria-labelledby="systemStatusTitle">
+        <section class="status-card" id="statusCard" aria-labelledby="systemStatusTitle">
           <div class="status-card-head">
             <div class="title-row">
               <h2 id="systemStatusTitle">System status</h2>
@@ -72,14 +72,14 @@
           <div class="category-list" id="categoryList" aria-label="YonerAI status categories"></div>
         </section>
 
-        <div class="history-action">
+        <div class="history-action" id="historyAction">
           <button class="history-button" id="historyButton" type="button">
             <span class="calendar-icon" aria-hidden="true"></span>
             <span id="historyButtonText">View history</span>
           </button>
         </div>
 
-        <section class="incidents" aria-labelledby="incidentsTitle">
+        <section class="incidents" id="incidentsSection" aria-labelledby="incidentsTitle">
           <h2 id="incidentsTitle">Past incidents</h2>
           <article class="incident-empty">
             <time id="incidentTime">Before operations</time>

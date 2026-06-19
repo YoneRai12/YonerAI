@@ -143,7 +143,7 @@ function buildPackage(feedPath, outDir) {
   const manifest = {
     schema_version: "yonerai.status.public-package-manifest.v1",
     generated_at: new Date().toISOString(),
-    source_root: statusRoot,
+    source_root: "status.yonerai.com",
     feed_source: toStatusRelative(feedPath),
     files: copied,
     excluded_by_design: [

@@ -1213,6 +1213,32 @@ function hideTooltip(force = false) {
     $("#statusCard")?.after(panel);
   }
 
+  function affectedRouteCandidates(incident) {
+    const affectedItems = Array.isArray(incident.affected)
+      ? incident.affected
+      : (incident.affected ? [incident.affected] : []);
+    const affectedComponents = affectedItems.flatMap((affected) => (
+      Array.isArray(affected.components) ? affected.components : []
+    ));
+    return [incident, ...affectedItems, ...affectedComponents].filter(Boolean);
+  }
+
+  function incidentBackHash(incident) {
+    for (const candidate of affectedRouteCandidates(incident)) {
+      const categoryId = candidate.category_id || incident.category_id;
+      const componentId = candidate.component_id || incident.component_id;
+      const date = candidate.date || candidate.start_date || incident.date;
+      if (!categoryId || !date) continue;
+      const category = findCategory(categoryId);
+      const component = findComponent(category, componentId);
+      const day = findDay(category, component, date);
+      if (category && day) {
+        return routeFor(category.id, component ? component.id : "__category__", day.date, day.status);
+      }
+    }
+    return "";
+  }
+
   function renderIncidentPanel(incident) {
     removeIncidentPanel();
     const panel = el("section", "incident-detail-panel");
@@ -1239,10 +1265,7 @@ function hideTooltip(force = false) {
       <div class="incident-copy">${paragraphs(local(incident.summary, ""))}${paragraphs(local(incident.description, ""))}</div>
       <p class="incident-date">${esc(formatDate(incident.date || runtime.feed.range.dates[0]))} ・ ${esc(t("allUpdates"))}</p>`;
     $(".incident-back", hero)?.addEventListener("click", () => {
-      const category = findCategory(incident.category_id);
-      const component = findComponent(category, incident.component_id);
-      const day = findDay(category, component, incident.date);
-      const hash = category && day ? routeFor(category.id, component ? component.id : "__category__", day.date, day.status) : "";
+      const hash = incidentBackHash(incident);
       history.pushState("", document.title, location.pathname + location.search + hash);
       syncRoute();
     }, { signal });

@@ -166,7 +166,7 @@ function normalizeDays(source, component, range) {
     const date = addDays(range.start, index);
     const override = isObject(overrides[date]) ? overrides[date] : {};
     const state = override.state || defaultState;
-    return {
+    const day = {
       index,
       date,
       date_label: override.date_label || dateLabel(date),
@@ -175,9 +175,10 @@ function normalizeDays(source, component, range) {
       color: colorFor(source, state, override.color),
       message: override.message || component.default_message,
       detail: detailFor(override.detail),
-      incident_id: override.incident_id || null,
       source: override.source || "status-feed-source",
     };
+    if (override.incident_id) day.incident_id = override.incident_id;
+    return day;
   });
 }
 

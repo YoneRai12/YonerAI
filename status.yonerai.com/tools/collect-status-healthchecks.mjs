@@ -130,6 +130,17 @@ function stateLabel(input, state) {
   return input.states?.[state]?.label || defaultStateLabels[state] || { ja: state, en: state };
 }
 
+function publicCheckLabel(check) {
+  return check.public_label || check.label || check.source || "http-healthcheck";
+}
+
+function publicHttpFailureMessage(check) {
+  return localized(check.public_message || check.message_on_error, {
+    ja: "HTTP healthcheck failed.",
+    en: "HTTP healthcheck failed.",
+  });
+}
+
 function worseState(left, right) {
   return (severity[right] ?? 0) > (severity[left] ?? 0) ? right : left;
 }
@@ -187,33 +198,32 @@ async function evaluateHttp(check) {
     const ok = response.status >= min && response.status <= max;
     const slow = degradedMs > 0 && latencyMs > degradedMs;
     const state = ok ? (slow ? "degraded" : "operational") : (response.status >= 500 ? "major_outage" : "degraded");
+    const label = publicCheckLabel(check);
     return {
       state,
-      label: check.label || check.url,
+      label,
       message: localized(check.message, {
         ja: `HTTP ${response.status}, ${latencyMs}ms`,
         en: `HTTP ${response.status}, ${latencyMs}ms`,
       }),
       detail: {
         summary: {
-          ja: [`${check.url}`, `HTTP ${response.status}`, `${latencyMs}ms`],
-          en: [`${check.url}`, `HTTP ${response.status}`, `${latencyMs}ms`],
+          ja: [label, `HTTP ${response.status}`, `${latencyMs}ms`],
+          en: [label, `HTTP ${response.status}`, `${latencyMs}ms`],
         },
       },
       source: check.source || "http-healthcheck",
     };
   } catch (error) {
+    const label = publicCheckLabel(check);
     return {
       state: "major_outage",
-      label: check.label || check.url || "http",
-      message: localized(check.message_on_error, {
-        ja: `HTTP healthcheck failed: ${String(error?.message || error)}`,
-        en: `HTTP healthcheck failed: ${String(error?.message || error)}`,
-      }),
+      label,
+      message: publicHttpFailureMessage(check),
       detail: {
         summary: {
-          ja: [String(check.url || "http"), String(error?.message || error)],
-          en: [String(check.url || "http"), String(error?.message || error)],
+          ja: [label, "HTTP healthcheck failed"],
+          en: [label, "HTTP healthcheck failed"],
         },
       },
       source: check.source || "http-healthcheck",
