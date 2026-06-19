@@ -1,6 +1,6 @@
 # StatusSnapshot Review Checkpoint
 
-- last_scan_at: 2026-06-19T08:50:00+09:00
+- last_scan_at: 2026-06-19T15:24:58+09:00
 - lane: public-status-snapshot
 - highest_seen_pr_number: 553
 
@@ -28,10 +28,11 @@
 
 ## PR 553
 
-- updated_at: 2026-06-18T23:46:05Z
-- classification: valid-now
+- updated_at: 2026-06-19T06:20:19Z
+- classification: valid-but-already-fixed by current PR head
 - review/comment state:
   - Gemini high/security-high: bare `localhost` could bypass private host rejection.
-- CI state: Quality Wall passed before the new Gemini finding; rerun required after fix.
-- decision: fix in current branch with regression test.
+  - The fix centralizes `localhost` rejection in `_is_private_host()` and adds a regression test that checks the offending host is not printed.
+- CI state: Quality Wall passed on PR head `2cb84a74`.
+- decision: ready after final review scan; merge only if no newer P0/P1/security finding appears.
 - replacement PR or tracking issue: #553
