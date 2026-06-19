@@ -487,6 +487,18 @@ def _safe_request(
             transport=transport,
             timeout_seconds=timeout_seconds,
         )
+        if status_code in {401, 403}:
+            return {
+                "ok": False,
+                "official_backend_called": True,
+                "status_code": status_code,
+                "body": {},
+                "error": _auth_required_error(
+                    "Staging login is required or the saved session expired.",
+                    status_code=status_code,
+                ),
+                "rate_limit_headers_present": _rate_limit_headers_present(headers),
+            }
         payload = _public_payload_for_path(path, payload)
         _assert_public_safe_payload(payload)
     except ControlSpineServiceError as exc:

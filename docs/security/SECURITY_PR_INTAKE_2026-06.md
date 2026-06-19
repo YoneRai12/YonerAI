@@ -4,8 +4,8 @@ Public repository review/comment intake for the current Public YonerAI lane.
 This file is public-safe: it avoids secrets, private runtime details, internal
 hostnames, account data, and local private paths.
 
-- last_scan_at: 2026-06-19T23:06:53+09:00
-- current_main_head: bc0d9277
+- last_scan_at: 2026-06-19T15:46:43Z
+- current_main_head: b745e304
 - latest_stable: v0.8.1
 - latest_prerelease: v0.22.0-alpha.1
 - highest_seen_pr_number: 557
@@ -85,3 +85,10 @@ the current security intake branch instead of merging several stale PR branches:
 - P2/P3/dependency/UX items above remain tracked but do not block realtime sync.
 - New or synchronized PRs should be marked `needs-intake` and must not pass the
   PR Intake Gate until a maintainer adds `intake-reviewed` after classification.
+## 2026-06-20 Merged PR #557 Follow-up via PR #558
+
+| Source | Finding | Severity | Current disposition |
+| --- | --- | --- | --- |
+| #557 merged review | 401/403 bodies containing standard public auth reasons such as invalid_token could be rejected by the broad token marker before the CLI returned staging_auth_required. | P2/security/correctness | Fixed in follow-up PR #558 by converting 401/403 to sanitized auth guidance before scanning or printing response bodies. |
+| #557 post-merge CI | review-intake-required attempted label mutation for closed/merged PR comment activity and failed with GitHub integration permissions. | process/security | Fixed in follow-up PR #558 by ignoring closed or merged PR activity before label mutation. |
+| #558 review/check rollup | Intake runs triggered by review/comment activity could fail with an unhandled GitHub label-permission error before reporting a controlled intake state. | process/security | Fixed in PR #558 by keeping new review/comment/synchronize activity fail-closed, converting label-write failures into controlled failures, and allowing a later maintainer `intake-reviewed` label event to clear the required check after classification. |

@@ -26,7 +26,7 @@ on:
 permissions:
   contents: read
   issues: write
-  pull-requests: read
+  pull-requests: write
 
 jobs:
   intake-gate:
@@ -51,8 +51,20 @@ jobs:
               core.setFailed("Unable to determine PR number for review intake gate.");
               return;
             }
+            const prState = pr
+              ? { state: pr.state, merged_at: pr.merged_at || null }
+              : await github.rest.pulls.get({ owner, repo, pull_number: issue_number }).then(({ data }) => ({
+                  state: data.state,
+                  merged_at: data.merged_at || null,
+                }));
+            if (prState.state !== "open" || prState.merged_at) {
+              core.info("Ignoring review intake for closed or merged PR.");
+              return;
+            }
+
             const needs = "needs-intake";
             const reviewed = "intake-reviewed";
+            const labelWriteErrors = [];
 
             async function ensureLabel(name, color, description) {
               try {
@@ -65,14 +77,19 @@ jobs:
             }
 
             async function addLabel(name) {
-              await ensureLabel(
-                name,
-                name === needs ? "fbca04" : "0e8a16",
-                name === needs
-                  ? "PR/review/comment intake is required before merge."
-                  : "Maintainer confirmed PR/review/comment intake for current head."
-              );
-              await github.rest.issues.addLabels({ owner, repo, issue_number, labels: [name] });
+              try {
+                await ensureLabel(
+                  name,
+                  name === needs ? "fbca04" : "0e8a16",
+                  name === needs
+                    ? "PR/review/comment intake is required before merge."
+                    : "Maintainer confirmed PR/review/comment intake for current head."
+                );
+                await github.rest.issues.addLabels({ owner, repo, issue_number, labels: [name] });
+              } catch (error) {
+                labelWriteErrors.push(`add ${name}: ${error.status || "unknown"}`);
+                core.warning(`Unable to add '${name}' label; gate will fail closed until maintainer intake is confirmed.`);
+              }
             }
 
             async function removeLabel(name) {
@@ -80,7 +97,8 @@ jobs:
                 await github.rest.issues.removeLabel({ owner, repo, issue_number, name });
               } catch (error) {
                 if (error.status !== 404) {
-                  throw error;
+                  labelWriteErrors.push(`remove ${name}: ${error.status || "unknown"}`);
+                  core.warning(`Unable to remove '${name}' label; gate will fail closed until maintainer intake is confirmed.`);
                 }
               }
             }
@@ -88,6 +106,16 @@ jobs:
             const eventName = context.eventName;
             const action = context.payload.action || "";
             const materialPrActions = new Set(["opened", "reopened", "synchronize", "ready_for_review"]);
+
+            const intakeInvalidatingEvent =
+              (eventName === "pull_request_target" && materialPrActions.has(action)) ||
+              eventName === "pull_request_review" ||
+              eventName === "pull_request_review_comment" ||
+              eventName === "issue_comment";
+            const maintainerConfirmedEvent =
+              eventName === "pull_request_target" &&
+              action === "labeled" &&
+              context.payload.label?.name === reviewed;
 
             if (eventName === "pull_request_target" && materialPrActions.has(action)) {
               await addLabel(needs);
@@ -105,6 +133,16 @@ jobs:
               per_page: 100,
             });
             const labelNames = new Set(labels.map((label) => label.name));
+            if (intakeInvalidatingEvent) {
+              core.setFailed(
+                `PR #${issue_number} has new review/comment/synchronize activity. Classify it, then add the maintainer-controlled '${reviewed}' label.`
+              );
+              return;
+            }
+            if (labelWriteErrors.length > 0 && !maintainerConfirmedEvent) {
+              core.setFailed(`PR #${issue_number} review intake label update failed closed: ${labelWriteErrors.join("; ")}`);
+              return;
+            }
             if (!labelNames.has(reviewed)) {
               core.setFailed(
                 `PR #${issue_number} is waiting for review intake. Add the maintainer-controlled '${reviewed}' label after classifying PR, review comments, and CI.`
