@@ -4,11 +4,11 @@ Public repository review/comment intake for the current Public YonerAI lane.
 This file is public-safe: it avoids secrets, private runtime details, internal
 hostnames, account data, and local private paths.
 
-- last_scan_at: 2026-06-19T22:51:36+09:00
+- last_scan_at: 2026-06-19T22:58:19+09:00
 - current_main_head: bc0d9277
 - latest_stable: v0.8.1
 - latest_prerelease: v0.22.0-alpha.1
-- highest_seen_pr_number: 556
+- highest_seen_pr_number: 557
 - current_lane: public security/status gate before realtime sync
 
 ## Valid Findings Fixed In Current Lane
@@ -29,6 +29,7 @@ the current security intake branch instead of merging several stale PR branches:
 
 | PR | Title | Classification | Review/comment state | CI state | Decision / tracking |
 | --- | --- | --- | --- | --- | --- |
+| #557 | fix: 公開セキュリティPR指摘を統合し intake gate を追加 | valid-now | New canonical replacement PR; no review comments at creation scan | pending | Canonical replacement for #539/#540/#541/#542/#543/#554/#555/#556. |
 | #556 | fix: block camelCase status feed secret keys | valid-now | Gemini robustness comment valid | security-static failed on PR branch | Superseded by current branch with stronger normalization and safer test output. |
 | #555 | fix: reject provider gateway redirects | valid-now | Gemini server cleanup comment valid | pass but behind main | Superseded by current branch with explicit server close. |
 | #554 | fix: validate stored staging session origins | valid-now | Gemini no-comment review; no unresolved thread | pass but behind main | Superseded by current branch canonical fix. |
@@ -70,9 +71,8 @@ the current security intake branch instead of merging several stale PR branches:
 
 - PR #553 is merged and fixed Public CLI StatusSnapshot review blockers.
 - PR #551 is merged and fixed StatusWEB StatusSnapshot review blockers.
-- PR #555 and PR #556 findings are consolidated into the current security
-  intake branch and should be closed as superseded after the replacement PR is
-  available.
+- PR #557 is the canonical replacement PR for #539/#540/#541/#542/#543/#554/
+  #555/#556.
 - Issue #549 has Public and StatusWEB readiness comments and AWS implementation
   evidence. Closing remains gated on owner/AWS final acknowledgement if exact
   `[AWS-STATUS-FINAL-ACK]` wording is required by the active goal.

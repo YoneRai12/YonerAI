@@ -1,7 +1,7 @@
 # Public Security Review Checkpoint
 
-- last_scan_at: 2026-06-19T22:51:36+09:00
-- highest_seen_pr_number: 556
+- last_scan_at: 2026-06-19T22:58:19+09:00
+- highest_seen_pr_number: 557
 - current_main_head: bc0d9277
 - latest_stable: v0.8.1
 - latest_prerelease: v0.22.0-alpha.1
@@ -11,13 +11,13 @@
 
 Checked in this checkpoint:
 
-- Open PR list up to #556.
+- Open PR list up to #557.
 - PR #551 final post-push review/comments/checks before confirming merge state.
 - PR #553 review blocker resolution and merged state.
 - Issue #549 status coordination comments.
 - Issue #552 realtime sync coordination comments.
 - Security-adjacent open PRs #556, #555, #554, #543, #542, #541, #540, #539,
-  and #521.
+- #557 canonical replacement PR, and #521.
 
 ## Decisions
 
@@ -25,6 +25,7 @@ Checked in this checkpoint:
 | --- | --- | --- | --- | --- | --- |
 | #551 | 2026-06-19T06:43:08Z | valid-but-already-fixed | No new blocker after final push; merged | all pass on final head | StatusWEB scope closed on main. |
 | #553 | merged before this checkpoint | valid-but-already-fixed | `localhost` private-host finding fixed | all pass | Public CLI StatusSnapshot blocker closed. |
+| #557 | 2026-06-19T13:58:19Z | valid-now | No review comments at creation scan | pending | Canonical replacement PR for current public security intake. |
 | #556 | 2026-06-19T07:23:27Z | valid-now | Gemini test/normalization robustness comment valid | security-static failed on PR branch | Consolidated into current branch with stronger key normalization and redacted test failures. |
 | #555 | 2026-06-19T07:04:53Z | valid-now | Gemini server cleanup comment valid | pass but behind | Consolidated into current branch with redirect rejection and explicit server close. |
 | #554 | 2026-06-19T06:37:37Z | valid-now | Gemini no-comment review | pass but behind | Consolidated into current security intake branch. |
@@ -40,7 +41,7 @@ Checked in this checkpoint:
 ## Replacement PR / Tracking
 
 - Current replacement branch: `codex/security-intake-gate-20260619`
-- Replacement PR: pending
+- Replacement PR: #557
 - Tracking document: `docs/security/SECURITY_PR_INTAKE_2026-06.md`
 
 ## Remaining Non-Blocking Debt
