@@ -234,8 +234,8 @@ def build_native_run_submit_report(
     _merge_response_metadata(report, status_code, headers)
     if status_code == 401:
         report["ok"] = False
-        _mark_staging_session_rejected(report)
-        report["error"] = _auth_required_error("The staging session was not accepted for Native Run.", status_code=status_code)
+        _mark_staging_session_rejected(report, body)
+        report["error"] = _staging_session_rejected_error(body, status_code=status_code)
         return report
     if status_code >= 400:
         report["ok"] = False
@@ -348,8 +348,8 @@ def build_native_run_events_report(
     _merge_response_metadata(report, status_code, headers)
     if status_code == 401:
         report["ok"] = False
-        _mark_staging_session_rejected(report)
-        report["error"] = _auth_required_error("The staging session was not accepted for Native Run events.", status_code=status_code)
+        _mark_staging_session_rejected(report, body)
+        report["error"] = _staging_session_rejected_error(body, status_code=status_code)
         return report
     if status_code >= 400:
         report["ok"] = False
@@ -397,8 +397,8 @@ def build_native_run_cancel_report(
     _merge_response_metadata(report, status_code, headers)
     if status_code == 401:
         report["ok"] = False
-        _mark_staging_session_rejected(report)
-        report["error"] = _auth_required_error("The staging session was not accepted for Native Run cancellation.", status_code=status_code)
+        _mark_staging_session_rejected(report, body)
+        report["error"] = _staging_session_rejected_error(body, status_code=status_code)
         return report
     if status_code >= 400:
         report["ok"] = False
@@ -740,8 +740,8 @@ def _build_run_get_report(
     _merge_response_metadata(report, status_code, headers)
     if status_code == 401:
         report["ok"] = False
-        _mark_staging_session_rejected(report)
-        report["error"] = _auth_required_error("The staging session was not accepted for Native Run.", status_code=status_code)
+        _mark_staging_session_rejected(report, body)
+        report["error"] = _staging_session_rejected_error(body, status_code=status_code)
         return report
     if status_code >= 400:
         report["ok"] = False
@@ -873,11 +873,13 @@ def _require_linked_session(report: dict[str, object], context: Mapping[str, obj
     return False
 
 
-def _mark_staging_session_rejected(report: dict[str, object]) -> None:
+def _mark_staging_session_rejected(report: dict[str, object], body: Mapping[str, object] | None = None) -> None:
     report["auth_state"] = "staging_session_rejected"
     report["account_linked"] = False
     report["session_available"] = False
     report["staging_session_rejected"] = True
+    report["session_repair_action"] = "yonerai logout && yonerai login"
+    report["session_rejected_reason"] = _reason_from_body("staging_session_rejected", body or {})
 
 
 def _request_json(
@@ -1287,6 +1289,18 @@ def _safe_error(code: str, message: str, *, status_code: int | None = None) -> d
 def _auth_required_error(message: str, *, status_code: int | None = None) -> dict[str, object]:
     error = _safe_error("staging_auth_required", message, status_code=status_code)
     error["next_safe_command"] = "yonerai login"
+    return error
+
+
+def _staging_session_rejected_error(body: Mapping[str, object], *, status_code: int) -> dict[str, object]:
+    error = _safe_error(
+        "staging_session_rejected",
+        "Saved staging session was rejected by the staging backend. Run `yonerai logout` and then `yonerai login`.",
+        status_code=status_code,
+    )
+    error["backend_reason"] = _reason_from_body("staging_session_rejected", body)
+    error["next_safe_command"] = "yonerai login"
+    error["repair_command"] = "yonerai logout && yonerai login"
     return error
 
 

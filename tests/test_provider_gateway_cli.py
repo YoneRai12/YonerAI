@@ -57,6 +57,37 @@ def test_provider_gateway_status_contract_derives_quota_and_models(monkeypatch) 
 
     def transport(_method, url, _headers, _body, _timeout):
         calls.append(url)
+        if url.endswith("/v1/provider-gateway/quota"):
+            return (
+                200,
+                {
+                    "quota": {
+                        "daily_token_cap": 2000,
+                        "max_input_tokens": 512,
+                        "max_output_tokens": 96,
+                        "hard_application_budget": True,
+                    },
+                    "paid_fallback_allowed": False,
+                    "secret_values_exposed": False,
+                },
+                {"X-YonerAI-RateLimit-Remaining": "38"},
+            )
+        if url.endswith("/v1/provider-gateway/models"):
+            return (
+                200,
+                {
+                    "models": [
+                        {
+                            "model_id": "gpt-4.1-nano",
+                            "display_name": "GPT-4.1 nano",
+                            "policy_safe": True,
+                            "available": True,
+                        }
+                    ],
+                    "secret_values_exposed": False,
+                },
+                {"X-YonerAI-RateLimit-Remaining": "38"},
+            )
         return (
             200,
             {
@@ -95,9 +126,39 @@ def test_provider_gateway_status_contract_derives_quota_and_models(monkeypatch) 
     assert status["provider_gateway_available"] is True
     assert quota["quota"]["daily_token_cap"] == 2000
     assert models["models"][0]["model_id"] == "gpt-4.1-nano"
-    assert all(url.endswith("/v1/provider-gateway/status") for url in calls)
+    assert calls == [
+        "https://api-staging.yonerai.com/v1/provider-gateway/status",
+        "https://api-staging.yonerai.com/v1/provider-gateway/quota",
+        "https://api-staging.yonerai.com/v1/provider-gateway/models",
+    ]
     assert "opaque-yonerai-session" not in serialized
     assert "access_token" not in serialized
+
+
+def test_provider_gateway_models_does_not_fallback_to_status_hint(monkeypatch) -> None:
+    from yonerai_cli.services.provider_gateway_service import build_provider_gateway_report
+
+    _install_context(monkeypatch)
+
+    def transport(_method, url, _headers, _body, _timeout):
+        assert url.endswith("/v1/provider-gateway/models")
+        return (
+            200,
+            {
+                "model_policy": {"selected_model_hint": "arbitrary-unapproved-model"},
+                "models": [],
+                "secret_values_exposed": False,
+            },
+            {"X-YonerAI-RateLimit-Remaining": "38"},
+        )
+
+    report = build_provider_gateway_report("models", config={}, env={}, claim_path=None, transport=transport)
+    serialized = json.dumps(report, ensure_ascii=False)
+
+    assert report["ok"] is True
+    assert report["models"] == []
+    assert "arbitrary-unapproved-model" not in serialized
+    assert "opaque-yonerai-session" not in serialized
 
 
 def test_provider_gateway_rejects_private_payload(monkeypatch) -> None:

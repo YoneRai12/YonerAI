@@ -431,7 +431,7 @@ def test_whoami_accepts_contract_account_id_after_sanitizing(tmp_path: Path, mon
         body: Mapping[str, object] | None,
         timeout: float,
     ) -> tuple[int, dict[str, object], dict[str, str]]:
-        assert url == "https://api-staging.yonerai.com/v1/account/me"
+        assert url == "https://api-staging.yonerai.com/v1/whoami"
         return (
             200,
             {
@@ -481,7 +481,7 @@ def test_whoami_uses_saved_staging_session_without_printing_it(tmp_path: Path, m
         timeout: float,
     ) -> tuple[int, dict[str, object], dict[str, str]]:
         assert method == "GET"
-        assert url == "https://api-staging.yonerai.com/v1/account/me"
+        assert url == "https://api-staging.yonerai.com/v1/whoami"
         assert headers["Authorization"] == f"Bearer {session_value}"
         return (
             200,
@@ -511,6 +511,57 @@ def test_whoami_uses_saved_staging_session_without_printing_it(tmp_path: Path, m
     assert "acct_contract_safe_ref_123" not in serialized
     assert session_value not in serialized
     assert "google-subject" not in serialized
+    assert str(tmp_path) not in serialized
+
+
+def test_whoami_falls_back_to_account_me_when_new_endpoint_missing(tmp_path: Path, monkeypatch) -> None:
+    from yonerai_cli.services.control_spine_service import build_whoami_report
+    from yonerai_cli.services.staging_session_service import save_staging_session
+
+    config_path = tmp_path / "cli-config.json"
+    session_value = "opaque-session-value-123456789"
+    calls: list[str] = []
+    save_staging_session(
+        session_token=session_value,
+        origin="https://api-staging.yonerai.com",
+        account={"email": "owner@example.test", "display_name": "Owner"},
+        config_path=config_path,
+    )
+
+    def transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, dict[str, object], dict[str, str]]:
+        assert method == "GET"
+        assert headers["Authorization"] == f"Bearer {session_value}"
+        calls.append(url)
+        if url.endswith("/v1/whoami"):
+            return 404, {"detail": {"reason": "not_found"}}, {"X-YonerAI-RateLimit-Scope": "staging"}
+        assert url == "https://api-staging.yonerai.com/v1/account/me"
+        return (
+            200,
+            {"account": {"email": "owner@example.test", "display_name": "Owner"}},
+            {"X-YonerAI-RateLimit-Scope": "staging"},
+        )
+
+    report = build_whoami_report(
+        config={},
+        env={"YONERAI_STAGING_AUTH_ORIGIN": "https://api-staging.yonerai.com"},
+        claim_path=str(config_path),
+        transport=transport,
+    )
+    serialized = json.dumps(report, ensure_ascii=False, sort_keys=True)
+
+    assert report["ok"] is True
+    assert calls == [
+        "https://api-staging.yonerai.com/v1/whoami",
+        "https://api-staging.yonerai.com/v1/account/me",
+    ]
+    assert report["account"]["email_redacted"] == "o***@example.test"
+    assert session_value not in serialized
     assert str(tmp_path) not in serialized
 
 
@@ -998,7 +1049,7 @@ def test_whoami_401_token_reason_preserves_auth_guidance_without_printing_payloa
         timeout: float,
     ) -> tuple[int, dict[str, object], dict[str, str]]:
         assert method == "GET"
-        assert url == "https://api-staging.yonerai.com/v1/account/me"
+        assert url == "https://api-staging.yonerai.com/v1/whoami"
         assert headers["Authorization"] == f"Bearer {session_value}"
         assert body is None
         return (
@@ -1017,8 +1068,10 @@ def test_whoami_401_token_reason_preserves_auth_guidance_without_printing_payloa
 
     assert report["ok"] is False
     assert report["backend_status_code"] == 401
-    assert report["error"]["code"] == "staging_auth_required"
+    assert report["error"]["code"] == "staging_session_rejected"
     assert report["error"]["next_safe_command"] == "yonerai login"
+    assert report["error"]["repair_command"] == "yonerai logout && yonerai login"
+    assert report["error"]["backend_reason"] == "auth_rejected"
     assert "invalid_token" not in serialized
     assert "token_expired" not in serialized
     assert session_value not in serialized

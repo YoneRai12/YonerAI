@@ -71,3 +71,52 @@ Checked in this checkpoint:
 - CI state: product checks passed; `review-intake-required` failed because the PR updates the same `pull_request_target` workflow that is required before merge.
 - decision: keep the gate fail-closed for new review/comment/synchronize activity, handle label-write failures as controlled failures instead of unhandled exceptions, and allow a later maintainer `intake-reviewed` label event to clear the required check.
 - replacement PR or tracking issue: #558 remains the canonical current-main fix for this bootstrap/process issue.
+
+## 2026-06-20 Public Auth / Sync Contract Checkpoint
+
+- last_scan_at: 2026-06-20T05:27:22+09:00
+- highest_seen_pr_number: 558
+- current_main_head: cce5a8d
+- branch: codex/native-run-auth-sync-contract-20260620
+- lane: Public auth/session contract, provider gateway contract acceptance, realtime sync proposal
+
+Checked in this checkpoint:
+
+- PR #558 state, comments, inline review comments, reviews, and checks.
+- Open PR list after #558 merge.
+- Issue #552 comments before publishing `[SYNC-PROPOSAL-V1]`.
+- Private AWS public-safe impact notices for staging auth/session and provider gateway contract surfaces.
+- Live staging safe-smoke status for `/v1/health`, `/v1/status`, `/v1/capabilities`, `/v1/modules`, and unauthenticated `/v1/runs`.
+
+| PR / issue / notice | classification | review/comment state | CI / evidence state | decision |
+| --- | --- | --- | --- | --- |
+| #558 | valid-but-already-fixed | Gemini/Codex 401/403 sanitizer ordering comments were addressed before merge; Codex usage-limit comment non-material | Final required checks passed; merge commit `cce5a8d` | Complete. No required-check disable/restore was needed. |
+| #558 post-merge Codex P2 | valid-now | Codex flagged unnecessary `pull-requests: write` on `pull_request_target` gate | Current branch changes permission to `pull-requests: read`; label writes still use `issues: write` | Fixed in current follow-up branch with workflow test coverage. |
+| Staging auth mismatch | valid-now / owner-only-blocker for backend | Browser login can reach linked state, but poll response has `token_returned=false` and no opaque YonerAI CLI session value | Public CLI cannot authenticate `whoami` or Native Run without a backend-issued opaque session | Public now fails closed as `staging_cli_session_unavailable` or `staging_session_rejected`; AWS must issue an opaque YonerAI staging session separate from Google tokens. |
+| #552 AWS auth contract proposal | valid-now | AWS proposed top-level `staging_session_token` and matching `session.staging_session_token` as the only CLI-usable opaque YonerAI session value | Public regression tests accept only those fields, reject mismatch/token-like fields, and never print the value | Posted `[PUBLIC-AUTH-ACK]` at https://github.com/YoneRai12/YonerAI/issues/552#issuecomment-4754475408. |
+| Provider Gateway #57-#60 notices | valid-now | AWS contract says canonical paths are `/v1/provider-gateway/status`, `/quota`, `/models`; models are allowlist-bound and must not silently fallback | Current branch updates Public CLI to call canonical quota/models and removes status-hint model fallback | `[PR-IMPACT-ACK]` recorded from Public lane. |
+| #552 | valid-now / pending ACK | Realtime sync issue was waiting for Public proposal | Posted `[SYNC-PROPOSAL-V1]` at https://github.com/YoneRai12/YonerAI/issues/552#issuecomment-4754454747 | Waiting for `[AWS-SYNC-ACK]` and `[YONERAIWEB-SYNC-ACK]` before `[SYNC-CONTRACT-ACCEPTED]`. |
+| #552 AWS sync ACK | valid-but-not-complete | AWS posted `[AWS-SYNC-ACK]` and acknowledged the opaque auth field after Public ACK | AWS says Firestore projection is not live and still waits for public/Web acceptance plus runtime evidence | Public can proceed only after `[YONERAIWEB-SYNC-ACK]`; do not send `[SYNC-CONTRACT-ACCEPTED]` yet. |
+
+Open PR disposition at this checkpoint:
+
+- #548 dependency PR: deferred dependency lane.
+- #547 update language UX: deferred non-security UX.
+- #545/#544 theme config duplicates: deferred duplicate UX group.
+- #523 docs alpha warning: deferred docs/claim lane.
+- #521 validated staging account claim: valid-but-already-fixed on current auth boundary; no merge of stale branch.
+- Older dependabot and stale feature PRs: deferred to dependency/owner lanes; no current P0/P1/security blocker observed from the open list.
+
+Current blockers:
+
+- Live `login -> whoami -> run submit -> status/events/result` remains blocked until AWS staging auth bridge issues a CLI-usable opaque YonerAI session claim. Public must not synthesize or infer that credential.
+- `[SYNC-CONTRACT-ACCEPTED]` is blocked until YonerAIWEB ACKs the proposal in issue #552 or via a public-safe coordination notice; AWS ACK is recorded.
+
+Validation for this checkpoint:
+
+- Targeted tests: `132 passed` for auth/privacy, control spine, Native Run, PR intake gate workflow, and provider gateway tests.
+- `ruff` passed for touched Python paths.
+- `compileall` passed for `clients/cli/yonerai_cli` and `tests`.
+- `git diff --check` passed with CRLF warnings only.
+- `ci_quality_scans.py --changed` passed.
+- Live staging smoke confirmed `/v1/health`, `/v1/capabilities`, and `/v1/modules` return 200, provider quota returns 200, and saved legacy session is rejected with controlled repair guidance.
