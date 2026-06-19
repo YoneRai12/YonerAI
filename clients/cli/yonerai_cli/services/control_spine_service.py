@@ -777,7 +777,16 @@ def _safe_text(value: object, *, fallback: object) -> object:
     return text[:240]
 
 
+def _public_account_payload(payload: Mapping[str, object]) -> Mapping[str, object]:
+    account_source = payload.get("account") or payload.get("identity") or payload.get("profile") or payload
+    if not isinstance(account_source, Mapping):
+        account_source = {}
+    return {"account": sanitize_staging_account(account_source)}
+
+
 def _public_payload_for_path(path: str, payload: Mapping[str, object]) -> Mapping[str, object]:
+    if path == ACCOUNT_ME_PATH:
+        return _public_account_payload(payload)
     if path != RATE_LIMIT_PATH:
         return payload
     allowed_top_level = {

@@ -410,6 +410,55 @@ def test_error_detail_rejects_bearer_secret_text(tmp_path: Path, monkeypatch) ->
     assert str(tmp_path) not in serialized
 
 
+def test_whoami_accepts_contract_account_id_after_sanitizing(tmp_path: Path, monkeypatch) -> None:
+    from yonerai_cli.services.control_spine_service import build_whoami_report
+    from yonerai_cli.services.staging_session_service import save_staging_session
+
+    config_path = tmp_path / "cli-config.json"
+    session_value = "opaque-session-value-123456789"
+    raw_account_id = "acct_contract_visible_123"
+    save_staging_session(
+        session_token=session_value,
+        origin="https://api-staging.yonerai.com",
+        account={"email": "owner@example.test", "display_name": "Owner"},
+        config_path=config_path,
+    )
+
+    def transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, dict[str, object], dict[str, str]]:
+        assert url == "https://api-staging.yonerai.com/v1/account/me"
+        return (
+            200,
+            {
+                "account": {
+                    "account_id": raw_account_id,
+                    "email": "owner@example.test",
+                    "display_name": "Owner",
+                }
+            },
+            {"X-YonerAI-RateLimit-Scope": "staging"},
+        )
+
+    report = build_whoami_report(
+        config={},
+        env={"YONERAI_STAGING_AUTH_ORIGIN": "https://api-staging.yonerai.com"},
+        claim_path=str(config_path),
+        transport=transport,
+    )
+    serialized = json.dumps(report, ensure_ascii=False, sort_keys=True)
+
+    assert report["ok"] is True
+    assert report["account"]["account_ref"].startswith("staging-account-")
+    assert report["account"]["email_redacted"] == "o***@example.test"
+    assert raw_account_id not in serialized
+    assert session_value not in serialized
+    assert str(tmp_path) not in serialized
+
 def test_whoami_uses_saved_staging_session_without_printing_it(tmp_path: Path, monkeypatch) -> None:
     from yonerai_cli.screens.control_spine import format_control_spine_pretty
     from yonerai_cli.services.control_spine_service import build_whoami_report

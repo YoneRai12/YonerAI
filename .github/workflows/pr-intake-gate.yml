@@ -18,6 +18,10 @@ on:
     types:
       - created
       - edited
+  issue_comment:
+    types:
+      - created
+      - edited
 
 permissions:
   contents: read
@@ -28,16 +32,25 @@ jobs:
   intake-gate:
     name: review-intake-required
     runs-on: ubuntu-latest
-    if: ${{ github.event.pull_request != null }}
+    if: ${{ github.event.pull_request != null || github.event.issue.pull_request != null }}
     steps:
       - name: Require maintainer review intake label
         uses: actions/github-script@v7
         with:
           script: |
-            const pr = context.payload.pull_request;
+            const pr = context.payload.pull_request || null;
+            const issue = context.payload.issue || null;
+            if (context.eventName === "issue_comment" && !issue?.pull_request) {
+              core.info("Ignoring non-PR issue comment.");
+              return;
+            }
             const owner = context.repo.owner;
             const repo = context.repo.repo;
-            const issue_number = pr.number;
+            const issue_number = pr?.number || issue?.number;
+            if (!issue_number) {
+              core.setFailed("Unable to determine PR number for review intake gate.");
+              return;
+            }
             const needs = "needs-intake";
             const reviewed = "intake-reviewed";
 
@@ -82,7 +95,7 @@ jobs:
             if (eventName === "pull_request_target" && action === "synchronize") {
               await removeLabel(reviewed);
             }
-            if (eventName === "pull_request_review" || eventName === "pull_request_review_comment") {
+            if (eventName === "pull_request_review" || eventName === "pull_request_review_comment" || eventName === "issue_comment") {
               await addLabel(needs);
               await removeLabel(reviewed);
             }

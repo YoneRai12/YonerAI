@@ -13,6 +13,7 @@ def test_pr_intake_gate_triggers_on_pr_reviews_and_comments() -> None:
     assert "- synchronize" in workflow
     assert "pull_request_review:" in workflow
     assert "pull_request_review_comment:" in workflow
+    assert "issue_comment:" in workflow
     assert "review-intake-required" in workflow
 
 
@@ -30,7 +31,7 @@ def test_pr_intake_gate_invalidates_reviewed_label_on_new_review_or_comment() ->
     workflow = WORKFLOW.read_text(encoding="utf-8")
 
     review_block = (
-        'if (eventName === "pull_request_review" || eventName === "pull_request_review_comment") {\n'
+        'if (eventName === "pull_request_review" || eventName === "pull_request_review_comment" || eventName === "issue_comment") {\n'
         "              await addLabel(needs);\n"
         "              await removeLabel(reviewed);\n"
         "            }"
@@ -45,3 +46,4 @@ def test_pr_intake_gate_does_not_execute_pr_code_or_merge() -> None:
     assert "gh pr merge" not in workflow
     assert "auto-merge" not in workflow
     assert "pull_request_target" in workflow
+    assert "github.event.issue.pull_request" in workflow
