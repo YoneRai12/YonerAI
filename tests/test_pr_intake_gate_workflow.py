@@ -22,8 +22,10 @@ def test_pr_intake_gate_requires_maintainer_controlled_label() -> None:
 
     assert 'const needs = "needs-intake";' in workflow
     assert 'const reviewed = "intake-reviewed";' in workflow
-    assert 'action === "synchronize"' in workflow
+    assert "materialPrActions.has(action)" in workflow
     assert "await removeLabel(reviewed);" in workflow
+    assert "reopened" in workflow
+    assert "ready_for_review" in workflow
     assert "core.setFailed(" in workflow
 
 
