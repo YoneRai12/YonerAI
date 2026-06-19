@@ -4,7 +4,7 @@ Public repository review/comment intake for the current Public YonerAI lane.
 This file is public-safe: it avoids secrets, private runtime details, internal
 hostnames, account data, and local private paths.
 
-- last_scan_at: 2026-06-19T23:00:34+09:00
+- last_scan_at: 2026-06-19T23:06:53+09:00
 - current_main_head: bc0d9277
 - latest_stable: v0.8.1
 - latest_prerelease: v0.22.0-alpha.1
@@ -21,6 +21,8 @@ the current security intake branch instead of merging several stale PR branches:
 | #554 | Stored staging session `origin` could be an invalid sanitized value and crash URL construction. | security/correctness | Fixed in this branch with origin allowlist validation before saving and reuse. |
 | #556 | Status public feed safety scan missed camelCase and mixed-separator secret-like metadata keys. | security/privacy | Fixed in this branch with normalized key scanning, path-redacted regression output, and temp cleanup. |
 | #555 | Provider gateway client could follow redirects before failing, risking auth header forwarding to another endpoint. | security/privacy | Fixed in this branch by disabling redirects and adding regression coverage that closes test servers. |
+| #557 review | Contract-compliant `/v1/account/me` responses containing `account.account_id` could be rejected before sanitizer redacted it. | P1/security/correctness | Fixed with account-path pre-sanitization and hashed account refs before public payload scanning. |
+| #557 review | PR top-level conversation comments did not invalidate the intake gate. | P1/process/security | Fixed by adding `issue_comment` PR-event handling that removes `intake-reviewed`. |
 | #543 / #540 / #541 | Loopback local LLM IME requests could honor environment proxies or redirects. | security/privacy | Fixed in this branch with proxy-disabled opener and redirect rejection. |
 | #539 | Control Spine public payload markers did not reject generic token/secret names or private endpoint forms broadly enough. | security/privacy | Fixed in this branch with centralized forbidden markers, private URL regex, and regression tests. |
 | #542 | Release note changes could skip generated artifact hash/size verification in Quality Wall. | release/security | Fixed in this branch with strict release-surface diff matching and regression tests. |
@@ -29,7 +31,7 @@ the current security intake branch instead of merging several stale PR branches:
 
 | PR | Title | Classification | Review/comment state | CI state | Decision / tracking |
 | --- | --- | --- | --- | --- | --- |
-| #557 | fix: 公開セキュリティPR指摘を統合し intake gate を追加 | valid-now | Gemini readability comment about generator trick was valid and fixed | pending | Canonical replacement for #539/#540/#541/#542/#543/#554/#555/#556. |
+| #557 | fix: 公開セキュリティPR指摘を統合し intake gate を追加 | valid-now | Gemini readability comment and Codex P1 comments were valid and fixed | pending | Canonical replacement for #539/#540/#541/#542/#543/#554/#555/#556. |
 | #556 | fix: block camelCase status feed secret keys | valid-now | Gemini robustness comment valid | security-static failed on PR branch | Superseded by current branch with stronger normalization and safer test output. |
 | #555 | fix: reject provider gateway redirects | valid-now | Gemini server cleanup comment valid | pass but behind main | Superseded by current branch with explicit server close. |
 | #554 | fix: validate stored staging session origins | valid-now | Gemini no-comment review; no unresolved thread | pass but behind main | Superseded by current branch canonical fix. |

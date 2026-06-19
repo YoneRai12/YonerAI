@@ -485,7 +485,14 @@ def test_whoami_uses_saved_staging_session_without_printing_it(tmp_path: Path, m
         assert headers["Authorization"] == f"Bearer {session_value}"
         return (
             200,
-            {"account": {"email": "owner@example.test", "display_name": "Owner", "sub": "google-subject"}},
+            {
+                "account": {
+                    "email": "owner@example.test",
+                    "display_name": "Owner",
+                    "account_id": "acct_contract_safe_ref_123",
+                    "sub": "google-subject",
+                }
+            },
             {"X-YonerAI-RateLimit-Scope": "staging"},
         )
 
@@ -500,6 +507,8 @@ def test_whoami_uses_saved_staging_session_without_printing_it(tmp_path: Path, m
 
     assert report["ok"] is True
     assert report["account"]["email_redacted"] == "o***@example.test"
+    assert str(report["account"]["account_ref"]).startswith("staging-account-")
+    assert "acct_contract_safe_ref_123" not in serialized
     assert session_value not in serialized
     assert "google-subject" not in serialized
     assert str(tmp_path) not in serialized

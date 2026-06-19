@@ -1,6 +1,6 @@
 # Public Security Review Checkpoint
 
-- last_scan_at: 2026-06-19T23:00:34+09:00
+- last_scan_at: 2026-06-19T23:06:53+09:00
 - highest_seen_pr_number: 557
 - current_main_head: bc0d9277
 - latest_stable: v0.8.1
@@ -25,7 +25,7 @@ Checked in this checkpoint:
 | --- | --- | --- | --- | --- | --- |
 | #551 | 2026-06-19T06:43:08Z | valid-but-already-fixed | No new blocker after final push; merged | all pass on final head | StatusWEB scope closed on main. |
 | #553 | merged before this checkpoint | valid-but-already-fixed | `localhost` private-host finding fixed | all pass | Public CLI StatusSnapshot blocker closed. |
-| #557 | 2026-06-19T14:00:34Z | valid-now | Gemini generator-trick readability comment valid and fixed | pending | Canonical replacement PR for current public security intake. |
+| #557 | 2026-06-19T14:06:53Z | valid-now | Gemini readability and Codex P1 comments valid and fixed | pending | Canonical replacement PR; fixed account sanitizer ordering and top-level comment intake. |
 | #556 | 2026-06-19T07:23:27Z | valid-now | Gemini test/normalization robustness comment valid | security-static failed on PR branch | Consolidated into current branch with stronger key normalization and redacted test failures. |
 | #555 | 2026-06-19T07:04:53Z | valid-now | Gemini server cleanup comment valid | pass but behind | Consolidated into current branch with redirect rejection and explicit server close. |
 | #554 | 2026-06-19T06:37:37Z | valid-now | Gemini no-comment review | pass but behind | Consolidated into current security intake branch. |

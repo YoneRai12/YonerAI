@@ -1,6 +1,6 @@
 # Active Public YonerAI Task
 
-- updated_at: 2026-06-19T23:00:34+09:00
+- updated_at: 2026-06-19T23:06:53+09:00
 - lane: Public YonerAI
 - current_goal: Resolve urgent public security PRs, establish closed-alpha usage
   UX, and lead live Web-to-CLI sync.
