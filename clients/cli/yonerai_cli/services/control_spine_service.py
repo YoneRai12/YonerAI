@@ -9,7 +9,12 @@ from urllib.parse import quote
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from yonerai_cli import __version__
-from yonerai_cli.auth_policy import build_google_auth_status
+from yonerai_cli.auth_policy import (
+    STAGING_AUTH_ALLOW_LOCALHOST_DEV_ENV,
+    build_google_auth_status,
+    _env_truthy,
+    _validate_staging_auth_origin,
+)
 from yonerai_cli.config import load_cli_config
 from yonerai_cli.services.auth_session_service import sanitize_staging_account
 from yonerai_cli.services.staging_session_service import load_staging_session_token
@@ -60,7 +65,7 @@ def build_control_spine_context(
     staging = auth.get("staging") if isinstance(auth.get("staging"), Mapping) else {}
     session_token, session_claim = load_staging_session_token(claim_path)
     session_claim_map = session_claim if isinstance(session_claim, Mapping) else {}
-    session_origin = str(session_claim_map.get("origin") or "").strip()
+    session_origin = _validated_session_origin(session_claim_map.get("origin"), source)
     origin_configured = bool(staging.get("configured")) or bool(session_token and session_origin)
     if bool(staging.get("configured")):
         origin = str(staging.get("origin") or "not_configured")
@@ -82,6 +87,17 @@ def build_control_spine_context(
         "shared_traffic_enabled": False,
         "local_private_upload_enabled": False,
     }
+
+
+def _validated_session_origin(value: object, env: Mapping[str, str | None]) -> str:
+    raw_origin = str(value or "").strip()
+    if not raw_origin:
+        return ""
+    localhost_dev_allowed = _env_truthy(env.get(STAGING_AUTH_ALLOW_LOCALHOST_DEV_ENV))
+    report = _validate_staging_auth_origin(raw_origin, localhost_dev_allowed=localhost_dev_allowed)
+    if not report.get("valid"):
+        return ""
+    return str(report.get("origin") or "").strip()
 
 
 def build_control_spine_status_report(

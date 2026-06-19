@@ -11,6 +11,7 @@ from ctypes import wintypes
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Mapping
+from urllib.parse import urlparse
 
 from yonerai_cli.config import default_config_path
 from yonerai_cli.services.auth_session_service import sanitize_staging_account
@@ -25,6 +26,8 @@ _TOKEN_KEY_RE = re.compile(
 _LOCAL_PATH_RE = re.compile(r"([A-Za-z]:\\|\\\\|/Users/|/home/|/root/)", re.IGNORECASE)
 _SAFE_TEXT_RE = re.compile(r"^[A-Za-z0-9_.:@+\-*(),!\[\]&\s]{0,240}$")
 _SAFE_SCOPE_RE = re.compile(r"^[a-z][a-z0-9:_-]{1,80}$")
+_ALLOWED_STAGING_ORIGIN_HOSTS = frozenset({"api-staging.yonerai.com", "staging.yonerai.com"})
+_LOCALHOST_DEV_ORIGIN_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
 _MEMORY_SESSIONS: dict[str, tuple[str, dict[str, object]]] = {}
 
 
@@ -114,7 +117,7 @@ def build_staging_session_claim(
     claim = {
         "schema_version": STAGING_SESSION_CLAIM_SCHEMA_VERSION,
         "auth_state": "linked",
-        "origin": _safe_public_text(origin, fallback="configured"),
+        "origin": _safe_public_origin(origin, fallback="configured"),
         "issued_at": issued_at,
         "expires_at": _safe_public_text(expires_at, fallback=None),
         "account_id": _safe_public_text(safe_account.get("account_ref"), fallback="linked-staging-account"),
@@ -151,7 +154,7 @@ def validate_staging_session_claim(claim: Mapping[str, object]) -> dict[str, obj
     return {
         "schema_version": STAGING_SESSION_CLAIM_SCHEMA_VERSION,
         "auth_state": _expired_state(auth_state, claim.get("expires_at")),
-        "origin": _safe_public_text(claim.get("origin"), fallback="not_configured"),
+        "origin": _safe_public_origin(claim.get("origin"), fallback="not_configured"),
         "issued_at": _safe_public_text(claim.get("issued_at"), fallback=None),
         "expires_at": _safe_public_text(claim.get("expires_at"), fallback=None),
         "account_id": _safe_public_text(claim.get("account_id"), fallback="linked-staging-account"),
@@ -247,7 +250,7 @@ def load_staging_session_token(config_path: str | Path | None = None) -> tuple[s
         validated = validate_staging_session_claim(claim)
         if validated["auth_state"] == "linked" and _session_hash(token) == validated["session_hash"]:
             return token, validated
-        return None, empty_staging_session_claim()
+        return None, validated
 
     claim, claim_path = _load_staging_session_claim_with_path(config_path)
     if claim.get("auth_state") != "linked" or claim.get("storage_backend") != "windows_dpapi_file":
@@ -398,6 +401,31 @@ def _safe_public_text(value: object, *, fallback: str | None) -> str | None:
     if _TOKEN_KEY_RE.search(text) or _LOCAL_PATH_RE.search(text) or not _SAFE_TEXT_RE.fullmatch(text):
         return fallback
     return text
+
+
+def _safe_public_origin(value: object, *, fallback: str) -> str:
+    if value is None:
+        return fallback
+    text = str(value).strip()
+    if not text or _TOKEN_KEY_RE.search(text) or _LOCAL_PATH_RE.search(text):
+        return fallback
+    try:
+        parsed = urlparse(text)
+        parsed_port = parsed.port
+    except ValueError:
+        return fallback
+    host = (parsed.hostname or "").lower()
+    unsafe_components = bool(parsed.username or parsed.password or parsed.query or parsed.fragment)
+    if unsafe_components or parsed.path not in {"", "/"}:
+        return fallback
+    if parsed.scheme == "https" and host in _ALLOWED_STAGING_ORIGIN_HOSTS and parsed_port in {None, 443}:
+        return f"https://{host}"
+    if parsed.scheme in {"http", "https"} and host in _LOCALHOST_DEV_ORIGIN_HOSTS:
+        port = f":{parsed_port}" if parsed_port else ""
+        if host == "::1":
+            host = "[::1]"
+        return f"{parsed.scheme}://{host}{port}"
+    return fallback
 
 
 def _contains_forbidden_secret_material(value: object, *, key: str = "") -> bool:

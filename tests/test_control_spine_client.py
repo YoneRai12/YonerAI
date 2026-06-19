@@ -683,6 +683,53 @@ def test_control_spine_context_handles_missing_session_claim(tmp_path: Path, mon
     assert context["session_claim"] == {}
 
 
+
+def test_control_spine_ignores_invalid_saved_session_origin(tmp_path: Path, monkeypatch) -> None:
+    from yonerai_cli.commands import api as api_command
+    from yonerai_cli.services import control_spine_service
+
+    monkeypatch.delenv("YONERAI_STAGING_AUTH_ORIGIN", raising=False)
+    monkeypatch.delenv("YONERAI_OFFICIAL_API_STAGING_ORIGIN", raising=False)
+    monkeypatch.setattr(
+        control_spine_service,
+        "load_staging_session_token",
+        lambda _path: ("opaque-session-value-123456789", {"auth_state": "linked", "origin": "configured"}),
+    )
+    monkeypatch.setattr(
+        api_command,
+        "load_staging_session_token",
+        lambda _path: ("opaque-session-value-123456789", {"auth_state": "linked", "origin": "configured"}),
+    )
+
+    context = control_spine_service.build_control_spine_context(config={}, env={}, claim_path=str(tmp_path / "cli.json"))
+    report = control_spine_service.build_control_spine_status_report(
+        config={},
+        env={},
+        claim_path=str(tmp_path / "cli.json"),
+        transport=lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("invalid origin must not call transport")),
+    )
+
+    assert context["origin_configured"] is False
+    assert context["origin"] == "not_configured"
+    assert report["ok"] is True
+    assert report["error"]["code"] == "staging_origin_not_configured"
+    assert api_command._control_spine_origin_configured(SimpleNamespace(config_path=str(tmp_path / "cli.json"))) is False
+
+
+def test_staging_session_claim_preserves_allowlisted_origin() -> None:
+    from yonerai_cli.services.staging_session_service import build_staging_session_claim, validate_staging_session_claim
+
+    claim = build_staging_session_claim(
+        session_token="opaque-session-value-123456789",
+        origin="https://api-staging.yonerai.com/",
+        account={"email": "owner@example.com", "display_name": "Owner"},
+        storage_backend="memory_session_only",
+    )
+    loaded = validate_staging_session_claim(claim)
+
+    assert claim["origin"] == "https://api-staging.yonerai.com"
+    assert loaded["origin"] == "https://api-staging.yonerai.com"
+
 def test_control_spine_slash_commands_are_visible() -> None:
     from yonerai_cli.tui.aliases import canonical_command
     from yonerai_cli.tui.keymap import slash_command_words
