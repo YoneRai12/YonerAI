@@ -848,6 +848,9 @@ def test_control_spine_ignores_invalid_saved_session_origin(tmp_path: Path, monk
     from yonerai_cli.commands import api as api_command
     from yonerai_cli.services import control_spine_service
 
+    def fail_transport(*_args: object, **_kwargs: object) -> tuple[int, dict[str, object], dict[str, str]]:
+        raise AssertionError("invalid origin must not call transport")
+
     monkeypatch.delenv("YONERAI_STAGING_AUTH_ORIGIN", raising=False)
     monkeypatch.delenv("YONERAI_OFFICIAL_API_STAGING_ORIGIN", raising=False)
     monkeypatch.setattr(
@@ -866,7 +869,7 @@ def test_control_spine_ignores_invalid_saved_session_origin(tmp_path: Path, monk
         config={},
         env={},
         claim_path=str(tmp_path / "cli.json"),
-        transport=lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("invalid origin must not call transport")),
+        transport=fail_transport,
     )
 
     assert context["origin_configured"] is False
