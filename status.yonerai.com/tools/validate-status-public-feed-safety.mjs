@@ -15,7 +15,19 @@ import { fileURLToPath } from "node:url";
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const statusRoot = path.resolve(scriptDir, "..");
 
-const sensitiveKeyPattern = /(^|[_-])(token|secret|password|passwd|authorization|auth_header|api[_-]?key|access[_-]?key|private[_-]?key|credential|session|cookie|account[_-]?id|account[_-]?detail|arn|hostname|host[_-]?name|internal[_-]?host|worker[_-]?(identity|pc)|pc[_-]?identity|run[_-]?contents|conversation|prompt|output|audit[_-]?detail|runtime[_-]?inventory|private[_-]?runtime)([_-]|$)/i;
+const sensitiveKeyPattern = /(^|_)(token|secret|password|passwd|authorization|auth_header|api_?key|access_?key|private_?key|credential|session|cookie|account_?id|account_?detail|arn|hostname|host_?name|internal_?host|worker_?(identity|pc)|pc_?identity|run_?contents|conversation|prompt|output|audit_?detail|runtime_?inventory|private_?runtime)(_|$)/;
+
+function normalizeKeyForSafetyScan(key) {
+  return key
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1_$2")
+    .replace(/[-\s]+/g, "_")
+    .toLowerCase();
+}
+
+function isSensitiveKey(key) {
+  return sensitiveKeyPattern.test(normalizeKeyForSafetyScan(key));
+}
 const sensitiveValuePatterns = [
   { name: "bearer-token", pattern: /\bBearer\s+[A-Za-z0-9._~+/-]+=*/i },
   { name: "aws-access-key", pattern: /\bAKIA[0-9A-Z]{16}\b/ },
@@ -73,7 +85,7 @@ function scan(value, pathLabel, findings) {
   if (isObject(value)) {
     for (const [key, item] of Object.entries(value)) {
       const nextPath = `${pathLabel}.${key}`;
-      if (sensitiveKeyPattern.test(key)) {
+      if (isSensitiveKey(key)) {
         findings.push({ path: nextPath, kind: "sensitive-key", detail: key });
       }
       scan(item, nextPath, findings);
