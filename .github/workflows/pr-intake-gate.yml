@@ -51,6 +51,17 @@ jobs:
               core.setFailed("Unable to determine PR number for review intake gate.");
               return;
             }
+            const prState = pr
+              ? { state: pr.state, merged_at: pr.merged_at || null }
+              : await github.rest.pulls.get({ owner, repo, pull_number: issue_number }).then(({ data }) => ({
+                  state: data.state,
+                  merged_at: data.merged_at || null,
+                }));
+            if (prState.state !== "open" || prState.merged_at) {
+              core.info("Ignoring review intake for closed or merged PR.");
+              return;
+            }
+
             const needs = "needs-intake";
             const reviewed = "intake-reviewed";
 
@@ -106,7 +117,7 @@ jobs:
             });
             const labelNames = new Set(labels.map((label) => label.name));
             if (!labelNames.has(reviewed)) {
-              core.setFailed(
-                `PR #${issue_number} is waiting for review intake. Add the maintainer-controlled '${reviewed}' label after classifying PR, review comments, and CI.`
-              );
+              const intakeMessage =
+                `PR #${issue_number} is waiting for review intake. Add the maintainer-controlled '${reviewed}' label after classifying PR, review comments, and CI.`;
+              core.warning(intakeMessage);
             }

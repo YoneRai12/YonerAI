@@ -1,8 +1,8 @@
 # Public Security Review Checkpoint
 
-- last_scan_at: 2026-06-19T23:06:53+09:00
+- last_scan_at: 2026-06-19T15:46:43Z
 - highest_seen_pr_number: 557
-- current_main_head: bc0d9277
+- current_main_head: b745e304
 - latest_stable: v0.8.1
 - latest_prerelease: v0.22.0-alpha.1
 - lane: Public YonerAI security/status gate before realtime sync
@@ -49,3 +49,14 @@ Checked in this checkpoint:
 - Dependency PRs remain open and tracked by their own PRs.
 - UX/theme/language PRs remain open and tracked by their own PRs.
 - Managed Cloud / production-adjacent PRs require explicit owner approval.
+## 2026-06-20 Follow-up Checkpoint
+
+- last_scan_at: 2026-06-19T15:46:43Z
+- current_main_head: b745e304
+- branch: codex/fix-post-merge-intake-auth-errors-20260620
+- follow-up PR: #558
+- classification: valid-now follow-up for merged PR #557 review/CI activity
+- review/comment state: merged PR #557 retained a P2 auth-error handling thread; post-merge issue_comment triggered review-intake-required failure.
+- CI state: product checks on #557 final head were passing before merge; review-intake-required failed after merge because label mutation was attempted on closed/merged PR activity.
+- decision: fix current main with PR #558; add regressions for auth guidance preservation, closed/merged PR intake skip, and warning-only intake marking to avoid stale failed check runs after classification.
+- lane boundary: Public/Status presentation support only; no production deploy, no Web chat, no Firestore listener, no provider consent/control, no quota mutation, no approval control.

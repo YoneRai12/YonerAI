@@ -973,3 +973,53 @@ def test_control_spine_slash_commands_are_visible() -> None:
     assert "/セッション" in words
     assert "/疎通" in words
     assert "/監査" in words
+
+def test_whoami_401_token_reason_preserves_auth_guidance_without_printing_payload(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from yonerai_cli.services.control_spine_service import build_whoami_report
+    from yonerai_cli.services.staging_session_service import save_staging_session
+
+    config_path = tmp_path / "cli-config.json"
+    session_value = "opaque-session-value-123456789"
+    save_staging_session(
+        session_token=session_value,
+        origin="https://api-staging.yonerai.com",
+        account={"email": "owner@example.test", "display_name": "Owner"},
+        config_path=config_path,
+    )
+
+    def transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, dict[str, object], dict[str, str]]:
+        assert method == "GET"
+        assert url == "https://api-staging.yonerai.com/v1/account/me"
+        assert headers["Authorization"] == f"Bearer {session_value}"
+        assert body is None
+        return (
+            401,
+            {"detail": {"reason": "invalid_token", "state": "token_expired"}},
+            {"X-YonerAI-RateLimit-Scope": "staging"},
+        )
+
+    report = build_whoami_report(
+        config={},
+        env={"YONERAI_STAGING_AUTH_ORIGIN": "https://api-staging.yonerai.com"},
+        claim_path=str(config_path),
+        transport=transport,
+    )
+    serialized = json.dumps(report, ensure_ascii=False, sort_keys=True)
+
+    assert report["ok"] is False
+    assert report["backend_status_code"] == 401
+    assert report["error"]["code"] == "staging_auth_required"
+    assert report["error"]["next_safe_command"] == "yonerai login"
+    assert "invalid_token" not in serialized
+    assert "token_expired" not in serialized
+    assert session_value not in serialized
+    assert str(tmp_path) not in serialized

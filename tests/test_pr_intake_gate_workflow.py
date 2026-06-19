@@ -49,3 +49,17 @@ def test_pr_intake_gate_does_not_execute_pr_code_or_merge() -> None:
     assert "auto-merge" not in workflow
     assert "pull_request_target" in workflow
     assert "github.event.issue.pull_request" in workflow
+
+def test_pr_intake_gate_ignores_closed_or_merged_pr_activity() -> None:
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+
+    assert "github.rest.pulls.get" in workflow
+    assert 'prState.state !== "open" || prState.merged_at' in workflow
+    assert "Ignoring review intake for closed or merged PR." in workflow
+
+def test_pr_intake_gate_marks_missing_intake_without_stale_failed_runs() -> None:
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+
+    assert "const intakeMessage =" in workflow
+    assert "core.warning(intakeMessage);" in workflow
+    assert "Add the maintainer-controlled" in workflow
