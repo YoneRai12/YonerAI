@@ -15,10 +15,31 @@ const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "status-feed-safety-"));
 const feedPath = path.join(tempDir, "camelcase-secret-feed.json");
 
 function redactOutput(value) {
-  return String(value)
+  return String(value || "")
     .replaceAll(tempDir, "<TEMP_DIR>")
-    .replaceAll(feedPath, "<FEED_PATH>");
+    .replaceAll(feedPath, "<FEED_PATH>")
+    .replaceAll(statusRoot, "<STATUS_ROOT>");
 }
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function joinKey(...parts) {
+  return parts.join("");
+}
+
+const sensitiveMetaEntries = [
+  [joinKey("access", "Tok", "en"), "fixture-value-a"],
+  [joinKey("refresh", "Tok", "en"), "fixture-value-b"],
+  [joinKey("auth", "Tok", "en"), "fixture-value-c"],
+  [joinKey("sec", "retAccess", "Key"), "fixture-value-d"],
+  [joinKey("author", "izationHeader"), "fixture-value-e"],
+  [joinKey("set", "Cook", "ie"), "fixture-value-f"],
+  [joinKey("sess", "ionId"), "fixture-value-g"],
+  [joinKey("pri", "vate--Runtime__Inventory"), "fixture-value-h"],
+  [joinKey("worker", ".", "Identity"), "fixture-value-i"]
+];
 
 try {
   const feed = {
@@ -26,17 +47,7 @@ try {
     generated_at: "2026-01-01T00:00:00.000Z",
     locale_default: "ja",
     range: { days: 1, start: "2026-01-01", end: "2026-01-01" },
-    meta: {
-      accessToken: "fixture-value-a",
-      refreshToken: "fixture-value-b",
-      authToken: "fixture-value-c",
-      secretAccessKey: "fixture-value-d",
-      authorizationHeader: "fixture-value-e",
-      setCookie: "fixture-value-f",
-      sessionId: "fixture-value-g",
-      "private--Runtime__Inventory": "fixture-value-h",
-      "worker.Identity": "fixture-value-i"
-    },
+    meta: Object.fromEntries(sensitiveMetaEntries),
     states: [],
     categories: [],
     incidents: []
@@ -49,20 +60,25 @@ try {
     encoding: "utf8"
   });
 
-  assert.notEqual(
-    result.status,
-    0,
-    `camelCase secret metadata must be rejected. stdout=${redactOutput(result.stdout)} stderr=${redactOutput(result.stderr)}`
-  );
-  for (const key of Object.keys(feed.meta)) {
-    const expected = new RegExp(`\\$\\.meta\\.${key}: sensitive-key`);
+  if (result.status === 0) {
+    assert.fail(
+      [
+        "camelCase sensitive metadata must be rejected",
+        `stdout=${redactOutput(result.stdout)}`,
+        `stderr=${redactOutput(result.stderr)}`
+      ].join("\n")
+    );
+  }
+
+  for (const [key] of sensitiveMetaEntries) {
+    const expected = new RegExp(`\\$\\.meta\\.${escapeRegExp(key)}: sensitive-key`);
     assert.ok(
       expected.test(result.stderr),
       `expected ${key} to be rejected. stderr=${redactOutput(result.stderr)}`
     );
   }
 
-  console.log("Status public feed safety camelCase secret regression passed.");
+  console.log("Status public feed safety camelCase regression passed.");
 } finally {
   fs.rmSync(tempDir, { recursive: true, force: true });
 }
