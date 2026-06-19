@@ -1,0 +1,100 @@
+name: YonerAI PR Intake Gate
+
+on:
+  pull_request_target:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
+      - labeled
+      - unlabeled
+  pull_request_review:
+    types:
+      - submitted
+      - edited
+      - dismissed
+  pull_request_review_comment:
+    types:
+      - created
+      - edited
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
+jobs:
+  intake-gate:
+    name: review-intake-required
+    runs-on: ubuntu-latest
+    if: ${{ github.event.pull_request != null }}
+    steps:
+      - name: Require maintainer review intake label
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const issue_number = pr.number;
+            const needs = "needs-intake";
+            const reviewed = "intake-reviewed";
+
+            async function ensureLabel(name, color, description) {
+              try {
+                await github.rest.issues.createLabel({ owner, repo, name, color, description });
+              } catch (error) {
+                if (error.status !== 422) {
+                  throw error;
+                }
+              }
+            }
+
+            async function addLabel(name) {
+              await ensureLabel(
+                name,
+                name === needs ? "fbca04" : "0e8a16",
+                name === needs
+                  ? "PR/review/comment intake is required before merge."
+                  : "Maintainer confirmed PR/review/comment intake for current head."
+              );
+              await github.rest.issues.addLabels({ owner, repo, issue_number, labels: [name] });
+            }
+
+            async function removeLabel(name) {
+              try {
+                await github.rest.issues.removeLabel({ owner, repo, issue_number, name });
+              } catch (error) {
+                if (error.status !== 404) {
+                  throw error;
+                }
+              }
+            }
+
+            const eventName = context.eventName;
+            const action = context.payload.action || "";
+            const materialPrActions = new Set(["opened", "reopened", "synchronize", "ready_for_review"]);
+
+            if (eventName === "pull_request_target" && materialPrActions.has(action)) {
+              await addLabel(needs);
+            }
+            if (eventName === "pull_request_target" && action === "synchronize") {
+              await removeLabel(reviewed);
+            }
+            if (eventName === "pull_request_review" || eventName === "pull_request_review_comment") {
+              await addLabel(needs);
+            }
+
+            const labels = await github.paginate(github.rest.issues.listLabelsOnIssue, {
+              owner,
+              repo,
+              issue_number,
+              per_page: 100,
+            });
+            const labelNames = new Set(labels.map((label) => label.name));
+            if (!labelNames.has(reviewed)) {
+              core.setFailed(
+                `PR #${issue_number} is waiting for review intake. Add the maintainer-controlled '${reviewed}' label after classifying PR, review comments, and CI.`
+              );
+            }

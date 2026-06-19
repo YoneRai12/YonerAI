@@ -5,7 +5,12 @@ import importlib.util
 import os
 from typing import Any, Callable
 
-from yonerai_cli.auth_policy import STAGING_AUTH_ORIGIN_ENV_KEYS
+from yonerai_cli.auth_policy import (
+    STAGING_AUTH_ALLOW_LOCALHOST_DEV_ENV,
+    STAGING_AUTH_ORIGIN_ENV_KEYS,
+    _env_truthy,
+    _validate_staging_auth_origin,
+)
 from yonerai_cli.output import CliRow, CliSection, ColorMode, render_report
 from yonerai_cli.screens.control_spine import format_control_spine_compact, format_control_spine_pretty
 from yonerai_cli.services.control_spine_service import (
@@ -148,7 +153,9 @@ def _control_spine_origin_configured(args: argparse.Namespace) -> bool:
         return True
     session_token, session_claim = load_staging_session_token(getattr(args, "config_path", None))
     session_origin = str(session_claim.get("origin") or "").strip()
-    return bool(session_token and session_origin and session_origin != "not_configured")
+    localhost_dev_allowed = _env_truthy(os.environ.get(STAGING_AUTH_ALLOW_LOCALHOST_DEV_ENV))
+    origin_report = _validate_staging_auth_origin(session_origin, localhost_dev_allowed=localhost_dev_allowed)
+    return bool(session_token and origin_report.get("valid"))
 
 
 def format_api_pretty(report: dict[str, Any], *, lang: str = "ja", color: ColorMode = "auto") -> str:

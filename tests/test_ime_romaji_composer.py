@@ -24,7 +24,12 @@ for path in (CLIENTS_CLI, CORE_SRC):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
-from yonerai_cli.ime.local_enhancer import EnhancerError, enhance_with_local_llm, is_loopback_endpoint
+from yonerai_cli.ime.local_enhancer import (
+    EnhancerError,
+    _NoRedirectHandler,
+    enhance_with_local_llm,
+    is_loopback_endpoint,
+)
 from yonerai_cli.ime.romaji_composer import RomajiComposer
 from yonerai_cli.ime.romaji_rules import convert_text, convert_token
 
@@ -167,6 +172,56 @@ def test_composer_rejects_non_loopback_endpoint() -> None:
     composer = RomajiComposer()
     with pytest.raises(ValueError):
         composer.set_local_llm_endpoint("https://api.example.com")
+
+
+def test_loopback_request_opener_disables_proxies_and_redirects(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured_handlers: list[Any] = []
+
+    class FakeResponse:
+        def __enter__(self) -> "FakeResponse":
+            return self
+
+        def __exit__(self, *args: object) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return json.dumps({"choices": [{"message": {"content": "安全"}}]}).encode("utf-8")
+
+    class FakeOpener:
+        def open(self, request: urllib.request.Request, timeout: float) -> FakeResponse:
+            assert request.full_url == "http://127.0.0.1:8080/v1/chat/completions"
+            assert timeout == 20.0
+            return FakeResponse()
+
+    def fake_build_opener(*handlers: Any) -> FakeOpener:
+        captured_handlers.extend(handlers)
+        return FakeOpener()
+
+    monkeypatch.setenv("HTTP_PROXY", "http://192.0.2.10:8888")
+    monkeypatch.setattr(urllib.request, "build_opener", fake_build_opener)
+    result = enhance_with_local_llm("himitsu", endpoint="http://127.0.0.1:8080")
+
+    assert result == "安全"
+    proxy_handlers = [handler for handler in captured_handlers if isinstance(handler, urllib.request.ProxyHandler)]
+    assert len(proxy_handlers) == 1
+    assert proxy_handlers[0].proxies == {}
+    assert any(isinstance(handler, _NoRedirectHandler) for handler in captured_handlers)
+
+
+def test_loopback_request_opener_rejects_redirects() -> None:
+    request = urllib.request.Request("http://127.0.0.1:8080/v1/chat/completions", method="POST")
+    handler = _NoRedirectHandler()
+
+    redirected = handler.redirect_request(
+        request,
+        fp=None,
+        code=302,
+        msg="Found",
+        headers={},
+        newurl="https://api.example.com/collect",
+    )
+
+    assert redirected is None
 
 
 def test_local_llm_enhancement_with_fake_transport() -> None:
@@ -319,7 +374,7 @@ def test_interactive_revert_restores_buffer(tmp_path: Path) -> None:
     )
     assert sent_tasks == []
     assert "ありがとう" in output
-    assert "ローマ字バッファに戻しました" in output
+    assert "ローマ字バッファを復元しました" in output
 
 
 def test_interactive_dictionary_and_style(tmp_path: Path) -> None:
@@ -348,7 +403,7 @@ def test_interactive_ime_status_and_cloud_gate(tmp_path: Path) -> None:
         "/ime status\n/ime cloud on\n/quit\n",
     )
     assert "ローマ字コンポーザー状態" in output
-    assert "OS全体のIMEではなく" in output
+    assert "YonerAI CLI 内の入力補助です" in output
     assert "クラウド変換の注意" in output
     assert "/ime cloud on confirm" in output
     assert sent_tasks == []
