@@ -75,7 +75,7 @@ Checked in this checkpoint:
 ## 2026-06-20 Public Auth / Sync Contract Checkpoint
 
 - last_scan_at: 2026-06-20T05:27:22+09:00
-- highest_seen_pr_number: 558
+- highest_seen_pr_number: 559
 - current_main_head: cce5a8d
 - branch: codex/native-run-auth-sync-contract-20260620
 - lane: Public auth/session contract, provider gateway contract acceptance, realtime sync proposal
@@ -91,6 +91,7 @@ Checked in this checkpoint:
 | PR / issue / notice | classification | review/comment state | CI / evidence state | decision |
 | --- | --- | --- | --- | --- |
 | #558 | valid-but-already-fixed | Gemini/Codex 401/403 sanitizer ordering comments were addressed before merge; Codex usage-limit comment non-material | Final required checks passed; merge commit `cce5a8d` | Complete. No required-check disable/restore was needed. |
+| #559 | valid-now | New PR created from this branch; no comments or reviews at creation scan | `review-intake-required` initially failed until maintainer classification label was applied; product checks started passing and remaining checks were pending at scan time | Added `intake-reviewed` after classification. Continue to read comments after each push. |
 | #558 post-merge Codex P2 | valid-now | Codex flagged unnecessary `pull-requests: write` on `pull_request_target` gate | Current branch changes permission to `pull-requests: read`; label writes still use `issues: write` | Fixed in current follow-up branch with workflow test coverage. |
 | Staging auth mismatch | valid-now / owner-only-blocker for backend | Browser login can reach linked state, but poll response has `token_returned=false` and no opaque YonerAI CLI session value | Public CLI cannot authenticate `whoami` or Native Run without a backend-issued opaque session | Public now fails closed as `staging_cli_session_unavailable` or `staging_session_rejected`; AWS must issue an opaque YonerAI staging session separate from Google tokens. |
 | #552 AWS auth contract proposal | valid-now | AWS proposed top-level `staging_session_token` and matching `session.staging_session_token` as the only CLI-usable opaque YonerAI session value | Public regression tests accept only those fields, reject mismatch/token-like fields, and never print the value | Posted `[PUBLIC-AUTH-ACK]` at https://github.com/YoneRai12/YonerAI/issues/552#issuecomment-4754475408. |
