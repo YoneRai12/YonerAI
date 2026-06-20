@@ -176,3 +176,36 @@ Validation for this checkpoint:
 - CI state: local targeted validation runs on this branch before PR creation.
 - decision: fail manual --poll-request-id responses that report linked browser state without an opaque YonerAI CLI session, even when wait_linked is false; resolve already-fixed PR #559/#560 threads with evidence.
 - lane boundary: Public auth/session safety follow-up only; no production deploy, no Web chat, no Firestore listener, no provider consent/control, no quota mutation, no approval control.
+
+## 2026-06-20 Staging Poll Verifier Impact Checkpoint
+
+- last_scan_at: 2026-06-20T10:42:00+09:00
+- highest_seen_pr_number: 562
+- current_main_head: 170e949
+- branch: codex/staging-poll-url-verifier-fix
+- lane: Public staging auth poll-verifier security contract
+
+Checked in this checkpoint:
+
+- PR #562 state, comments, inline review comments, checks, and merge result before starting this bounded follow-up.
+- Private AWS `[PR-IMPACT-NOTICE]` requiring Public CLI to use returned `poll_url` exactly because `/auth/cli/poll/{request_id}` now requires a CLI-only `poll_verifier` query parameter.
+- Current `staging_auth_bridge.py` behavior, which reconstructed the poll URL from `request_id` before this patch.
+
+| PR / issue / notice | classification | review/comment state | CI / evidence state | decision |
+| --- | --- | --- | --- | --- |
+| #562 | valid-now / completed | No inline review comments; Gemini comment was quota-only and non-actionable | Required checks passed; squash merged as `170e949` | Completed bounded P2 auth safety follow-up before this patch. |
+| AWS poll verifier notice | valid-now security contract change | AWS now requires `poll_url` exact-use with `poll_verifier`; browser URL must not carry the verifier | Local regression tests added and pass; live staging login verifies `poll_url_received=true`, `poll_verifier_received=true`, `poll_verifier_printed=false`, linked auth, and no token printing | Current branch patches Public CLI to use returned `poll_url` internally, sanitize it from public reports, and reject wrong origin, sensitive query params, browser verifier leakage, or unexpected poll query fields. |
+| Native Run worker completion | deferred-with-existing-release-evidence | Manager correction says v0.22.0-alpha.1 already exists and Windows worker completion is a parallel regression smoke, not a prerequisite for realtime_sync.v1 | Current live submit/status/events/result works account-auth but worker status remains queued/offline in this smoke | Do not recreate release or block sync acceptance on worker completion; keep worker status honest. |
+
+## 2026-06-20 PR #563 Intake Update
+
+- last_scan_at: 2026-06-20T10:49:00+09:00
+- highest_seen_pr_number: 563
+- current_main_head: 170e949
+- branch: codex/staging-poll-url-verifier-fix
+- PR: #563
+
+| PR / issue / notice | classification | review/comment state | CI / evidence state | decision |
+| --- | --- | --- | --- | --- |
+| #563 Gemini quota comment | stale / non-actionable | The only initial PR comment is a Gemini quota warning, not a code or security finding | `review-intake-required` failed closed until classification; product checks pending | Apply `intake-reviewed` after classification and reread comments/checks after CI and before merge. |
+| #563 implementation | valid-now | No inline review thread at creation scan | Local auth/control-spine/native-run/provider tests passed; live staging login confirmed exact `poll_url` use without verifier/token printing | Keep PR scoped to AWS poll verifier contract patch. |

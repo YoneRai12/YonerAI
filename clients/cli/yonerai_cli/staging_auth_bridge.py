@@ -18,6 +18,7 @@ GOOGLE_BROWSER_START_PATH = "/auth/google/start"
 GOOGLE_CALLBACK_PATH = "/api/auth/callback/google"
 ACCOUNT_ME_PATH = "/v1/account/me"
 _REQUEST_ID_RE = re.compile(r"^[A-Za-z0-9_-]{3,160}$")
+_POLL_VERIFIER_RE = re.compile(r"^clipoll_[A-Za-z0-9_-]{8,256}$")
 _FORBIDDEN_TOKEN_KEYS = {
     "google_token",
     "id_token",
@@ -36,8 +37,10 @@ _FORBIDDEN_QUERY_PARAM_KEYS = _FORBIDDEN_TOKEN_KEYS | {
     "session_token",
     "staging_session_token",
     "staging_session_claim",
+    "poll_verifier",
     "secret",
 }
+_POLL_URL_ALLOWED_QUERY_KEYS = frozenset({"poll_verifier"})
 
 JsonTransport = Callable[[str, str, Mapping[str, object] | None, float], tuple[int, Mapping[str, object]]]
 HeaderJsonTransport = Callable[
@@ -70,6 +73,20 @@ def start_cli_bridge(
     transport: JsonTransport | None = None,
     timeout_seconds: float = 10.0,
 ) -> dict[str, object]:
+    report, _poll_url = start_cli_bridge_for_polling(
+        origin,
+        transport=transport,
+        timeout_seconds=timeout_seconds,
+    )
+    return report
+
+
+def start_cli_bridge_for_polling(
+    origin: str,
+    *,
+    transport: JsonTransport | None = None,
+    timeout_seconds: float = 10.0,
+) -> tuple[dict[str, object], str]:
     caller = transport or _default_json_transport
     status_code, body = caller("POST", _join_origin_path(origin, CLI_BRIDGE_START_PATH), None, timeout_seconds)
     if status_code >= 400:
@@ -77,35 +94,60 @@ def start_cli_bridge(
     _assert_no_token_return(body)
     request_id = _safe_request_id(body.get("request_id"))
     browser_start_path = _safe_relative_path(body.get("browser_start_path"), "browser_start_path")
-    poll_path = _safe_relative_path(body.get("poll_path"), "poll_path")
+    poll_path_value = body.get("poll_path")
+    poll_url_value = body.get("poll_url")
+    poll_path = (
+        _safe_relative_path(poll_path_value, "poll_path", allowed_query_param_keys=_POLL_URL_ALLOWED_QUERY_KEYS)
+        if poll_path_value
+        else ""
+    )
     if browser_start_path != GOOGLE_BROWSER_START_PATH and not browser_start_path.startswith(f"{GOOGLE_BROWSER_START_PATH}?"):
         raise StagingAuthBridgeError("staging_bridge_browser_start_path_invalid", "Staging CLI bridge start path is invalid.")
-    if not poll_path.startswith("/auth/cli/poll/"):
+    raw_poll_url = _safe_poll_url(origin, poll_url_value, request_id) if poll_url_value else ""
+    if raw_poll_url:
+        poll_url_path = str(urlparse(raw_poll_url).path or "")
+        if poll_path and _public_relative_path(poll_path) != poll_url_path:
+            raise StagingAuthBridgeError("staging_bridge_poll_path_invalid", "Staging CLI bridge poll path is invalid.")
+        poll_path = poll_path or poll_url_path
+    if not poll_path:
         raise StagingAuthBridgeError("staging_bridge_poll_path_invalid", "Staging CLI bridge poll path is invalid.")
-    return {
+    _assert_poll_path_matches_request(poll_path, request_id)
+    raw_poll_url = raw_poll_url or _join_origin_path(
+        origin,
+        poll_path,
+        allowed_query_param_keys=_POLL_URL_ALLOWED_QUERY_KEYS,
+    )
+    public_poll_path = _public_relative_path(poll_path)
+    report = {
         "status": str(body.get("status") or "created"),
         "request_id": request_id,
         "expires_at": _safe_optional_public_scalar(body.get("expires_at"), "expires_at"),
         "browser_start_path": browser_start_path,
         "browser_start_url": _join_origin_path(origin, browser_start_path),
-        "poll_path": poll_path,
-        "poll_url": _join_origin_path(origin, poll_path),
+        "poll_path": public_poll_path,
+        "poll_url": _public_url_without_query(raw_poll_url),
+        "poll_url_received": bool(poll_url_value),
+        "poll_verifier_received": _poll_url_has_verifier(raw_poll_url),
+        "poll_verifier_printed": False,
         "google_token_returned": False,
         "refresh_token_returned": False,
         "staging_session_token_printed": False,
     }
+    return report, raw_poll_url
 
 
 def poll_cli_bridge(
     origin: str,
     request_id: str,
     *,
+    poll_url: str | None = None,
     transport: JsonTransport | None = None,
     timeout_seconds: float = 10.0,
 ) -> dict[str, object]:
     safe_request_id, body = _poll_cli_bridge_body(
         origin,
         request_id,
+        poll_url=poll_url,
         transport=transport,
         timeout_seconds=timeout_seconds,
     )
@@ -123,6 +165,7 @@ def wait_for_cli_bridge_link(
     poll_interval_seconds: float = 2.0,
     fetch_account: bool = True,
     session_claim_handler: SessionClaimHandler | None = None,
+    poll_url: str | None = None,
 ) -> dict[str, object]:
     deadline = time.monotonic() + max(0.0, max_wait_seconds)
     interval = max(0.25, min(max(poll_interval_seconds, 0.25), 10.0))
@@ -136,6 +179,7 @@ def wait_for_cli_bridge_link(
             safe_request_id, body = _poll_cli_bridge_body(
                 origin,
                 request_id,
+                poll_url=poll_url,
                 transport=transport,
                 timeout_seconds=timeout_seconds,
             )
@@ -234,13 +278,18 @@ def _poll_cli_bridge_body(
     origin: str,
     request_id: str,
     *,
+    poll_url: str | None = None,
     transport: JsonTransport | None,
     timeout_seconds: float,
 ) -> tuple[str, Mapping[str, object]]:
     caller = transport or _default_json_transport
     safe_request_id = _safe_request_id(request_id)
-    poll_path = CLI_BRIDGE_POLL_PATH_TEMPLATE.format(request_id=quote(safe_request_id, safe=""))
-    status_code, body = caller("GET", _join_origin_path(origin, poll_path), None, timeout_seconds)
+    if poll_url:
+        poll_endpoint = _safe_poll_url(origin, poll_url, safe_request_id)
+    else:
+        poll_path = CLI_BRIDGE_POLL_PATH_TEMPLATE.format(request_id=quote(safe_request_id, safe=""))
+        poll_endpoint = _join_origin_path(origin, poll_path)
+    status_code, body = caller("GET", poll_endpoint, None, timeout_seconds)
     if status_code >= 400:
         raise StagingAuthBridgeError("staging_bridge_poll_failed", "Staging CLI bridge poll failed.", status_code=status_code)
     _assert_no_token_return(body, allow_session_placeholder=True)
@@ -396,13 +445,18 @@ def _read_json_body(raw: bytes) -> Mapping[str, object]:
     return value
 
 
-def _join_origin_path(origin: str, path: str) -> str:
+def _join_origin_path(origin: str, path: str, *, allowed_query_param_keys: frozenset[str] = frozenset()) -> str:
     parsed_origin = urlparse(origin)
-    safe_path = _safe_relative_path(path, "path")
+    safe_path = _safe_relative_path(path, "path", allowed_query_param_keys=allowed_query_param_keys)
     return f"{parsed_origin.scheme}://{_url_host(parsed_origin.hostname or '')}{_port(parsed_origin)}{safe_path}"
 
 
-def _safe_relative_path(value: object, field_name: str) -> str:
+def _safe_relative_path(
+    value: object,
+    field_name: str,
+    *,
+    allowed_query_param_keys: frozenset[str] = frozenset(),
+) -> str:
     path = str(value or "").strip()
     parsed = urlparse(path)
     if (
@@ -419,7 +473,8 @@ def _safe_relative_path(value: object, field_name: str) -> str:
             f"staging_bridge_{field_name}_invalid",
             "Staging CLI bridge returned an invalid path.",
         )
-    _assert_no_sensitive_url_parts(parsed, field_name)
+    _assert_no_sensitive_url_parts(parsed, field_name, allowed_query_param_keys=allowed_query_param_keys)
+    _assert_poll_verifier_shape(parsed, field_name, allowed_query_param_keys=allowed_query_param_keys)
     return path
 
 
@@ -466,17 +521,97 @@ def _safe_optional_public_scalar(value: object, field_name: str) -> object:
     )
 
 
-def _assert_no_sensitive_url_parts(parsed: Any, field_name: str) -> None:
+def _safe_poll_url(origin: str, value: object, request_id: str) -> str:
+    raw_url = str(value or "").strip()
+    parsed = urlparse(raw_url)
+    parsed_origin = urlparse(origin)
+    if (
+        not raw_url
+        or any(ord(char) < 32 or ord(char) == 127 for char in raw_url)
+        or parsed.scheme != parsed_origin.scheme
+        or parsed.hostname != parsed_origin.hostname
+        or _port(parsed) != _port(parsed_origin)
+        or parsed.username
+        or parsed.password
+    ):
+        raise StagingAuthBridgeError("staging_bridge_poll_url_invalid", "Staging CLI bridge poll URL is invalid.")
+    _assert_no_sensitive_url_parts(parsed, "poll_url", allowed_query_param_keys=_POLL_URL_ALLOWED_QUERY_KEYS)
+    _assert_poll_verifier_shape(parsed, "poll_url", allowed_query_param_keys=_POLL_URL_ALLOWED_QUERY_KEYS)
+    _assert_poll_path_matches_request(parsed.path, request_id)
+    return raw_url
+
+
+def _assert_poll_path_matches_request(path: str, request_id: str) -> None:
+    parsed = urlparse(path)
+    if not parsed.path.startswith("/auth/cli/poll/") or parsed.path.rsplit("/", 1)[-1] != request_id:
+        raise StagingAuthBridgeError("staging_bridge_poll_path_invalid", "Staging CLI bridge poll path is invalid.")
+
+
+def _public_relative_path(path: str) -> str:
+    parsed = urlparse(path)
+    return str(parsed.path or "")
+
+
+def _public_url_without_query(raw_url: str) -> str:
+    parsed = urlparse(raw_url)
+    return f"{parsed.scheme}://{_url_host(parsed.hostname or '')}{_port(parsed)}{parsed.path}"
+
+
+def _poll_url_has_verifier(raw_url: str) -> bool:
+    parsed = urlparse(raw_url)
+    return any(_normalize_key(key) == "poll_verifier" for key, _value in parse_qsl(parsed.query, keep_blank_values=True))
+
+
+def _assert_no_sensitive_url_parts(parsed: Any, field_name: str, *, allowed_query_param_keys: frozenset[str] = frozenset()) -> None:
+    allowed = {_normalize_key(key) for key in allowed_query_param_keys}
     pairs = list(parse_qsl(parsed.query, keep_blank_values=True))
     pairs.extend(parse_qsl(parsed.fragment, keep_blank_values=True))
-    if any(_normalize_key(key) in _FORBIDDEN_QUERY_PARAM_KEYS for key, _value in pairs):
+    if any(_normalize_key(key) in _FORBIDDEN_QUERY_PARAM_KEYS - allowed for key, _value in pairs):
         raise StagingAuthBridgeError(
             f"staging_bridge_{field_name}_invalid",
             "Staging CLI bridge returned an invalid path.",
         )
     query = str(parsed.query or "").lower()
     fragment = str(parsed.fragment or "").lower()
-    if any(f"{key}=" in query or f"{key}=" in fragment for key in _FORBIDDEN_QUERY_PARAM_KEYS):
+    forbidden_markers = _FORBIDDEN_QUERY_PARAM_KEYS - allowed
+    if any(f"{key}=" in query or f"{key}=" in fragment for key in forbidden_markers):
+        raise StagingAuthBridgeError(
+            f"staging_bridge_{field_name}_invalid",
+            "Staging CLI bridge returned an invalid path.",
+        )
+
+
+def _assert_poll_verifier_shape(
+    parsed: Any,
+    field_name: str,
+    *,
+    allowed_query_param_keys: frozenset[str] = frozenset(),
+) -> None:
+    if "poll_verifier" not in {_normalize_key(key) for key in allowed_query_param_keys}:
+        if "poll_verifier=" in str(parsed.query or "").lower() or "poll_verifier=" in str(parsed.fragment or "").lower():
+            raise StagingAuthBridgeError(
+                f"staging_bridge_{field_name}_invalid",
+                "Staging CLI bridge returned an invalid path.",
+            )
+        return
+    verifier_values = [
+        value
+        for key, value in parse_qsl(str(parsed.query or ""), keep_blank_values=True)
+        if _normalize_key(key) == "poll_verifier"
+    ]
+    query_keys = {_normalize_key(key) for key, _value in parse_qsl(str(parsed.query or ""), keep_blank_values=True)}
+    fragment_keys = {_normalize_key(key) for key, _value in parse_qsl(str(parsed.fragment or ""), keep_blank_values=True)}
+    if query_keys - {"poll_verifier"} or fragment_keys:
+        raise StagingAuthBridgeError(
+            f"staging_bridge_{field_name}_invalid",
+            "Staging CLI bridge returned an invalid path.",
+        )
+    if len(verifier_values) > 1:
+        raise StagingAuthBridgeError(
+            f"staging_bridge_{field_name}_invalid",
+            "Staging CLI bridge returned an invalid path.",
+        )
+    if verifier_values and not _POLL_VERIFIER_RE.fullmatch(verifier_values[0]):
         raise StagingAuthBridgeError(
             f"staging_bridge_{field_name}_invalid",
             "Staging CLI bridge returned an invalid path.",
