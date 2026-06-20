@@ -639,3 +639,147 @@ def test_firebase_token_cli_missing_origin_is_controlled(tmp_path: Path, monkeyp
     assert "Authorization" not in output
     assert "ystg_fixture_session_1234567890" not in output
     assert str(tmp_path) not in output
+
+
+def test_listener_readiness_reports_404_as_not_ready_without_leak(tmp_path: Path) -> None:
+    from yonerai_cli.services.realtime_sync_client_service import build_realtime_sync_listener_readiness_report
+
+    config_path, _claim = _save_session(tmp_path)
+
+    def transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        assert method == "POST"
+        assert url == f"{ORIGIN}/v1/sync/firebase-token"
+        return 404, {"detail": {"code": "not_found"}}, RATE_HEADERS
+
+    report = build_realtime_sync_listener_readiness_report(
+        env={"YONERAI_STAGING_AUTH_ORIGIN": ORIGIN},
+        config_path=str(config_path),
+        transport=transport,
+    )
+    serialized = json.dumps(report, sort_keys=True)
+
+    assert report["ok"] is True
+    assert report["ready"] is False
+    assert report["firebase_token_endpoint_checked"] is True
+    assert report["firebase_token_endpoint_live"] is False
+    assert report["firebase_token_endpoint_status_code"] == 404
+    assert report["next_blocker"] == "private_aws_firebase_token_endpoint_not_live"
+    assert "ystg_fixture_session_1234567890" not in serialized
+    assert "Authorization" not in serialized
+    assert str(tmp_path) not in serialized
+
+
+def test_listener_readiness_treats_401_as_live_route_with_session_blocker(tmp_path: Path) -> None:
+    from yonerai_cli.services.realtime_sync_client_service import build_realtime_sync_listener_readiness_report
+
+    config_path, _claim = _save_session(tmp_path)
+
+    def transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        return 401, {"detail": {"code": "unknown_staging_session"}}, RATE_HEADERS
+
+    report = build_realtime_sync_listener_readiness_report(
+        env={"YONERAI_STAGING_AUTH_ORIGIN": ORIGIN},
+        config_path=str(config_path),
+        transport=transport,
+    )
+    serialized = json.dumps(report, sort_keys=True)
+
+    assert report["ok"] is True
+    assert report["ready"] is False
+    assert report["firebase_token_endpoint_live"] is True
+    assert report["firebase_token_endpoint_status_code"] == 401
+    assert report["next_blocker"] == "staging_session_required"
+    assert "ystg_fixture_session_1234567890" not in serialized
+
+
+def test_listener_readiness_accepts_live_read_auth_but_keeps_sync_disabled(tmp_path: Path) -> None:
+    from yonerai_cli.services.realtime_sync_client_service import build_realtime_sync_listener_readiness_report
+
+    config_path, claim = _save_session(tmp_path)
+
+    def transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        return 200, _firebase_token_payload(claim["account_id"]), RATE_HEADERS
+
+    report = build_realtime_sync_listener_readiness_report(
+        env={"YONERAI_STAGING_AUTH_ORIGIN": ORIGIN},
+        config_path=str(config_path),
+        transport=transport,
+    )
+    serialized = json.dumps(report, sort_keys=True)
+
+    assert report["ok"] is True
+    assert report["ready"] is False
+    assert report["firebase_token_endpoint_live"] is True
+    assert report["firestore_read_auth_bridge_ready"] is True
+    assert report["firestore_sync_enabled"] is False
+    assert report["firestore_sdk_listener_ready"] is False
+    assert report["next_blocker"] == "firestore_sync_disabled_until_live_e2e_and_owner_flip"
+    assert "firebase_custom_token_fixture_value" not in serialized
+    assert "ystg_fixture_session_1234567890" not in serialized
+
+
+def test_listener_readiness_fails_closed_on_private_firebase_payload(tmp_path: Path) -> None:
+    from yonerai_cli.services.realtime_sync_client_service import build_realtime_sync_listener_readiness_report
+
+    config_path, claim = _save_session(tmp_path)
+
+    def transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        return 200, _firebase_token_payload(claim["account_id"], google_access_token="must-not-return"), RATE_HEADERS
+
+    report = build_realtime_sync_listener_readiness_report(
+        env={"YONERAI_STAGING_AUTH_ORIGIN": ORIGIN},
+        config_path=str(config_path),
+        transport=transport,
+    )
+    serialized = json.dumps(report, sort_keys=True)
+
+    assert report["ok"] is False
+    assert report["ready"] is False
+    assert report["next_blocker"] == "firebase_token_contract_or_safety_violation"
+    assert report["error"]["code"] == "firebase_token_private_payload_rejected"
+    assert "must-not-return" not in serialized
+    assert str(tmp_path) not in serialized
+
+
+def test_listener_readiness_cli_reports_not_ready_without_nonzero_exit(tmp_path: Path, monkeypatch, capsys) -> None:
+    from yonerai_cli import cli
+
+    config_path = tmp_path / "cli-config.json"
+    config_path.write_text("{}\n", encoding="utf-8")
+    monkeypatch.setenv("YONERAI_CLI_CONFIG_PATH", str(config_path))
+    monkeypatch.delenv("YONERAI_STAGING_AUTH_ORIGIN", raising=False)
+
+    rc = cli.main(["sync", "listener", "readiness", "--json"])
+    output = capsys.readouterr().out
+    report = json.loads(output)
+
+    assert rc == 0
+    assert report["operation"] == "realtime_sync_listener_readiness"
+    assert report["ok"] is True
+    assert report["ready"] is False
+    assert report["next_blocker"] == "staging_origin_not_configured"
+    assert str(tmp_path) not in output

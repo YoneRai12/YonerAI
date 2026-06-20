@@ -23,6 +23,7 @@ from yonerai_cli.services.realtime_sync_event_service import (
 )
 from yonerai_cli.services.realtime_sync_client_service import (
     build_realtime_sync_firebase_token_report,
+    build_realtime_sync_listener_readiness_report,
     build_realtime_sync_listener_fixture_report,
     build_realtime_sync_listener_once_report,
     build_realtime_sync_listener_poll_report,
@@ -276,6 +277,18 @@ def add_sync_parser(
         color_choices=color_choices,
         pretty_help="Print readable Firebase read-auth bridge status.",
     )
+    listener_readiness = listener_subcommands.add_parser(
+        "readiness",
+        help="Show whether realtime sync listener prerequisites are ready without starting Firestore.",
+    )
+    listener_readiness.add_argument("--config-path", help="Optional local CLI config path.")
+    listener_readiness.add_argument("--timeout-seconds", type=float, default=10.0, help="Staging API timeout. Default: 10.")
+    _add_output_and_locale(
+        listener_readiness,
+        lang_choices=lang_choices,
+        color_choices=color_choices,
+        pretty_help="Print readable realtime sync listener readiness.",
+    )
 
     api_contract = sync_subcommands.add_parser("api-contract", help="Show official API fixture contract.")
     _add_output_and_locale(
@@ -449,6 +462,13 @@ def build_sync_report(args: argparse.Namespace, *, prepare_import_paths: Callabl
                 config_path=getattr(args, "config_path", None),
                 timeout_seconds=float(getattr(args, "timeout_seconds", 10.0)),
             )
+        if args.sync_command == "listener" and args.sync_listener_command == "readiness":
+            return build_realtime_sync_listener_readiness_report(
+                config=_load_config(args),
+                env=os.environ,
+                config_path=getattr(args, "config_path", None),
+                timeout_seconds=float(getattr(args, "timeout_seconds", 10.0)),
+            )
         if args.sync_command == "api-contract":
             return builders()["api"]()
         if args.sync_command == "rate-limit":
@@ -557,8 +577,11 @@ def format_sync_pretty_v2(report: dict[str, Any], *, lang: str = "ja", color: Co
         "body_fetch_allowed",
         "body_fetch_reason",
         "listener_enabled",
+        "ready",
         "firestore_enabled",
         "firestore_sdk_connected",
+        "firestore_read_auth_bridge_ready",
+        "firestore_sdk_listener_ready",
         "firestore_body_fallback_allowed",
         "aws_body_fetch_performed",
         "body_received_from_aws",
@@ -576,7 +599,11 @@ def format_sync_pretty_v2(report: dict[str, Any], *, lang: str = "ja", color: Co
         "feed_has_more",
         "metadata_event_to_aws_body_fetch_completed",
         "live_web_to_cli_e2e_proven",
+        "next_blocker",
         "firebase_token_endpoint",
+        "firebase_token_endpoint_checked",
+        "firebase_token_endpoint_live",
+        "firebase_token_endpoint_status_code",
         "firebase_auth_contract_version",
         "firebase_custom_token_received",
         "firebase_custom_token_printed",
@@ -649,6 +676,9 @@ def format_sync_pretty_v2(report: dict[str, Any], *, lang: str = "ja", color: Co
     actions = tuple(
         CliRow(f"action_{idx}", item, "ok") for idx, item in enumerate(report.get("actions_not_performed", []), start=1)
     )
+    next_actions = tuple(
+        CliRow(f"next_{idx}", item, "warn") for idx, item in enumerate(report.get("required_next_actions", []), start=1)
+    )
 
     sections = [CliSection("Status", tuple(rows))]
     if cloud_rows:
@@ -663,6 +693,8 @@ def format_sync_pretty_v2(report: dict[str, Any], *, lang: str = "ja", color: Co
         sections.append(CliSection("Conversation policy boundary", policy_detail_rows))
     if actions:
         sections.append(CliSection("Non-actions", actions))
+    if next_actions:
+        sections.append(CliSection("Next actions", next_actions))
     message = report.get("message") if isinstance(report.get("message"), dict) else {}
     if message:
         sections.append(

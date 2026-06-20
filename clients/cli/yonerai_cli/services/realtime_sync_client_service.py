@@ -29,6 +29,12 @@ CONVERSATION_EVENTS_PATH = "/v1/conversations/events"
 FIREBASE_TOKEN_PATH = "/v1/sync/firebase-token"
 FIREBASE_AUTH_CONTRACT_VERSION = "yonerai.firebase.custom_token.v1"
 FIRESTORE_SYNC_EVENT_PATH_TEMPLATE = "/accounts/{account_id}/sync_events/{event_id}"
+READINESS_NON_BLOCKING_ERROR_CODES = {
+    "staging_origin_not_configured",
+    "staging_auth_required",
+    "staging_session_required",
+    "firebase_token_request_failed",
+}
 FORBIDDEN_BODY_MARKERS = (
     "access_token",
     "accesstoken",
@@ -433,6 +439,110 @@ def build_realtime_sync_firebase_token_report(
     return report
 
 
+def build_realtime_sync_listener_readiness_report(
+    *,
+    config: Mapping[str, object] | None = None,
+    env: Mapping[str, str | None] | None = None,
+    config_path: str | None = None,
+    transport: HeaderJsonTransport | None = None,
+    timeout_seconds: float = 10.0,
+) -> dict[str, Any]:
+    context = _auth_context(config=config, env=env, claim_path=config_path)
+    report = _base_report(context)
+    report.update(
+        {
+            "operation": "realtime_sync_listener_readiness",
+            "listener_mode": "readiness_check",
+            "ready": False,
+            "firebase_token_endpoint": FIREBASE_TOKEN_PATH,
+            "firebase_auth_contract_version": FIREBASE_AUTH_CONTRACT_VERSION,
+            "firebase_token_endpoint_checked": False,
+            "firebase_token_endpoint_live": False,
+            "firebase_token_endpoint_status_code": None,
+            "firebase_custom_token_received": False,
+            "firebase_custom_token_printed": False,
+            "firebase_custom_token_persisted": False,
+            "firestore_read_auth_bridge_ready": False,
+            "firestore_sdk_listener_ready": False,
+            "firestore_sync_enabled": False,
+            "live_web_to_cli_e2e_proven": False,
+            "next_blocker": None,
+            "required_next_actions": (),
+        }
+    )
+    if not context["origin_configured"]:
+        report["next_blocker"] = "staging_origin_not_configured"
+        report["required_next_actions"] = ("set YONERAI_STAGING_AUTH_ORIGIN=https://api-staging.yonerai.com",)
+        return report
+    if context["auth_state"] != "linked":
+        report["next_blocker"] = "staging_login_required"
+        report["required_next_actions"] = ("run yonerai login before realtime sync readiness",)
+        return report
+    if not context["staging_session_available"]:
+        report["next_blocker"] = "opaque_staging_session_required"
+        report["required_next_actions"] = ("run yonerai login to refresh the opaque YonerAI staging session",)
+        return report
+
+    firebase = build_realtime_sync_firebase_token_report(
+        config=config,
+        env=env,
+        config_path=config_path,
+        transport=transport,
+        timeout_seconds=timeout_seconds,
+    )
+    report["firebase_token_endpoint_checked"] = True
+    report["firebase_token_endpoint_status_code"] = firebase.get("backend_status_code")
+    report["firebase_token_endpoint_live"] = _endpoint_status_indicates_route_live(firebase.get("backend_status_code"))
+    report["firebase_custom_token_received"] = bool(firebase.get("firebase_custom_token_received", False))
+    report["firebase_custom_token_printed"] = False
+    report["firebase_custom_token_persisted"] = False
+    report["rate_limit_headers_present"] = firebase.get("rate_limit_headers_present", ())
+    report["official_backend_called"] = bool(firebase.get("official_backend_called", False))
+    report["backend_status_code"] = firebase.get("backend_status_code")
+
+    if firebase.get("ok") is True:
+        report["firebase_token_endpoint_live"] = True
+        report["firestore_read_auth_bridge_ready"] = True
+        report["firestore_sync_enabled"] = bool(firebase.get("firestore_sync_enabled", False))
+        report["firestore_project_id"] = firebase.get("firestore_project_id")
+        report["firestore_database_id"] = firebase.get("firestore_database_id")
+        report["firestore_sync_event_path_template"] = firebase.get("firestore_sync_event_path_template")
+        report["firestore_account_data_binding_required"] = firebase.get("firestore_account_data_binding_required")
+        if report["firestore_sync_enabled"] is True:
+            report["ready"] = True
+            report["firestore_sdk_listener_ready"] = True
+            report["next_blocker"] = None
+            report["required_next_actions"] = ()
+        else:
+            report["next_blocker"] = "firestore_sync_disabled_until_live_e2e_and_owner_flip"
+            report["required_next_actions"] = (
+                "keep YONERAI_FIRESTORE_SYNC_ENABLED=false until Web-to-CLI E2E is proven",
+                "implement Firestore SDK listener only after read-auth bridge and client config are live",
+            )
+        return report
+
+    error = firebase.get("error") if isinstance(firebase.get("error"), Mapping) else {}
+    code = str(error.get("code") or "firebase_token_request_failed")
+    report["firebase_token_error"] = dict(error)
+    if code in READINESS_NON_BLOCKING_ERROR_CODES:
+        if code == "firebase_token_request_failed" and firebase.get("backend_status_code") == 404:
+            report["next_blocker"] = "private_aws_firebase_token_endpoint_not_live"
+            report["required_next_actions"] = (
+                "wait for Private AWS to deploy POST /v1/sync/firebase-token",
+                "rerun yonerai sync listener readiness after deploy",
+            )
+        else:
+            report["next_blocker"] = code
+            report["required_next_actions"] = ("repair staging origin/login/session and rerun readiness",)
+        return report
+
+    report["ok"] = False
+    report["next_blocker"] = "firebase_token_contract_or_safety_violation"
+    report["error"] = error or _safe_error("firebase_token_contract_or_safety_violation", "Firebase read-auth response was not accepted.")
+    report["required_next_actions"] = ("fix the private endpoint contract before running the listener",)
+    return report
+
+
 def _base_report(context: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "schema_version": REALTIME_SYNC_CLIENT_SCHEMA_VERSION,
@@ -475,6 +585,10 @@ def _base_report(context: Mapping[str, Any]) -> dict[str, Any]:
             "no production cloud claim",
         ),
     }
+
+
+def _endpoint_status_indicates_route_live(status_code: object) -> bool:
+    return isinstance(status_code, int) and status_code not in {404, 405}
 
 
 def _safe_event_source_path(path: str) -> str:

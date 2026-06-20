@@ -200,7 +200,8 @@ fetch.
 
 ## Firebase Read-Auth Bridge
 
-Status: pending Public/YonerAIWEB ACK and live staging endpoint proof.
+Status: Public/YonerAIWEB ACK accepted; live staging endpoint proof and
+Web-to-CLI E2E remain pending.
 
 The Firestore SDK listener needs a read-auth bridge because the CLI must not use
 Google tokens directly and must not store Google or refresh tokens. The proposed
@@ -230,6 +231,9 @@ Public CLI reporting rules:
   expiry are invalid
 - must fail closed if the response contains Google/provider/token/private path
   material outside the explicit false boundary flags
+- may expose `yonerai sync listener readiness` as a safe diagnostic. The command
+  may report a non-ready state such as a 404 endpoint without failing the CLI,
+  but token/private payload or contract mismatch must still fail closed.
 
 ## Security Fixtures
 
