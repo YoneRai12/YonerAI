@@ -265,6 +265,7 @@ def _safe_poll_report(safe_request_id: str, body: Mapping[str, object]) -> dict[
         "staging_session_received": cli_session_available,
         "cli_session_available": cli_session_available,
         "linked_without_cli_session": bool(linked and not cli_session_available),
+        "linked_without_session_claim": bool(linked and not cli_session_available),
         "staging_session_token_printed": False,
         "google_token_returned": False,
         "refresh_token_returned": False,

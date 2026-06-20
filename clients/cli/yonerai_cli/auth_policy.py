@@ -247,6 +247,8 @@ def build_google_login_staging(
                     bridge_report["poll_status"] = polled.get("status")
                     bridge_report["request_id"] = polled.get("request_id")
                     bridge_report["staging_session_received"] = bool(polled.get("staging_session_received"))
+                    bridge_report["linked_without_cli_session"] = bool(polled.get("linked_without_cli_session"))
+                    bridge_report["linked_without_session_claim"] = bool(polled.get("linked_without_session_claim"))
             except StagingAuthBridgeError as exc:
                 bridge_error = exc.to_safe_error()
                 authorization_url = None
@@ -260,11 +262,13 @@ def build_google_login_staging(
         and account_me
         and account_me.get("ok") is not True
     )
-    missing_cli_session = bool(wait_linked and bridge_report.get("linked_without_cli_session") is True)
+    missing_cli_session = bool(bridge_report.get("linked_without_cli_session") is True)
     wait_link_failed = bool(
-        wait_linked
-        and bridge_report["network_called"]
-        and (not bridge_report["waited_until_linked"] or account_validation_failed or missing_cli_session)
+        bridge_report["network_called"]
+        and (
+            (wait_linked and (not bridge_report["waited_until_linked"] or account_validation_failed))
+            or missing_cli_session
+        )
     )
     if account_validation_failed:
         wait_error_code = "staging_account_validation_failed"
