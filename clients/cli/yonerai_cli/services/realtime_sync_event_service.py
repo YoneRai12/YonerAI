@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 from collections.abc import Iterable, Mapping
+from pathlib import Path
 from typing import Any
 
 
@@ -20,6 +21,11 @@ EVENT_TYPES = {
 ORIGINS = {"web", "cloud", "cli", "local"}
 SYNC_POLICIES = {"local_only", "cloud_to_local", "bidirectional_explicit", "paused"}
 BODY_REF_KINDS = {"aws_message_body", "none"}
+PROVIDER_CONSENT_STATES = {"off", "separate", "explicit"}
+GOLDEN_FIXTURE_SCHEMA_VERSION = "yonerai.realtime_sync.v1.golden-fixtures/v0.1"
+GOLDEN_FIXTURE_PATH = (
+    Path(__file__).resolve().parents[4] / "docs" / "contracts" / "fixtures" / "realtime-sync-v1" / "golden.fixture.json"
+)
 SYNC_EVENT_FIXTURES = {
     "valid",
     "local-only",
@@ -136,6 +142,27 @@ def build_realtime_sync_event_fixture(name: str = "valid") -> dict[str, object]:
     return event
 
 
+def load_realtime_sync_golden_fixtures(path: str | Path | None = None) -> dict[str, object]:
+    fixture_path = Path(path).expanduser() if path is not None else GOLDEN_FIXTURE_PATH
+    try:
+        raw = json.loads(fixture_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise RealtimeSyncEventError("sync_event_golden_fixture_unavailable", "Realtime sync golden fixtures are unavailable.") from exc
+    if not isinstance(raw, dict) or raw.get("schema_version") != GOLDEN_FIXTURE_SCHEMA_VERSION:
+        raise RealtimeSyncEventError("sync_event_golden_fixture_invalid", "Realtime sync golden fixtures are invalid.")
+    fixtures = raw.get("fixtures")
+    if not isinstance(fixtures, list) or not fixtures:
+        raise RealtimeSyncEventError("sync_event_golden_fixture_invalid", "Realtime sync golden fixtures are invalid.")
+    for item in fixtures:
+        if not isinstance(item, Mapping):
+            raise RealtimeSyncEventError("sync_event_golden_fixture_invalid", "Realtime sync golden fixtures are invalid.")
+        if item.get("expected") not in {"accept", "reject"}:
+            raise RealtimeSyncEventError("sync_event_golden_fixture_invalid", "Realtime sync golden fixture expectation is invalid.")
+        if not isinstance(item.get("event"), Mapping):
+            raise RealtimeSyncEventError("sync_event_golden_fixture_invalid", "Realtime sync golden fixture event is invalid.")
+    return dict(raw)
+
+
 def validate_realtime_sync_event(
     event: Mapping[str, object],
     *,
@@ -171,6 +198,12 @@ def validate_realtime_sync_event(
         raise RealtimeSyncEventError("sync_event_account_mismatch", "Realtime sync event account does not match the linked session.")
 
     body_ref = _body_ref(event.get("body_ref"))
+    provider_consent_ref = _provider_consent_ref(event.get("provider_consent_ref"), conversation_id=conversation_id)
+    if origin in {"cli", "local"} and sync_policy != "local_only":
+        raise RealtimeSyncEventError(
+            "sync_event_local_origin_policy_rejected",
+            "Realtime sync event tried to project local-origin content.",
+        )
     if sync_policy == "paused" or event_type == "projection_stale":
         body_fetch_allowed = False
         body_fetch_reason = "projection_paused_or_stale"
@@ -200,6 +233,7 @@ def validate_realtime_sync_event(
         "idempotency_key": idempotency_key,
         "projection_version": projection_version,
         "body_ref": body_ref,
+        "provider_consent_ref": provider_consent_ref,
         "body_fetch_allowed": body_fetch_allowed and not duplicate_event and not duplicate_idempotency_key,
         "body_fetch_reason": "duplicate_event_ignored"
         if duplicate_event
@@ -313,6 +347,35 @@ def _body_ref(value: object) -> dict[str, object]:
     return {"kind": kind, "href": href, "body_included": False}
 
 
+def _provider_consent_ref(value: object, *, conversation_id: str) -> dict[str, object]:
+    if value is None:
+        return {"state": "off", "conversation_id": conversation_id}
+    if not isinstance(value, Mapping):
+        raise RealtimeSyncEventError("sync_event_provider_consent_invalid", "Realtime sync provider consent ref is invalid.")
+    extra = set(value) - {"state", "conversation_id", "consent_ref"}
+    if extra:
+        raise RealtimeSyncEventError("sync_event_provider_consent_invalid", "Realtime sync provider consent ref is invalid.")
+    state = value.get("state")
+    if not isinstance(state, str) or state.strip() not in PROVIDER_CONSENT_STATES:
+        raise RealtimeSyncEventError(
+            "sync_event_provider_sharing_default_on_rejected",
+            "Realtime sync event tried to enable provider sharing from projection.",
+        )
+    ref_conversation = value.get("conversation_id")
+    if ref_conversation is not None:
+        if not isinstance(ref_conversation, str) or ref_conversation.strip() != conversation_id:
+            raise RealtimeSyncEventError("sync_event_provider_consent_invalid", "Realtime sync provider consent ref is invalid.")
+    consent_ref = value.get("consent_ref")
+    if consent_ref is not None:
+        if not isinstance(consent_ref, str) or not PUBLIC_ID_RE.fullmatch(consent_ref.strip()):
+            raise RealtimeSyncEventError("sync_event_provider_consent_invalid", "Realtime sync provider consent ref is invalid.")
+    return {
+        "state": state.strip(),
+        "conversation_id": conversation_id,
+        "consent_ref": consent_ref.strip() if isinstance(consent_ref, str) else None,
+    }
+
+
 def _assert_public_safe_payload(value: object) -> None:
     serialized = json.dumps(value, ensure_ascii=False, sort_keys=True).lower()
     forbidden = (
@@ -324,15 +387,27 @@ def _assert_public_safe_payload(value: object) -> None:
         '"local_file"',
         '"file_bytes"',
         "access_token",
+        "accesstoken",
         "refresh_token",
+        "refreshtoken",
         "id_token",
+        "idtoken",
         "auth_code",
+        "authcode",
         "authorization_code",
+        "authorizationcode",
         "google_token",
+        "googletoken",
+        "session_token",
+        "sessiontoken",
         "provider_key",
+        "providerkey",
         "api_key",
+        "apikey",
         "client_secret",
+        "clientsecret",
         "secret_key",
+        "secretkey",
         "arn:",
         "c:\\users",
         "\\\\",

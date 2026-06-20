@@ -21,6 +21,10 @@ from yonerai_cli.services.realtime_sync_event_service import (
     build_realtime_sync_event_fixture,
     build_realtime_sync_event_validation_report,
 )
+from yonerai_cli.services.realtime_sync_client_service import (
+    build_realtime_sync_listener_fixture_report,
+    build_realtime_sync_listener_once_report,
+)
 from yonerai_cli.services.staging_sync_service import (
     StagingSyncServiceError,
     build_staging_conversation_show_report,
@@ -216,6 +220,30 @@ def add_sync_parser(
         pretty_help="Print readable SyncEvent validation.",
     )
 
+    listener = sync_subcommands.add_parser("listener", help="Consume realtime sync metadata events without Firestore body fallback.")
+    listener_subcommands = listener.add_subparsers(dest="sync_listener_command", required=True)
+    listener_once = listener_subcommands.add_parser(
+        "once",
+        help="Validate one body-free SyncEvent, update cursor state, and fetch AWS body only when allowed.",
+    )
+    listener_source = listener_once.add_mutually_exclusive_group()
+    listener_source.add_argument("--event-json", help="Inline JSON SyncEvent payload. No file is read.")
+    listener_source.add_argument(
+        "--fixture",
+        choices=tuple(sorted(SYNC_EVENT_FIXTURES)),
+        default="valid",
+        help="Safe built-in SyncEvent fixture. Default: valid.",
+    )
+    listener_once.add_argument("--config-path", help="Optional local CLI config path.")
+    listener_once.add_argument("--state", help="Optional local cursor state path.")
+    listener_once.add_argument("--timeout-seconds", type=float, default=10.0, help="Staging API timeout. Default: 10.")
+    _add_output_and_locale(
+        listener_once,
+        lang_choices=lang_choices,
+        color_choices=color_choices,
+        pretty_help="Print readable realtime sync listener result.",
+    )
+
     api_contract = sync_subcommands.add_parser("api-contract", help="Show official API fixture contract.")
     _add_output_and_locale(
         api_contract,
@@ -355,6 +383,22 @@ def build_sync_report(args: argparse.Namespace, *, prepare_import_paths: Callabl
             report["aws_body_fetch_performed"] = False
             report["fixture"] = getattr(args, "fixture", None)
             return report
+        if args.sync_command == "listener" and args.sync_listener_command == "once":
+            event_json = getattr(args, "event_json", None)
+            kwargs = {
+                "config": _load_config(args),
+                "env": os.environ,
+                "config_path": getattr(args, "config_path", None),
+                "state_path": getattr(args, "state", None),
+                "timeout_seconds": float(getattr(args, "timeout_seconds", 10.0)),
+            }
+            if event_json:
+                event = _event_payload_from_args(args)
+                return build_realtime_sync_listener_once_report(event=event, **kwargs)
+            return build_realtime_sync_listener_fixture_report(
+                fixture=str(getattr(args, "fixture", "valid") or "valid"),
+                **kwargs,
+            )
         if args.sync_command == "api-contract":
             return builders()["api"]()
         if args.sync_command == "rate-limit":
@@ -464,7 +508,18 @@ def format_sync_pretty_v2(report: dict[str, Any], *, lang: str = "ja", color: Co
         "body_fetch_reason",
         "listener_enabled",
         "firestore_enabled",
+        "firestore_sdk_connected",
+        "firestore_body_fallback_allowed",
         "aws_body_fetch_performed",
+        "body_received_from_aws",
+        "message_body_from_firestore",
+        "raw_prompt_from_firestore",
+        "raw_audit_from_firestore",
+        "client_policy_write_performed",
+        "client_approval_write_performed",
+        "cursor_saved",
+        "reconnect_supported",
+        "next_reconnect_cursor",
         "duplicate_event",
         "duplicate_idempotency_key",
     ):
@@ -531,6 +586,18 @@ def format_sync_pretty_v2(report: dict[str, Any], *, lang: str = "ja", color: Co
         sections.append(CliSection("Conversation policy boundary", policy_detail_rows))
     if actions:
         sections.append(CliSection("Non-actions", actions))
+    message = report.get("message") if isinstance(report.get("message"), dict) else {}
+    if message:
+        sections.append(
+            CliSection(
+                "AWS message",
+                tuple(
+                    CliRow(key, message.get(key), "ok")
+                    for key in ("conversation_id", "message_id", "display_text", "body_from_firestore", "body_stored_in_cursor")
+                    if key in message
+                ),
+            )
+        )
     return render_report(title, tuple(sections), color=color)
 
 

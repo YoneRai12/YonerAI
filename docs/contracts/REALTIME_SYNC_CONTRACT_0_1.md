@@ -1,6 +1,6 @@
 # [SYNC-PROPOSAL-V1] YonerAI Realtime Sync Contract 0.1
 
-Status: proposal for issue #552 ACK
+Status: accepted in issue #552 after AWS and YonerAIWEB ACK
 Owner: Public YonerAI contract lane
 Schema version: `yonerai.realtime_sync.v1`
 Date: 2026-06-20
@@ -200,16 +200,35 @@ fetch.
 
 ## Security Fixtures
 
-AWS and Web ACK must include fixtures for:
+The canonical shared golden fixture bytes live at:
+
+- `docs/contracts/fixtures/realtime-sync-v1/golden.fixture.json`
+
+AWS, Public, and YonerAIWEB must use identical bytes for this golden fixture
+set. A lane-specific validator may add additional local regression fixtures, but
+it must not reinterpret the shared golden fixtures. If a lane disagrees with the
+expected accept/reject result, fix that lane's validator or request a new
+contract version. Do not mutate the fixture ad hoc in only one lane.
+
+The golden fixture set covers:
 
 - valid cloud-to-local `message_created`
-- valid local-only CLI-origin event that does not project body
+- forbidden body projection
+- forbidden token-like value
+- forbidden local path
+- forbidden internal endpoint
+- forbidden body-ref traversal/query
+- forbidden account mismatch
+- forbidden provider-sharing default-on
+- forbidden unknown/private fields
+
+Additional implementation regression fixtures should also cover:
+
+- valid local-only CLI-origin event that does not fetch body
 - duplicate event/idempotency key ignored
 - reordered event handling
 - stale projection pause
-- account mismatch rejected
 - local-to-cloud without explicit approval rejected
-- provider-sharing default off
 - forbidden raw body rejected
 - forbidden raw audit rejected
 - forbidden token-like field rejected
