@@ -38,6 +38,18 @@ _FORBIDDEN_QUERY_PARAM_KEYS = _FORBIDDEN_TOKEN_KEYS | {
     "staging_session_claim",
     "secret",
 }
+_TOKEN_MARKER_VALUE_RE = re.compile(
+    r"(^|[^A-Za-z0-9_])"
+    r"(access_token|id_token|refresh_token|authorization_code|auth_code|client_secret|api_key|secret|token)"
+    r"\s*=",
+    re.IGNORECASE,
+)
+_LOCAL_PATH_VALUE_RE = re.compile(r"([A-Za-z]:\\|\\\\|/Users/|/home/|/root/)")
+_PRIVATE_ENDPOINT_VALUE_RE = re.compile(
+    r"(?i)(https?://)?(localhost|127\.\d{1,3}\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|"
+    r"172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|\[?::1\]?)"
+    r"(:\d+)?(/|$)"
+)
 
 JsonTransport = Callable[[str, str, Mapping[str, object] | None, float], tuple[int, Mapping[str, object]]]
 HeaderJsonTransport = Callable[
@@ -312,13 +324,13 @@ def _safe_session_metadata(session: Mapping[str, object]) -> dict[str, object]:
             "browser_cookie_session_present": False,
         }
     return {
-        "type": _safe_optional_public_scalar(session.get("type"), "session_type"),
+        "type": _safe_public_metadata_scalar(session.get("type"), "session_type"),
         "token_returned": False,
-        "token_field": _safe_optional_public_scalar(session.get("token_field"), "session_token_field"),
+        "token_field": _safe_public_metadata_scalar(session.get("token_field"), "session_token_field"),
         "opaque_session_available": isinstance(session.get("staging_session_token"), str),
         "bearer_authorization_supported": bool(session.get("bearer_authorization_supported", False)),
         "browser_cookie_session_present": bool(session.get("cookie_name")),
-        "expires_at": _safe_optional_public_scalar(session.get("expires_at"), "session_expires_at"),
+        "expires_at": _safe_public_metadata_scalar(session.get("expires_at"), "session_expires_at"),
     }
 
 
@@ -461,6 +473,23 @@ def _safe_optional_public_scalar(value: object, field_name: str) -> object:
         f"staging_bridge_{field_name}_invalid",
         "Staging CLI bridge returned an invalid public field.",
     )
+
+
+def _safe_public_metadata_scalar(value: object, field_name: str) -> object:
+    safe_value = _safe_optional_public_scalar(value, field_name)
+    if not isinstance(safe_value, str):
+        return safe_value
+    if (
+        any(ord(char) < 32 or ord(char) == 127 for char in safe_value)
+        or _TOKEN_MARKER_VALUE_RE.search(safe_value)
+        or _LOCAL_PATH_VALUE_RE.search(safe_value)
+        or _PRIVATE_ENDPOINT_VALUE_RE.search(safe_value)
+    ):
+        raise StagingAuthBridgeError(
+            f"staging_bridge_{field_name}_invalid",
+            "Staging CLI bridge returned an invalid public field.",
+        )
+    return safe_value
 
 
 def _assert_no_sensitive_url_parts(parsed: Any, field_name: str) -> None:
