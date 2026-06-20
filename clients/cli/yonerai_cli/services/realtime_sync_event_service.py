@@ -20,6 +20,17 @@ EVENT_TYPES = {
 ORIGINS = {"web", "cloud", "cli", "local"}
 SYNC_POLICIES = {"local_only", "cloud_to_local", "bidirectional_explicit", "paused"}
 BODY_REF_KINDS = {"aws_message_body", "none"}
+SYNC_EVENT_FIXTURES = {
+    "valid",
+    "local-only",
+    "projection-stale",
+    "duplicate",
+    "account-mismatch",
+    "raw-body",
+    "private-token",
+    "private-path",
+    "bad-body-ref",
+}
 ALLOWED_FIELDS = {
     "schema_version",
     "event_id",
@@ -70,6 +81,59 @@ class RealtimeSyncEventError(ValueError):
             "raw_body_printed": False,
             "private_runtime_detail_printed": False,
         }
+
+
+def build_realtime_sync_event_fixture(name: str = "valid") -> dict[str, object]:
+    if name not in SYNC_EVENT_FIXTURES:
+        raise RealtimeSyncEventError("sync_event_fixture_invalid", "Realtime sync event fixture is not supported.")
+    event: dict[str, object] = {
+        "schema_version": REALTIME_SYNC_SCHEMA_VERSION,
+        "event_id": "evt_public_001",
+        "account_id": "acct_public_001",
+        "conversation_id": "conv_public_001",
+        "message_id": "msg_public_001",
+        "event_type": "message_created",
+        "origin": "web",
+        "sync_policy": "cloud_to_local",
+        "cursor": "cursor_public_001",
+        "sequence": 1,
+        "idempotency_key": "sync_public_001",
+        "created_at": "2026-06-20T00:00:00Z",
+        "projection_version": 1,
+        "body_ref": {
+            "kind": "aws_message_body",
+            "href": "/v1/conversations/conv_public_001/messages/msg_public_001",
+            "body_included": False,
+        },
+        "provider_consent_ref": {"state": "off", "conversation_id": "conv_public_001"},
+        "audit_ref": {"kind": "metadata_only", "audit_id": "aud_public_001"},
+        "reason": "cloud conversation selected by linked account",
+    }
+    if name == "local-only":
+        event.update({"origin": "local", "sync_policy": "local_only"})
+    elif name == "projection-stale":
+        event.update({"event_type": "projection_stale"})
+    elif name == "duplicate":
+        event.update({"event_id": "evt_duplicate_001", "idempotency_key": "sync_duplicate_001"})
+    elif name == "account-mismatch":
+        event.update({"account_id": "acct_other"})
+    elif name == "raw-body":
+        event["body_ref"] = {
+            "kind": "aws_message_body",
+            "href": "/v1/conversations/conv_public_001/messages/msg_public_001",
+            "body_included": True,
+        }
+    elif name == "private-token":
+        event["reason"] = "refresh_token must not be projected"
+    elif name == "private-path":
+        event["reason"] = "C:\\Users\\owner\\secret.txt"
+    elif name == "bad-body-ref":
+        event["body_ref"] = {
+            "kind": "aws_message_body",
+            "href": "/v1/conversations/../admin",
+            "body_included": False,
+        }
+    return event
 
 
 def validate_realtime_sync_event(

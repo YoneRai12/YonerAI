@@ -192,6 +192,7 @@ def _interactive_callbacks(config_path: str | None = None):
             lang, config_path=config_path
         ),
         sync_status=lambda lang: _interactive_sync_status(lang, config_path=config_path),
+        sync_action=lambda values, lang: _interactive_sync_action(values, lang, config_path=config_path),
         whoami=lambda lang: control_spine_callbacks.interactive_whoami(lang, config_path=config_path),
         project_status=lambda lang: control_spine_callbacks.interactive_project_status(lang, config_path=config_path),
         session_status=lambda lang: control_spine_callbacks.interactive_session_status(lang, config_path=config_path),
@@ -359,6 +360,13 @@ def _interactive_sync_status(_lang: str, *, config_path: str | None = None) -> d
         return build_conversation_policy_status_report(config_path=config_path)
     except ConversationSyncPolicyError as exc:
         raise CliError(str(exc), exit_code=1) from exc
+
+
+def _interactive_sync_action(values: list[str], lang: str, *, config_path: str | None = None) -> dict[str, Any]:
+    try:
+        return interactive_service.build_interactive_sync_action(values, lang=lang)
+    except InteractiveServiceError as exc:
+        raise CliError(str(exc), exit_code=exc.exit_code) from exc
 
 
 def _interactive_evolve_status(_lang: str) -> dict[str, Any]:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import sys
 from pathlib import Path
 
@@ -215,3 +216,31 @@ def test_sync_event_validate_pretty_mentions_body_fetch_boundary(capsys) -> None
     assert "body_fetch_allowed" in output
     assert "local_origin_or_local_only_never_fetches_cloud_body" in output
     assert "firestore_enabled" in output
+
+
+def test_interactive_sync_event_validate_uses_same_safe_boundary(tmp_path: Path) -> None:
+    from yonerai_cli.interactive import InteractiveCallbacks, InteractiveOptions, run_interactive_cli
+    from yonerai_cli.services.interactive_service import build_interactive_sync_action
+
+    stdout = io.StringIO()
+    rc = run_interactive_cli(
+        InteractiveOptions(config_path=str(tmp_path / "cli-config.json"), lang="en", script=True, color="never"),
+        InteractiveCallbacks(
+            providers=lambda: {"provider": "mock"},
+            ask_auto=lambda *args, **kwargs: {},
+            runs_list=lambda *args, **kwargs: {},
+            runs_show=lambda *args, **kwargs: {},
+            sync_status=lambda lang: {"schema_version": "test", "ok": True},
+            sync_action=lambda values, lang: build_interactive_sync_action(values, lang=lang),
+        ),
+        stdin=io.StringIO("/sync event validate local-only\n/quit\n"),
+        stdout=stdout,
+    )
+    output = stdout.getvalue()
+
+    assert rc == 0
+    assert "realtime_sync_event_validate" in output
+    assert "body_fetch_allowed" in output
+    assert "local_origin_or_local_only_never_fetches_cloud_body" in output
+    assert "firestore_enabled" in output
+    assert "aws_body_fetch_performed" in output

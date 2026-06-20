@@ -203,6 +203,48 @@ def build_interactive_sync_status(*, prepare_import_paths: Callable[[], None]) -
     return build_staging_sync_status(config={}, env=os.environ)
 
 
+def build_interactive_sync_action(values: list[str], *, lang: str) -> dict[str, Any]:
+    from yonerai_cli.services.realtime_sync_event_service import (
+        SYNC_EVENT_FIXTURES,
+        RealtimeSyncEventError,
+        build_realtime_sync_event_fixture,
+        build_realtime_sync_event_validation_report,
+    )
+
+    normalized = [value.strip().lower().replace("_", "-") for value in values if value.strip()]
+    if not normalized:
+        raise InteractiveServiceError("unknown interactive sync action", exit_code=2)
+    action = normalized[0]
+    rest = normalized[1:]
+    if action not in {"event", "events", "validate"}:
+        raise InteractiveServiceError("unknown interactive sync action", exit_code=2)
+    if rest and rest[0] == "validate":
+        rest = rest[1:]
+    fixture = rest[0] if rest else "valid"
+    if fixture not in SYNC_EVENT_FIXTURES:
+        raise InteractiveServiceError("unknown realtime sync event fixture", exit_code=2)
+    try:
+        event = build_realtime_sync_event_fixture(fixture)
+    except RealtimeSyncEventError as exc:
+        raise InteractiveServiceError(exc.message, exit_code=2) from exc
+    seen_event_ids = ("evt_duplicate_001",) if fixture == "duplicate" else ()
+    seen_idempotency_keys = ("sync_duplicate_001",) if fixture == "duplicate" else ()
+    report = build_realtime_sync_event_validation_report(
+        event,
+        linked_account_id="acct_public_001",
+        seen_event_ids=seen_event_ids,
+        seen_idempotency_keys=seen_idempotency_keys,
+    )
+    report["operation"] = "realtime_sync_event_validate"
+    report["listener_enabled"] = False
+    report["firestore_enabled"] = False
+    report["aws_body_fetch_performed"] = False
+    report["fixture"] = fixture
+    report["interactive_command"] = "/sync event validate"
+    report["lang"] = lang
+    return report
+
+
 def build_interactive_evolve_status(*, prepare_import_paths: Callable[[], None]) -> dict[str, Any]:
     try:
         prepare_import_paths()
