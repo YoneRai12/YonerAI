@@ -768,6 +768,41 @@ def test_listener_readiness_accepts_live_read_auth_but_keeps_sync_disabled(tmp_p
     assert "ystg_fixture_session_1234567890" not in serialized
 
 
+def test_listener_readiness_reports_client_sign_in_config_without_printing_value(tmp_path: Path) -> None:
+    from yonerai_cli.services.realtime_sync_client_service import build_realtime_sync_listener_readiness_report
+
+    config_path, claim = _save_session(tmp_path)
+
+    def transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        return 200, _firebase_token_payload(claim["account_id"]), RATE_HEADERS
+
+    report = build_realtime_sync_listener_readiness_report(
+        env={
+            "YONERAI_STAGING_AUTH_ORIGIN": ORIGIN,
+            "YONERAI_FIREBASE_CLIENT_API_KEY": "public-firebase-client-config-fixture",
+        },
+        config_path=str(config_path),
+        transport=transport,
+    )
+    serialized = json.dumps(report, sort_keys=True)
+
+    assert report["ok"] is True
+    assert report["ready"] is False
+    assert report["firestore_read_auth_bridge_ready"] is True
+    assert report["firestore_client_sign_in_config_present"] is True
+    assert report["firestore_sdk_listener_ready"] is False
+    assert report["next_blocker"] == "firestore_sync_disabled_until_live_e2e_and_owner_flip"
+    assert "public-firebase-client-config-fixture" not in serialized
+    assert "firebase_custom_token_fixture_value" not in serialized
+    assert str(tmp_path) not in serialized
+
+
 def test_listener_readiness_fails_closed_on_private_firebase_payload(tmp_path: Path) -> None:
     from yonerai_cli.services.realtime_sync_client_service import build_realtime_sync_listener_readiness_report
 

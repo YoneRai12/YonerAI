@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
@@ -30,6 +31,7 @@ CONVERSATION_EVENTS_PATH = "/v1/conversations/events"
 FIREBASE_TOKEN_PATH = "/v1/sync/firebase-token"
 FIREBASE_AUTH_CONTRACT_VERSION = "yonerai.firebase.custom_token.v1"
 FIRESTORE_SYNC_EVENT_PATH_TEMPLATE = "/accounts/{account_id}/sync_events/{event_id}"
+FIREBASE_CLIENT_API_KEY_ENV = "YONERAI_FIREBASE_CLIENT_API_KEY"
 READINESS_NON_BLOCKING_ERROR_CODES = {
     "staging_origin_not_configured",
     "staging_auth_required",
@@ -465,7 +467,7 @@ def build_realtime_sync_listener_readiness_report(
             "firebase_custom_token_persisted": False,
             "firestore_read_auth_bridge_ready": False,
             "firestore_sdk_dependency_available": _firestore_sdk_dependency_available(),
-            "firestore_client_sign_in_config_present": False,
+            "firestore_client_sign_in_config_present": _firestore_client_sign_in_config_present(env),
             "firestore_sdk_listener_ready": False,
             "firestore_sync_enabled": False,
             "live_web_to_cli_e2e_proven": False,
@@ -508,7 +510,7 @@ def build_realtime_sync_listener_readiness_report(
         report["firestore_read_auth_bridge_ready"] = True
         report["firestore_sync_enabled"] = bool(firebase.get("firestore_sync_enabled", False))
         report["firestore_sdk_dependency_available"] = _firestore_sdk_dependency_available()
-        report["firestore_client_sign_in_config_present"] = bool(firebase.get("firestore_client_sign_in_config_present", False))
+        report["firestore_client_sign_in_config_present"] = _firestore_client_sign_in_config_present(env)
         report["firestore_project_id"] = firebase.get("firestore_project_id")
         report["firestore_database_id"] = firebase.get("firestore_database_id")
         report["firestore_sync_event_path_template"] = firebase.get("firestore_sync_event_path_template")
@@ -621,6 +623,17 @@ def _endpoint_status_indicates_route_live(status_code: object) -> bool:
 
 def _firestore_sdk_dependency_available() -> bool:
     return importlib.util.find_spec("google.cloud.firestore") is not None or importlib.util.find_spec("firebase_admin") is not None
+
+
+def _firestore_client_sign_in_config_present(env: Mapping[str, str | None] | None) -> bool:
+    source = os.environ if env is None else env
+    value = str(source.get(FIREBASE_CLIENT_API_KEY_ENV) or "").strip()
+    if not value:
+        return False
+    lowered = value.lower()
+    if any(marker in lowered for marker in FORBIDDEN_BODY_MARKERS):
+        return False
+    return all(ord(char) >= 32 for char in value)
 
 
 def _safe_event_source_path(path: str) -> str:

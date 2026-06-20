@@ -238,6 +238,11 @@ Public CLI reporting rules:
   Firestore SDK listener is ready. Public must also have a reviewed client
   dependency and a public-safe Firebase client sign-in exchange/config before
   starting a live SDK listener.
+- Public CLI may use `YONERAI_FIREBASE_CLIENT_API_KEY` as a public-safe client
+  sign-in configuration signal for the Firebase custom-token exchange. The value
+  must not be printed, persisted into the YonerAI config, committed, or treated
+  as a provider/server credential. If this config is absent, readiness must stay
+  false even when the Firebase read-auth bridge is healthy.
 
 ## Security Fixtures
 
