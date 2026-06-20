@@ -79,16 +79,18 @@ SLASH_COMMANDS: tuple[SlashCommandSpec, ...] = (
 
 TOP_LEVEL_COMMANDS: tuple[str, ...] = (
     "/login",
-    "/local-llm",
+    "/run",
+    "/sync",
+    "/memory",
     "/update",
     "/settings",
     "/whoami",
     "/projects",
     "/sessions",
-    "/run",
+    "/local-llm",
 )
 
-MAX_TOP_LEVEL_COMPLETIONS = 7
+MAX_TOP_LEVEL_COMPLETIONS = 10
 MAX_COMMAND_COMPLETIONS = 10
 
 

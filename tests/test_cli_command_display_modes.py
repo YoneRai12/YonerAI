@@ -79,6 +79,14 @@ def test_prompt_completer_respects_display_mode_and_keeps_english_input_usable()
     assert len(top) <= MAX_TOP_LEVEL_COMPLETIONS
     assert top[0].text == login_ja
     assert "/login" in top[0].display_text
+    top_texts = [completion.text for completion in top]
+    assert top_texts[:5] == [
+        login_ja,
+        _slash_command("/run"),
+        _slash_command("/sync"),
+        _slash_command("/memory"),
+        _slash_command("/update"),
+    ]
     assert english_fragment
     assert english_fragment[0].text == "/login"
     assert login_ja in english_fragment[0].display_text
@@ -167,15 +175,19 @@ def test_command_palette_dialog_items_stay_short_and_user_facing() -> None:
 
     assert [value for value, _label in items] == [
         "/login",
-        "/local-llm",
+        "/run",
+        "/sync",
+        "/memory",
         "/update",
         "/settings",
         "/whoami",
         "/projects",
         "/sessions",
-        "/run",
+        "/local-llm",
     ]
     assert any("/login" in label for _value, label in items)
+    assert any("/sync" in label for _value, label in items)
+    assert any("/memory" in label for _value, label in items)
     assert any("/local-llm" in label for _value, label in items)
     assert any("/run" in label for _value, label in items)
 
