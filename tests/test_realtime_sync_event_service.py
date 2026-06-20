@@ -244,3 +244,33 @@ def test_interactive_sync_event_validate_uses_same_safe_boundary(tmp_path: Path)
     assert "local_origin_or_local_only_never_fetches_cloud_body" in output
     assert "firestore_enabled" in output
     assert "aws_body_fetch_performed" in output
+
+
+def test_interactive_japanese_sync_event_validate_aliases(tmp_path: Path) -> None:
+    from yonerai_cli.interactive import InteractiveCallbacks, InteractiveOptions, run_interactive_cli
+    from yonerai_cli.services.interactive_service import build_interactive_sync_action
+
+    stdout = io.StringIO()
+    rc = run_interactive_cli(
+        InteractiveOptions(config_path=str(tmp_path / "cli-config.json"), lang="ja", script=True, color="never"),
+        InteractiveCallbacks(
+            providers=lambda: {"provider": "mock"},
+            ask_auto=lambda *args, **kwargs: {},
+            runs_list=lambda *args, **kwargs: {},
+            runs_show=lambda *args, **kwargs: {},
+            sync_status=lambda lang: {"schema_version": "test", "ok": True},
+            sync_action=lambda values, lang: build_interactive_sync_action(values, lang=lang),
+        ),
+        stdin=io.StringIO("/同期 イベント 検証 ローカルのみ\n/終了\n"),
+        stdout=stdout,
+    )
+    output = stdout.getvalue()
+
+    assert rc == 0
+    assert "realtime_sync_event_validate" in output
+    assert "origin" in output
+    assert "local" in output
+    assert "sync_policy" in output
+    assert "local_only" in output
+    assert "local_origin_or_local_only_never_fetches_cloud_body" in output
+    assert "firestore_enabled" in output

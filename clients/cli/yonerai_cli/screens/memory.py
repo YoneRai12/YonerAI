@@ -182,6 +182,7 @@ def _format_conversation_sync_policy_status(report: dict[str, Any], *, lang: str
             "  試す: yonerai sync conversation list --pretty --lang ja",
             "  試す: yonerai sync conversation set <conversation_id> local_only --pretty --lang ja",
             "  試す: yonerai sync conversation set <conversation_id> bidirectional_explicit --confirm --pretty --lang ja",
+            "  イベント検証: /同期 イベント 検証 ローカルのみ",
             "  実行しないこと:",
         ]
         for action in actions[:8]:
@@ -203,6 +204,7 @@ def _format_conversation_sync_policy_status(report: dict[str, Any], *, lang: str
         "  try: yonerai sync conversation list --pretty --lang en",
         "  try: yonerai sync conversation set <conversation_id> local_only --pretty --lang en",
         "  try: yonerai sync conversation set <conversation_id> bidirectional_explicit --confirm --pretty --lang en",
+        "  event validation: /sync event validate local-only",
         "  actions_not_performed: " + ", ".join(_safe(action) for action in actions[:8]),
         "",
     ]
