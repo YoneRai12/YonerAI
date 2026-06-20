@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import importlib.util
+import hashlib
 import json
 import os
+import re
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
@@ -755,7 +757,7 @@ def _sanitize_firebase_token_payload(payload: Mapping[str, object], *, linked_ac
         raise RealtimeSyncClientError("firebase_custom_token_missing", "Firebase custom token was not returned.")
     uid = _safe_message_text(payload.get("uid"), fallback=None)
     account_id = _safe_message_text(payload.get("account_id"), fallback=None)
-    if uid != linked_account_id or account_id != linked_account_id:
+    if not _account_binding_matches(linked_account_id, uid) or not _account_binding_matches(linked_account_id, account_id):
         raise RealtimeSyncClientError("firebase_token_account_mismatch", "Firebase read-auth account binding does not match.")
     expires_in = payload.get("expires_in_seconds")
     if not isinstance(expires_in, int) or expires_in <= 0 or expires_in > 900:
@@ -819,7 +821,7 @@ def _assert_firebase_token_payload_safe(payload: object) -> None:
 
 
 def _sanitize_firestore_contract(firestore: Mapping[str, object]) -> dict[str, object]:
-    allowed = {"project_id", "database_id", "sync_enabled", "sync_event_path_template"}
+    allowed = {"project_id", "database_id", "sync_enabled", "sync_event_path_template", "body_free_projection_only"}
     if set(firestore) - allowed:
         raise RealtimeSyncClientError("firebase_token_private_fields", "Firestore read-auth contract contained non-public fields.")
     project_id = _safe_message_text(firestore.get("project_id"), fallback=None)
@@ -831,10 +833,13 @@ def _sanitize_firestore_contract(firestore: Mapping[str, object]) -> dict[str, o
         raise RealtimeSyncClientError("firebase_token_firestore_path_invalid", "Firestore sync event path template is not accepted.")
     if firestore.get("sync_enabled") is not False:
         raise RealtimeSyncClientError("firebase_token_sync_flag_invalid", "Firestore sync must remain disabled before live E2E.")
+    if firestore.get("body_free_projection_only") is not True:
+        raise RealtimeSyncClientError("firebase_token_firestore_invalid", "Firestore projection must remain body-free.")
     return {
         "firestore_project_id": project_id,
         "firestore_database_id": database_id,
         "firestore_sync_enabled": False,
+        "firestore_body_free_projection_only": True,
         "firestore_sync_event_path_template": path_template,
         "firestore_account_data_binding_required": True,
         "firestore_body_fallback_allowed": False,
@@ -1015,6 +1020,30 @@ def _linked_account_id(context: Mapping[str, Any]) -> str:
     if not account_id or account_id == "not-linked":
         raise RealtimeSyncClientError("staging_account_missing", "Linked staging account id is unavailable.")
     return account_id
+
+
+def _account_binding_matches(linked_account_id: str, candidate: object) -> bool:
+    candidate_text = str(candidate or "").strip()
+    if not candidate_text:
+        return False
+    if candidate_text == linked_account_id:
+        return True
+    return _safe_account_ref(candidate_text) == linked_account_id
+
+
+def _safe_account_ref(value: object) -> str:
+    text = str(value or "").strip()
+    if not text or _account_binding_text_rejected(text):
+        return "linked-staging-account"
+    if re.fullmatch(r"staging-account-[a-f0-9]{16}", text):
+        return text
+    digest = hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+    return f"staging-account-{digest}"
+
+
+def _account_binding_text_rejected(text: str) -> bool:
+    lowered = text.lower()
+    return any(marker in lowered for marker in FORBIDDEN_BODY_MARKERS) or any(ord(char) < 32 or ord(char) == 127 for char in text)
 
 
 def _load_state(path: Path) -> dict[str, Any]:

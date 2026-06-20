@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import sys
 from pathlib import Path
 from typing import Mapping
@@ -486,6 +487,7 @@ def _firebase_token_payload(account_id: object, **overrides: object) -> dict[str
             "project_id": "yonerai-platform-stg-2026",
             "database_id": "(default)",
             "sync_enabled": False,
+            "body_free_projection_only": True,
             "sync_event_path_template": "/accounts/{account_id}/sync_events/{event_id}",
         },
         "google_token_returned": False,
@@ -593,6 +595,42 @@ def test_firebase_token_bridge_rejects_account_mismatch(tmp_path: Path) -> None:
     assert report["error"]["code"] == "firebase_token_account_mismatch"
 
 
+def test_firebase_token_bridge_accepts_contract_account_id_matching_saved_public_ref(tmp_path: Path) -> None:
+    from yonerai_cli.services.realtime_sync_client_service import build_realtime_sync_firebase_token_report
+
+    raw_account_id = "acct_contract_runtime_123"
+    public_ref = "staging-account-" + hashlib.sha256(raw_account_id.encode("utf-8")).hexdigest()[:16]
+    config_path, _claim = _save_session(tmp_path)
+
+    # Rewrite only the non-secret public account binding to match the live AWS contract shape:
+    # session claim stores a public-safe ref, while Firebase returns uid/account_id.
+    claim_path = config_path.with_name(f"{config_path.stem}.staging-session-claim.json")
+    claim = json.loads(claim_path.read_text(encoding="utf-8"))
+    claim["account_id"] = public_ref
+    claim_path.write_text(json.dumps(claim, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+    def transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        return 200, _firebase_token_payload(raw_account_id), RATE_HEADERS
+
+    report = build_realtime_sync_firebase_token_report(
+        env={"YONERAI_STAGING_AUTH_ORIGIN": ORIGIN},
+        config_path=str(config_path),
+        transport=transport,
+    )
+    serialized = json.dumps(report, sort_keys=True)
+
+    assert report["ok"] is True
+    assert report["firebase_account_id_matches_session"] is True
+    assert "firebase_custom_token_fixture_value" not in serialized
+    assert raw_account_id not in serialized
+
+
 def test_firebase_token_bridge_rejects_enabled_sync_before_e2e(tmp_path: Path) -> None:
     from yonerai_cli.services.realtime_sync_client_service import build_realtime_sync_firebase_token_report
 
@@ -619,6 +657,34 @@ def test_firebase_token_bridge_rejects_enabled_sync_before_e2e(tmp_path: Path) -
 
     assert report["ok"] is False
     assert report["error"]["code"] == "firebase_token_sync_flag_invalid"
+
+
+def test_firebase_token_bridge_requires_body_free_projection_flag(tmp_path: Path) -> None:
+    from yonerai_cli.services.realtime_sync_client_service import build_realtime_sync_firebase_token_report
+
+    config_path, claim = _save_session(tmp_path)
+    payload = _firebase_token_payload(claim["account_id"])
+    firestore = dict(payload["firestore"])  # type: ignore[arg-type]
+    firestore["body_free_projection_only"] = False
+    payload["firestore"] = firestore
+
+    def transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        return 200, payload, RATE_HEADERS
+
+    report = build_realtime_sync_firebase_token_report(
+        env={"YONERAI_STAGING_AUTH_ORIGIN": ORIGIN},
+        config_path=str(config_path),
+        transport=transport,
+    )
+
+    assert report["ok"] is False
+    assert report["error"]["code"] == "firebase_token_firestore_invalid"
 
 
 def test_firebase_token_cli_missing_origin_is_controlled(tmp_path: Path, monkeypatch, capsys) -> None:

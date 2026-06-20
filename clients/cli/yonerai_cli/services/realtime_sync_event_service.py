@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import re
 from collections.abc import Iterable, Mapping
 from pathlib import Path
@@ -194,7 +195,7 @@ def validate_realtime_sync_event(
     if not isinstance(projection_version, int) or projection_version < 1:
         raise RealtimeSyncEventError("sync_event_projection_version_invalid", "Realtime sync projection version is invalid.")
 
-    if linked_account_id is not None and account_id != linked_account_id:
+    if linked_account_id is not None and not _account_binding_matches(linked_account_id, account_id):
         raise RealtimeSyncEventError("sync_event_account_mismatch", "Realtime sync event account does not match the linked session.")
 
     body_ref = _body_ref(event.get("body_ref"))
@@ -426,3 +427,23 @@ def _assert_public_safe_payload(value: object) -> None:
 def _assert_public_safe_text(text: str) -> None:
     if any(ord(char) < 32 or ord(char) == 127 for char in text):
         raise RealtimeSyncEventError("sync_event_field_invalid", "Realtime sync event field is invalid.")
+
+
+def _account_binding_matches(linked_account_id: str, candidate: object) -> bool:
+    candidate_text = str(candidate or "").strip()
+    if not candidate_text:
+        return False
+    if candidate_text == linked_account_id:
+        return True
+    return _safe_account_ref(candidate_text) == linked_account_id
+
+
+def _safe_account_ref(value: object) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return "linked-staging-account"
+    _assert_public_safe_text(text)
+    if re.fullmatch(r"staging-account-[a-f0-9]{16}", text):
+        return text
+    digest = hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+    return f"staging-account-{digest}"

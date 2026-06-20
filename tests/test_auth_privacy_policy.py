@@ -636,6 +636,20 @@ def test_google_login_staging_accepts_nested_opaque_session_claim(tmp_path: Path
     assert str(tmp_path) not in serialized
 
 
+def test_staging_session_save_does_not_double_hash_public_account_ref(tmp_path: Path) -> None:
+    from yonerai_cli.services.staging_session_service import save_staging_session
+
+    public_ref = "staging-account-84c212c254ae65ca"
+    claim = save_staging_session(
+        session_token="ystg_fixture_session_1234567890",
+        origin="https://api-staging.yonerai.com",
+        account={"account_ref": public_ref, "display_name": "Fixture", "email_redacted": "f***@example.test"},
+        config_path=tmp_path / "cli-config.json",
+    )
+
+    assert claim["account_id"] == public_ref
+
+
 def test_staging_bridge_rejects_sensitive_session_metadata_values(tmp_path: Path, monkeypatch) -> None:
     from yonerai_cli.auth_policy import build_google_login_staging
 

@@ -18,6 +18,7 @@ _TOKEN_KEY_RE = re.compile(
 )
 _LOCAL_PATH_RE = re.compile(r"([A-Za-z]:\\|\\\\|/Users/|/home/|/root/)")
 _SAFE_TEXT_RE = re.compile(r"^[A-Za-z0-9_.:@+\-*(),!\[\]&\s]{0,160}$")
+_PUBLIC_ACCOUNT_REF_RE = re.compile(r"^staging-account-[a-f0-9]{16}$")
 
 
 def default_staging_auth_claim_path(config_path: str | Path | None = None) -> Path:
@@ -202,6 +203,8 @@ def _redact_email(value: object) -> str:
 def _safe_account_ref(value: object) -> str:
     text = _safe_public_text(value, fallback="linked-staging-account")
     if text in {"not-linked", "linked-staging-account"}:
+        return text
+    if isinstance(text, str) and _PUBLIC_ACCOUNT_REF_RE.fullmatch(text):
         return text
     digest = hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
     return f"staging-account-{digest}"
