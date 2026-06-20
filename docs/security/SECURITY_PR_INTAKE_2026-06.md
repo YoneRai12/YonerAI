@@ -99,3 +99,9 @@ the current security intake branch instead of merging several stale PR branches:
 | #559 merged review | Manual --poll-request-id could report linked browser state without a CLI bearer session while returning ok: true because failure was gated on wait_linked. | P2/security/correctness | Fixed in follow-up branch by propagating linked-without-CLI-session metadata from manual polls and failing closed as staging_cli_session_unavailable. |
 | #559 merged review | Empty/non-empty opaque session candidate mismatch, placeholder origin schema mismatch, and session handler argument order comments remained unresolved. | valid-but-already-fixed | Current main already contains the fixes and regression coverage; threads will be resolved with evidence. |
 | #560 merged review | Local LLM display readability comments remained unresolved after merge. | valid-but-already-fixed | Current main contains the requested mapping/conditional-expression cleanup and tests; threads will be resolved with evidence. |
+
+## 2026-06-20 Aardvark Staging Poll Token-Return Finding
+
+| Source | Finding | Severity | Current disposition |
+| --- | --- | --- | --- |
+| Aardvark on `741a885` / PR #561 | Staging CLI poll sanitizer accepted nested `session.token_returned=true` when an allowed opaque staging session field was present, which could mask an upstream token-return contract violation and expose unsafe scalar metadata. | low/security/privacy | Fixed in this branch by rejecting any nested `session.token_returned=true` before safe poll metadata is emitted, with regression coverage for the opaque-claim bypass shape. |

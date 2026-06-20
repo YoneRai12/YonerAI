@@ -232,3 +232,14 @@ Checked in this checkpoint:
 | --- | --- | --- | --- | --- |
 | #564 Gemini quota comment | stale / non-actionable | The only initial PR comment is a Gemini quota warning, not a code or security finding | `review-intake-required` failed closed until classification; product checks pending | Apply `intake-reviewed` after classification and reread comments/checks after CI and before merge. |
 | #564 implementation | valid-now | Codex P2 review on the initial PR commit correctly noted the post-merge follow-up entry still said pending validation | Local `git diff --check` and `ci_quality_scans.py --changed` passed; checkpoint now records completed local validation explicitly | Keep PR scoped to sanitizing merged PR #563 public checkpoint wording and recording completed validation evidence. |
+
+## 2026-06-20 Aardvark Staging Poll Token-Return Follow-up
+
+- last_scan_at: 2026-06-20T00:00:00Z
+- current_branch: work
+- source: Aardvark finding on commit `741a885`
+- classification: valid-now
+- review/comment state: Aardvark reported that nested `session.token_returned=true` could pass when an opaque staging session claim/token was also present.
+- CI state: local targeted regression, ruff, compileall, and diff checks run on this branch.
+- decision: fail closed on any nested `session.token_returned=true`, while still allowing opaque staging session metadata when `token_returned` is false.
+- boundary: Public CLI staging-auth sanitizer only; no live Discord, production deploy, private endpoint, provider token, or runtime secret touched.

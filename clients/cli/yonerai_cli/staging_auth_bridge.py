@@ -301,7 +301,7 @@ def _safe_poll_report(safe_request_id: str, body: Mapping[str, object]) -> dict[
     linked = bool(body.get("linked")) or status in {"linked", "completed", "complete"}
     session_token = _session_token_from_body(body)
     session_source = body.get("session") if isinstance(body.get("session"), Mapping) else {}
-    if session_source.get("token_returned") is True and not session_token:
+    if session_source.get("token_returned") is True:
         raise StagingAuthBridgeError("staging_bridge_token_return_forbidden", "Staging CLI bridge attempted to return tokens.")
     cli_session_available = bool(session_token)
     account_source = body.get("account") or body.get("identity") or body.get("profile")
