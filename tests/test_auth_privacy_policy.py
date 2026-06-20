@@ -636,6 +636,56 @@ def test_google_login_staging_accepts_nested_opaque_session_claim(tmp_path: Path
     assert str(tmp_path) not in serialized
 
 
+def test_staging_bridge_rejects_sensitive_session_metadata_values(tmp_path: Path, monkeypatch) -> None:
+    from yonerai_cli.auth_policy import build_google_login_staging
+
+    sensitive_values = (
+        "access_token=leakmarker",
+        "C:\\USERS\\Owner\\secret.txt",
+        "http://10.0.0.5/runbook",
+        "bad\nmetadata",
+    )
+
+    for index, value in enumerate(sensitive_values):
+        field = ("type", "token_field", "expires_at", "type")[index]
+
+        def transport(method: str, url: str, body: object, timeout: float) -> tuple[int, dict[str, object]]:
+            assert method == "GET"
+            session = {
+                "type": "yonerai_staging",
+                "token_field": "staging_session_token",
+                "staging_session_token": "ystg_cli_secret_placeholder",
+                "token_returned": False,
+                "bearer_authorization_supported": True,
+            }
+            session[field] = value
+            return (
+                200,
+                {
+                    "status": "linked",
+                    "request_id": "cli_fixture_request",
+                    "session": session,
+                    "google_token_returned": False,
+                    "refresh_token_returned": False,
+                    "auth_code_returned": False,
+                },
+            )
+
+        monkeypatch.setenv("YONERAI_CLI_CONFIG_PATH", str(tmp_path / "cli-config.json"))
+        monkeypatch.setenv("YONERAI_STAGING_AUTH_ORIGIN", "https://api-staging.yonerai.com")
+
+        report = build_google_login_staging(poll_request_id="cli_fixture_request", transport=transport)
+        serialized = json.dumps(report, sort_keys=True)
+
+        assert report["ok"] is False
+        assert str(report["error"]["code"]).startswith("staging_bridge_session_")
+        assert "leakmarker" not in serialized
+        assert "C:\\USERS" not in serialized
+        assert "10.0.0.5" not in serialized
+        assert "ystg_cli_secret_placeholder" not in serialized
+        assert str(tmp_path) not in serialized
+
+
 def test_google_login_staging_rejects_mismatched_session_token_fields(tmp_path: Path, monkeypatch) -> None:
     from yonerai_cli.auth_policy import build_google_login_staging
 

@@ -48,6 +48,7 @@ _FORBIDDEN_PUBLIC_SCALAR_VALUE_RE = re.compile(
     r"staging[_-]session[_-](?:token|claim)"
     r"|google[_-]access[_-]token"
     r"|google[_-]id[_-]token"
+    r"|provider[_-]token"
     r"|session[_-]token"
     r"|access[_-]token"
     r"|id[_-]token"
@@ -56,11 +57,16 @@ _FORBIDDEN_PUBLIC_SCALAR_VALUE_RE = re.compile(
     r"|auth[_-]code"
     r"|client[_-]secret"
     r"|api[_-]key"
+    r"|secret[_-]key"
     r")['\"]?\s*[:=]"
 )
+_TOKEN_MARKER_VALUE_RE = _FORBIDDEN_PUBLIC_SCALAR_VALUE_RE
 _LOCAL_PATH_VALUE_RE = re.compile(
     r"([A-Za-z]:[/\\]|\\\\|/Users/|/home/|/root/|/tmp/|/var/|/workspace/|/workspaces/)",
     re.IGNORECASE,
+)
+_PRIVATE_ENDPOINT_VALUE_RE = re.compile(
+    r"(?i)https?://(?:localhost\b|127\.|10\.|192\.168\.|169\.254\.|172\.(?:1[6-9]|2[0-9]|3[0-1])\.|\[::1\]|\[f[cd][0-9a-f:]*\])"
 )
 
 JsonTransport = Callable[[str, str, Mapping[str, object] | None, float], tuple[int, Mapping[str, object]]]
@@ -384,14 +390,14 @@ def _safe_session_metadata(session: Mapping[str, object]) -> dict[str, object]:
             "browser_cookie_session_present": False,
         }
     return {
-        "type": _safe_optional_public_scalar(session.get("type"), "session_type"),
+        "type": _safe_public_metadata_scalar(session.get("type"), "session_type"),
         "token_returned": False,
-        "token_field": _safe_optional_public_scalar(session.get("token_field"), "session_token_field"),
+        "token_field": _safe_public_metadata_scalar(session.get("token_field"), "session_token_field"),
         "opaque_session_available": isinstance(session.get("staging_session_token"), str)
         or isinstance(session.get("staging_session_claim"), str),
         "bearer_authorization_supported": bool(session.get("bearer_authorization_supported", False)),
         "browser_cookie_session_present": bool(session.get("cookie_name")),
-        "expires_at": _safe_optional_public_scalar(session.get("expires_at"), "session_expires_at"),
+        "expires_at": _safe_public_metadata_scalar(session.get("expires_at"), "session_expires_at"),
     }
 
 
@@ -551,6 +557,24 @@ def _safe_optional_public_scalar(value: object, field_name: str) -> object:
         f"staging_bridge_{field_name}_invalid",
         "Staging CLI bridge returned an invalid public field.",
     )
+
+
+def _safe_public_metadata_scalar(value: object, field_name: str) -> object:
+    safe_value = _safe_optional_public_scalar(value, field_name)
+    if not isinstance(safe_value, str):
+        return safe_value
+    text = safe_value.strip()
+    if (
+        any(ord(char) < 32 or ord(char) == 127 for char in text)
+        or _TOKEN_MARKER_VALUE_RE.search(text)
+        or _LOCAL_PATH_VALUE_RE.search(text)
+        or _PRIVATE_ENDPOINT_VALUE_RE.search(text)
+    ):
+        raise StagingAuthBridgeError(
+            f"staging_bridge_{field_name}_invalid",
+            "Staging CLI bridge returned unsafe public metadata.",
+        )
+    return text
 
 
 def _safe_poll_url(origin: str, value: object, request_id: str) -> str:
