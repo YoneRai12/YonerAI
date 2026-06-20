@@ -2038,3 +2038,45 @@ def test_auto_runtime_records_shared_traffic_disabled_in_report_and_ledger() -> 
     assert report["shared_traffic"]["private_content_excluded"] is True
     assert "shared_traffic_policy" in event_names
     assert report["boundaries"]["provider_key_output"] is False
+
+def test_google_login_staging_manual_poll_fails_when_linked_without_cli_session(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from yonerai_cli.auth_policy import build_google_login_staging
+
+    def transport(method: str, url: str, body: object, timeout: float) -> tuple[int, dict[str, object]]:
+        assert method == "GET"
+        assert url.endswith("/auth/cli/poll/cli_fixture_request")
+        return (
+            200,
+            {
+                "status": "linked",
+                "linked": True,
+                "request_id": "cli_fixture_request",
+                "session": {
+                    "token_returned": False,
+                    "bearer_authorization_supported": True,
+                    "browser_cookie_session_present": True,
+                },
+                "google_token_returned": False,
+                "refresh_token_returned": False,
+            },
+        )
+
+    monkeypatch.setenv("YONERAI_CLI_CONFIG_PATH", str(tmp_path / "cli-config.json"))
+    monkeypatch.setenv("YONERAI_STAGING_AUTH_ORIGIN", "https://api-staging.yonerai.com")
+
+    report = build_google_login_staging(poll_request_id="cli_fixture_request", transport=transport)
+    serialized = json.dumps(report, sort_keys=True)
+
+    assert report["ok"] is False
+    assert report["error"]["code"] == "staging_cli_session_unavailable"
+    assert report["cli_bridge"]["linked_without_cli_session"] is True
+    assert report["cli_bridge"]["linked_without_session_claim"] is True
+    assert report["cli_bridge"]["poll"]["session"]["token_returned"] is False
+    assert report["staging_linked"] is False
+    assert report["staging_linked_claim"] is None
+    assert report["staging_session_token_stored"] is False
+    assert "Traceback" not in serialized
+    assert str(tmp_path) not in serialized

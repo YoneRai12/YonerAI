@@ -166,3 +166,13 @@ Validation for this checkpoint:
 | --- | --- | --- | --- | --- |
 | #561 Codex usage-limit comment | stale / non-actionable | The only initial PR comment is a Codex usage-limit notice, not a code finding | `review-intake-required` failed closed until classification | Applied `intake-reviewed` after classification; continue to read new review/comments after each push and before merge. |
 | #561 implementation | valid-now | No inline review thread at creation scan | Local tests and scans passed; GitHub product checks pending | Keep PR scoped to accepting only AWS-issued opaque YonerAI staging session fields while preserving forbidden token scans. |
+## 2026-06-20 PR #559 Merged Review Follow-up
+
+- last_scan_at: 2026-06-20T09:49:13+09:00
+- current_main_head: 741a885f
+- branch: codex/fix-intake-gate-least-privilege-20260620
+- classification: valid-now merged PR review follow-up
+- review/comment state: PR #559 retained unresolved merged review threads; three were already fixed on current main, and one P2 manual poll linked-without-CLI-session failure remained valid.
+- CI state: local targeted validation runs on this branch before PR creation.
+- decision: fail manual --poll-request-id responses that report linked browser state without an opaque YonerAI CLI session, even when wait_linked is false; resolve already-fixed PR #559/#560 threads with evidence.
+- lane boundary: Public auth/session safety follow-up only; no production deploy, no Web chat, no Firestore listener, no provider consent/control, no quota mutation, no approval control.
