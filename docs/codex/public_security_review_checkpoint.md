@@ -217,7 +217,7 @@ Checked in this checkpoint:
 - branch: codex/sanitize-pr563-runtime-provenance
 - classification: valid-now P1 merged PR review follow-up
 - review/comment state: Codex review on merged PR #563 flagged private-runtime provenance and live-state wording in the public checkpoint.
-- CI state: follow-up branch pending validation.
+- CI state: local `git diff --check` and `python scripts\ci_quality_scans.py --changed` passed before opening PR #564; PR #564 CI is tracked separately below.
 - decision: sanitize public checkpoint language to contract-level evidence and public CLI smoke summaries only; avoid private runtime provenance and live environment internals.
 
 ## 2026-06-20 PR #564 Intake Update
@@ -231,4 +231,4 @@ Checked in this checkpoint:
 | PR / issue / notice | classification | review/comment state | CI / evidence state | decision |
 | --- | --- | --- | --- | --- |
 | #564 Gemini quota comment | stale / non-actionable | The only initial PR comment is a Gemini quota warning, not a code or security finding | `review-intake-required` failed closed until classification; product checks pending | Apply `intake-reviewed` after classification and reread comments/checks after CI and before merge. |
-| #564 implementation | valid-now | No inline review thread at creation scan | Local `git diff --check` and `ci_quality_scans.py --changed` passed | Keep PR scoped to sanitizing merged PR #563 public checkpoint wording and issue-comment wording. |
+| #564 implementation | valid-now | Codex P2 review on the initial PR commit correctly noted the post-merge follow-up entry still said pending validation | Local `git diff --check` and `ci_quality_scans.py --changed` passed; checkpoint now records completed local validation explicitly | Keep PR scoped to sanitizing merged PR #563 public checkpoint wording and recording completed validation evidence. |
