@@ -469,3 +469,173 @@ def test_listener_poll_cli_rejects_unapproved_source_path(tmp_path: Path, monkey
     assert report["operation"] == "realtime_sync_listener_poll"
     assert report["error"]["code"] == "sync_event_source_not_allowed"
     assert str(tmp_path) not in output
+
+
+def _firebase_token_payload(account_id: object, **overrides: object) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "contract_version": "yonerai.official.api.v1.skeleton",
+        "firebase_auth_contract_version": "yonerai.firebase.custom_token.v1",
+        "token_type": "firebase_custom_token",
+        "firebase_custom_token": "firebase_custom_token_fixture_value",
+        "expires_at": "2026-06-20T12:00:00Z",
+        "expires_in_seconds": 900,
+        "uid": account_id,
+        "account_id": account_id,
+        "claims": {"yonerai_staging": True},
+        "firestore": {
+            "project_id": "yonerai-platform-stg-2026",
+            "database_id": "(default)",
+            "sync_enabled": False,
+            "sync_event_path_template": "/accounts/{account_id}/sync_events/{event_id}",
+        },
+        "google_token_returned": False,
+        "refresh_token_returned": False,
+        "auth_code_returned": False,
+        "provider_key_returned": False,
+        "production_login": False,
+    }
+    payload.update(overrides)
+    return payload
+
+
+def test_firebase_token_bridge_accepts_safe_contract_without_printing_token(tmp_path: Path) -> None:
+    from yonerai_cli.services.realtime_sync_client_service import build_realtime_sync_firebase_token_report
+
+    config_path, claim = _save_session(tmp_path)
+    calls: list[tuple[str, str, Mapping[str, object] | None]] = []
+
+    def transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        calls.append((method, url, body))
+        assert method == "POST"
+        assert url == f"{ORIGIN}/v1/sync/firebase-token"
+        assert headers["Authorization"].startswith("Bearer ")
+        assert body == {"purpose": "realtime_sync_metadata_read"}
+        return 200, _firebase_token_payload(claim["account_id"]), RATE_HEADERS
+
+    report = build_realtime_sync_firebase_token_report(
+        env={"YONERAI_STAGING_AUTH_ORIGIN": ORIGIN},
+        config_path=str(config_path),
+        transport=transport,
+    )
+    serialized = json.dumps(report, sort_keys=True)
+
+    assert report["ok"] is True
+    assert report["operation"] == "realtime_sync_firebase_token"
+    assert report["firebase_custom_token_received"] is True
+    assert report["firebase_custom_token_printed"] is False
+    assert report["firebase_custom_token_persisted"] is False
+    assert report["firebase_uid_matches_account"] is True
+    assert report["firestore_sync_enabled"] is False
+    assert report["firestore_sync_event_path_template"] == "/accounts/{account_id}/sync_events/{event_id}"
+    assert report["firestore_account_data_binding_required"] is True
+    assert report["live_web_to_cli_e2e_proven"] is False
+    assert "firebase_custom_token_fixture_value" not in serialized
+    assert "ystg_fixture_session_1234567890" not in serialized
+    assert str(tmp_path) not in serialized
+    assert calls == [("POST", f"{ORIGIN}/v1/sync/firebase-token", {"purpose": "realtime_sync_metadata_read"})]
+
+
+def test_firebase_token_bridge_rejects_private_token_fields(tmp_path: Path) -> None:
+    from yonerai_cli.services.realtime_sync_client_service import build_realtime_sync_firebase_token_report
+
+    config_path, claim = _save_session(tmp_path)
+
+    def transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        payload = _firebase_token_payload(claim["account_id"], google_access_token="must-not-return")
+        return 200, payload, RATE_HEADERS
+
+    report = build_realtime_sync_firebase_token_report(
+        env={"YONERAI_STAGING_AUTH_ORIGIN": ORIGIN},
+        config_path=str(config_path),
+        transport=transport,
+    )
+    serialized = json.dumps(report, sort_keys=True)
+
+    assert report["ok"] is False
+    assert report["error"]["code"] == "firebase_token_private_payload_rejected"
+    assert "must-not-return" not in serialized
+    assert str(tmp_path) not in serialized
+
+
+def test_firebase_token_bridge_rejects_account_mismatch(tmp_path: Path) -> None:
+    from yonerai_cli.services.realtime_sync_client_service import build_realtime_sync_firebase_token_report
+
+    config_path, _claim = _save_session(tmp_path)
+
+    def transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        return 200, _firebase_token_payload("different-account"), RATE_HEADERS
+
+    report = build_realtime_sync_firebase_token_report(
+        env={"YONERAI_STAGING_AUTH_ORIGIN": ORIGIN},
+        config_path=str(config_path),
+        transport=transport,
+    )
+
+    assert report["ok"] is False
+    assert report["error"]["code"] == "firebase_token_account_mismatch"
+
+
+def test_firebase_token_bridge_rejects_enabled_sync_before_e2e(tmp_path: Path) -> None:
+    from yonerai_cli.services.realtime_sync_client_service import build_realtime_sync_firebase_token_report
+
+    config_path, claim = _save_session(tmp_path)
+    payload = _firebase_token_payload(claim["account_id"])
+    firestore = dict(payload["firestore"])  # type: ignore[arg-type]
+    firestore["sync_enabled"] = True
+    payload["firestore"] = firestore
+
+    def transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        return 200, payload, RATE_HEADERS
+
+    report = build_realtime_sync_firebase_token_report(
+        env={"YONERAI_STAGING_AUTH_ORIGIN": ORIGIN},
+        config_path=str(config_path),
+        transport=transport,
+    )
+
+    assert report["ok"] is False
+    assert report["error"]["code"] == "firebase_token_sync_flag_invalid"
+
+
+def test_firebase_token_cli_missing_origin_is_controlled(tmp_path: Path, monkeypatch, capsys) -> None:
+    from yonerai_cli import cli
+
+    config_path = tmp_path / "cli-config.json"
+    config_path.write_text("{}\n", encoding="utf-8")
+    monkeypatch.setenv("YONERAI_CLI_CONFIG_PATH", str(config_path))
+    monkeypatch.delenv("YONERAI_STAGING_AUTH_ORIGIN", raising=False)
+
+    rc = cli.main(["sync", "listener", "firebase-token", "--json"])
+    output = capsys.readouterr().out
+    report = json.loads(output)
+
+    assert rc == 1
+    assert report["operation"] == "realtime_sync_firebase_token"
+    assert report["error"]["code"] == "staging_origin_not_configured"
+    assert "Authorization" not in output
+    assert "ystg_fixture_session_1234567890" not in output
+    assert str(tmp_path) not in output

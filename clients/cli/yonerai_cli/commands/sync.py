@@ -22,6 +22,7 @@ from yonerai_cli.services.realtime_sync_event_service import (
     build_realtime_sync_event_validation_report,
 )
 from yonerai_cli.services.realtime_sync_client_service import (
+    build_realtime_sync_firebase_token_report,
     build_realtime_sync_listener_fixture_report,
     build_realtime_sync_listener_once_report,
     build_realtime_sync_listener_poll_report,
@@ -263,6 +264,18 @@ def add_sync_parser(
         color_choices=color_choices,
         pretty_help="Print readable realtime sync listener poll result.",
     )
+    listener_firebase = listener_subcommands.add_parser(
+        "firebase-token",
+        help="Validate the staging Firebase custom-token bridge for Firestore metadata reads.",
+    )
+    listener_firebase.add_argument("--config-path", help="Optional local CLI config path.")
+    listener_firebase.add_argument("--timeout-seconds", type=float, default=10.0, help="Staging API timeout. Default: 10.")
+    _add_output_and_locale(
+        listener_firebase,
+        lang_choices=lang_choices,
+        color_choices=color_choices,
+        pretty_help="Print readable Firebase read-auth bridge status.",
+    )
 
     api_contract = sync_subcommands.add_parser("api-contract", help="Show official API fixture contract.")
     _add_output_and_locale(
@@ -429,6 +442,13 @@ def build_sync_report(args: argparse.Namespace, *, prepare_import_paths: Callabl
                 source_path=str(getattr(args, "source_path", "/v1/conversations/events") or "/v1/conversations/events"),
                 limit=int(getattr(args, "limit", 10)),
             )
+        if args.sync_command == "listener" and args.sync_listener_command == "firebase-token":
+            return build_realtime_sync_firebase_token_report(
+                config=_load_config(args),
+                env=os.environ,
+                config_path=getattr(args, "config_path", None),
+                timeout_seconds=float(getattr(args, "timeout_seconds", 10.0)),
+            )
         if args.sync_command == "api-contract":
             return builders()["api"]()
         if args.sync_command == "rate-limit":
@@ -556,6 +576,22 @@ def format_sync_pretty_v2(report: dict[str, Any], *, lang: str = "ja", color: Co
         "feed_has_more",
         "metadata_event_to_aws_body_fetch_completed",
         "live_web_to_cli_e2e_proven",
+        "firebase_token_endpoint",
+        "firebase_auth_contract_version",
+        "firebase_custom_token_received",
+        "firebase_custom_token_printed",
+        "firebase_custom_token_persisted",
+        "firebase_token_type",
+        "firebase_uid_matches_account",
+        "firebase_account_id_matches_session",
+        "firebase_expires_at",
+        "firebase_expires_in_seconds",
+        "firebase_claims_yonerai_staging",
+        "firestore_project_id",
+        "firestore_database_id",
+        "firestore_sync_enabled",
+        "firestore_sync_event_path_template",
+        "firestore_account_data_binding_required",
         "client_policy_write_performed",
         "client_approval_write_performed",
         "cursor_saved",

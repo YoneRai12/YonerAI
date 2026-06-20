@@ -198,6 +198,39 @@ If the CLI session is expired, revoked, schema-mismatched, origin-mismatched, or
 missing, the CLI must show a controlled login/repair message and avoid body
 fetch.
 
+## Firebase Read-Auth Bridge
+
+Status: pending Public/YonerAIWEB ACK and live staging endpoint proof.
+
+The Firestore SDK listener needs a read-auth bridge because the CLI must not use
+Google tokens directly and must not store Google or refresh tokens. The proposed
+staging bridge is:
+
+- `POST /v1/sync/firebase-token`
+- authenticated only by the AWS-issued opaque YonerAI staging session
+- returns a short-lived Firebase custom token for Firestore metadata reads
+- does not return Google access tokens, Google ID tokens, refresh tokens,
+  OAuth auth codes, provider keys, or production login state
+
+Accepted response metadata:
+
+- `firebase_auth_contract_version=yonerai.firebase.custom_token.v1`
+- `token_type=firebase_custom_token`
+- `uid` and `account_id` equal the opaque YonerAI account id
+- `expires_in_seconds` is positive and no more than 900
+- `firestore.sync_enabled=false` until live Web-to-CLI E2E is proven and the
+  owner explicitly flips the staging flag
+- `firestore.sync_event_path_template=/accounts/{account_id}/sync_events/{event_id}`
+
+Public CLI reporting rules:
+
+- may report that a Firebase custom token was received
+- must not print or persist the Firebase custom token value
+- must fail closed if the account binding, path template, boundary flags, or
+  expiry are invalid
+- must fail closed if the response contains Google/provider/token/private path
+  material outside the explicit false boundary flags
+
 ## Security Fixtures
 
 The canonical shared golden fixture bytes live at:
