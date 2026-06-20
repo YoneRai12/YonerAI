@@ -135,15 +135,15 @@ Checked in this checkpoint:
 
 - PR #560 reviews/comments/checks after final push and squash merge.
 - Open PR list after #560 merge.
-- Private AWS public-safe notice that `/auth/cli/poll/{request_id}` now exposes an opaque YonerAI staging session contract.
-- Live staging safe-smoke for `/v1/health`, `/v1/status`, `/v1/capabilities`, `/v1/modules`, `whoami`, and Native Run submit/status/events/result/cancel.
+- Public-safe staging auth contract notice for the opaque CLI session shape.
+- Public CLI smoke summaries for auth/session and Native Run account-auth command surfaces, with private runtime details omitted.
 
 | PR / issue / notice | classification | review/comment state | CI / evidence state | decision |
 | --- | --- | --- | --- | --- |
 | #560 | valid-but-already-fixed | Gemini flagged two readability cleanups; both were fixed before merge and inline comments were answered | Product checks passed; review-intake was classified with `intake-reviewed`; squash merge produced `b5dd674` | Complete. |
-| AWS opaque session notice | valid-now | AWS reports CLI poll can return opaque YonerAI staging session material; no Google token, refresh token, auth code, or provider key is part of the contract | Initial Public sanitizer rejected allowed nested opaque session metadata when `session.token_returned=true` | Current branch allows only `session.staging_session_token` or `session.staging_session_claim` as opaque YonerAI session fields and continues forbidden-token scanning for all other response fields. |
-| Live staging auth | valid-now | Browser login and poll completed through `api-staging.yonerai.com` | `whoami` now returns linked status through the staging API using the saved opaque YonerAI session | Auth mismatch root cause is closed on this branch, subject to PR/CI. |
-| Live staging Native Run | owner-only-blocker for worker completion | Account-auth `run.echo` submit/status/events/result/cancel works; capabilities/modules return 200 | Submitted run remained queued because live worker heartbeat was stale/offline, then was canceled | Public CLI can prove API/session path, but full worker-completed E2E still requires owner worker heartbeat/claim loop online. No release until worker completion is proven. |
+| Opaque session contract notice | valid-now | Staging auth contract permits only an opaque YonerAI CLI session; no Google token, refresh token, auth code, or provider key is part of the contract | Initial Public sanitizer rejected allowed nested opaque session metadata when `session.token_returned=true` | Current branch allows only `session.staging_session_token` or `session.staging_session_claim` as opaque YonerAI session fields and continues forbidden-token scanning for all other response fields. |
+| Public auth command smoke | valid-now | Browser-login CLI flow completed against the public staging contract without printing credential material | Authenticated account status command returned linked state through the public CLI | Auth mismatch root cause is closed on this branch, subject to PR/CI. |
+| Native Run account-auth command smoke | deferred-with-existing-release-evidence | Account-auth Native Run command surfaces returned controlled staging responses | Worker-completed regression is a separate smoke and not a realtime-sync contract prerequisite | Public CLI can prove API/session command behavior, but worker health must remain honestly reported. Do not recreate a release for this checkpoint. |
 | #552 sync proposal | deferred-with-tracked-issue | AWS ACK is recorded; YonerAIWEB ACK is still missing | Not a CI surface | Do not send `[SYNC-CONTRACT-ACCEPTED]` yet. |
 
 Validation for this checkpoint:
@@ -188,14 +188,14 @@ Validation for this checkpoint:
 Checked in this checkpoint:
 
 - PR #562 state, comments, inline review comments, checks, and merge result before starting this bounded follow-up.
-- Private AWS `[PR-IMPACT-NOTICE]` requiring Public CLI to use returned `poll_url` exactly because `/auth/cli/poll/{request_id}` now requires a CLI-only `poll_verifier` query parameter.
+- Public-safe auth contract notice requiring Public CLI to use the returned `poll_url` exactly because poll authorization is now bound to a CLI-only verifier.
 - Current `staging_auth_bridge.py` behavior, which reconstructed the poll URL from `request_id` before this patch.
 
 | PR / issue / notice | classification | review/comment state | CI / evidence state | decision |
 | --- | --- | --- | --- | --- |
 | #562 | valid-now / completed | No inline review comments; Gemini comment was quota-only and non-actionable | Required checks passed; squash merged as `170e949` | Completed bounded P2 auth safety follow-up before this patch. |
-| AWS poll verifier notice | valid-now security contract change | AWS now requires `poll_url` exact-use with `poll_verifier`; browser URL must not carry the verifier | Local regression tests added and pass; live staging login verifies `poll_url_received=true`, `poll_verifier_received=true`, `poll_verifier_printed=false`, linked auth, and no token printing | Current branch patches Public CLI to use returned `poll_url` internally, sanitize it from public reports, and reject wrong origin, sensitive query params, browser verifier leakage, or unexpected poll query fields. |
-| Native Run worker completion | deferred-with-existing-release-evidence | Manager correction says v0.22.0-alpha.1 already exists and Windows worker completion is a parallel regression smoke, not a prerequisite for realtime_sync.v1 | Current live submit/status/events/result works account-auth but worker status remains queued/offline in this smoke | Do not recreate release or block sync acceptance on worker completion; keep worker status honest. |
+| Poll verifier contract notice | valid-now security contract change | Poll authorization now requires exact `poll_url` use; browser URL must not carry the verifier | Local regression tests added and pass; Public CLI smoke confirmed the verifier is consumed internally and not printed | Current branch patches Public CLI to use returned `poll_url` internally, sanitize it from public reports, and reject wrong origin, sensitive query params, browser verifier leakage, or unexpected poll query fields. |
+| Native Run worker completion | deferred-with-existing-release-evidence | Manager correction says v0.22.0-alpha.1 already exists and Windows worker completion is a parallel regression smoke, not a prerequisite for realtime_sync.v1 | Current Public CLI account-auth command smoke returned controlled staging responses; worker health remains a separate runtime signal | Do not recreate release or block sync acceptance on worker completion; keep worker status honest. |
 
 ## 2026-06-20 PR #563 Intake Update
 
@@ -208,4 +208,14 @@ Checked in this checkpoint:
 | PR / issue / notice | classification | review/comment state | CI / evidence state | decision |
 | --- | --- | --- | --- | --- |
 | #563 Gemini quota comment | stale / non-actionable | The only initial PR comment is a Gemini quota warning, not a code or security finding | `review-intake-required` failed closed until classification; product checks pending | Apply `intake-reviewed` after classification and reread comments/checks after CI and before merge. |
-| #563 implementation | valid-now | No inline review thread at creation scan | Local auth/control-spine/native-run/provider tests passed; live staging login confirmed exact `poll_url` use without verifier/token printing | Keep PR scoped to AWS poll verifier contract patch. |
+| #563 implementation | valid-now | No inline review thread at creation scan | Local auth/control-spine/native-run/provider tests passed; Public CLI smoke confirmed exact `poll_url` use without verifier/token printing | Keep PR scoped to poll-verifier contract patch. |
+
+## 2026-06-20 PR #563 Post-Merge Review Follow-up
+
+- last_scan_at: 2026-06-20T10:56:00+09:00
+- current_main_head: 73fa7b5
+- branch: codex/sanitize-pr563-runtime-provenance
+- classification: valid-now P1 merged PR review follow-up
+- review/comment state: Codex review on merged PR #563 flagged private-runtime provenance and live-state wording in the public checkpoint.
+- CI state: follow-up branch pending validation.
+- decision: sanitize public checkpoint language to contract-level evidence and public CLI smoke summaries only; avoid private runtime provenance and live environment internals.
