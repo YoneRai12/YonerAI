@@ -22,6 +22,7 @@ from yonerai_cli.services.realtime_sync_event_service import (
     build_realtime_sync_event_validation_report,
 )
 from yonerai_cli.services.realtime_sync_client_service import (
+    build_realtime_sync_firestore_poll_report,
     build_realtime_sync_firebase_token_report,
     build_realtime_sync_listener_readiness_report,
     build_realtime_sync_listener_fixture_report,
@@ -265,6 +266,20 @@ def add_sync_parser(
         color_choices=color_choices,
         pretty_help="Print readable realtime sync listener poll result.",
     )
+    listener_firestore = listener_subcommands.add_parser(
+        "firestore-poll",
+        help="Poll Firestore body-free SyncEvents, then fetch message bodies only from AWS.",
+    )
+    listener_firestore.add_argument("--config-path", help="Optional local CLI config path.")
+    listener_firestore.add_argument("--state", help="Optional local cursor state path.")
+    listener_firestore.add_argument("--timeout-seconds", type=float, default=10.0, help="Staging API timeout. Default: 10.")
+    listener_firestore.add_argument("--limit", type=int, default=10, help="Maximum events to request. Default: 10.")
+    _add_output_and_locale(
+        listener_firestore,
+        lang_choices=lang_choices,
+        color_choices=color_choices,
+        pretty_help="Print readable Firestore realtime sync listener result.",
+    )
     listener_firebase = listener_subcommands.add_parser(
         "firebase-token",
         help="Validate the staging Firebase custom-token bridge for Firestore metadata reads.",
@@ -453,6 +468,15 @@ def build_sync_report(args: argparse.Namespace, *, prepare_import_paths: Callabl
                 state_path=getattr(args, "state", None),
                 timeout_seconds=float(getattr(args, "timeout_seconds", 10.0)),
                 source_path=str(getattr(args, "source_path", "/v1/conversations/events") or "/v1/conversations/events"),
+                limit=int(getattr(args, "limit", 10)),
+            )
+        if args.sync_command == "listener" and args.sync_listener_command == "firestore-poll":
+            return build_realtime_sync_firestore_poll_report(
+                config=_load_config(args),
+                env=os.environ,
+                config_path=getattr(args, "config_path", None),
+                state_path=getattr(args, "state", None),
+                timeout_seconds=float(getattr(args, "timeout_seconds", 10.0)),
                 limit=int(getattr(args, "limit", 10)),
             )
         if args.sync_command == "listener" and args.sync_listener_command == "firebase-token":

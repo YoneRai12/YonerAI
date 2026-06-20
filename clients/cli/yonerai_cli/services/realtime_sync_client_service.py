@@ -8,7 +8,7 @@ import re
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 
 from yonerai_cli.config import default_config_path
 from yonerai_cli.services.realtime_sync_event_service import (
@@ -34,10 +34,13 @@ FIREBASE_TOKEN_PATH = "/v1/sync/firebase-token"
 FIREBASE_AUTH_CONTRACT_VERSION = "yonerai.firebase.custom_token.v1"
 FIRESTORE_SYNC_EVENT_PATH_TEMPLATE = "/accounts/{account_id}/sync_events/{event_id}"
 FIREBASE_CLIENT_API_KEY_ENV = "YONERAI_FIREBASE_CLIENT_API_KEY"
+IDENTITY_TOOLKIT_SIGN_IN_ORIGIN = "https://identitytoolkit.googleapis.com"
+FIRESTORE_REST_ORIGIN = "https://firestore.googleapis.com"
 READINESS_NON_BLOCKING_ERROR_CODES = {
     "staging_origin_not_configured",
     "staging_auth_required",
     "staging_session_required",
+    "staging_sync_unreachable",
     "firebase_token_request_failed",
 }
 FORBIDDEN_BODY_MARKERS = (
@@ -358,6 +361,140 @@ def build_realtime_sync_listener_poll_report(
     return report
 
 
+def build_realtime_sync_firestore_poll_report(
+    *,
+    config: Mapping[str, object] | None = None,
+    env: Mapping[str, str | None] | None = None,
+    config_path: str | None = None,
+    state_path: str | Path | None = None,
+    transport: HeaderJsonTransport | None = None,
+    firebase_rest_transport: HeaderJsonTransport | None = None,
+    timeout_seconds: float = 10.0,
+    limit: int = 10,
+) -> dict[str, Any]:
+    context = _auth_context(config=config, env=env, claim_path=config_path)
+    report = _base_report(context)
+    report.update(
+        {
+            "operation": "realtime_sync_firestore_poll",
+            "listener_mode": "firestore_rest_metadata_poll",
+            "event_source_kind": "firestore_body_free_projection",
+            "firestore_sdk_connected": False,
+            "firestore_rest_connected": False,
+            "firestore_event_source_body_free": True,
+            "firebase_custom_token_received": False,
+            "firebase_custom_token_printed": False,
+            "firebase_custom_token_persisted": False,
+            "firebase_client_api_key_printed": False,
+            "firebase_id_token_printed": False,
+            "firebase_id_token_persisted": False,
+            "firebase_sign_in_secondary_material_persisted": False,
+            "events_received": 0,
+            "events_processed": 0,
+            "events_rejected": 0,
+            "messages": [],
+            "metadata_event_to_aws_body_fetch_completed": False,
+            "live_web_to_cli_e2e_proven": False,
+        }
+    )
+    if not context["origin_configured"]:
+        report["ok"] = False
+        report["error"] = _safe_error("staging_origin_not_configured", "Staging API origin is not configured.")
+        return report
+    if context["auth_state"] != "linked":
+        report["ok"] = False
+        report["error"] = _safe_error("staging_auth_required", "Staging login is required before Firestore sync receive.")
+        return report
+    if not context["staging_session_available"]:
+        report["ok"] = False
+        report["error"] = _safe_error(
+            "staging_session_required",
+            "A safe YonerAI staging session is required before Firestore sync receive.",
+        )
+        return report
+    try:
+        linked_account_id = _linked_account_id(context)
+        firebase_payload, firebase_headers = _request_firebase_token_payload(
+            context,
+            transport=transport,
+            timeout_seconds=timeout_seconds,
+        )
+        firebase_summary = _sanitize_firebase_token_payload(firebase_payload, linked_account_id=linked_account_id)
+    except RealtimeSyncClientError as exc:
+        report["ok"] = False
+        report["error"] = exc.to_safe_error()
+        return report
+    report.update(firebase_summary)
+    report["rate_limit_headers_present"] = _rate_limit_headers_present(firebase_headers)
+    report["firebase_custom_token_printed"] = False
+    report["firebase_custom_token_persisted"] = False
+    report["official_backend_called"] = True
+    if firebase_summary.get("firestore_sync_enabled") is not True:
+        report["ok"] = False
+        report["error"] = _safe_error(
+            "firestore_sync_disabled_until_live_e2e_and_owner_flip",
+            "Firestore realtime sync is still disabled by staging policy.",
+        )
+        return report
+    try:
+        client_sign_in_config = _firebase_client_api_key(env)
+        id_token, local_id = _exchange_firebase_custom_token(
+            str(firebase_payload["firebase_custom_token"]),
+            client_sign_in_config,
+            transport=firebase_rest_transport,
+            timeout_seconds=timeout_seconds,
+        )
+        account_id = _safe_message_text(firebase_payload.get("account_id"), fallback=None)
+        if not _account_binding_matches(str(account_id), local_id):
+            raise RealtimeSyncClientError("firebase_sign_in_account_mismatch", "Firebase sign-in account binding does not match.")
+        events = _read_firestore_sync_events(
+            id_token=id_token,
+            account_id=str(account_id),
+            project_id=str(firebase_summary["firestore_project_id"]),
+            database_id=str(firebase_summary["firestore_database_id"]),
+            limit=limit,
+            transport=firebase_rest_transport,
+            timeout_seconds=timeout_seconds,
+        )
+    except RealtimeSyncClientError as exc:
+        report["ok"] = False
+        report["error"] = exc.to_safe_error()
+        return report
+    report["firestore_rest_connected"] = True
+    report["events_received"] = len(events)
+    state_file = Path(state_path).expanduser() if state_path is not None else default_realtime_sync_state_path(config_path)
+    for event in events:
+        child = build_realtime_sync_listener_once_report(
+            event=event,
+            config=config,
+            env=env,
+            config_path=config_path,
+            state_path=state_file,
+            transport=transport,
+            timeout_seconds=timeout_seconds,
+        )
+        report.setdefault("event_results", []).append(_public_child_listener_result(child))
+        if not child.get("ok", False):
+            report["ok"] = False
+            report["events_rejected"] = int(report["events_rejected"]) + 1
+            report["error"] = child.get("error") if isinstance(child.get("error"), dict) else _safe_error(
+                "sync_event_rejected",
+                "Firestore SyncEvent was rejected.",
+            )
+            return report
+        report["events_processed"] = int(report["events_processed"]) + 1
+        message = child.get("message") if isinstance(child.get("message"), Mapping) else None
+        if message:
+            report["messages"].append(_public_message_result(message))
+    report["cursor_saved"] = bool(report["events_processed"])
+    report["body_received_from_aws"] = bool(report["messages"])
+    report["aws_body_fetch_performed"] = any(
+        isinstance(item, Mapping) and item.get("aws_body_fetch_performed") is True for item in report.get("event_results", [])
+    )
+    report["metadata_event_to_aws_body_fetch_completed"] = bool(report["messages"]) and bool(report["events_processed"])
+    return report
+
+
 def build_realtime_sync_firebase_token_report(
     *,
     config: Mapping[str, object] | None = None,
@@ -402,21 +539,12 @@ def build_realtime_sync_firebase_token_report(
         return report
     try:
         linked_account_id = _linked_account_id(context)
-    except RealtimeSyncClientError as exc:
-        report["ok"] = False
-        report["error"] = exc.to_safe_error()
-        return report
-    try:
-        status_code, payload, headers = _request_json(
-            "POST",
-            str(context["origin"]),
-            FIREBASE_TOKEN_PATH,
-            _auth_headers(context),
-            {"purpose": "realtime_sync_metadata_read"},
+        status_code, payload, headers = _request_firebase_token_raw(
+            context,
             transport=transport,
             timeout_seconds=timeout_seconds,
         )
-    except StagingSyncServiceError as exc:
+    except RealtimeSyncClientError as exc:
         report["ok"] = False
         report["error"] = exc.to_safe_error()
         return report
@@ -521,23 +649,18 @@ def build_realtime_sync_listener_readiness_report(
             report["next_blocker"] = "firestore_sync_disabled_until_live_e2e_and_owner_flip"
             report["required_next_actions"] = (
                 "keep YONERAI_FIRESTORE_SYNC_ENABLED=false until Web-to-CLI E2E is proven",
-                "implement Firestore SDK listener only after read-auth bridge and client config are live",
-            )
-        elif not report["firestore_sdk_dependency_available"]:
-            report["next_blocker"] = "public_firestore_sdk_dependency_missing"
-            report["required_next_actions"] = (
-                "add a reviewed Public CLI Firestore/Firebase client dependency before starting the SDK listener",
-                "keep metadata-only fallback and no Firestore body fallback until the dependency is validated",
+                "run the Firestore REST listener only after staging sync is enabled by the owner",
             )
         elif not report["firestore_client_sign_in_config_present"]:
             report["next_blocker"] = "firestore_client_sign_in_config_missing"
             report["required_next_actions"] = (
                 "coordinate the public-safe Firebase client sign-in exchange config with AWS/Web",
-                "do not treat firebase_custom_token alone as a complete Python Firestore listener session",
+                "do not print or persist Firebase custom tokens or ID tokens",
             )
         else:
             report["ready"] = True
-            report["firestore_sdk_listener_ready"] = True
+            report["firestore_sdk_listener_ready"] = False
+            report["firestore_rest_listener_ready"] = True
             report["next_blocker"] = None
             report["required_next_actions"] = ()
         return report
@@ -665,6 +788,211 @@ def _firestore_client_sign_in_config_present(env: Mapping[str, str | None] | Non
     if any(marker in lowered for marker in FORBIDDEN_BODY_MARKERS):
         return False
     return all(ord(char) >= 32 for char in value)
+
+
+def _firebase_client_api_key(env: Mapping[str, str | None] | None) -> str:
+    source = os.environ if env is None else env
+    value = str(source.get(FIREBASE_CLIENT_API_KEY_ENV) or "").strip()
+    if not value:
+        raise RealtimeSyncClientError("firestore_client_sign_in_config_missing", "Firebase client sign-in config is missing.")
+    lowered = value.lower()
+    if any(marker in lowered for marker in FORBIDDEN_BODY_MARKERS) or any(ord(char) < 32 for char in value):
+        raise RealtimeSyncClientError("firestore_client_sign_in_config_invalid", "Firebase client sign-in config is invalid.")
+    return value
+
+
+def _request_firebase_token_payload(
+    context: Mapping[str, Any],
+    *,
+    transport: HeaderJsonTransport | None,
+    timeout_seconds: float,
+) -> tuple[Mapping[str, object], Mapping[str, str]]:
+    status_code, payload, headers = _request_firebase_token_raw(context, transport=transport, timeout_seconds=timeout_seconds)
+    if status_code in {401, 403}:
+        raise RealtimeSyncClientError(
+            "staging_session_required",
+            "The saved YonerAI staging session was not accepted by the Firebase read-auth endpoint.",
+            status_code=status_code,
+        )
+    if status_code >= 400:
+        error = _firebase_token_request_error(payload, status_code=status_code)
+        raise RealtimeSyncClientError(str(error["code"]), str(error["message"]), status_code=status_code)
+    return payload, headers
+
+
+def _request_firebase_token_raw(
+    context: Mapping[str, Any],
+    *,
+    transport: HeaderJsonTransport | None,
+    timeout_seconds: float,
+) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+    try:
+        return _request_json(
+            "POST",
+            str(context["origin"]),
+            FIREBASE_TOKEN_PATH,
+            _auth_headers(context),
+            {"purpose": "realtime_sync_metadata_read"},
+            transport=transport,
+            timeout_seconds=timeout_seconds,
+        )
+    except StagingSyncServiceError as exc:
+        raise RealtimeSyncClientError(exc.code, exc.message, status_code=exc.status_code) from exc
+
+
+def _exchange_firebase_custom_token(
+    custom_token: str,
+    api_key: str,
+    *,
+    transport: HeaderJsonTransport | None,
+    timeout_seconds: float,
+) -> tuple[str, str]:
+    if not custom_token.strip():
+        raise RealtimeSyncClientError("firebase_custom_token_missing", "Firebase custom token was not returned.")
+    path = "/v1/accounts:signInWithCustomToken?" + urlencode({"key": api_key})
+    status_code, payload, _headers = _request_json(
+        "POST",
+        IDENTITY_TOOLKIT_SIGN_IN_ORIGIN,
+        path,
+        {},
+        {"token": custom_token, "returnSecureToken": True},
+        transport=transport,
+        timeout_seconds=timeout_seconds,
+    )
+    if status_code >= 400:
+        raise RealtimeSyncClientError("firebase_custom_token_exchange_failed", "Firebase custom token sign-in failed.", status_code=status_code)
+    allowed = {"kind", "idToken", "refreshToken", "expiresIn", "isNewUser", "localId", "registered"}
+    if set(payload) - allowed:
+        raise RealtimeSyncClientError("firebase_sign_in_private_fields", "Firebase sign-in response contained non-public fields.")
+    id_token = payload.get("idToken")
+    local_id = _safe_message_text(payload.get("localId"), fallback=None)
+    if not isinstance(id_token, str) or not id_token.strip() or not local_id:
+        raise RealtimeSyncClientError("firebase_sign_in_invalid", "Firebase sign-in response is invalid.")
+    expires_in = payload.get("expiresIn")
+    if expires_in is not None:
+        try:
+            if int(str(expires_in)) <= 0:
+                raise ValueError
+        except ValueError as exc:
+            raise RealtimeSyncClientError("firebase_sign_in_invalid", "Firebase sign-in response is invalid.") from exc
+    return id_token, local_id
+
+
+def _read_firestore_sync_events(
+    *,
+    id_token: str,
+    account_id: str,
+    project_id: str,
+    database_id: str,
+    limit: int,
+    transport: HeaderJsonTransport | None,
+    timeout_seconds: float,
+) -> list[Mapping[str, object]]:
+    if not id_token.strip():
+        raise RealtimeSyncClientError("firebase_id_token_missing", "Firebase ID token is unavailable.")
+    safe_limit = max(1, min(int(limit), 50))
+    safe_account = _safe_firestore_path_segment(account_id)
+    safe_project = _safe_firestore_path_segment(project_id)
+    safe_database = _safe_firestore_path_segment(database_id, allow_default=True)
+    path = (
+        f"/v1/projects/{safe_project}/databases/{safe_database}/documents/accounts/{safe_account}/sync_events?"
+        + urlencode({"pageSize": str(safe_limit), "orderBy": "created_at"})
+    )
+    status_code, payload, _headers = _request_json(
+        "GET",
+        FIRESTORE_REST_ORIGIN,
+        path,
+        {"Authorization": f"Bearer {id_token}"},
+        None,
+        transport=transport,
+        timeout_seconds=timeout_seconds,
+    )
+    if status_code in {401, 403}:
+        raise RealtimeSyncClientError("firestore_read_auth_rejected", "Firestore metadata read was rejected.", status_code=status_code)
+    if status_code >= 400:
+        raise RealtimeSyncClientError("firestore_sync_event_read_failed", "Firestore metadata read failed.", status_code=status_code)
+    return _sanitize_firestore_documents(payload, linked_account_id=account_id)
+
+
+def _safe_firestore_path_segment(value: object, *, allow_default: bool = False) -> str:
+    text = _safe_message_text(value, fallback=None)
+    if not text:
+        raise RealtimeSyncClientError("firestore_path_invalid", "Firestore path metadata is invalid.")
+    if allow_default and text == "(default)":
+        return "(default)"
+    if not re.fullmatch(r"[A-Za-z0-9_.:-]{1,160}", text):
+        raise RealtimeSyncClientError("firestore_path_invalid", "Firestore path metadata is invalid.")
+    return quote(text, safe="")
+
+
+def _sanitize_firestore_documents(payload: Mapping[str, object], *, linked_account_id: str) -> list[Mapping[str, object]]:
+    allowed = {"documents", "nextPageToken"}
+    if set(payload) - allowed:
+        raise RealtimeSyncClientError("firestore_private_fields", "Firestore response contained non-public fields.")
+    documents = payload.get("documents")
+    if documents is None:
+        return []
+    if not isinstance(documents, list):
+        raise RealtimeSyncClientError("firestore_response_invalid", "Firestore response is invalid.")
+    events: list[Mapping[str, object]] = []
+    for document in documents[:50]:
+        if not isinstance(document, Mapping):
+            raise RealtimeSyncClientError("firestore_response_invalid", "Firestore response is invalid.")
+        fields = document.get("fields")
+        if not isinstance(fields, Mapping):
+            raise RealtimeSyncClientError("firestore_response_invalid", "Firestore response is invalid.")
+        event = _firestore_fields_to_plain_dict(fields)
+        validation = build_realtime_sync_event_validation_report(event, linked_account_id=linked_account_id)
+        if not validation.get("ok"):
+            raise RealtimeSyncClientError("firestore_sync_event_rejected", "Firestore SyncEvent failed public validation.")
+        events.append(event)
+    return events
+
+
+def _firestore_fields_to_plain_dict(fields: Mapping[str, object]) -> dict[str, object]:
+    event: dict[str, object] = {}
+    for key, value in fields.items():
+        if not isinstance(key, str):
+            raise RealtimeSyncClientError("firestore_response_invalid", "Firestore response is invalid.")
+        event[key] = _firestore_value_to_python(value)
+    return event
+
+
+def _firestore_value_to_python(value: object) -> object:
+    if not isinstance(value, Mapping) or len(value) != 1:
+        raise RealtimeSyncClientError("firestore_response_invalid", "Firestore response is invalid.")
+    kind, raw = next(iter(value.items()))
+    if kind in {"stringValue", "timestampValue", "referenceValue"}:
+        return _safe_message_text(raw, fallback="")
+    if kind == "integerValue":
+        try:
+            return int(str(raw))
+        except ValueError as exc:
+            raise RealtimeSyncClientError("firestore_response_invalid", "Firestore response is invalid.") from exc
+    if kind == "doubleValue":
+        try:
+            return float(str(raw))
+        except ValueError as exc:
+            raise RealtimeSyncClientError("firestore_response_invalid", "Firestore response is invalid.") from exc
+    if kind == "booleanValue":
+        if not isinstance(raw, bool):
+            raise RealtimeSyncClientError("firestore_response_invalid", "Firestore response is invalid.")
+        return raw
+    if kind == "nullValue":
+        return None
+    if kind == "mapValue":
+        nested = raw.get("fields") if isinstance(raw, Mapping) else None
+        if nested is None:
+            return {}
+        if not isinstance(nested, Mapping):
+            raise RealtimeSyncClientError("firestore_response_invalid", "Firestore response is invalid.")
+        return _firestore_fields_to_plain_dict(nested)
+    if kind == "arrayValue":
+        values = raw.get("values", []) if isinstance(raw, Mapping) else []
+        if not isinstance(values, list):
+            raise RealtimeSyncClientError("firestore_response_invalid", "Firestore response is invalid.")
+        return [_firestore_value_to_python(item) for item in values]
+    raise RealtimeSyncClientError("firestore_response_invalid", "Firestore response is invalid.")
 
 
 def _safe_event_source_path(path: str) -> str:
@@ -831,14 +1159,15 @@ def _sanitize_firestore_contract(firestore: Mapping[str, object]) -> dict[str, o
         raise RealtimeSyncClientError("firebase_token_firestore_invalid", "Firestore read-auth project metadata is invalid.")
     if path_template != FIRESTORE_SYNC_EVENT_PATH_TEMPLATE:
         raise RealtimeSyncClientError("firebase_token_firestore_path_invalid", "Firestore sync event path template is not accepted.")
-    if firestore.get("sync_enabled") is not False:
-        raise RealtimeSyncClientError("firebase_token_sync_flag_invalid", "Firestore sync must remain disabled before live E2E.")
+    sync_enabled = firestore.get("sync_enabled")
+    if not isinstance(sync_enabled, bool):
+        raise RealtimeSyncClientError("firebase_token_sync_flag_invalid", "Firestore sync flag is invalid.")
     if firestore.get("body_free_projection_only") is not True:
         raise RealtimeSyncClientError("firebase_token_firestore_invalid", "Firestore projection must remain body-free.")
     return {
         "firestore_project_id": project_id,
         "firestore_database_id": database_id,
-        "firestore_sync_enabled": False,
+        "firestore_sync_enabled": sync_enabled,
         "firestore_body_free_projection_only": True,
         "firestore_sync_event_path_template": path_template,
         "firestore_account_data_binding_required": True,
