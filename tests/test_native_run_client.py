@@ -353,6 +353,34 @@ def test_native_run_submit_rejects_local_only_before_backend(monkeypatch) -> Non
     assert transport.calls == []
 
 
+def test_native_run_output_shows_conversation_policy_and_memory_boundary(monkeypatch) -> None:
+    from yonerai_cli.screens.native_run import format_native_run_compact, format_native_run_pretty
+    from yonerai_cli.services.native_run_service import build_native_run_submit_report
+
+    _install_context(monkeypatch, _linked_context())
+    report = build_native_run_submit_report(
+        "hello",
+        conversation_id="local-conv-1",
+        sync_policy="local_only",
+        config={},
+        env={},
+        claim_path=None,
+        transport=FakeTransport(),
+    )
+
+    pretty = format_native_run_pretty(report, lang="ja", color="never")
+    compact = format_native_run_compact(report, lang="ja")
+
+    assert "会話ポリシー境界" in pretty
+    assert "execution.official_worker_allowed" in pretty
+    assert "memory.memory_scope" in pretty
+    assert "local_private" in pretty
+    assert "local_only_memory_stays_local" in pretty
+    assert "会話ポリシー" in compact
+    assert "記憶" in compact
+    assert "local_private" in compact
+
+
 def test_native_run_submit_sends_cloud_to_local_conversation_metadata(monkeypatch) -> None:
     from yonerai_cli.services.native_run_service import build_native_run_submit_report
 

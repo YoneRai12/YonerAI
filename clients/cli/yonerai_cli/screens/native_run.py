@@ -17,6 +17,9 @@ def format_native_run_pretty(report: dict[str, Any], *, lang: str = "ja", color:
     context_preview = report.get("context_preview") if isinstance(report.get("context_preview"), dict) else {}
     if context_preview:
         sections.append(_context_preview_section(context_preview, lang=lang))
+    conversation_policy = report.get("conversation_policy") if isinstance(report.get("conversation_policy"), dict) else {}
+    if conversation_policy:
+        sections.append(_conversation_policy_section(conversation_policy, lang=lang))
     result = report.get("result") if isinstance(report.get("result"), dict) else {}
     if result:
         sections.append(_result_section(result, lang=lang))
@@ -84,6 +87,20 @@ def format_native_run_compact(report: dict[str, Any], *, lang: str = "ja") -> st
     if modules:
         names = ", ".join(_safe(item.get("module_id")) for item in modules[:4] if isinstance(item, dict))
         lines.append(f"  {_label('モジュール', 'modules', lang)}: {names}")
+    conversation_policy = report.get("conversation_policy") if isinstance(report.get("conversation_policy"), dict) else {}
+    if conversation_policy:
+        execution = conversation_policy.get("execution") if isinstance(conversation_policy.get("execution"), dict) else {}
+        memory = conversation_policy.get("memory") if isinstance(conversation_policy.get("memory"), dict) else {}
+        lines.append(
+            f"  {_label('会話ポリシー', 'conversation policy', lang)}: "
+            f"{_safe(conversation_policy.get('sync_policy'))} / "
+            f"{_safe(execution.get('decision') or 'decision_unknown')}"
+        )
+        lines.append(
+            f"  {_label('記憶', 'memory', lang)}: "
+            f"{_safe(memory.get('memory_scope') or 'unknown')} / "
+            f"{_safe(memory.get('reason') or 'policy_inherited')}"
+        )
     error = report.get("error") if isinstance(report.get("error"), dict) else {}
     if error:
         lines.append(f"  {_label('理由', 'reason', lang)}: {_error_message(error, lang=lang)}")
@@ -155,6 +172,25 @@ def _context_preview_section(context_preview: dict[str, Any], *, lang: str) -> C
             CliRow("excluded", ", ".join(str(item) for item in excluded[:8]), "ok"),
         ),
     )
+
+
+def _conversation_policy_section(conversation_policy: dict[str, Any], *, lang: str) -> CliSection:
+    execution = conversation_policy.get("execution") if isinstance(conversation_policy.get("execution"), dict) else {}
+    memory = conversation_policy.get("memory") if isinstance(conversation_policy.get("memory"), dict) else {}
+    rows: list[CliRow] = [
+        CliRow("conversation_id", conversation_policy.get("conversation_id"), "ok"),
+        CliRow("origin", conversation_policy.get("origin"), "ok"),
+        CliRow("sync_policy", conversation_policy.get("sync_policy"), _policy_status(conversation_policy)),
+    ]
+    for key in ("official_worker_allowed", "local_loopback_required", "decision", "reason"):
+        if key in execution:
+            status = "fail" if key == "official_worker_allowed" and execution.get(key) is False else "ok"
+            rows.append(CliRow(f"execution.{key}", execution.get(key), status))
+    for key in ("inherits_conversation_policy", "memory_scope", "cloud_memory_index_allowed", "local_to_cloud_memory_sync", "reason"):
+        if key in memory:
+            status = "warn" if key == "cloud_memory_index_allowed" and memory.get(key) is False else "ok"
+            rows.append(CliRow(f"memory.{key}", memory.get(key), status))
+    return CliSection(_label("会話ポリシー境界", "Conversation policy boundary", lang), tuple(rows))
 
 
 def _result_section(result: dict[str, Any], *, lang: str) -> CliSection:
@@ -288,6 +324,15 @@ def _status_level(status: str) -> str:
     if normalized in {"failed", "error", "denied"}:
         return "fail"
     return "warn"
+
+
+def _policy_status(conversation_policy: dict[str, Any]) -> str:
+    policy = str(conversation_policy.get("sync_policy") or "")
+    if policy == "local_only":
+        return "warn"
+    if policy == "paused":
+        return "fail"
+    return "ok"
 
 
 def _error_message(error: dict[str, Any], *, lang: str) -> str:
