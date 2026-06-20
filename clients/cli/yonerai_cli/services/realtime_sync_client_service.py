@@ -569,6 +569,13 @@ def build_realtime_sync_listener_readiness_report(
             else:
                 report["next_blocker"] = code
                 report["required_next_actions"] = ("repair staging origin/login/session and rerun readiness",)
+        elif code == "staging_session_required":
+            report["next_blocker"] = "staging_session_required"
+            report["required_next_actions"] = (
+                "run yonerai logout to clear the rejected staging session",
+                "run yonerai login to get a fresh opaque YonerAI staging session",
+                "rerun yonerai sync listener readiness after login succeeds",
+            )
         else:
             report["next_blocker"] = code
             report["required_next_actions"] = ("repair staging origin/login/session and rerun readiness",)

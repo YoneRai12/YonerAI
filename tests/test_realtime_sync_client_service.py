@@ -701,6 +701,11 @@ def test_listener_readiness_treats_401_as_live_route_with_session_blocker(tmp_pa
     assert report["firebase_token_endpoint_live"] is True
     assert report["firebase_token_endpoint_status_code"] == 401
     assert report["next_blocker"] == "staging_session_required"
+    assert report["required_next_actions"] == (
+        "run yonerai logout to clear the rejected staging session",
+        "run yonerai login to get a fresh opaque YonerAI staging session",
+        "rerun yonerai sync listener readiness after login succeeds",
+    )
     assert "ystg_fixture_session_1234567890" not in serialized
 
 
