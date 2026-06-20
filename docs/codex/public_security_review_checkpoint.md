@@ -219,3 +219,16 @@ Checked in this checkpoint:
 - review/comment state: Codex review on merged PR #563 flagged private-runtime provenance and live-state wording in the public checkpoint.
 - CI state: follow-up branch pending validation.
 - decision: sanitize public checkpoint language to contract-level evidence and public CLI smoke summaries only; avoid private runtime provenance and live environment internals.
+
+## 2026-06-20 PR #564 Intake Update
+
+- last_scan_at: 2026-06-20T11:18:00+09:00
+- highest_seen_pr_number: 564
+- current_main_head: 73fa7b5
+- branch: codex/sanitize-pr563-runtime-provenance
+- PR: #564
+
+| PR / issue / notice | classification | review/comment state | CI / evidence state | decision |
+| --- | --- | --- | --- | --- |
+| #564 Gemini quota comment | stale / non-actionable | The only initial PR comment is a Gemini quota warning, not a code or security finding | `review-intake-required` failed closed until classification; product checks pending | Apply `intake-reviewed` after classification and reread comments/checks after CI and before merge. |
+| #564 implementation | valid-now | No inline review thread at creation scan | Local `git diff --check` and `ci_quality_scans.py --changed` passed | Keep PR scoped to sanitizing merged PR #563 public checkpoint wording and issue-comment wording. |
