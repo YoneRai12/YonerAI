@@ -16,7 +16,7 @@ from yonerai_cli.staging_auth_bridge import (
     JsonTransport,
     StagingAuthBridgeError,
     poll_cli_bridge,
-    start_cli_bridge,
+    start_cli_bridge_for_polling,
     wait_for_cli_bridge_link,
 )
 from yonerai_cli.services.auth_session_service import build_staging_auth_claim, load_staging_auth_claim
@@ -202,11 +202,16 @@ def build_google_login_staging(
     if configured:
         origin = str(staging["origin"])
         authorization_url = f"{origin}{STAGING_AUTH_START_PATH}"
+        active_poll_url: str | None = None
         if bridge or poll_request_id:
             bridge_report["network_called"] = True
             try:
                 if bridge:
-                    started = start_cli_bridge(origin, timeout_seconds=timeout_seconds, transport=transport)
+                    started, active_poll_url = start_cli_bridge_for_polling(
+                        origin,
+                        timeout_seconds=timeout_seconds,
+                        transport=transport,
+                    )
                     bridge_report["start"] = started
                     bridge_report["request_id"] = started.get("request_id")
                     authorization_url = str(started.get("browser_start_url") or authorization_url)
@@ -226,6 +231,7 @@ def build_google_login_staging(
                         transport=transport,
                         account_transport=account_transport,
                         session_claim_handler=session_claim_handler,
+                        poll_url=active_poll_url,
                     )
                     bridge_report["poll"] = polled
                     bridge_report["poll_status"] = polled.get("status")
@@ -240,6 +246,7 @@ def build_google_login_staging(
                     polled = poll_cli_bridge(
                         origin,
                         poll_request_id,
+                        poll_url=active_poll_url,
                         timeout_seconds=timeout_seconds,
                         transport=transport,
                     )
