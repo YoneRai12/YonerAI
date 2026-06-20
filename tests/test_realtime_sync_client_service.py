@@ -734,6 +734,62 @@ def test_listener_readiness_reports_503_as_private_runtime_blocker(tmp_path: Pat
     assert "ystg_fixture_session_1234567890" not in serialized
 
 
+def test_listener_readiness_reports_owner_token_signing_permission_blocker(tmp_path: Path) -> None:
+    from yonerai_cli.services.realtime_sync_client_service import (
+        build_realtime_sync_firebase_token_report,
+        build_realtime_sync_listener_readiness_report,
+    )
+
+    config_path, _claim = _save_session(tmp_path)
+
+    def transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        return (
+            503,
+            {
+                "detail": {
+                    "code": "firebase_token_mint_dependency_blocked",
+                    "owner_action_required": "grant_service_account_token_creator",
+                    "token_mint_dependency_ready": False,
+                }
+            },
+            RATE_HEADERS,
+        )
+
+    firebase = build_realtime_sync_firebase_token_report(
+        env={"YONERAI_STAGING_AUTH_ORIGIN": ORIGIN},
+        config_path=str(config_path),
+        transport=transport,
+    )
+    readiness = build_realtime_sync_listener_readiness_report(
+        env={"YONERAI_STAGING_AUTH_ORIGIN": ORIGIN},
+        config_path=str(config_path),
+        transport=transport,
+    )
+    serialized = json.dumps(readiness, sort_keys=True)
+
+    assert firebase["ok"] is False
+    assert firebase["backend_status_code"] == 503
+    assert firebase["error"]["owner_action_required"] == "grant_service_account_token_creator"
+    assert firebase["error"]["token_mint_dependency_ready"] is False
+    assert readiness["ok"] is True
+    assert readiness["ready"] is False
+    assert readiness["firebase_token_endpoint_live"] is True
+    assert readiness["firebase_token_endpoint_status_code"] == 503
+    assert readiness["firebase_token_error"]["owner_action_required"] == "grant_service_account_token_creator"
+    assert readiness["firebase_token_error"]["token_mint_dependency_ready"] is False
+    assert readiness["next_blocker"] == "owner_gcp_token_signing_permission_required"
+    assert readiness["firebase_custom_token_received"] is False
+    assert "ystg_fixture_session_1234567890" not in serialized
+    assert "Authorization" not in serialized
+    assert str(tmp_path) not in serialized
+
+
 def test_listener_readiness_accepts_live_read_auth_but_keeps_sync_disabled(tmp_path: Path) -> None:
     from yonerai_cli.services.realtime_sync_client_service import build_realtime_sync_listener_readiness_report
 

@@ -431,7 +431,7 @@ def build_realtime_sync_firebase_token_report(
         return report
     if status_code >= 400:
         report["ok"] = False
-        report["error"] = _safe_error("firebase_token_request_failed", "Firebase read-auth request failed.", status_code=status_code)
+        report["error"] = _firebase_token_request_error(payload, status_code=status_code)
         return report
     try:
         report.update(_sanitize_firebase_token_payload(payload, linked_account_id=linked_account_id))
@@ -553,11 +553,19 @@ def build_realtime_sync_listener_readiness_report(
                     "rerun yonerai sync listener readiness after deploy",
                 )
             elif isinstance(status_code, int) and status_code >= 500:
-                report["next_blocker"] = "private_aws_firebase_token_endpoint_unavailable"
-                report["required_next_actions"] = (
-                    "wait for Private AWS to repair the Firebase read-auth endpoint",
-                    "rerun yonerai sync listener readiness after the staging endpoint is healthy",
-                )
+                owner_action = error.get("owner_action_required")
+                if owner_action == "grant_service_account_token_creator":
+                    report["next_blocker"] = "owner_gcp_token_signing_permission_required"
+                    report["required_next_actions"] = (
+                        "owner/GCP must grant the staging service account minimal token-signing permission",
+                        "rerun yonerai sync listener readiness after Private AWS confirms token mint smoke",
+                    )
+                else:
+                    report["next_blocker"] = "private_aws_firebase_token_endpoint_unavailable"
+                    report["required_next_actions"] = (
+                        "wait for Private AWS to repair the Firebase read-auth endpoint",
+                        "rerun yonerai sync listener readiness after the staging endpoint is healthy",
+                    )
             else:
                 report["next_blocker"] = code
                 report["required_next_actions"] = ("repair staging origin/login/session and rerun readiness",)
@@ -619,6 +627,20 @@ def _base_report(context: Mapping[str, Any]) -> dict[str, Any]:
 
 def _endpoint_status_indicates_route_live(status_code: object) -> bool:
     return isinstance(status_code, int) and status_code not in {404, 405}
+
+
+def _firebase_token_request_error(payload: Mapping[str, object], *, status_code: int) -> dict[str, object]:
+    error = _safe_error("firebase_token_request_failed", "Firebase read-auth request failed.", status_code=status_code)
+    detail = payload.get("detail") if isinstance(payload.get("detail"), Mapping) else payload
+    if not isinstance(detail, Mapping):
+        return error
+    owner_action = detail.get("owner_action_required")
+    if owner_action == "grant_service_account_token_creator":
+        error["owner_action_required"] = "grant_service_account_token_creator"
+    ready = detail.get("token_mint_dependency_ready")
+    if isinstance(ready, bool):
+        error["token_mint_dependency_ready"] = ready
+    return error
 
 
 def _firestore_sdk_dependency_available() -> bool:
