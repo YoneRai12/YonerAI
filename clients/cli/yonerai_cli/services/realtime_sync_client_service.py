@@ -525,12 +525,23 @@ def build_realtime_sync_listener_readiness_report(
     code = str(error.get("code") or "firebase_token_request_failed")
     report["firebase_token_error"] = dict(error)
     if code in READINESS_NON_BLOCKING_ERROR_CODES:
-        if code == "firebase_token_request_failed" and firebase.get("backend_status_code") == 404:
-            report["next_blocker"] = "private_aws_firebase_token_endpoint_not_live"
-            report["required_next_actions"] = (
-                "wait for Private AWS to deploy POST /v1/sync/firebase-token",
-                "rerun yonerai sync listener readiness after deploy",
-            )
+        if code == "firebase_token_request_failed":
+            status_code = firebase.get("backend_status_code")
+            if status_code == 404:
+                report["next_blocker"] = "private_aws_firebase_token_endpoint_not_live"
+                report["required_next_actions"] = (
+                    "wait for Private AWS to deploy POST /v1/sync/firebase-token",
+                    "rerun yonerai sync listener readiness after deploy",
+                )
+            elif isinstance(status_code, int) and status_code >= 500:
+                report["next_blocker"] = "private_aws_firebase_token_endpoint_unavailable"
+                report["required_next_actions"] = (
+                    "wait for Private AWS to repair the Firebase read-auth endpoint",
+                    "rerun yonerai sync listener readiness after the staging endpoint is healthy",
+                )
+            else:
+                report["next_blocker"] = code
+                report["required_next_actions"] = ("repair staging origin/login/session and rerun readiness",)
         else:
             report["next_blocker"] = code
             report["required_next_actions"] = ("repair staging origin/login/session and rerun readiness",)

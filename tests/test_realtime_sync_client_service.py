@@ -704,6 +704,36 @@ def test_listener_readiness_treats_401_as_live_route_with_session_blocker(tmp_pa
     assert "ystg_fixture_session_1234567890" not in serialized
 
 
+def test_listener_readiness_reports_503_as_private_runtime_blocker(tmp_path: Path) -> None:
+    from yonerai_cli.services.realtime_sync_client_service import build_realtime_sync_listener_readiness_report
+
+    config_path, _claim = _save_session(tmp_path)
+
+    def transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        return 503, {"detail": {"code": "firebase_not_configured"}}, RATE_HEADERS
+
+    report = build_realtime_sync_listener_readiness_report(
+        env={"YONERAI_STAGING_AUTH_ORIGIN": ORIGIN},
+        config_path=str(config_path),
+        transport=transport,
+    )
+    serialized = json.dumps(report, sort_keys=True)
+
+    assert report["ok"] is True
+    assert report["ready"] is False
+    assert report["firebase_token_endpoint_live"] is True
+    assert report["firebase_token_endpoint_status_code"] == 503
+    assert report["next_blocker"] == "private_aws_firebase_token_endpoint_unavailable"
+    assert "firebase_not_configured" not in serialized
+    assert "ystg_fixture_session_1234567890" not in serialized
+
+
 def test_listener_readiness_accepts_live_read_auth_but_keeps_sync_disabled(tmp_path: Path) -> None:
     from yonerai_cli.services.realtime_sync_client_service import build_realtime_sync_listener_readiness_report
 
