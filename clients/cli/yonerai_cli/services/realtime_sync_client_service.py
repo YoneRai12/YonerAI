@@ -4,6 +4,7 @@ import json
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 from yonerai_cli.config import default_config_path
 from yonerai_cli.services.realtime_sync_event_service import (
@@ -24,6 +25,7 @@ from yonerai_cli.services.staging_sync_service import (
 
 REALTIME_SYNC_CLIENT_SCHEMA_VERSION = "yonerai.realtime-sync-client/v0.1"
 STATE_SCHEMA_VERSION = "yonerai.realtime-sync-state/v0.1"
+CONVERSATION_EVENTS_PATH = "/v1/conversations/events"
 FORBIDDEN_BODY_MARKERS = (
     "access_token",
     "accesstoken",
@@ -208,6 +210,140 @@ def build_realtime_sync_listener_fixture_report(
     return report
 
 
+def build_realtime_sync_listener_poll_report(
+    *,
+    config: Mapping[str, object] | None = None,
+    env: Mapping[str, str | None] | None = None,
+    config_path: str | None = None,
+    state_path: str | Path | None = None,
+    transport: HeaderJsonTransport | None = None,
+    timeout_seconds: float = 10.0,
+    source_path: str = CONVERSATION_EVENTS_PATH,
+    limit: int = 10,
+) -> dict[str, Any]:
+    context = _auth_context(config=config, env=env, claim_path=config_path)
+    report = _base_report(context)
+    report.update(
+        {
+            "operation": "realtime_sync_listener_poll",
+            "listener_mode": "account_scoped_metadata_feed_poll",
+            "event_source_kind": "aws_account_scoped_metadata_feed",
+            "firestore_sdk_connected": False,
+            "firestore_event_source_body_free": True,
+            "events_received": 0,
+            "events_processed": 0,
+            "events_rejected": 0,
+            "messages": [],
+            "metadata_event_to_aws_body_fetch_completed": False,
+            "live_web_to_cli_e2e_proven": False,
+        }
+    )
+    try:
+        safe_source_path = _safe_event_source_path(source_path)
+    except RealtimeSyncClientError as exc:
+        report["ok"] = False
+        report["error"] = exc.to_safe_error()
+        return report
+    report["event_source_path"] = safe_source_path
+    if not context["origin_configured"]:
+        report["ok"] = False
+        report["error"] = _safe_error("staging_origin_not_configured", "Staging API origin is not configured.")
+        return report
+    if context["auth_state"] != "linked":
+        report["ok"] = False
+        report["error"] = _safe_error("staging_auth_required", "Staging login is required before realtime sync receive.")
+        return report
+    if not context["staging_session_available"]:
+        report["ok"] = False
+        report["error"] = _safe_error(
+            "staging_session_required",
+            "A safe YonerAI staging session is required before realtime sync receive.",
+        )
+        return report
+    try:
+        linked_account_id = _linked_account_id(context)
+    except RealtimeSyncClientError as exc:
+        report["ok"] = False
+        report["error"] = exc.to_safe_error()
+        return report
+
+    state_file = Path(state_path).expanduser() if state_path is not None else default_realtime_sync_state_path(config_path)
+    state = _load_state(state_file)
+    latest_cursor = _latest_account_cursor(state, linked_account_id)
+    source_with_query = _event_source_path_with_query(safe_source_path, cursor=latest_cursor, limit=limit)
+    report["event_source_cursor"] = latest_cursor
+    report["event_source_query_included"] = latest_cursor is not None
+    try:
+        status_code, payload, headers = _request_json(
+            "GET",
+            str(context["origin"]),
+            source_with_query,
+            _auth_headers(context),
+            None,
+            transport=transport,
+            timeout_seconds=timeout_seconds,
+        )
+    except StagingSyncServiceError as exc:
+        report["ok"] = False
+        report["error"] = exc.to_safe_error()
+        return report
+    report["official_backend_called"] = True
+    report["backend_status_code"] = status_code
+    report["rate_limit_headers_present"] = _rate_limit_headers_present(headers)
+    if status_code in {401, 403}:
+        report["ok"] = False
+        report["error"] = _safe_error(
+            "staging_session_required",
+            "The saved YonerAI staging session was not accepted by the realtime sync event feed.",
+            status_code=status_code,
+        )
+        return report
+    if status_code >= 400:
+        report["ok"] = False
+        report["error"] = _safe_error("sync_event_feed_failed", "Realtime sync event feed request failed.", status_code=status_code)
+        return report
+
+    try:
+        events, next_cursor, has_more = _sanitize_event_feed_payload(payload)
+    except RealtimeSyncClientError as exc:
+        report["ok"] = False
+        report["error"] = exc.to_safe_error()
+        return report
+    report["events_received"] = len(events)
+    report["feed_next_cursor"] = next_cursor
+    report["feed_has_more"] = has_more
+    for event in events:
+        child = build_realtime_sync_listener_once_report(
+            event=event,
+            config=config,
+            env=env,
+            config_path=config_path,
+            state_path=state_file,
+            transport=transport,
+            timeout_seconds=timeout_seconds,
+        )
+        report.setdefault("event_results", []).append(_public_child_listener_result(child))
+        if not child.get("ok", False):
+            report["ok"] = False
+            report["events_rejected"] = int(report["events_rejected"]) + 1
+            report["error"] = child.get("error") if isinstance(child.get("error"), dict) else _safe_error(
+                "sync_event_rejected",
+                "Realtime sync event was rejected.",
+            )
+            return report
+        report["events_processed"] = int(report["events_processed"]) + 1
+        message = child.get("message") if isinstance(child.get("message"), Mapping) else None
+        if message:
+            report["messages"].append(_public_message_result(message))
+    report["cursor_saved"] = bool(report["events_processed"])
+    report["body_received_from_aws"] = bool(report["messages"])
+    report["aws_body_fetch_performed"] = any(
+        isinstance(item, Mapping) and item.get("aws_body_fetch_performed") is True for item in report.get("event_results", [])
+    )
+    report["metadata_event_to_aws_body_fetch_completed"] = bool(report["messages"]) and bool(report["events_processed"])
+    return report
+
+
 def _base_report(context: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "schema_version": REALTIME_SYNC_CLIENT_SCHEMA_VERSION,
@@ -249,6 +385,112 @@ def _base_report(context: Mapping[str, Any]) -> dict[str, Any]:
             "no provider key output",
             "no production cloud claim",
         ),
+    }
+
+
+def _safe_event_source_path(path: str) -> str:
+    candidate = str(path or "").strip()
+    if not candidate:
+        return CONVERSATION_EVENTS_PATH
+    if candidate != CONVERSATION_EVENTS_PATH:
+        raise RealtimeSyncClientError("sync_event_source_not_allowed", "Realtime sync event source path is not allowed.")
+    if any(marker in candidate for marker in ("..", "\\", "?", "#", "//")):
+        raise RealtimeSyncClientError("sync_event_source_not_allowed", "Realtime sync event source path is not allowed.")
+    return candidate
+
+
+def _event_source_path_with_query(path: str, *, cursor: str | None, limit: int) -> str:
+    safe_limit = max(1, min(int(limit), 50))
+    query = f"limit={safe_limit}"
+    if cursor:
+        query += f"&after_cursor={quote(cursor, safe='')}"
+    return f"{path}?{query}"
+
+
+def _sanitize_event_feed_payload(payload: Mapping[str, object]) -> tuple[list[Mapping[str, object]], str | None, bool]:
+    _assert_event_feed_payload_safe(payload)
+    allowed = {"ok", "schema_version", "events", "sync_events", "items", "next_cursor", "has_more", "metadata_only", "redacted_preview_only"}
+    if set(payload) - allowed:
+        raise RealtimeSyncClientError("sync_event_feed_private_fields", "Realtime sync event feed contained non-public fields.")
+    raw_events = payload.get("events")
+    if raw_events is None:
+        raw_events = payload.get("sync_events")
+    if raw_events is None:
+        raw_events = payload.get("items")
+    if raw_events is None:
+        raw_events = []
+    if not isinstance(raw_events, list):
+        raise RealtimeSyncClientError("sync_event_feed_invalid", "Realtime sync event feed is invalid.")
+    events: list[Mapping[str, object]] = []
+    for item in raw_events[:50]:
+        if not isinstance(item, Mapping):
+            raise RealtimeSyncClientError("sync_event_feed_invalid", "Realtime sync event feed is invalid.")
+        events.append(item)
+    next_cursor = payload.get("next_cursor")
+    if next_cursor is not None:
+        next_cursor = _safe_message_text(next_cursor, fallback=None)
+    return events, next_cursor, bool(payload.get("has_more", False))
+
+
+def _assert_event_feed_payload_safe(payload: object) -> None:
+    serialized = json.dumps(payload, ensure_ascii=False, sort_keys=True).lower()
+    forbidden = (
+        '"message_body"',
+        '"raw_body"',
+        '"raw_prompt"',
+        '"provider_output"',
+        '"raw_audit"',
+        '"sync_policy_write"',
+        '"approval_decision"',
+    )
+    if any(marker in serialized for marker in forbidden):
+        raise RealtimeSyncClientError("sync_event_feed_private_payload_rejected", "Realtime sync event feed contained private data.")
+    _assert_body_payload_safe(payload)
+
+
+def _latest_account_cursor(state: Mapping[str, Any], account_id: str) -> str | None:
+    accounts = state.get("accounts") if isinstance(state, Mapping) else {}
+    account = accounts.get(account_id) if isinstance(accounts, Mapping) else {}
+    conversations = account.get("conversations") if isinstance(account, Mapping) else {}
+    if not isinstance(conversations, Mapping):
+        return None
+    cursors = [
+        str(item.get("cursor"))
+        for item in conversations.values()
+        if isinstance(item, Mapping) and isinstance(item.get("cursor"), str) and item.get("cursor")
+    ]
+    return sorted(cursors)[-1] if cursors else None
+
+
+def _public_child_listener_result(report: Mapping[str, Any]) -> dict[str, object]:
+    keys = (
+        "ok",
+        "event_id",
+        "conversation_id",
+        "message_id",
+        "cursor",
+        "body_fetch_allowed",
+        "body_fetch_reason",
+        "aws_body_fetch_performed",
+        "body_received_from_aws",
+        "message_body_from_firestore",
+        "raw_prompt_from_firestore",
+        "raw_audit_from_firestore",
+        "cursor_saved",
+        "duplicate_event",
+        "duplicate_idempotency_key",
+        "error",
+    )
+    return {key: report.get(key) for key in keys if key in report}
+
+
+def _public_message_result(message: Mapping[str, object]) -> dict[str, object]:
+    return {
+        "conversation_id": message.get("conversation_id"),
+        "message_id": message.get("message_id"),
+        "display_text": message.get("display_text"),
+        "body_from_firestore": False,
+        "body_stored_in_cursor": False,
     }
 
 

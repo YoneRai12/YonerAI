@@ -24,6 +24,7 @@ from yonerai_cli.services.realtime_sync_event_service import (
 from yonerai_cli.services.realtime_sync_client_service import (
     build_realtime_sync_listener_fixture_report,
     build_realtime_sync_listener_once_report,
+    build_realtime_sync_listener_poll_report,
 )
 from yonerai_cli.services.staging_sync_service import (
     StagingSyncServiceError,
@@ -243,6 +244,25 @@ def add_sync_parser(
         color_choices=color_choices,
         pretty_help="Print readable realtime sync listener result.",
     )
+    listener_poll = listener_subcommands.add_parser(
+        "poll",
+        help="Poll an account-scoped body-free realtime sync metadata feed.",
+    )
+    listener_poll.add_argument("--config-path", help="Optional local CLI config path.")
+    listener_poll.add_argument("--state", help="Optional local cursor state path.")
+    listener_poll.add_argument("--timeout-seconds", type=float, default=10.0, help="Staging API timeout. Default: 10.")
+    listener_poll.add_argument(
+        "--source-path",
+        default="/v1/conversations/events",
+        help="Allowed metadata event source path. Default: /v1/conversations/events.",
+    )
+    listener_poll.add_argument("--limit", type=int, default=10, help="Maximum events to request. Default: 10.")
+    _add_output_and_locale(
+        listener_poll,
+        lang_choices=lang_choices,
+        color_choices=color_choices,
+        pretty_help="Print readable realtime sync listener poll result.",
+    )
 
     api_contract = sync_subcommands.add_parser("api-contract", help="Show official API fixture contract.")
     _add_output_and_locale(
@@ -399,6 +419,16 @@ def build_sync_report(args: argparse.Namespace, *, prepare_import_paths: Callabl
                 fixture=str(getattr(args, "fixture", "valid") or "valid"),
                 **kwargs,
             )
+        if args.sync_command == "listener" and args.sync_listener_command == "poll":
+            return build_realtime_sync_listener_poll_report(
+                config=_load_config(args),
+                env=os.environ,
+                config_path=getattr(args, "config_path", None),
+                state_path=getattr(args, "state", None),
+                timeout_seconds=float(getattr(args, "timeout_seconds", 10.0)),
+                source_path=str(getattr(args, "source_path", "/v1/conversations/events") or "/v1/conversations/events"),
+                limit=int(getattr(args, "limit", 10)),
+            )
         if args.sync_command == "api-contract":
             return builders()["api"]()
         if args.sync_command == "rate-limit":
@@ -515,6 +545,17 @@ def format_sync_pretty_v2(report: dict[str, Any], *, lang: str = "ja", color: Co
         "message_body_from_firestore",
         "raw_prompt_from_firestore",
         "raw_audit_from_firestore",
+        "event_source_kind",
+        "event_source_path",
+        "event_source_cursor",
+        "event_source_query_included",
+        "events_received",
+        "events_processed",
+        "events_rejected",
+        "feed_next_cursor",
+        "feed_has_more",
+        "metadata_event_to_aws_body_fetch_completed",
+        "live_web_to_cli_e2e_proven",
         "client_policy_write_performed",
         "client_approval_write_performed",
         "cursor_saved",
