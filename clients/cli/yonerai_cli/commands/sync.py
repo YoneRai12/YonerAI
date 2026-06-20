@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
+import json
 import os
 from typing import Any, Callable
 
@@ -15,6 +16,7 @@ from yonerai_cli.services.conversation_sync_policy_service import (
     build_conversation_policy_set_report,
     build_conversation_policy_status_report,
 )
+from yonerai_cli.services.realtime_sync_event_service import build_realtime_sync_event_validation_report
 from yonerai_cli.services.staging_sync_service import (
     StagingSyncServiceError,
     build_staging_conversation_show_report,
@@ -189,6 +191,37 @@ def add_sync_parser(
         pretty_help="Print readable dry-run approval.",
     )
 
+    event = sync_subcommands.add_parser("event", help="Validate realtime sync metadata events without enabling a listener.")
+    event_subcommands = event.add_subparsers(dest="sync_event_command", required=True)
+    event_validate = event_subcommands.add_parser("validate", help="Validate a body-free SyncEvent fixture or JSON payload.")
+    source = event_validate.add_mutually_exclusive_group()
+    source.add_argument("--event-json", help="Inline JSON SyncEvent payload. No file is read.")
+    source.add_argument(
+        "--fixture",
+        choices=(
+            "valid",
+            "local-only",
+            "projection-stale",
+            "duplicate",
+            "account-mismatch",
+            "raw-body",
+            "private-token",
+            "private-path",
+            "bad-body-ref",
+        ),
+        default="valid",
+        help="Safe built-in SyncEvent fixture. Default: valid.",
+    )
+    event_validate.add_argument("--linked-account-id", default="acct_public_001", help="Expected opaque linked account id.")
+    event_validate.add_argument("--seen-event-id", action="append", default=[], help="Previously accepted event_id.")
+    event_validate.add_argument("--seen-idempotency-key", action="append", default=[], help="Previously accepted idempotency_key.")
+    _add_output_and_locale(
+        event_validate,
+        lang_choices=lang_choices,
+        color_choices=color_choices,
+        pretty_help="Print readable SyncEvent validation.",
+    )
+
     api_contract = sync_subcommands.add_parser("api-contract", help="Show official API fixture contract.")
     _add_output_and_locale(
         api_contract,
@@ -314,6 +347,20 @@ def build_sync_report(args: argparse.Namespace, *, prepare_import_paths: Callabl
                 selected=selected,
                 explicit_approval=bool(getattr(args, "explicit_approval", False)),
             )
+        if args.sync_command == "event" and args.sync_event_command == "validate":
+            event = _event_payload_from_args(args)
+            report = build_realtime_sync_event_validation_report(
+                event,
+                linked_account_id=str(getattr(args, "linked_account_id", "") or ""),
+                seen_event_ids=tuple(getattr(args, "seen_event_id", []) or ()),
+                seen_idempotency_keys=tuple(getattr(args, "seen_idempotency_key", []) or ()),
+            )
+            report["operation"] = "realtime_sync_event_validate"
+            report["listener_enabled"] = False
+            report["firestore_enabled"] = False
+            report["aws_body_fetch_performed"] = False
+            report["fixture"] = getattr(args, "fixture", None)
+            return report
         if args.sync_command == "api-contract":
             return builders()["api"]()
         if args.sync_command == "rate-limit":
@@ -416,6 +463,16 @@ def format_sync_pretty_v2(report: dict[str, Any], *, lang: str = "ja", color: Co
         "official_backend_called",
         "backend_status_code",
         "conversation_count",
+        "event_type",
+        "origin",
+        "sync_policy",
+        "body_fetch_allowed",
+        "body_fetch_reason",
+        "listener_enabled",
+        "firestore_enabled",
+        "aws_body_fetch_performed",
+        "duplicate_event",
+        "duplicate_idempotency_key",
     ):
         if key in report:
             status = "ok"
@@ -481,6 +538,70 @@ def format_sync_pretty_v2(report: dict[str, Any], *, lang: str = "ja", color: Co
     if actions:
         sections.append(CliSection("Non-actions", actions))
     return render_report(title, tuple(sections), color=color)
+
+
+def _event_payload_from_args(args: argparse.Namespace) -> dict[str, object]:
+    event_json = getattr(args, "event_json", None)
+    if event_json:
+        try:
+            value = json.loads(str(event_json))
+        except json.JSONDecodeError as exc:
+            raise SyncCommandError("sync event validate received invalid JSON.", exit_code=1) from exc
+        if not isinstance(value, dict):
+            raise SyncCommandError("sync event validate requires a JSON object.", exit_code=1)
+        return value
+    return _sync_event_fixture(str(getattr(args, "fixture", "valid") or "valid"))
+
+
+def _sync_event_fixture(name: str) -> dict[str, object]:
+    event: dict[str, object] = {
+        "schema_version": "yonerai.realtime_sync.v1",
+        "event_id": "evt_public_001",
+        "account_id": "acct_public_001",
+        "conversation_id": "conv_public_001",
+        "message_id": "msg_public_001",
+        "event_type": "message_created",
+        "origin": "web",
+        "sync_policy": "cloud_to_local",
+        "cursor": "cursor_public_001",
+        "sequence": 1,
+        "idempotency_key": "sync_public_001",
+        "created_at": "2026-06-20T00:00:00Z",
+        "projection_version": 1,
+        "body_ref": {
+            "kind": "aws_message_body",
+            "href": "/v1/conversations/conv_public_001/messages/msg_public_001",
+            "body_included": False,
+        },
+        "provider_consent_ref": {"state": "off", "conversation_id": "conv_public_001"},
+        "audit_ref": {"kind": "metadata_only", "audit_id": "aud_public_001"},
+        "reason": "cloud conversation selected by linked account",
+    }
+    if name == "local-only":
+        event.update({"origin": "local", "sync_policy": "local_only"})
+    elif name == "projection-stale":
+        event.update({"event_type": "projection_stale"})
+    elif name == "duplicate":
+        event.update({"event_id": "evt_duplicate_001", "idempotency_key": "sync_duplicate_001"})
+    elif name == "account-mismatch":
+        event.update({"account_id": "acct_other"})
+    elif name == "raw-body":
+        event["body_ref"] = {
+            "kind": "aws_message_body",
+            "href": "/v1/conversations/conv_public_001/messages/msg_public_001",
+            "body_included": True,
+        }
+    elif name == "private-token":
+        event["reason"] = "refresh_token must not be projected"
+    elif name == "private-path":
+        event["reason"] = "C:\\Users\\owner\\secret.txt"
+    elif name == "bad-body-ref":
+        event["body_ref"] = {
+            "kind": "aws_message_body",
+            "href": "/v1/conversations/../admin",
+            "body_included": False,
+        }
+    return event
 
 
 def _policy_status(item: dict[str, Any]) -> str:

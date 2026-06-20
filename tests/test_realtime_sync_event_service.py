@@ -177,3 +177,41 @@ def test_unknown_private_fields_are_rejected() -> None:
 
     assert report["ok"] is False
     assert report["error"]["code"] == "sync_event_private_fields"
+
+
+def test_sync_event_validate_cli_fixture_reports_no_live_listener(capsys) -> None:
+    from yonerai_cli import cli
+
+    rc = cli.main(["sync", "event", "validate", "--fixture", "valid", "--json"])
+    output = capsys.readouterr().out
+
+    assert rc == 0
+    assert '"operation": "realtime_sync_event_validate"' in output
+    assert '"body_fetch_allowed": true' in output
+    assert '"listener_enabled": false' in output
+    assert '"firestore_enabled": false' in output
+    assert '"aws_body_fetch_performed": false' in output
+
+
+def test_sync_event_validate_cli_rejects_private_fixture_without_leaking(capsys) -> None:
+    from yonerai_cli import cli
+
+    rc = cli.main(["sync", "event", "validate", "--fixture", "private-path", "--json"])
+    output = capsys.readouterr().out
+
+    assert rc == 1
+    assert '"ok": false' in output
+    assert "C:\\Users" not in output
+    assert '"local_path_printed": false' in output
+
+
+def test_sync_event_validate_pretty_mentions_body_fetch_boundary(capsys) -> None:
+    from yonerai_cli import cli
+
+    rc = cli.main(["sync", "event", "validate", "--fixture", "local-only", "--pretty", "--lang", "ja", "--color", "never"])
+    output = capsys.readouterr().out
+
+    assert rc == 0
+    assert "body_fetch_allowed" in output
+    assert "local_origin_or_local_only_never_fetches_cloud_body" in output
+    assert "firestore_enabled" in output
