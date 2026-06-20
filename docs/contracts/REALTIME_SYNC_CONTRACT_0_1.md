@@ -234,6 +234,10 @@ Public CLI reporting rules:
 - may expose `yonerai sync listener readiness` as a safe diagnostic. The command
   may report a non-ready state such as a 404 endpoint without failing the CLI,
   but token/private payload or contract mismatch must still fail closed.
+- must not treat receipt of `firebase_custom_token` alone as proof that the
+  Firestore SDK listener is ready. Public must also have a reviewed client
+  dependency and a public-safe Firebase client sign-in exchange/config before
+  starting a live SDK listener.
 
 ## Security Fixtures
 

@@ -581,6 +581,8 @@ def format_sync_pretty_v2(report: dict[str, Any], *, lang: str = "ja", color: Co
         "firestore_enabled",
         "firestore_sdk_connected",
         "firestore_read_auth_bridge_ready",
+        "firestore_sdk_dependency_available",
+        "firestore_client_sign_in_config_present",
         "firestore_sdk_listener_ready",
         "firestore_body_fallback_allowed",
         "aws_body_fetch_performed",

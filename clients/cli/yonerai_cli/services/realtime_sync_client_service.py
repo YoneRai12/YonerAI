@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.util
 import json
 from collections.abc import Mapping
 from pathlib import Path
@@ -463,6 +464,8 @@ def build_realtime_sync_listener_readiness_report(
             "firebase_custom_token_printed": False,
             "firebase_custom_token_persisted": False,
             "firestore_read_auth_bridge_ready": False,
+            "firestore_sdk_dependency_available": _firestore_sdk_dependency_available(),
+            "firestore_client_sign_in_config_present": False,
             "firestore_sdk_listener_ready": False,
             "firestore_sync_enabled": False,
             "live_web_to_cli_e2e_proven": False,
@@ -504,21 +507,35 @@ def build_realtime_sync_listener_readiness_report(
         report["firebase_token_endpoint_live"] = True
         report["firestore_read_auth_bridge_ready"] = True
         report["firestore_sync_enabled"] = bool(firebase.get("firestore_sync_enabled", False))
+        report["firestore_sdk_dependency_available"] = _firestore_sdk_dependency_available()
+        report["firestore_client_sign_in_config_present"] = bool(firebase.get("firestore_client_sign_in_config_present", False))
         report["firestore_project_id"] = firebase.get("firestore_project_id")
         report["firestore_database_id"] = firebase.get("firestore_database_id")
         report["firestore_sync_event_path_template"] = firebase.get("firestore_sync_event_path_template")
         report["firestore_account_data_binding_required"] = firebase.get("firestore_account_data_binding_required")
-        if report["firestore_sync_enabled"] is True:
-            report["ready"] = True
-            report["firestore_sdk_listener_ready"] = True
-            report["next_blocker"] = None
-            report["required_next_actions"] = ()
-        else:
+        if report["firestore_sync_enabled"] is not True:
             report["next_blocker"] = "firestore_sync_disabled_until_live_e2e_and_owner_flip"
             report["required_next_actions"] = (
                 "keep YONERAI_FIRESTORE_SYNC_ENABLED=false until Web-to-CLI E2E is proven",
                 "implement Firestore SDK listener only after read-auth bridge and client config are live",
             )
+        elif not report["firestore_sdk_dependency_available"]:
+            report["next_blocker"] = "public_firestore_sdk_dependency_missing"
+            report["required_next_actions"] = (
+                "add a reviewed Public CLI Firestore/Firebase client dependency before starting the SDK listener",
+                "keep metadata-only fallback and no Firestore body fallback until the dependency is validated",
+            )
+        elif not report["firestore_client_sign_in_config_present"]:
+            report["next_blocker"] = "firestore_client_sign_in_config_missing"
+            report["required_next_actions"] = (
+                "coordinate the public-safe Firebase client sign-in exchange config with AWS/Web",
+                "do not treat firebase_custom_token alone as a complete Python Firestore listener session",
+            )
+        else:
+            report["ready"] = True
+            report["firestore_sdk_listener_ready"] = True
+            report["next_blocker"] = None
+            report["required_next_actions"] = ()
         return report
 
     error = firebase.get("error") if isinstance(firebase.get("error"), Mapping) else {}
@@ -600,6 +617,10 @@ def _base_report(context: Mapping[str, Any]) -> dict[str, Any]:
 
 def _endpoint_status_indicates_route_live(status_code: object) -> bool:
     return isinstance(status_code, int) and status_code not in {404, 405}
+
+
+def _firestore_sdk_dependency_available() -> bool:
+    return importlib.util.find_spec("google.cloud.firestore") is not None or importlib.util.find_spec("firebase_admin") is not None
 
 
 def _safe_event_source_path(path: str) -> str:
