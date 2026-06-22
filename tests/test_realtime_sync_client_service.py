@@ -481,7 +481,11 @@ def _firebase_token_payload(account_id: object, **overrides: object) -> dict[str
         "expires_in_seconds": 900,
         "uid": account_id,
         "account_id": account_id,
-        "claims": {"yonerai_staging": True},
+        "claims": {
+            "yonerai_staging": True,
+            "yonerai_session_ref": "session-ref-fixture-value",
+            "yonerai_session_expires_at": "2026-06-20T12:00:00Z",
+        },
         "firestore": {
             "project_id": "yonerai-platform-stg-2026",
             "database_id": "(default)",
@@ -550,11 +554,14 @@ def test_firebase_token_bridge_accepts_safe_contract_without_printing_token(tmp_
     assert report["firebase_custom_token_printed"] is False
     assert report["firebase_custom_token_persisted"] is False
     assert report["firebase_uid_matches_account"] is True
+    assert report["firebase_claims_session_ref_present"] is True
+    assert report["firebase_claims_session_expires_at_present"] is True
     assert report["firestore_sync_enabled"] is False
     assert report["firestore_sync_event_path_template"] == "/accounts/{account_id}/sync_events/{event_id}"
     assert report["firestore_account_data_binding_required"] is True
     assert report["live_web_to_cli_e2e_proven"] is False
     assert "firebase_custom_token_fixture_value" not in serialized
+    assert "session-ref-fixture-value" not in serialized
     assert "ystg_fixture_session_1234567890" not in serialized
     assert str(tmp_path) not in serialized
     assert calls == [("POST", f"{ORIGIN}/v1/sync/firebase-token", {"purpose": "realtime_sync_metadata_read"})]

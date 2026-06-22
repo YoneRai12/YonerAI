@@ -1105,7 +1105,8 @@ def _sanitize_firebase_token_payload(payload: Mapping[str, object], *, linked_ac
     firestore = payload.get("firestore") if isinstance(payload.get("firestore"), Mapping) else {}
     firestore_summary = _sanitize_firestore_contract(firestore)
     claims = payload.get("claims") if isinstance(payload.get("claims"), Mapping) else {}
-    if set(claims) - {"yonerai_staging"}:
+    allowed_claims = {"yonerai_staging", "yonerai_session_ref", "yonerai_session_expires_at"}
+    if set(claims) - allowed_claims:
         raise RealtimeSyncClientError("firebase_token_private_fields", "Firebase custom token claims contained non-public fields.")
     return {
         "firebase_custom_token_received": True,
@@ -1118,6 +1119,8 @@ def _sanitize_firebase_token_payload(payload: Mapping[str, object], *, linked_ac
         "firebase_expires_at": _safe_message_text(payload.get("expires_at"), fallback=None),
         "firebase_expires_in_seconds": expires_in,
         "firebase_claims_yonerai_staging": claims.get("yonerai_staging") is True,
+        "firebase_claims_session_ref_present": "yonerai_session_ref" in claims,
+        "firebase_claims_session_expires_at_present": "yonerai_session_expires_at" in claims,
         **firestore_summary,
         "google_token_returned": False,
         "refresh_token_returned": False,
