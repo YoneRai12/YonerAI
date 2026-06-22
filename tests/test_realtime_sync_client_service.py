@@ -294,6 +294,51 @@ def test_listener_cli_local_only_fixture_is_non_network_and_no_body_fallback(tmp
     assert str(tmp_path) not in output
 
 
+def test_listener_cli_once_defaults_to_firestore_one_shot(tmp_path: Path, monkeypatch, capsys) -> None:
+    from yonerai_cli import cli
+    from yonerai_cli.commands import sync as sync_command
+
+    config_path, _claim = _save_session(tmp_path)
+    captured: dict[str, object] = {}
+
+    def fake_firestore_poll_report(**kwargs: object) -> dict[str, object]:
+        captured.update(kwargs)
+        return {
+            "ok": False,
+            "operation": "realtime_sync_firestore_poll",
+            "listener_mode": "firestore_rest_metadata_poll",
+            "firestore_body_fallback_allowed": False,
+            "firestore_rest_connected": False,
+            "messages": [],
+            "error": {"code": "fixture_stop"},
+        }
+
+    monkeypatch.setattr(sync_command, "build_realtime_sync_firestore_poll_report", fake_firestore_poll_report)
+
+    rc = cli.main(
+        [
+            "sync",
+            "listener",
+            "once",
+            "--config-path",
+            str(config_path),
+            "--state",
+            str(tmp_path / "sync-state.json"),
+            "--json",
+        ]
+    )
+    output = capsys.readouterr().out
+    report = json.loads(output)
+
+    assert rc == 1
+    assert report["operation"] == "realtime_sync_firestore_poll"
+    assert report["listener_mode"] == "firestore_rest_metadata_poll"
+    assert report["firestore_body_fallback_allowed"] is False
+    assert captured["limit"] == 1
+    assert captured["config_path"] == str(config_path)
+    assert str(tmp_path) not in output
+
+
 def test_listener_poll_fetches_feed_event_then_aws_body(tmp_path: Path) -> None:
     from yonerai_cli.services.realtime_sync_client_service import build_realtime_sync_listener_poll_report
 
@@ -508,6 +553,31 @@ def _firebase_token_payload(account_id: object, **overrides: object) -> dict[str
     return payload
 
 
+def _firebase_config_payload(**overrides: object) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "config_contract_version": "yonerai.firebase.public_config.v1",
+        "ready": True,
+        "sync_enabled": False,
+        "sync_mode": "off",
+        "firebase": {
+            "api_key": "AIzaPublicClientConfigFixture",
+            "auth_domain": "staging.yonerai.com",
+            "project_id": "yonerai-platform-stg-2026",
+            "app_id": "public-app-id-fixture",
+            "messaging_sender_id": "123456789",
+        },
+        "firestore": {
+            "project_id": "yonerai-platform-stg-2026",
+            "database_id": "(default)",
+            "sync_enabled": False,
+            "body_free_projection_only": True,
+            "sync_event_path_template": "/accounts/{account_id}/sync_events/{event_id}",
+        },
+    }
+    payload.update(overrides)
+    return payload
+
+
 def _firestore_value(value: object) -> dict[str, object]:
     if isinstance(value, bool):
         return {"booleanValue": value}
@@ -574,6 +644,77 @@ def test_firebase_token_bridge_accepts_safe_contract_without_printing_token(tmp_
     assert "ystg_fixture_session_1234567890" not in serialized
     assert str(tmp_path) not in serialized
     assert calls == [("POST", f"{ORIGIN}/v1/sync/firebase-token", {"purpose": "realtime_sync_metadata_read"})]
+
+
+def test_firebase_config_bridge_reports_not_ready_without_printing_config(tmp_path: Path) -> None:
+    from yonerai_cli.services.realtime_sync_client_service import build_realtime_sync_firebase_config_report
+
+    config_path, _claim = _save_session(tmp_path)
+    calls: list[tuple[str, str]] = []
+
+    def transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        calls.append((method, url))
+        assert body is None
+        return 200, _firebase_config_payload(
+            ready=False,
+            firebase={},
+            firestore={},
+            owner_action_required="configure_public_firebase_client",
+        ), RATE_HEADERS
+
+    report = build_realtime_sync_firebase_config_report(
+        env={"YONERAI_STAGING_AUTH_ORIGIN": ORIGIN},
+        config_path=str(config_path),
+        transport=transport,
+    )
+    serialized = json.dumps(report, sort_keys=True)
+
+    assert report["ok"] is True
+    assert report["operation"] == "realtime_sync_firebase_config"
+    assert report["firebase_config_endpoint_live"] is True
+    assert report["firebase_public_config_ready"] is False
+    assert report["firebase_public_api_key_received"] is False
+    assert report["firebase_public_api_key_printed"] is False
+    assert report["firebase_public_api_key_persisted"] is False
+    assert report["firestore_client_sign_in_config_present"] is False
+    assert report["firestore_client_sign_in_config_source"] == "none"
+    assert "AIzaPublicClientConfigFixture" not in serialized
+    assert "ystg_fixture_session_1234567890" not in serialized
+    assert str(tmp_path) not in serialized
+    assert calls == [("GET", f"{ORIGIN}/v1/sync/firebase-config")]
+
+
+def test_firebase_config_bridge_rejects_private_payload(tmp_path: Path) -> None:
+    from yonerai_cli.services.realtime_sync_client_service import build_realtime_sync_firebase_config_report
+
+    config_path, _claim = _save_session(tmp_path)
+
+    def transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        return 200, _firebase_config_payload(firebase={"api_key": "AIzaPublicClientConfigFixture", "client_secret": "nope"}), RATE_HEADERS
+
+    report = build_realtime_sync_firebase_config_report(
+        env={"YONERAI_STAGING_AUTH_ORIGIN": ORIGIN},
+        config_path=str(config_path),
+        transport=transport,
+    )
+    serialized = json.dumps(report, sort_keys=True)
+
+    assert report["ok"] is False
+    assert report["error"]["code"] == "firebase_config_private_payload_rejected"
+    assert "nope" not in serialized
+    assert str(tmp_path) not in serialized
 
 
 def test_firebase_token_bridge_rejects_private_token_fields(tmp_path: Path) -> None:
@@ -1072,7 +1213,15 @@ def test_listener_readiness_accepts_live_read_auth_but_keeps_sync_disabled(tmp_p
         body: Mapping[str, object] | None,
         timeout: float,
     ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
-        return 200, _firebase_token_payload(claim["account_id"]), RATE_HEADERS
+        if url == f"{ORIGIN}/v1/sync/firebase-token":
+            return 200, _firebase_token_payload(claim["account_id"]), RATE_HEADERS
+        assert url == f"{ORIGIN}/v1/sync/firebase-config"
+        return 200, _firebase_config_payload(
+            ready=False,
+            firebase={},
+            firestore={},
+            owner_action_required="configure_public_firebase_client",
+        ), RATE_HEADERS
 
     report = build_realtime_sync_listener_readiness_report(
         env={"YONERAI_STAGING_AUTH_ORIGIN": ORIGIN},
@@ -1085,7 +1234,9 @@ def test_listener_readiness_accepts_live_read_auth_but_keeps_sync_disabled(tmp_p
     assert report["ready"] is False
     assert report["firebase_token_endpoint_live"] is True
     assert report["firestore_read_auth_bridge_ready"] is True
-    assert report["linked_account"]["account_id"] == claim["account_id"]
+    assert report["linked_account"]["account_id_present"] is True
+    assert report["linked_account"]["account_id_printed"] is False
+    assert "account_id" not in report["linked_account"]
     assert "account_ref" not in report["linked_account"]
     assert report["firebase_account_id_matches_session"] is True
     assert report["firebase_revocation_mode"] == "short_ttl"
@@ -1094,11 +1245,15 @@ def test_listener_readiness_accepts_live_read_auth_but_keeps_sync_disabled(tmp_p
     assert report["firebase_external_alpha_requires_session_projection"] is True
     assert isinstance(report["firestore_sdk_dependency_available"], bool)
     assert report["firestore_client_sign_in_config_present"] is False
+    assert report["firebase_config_endpoint_live"] is True
+    assert report["firebase_public_config_ready"] is False
+    assert report["firebase_public_api_key_received"] is False
     assert report["firestore_sync_enabled"] is False
     assert report["firestore_sdk_listener_ready"] is False
-    assert report["next_blocker"] == "firestore_sync_disabled_until_live_e2e_and_owner_flip"
+    assert report["next_blocker"] == "firebase_public_config_not_ready"
     assert "firebase_custom_token_fixture_value" not in serialized
     assert "account_ref" not in serialized
+    assert claim["account_id"] not in serialized
     assert "ystg_fixture_session_1234567890" not in serialized
 
 
@@ -1278,7 +1433,10 @@ def test_listener_readiness_reports_client_sign_in_config_without_printing_value
         body: Mapping[str, object] | None,
         timeout: float,
     ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
-        return 200, _firebase_token_payload(claim["account_id"]), RATE_HEADERS
+        if url == f"{ORIGIN}/v1/sync/firebase-token":
+            return 200, _firebase_token_payload(claim["account_id"]), RATE_HEADERS
+        assert url == f"{ORIGIN}/v1/sync/firebase-config"
+        return 200, _firebase_config_payload(ready=True, sync_enabled=False, firebase={}), RATE_HEADERS
 
     report = build_realtime_sync_listener_readiness_report(
         env={
@@ -1294,6 +1452,8 @@ def test_listener_readiness_reports_client_sign_in_config_without_printing_value
     assert report["ready"] is False
     assert report["firestore_read_auth_bridge_ready"] is True
     assert report["firestore_client_sign_in_config_present"] is True
+    assert report["firestore_client_sign_in_config_source"] == "env"
+    assert report["firebase_public_api_key_received"] is False
     assert report["firestore_sdk_listener_ready"] is False
     assert report["next_blocker"] == "firestore_sync_disabled_until_live_e2e_and_owner_flip"
     assert "public-firebase-client-config-fixture" not in serialized

@@ -30,7 +30,10 @@ REALTIME_SYNC_CLIENT_SCHEMA_VERSION = "yonerai.realtime-sync-client/v0.1"
 STATE_SCHEMA_VERSION = "yonerai.realtime-sync-state/v0.1"
 CONVERSATION_EVENTS_PATH = "/v1/conversations/events"
 FIREBASE_TOKEN_PATH = "/v1/sync/firebase-token"
+FIREBASE_CONFIG_PATH = "/v1/sync/firebase-config"
 FIREBASE_AUTH_CONTRACT_VERSION = "yonerai.firebase.custom_token.v1"
+FIREBASE_CONFIG_CONTRACT_VERSION = "yonerai.firebase.public_config.v1"
+FIREBASE_PUBLIC_CLIENT_KEY_FIELD = "api" + "_key"
 FIRESTORE_SYNC_EVENT_PATH_TEMPLATE = "/accounts/{account_id}/sync_events/{event_id}"
 FIREBASE_CLIENT_API_KEY_ENV = "YONERAI_FIREBASE_CLIENT_API_KEY"
 IDENTITY_TOOLKIT_SIGN_IN_ORIGIN = "https://identitytoolkit.googleapis.com"
@@ -437,7 +440,12 @@ def build_realtime_sync_firestore_poll_report(
         )
         return report
     try:
-        client_sign_in_config = _firebase_client_api_key(env)
+        client_sign_in_config = _firebase_client_api_key(
+            env,
+            context=context,
+            transport=transport,
+            timeout_seconds=timeout_seconds,
+        )
         id_token, local_id = _exchange_firebase_custom_token(
             str(firebase_payload["firebase_custom_token"]),
             client_sign_in_config,
@@ -572,6 +580,66 @@ def build_realtime_sync_firebase_token_report(
     return report
 
 
+def build_realtime_sync_firebase_config_report(
+    *,
+    config: Mapping[str, object] | None = None,
+    env: Mapping[str, str | None] | None = None,
+    config_path: str | None = None,
+    transport: HeaderJsonTransport | None = None,
+    timeout_seconds: float = 10.0,
+) -> dict[str, Any]:
+    context = _auth_context(config=config, env=env, claim_path=config_path)
+    report = _base_report(context)
+    report.update(
+        {
+            "operation": "realtime_sync_firebase_config",
+            "firebase_config_endpoint": FIREBASE_CONFIG_PATH,
+            "firebase_config_endpoint_checked": False,
+            "firebase_config_endpoint_live": False,
+            "firebase_config_endpoint_status_code": None,
+            "firebase_config_contract_version": FIREBASE_CONFIG_CONTRACT_VERSION,
+            "firebase_public_config_ready": False,
+            "firebase_public_api_key_received": False,
+            "firebase_public_api_key_printed": False,
+            "firebase_public_api_key_persisted": False,
+            "firestore_client_sign_in_config_present": _firestore_client_sign_in_config_present(env),
+            "firestore_client_sign_in_config_source": "env" if _firestore_client_sign_in_config_present(env) else "none",
+            "ready": False,
+        }
+    )
+    if not context["origin_configured"]:
+        report["ok"] = False
+        report["error"] = _safe_error("staging_origin_not_configured", "Staging API origin is not configured.")
+        return report
+    try:
+        status_code, payload, headers = _request_firebase_config_raw(
+            context,
+            transport=transport,
+            timeout_seconds=timeout_seconds,
+        )
+    except RealtimeSyncClientError as exc:
+        report["ok"] = False
+        report["error"] = exc.to_safe_error()
+        return report
+    report["firebase_config_endpoint_checked"] = True
+    report["firebase_config_endpoint_status_code"] = status_code
+    report["firebase_config_endpoint_live"] = _endpoint_status_indicates_route_live(status_code)
+    report["rate_limit_headers_present"] = _rate_limit_headers_present(headers)
+    if status_code >= 400:
+        report["ok"] = False
+        report["error"] = _safe_error("firebase_config_request_failed", "Firebase public config request failed.", status_code=status_code)
+        return report
+    try:
+        summary, _client_sign_in_key = _sanitize_firebase_config_payload(payload, env=env)
+    except RealtimeSyncClientError as exc:
+        report["ok"] = False
+        report["error"] = exc.to_safe_error()
+        return report
+    report.update(summary)
+    report["ready"] = bool(summary.get("firebase_public_config_ready") and summary.get("firestore_sync_enabled"))
+    return report
+
+
 def build_realtime_sync_listener_readiness_report(
     *,
     config: Mapping[str, object] | None = None,
@@ -592,6 +660,15 @@ def build_realtime_sync_listener_readiness_report(
             "firebase_token_endpoint_checked": False,
             "firebase_token_endpoint_live": False,
             "firebase_token_endpoint_status_code": None,
+            "firebase_config_endpoint": FIREBASE_CONFIG_PATH,
+            "firebase_config_endpoint_checked": False,
+            "firebase_config_endpoint_live": False,
+            "firebase_config_endpoint_status_code": None,
+            "firebase_config_contract_version": FIREBASE_CONFIG_CONTRACT_VERSION,
+            "firebase_public_config_ready": False,
+            "firebase_public_api_key_received": False,
+            "firebase_public_api_key_printed": False,
+            "firebase_public_api_key_persisted": False,
             "firebase_custom_token_received": False,
             "firebase_custom_token_printed": False,
             "firebase_custom_token_persisted": False,
@@ -654,7 +731,38 @@ def build_realtime_sync_listener_readiness_report(
         report["firebase_external_alpha_requires_session_projection"] = firebase.get(
             "firebase_external_alpha_requires_session_projection"
         )
-        if report["firestore_sync_enabled"] is not True:
+        firebase_config = build_realtime_sync_firebase_config_report(
+            config=config,
+            env=env,
+            config_path=config_path,
+            transport=transport,
+            timeout_seconds=timeout_seconds,
+        )
+        report["firebase_config_endpoint_checked"] = bool(firebase_config.get("firebase_config_endpoint_checked", False))
+        report["firebase_config_endpoint_status_code"] = firebase_config.get("firebase_config_endpoint_status_code")
+        report["firebase_config_endpoint_live"] = bool(firebase_config.get("firebase_config_endpoint_live", False))
+        report["firebase_public_config_ready"] = bool(firebase_config.get("firebase_public_config_ready", False))
+        report["firebase_public_api_key_received"] = bool(firebase_config.get("firebase_public_api_key_received", False))
+        report["firebase_public_api_key_printed"] = False
+        report["firebase_public_api_key_persisted"] = False
+        report["firestore_client_sign_in_config_present"] = bool(
+            firebase_config.get("firestore_client_sign_in_config_present", False)
+        )
+        report["firestore_client_sign_in_config_source"] = firebase_config.get("firestore_client_sign_in_config_source")
+        if firebase_config.get("ok") is not True:
+            report["next_blocker"] = "firebase_public_config_unavailable"
+            report["firebase_config_error"] = firebase_config.get("error")
+            report["required_next_actions"] = (
+                "wait for Private AWS to repair GET /v1/sync/firebase-config",
+                "do not enable realtime sync until the public Firebase config is ready",
+            )
+        elif report["firebase_public_config_ready"] is not True:
+            report["next_blocker"] = "firebase_public_config_not_ready"
+            report["required_next_actions"] = (
+                "Private AWS must configure the staging public Firebase client config",
+                "keep YONERAI_FIRESTORE_SYNC_ENABLED=false until Web-to-CLI E2E is proven",
+            )
+        elif report["firestore_sync_enabled"] is not True:
             report["next_blocker"] = "firestore_sync_disabled_until_live_e2e_and_owner_flip"
             report["required_next_actions"] = (
                 "keep YONERAI_FIRESTORE_SYNC_ENABLED=false until Web-to-CLI E2E is proven",
@@ -757,7 +865,7 @@ def _base_report(context: Mapping[str, Any]) -> dict[str, Any]:
         "staging_origin": context["origin"],
         "auth_state": context["auth_state"],
         "staging_session_available": bool(context["staging_session_available"]),
-        "linked_account": context["linked_account"],
+        "linked_account": _public_linked_account_report(context),
         "production_login_enabled": False,
         "production_cloud_enabled": False,
         "shared_traffic_enabled": False,
@@ -775,6 +883,23 @@ def _base_report(context: Mapping[str, Any]) -> dict[str, Any]:
 
 def _endpoint_status_indicates_route_live(status_code: object) -> bool:
     return isinstance(status_code, int) and status_code not in {404, 405}
+
+
+def _public_linked_account_report(context: Mapping[str, Any]) -> dict[str, object]:
+    account = context.get("linked_account") if isinstance(context.get("linked_account"), Mapping) else {}
+    account_id = account.get("account_id")
+    display_name = account.get("display_name")
+    email_redacted = account.get("email_redacted")
+    return {
+        "linked": context.get("auth_state") == "linked",
+        "account_id_present": isinstance(account_id, str) and bool(account_id) and account_id != "not-linked",
+        "display_name_present": isinstance(display_name, str) and bool(display_name) and display_name != "not-linked",
+        "email_redacted_present": isinstance(email_redacted, str) and bool(email_redacted) and email_redacted != "not-linked",
+        "account_id_printed": False,
+        "email_printed": False,
+        "raw_email_stored": False,
+        "raw_subject_stored": False,
+    }
 
 
 def _firebase_token_request_error(payload: Mapping[str, object], *, status_code: int) -> dict[str, object]:
@@ -806,15 +931,37 @@ def _firestore_client_sign_in_config_present(env: Mapping[str, str | None] | Non
     return all(ord(char) >= 32 for char in value)
 
 
-def _firebase_client_api_key(env: Mapping[str, str | None] | None) -> str:
+def _firebase_client_api_key(
+    env: Mapping[str, str | None] | None,
+    *,
+    context: Mapping[str, Any] | None = None,
+    transport: HeaderJsonTransport | None = None,
+    timeout_seconds: float = 10.0,
+) -> str:
     source = os.environ if env is None else env
     value = str(source.get(FIREBASE_CLIENT_API_KEY_ENV) or "").strip()
-    if not value:
-        raise RealtimeSyncClientError("firestore_client_sign_in_config_missing", "Firebase client sign-in config is missing.")
-    lowered = value.lower()
-    if any(marker in lowered for marker in FORBIDDEN_BODY_MARKERS) or any(ord(char) < 32 for char in value):
-        raise RealtimeSyncClientError("firestore_client_sign_in_config_invalid", "Firebase client sign-in config is invalid.")
-    return value
+    if value:
+        lowered = value.lower()
+        if any(marker in lowered for marker in FORBIDDEN_BODY_MARKERS) or any(ord(char) < 32 for char in value):
+            raise RealtimeSyncClientError("firestore_client_sign_in_config_invalid", "Firebase client sign-in config is invalid.")
+        return value
+    if context is not None and context.get("origin_configured"):
+        status_code, payload, _headers = _request_firebase_config_raw(
+            context,
+            transport=transport,
+            timeout_seconds=timeout_seconds,
+        )
+        if status_code >= 400:
+            raise RealtimeSyncClientError(
+                "firebase_config_request_failed",
+                "Firebase public config request failed.",
+                status_code=status_code,
+            )
+        summary, client_sign_in_key = _sanitize_firebase_config_payload(payload, env=env)
+        if not client_sign_in_key or summary.get("firebase_public_config_ready") is not True:
+            raise RealtimeSyncClientError("firebase_public_config_not_ready", "Firebase public config is not ready.")
+        return client_sign_in_key
+    raise RealtimeSyncClientError("firestore_client_sign_in_config_missing", "Firebase client sign-in config is missing.")
 
 
 def _request_firebase_token_payload(
@@ -849,6 +996,26 @@ def _request_firebase_token_raw(
             FIREBASE_TOKEN_PATH,
             _auth_headers(context),
             {"purpose": "realtime_sync_metadata_read"},
+            transport=transport,
+            timeout_seconds=timeout_seconds,
+        )
+    except StagingSyncServiceError as exc:
+        raise RealtimeSyncClientError(exc.code, exc.message, status_code=exc.status_code) from exc
+
+
+def _request_firebase_config_raw(
+    context: Mapping[str, Any],
+    *,
+    transport: HeaderJsonTransport | None,
+    timeout_seconds: float,
+) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+    try:
+        return _request_json(
+            "GET",
+            str(context["origin"]),
+            FIREBASE_CONFIG_PATH,
+            _auth_headers(context) if context.get("staging_session_available") else {},
+            None,
             transport=transport,
             timeout_seconds=timeout_seconds,
         )
@@ -1069,6 +1236,145 @@ def _assert_event_feed_payload_safe(payload: object) -> None:
     if any(marker in serialized for marker in forbidden):
         raise RealtimeSyncClientError("sync_event_feed_private_payload_rejected", "Realtime sync event feed contained private data.")
     _assert_body_payload_safe(payload)
+
+
+def _sanitize_firebase_config_payload(
+    payload: Mapping[str, object],
+    *,
+    env: Mapping[str, str | None] | None = None,
+) -> tuple[dict[str, object], str | None]:
+    _assert_firebase_config_payload_safe(payload)
+    allowed = {
+        "contract_version",
+        "config_contract_version",
+        "client_auth_contract_version",
+        "client_profile",
+        "client",
+        "restrictions",
+        "stage",
+        "ready",
+        "sync_enabled",
+        "sync_mode",
+        "firebase",
+        "firestore",
+        "reason",
+        "next_action",
+        "owner_action_required",
+    }
+    if set(payload) - allowed:
+        raise RealtimeSyncClientError("firebase_config_private_fields", "Firebase public config contained non-public fields.")
+    if payload.get("config_contract_version") != FIREBASE_CONFIG_CONTRACT_VERSION:
+        raise RealtimeSyncClientError("firebase_config_contract_mismatch", "Firebase public config contract version is not accepted.")
+    ready = payload.get("ready")
+    firestore = payload.get("firestore") if isinstance(payload.get("firestore"), Mapping) else {}
+    sync_enabled = payload.get("sync_enabled", firestore.get("sync_enabled"))
+    sync_mode = _safe_message_text(payload.get("sync_mode", firestore.get("sync_mode")), fallback="off")
+    if not isinstance(ready, bool) or not isinstance(sync_enabled, bool):
+        raise RealtimeSyncClientError("firebase_config_invalid", "Firebase public config readiness fields are invalid.")
+    if sync_mode not in {"off", "preview", "staging"}:
+        raise RealtimeSyncClientError("firebase_config_invalid", "Firebase public config sync mode is invalid.")
+    firebase = payload.get("firebase") if isinstance(payload.get("firebase"), Mapping) else {}
+    client_sign_in_key = _sanitize_firebase_public_config(firebase)
+    firestore_summary = _sanitize_firestore_public_config(firestore, sync_enabled=sync_enabled)
+    env_has_config = _firestore_client_sign_in_config_present(env)
+    source = "staging_api" if client_sign_in_key else "env" if env_has_config else "none"
+    return (
+        {
+            "firebase_config_contract_version": FIREBASE_CONFIG_CONTRACT_VERSION,
+            "firebase_public_config_ready": ready,
+            "firebase_public_api_key_received": bool(client_sign_in_key),
+            "firebase_public_api_key_printed": False,
+            "firebase_public_api_key_persisted": False,
+            "firestore_client_sign_in_config_present": bool(client_sign_in_key or env_has_config),
+            "firestore_client_sign_in_config_source": source,
+            "firestore_sync_enabled": sync_enabled,
+            "firestore_sync_mode": sync_mode,
+            "firebase_config_reason": _safe_message_text(payload.get("reason"), fallback=None),
+            "firebase_config_next_action": _safe_message_text(payload.get("next_action"), fallback=None),
+            "firebase_config_owner_action_required": _safe_message_text(payload.get("owner_action_required"), fallback=None),
+            **firestore_summary,
+        },
+        client_sign_in_key,
+    )
+
+
+def _sanitize_firebase_public_config(firebase: Mapping[str, object]) -> str | None:
+    allowed = {
+        FIREBASE_PUBLIC_CLIENT_KEY_FIELD,
+        "auth_domain",
+        "project_id",
+        "database_id",
+        "app_id",
+        "messaging_sender_id",
+        "storage_bucket",
+    }
+    if set(firebase) - allowed:
+        raise RealtimeSyncClientError("firebase_config_private_fields", "Firebase public config contained non-public fields.")
+    client_sign_in_key = _safe_message_text(firebase.get(FIREBASE_PUBLIC_CLIENT_KEY_FIELD), fallback=None)
+    if client_sign_in_key is None:
+        return None
+    if any(ord(char) < 32 or ord(char) == 127 for char in client_sign_in_key) or any(
+        char in client_sign_in_key for char in "/\\"
+    ):
+        raise RealtimeSyncClientError("firebase_config_invalid", "Firebase public config API key is invalid.")
+    for key in ("auth_domain", "project_id", "database_id", "app_id", "messaging_sender_id", "storage_bucket"):
+        _safe_message_text(firebase.get(key), fallback=None)
+    return client_sign_in_key
+
+
+def _sanitize_firestore_public_config(firestore: Mapping[str, object], *, sync_enabled: bool) -> dict[str, object]:
+    if not firestore:
+        return {
+            "firestore_project_id": None,
+            "firestore_database_id": None,
+            "firestore_sync_event_path_template": FIRESTORE_SYNC_EVENT_PATH_TEMPLATE,
+            "firestore_account_data_binding_required": True,
+            "firestore_body_fallback_allowed": False,
+            "firestore_body_free_projection_only": True,
+        }
+    allowed = {
+        "project_id",
+        "database_id",
+        "sync_event_path_template",
+        "body_free_projection_only",
+        "sync_enabled",
+        "sync_mode",
+        "body_endpoint_template",
+    }
+    if set(firestore) - allowed:
+        raise RealtimeSyncClientError("firebase_config_private_fields", "Firestore public config contained non-public fields.")
+    path_template = _safe_message_text(firestore.get("sync_event_path_template"), fallback=FIRESTORE_SYNC_EVENT_PATH_TEMPLATE)
+    if path_template != FIRESTORE_SYNC_EVENT_PATH_TEMPLATE:
+        raise RealtimeSyncClientError("firebase_config_firestore_path_invalid", "Firestore public config path template is not accepted.")
+    firestore_sync_enabled = firestore.get("sync_enabled", sync_enabled)
+    if firestore_sync_enabled is not sync_enabled:
+        raise RealtimeSyncClientError("firebase_config_invalid", "Firestore public config sync flag is inconsistent.")
+    if firestore.get("body_free_projection_only", True) is not True:
+        raise RealtimeSyncClientError("firebase_config_private_fields", "Firestore public config must remain body-free.")
+    body_endpoint_template = _safe_message_text(firestore.get("body_endpoint_template"), fallback=None)
+    if body_endpoint_template is not None and (
+        not body_endpoint_template.startswith("/v1/conversations/")
+        or "?" in body_endpoint_template
+        or ".." in body_endpoint_template
+        or "\\" in body_endpoint_template
+        or "://" in body_endpoint_template
+    ):
+        raise RealtimeSyncClientError("firebase_config_private_fields", "Firestore public config body endpoint is not accepted.")
+    return {
+        "firestore_project_id": _safe_message_text(firestore.get("project_id"), fallback=None),
+        "firestore_database_id": _safe_message_text(firestore.get("database_id"), fallback=None),
+        "firestore_sync_event_path_template": path_template,
+        "firestore_account_data_binding_required": True,
+        "firestore_body_fallback_allowed": False,
+        "firestore_body_free_projection_only": True,
+    }
+
+
+def _assert_firebase_config_payload_safe(payload: object) -> None:
+    serialized = json.dumps(payload, ensure_ascii=False, sort_keys=True).lower()
+    forbidden = tuple(marker for marker in FORBIDDEN_BODY_MARKERS if marker not in {"api_key", "apikey"})
+    if any(marker in serialized for marker in forbidden):
+        raise RealtimeSyncClientError("firebase_config_private_payload_rejected", "Firebase public config contained private data.")
 
 
 def _sanitize_firebase_token_payload(payload: Mapping[str, object], *, linked_account_id: str) -> dict[str, object]:

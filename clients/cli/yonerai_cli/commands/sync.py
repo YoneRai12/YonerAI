@@ -23,6 +23,7 @@ from yonerai_cli.services.realtime_sync_event_service import (
 )
 from yonerai_cli.services.realtime_sync_client_service import (
     build_realtime_sync_firestore_poll_report,
+    build_realtime_sync_firebase_config_report,
     build_realtime_sync_firebase_token_report,
     build_realtime_sync_listener_readiness_report,
     build_realtime_sync_listener_fixture_report,
@@ -228,16 +229,16 @@ def add_sync_parser(
     listener_subcommands = listener.add_subparsers(dest="sync_listener_command", required=True)
     listener_once = listener_subcommands.add_parser(
         "once",
-        help="Validate one body-free SyncEvent, update cursor state, and fetch AWS body only when allowed.",
+        help="Read one account-scoped Firestore SyncEvent and fetch AWS body only when allowed.",
     )
     listener_source = listener_once.add_mutually_exclusive_group()
     listener_source.add_argument("--event-json", help="Inline JSON SyncEvent payload. No file is read.")
     listener_source.add_argument(
         "--fixture",
         choices=tuple(sorted(SYNC_EVENT_FIXTURES)),
-        default="valid",
-        help="Safe built-in SyncEvent fixture. Default: valid.",
+        help="Safe built-in SyncEvent fixture. If omitted, once reads Firestore metadata.",
     )
+    listener_once.add_argument("--limit", type=int, default=1, help="Maximum Firestore events to request. Default: 1.")
     listener_once.add_argument("--config-path", help="Optional local CLI config path.")
     listener_once.add_argument("--state", help="Optional local cursor state path.")
     listener_once.add_argument("--timeout-seconds", type=float, default=10.0, help="Staging API timeout. Default: 10.")
@@ -291,6 +292,18 @@ def add_sync_parser(
         lang_choices=lang_choices,
         color_choices=color_choices,
         pretty_help="Print readable Firebase read-auth bridge status.",
+    )
+    listener_firebase_config = listener_subcommands.add_parser(
+        "firebase-config",
+        help="Validate the staging public Firebase client config without printing config values.",
+    )
+    listener_firebase_config.add_argument("--config-path", help="Optional local CLI config path.")
+    listener_firebase_config.add_argument("--timeout-seconds", type=float, default=10.0, help="Staging API timeout. Default: 10.")
+    _add_output_and_locale(
+        listener_firebase_config,
+        lang_choices=lang_choices,
+        color_choices=color_choices,
+        pretty_help="Print readable Firebase public config status.",
     )
     listener_readiness = listener_subcommands.add_parser(
         "readiness",
@@ -456,9 +469,19 @@ def build_sync_report(args: argparse.Namespace, *, prepare_import_paths: Callabl
             if event_json:
                 event = _event_payload_from_args(args)
                 return build_realtime_sync_listener_once_report(event=event, **kwargs)
-            return build_realtime_sync_listener_fixture_report(
-                fixture=str(getattr(args, "fixture", "valid") or "valid"),
-                **kwargs,
+            fixture = getattr(args, "fixture", None)
+            if fixture:
+                return build_realtime_sync_listener_fixture_report(
+                    fixture=str(fixture),
+                    **kwargs,
+                )
+            return build_realtime_sync_firestore_poll_report(
+                config=_load_config(args),
+                env=os.environ,
+                config_path=getattr(args, "config_path", None),
+                state_path=getattr(args, "state", None),
+                timeout_seconds=float(getattr(args, "timeout_seconds", 10.0)),
+                limit=max(1, min(int(getattr(args, "limit", 1)), 1)),
             )
         if args.sync_command == "listener" and args.sync_listener_command == "poll":
             return build_realtime_sync_listener_poll_report(
@@ -481,6 +504,13 @@ def build_sync_report(args: argparse.Namespace, *, prepare_import_paths: Callabl
             )
         if args.sync_command == "listener" and args.sync_listener_command == "firebase-token":
             return build_realtime_sync_firebase_token_report(
+                config=_load_config(args),
+                env=os.environ,
+                config_path=getattr(args, "config_path", None),
+                timeout_seconds=float(getattr(args, "timeout_seconds", 10.0)),
+            )
+        if args.sync_command == "listener" and args.sync_listener_command == "firebase-config":
+            return build_realtime_sync_firebase_config_report(
                 config=_load_config(args),
                 env=os.environ,
                 config_path=getattr(args, "config_path", None),
@@ -630,6 +660,15 @@ def format_sync_pretty_v2(report: dict[str, Any], *, lang: str = "ja", color: Co
         "firebase_token_endpoint_checked",
         "firebase_token_endpoint_live",
         "firebase_token_endpoint_status_code",
+        "firebase_config_endpoint",
+        "firebase_config_endpoint_checked",
+        "firebase_config_endpoint_live",
+        "firebase_config_endpoint_status_code",
+        "firebase_config_contract_version",
+        "firebase_public_config_ready",
+        "firebase_public_api_key_received",
+        "firebase_public_api_key_printed",
+        "firebase_public_api_key_persisted",
         "firebase_auth_contract_version",
         "firebase_custom_token_received",
         "firebase_custom_token_printed",

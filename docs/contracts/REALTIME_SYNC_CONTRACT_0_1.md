@@ -223,6 +223,36 @@ Accepted response metadata:
   owner explicitly flips the staging flag
 - `firestore.sync_event_path_template=/accounts/{account_id}/sync_events/{event_id}`
 
+The public Firebase client configuration is fetched separately:
+
+- `GET /v1/sync/firebase-config`
+- `config_contract_version=yonerai.firebase.public_config.v1`
+- the response may include public-only compatibility metadata such as
+  `contract_version`, `client_auth_contract_version`, `client_profile`,
+  `client`, `restrictions`, and `stage`; clients must not treat those fields as
+  authority for body, sync policy, provider policy, approval, status, or audit
+- `ready=false` means Public clients must not start the Firestore listener
+- `sync_enabled=false` and `sync_mode=off` may be top-level or under
+  `firestore`; this remains the expected state until live Web-to-CLI E2E is
+  proven and the owner flips the staging flag
+- `firebase.api_key` is public Firebase client configuration only, not a server
+  secret, provider key, Google token, refresh token, or auth code
+- clients may use the public API key only for Firebase client sign-in exchange
+  and must not print, persist, commit, or expose it in JSON diagnostics
+- `firebase.auth_domain`, `firebase.project_id`, `firebase.database_id`, app
+  identifiers, and sender/storage identifiers are public Firebase client
+  metadata only and must not be logged as private runtime inventory
+- the endpoint must not return service-account keys, Google/provider tokens,
+  auth codes, internal endpoints, account-scoped data, message body, raw prompt,
+  raw audit detail, or private paths
+- `firestore.sync_event_path_template` must remain
+  `/accounts/{account_id}/sync_events/{event_id}`
+- `firestore.body_endpoint_template`, when present, must be an AWS official API
+  relative path for conversation message body fetch and must not contain query
+  strings, traversal, credentials, or absolute/internal endpoints
+- Firestore config must remain body-free and client writes to sync policy,
+  provider policy, approval, status, and audit projections stay denied
+
 Public CLI reporting rules:
 
 - may report that a Firebase custom token was received
@@ -236,12 +266,13 @@ Public CLI reporting rules:
   but token/private payload or contract mismatch must still fail closed.
 - must not treat receipt of `firebase_custom_token` alone as proof that the
   Firestore SDK listener is ready. Public must also have a reviewed client
-  dependency and a public-safe Firebase client sign-in exchange/config before
-  starting a live SDK listener.
-- Public CLI may use `YONERAI_FIREBASE_CLIENT_API_KEY` as a public-safe client
-  sign-in configuration signal for the Firebase custom-token exchange. The value
-  must not be printed, persisted into the YonerAI config, committed, or treated
-  as a provider/server credential. If this config is absent, readiness must stay
+  dependency and a ready public-safe Firebase client sign-in exchange/config
+  before starting a live SDK listener.
+- Public CLI should prefer `GET /v1/sync/firebase-config` for public client
+  config. `YONERAI_FIREBASE_CLIENT_API_KEY` may remain an explicit local
+  closed-alpha fallback, but the value must not be printed, persisted into the
+  YonerAI config, committed, or treated as a provider/server credential.
+- If `/v1/sync/firebase-config` is live but `ready=false`, readiness must stay
   false even when the Firebase read-auth bridge is healthy.
 
 ## Security Fixtures

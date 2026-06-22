@@ -557,7 +557,7 @@ def test_google_login_staging_accepts_nested_opaque_yonerai_session(tmp_path: Pa
     assert str(tmp_path) not in serialized
 
 
-def test_google_login_staging_accepts_opaque_session_token_return_metadata(tmp_path: Path, monkeypatch) -> None:
+def test_google_login_staging_rejects_opaque_session_token_return_metadata(tmp_path: Path, monkeypatch) -> None:
     from yonerai_cli.auth_policy import build_google_login_staging
 
     def transport(method: str, url: str, body: object, timeout: float) -> tuple[int, dict[str, object]]:
@@ -586,16 +586,16 @@ def test_google_login_staging_accepts_opaque_session_token_return_metadata(tmp_p
     report = build_google_login_staging(poll_request_id="cli_fixture_request", transport=transport)
     serialized = json.dumps(report, sort_keys=True)
 
-    assert report["ok"] is True
-    assert report["cli_bridge"]["poll_status"] == "linked"
-    assert report["cli_bridge"]["staging_session_received"] is True
-    assert report["cli_bridge"]["poll"]["session"]["token_returned"] is False
-    assert report["cli_bridge"]["poll"]["session"]["opaque_session_available"] is True
+    assert report["ok"] is False
+    assert report["error"]["code"] == "staging_bridge_token_return_forbidden"
     assert "ystg_cli_secret_placeholder" not in serialized
     assert str(tmp_path) not in serialized
 
 
-def test_google_login_staging_accepts_nested_opaque_session_claim(tmp_path: Path, monkeypatch) -> None:
+def test_google_login_staging_rejects_nested_opaque_session_claim_token_return_metadata(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
     from yonerai_cli.auth_policy import build_google_login_staging
 
     def transport(method: str, url: str, body: object, timeout: float) -> tuple[int, dict[str, object]]:
@@ -624,11 +624,8 @@ def test_google_login_staging_accepts_nested_opaque_session_claim(tmp_path: Path
     report = build_google_login_staging(poll_request_id="cli_fixture_request", transport=transport)
     serialized = json.dumps(report, sort_keys=True)
 
-    assert report["ok"] is True
-    assert report["cli_bridge"]["poll_status"] == "linked"
-    assert report["cli_bridge"]["staging_session_received"] is True
-    assert report["cli_bridge"]["poll"]["session"]["token_returned"] is False
-    assert report["cli_bridge"]["poll"]["session"]["opaque_session_available"] is True
+    assert report["ok"] is False
+    assert report["error"]["code"] == "staging_bridge_token_return_forbidden"
     assert "ystg_cli_secret_placeholder" not in serialized
     assert str(tmp_path) not in serialized
 

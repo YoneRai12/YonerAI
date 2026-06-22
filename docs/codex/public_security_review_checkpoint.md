@@ -411,3 +411,114 @@ Checked in this checkpoint:
 | #548 and dependency PRs | deferred-with-tracked-issue | Dependabot lanes | Some stale/failed checks on old branches | Track separately; dependency work must not starve StatusWEB live ingestion. |
 | #545/#544 | deferred-with-tracked-issue / duplicate UX | Theme alias review comments remain open | UX/correctness, not current P0/P1/security | Track separately; not blocking this lane. |
 | #552 | valid-now coordination source | Public/AWS/YonerAIWEB status and sync notices checked | Current issue state says sync/firestore remains staging/disabled or short-TTL-gated; no production claim | Status page may render staging/preview truth only, with no account/token/internal detail. |
+
+## 2026-06-23 Closed-Alpha Firebase Client / Realtime Sync Intake
+
+- last_scan_at: 2026-06-23T05:08:16+09:00
+- highest_seen_pr_number: 569
+- current_main_head: e7c27d6
+- branch: codex/sync-contract-accepted-checkpoint
+- lane: Public closed-alpha Firebase client and realtime sync listener
+
+Checked in this checkpoint:
+
+- Open PRs #569, #567, #566, #565, #548, #547, #545, #544, #523, #521,
+  stale product PRs, and dependency PRs.
+- Recently merged #568 reviews/comments after final push and merge.
+- Issue #552 latest AWS/Public/YonerAIWEB Firebase client-auth comments.
+- Current branch tests, ruff, compileall, diff check, and changed-file quality
+  scan after rebasing onto #568.
+
+Findings and decisions:
+
+| PR / issue / notice | classification | review/comment state | CI / evidence state | decision |
+| --- | --- | --- | --- | --- |
+| #568 | valid-but-already-fixed | Gemini high/medium and Codex P1 were valid; #568 was merged to main before this checkpoint | Current branch is rebased on merge commit e7c27d6 and preserves quoted token-marker, Windows slash path, and Unix temp/workspace path coverage | Treat as current main truth; no reopen. |
+| #566 | valid-now fixed in current branch | Gemini noted no additional comments, but the PR captured a real fail-closed rule for `session.token_returned=true` | Current branch now rejects `token_returned=true` even when an opaque YonerAI session exists; auth/sync regression suite passed | Supersede by this branch rather than merging stale dirty PR. |
+| #565 | duplicate / valid-but-already-fixed | Gemini local-path and Codex token-marker findings were valid on the old PR | Covered by #568 plus current branch preserving private endpoint filtering | Close or mark superseded after this branch lands. |
+| #569 | deferred-with-tracked-issue | Gemini review lists status-ingestion improvements: atomic promotion, fetch timeout, content-length guard, redundant validation cleanup | Open, blocked, not merged into main; status lane scope, not the active sync listener surface | Track in `docs/tasks/DEFERRED.md`; do not block realtime sync client work. |
+| #567 | deferred-with-tracked-issue | No review findings; stale/behind test wording PR | Non-security and not required for closed-alpha sync | Track as CLI UX/test cleanup. |
+| #552 | valid-now coordination source | Latest comments confirm short-TTL no-session-ref Firebase client-auth contract; Web ACK is present but live sync is not claimed | Current branch accepts no-session-ref short-TTL contract and keeps sync disabled until owner flip/live E2E | Post `[SYNC-CURRENT-TRUTH-V1]`; no `[PUBLIC-SYNC-CLIENT-READY]` yet. |
+
+Validation:
+
+- `python -m pytest tests\test_auth_privacy_policy.py tests\test_realtime_sync_client_service.py tests\test_realtime_sync_event_service.py -q` => 145 passed.
+- `python -m pytest tests\test_native_run_client.py tests\test_conversation_sync_policy.py tests\test_control_spine_client.py tests\test_cli_command_display_modes.py -q` => 85 passed.
+- Combined targeted suite => 230 passed.
+- `python -m ruff check ...` => pass.
+- `python -m compileall -q clients\cli\yonerai_cli` => pass.
+- `git diff --check` => pass.
+- `python scripts\ci_quality_scans.py --changed` => pass for 28 files.
+
+Current blocker:
+
+- `[PUBLIC-SYNC-CLIENT-READY]` is not yet true.
+- `YONERAI_FIRESTORE_SYNC_ENABLED=false` remains owner-controlled.
+- Live Web-to-CLI E2E is not proven in this Public checkpoint.
+
+## 2026-06-23 Firebase Public Config Intake / AWS-E2E-SUPPORT-BLOCKED
+
+- last_scan_at: 2026-06-23T06:25:00+09:00
+- highest_seen_pr_number: 569
+- current_main_head: e7c27d6
+- branch: codex/sync-contract-accepted-checkpoint
+- lane: Public closed-alpha Firebase client and realtime sync listener
+
+New cross-lane notice:
+
+- Private AWS reports `/v1/sync/firebase-config` live on staging with
+  `config_contract_version=yonerai.firebase.public_config.v1`.
+- `YONERAI_FIRESTORE_SYNC_ENABLED=false` remains in force.
+- AWS reports `[AWS-E2E-SUPPORT-BLOCKED]` because the staging public Firebase
+  client config is not ready yet. This is public client config, not a service
+  account key or provider token.
+- Fresh PR scan also observed #569's Status lane follow-up review-intake
+  comment. Its earlier status-ingestion findings are reported fixed on that PR,
+  but #569 remains a separate Status lane PR and is not a realtime sync client
+  prerequisite.
+
+Public decision:
+
+- Accept `/v1/sync/firebase-config` as the public Firebase client-config
+  endpoint for closed-alpha listener readiness.
+- Do not print or persist Firebase public client config values, Firebase custom
+  tokens, Google tokens, refresh tokens, provider keys, or account identifiers.
+- Treat `ready=false` as `firebase_public_config_not_ready`; do not start the
+  Firestore listener or claim `[PUBLIC-SYNC-CLIENT-READY]`.
+- Keep environment-provided Firebase client config as an explicit local
+  closed-alpha fallback only; the staging API ready flag remains authoritative
+  for listener readiness.
+- Posted `[PUBLIC-FIREBASE-CONFIG-ACK]` to issue #552:
+  https://github.com/YoneRai12/YonerAI/issues/552#issuecomment-4772771412
+
+Live safe smoke:
+
+- `/v1/health` returned 200 with version fields present.
+- `/v1/status` returned `yonerai.status.v1`.
+- `/v1/sync/firebase-config` returned 200, contract v1, ready false, sync
+  disabled; Public smoke printed no config values.
+- `yonerai sync listener firebase-config --json` reaches the staging endpoint
+  and reports booleans only.
+- `yonerai sync listener readiness --json` remains not ready because the saved
+  local staging session is rejected by the read-auth endpoint; the output does
+  not print account identifiers or token values.
+
+Validation:
+
+- `python -m pytest tests\test_realtime_sync_client_service.py -q` => 38 passed.
+- Combined targeted suite
+  `tests\test_auth_privacy_policy.py tests\test_realtime_sync_client_service.py
+  tests\test_realtime_sync_event_service.py tests\test_native_run_client.py
+  tests\test_conversation_sync_policy.py tests\test_control_spine_client.py
+  tests\test_cli_command_display_modes.py -q` => 232 passed.
+- `python -m ruff check ...` => pass.
+- `python -m compileall -q clients\cli\yonerai_cli` => pass.
+- `git diff --check` => pass.
+- `python scripts\ci_quality_scans.py --changed` => pass for 28 files.
+
+Current blocker:
+
+- `[PUBLIC-SYNC-CLIENT-READY]` is still false.
+- Live Web-to-CLI E2E is still blocked by staging session repair/re-login and
+  the AWS public Firebase client config readiness blocker.
+- No release/tag was created.
