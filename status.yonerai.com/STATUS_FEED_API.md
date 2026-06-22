@@ -384,11 +384,12 @@ node status.yonerai.com/tools/sync-status-public-feed.mjs `
 Contract:
 
 - The browser still loads only same-origin `/status-feed.json`; it must not call the staging API directly.
-- `--input-url` accepts only public-safe `yonerai.status.v1` snapshots.
+- `--input-url` accepts only HTTPS public-safe `yonerai.status.v1` snapshots from the approved staging status host.
 - The generated feed is validated with `tools/validate-status-feed.mjs` and `tools/validate-status-public-feed-safety.mjs` before promotion.
 - A validated last-known-good feed is saved under the workdir.
 - Upstream failures or malformed snapshots use last-known-good fallback with `meta.live_ingestion.status="stale"` and `meta.stale=true`.
 - Stale fallback degrades operational component states instead of rendering stale data as green.
 - `meta.refresh_ms` provides the bounded same-origin browser refresh interval.
 - Upstream errors are reported as public error classes such as `upstream_unavailable` or `upstream_invalid`; raw upstream bodies are not written to the public feed.
+- Raw upstream snapshots are projected to the canonical public fields before they are cached in the StatusWEB workdir.
 - This is staging/preview status ingestion only and is not a production-service claim.

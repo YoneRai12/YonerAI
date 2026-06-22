@@ -160,3 +160,9 @@ PR #569 review intake:
 - Codex P1: valid-now. Schema-valid but malformed/unsafe upstream snapshots must still use LKG fallback instead of exiting without stale/degraded publication.
 - Codex P1: valid-now. Fallback must rewrite operational day-level states/colors, because the runtime derives current/category state from component day arrays.
 - AWS-AUTH-STATUS-READY intake: valid-now. Live AWS reports realtime sync as disabled/off; StatusWEB must render `realtime_sync` as disabled, not merely degraded, when the canonical component stage is disabled.
+- Codex P1: valid-now. Fetched snapshots must be projected to canonical public fields before caching in the StatusWEB workdir.
+- Codex P1: valid-now. Upstream ETags must be persisted only after feed validation and LKG update.
+- Codex P2/security: fixed now. `--input-url` is restricted to HTTPS approved staging status host input and unexpected redirects are rejected.
+- Codex P2/resource hardening: fixed now. Upstream response bodies are read with a streaming byte cap instead of only checking after full buffering.
+- AWS-AUTH-STATUS-READY: acknowledged for StatusWEB. Live staging snapshot maps `auth` to service-health-only staging status and `realtime_sync` stage `disabled` to feed state `disabled`.
+- Local evidence before final push: contract suite quick pass, live staging ingestion pass, public feed safety pass, stale LKG fallback pass, disallowed host/HTTP URL rejection pass, `git diff --check` pass, changed-file quality scan pass.

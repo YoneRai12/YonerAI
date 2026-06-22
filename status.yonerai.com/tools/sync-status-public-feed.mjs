@@ -24,6 +24,9 @@ const defaultHealthcheckBySchema = {
   "yonerai.status.yonerai-health.v1": "status-healthcheck-input.yonerai-api-http.example.json"
 };
 
+const allowedSnapshotHosts = new Set(["api-staging.yonerai.com"]);
+const maxSnapshotBytes = 1_000_000;
+
 function usage() {
   console.log(`Usage:
   node status.yonerai.com/tools/sync-status-public-feed.mjs --input <input.json> [--public status-feed.json]
@@ -165,8 +168,11 @@ function assertRefreshMs(value) {
 
 function assertPublicSnapshotUrl(value) {
   const url = new URL(value);
-  if (!["https:", "http:"].includes(url.protocol)) {
-    throw new Error("--input-url must be http or https");
+  if (url.protocol !== "https:") {
+    throw new Error("--input-url must be https");
+  }
+  if (!allowedSnapshotHosts.has(url.hostname.toLowerCase())) {
+    throw new Error("--input-url host is not approved for public status ingestion");
   }
   if (url.username || url.password) {
     throw new Error("--input-url must not include credentials");
@@ -179,6 +185,99 @@ function assertPublicSnapshotUrl(value) {
   return url;
 }
 
+function publicText(value) {
+  if (typeof value === "string") return value;
+  if (value && typeof value === "object") {
+    return {
+      ...(typeof value.ja === "string" ? { ja: value.ja } : {}),
+      ...(typeof value.en === "string" ? { en: value.en } : {}),
+    };
+  }
+  return "";
+}
+
+function normalizeComponents(value) {
+  if (Array.isArray(value)) return value;
+  if (value && typeof value === "object") return Object.values(value);
+  return [];
+}
+
+function projectSnapshotComponent(component) {
+  return {
+    id: String(component?.id || ""),
+    health: String(component?.health || "unknown"),
+    availability: String(component?.availability || "limited"),
+    stage: String(component?.stage || "staging"),
+    message: publicText(component?.message),
+    updated_at: typeof component?.updated_at === "string" ? component.updated_at : null,
+    stale: Boolean(component?.stale),
+    incident_ref: component?.incident_ref == null ? null : String(component.incident_ref),
+  };
+}
+
+function projectStatusSnapshot(raw) {
+  const snapshot = raw?.public_status?.schema_version === "yonerai.status.v1" ? raw.public_status : raw;
+  const projected = {
+    schema_version: "yonerai.status.v1",
+    snapshot_id: String(snapshot?.snapshot_id || ""),
+    generated_at: String(snapshot?.generated_at || ""),
+    stale_after_seconds: Number(snapshot?.stale_after_seconds || 0),
+    overall: {
+      health: String(snapshot?.overall?.health || "unknown"),
+      availability: String(snapshot?.overall?.availability || "limited"),
+      stage: String(snapshot?.overall?.stage || "staging"),
+      message: publicText(snapshot?.overall?.message),
+    },
+    components: normalizeComponents(snapshot?.components).map(projectSnapshotComponent),
+  };
+  return projected;
+}
+
+function oversizedSnapshotError() {
+  const error = new Error("upstream status endpoint returned an oversized snapshot");
+  error.publicCode = "upstream_invalid";
+  return error;
+}
+
+async function readBoundedResponseText(response) {
+  const contentLength = response.headers.get("content-length");
+  if (contentLength && Number.parseInt(contentLength, 10) > maxSnapshotBytes) {
+    throw oversizedSnapshotError();
+  }
+
+  if (!response.body?.getReader) {
+    const text = await response.text();
+    if (Buffer.byteLength(text, "utf8") > maxSnapshotBytes) throw oversizedSnapshotError();
+    return text;
+  }
+
+  const reader = response.body.getReader();
+  const chunks = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxSnapshotBytes) {
+      try {
+        await reader.cancel();
+      } catch {
+        // ignore cancellation errors; the public error class is enough.
+      }
+      throw oversizedSnapshotError();
+    }
+    chunks.push(value);
+  }
+
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(bytes);
+}
+
 async function fetchSnapshotFromUrl(url, workdir, etagFile) {
   const headers = { Accept: "application/json" };
   if (etagFile && fs.existsSync(etagFile)) {
@@ -186,9 +285,14 @@ async function fetchSnapshotFromUrl(url, workdir, etagFile) {
     if (previousEtag) headers["If-None-Match"] = previousEtag;
   }
 
-  const response = await fetch(url, { headers, signal: AbortSignal.timeout(10000) });
+  const response = await fetch(url, { headers, redirect: "manual", signal: AbortSignal.timeout(10000) });
   if (response.status === 304) {
     return { notModified: true, status: 304, etag: response.headers.get("etag") || null };
+  }
+  if (response.status >= 300 && response.status < 400) {
+    const error = new Error("upstream status endpoint redirected unexpectedly");
+    error.publicCode = "upstream_unavailable";
+    throw error;
   }
   if (!response.ok) {
     const error = new Error("upstream status endpoint unavailable");
@@ -196,19 +300,7 @@ async function fetchSnapshotFromUrl(url, workdir, etagFile) {
     throw error;
   }
 
-  const contentLength = response.headers.get("content-length");
-  if (contentLength && Number.parseInt(contentLength, 10) > 1_000_000) {
-    const error = new Error("upstream status endpoint returned an oversized snapshot");
-    error.publicCode = "upstream_invalid";
-    throw error;
-  }
-
-  const text = await response.text();
-  if (text.length > 1_000_000) {
-    const error = new Error("upstream status endpoint returned an oversized snapshot");
-    error.publicCode = "upstream_invalid";
-    throw error;
-  }
+  const text = await readBoundedResponseText(response);
 
   let snapshot;
   try {
@@ -225,16 +317,18 @@ async function fetchSnapshotFromUrl(url, workdir, etagFile) {
     throw error;
   }
 
+  const projected = projectStatusSnapshot(snapshot);
   const snapshotPath = path.resolve(workdir, "status-snapshot.live.json");
-  writeJson(snapshotPath, snapshot);
+  writeJson(snapshotPath, projected);
 
   const etag = response.headers.get("etag");
-  if (etagFile && etag) {
-    fs.mkdirSync(path.dirname(etagFile), { recursive: true });
-    fs.writeFileSync(etagFile, `${etag}\n`, "utf8");
-  }
-
   return { inputPath: snapshotPath, status: response.status, etag: etag || null };
+}
+
+function persistAcceptedEtag(etagFile, etag) {
+  if (!etagFile || !etag) return;
+  fs.mkdirSync(path.dirname(etagFile), { recursive: true });
+  fs.writeFileSync(etagFile, `${etag}\n`, "utf8");
 }
 
 function decorateLiveFeed(feed, options, liveStatus) {
@@ -388,7 +482,14 @@ const lastKnownGoodPath = resolvePath(
 );
 const steps = [];
 let ok = false;
-const validatedInputUrl = options.inputUrl ? assertPublicSnapshotUrl(options.inputUrl) : null;
+let acceptedEtag = null;
+let validatedInputUrl = null;
+try {
+  validatedInputUrl = options.inputUrl ? assertPublicSnapshotUrl(options.inputUrl) : null;
+} catch (error) {
+  console.error(error.message);
+  process.exit(1);
+}
 const upstream = {
   input_url: validatedInputUrl ? validatedInputUrl.origin + validatedInputUrl.pathname : null,
   fetched: false,
@@ -423,6 +524,7 @@ try {
         process.exit(0);
       }
       inputPath = fetched.inputPath;
+      acceptedEtag = fetched.etag || null;
     } catch (error) {
       const fallbackFeed = writeFallbackFeed(lastKnownGoodPath, publicFeedPath, options, steps);
       upstream.fallback_used = true;
@@ -494,6 +596,7 @@ try {
     validateFeedFile(generatedFeedPath, steps);
     if (options.inputUrl) {
       atomicCopyFile(generatedFeedPath, lastKnownGoodPath);
+      persistAcceptedEtag(etagFile, acceptedEtag);
     }
 
     if (options.promote) {
