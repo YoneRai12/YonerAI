@@ -269,7 +269,7 @@ def build_whoami_report(
         return report
     body = result.get("body") if isinstance(result.get("body"), Mapping) else {}
     account_source = body.get("account") or body.get("identity") or body.get("profile") or body
-    report["account"] = sanitize_staging_account(account_source if isinstance(account_source, Mapping) else {})
+    report["account"] = _public_account_identity(account_source if isinstance(account_source, Mapping) else {})
     report["account_linked"] = True
     try:
         updated_claim = update_staging_session_account(
@@ -885,6 +885,17 @@ def _public_status_payload(payload: Mapping[str, object]) -> Mapping[str, object
         "control_spine": _public_control_spine(payload.get("control_spine") if isinstance(payload.get("control_spine"), Mapping) else {}),
         "provider_gateway": _public_provider_gateway(payload.get("provider_gateway") if isinstance(payload.get("provider_gateway"), Mapping) else {}),
         "native_run": _public_native_run(payload.get("native_run") if isinstance(payload.get("native_run"), Mapping) else {}),
+    }
+
+
+def _public_account_identity(account: Mapping[str, object]) -> dict[str, object]:
+    safe_account = sanitize_staging_account(account)
+    return {
+        "account_id": _safe_text(safe_account.get("account_id"), fallback="not-linked"),
+        "display_name": _safe_text(safe_account.get("display_name"), fallback="linked staging account"),
+        "email_redacted": _safe_text(safe_account.get("email_redacted"), fallback="not-linked"),
+        "raw_email_stored": False,
+        "raw_subject_stored": False,
     }
 
 

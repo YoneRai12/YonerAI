@@ -578,12 +578,13 @@ def test_whoami_accepts_contract_account_id_after_sanitizing(tmp_path: Path, mon
 
     assert report["ok"] is True
     assert report["account"]["account_id"] == raw_account_id
-    assert report["account"]["account_ref"].startswith("staging-account-")
+    assert "account_ref" not in report["account"]
     assert report["account"]["email_redacted"] == "o***@example.test"
     assert report["staging_session_claim_updated"] is True
     assert report["staging_session_account_id"] == raw_account_id
     updated_claim = load_staging_session_claim(config_path=str(config_path))
     assert updated_claim["account_id"] == raw_account_id
+    assert "account_ref" not in serialized
     assert session_value not in serialized
     assert str(tmp_path) not in serialized
 
@@ -636,7 +637,8 @@ def test_whoami_uses_saved_staging_session_without_printing_it(tmp_path: Path, m
     assert report["ok"] is True
     assert report["account"]["account_id"] == "acct_contract_safe_ref_123"
     assert report["account"]["email_redacted"] == "o***@example.test"
-    assert str(report["account"]["account_ref"]).startswith("staging-account-")
+    assert "account_ref" not in report["account"]
+    assert "account_ref" not in serialized
     assert session_value not in serialized
     assert "google-subject" not in serialized
     assert str(tmp_path) not in serialized

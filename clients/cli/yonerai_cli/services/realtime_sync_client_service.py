@@ -647,6 +647,13 @@ def build_realtime_sync_listener_readiness_report(
         report["firestore_account_data_binding_required"] = firebase.get("firestore_account_data_binding_required")
         report["firebase_uid_matches_account"] = firebase.get("firebase_uid_matches_account")
         report["firebase_account_id_matches_session"] = firebase.get("firebase_account_id_matches_session")
+        report["firebase_revocation_mode"] = firebase.get("firebase_revocation_mode")
+        report["firebase_revocation_immediate"] = firebase.get("firebase_revocation_immediate")
+        report["firebase_revocation_max_delay_seconds"] = firebase.get("firebase_revocation_max_delay_seconds")
+        report["firebase_read_revocation_semantics"] = firebase.get("firebase_read_revocation_semantics")
+        report["firebase_external_alpha_requires_session_projection"] = firebase.get(
+            "firebase_external_alpha_requires_session_projection"
+        )
         if report["firestore_sync_enabled"] is not True:
             report["next_blocker"] = "firestore_sync_disabled_until_live_e2e_and_owner_flip"
             report["required_next_actions"] = (
@@ -1076,6 +1083,7 @@ def _sanitize_firebase_token_payload(payload: Mapping[str, object], *, linked_ac
         "uid",
         "account_id",
         "claims",
+        "revocation",
         "firestore",
         "google_token_returned",
         "refresh_token_returned",
@@ -1100,14 +1108,18 @@ def _sanitize_firebase_token_payload(payload: Mapping[str, object], *, linked_ac
     if not isinstance(expires_in, int) or expires_in <= 0 or expires_in > 900:
         raise RealtimeSyncClientError("firebase_token_expiry_invalid", "Firebase custom token expiry is not accepted.")
     for key in ("google_token_returned", "refresh_token_returned", "auth_code_returned", "provider_key_returned", "production_login"):
-        if payload.get(key) is not False:
+        if key in payload and payload.get(key) is not False:
             raise RealtimeSyncClientError("firebase_token_boundary_flag_invalid", "Firebase read-auth boundary flags are not accepted.")
     firestore = payload.get("firestore") if isinstance(payload.get("firestore"), Mapping) else {}
     firestore_summary = _sanitize_firestore_contract(firestore)
     claims = payload.get("claims") if isinstance(payload.get("claims"), Mapping) else {}
-    allowed_claims = {"yonerai_staging", "yonerai_session_ref", "yonerai_session_expires_at"}
+    allowed_claims = {"yonerai_staging", "yonerai_session_expires_at"}
     if set(claims) - allowed_claims:
         raise RealtimeSyncClientError("firebase_token_private_fields", "Firebase custom token claims contained non-public fields.")
+    if claims.get("yonerai_staging") is not True or "yonerai_session_expires_at" not in claims:
+        raise RealtimeSyncClientError("firebase_token_claims_invalid", "Firebase custom token claims are not accepted.")
+    revocation = payload.get("revocation") if isinstance(payload.get("revocation"), Mapping) else {}
+    revocation_summary = _sanitize_firebase_revocation(revocation)
     return {
         "firebase_custom_token_received": True,
         "firebase_custom_token_printed": False,
@@ -1119,14 +1131,44 @@ def _sanitize_firebase_token_payload(payload: Mapping[str, object], *, linked_ac
         "firebase_expires_at": _safe_message_text(payload.get("expires_at"), fallback=None),
         "firebase_expires_in_seconds": expires_in,
         "firebase_claims_yonerai_staging": claims.get("yonerai_staging") is True,
-        "firebase_claims_session_ref_present": "yonerai_session_ref" in claims,
+        "firebase_claims_session_ref_present": False,
         "firebase_claims_session_expires_at_present": "yonerai_session_expires_at" in claims,
+        **revocation_summary,
         **firestore_summary,
         "google_token_returned": False,
         "refresh_token_returned": False,
         "auth_code_returned": False,
         "provider_key_returned": False,
         "production_login": False,
+    }
+
+
+def _sanitize_firebase_revocation(revocation: Mapping[str, object]) -> dict[str, object]:
+    allowed = {
+        "mode",
+        "immediate",
+        "max_delay_seconds",
+        "max_revocation_delay_seconds",
+        "external_alpha_requires_session_projection",
+    }
+    if set(revocation) - allowed:
+        raise RealtimeSyncClientError("firebase_token_private_fields", "Firebase revocation contract contained non-public fields.")
+    mode = _safe_message_text(revocation.get("mode"), fallback=None)
+    immediate = revocation.get("immediate")
+    max_delay = revocation.get("max_delay_seconds", revocation.get("max_revocation_delay_seconds"))
+    if mode != "short_ttl" or immediate is not False:
+        raise RealtimeSyncClientError("firebase_token_revocation_invalid", "Firebase revocation contract is not accepted.")
+    if not isinstance(max_delay, int) or max_delay < 0 or max_delay > 900:
+        raise RealtimeSyncClientError("firebase_token_revocation_invalid", "Firebase revocation delay is not accepted.")
+    return {
+        "firebase_revocation_mode": "short_ttl",
+        "firebase_revocation_immediate": False,
+        "firebase_revocation_max_delay_seconds": max_delay,
+        "firebase_read_revocation_semantics": "short_ttl_bounded",
+        "firebase_immediate_firestore_read_revocation": False,
+        "firebase_external_alpha_requires_session_projection": bool(
+            revocation.get("external_alpha_requires_session_projection", True)
+        ),
     }
 
 

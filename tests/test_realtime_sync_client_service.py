@@ -483,8 +483,13 @@ def _firebase_token_payload(account_id: object, **overrides: object) -> dict[str
         "account_id": account_id,
         "claims": {
             "yonerai_staging": True,
-            "yonerai_session_ref": "session-ref-fixture-value",
-            "yonerai_session_expires_at": "2026-06-20T12:00:00Z",
+            "yonerai_session_expires_at": 1781956800,
+        },
+        "revocation": {
+            "mode": "short_ttl",
+            "immediate": False,
+            "max_delay_seconds": 900,
+            "external_alpha_requires_session_projection": True,
         },
         "firestore": {
             "project_id": "yonerai-platform-stg-2026",
@@ -554,14 +559,18 @@ def test_firebase_token_bridge_accepts_safe_contract_without_printing_token(tmp_
     assert report["firebase_custom_token_printed"] is False
     assert report["firebase_custom_token_persisted"] is False
     assert report["firebase_uid_matches_account"] is True
-    assert report["firebase_claims_session_ref_present"] is True
+    assert report["firebase_claims_session_ref_present"] is False
     assert report["firebase_claims_session_expires_at_present"] is True
+    assert report["firebase_revocation_mode"] == "short_ttl"
+    assert report["firebase_revocation_immediate"] is False
+    assert report["firebase_revocation_max_delay_seconds"] == 900
+    assert report["firebase_immediate_firestore_read_revocation"] is False
+    assert report["firebase_external_alpha_requires_session_projection"] is True
     assert report["firestore_sync_enabled"] is False
     assert report["firestore_sync_event_path_template"] == "/accounts/{account_id}/sync_events/{event_id}"
     assert report["firestore_account_data_binding_required"] is True
     assert report["live_web_to_cli_e2e_proven"] is False
     assert "firebase_custom_token_fixture_value" not in serialized
-    assert "session-ref-fixture-value" not in serialized
     assert "ystg_fixture_session_1234567890" not in serialized
     assert str(tmp_path) not in serialized
     assert calls == [("POST", f"{ORIGIN}/v1/sync/firebase-token", {"purpose": "realtime_sync_metadata_read"})]
@@ -593,6 +602,92 @@ def test_firebase_token_bridge_rejects_private_token_fields(tmp_path: Path) -> N
     assert report["error"]["code"] == "firebase_token_private_payload_rejected"
     assert "must-not-return" not in serialized
     assert str(tmp_path) not in serialized
+
+
+def test_firebase_token_bridge_rejects_legacy_session_ref_claim(tmp_path: Path) -> None:
+    from yonerai_cli.services.realtime_sync_client_service import build_realtime_sync_firebase_token_report
+
+    config_path, claim = _save_session(tmp_path)
+    payload = _firebase_token_payload(claim["account_id"])
+    claims = dict(payload["claims"])  # type: ignore[arg-type]
+    claims["yonerai_session_ref"] = "session-ref-must-not-return"
+    payload["claims"] = claims
+
+    def transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        return 200, payload, RATE_HEADERS
+
+    report = build_realtime_sync_firebase_token_report(
+        env={"YONERAI_STAGING_AUTH_ORIGIN": ORIGIN},
+        config_path=str(config_path),
+        transport=transport,
+    )
+    serialized = json.dumps(report, sort_keys=True)
+
+    assert report["ok"] is False
+    assert report["error"]["code"] == "firebase_token_private_fields"
+    assert "session-ref-must-not-return" not in serialized
+
+
+def test_firebase_token_bridge_rejects_immediate_revocation_claim(tmp_path: Path) -> None:
+    from yonerai_cli.services.realtime_sync_client_service import build_realtime_sync_firebase_token_report
+
+    config_path, claim = _save_session(tmp_path)
+    payload = _firebase_token_payload(claim["account_id"])
+    revocation = dict(payload["revocation"])  # type: ignore[arg-type]
+    revocation["immediate"] = True
+    payload["revocation"] = revocation
+
+    def transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        return 200, payload, RATE_HEADERS
+
+    report = build_realtime_sync_firebase_token_report(
+        env={"YONERAI_STAGING_AUTH_ORIGIN": ORIGIN},
+        config_path=str(config_path),
+        transport=transport,
+    )
+
+    assert report["ok"] is False
+    assert report["error"]["code"] == "firebase_token_revocation_invalid"
+
+
+def test_firebase_token_bridge_rejects_revocation_delay_above_closed_alpha_limit(tmp_path: Path) -> None:
+    from yonerai_cli.services.realtime_sync_client_service import build_realtime_sync_firebase_token_report
+
+    config_path, claim = _save_session(tmp_path)
+    payload = _firebase_token_payload(claim["account_id"])
+    revocation = dict(payload["revocation"])  # type: ignore[arg-type]
+    revocation["max_delay_seconds"] = 901
+    payload["revocation"] = revocation
+
+    def transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        return 200, payload, RATE_HEADERS
+
+    report = build_realtime_sync_firebase_token_report(
+        env={"YONERAI_STAGING_AUTH_ORIGIN": ORIGIN},
+        config_path=str(config_path),
+        transport=transport,
+    )
+
+    assert report["ok"] is False
+    assert report["error"]["code"] == "firebase_token_revocation_invalid"
 
 
 def test_firebase_token_bridge_rejects_account_mismatch(tmp_path: Path) -> None:
@@ -991,13 +1086,19 @@ def test_listener_readiness_accepts_live_read_auth_but_keeps_sync_disabled(tmp_p
     assert report["firebase_token_endpoint_live"] is True
     assert report["firestore_read_auth_bridge_ready"] is True
     assert report["linked_account"]["account_id"] == claim["account_id"]
+    assert "account_ref" not in report["linked_account"]
     assert report["firebase_account_id_matches_session"] is True
+    assert report["firebase_revocation_mode"] == "short_ttl"
+    assert report["firebase_revocation_immediate"] is False
+    assert report["firebase_revocation_max_delay_seconds"] == 900
+    assert report["firebase_external_alpha_requires_session_projection"] is True
     assert isinstance(report["firestore_sdk_dependency_available"], bool)
     assert report["firestore_client_sign_in_config_present"] is False
     assert report["firestore_sync_enabled"] is False
     assert report["firestore_sdk_listener_ready"] is False
     assert report["next_blocker"] == "firestore_sync_disabled_until_live_e2e_and_owner_flip"
     assert "firebase_custom_token_fixture_value" not in serialized
+    assert "account_ref" not in serialized
     assert "ystg_fixture_session_1234567890" not in serialized
 
 
