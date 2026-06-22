@@ -112,6 +112,17 @@ function writeJson(file, value) {
   fs.writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`, "utf8");
 }
 
+function atomicCopyFile(source, target) {
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  const pending = `${target}.pending-${process.pid}-${Date.now()}`;
+  try {
+    fs.copyFileSync(source, pending);
+    fs.renameSync(pending, target);
+  } finally {
+    fs.rmSync(pending, { force: true });
+  }
+}
+
 function runStep(name, args) {
   const startedAt = new Date().toISOString();
   const result = spawnSync(process.execPath, args, {
@@ -175,13 +186,20 @@ async function fetchSnapshotFromUrl(url, workdir, etagFile) {
     if (previousEtag) headers["If-None-Match"] = previousEtag;
   }
 
-  const response = await fetch(url, { headers });
+  const response = await fetch(url, { headers, signal: AbortSignal.timeout(10000) });
   if (response.status === 304) {
     return { notModified: true, status: 304, etag: response.headers.get("etag") || null };
   }
   if (!response.ok) {
     const error = new Error("upstream status endpoint unavailable");
     error.publicCode = "upstream_unavailable";
+    throw error;
+  }
+
+  const contentLength = response.headers.get("content-length");
+  if (contentLength && Number.parseInt(contentLength, 10) > 1_000_000) {
+    const error = new Error("upstream status endpoint returned an oversized snapshot");
+    error.publicCode = "upstream_invalid";
     throw error;
   }
 
@@ -300,7 +318,7 @@ function writeFallbackFeed(lastKnownGoodPath, publicFeedPath, options, steps) {
   writeJson(fallbackPath, decorateFallbackFeed(readJson(lastKnownGoodPath), options));
   validateFeedFile(fallbackPath, steps);
   if (options.promote) {
-    fs.copyFileSync(fallbackPath, publicFeedPath);
+    atomicCopyFile(fallbackPath, publicFeedPath);
   }
   return fallbackPath;
 }
@@ -315,7 +333,7 @@ function writeNotModifiedFeed(lastKnownGoodPath, publicFeedPath, options, steps)
   writeJson(notModifiedPath, decorateLiveFeed(readJson(lastKnownGoodPath), options, "not_modified"));
   validateFeedFile(notModifiedPath, steps);
   if (options.promote) {
-    fs.copyFileSync(notModifiedPath, publicFeedPath);
+    atomicCopyFile(notModifiedPath, publicFeedPath);
   }
   return notModifiedPath;
 }
@@ -353,8 +371,9 @@ const lastKnownGoodPath = resolvePath(
 );
 const steps = [];
 let ok = false;
+const validatedInputUrl = options.inputUrl ? assertPublicSnapshotUrl(options.inputUrl) : null;
 const upstream = {
-  input_url: options.inputUrl ? assertPublicSnapshotUrl(options.inputUrl).origin + assertPublicSnapshotUrl(options.inputUrl).pathname : null,
+  input_url: validatedInputUrl ? validatedInputUrl.origin + validatedInputUrl.pathname : null,
   fetched: false,
   not_modified: false,
   fallback_used: false,
@@ -362,8 +381,8 @@ const upstream = {
 
 try {
   fs.mkdirSync(workdir, { recursive: true });
-  if (options.inputUrl) {
-    const url = assertPublicSnapshotUrl(options.inputUrl);
+  if (validatedInputUrl) {
+    const url = validatedInputUrl;
     try {
       const fetched = await fetchSnapshotFromUrl(url, workdir, etagFile);
       upstream.fetched = true;
@@ -456,7 +475,7 @@ try {
   }
   validateFeedFile(generatedFeedPath, steps);
   if (options.inputUrl) {
-    fs.copyFileSync(generatedFeedPath, lastKnownGoodPath);
+    atomicCopyFile(generatedFeedPath, lastKnownGoodPath);
   }
 
   if (options.promote) {

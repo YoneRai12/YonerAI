@@ -151,3 +151,9 @@ Live ingestion implementation decision:
 - Implement scheduled/same-origin feed publication through `tools/sync-status-public-feed.mjs --input-url`.
 - Browser calls remain same-origin only.
 - Direct public deployment is not attempted because the existing status deployment path is not verified.
+
+PR #569 review intake:
+
+- Gemini high: valid-now. Fallback and not-modified public feed writes needed atomic replacement to avoid corrupting a public feed during interruption.
+- Gemini medium: valid-now. Upstream fetch needed an explicit timeout and Content-Length precheck before reading the body.
+- Gemini medium: valid-now. URL validation was duplicated and should be reused for maintainability.
