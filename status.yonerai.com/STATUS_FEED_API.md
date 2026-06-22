@@ -368,3 +368,27 @@ document.addEventListener('yonerai-status-runtime-ready', (event) => {
 Integrations should normally call `YonerAIStatusFeedClient.applyWhenReady()` or `loadWhenReady()` instead of listening to this event directly. Direct listeners are useful for diagnostics only. Do not use the ready event to patch DOM or attach another `yonerai-status:set-feed` listener.
 
 Feed endpoints should only serve feeds that pass text safety validation. Mojibake, replacement characters, `[object Object]`, `undefined`, and `null` literals are treated as feed errors, not display quirks.
+
+## Public-safe StatusSnapshot ingestion
+
+The live-ingestion path is feed-first and same-origin from the browser's point of view:
+
+```powershell
+node status.yonerai.com/tools/sync-status-public-feed.mjs `
+  --input-url https://api-staging.yonerai.com/v1/status `
+  --public status-feed.json `
+  --workdir generated/sync `
+  --refresh-ms 15000
+```
+
+Contract:
+
+- The browser still loads only same-origin `/status-feed.json`; it must not call the staging API directly.
+- `--input-url` accepts only public-safe `yonerai.status.v1` snapshots.
+- The generated feed is validated with `tools/validate-status-feed.mjs` and `tools/validate-status-public-feed-safety.mjs` before promotion.
+- A validated last-known-good feed is saved under the workdir.
+- Upstream failures or malformed snapshots use last-known-good fallback with `meta.live_ingestion.status="stale"` and `meta.stale=true`.
+- Stale fallback degrades operational component states instead of rendering stale data as green.
+- `meta.refresh_ms` provides the bounded same-origin browser refresh interval.
+- Upstream errors are reported as public error classes such as `upstream_unavailable` or `upstream_invalid`; raw upstream bodies are not written to the public feed.
+- This is staging/preview status ingestion only and is not a production-service claim.

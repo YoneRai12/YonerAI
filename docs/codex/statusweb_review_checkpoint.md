@@ -124,3 +124,30 @@ scope: status.yonerai.com public status presentation only
 - phase: post-push-review-fix-before-second-push
 - quota: no explicit quota value exposed in this environment
 - decision: commit/push the two valid P2 fixes, then reread review/CI before merge.
+
+## 2026-06-23 Live public-safe ingestion checkpoint
+
+- last_scan_at: 2026-06-22T19:51:00Z
+- highest_seen_pr_number: 568
+- current_main_head: e7c27d6b
+- lane: StatusWEB public status presentation only.
+
+Fresh truth:
+
+- `status.yonerai.com` resolves through Cloudflare.
+- GitHub Pages is not configured for `YoneRai12/YonerAI`.
+- No repository GitHub Actions workflow currently deploys `status.yonerai.com`.
+- Live `/status-feed.json` is a same-origin static feed generated before this checkpoint and does not yet perform live ingestion.
+- Existing deploy path for the public domain is therefore an owner-only blocker before any public deployment.
+
+Review and CI intake:
+
+- PR #568 was opened, reviewed, fixed, re-read after final push, all threads resolved, CI passed, and squash-merged.
+- Valid findings fixed: quoted token-like metadata values, forward-slash Windows local paths, and Unix temp/workspace local paths in staging auth bridge public metadata.
+- Remaining open PRs were classified as outside this StatusWEB live-ingestion implementation unless they overlap a current P0/P1/security finding.
+
+Live ingestion implementation decision:
+
+- Implement scheduled/same-origin feed publication through `tools/sync-status-public-feed.mjs --input-url`.
+- Browser calls remain same-origin only.
+- Direct public deployment is not attempted because the existing status deployment path is not verified.
