@@ -221,7 +221,7 @@ Checked in this checkpoint:
 
 ## 2026-06-22 Firebase Read-Auth / Native Run Continuation Checkpoint
 
-- last_scan_at: 2026-06-23T00:04:29+09:00
+- last_scan_at: 2026-06-23T00:11:16+09:00
 - highest_seen_pr_number: 567
 - branch: codex/sync-contract-accepted-checkpoint
 - local_head: b0d6a24
@@ -256,7 +256,41 @@ Validation for this checkpoint:
 - `ruff`, `compileall`, `git diff --check`, and
   `scripts/ci_quality_scans.py --changed` passed for touched files before the
   local Firebase short-TTL contract commit.
+
 - decision: sanitize public checkpoint language to contract-level evidence and public CLI smoke summaries only; avoid private runtime provenance and live environment internals.
+
+## 2026-06-23 Conversation Policy Display Regression Checkpoint
+
+- last_scan_at: 2026-06-23T00:13:31+09:00
+- branch: codex/sync-contract-accepted-checkpoint
+- lane: Public Native Run and conversation sync controls
+
+Checked in this checkpoint:
+
+- `sync conversation set ... local_only --pretty --lang ja` display coverage.
+- Live staging worker status, existing completed run result, and realtime sync
+  listener readiness.
+
+Decision:
+
+- Added a regression test proving the pretty conversation-policy screen exposes
+  `local_only`, `execution.official_worker_allowed=false`,
+  `memory.inherits_conversation_policy`, `memory.memory_scope=local_private`,
+  `memory.cloud_memory_index_allowed=false`, and
+  `memory.local_to_cloud_memory_sync=disabled`.
+- Live staging still reports the current worker as offline/stale, while existing
+  safe run `run_native_2b860428ee65` remains readable as completed through the
+  Public CLI.
+- Firebase read-auth readiness returns the expected blocker
+  `firestore_sync_disabled_until_live_e2e_and_owner_flip`; this is not
+  `[PUBLIC-SYNC-CLIENT-READY]`.
+
+Validation:
+
+- Targeted tests: `81 passed` for conversation sync policy, Native Run client,
+  realtime sync client, and realtime sync event service.
+- `ruff`, `compileall`, `git diff --check`, and
+  `scripts/ci_quality_scans.py --changed` passed.
 
 ## 2026-06-20 PR #564 Intake Update
 

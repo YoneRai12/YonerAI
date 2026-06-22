@@ -155,3 +155,39 @@ def test_conversation_policy_cli_requires_confirm_for_bidirectional(tmp_path: Pa
     assert output["ok"] is False
     assert output["decision"]["state"] == "approval_required"
     assert output["local_to_cloud_upload_performed"] is False
+
+
+def test_conversation_policy_pretty_shows_local_only_memory_boundary(tmp_path: Path, capsys) -> None:
+    from yonerai_cli import cli
+
+    store = tmp_path / "conversation-policies.json"
+    rc = cli.main(
+        [
+            "sync",
+            "conversation",
+            "set",
+            "conv-local-private",
+            "local_only",
+            "--store",
+            str(store),
+            "--pretty",
+            "--lang",
+            "ja",
+            "--color",
+            "never",
+        ]
+    )
+    output = capsys.readouterr().out
+
+    assert rc == 0
+    assert "Conversation policy boundary" in output
+    assert "sync_policy" in output
+    assert "local_only" in output
+    assert "execution.official_worker_allowed" in output
+    assert "false" in output.lower()
+    assert "memory.inherits_conversation_policy" in output
+    assert "memory.memory_scope" in output
+    assert "local_private" in output
+    assert "memory.cloud_memory_index_allowed" in output
+    assert "memory.local_to_cloud_memory_sync" in output
+    assert "disabled" in output
