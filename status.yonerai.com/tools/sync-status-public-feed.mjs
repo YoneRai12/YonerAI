@@ -255,9 +255,25 @@ function decorateLiveFeed(feed, options, liveStatus) {
   return { ...feed, meta };
 }
 
-function markChildStale(child) {
+function markDayStale(day, degradedState) {
+  const next = { ...day, stale: true };
+  if (next.state === "operational" || next.status === "operational") {
+    next.state = "degraded";
+    if (Object.hasOwn(next, "status")) next.status = "degraded";
+    next.color = degradedState?.color || "#d89614";
+    next.label = degradedState?.label || { ja: "性能低下", en: "Degraded" };
+    next.message = {
+      ja: "最新ステータス取得が失敗したため、この日の稼働中表示を stale/degraded として扱います。",
+      en: "Latest status fetch failed, so this operational day is treated as stale/degraded.",
+    };
+  }
+  return next;
+}
+
+function markChildStale(child, degradedState) {
   const next = { ...child, stale: true };
   if (next.state === "operational") next.state = "degraded";
+  next.days = Array.isArray(next.days) ? next.days.map((day) => markDayStale(day, degradedState)) : [];
   next.fact = {
     ja: "最新ステータス取得が失敗したため、最後に検証済みのステータスを stale/degraded として表示しています。",
     en: "Latest status fetch failed, so the last validated status is shown as stale/degraded.",
@@ -267,6 +283,7 @@ function markChildStale(child) {
 
 function decorateFallbackFeed(feed, options) {
   const next = decorateLiveFeed(feed, options, "stale");
+  const degradedState = next.states?.degraded || null;
   next.meta = {
     ...next.meta,
     stale: true,
@@ -286,7 +303,7 @@ function decorateFallbackFeed(feed, options) {
         ...category,
         stale: true,
         state: category.state === "operational" ? "degraded" : category.state,
-        children: Array.isArray(category.children) ? category.children.map(markChildStale) : [],
+        children: Array.isArray(category.children) ? category.children.map((child) => markChildStale(child, degradedState)) : [],
       }))
     : [];
   return next;
@@ -461,31 +478,53 @@ try {
     throw new Error(`unsupported input schema: ${schema || "(missing)"}`);
   }
 
-  const pipelineStep = runStep("build-status-pipeline", [
-    "tools/build-status-pipeline.mjs",
-    toStatusRelative(pipelineInputPath),
-    toStatusRelative(pipelineDir),
-  ]);
-  steps.push(pipelineStep);
-  assertStep(pipelineStep);
-
-  const generatedFeedPath = path.resolve(pipelineDir, "status-feed.generated.json");
-  if (options.inputUrl) {
-    writeJson(generatedFeedPath, decorateLiveFeed(readJson(generatedFeedPath), options, "live"));
-  }
-  validateFeedFile(generatedFeedPath, steps);
-  if (options.inputUrl) {
-    atomicCopyFile(generatedFeedPath, lastKnownGoodPath);
-  }
-
-  if (options.promote) {
-    const promoteStep = runStep("promote-public-feed", [
-      "tools/promote-status-public-feed.mjs",
-      toStatusRelative(generatedFeedPath),
-      toStatusRelative(publicFeedPath),
+  try {
+    const pipelineStep = runStep("build-status-pipeline", [
+      "tools/build-status-pipeline.mjs",
+      toStatusRelative(pipelineInputPath),
+      toStatusRelative(pipelineDir),
     ]);
-    steps.push(promoteStep);
-    assertStep(promoteStep);
+    steps.push(pipelineStep);
+    assertStep(pipelineStep);
+
+    const generatedFeedPath = path.resolve(pipelineDir, "status-feed.generated.json");
+    if (options.inputUrl) {
+      writeJson(generatedFeedPath, decorateLiveFeed(readJson(generatedFeedPath), options, "live"));
+    }
+    validateFeedFile(generatedFeedPath, steps);
+    if (options.inputUrl) {
+      atomicCopyFile(generatedFeedPath, lastKnownGoodPath);
+    }
+
+    if (options.promote) {
+      const promoteStep = runStep("promote-public-feed", [
+        "tools/promote-status-public-feed.mjs",
+        toStatusRelative(generatedFeedPath),
+        toStatusRelative(publicFeedPath),
+      ]);
+      steps.push(promoteStep);
+      assertStep(promoteStep);
+    }
+  } catch (error) {
+    if (!options.inputUrl) throw error;
+    const fallbackFeed = writeFallbackFeed(lastKnownGoodPath, publicFeedPath, options, steps);
+    upstream.fallback_used = true;
+    ok = true;
+    const reportPath = writeReport(workdir, {
+      schema_version: "yonerai.status.sync.report.v1",
+      generated_at: new Date().toISOString(),
+      ok,
+      input: inputPath ? toStatusRelative(inputPath) : null,
+      input_schema: schema,
+      upstream: { ...upstream, error: "pipeline_invalid" },
+      pipeline_input: toStatusRelative(pipelineInputPath),
+      public_feed: options.promote ? toStatusRelative(publicFeedPath) : null,
+      fallback_feed: toStatusRelative(fallbackFeed),
+      promoted: options.promote,
+      steps,
+    });
+    console.log(`Status public feed sync complete from last-known-good. Report: ${toStatusRelative(reportPath)}`);
+    process.exit(0);
   }
 
   ok = true;

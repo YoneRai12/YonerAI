@@ -157,3 +157,6 @@ PR #569 review intake:
 - Gemini high: valid-now. Fallback and not-modified public feed writes needed atomic replacement to avoid corrupting a public feed during interruption.
 - Gemini medium: valid-now. Upstream fetch needed an explicit timeout and Content-Length precheck before reading the body.
 - Gemini medium: valid-now. URL validation was duplicated and should be reused for maintainability.
+- Codex P1: valid-now. Schema-valid but malformed/unsafe upstream snapshots must still use LKG fallback instead of exiting without stale/degraded publication.
+- Codex P1: valid-now. Fallback must rewrite operational day-level states/colors, because the runtime derives current/category state from component day arrays.
+- AWS-AUTH-STATUS-READY intake: valid-now. Live AWS reports realtime sync as disabled/off; StatusWEB must render `realtime_sync` as disabled, not merely degraded, when the canonical component stage is disabled.
