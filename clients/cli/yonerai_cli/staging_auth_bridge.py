@@ -58,7 +58,10 @@ _FORBIDDEN_PUBLIC_SCALAR_VALUE_RE = re.compile(
     r"|api[_-]key"
     r")['\"]?\s*[:=]"
 )
-_LOCAL_PATH_VALUE_RE = re.compile(r"([A-Za-z]:[/\\]|\\\\|/Users/|/home/|/root/)", re.IGNORECASE)
+_LOCAL_PATH_VALUE_RE = re.compile(
+    r"([A-Za-z]:[/\\]|\\\\|/Users/|/home/|/root/|/tmp/|/var/|/workspace/|/workspaces/)",
+    re.IGNORECASE,
+)
 
 JsonTransport = Callable[[str, str, Mapping[str, object] | None, float], tuple[int, Mapping[str, object]]]
 HeaderJsonTransport = Callable[

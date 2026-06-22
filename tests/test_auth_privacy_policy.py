@@ -1827,6 +1827,9 @@ def test_google_login_staging_bridge_fails_closed_on_nested_token_return(tmp_pat
         '"session_token": "redacted"',
         "'session_token': 'redacted'",
         "local_path=C:/Users/example/status.json",
+        "local_path=/tmp/status.json",
+        "local_path=/var/tmp/status.json",
+        "local_path=/workspace/status.json",
     ],
 )
 def test_google_login_staging_bridge_rejects_token_named_session_metadata_values(

@@ -245,6 +245,7 @@ Checked in this checkpoint:
 | --- | --- | --- | --- |
 | #568 Gemini high review | valid-now | Quoted token-like scalar keys, such as JSON-shaped metadata values, were not covered by the first regex. | Fixed in the same PR by accepting optional quote characters around the forbidden public key and adding quoted regression cases. |
 | #568 Gemini medium review | valid-now | Windows absolute paths written with forward slashes were not covered by the first local-path value regex. | Fixed in the same PR by accepting either slash form after the drive letter and adding a regression case. |
+| #568 Codex P1 review | valid-now | Temp, var, and workspace absolute paths could still pass as public staging bridge metadata values. | Fixed in the same PR by rejecting common Unix temp/workspace absolute path prefixes and adding regression cases. |
 - branch: codex/status-live-ingestion-20260623
 - lane: Public security gate before StatusWEB live ingestion
 
