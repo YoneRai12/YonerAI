@@ -218,6 +218,44 @@ Checked in this checkpoint:
 - classification: valid-now P1 merged PR review follow-up
 - review/comment state: Codex review on merged PR #563 flagged private-runtime provenance and live-state wording in the public checkpoint.
 - CI state: local `git diff --check` and `python scripts\ci_quality_scans.py --changed` passed before opening PR #564; PR #564 CI is tracked separately below.
+
+## 2026-06-22 Firebase Read-Auth / Native Run Continuation Checkpoint
+
+- last_scan_at: 2026-06-23T00:04:29+09:00
+- highest_seen_pr_number: 567
+- branch: codex/sync-contract-accepted-checkpoint
+- local_head: b0d6a24
+- latest_stable: v0.8.1
+- latest_prerelease: v0.22.0-alpha.1
+- lane: Public Native Run and realtime sync client readiness
+
+Checked in this checkpoint:
+
+- Open PR list up to #567.
+- PR #567, #566, and #565 review summaries, comments, and check rollups.
+- Live staging CLI surfaces for worker status, capabilities, modules, Native Run
+  status/events/result, fresh submit/status/events/cancel, and Firebase
+  read-auth readiness.
+- Issue #552 coordination ledger for Firebase client auth readiness.
+
+| PR / issue / notice | classification | review/comment state | CI / evidence state | decision |
+| --- | --- | --- | --- | --- |
+| #567 | deferred-with-tracked-issue | Gemini commented no actionable review comments | Product checks pass; `review-intake-required` failing closed | Non-security local LLM label test PR. Does not block current sync lane. |
+| #566 | deferred-with-tracked-issue / likely replacement candidate | Gemini commented no actionable review comments | Product checks pass; `review-intake-required` failing closed | Security-adjacent staging poll hardening PR remains open; no immediate current-lane P0/P1 observed from review body. |
+| #565 | valid-now P2 / superseded-candidate | Gemini suggested case-insensitive local-path matching; Codex review body had no inline finding in fetched summary | `review-intake-required` failed; branch is dirty | Valid sanitizer robustness item, but not a current Native Run or Firebase read-auth P0/P1. Track with security intake rather than blocking sync-client progress. |
+| #552 Firebase client-auth notice | valid-now | AWS superseded immediate-revocation wording with closed-alpha short-TTL revocation semantics | Public live smoke accepted `POST /v1/sync/firebase-token` via opaque staging session and did not print or persist token values | Public branch now accepts `short_ttl`, rejects `yonerai_session_ref`, and records `[PUBLIC-FIREBASE-CLIENT-AUTH-ACK]` in issue #552. |
+| Existing worker-completed run | valid-but-current-worker-offline | Safe run `run_native_2b860428ee65` returns completed status/result/events through Public CLI | Current worker status is offline/stale; fresh submit queues and can be canceled but does not complete without owner worker heartbeat | Do not recreate v0.22.0-alpha.1. Keep worker status honest. |
+
+Validation for this checkpoint:
+
+- Targeted tests: `74 passed` for Control Spine, realtime sync client, and
+  conversation sync policy.
+- Broader touched-lane tests before this checkpoint: `230 passed` for auth,
+  realtime sync, command display, Native Run, conversation policy, and staging
+  sync.
+- `ruff`, `compileall`, `git diff --check`, and
+  `scripts/ci_quality_scans.py --changed` passed for touched files before the
+  local Firebase short-TTL contract commit.
 - decision: sanitize public checkpoint language to contract-level evidence and public CLI smoke summaries only; avoid private runtime provenance and live environment internals.
 
 ## 2026-06-20 PR #564 Intake Update
