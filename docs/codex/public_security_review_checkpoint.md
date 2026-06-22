@@ -292,6 +292,42 @@ Validation:
 - `ruff`, `compileall`, `git diff --check`, and
   `scripts/ci_quality_scans.py --changed` passed.
 
+## 2026-06-23 Live Recheck After Firebase Short-TTL Contract
+
+- last_scan_at: 2026-06-23T00:18:05+09:00
+- highest_seen_pr_number: 567
+- branch: codex/sync-contract-accepted-checkpoint
+- local_head: 5f1e1fd
+- lane: Public Native Run and conversation sync controls
+
+Checked in this checkpoint:
+
+- Open Public PR list and issue #552 comments after the latest
+  `[FIREBASE-CLIENT-AUTH-READY]` / `[PUBLIC-FIREBASE-CLIENT-AUTH-ACK]`.
+- Live staging health/status/capabilities/modules.
+- Public CLI `whoami`, realtime sync listener readiness, worker status,
+  capability list, and module list against the custom staging origin.
+
+Decision:
+
+- No new Public issue #552 comment was found after
+  `[PUBLIC-FIREBASE-CLIENT-AUTH-ACK]`.
+- Public CLI still reaches the staging account path with a linked opaque
+  YonerAI staging session; no Google token, refresh token, provider key, or
+  Firebase custom token value is printed or persisted by the checked reports.
+- Firebase read-auth bridge is live and canonical account binding passes, but
+  readiness remains false because `firestore_sync_enabled=false`.
+- Current worker status remains offline/stale, so a fresh worker-completed
+  Native Run E2E is still not proven in this lane.
+- Existing open PRs #567, #566, and #565 remain classified as not blocking this
+  lane's current P0/P1/security gate; #565 remains a P2 follow-up candidate.
+- No release/tag/PR/push was created in this checkpoint.
+
+Current blocker:
+
+- `firestore_sync_disabled_until_live_e2e_and_owner_flip`
+- current worker offline/stale for fresh worker-completed Native Run proof
+
 ## 2026-06-20 PR #564 Intake Update
 
 - last_scan_at: 2026-06-20T11:18:00+09:00
