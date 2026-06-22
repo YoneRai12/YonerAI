@@ -16,7 +16,7 @@ _TOKEN_KEY_RE = re.compile(
     r"(^|[_\-.:\s])(access_token|id_token|refresh_token|token|secret|authorization|credential|password|auth_code|code)($|[_\-.:\s])",
     re.IGNORECASE,
 )
-_LOCAL_PATH_RE = re.compile(r"([A-Za-z]:\\|\\\\|/Users/|/home/|/root/)")
+_LOCAL_PATH_RE = re.compile(r"([A-Za-z]:\\|\\\\|/Users/|/home/|/root/)", re.IGNORECASE)
 _SAFE_TEXT_RE = re.compile(r"^[A-Za-z0-9_.:@+\-*(),!\[\]&\s]{0,160}$")
 _PUBLIC_ACCOUNT_REF_RE = re.compile(r"^staging-account-[a-f0-9]{16}$")
 

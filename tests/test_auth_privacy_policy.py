@@ -1593,6 +1593,9 @@ def test_staging_auth_claim_storage_redacts_and_rejects_secret_material(tmp_path
     assert "google-subject" not in serialized
     with pytest.raises(ValueError):
         validate_staging_auth_claim({"auth_state": "linked", "access_token": "secret"})
+    claim["account"]["display_name"] = "C:\\USERS\\Owner\\secret.txt"
+    with pytest.raises(ValueError, match="local path"):
+        validate_staging_auth_claim(claim)
 
 
 def test_staging_claim_save_failure_is_controlled_and_redacted(tmp_path: Path, monkeypatch) -> None:

@@ -328,6 +328,44 @@ Current blocker:
 - `firestore_sync_disabled_until_live_e2e_and_owner_flip`
 - current worker offline/stale for fresh worker-completed Native Run proof
 
+## 2026-06-23 PR #565 Review Fix Checkpoint
+
+- last_scan_at: 2026-06-23T00:24:02+09:00
+- highest_seen_pr_number: 567
+- branch: codex/sync-contract-accepted-checkpoint
+- local_head_before_commit: 8ab29ff
+- lane: Public Native Run and conversation sync controls / auth safety follow-up
+
+Checked in this checkpoint:
+
+- Open PR #565 reviews and comments.
+- Current auth/session local path sanitizers.
+- Live realtime sync readiness and worker status after the sanitizer fix.
+
+Classification:
+
+- PR #565 Gemini review local-path case-insensitive feedback:
+  `valid-now` for the legacy staging auth claim sanitizer.
+- Existing current branch already covered `staging_auth_bridge` and
+  `staging_session_service`; `auth_session_service` still used a case-sensitive
+  local-path regex before this checkpoint.
+
+Decision:
+
+- Updated the staging auth claim local-path regex to be case-insensitive.
+- Added a regression assertion that a tampered staging auth claim containing an
+  uppercase Windows user path is rejected as a local path.
+- This is a bounded P2/security-adjacent cleanup and does not change production
+  login, production sync, provider traffic, or release state.
+
+Validation:
+
+- `python -m pytest tests\test_auth_privacy_policy.py -q` => `84 passed`.
+- Broader auth/sync/native targeted suite => `176 passed`.
+- Live realtime sync readiness still reaches Firebase read-auth and remains
+  blocked by `firestore_sync_disabled_until_live_e2e_and_owner_flip`.
+- Live worker status still reports the official execution worker as offline.
+
 ## 2026-06-20 PR #564 Intake Update
 
 - last_scan_at: 2026-06-20T11:18:00+09:00
