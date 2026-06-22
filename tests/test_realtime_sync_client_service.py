@@ -983,6 +983,8 @@ def test_listener_readiness_accepts_live_read_auth_but_keeps_sync_disabled(tmp_p
     assert report["ready"] is False
     assert report["firebase_token_endpoint_live"] is True
     assert report["firestore_read_auth_bridge_ready"] is True
+    assert report["linked_account"]["account_id"] == claim["account_id"]
+    assert report["firebase_account_id_matches_session"] is True
     assert isinstance(report["firestore_sdk_dependency_available"], bool)
     assert report["firestore_client_sign_in_config_present"] is False
     assert report["firestore_sync_enabled"] is False

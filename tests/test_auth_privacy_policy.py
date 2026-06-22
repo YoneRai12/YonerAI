@@ -1647,6 +1647,50 @@ def test_auth_status_reads_saved_linked_staging_claim(tmp_path: Path, monkeypatc
     assert str(tmp_path) not in serialized
 
 
+def test_auth_status_prefers_canonical_session_account_for_display(
+    tmp_path: Path,
+    monkeypatch,
+    capsys,
+) -> None:
+    from yonerai_cli import cli
+    from yonerai_cli.services.auth_session_service import build_staging_auth_claim, save_staging_auth_claim
+    from yonerai_cli.services.staging_session_service import save_staging_session
+
+    config_path = tmp_path / "cli-config.json"
+    save_staging_auth_claim(
+        build_staging_auth_claim(
+            origin="https://api-staging.yonerai.com",
+            account={"account_ref": "staging-account-legacyhash", "display_name": "Owner"},
+        ),
+        config_path=config_path,
+    )
+    save_staging_session(
+        session_token="ystg_session_fixture_123",
+        origin="https://api-staging.yonerai.com",
+        account={
+            "account_id": "acct_google_canonical123",
+            "email_redacted": "o***@example.com",
+            "display_name": "Owner",
+        },
+        expires_at="2099-06-06T00:30:00Z",
+        config_path=config_path,
+    )
+    monkeypatch.setenv("YONERAI_CLI_CONFIG_PATH", str(config_path))
+    monkeypatch.setenv("YONERAI_STAGING_AUTH_ORIGIN", "https://api-staging.yonerai.com")
+
+    assert cli.main(["auth", "status", "--json", "--config-path", str(config_path)]) == 0
+    report = json.loads(capsys.readouterr().out)
+    serialized = json.dumps(report, sort_keys=True)
+
+    assert report["staging_auth_state"] == "linked"
+    assert report["staging_account"]["account_id"] == "acct_google_canonical123"
+    assert report["staging_session_claim"]["account_id"] == "acct_google_canonical123"
+    assert report["staging_session"]["account"]["account_id"] == "acct_google_canonical123"
+    assert "staging-account-legacyhash" not in serialized
+    assert "ystg_session_fixture_123" not in serialized
+    assert str(tmp_path) not in serialized
+
+
 def test_auth_session_status_reads_safe_staging_session_without_printing_token(
     tmp_path: Path,
     monkeypatch,

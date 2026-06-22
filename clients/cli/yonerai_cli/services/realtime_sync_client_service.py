@@ -645,6 +645,8 @@ def build_realtime_sync_listener_readiness_report(
         report["firestore_database_id"] = firebase.get("firestore_database_id")
         report["firestore_sync_event_path_template"] = firebase.get("firestore_sync_event_path_template")
         report["firestore_account_data_binding_required"] = firebase.get("firestore_account_data_binding_required")
+        report["firebase_uid_matches_account"] = firebase.get("firebase_uid_matches_account")
+        report["firebase_account_id_matches_session"] = firebase.get("firebase_account_id_matches_session")
         if report["firestore_sync_enabled"] is not True:
             report["next_blocker"] = "firestore_sync_disabled_until_live_e2e_and_owner_flip"
             report["required_next_actions"] = (

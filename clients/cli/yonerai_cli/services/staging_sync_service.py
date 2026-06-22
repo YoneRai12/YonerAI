@@ -345,6 +345,7 @@ def _auth_context(
     if session_claim.get("auth_state") == "linked":
         auth_state = "linked"
         account = {
+            "account_id": session_claim.get("account_id"),
             "account_ref": session_claim.get("account_id"),
             "display_name": session_claim.get("display_name"),
             "email_redacted": session_claim.get("redacted_email"),
@@ -667,8 +668,10 @@ def _sanitize_private_content_exclusion(payload: Mapping[str, object]) -> dict[s
 
 
 def _sanitize_account(account: Mapping[str, object]) -> dict[str, object]:
+    account_id = _safe_text(account.get("account_id") or account.get("account_ref"), fallback="not-linked")
     return {
-        "account_ref": _safe_text(account.get("account_ref"), fallback="not-linked"),
+        "account_id": account_id,
+        "account_ref": account_id,
         "display_name": _safe_text(account.get("display_name"), fallback="not-linked"),
         "email_redacted": _safe_text(account.get("email_redacted"), fallback="not-linked"),
         "raw_email_stored": False,
