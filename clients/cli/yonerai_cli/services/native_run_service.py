@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import time
 import uuid
 from collections.abc import Callable, Mapping
 from typing import Any
@@ -46,6 +47,7 @@ HeaderJsonTransport = Callable[
     [str, str, Mapping[str, str], Mapping[str, object] | None, float],
     tuple[int, Mapping[str, object], Mapping[str, str]],
 ]
+SleepFunc = Callable[[float], None]
 
 
 class NativeRunServiceError(ValueError):
@@ -365,6 +367,109 @@ def build_native_run_events_report(
         report["ok"] = False
         report["error"] = exc.to_safe_error()
     return report
+
+
+def build_native_run_wait_report(
+    run_id: str,
+    *,
+    config: Mapping[str, object] | None = None,
+    env: Mapping[str, str | None] | None = None,
+    claim_path: str | None = None,
+    transport: HeaderJsonTransport | None = None,
+    timeout_seconds: float = 10.0,
+    wait_timeout_seconds: float = 120.0,
+    poll_interval_seconds: float = 2.0,
+    sleep: SleepFunc = time.sleep,
+) -> dict[str, object]:
+    context = _native_context(config=config, env=env, claim_path=claim_path)
+    safe_run_id = _safe_run_id(run_id)
+    report = _base_report("native_run_wait", context)
+    report.update(
+        {
+            "requested_run_id": safe_run_id,
+            "wait_timeout_seconds": _safe_wait_timeout(wait_timeout_seconds),
+            "poll_interval_seconds": _safe_poll_interval(poll_interval_seconds),
+            "poll_count": 0,
+            "completed": False,
+            "timed_out": False,
+            "terminal_status": None,
+            "run": None,
+            "events": [],
+            "event_count": 0,
+            "result": None,
+        }
+    )
+    if not _require_linked_session(report, context, "Native Run wait requires staging login."):
+        return report
+
+    remaining_seconds = float(report["wait_timeout_seconds"])
+    interval_seconds = float(report["poll_interval_seconds"])
+    terminal_statuses = {"completed", "failed", "canceled", "cancelled", "rejected", "expired"}
+    while True:
+        status_report = build_native_run_status_report(
+            safe_run_id,
+            config=config,
+            env=env,
+            claim_path=claim_path,
+            transport=transport,
+            timeout_seconds=timeout_seconds,
+        )
+        report["poll_count"] = int(report["poll_count"]) + 1
+        report["status_report"] = _child_report_summary(status_report)
+        report["official_backend_called"] = bool(status_report.get("official_backend_called", False))
+        report["rate_limit_headers_present"] = status_report.get("rate_limit_headers_present", ())
+        if status_report.get("ok") is not True:
+            report["ok"] = False
+            report["error"] = status_report.get("error") if isinstance(status_report.get("error"), Mapping) else _safe_error(
+                "native_run_wait_status_failed",
+                "Native Run status polling failed.",
+            )
+            return report
+        run = status_report.get("run") if isinstance(status_report.get("run"), Mapping) else {}
+        report["run"] = dict(run)
+        status = str(run.get("status") or "unknown")
+        report["terminal_status"] = status
+        if status in terminal_statuses:
+            report["completed"] = status == "completed"
+            events = build_native_run_events_report(
+                safe_run_id,
+                config=config,
+                env=env,
+                claim_path=claim_path,
+                transport=transport,
+                timeout_seconds=timeout_seconds,
+            )
+            result = build_native_run_result_report(
+                safe_run_id,
+                config=config,
+                env=env,
+                claim_path=claim_path,
+                transport=transport,
+                timeout_seconds=timeout_seconds,
+            )
+            report["events"] = events.get("events") if isinstance(events.get("events"), list) else []
+            report["event_count"] = len(report["events"]) if isinstance(report["events"], list) else 0
+            report["result"] = result.get("result") if isinstance(result.get("result"), Mapping) else {}
+            report["events_report"] = _child_report_summary(events)
+            report["result_report"] = _child_report_summary(result)
+            if events.get("ok") is not True or result.get("ok") is not True:
+                report["ok"] = False
+                report["error"] = _safe_error(
+                    "native_run_wait_terminal_fetch_failed",
+                    "Native Run reached terminal status, but events/result fetch failed.",
+                )
+            return report
+        if remaining_seconds <= 0:
+            report["timed_out"] = True
+            report["ok"] = False
+            report["error"] = _safe_error(
+                "native_run_wait_timeout",
+                "Native Run did not reach a terminal status before the wait timeout.",
+            )
+            return report
+        sleep_for = min(interval_seconds, remaining_seconds)
+        sleep(sleep_for)
+        remaining_seconds -= sleep_for
 
 
 def build_native_run_cancel_report(
@@ -1226,6 +1331,54 @@ def _safe_run_id(value: object) -> str:
     if not RUN_ID_RE.fullmatch(text):
         raise NativeRunServiceError("native_run_id_invalid", "Native Run id is invalid.")
     return text
+
+
+def _safe_wait_timeout(value: object) -> float:
+    try:
+        seconds = float(value)
+    except (TypeError, ValueError) as exc:
+        raise NativeRunServiceError("native_run_wait_timeout_invalid", "Native Run wait timeout is invalid.") from exc
+    if seconds < 0 or seconds > 600:
+        raise NativeRunServiceError("native_run_wait_timeout_invalid", "Native Run wait timeout must be between 0 and 600 seconds.")
+    return seconds
+
+
+def _safe_poll_interval(value: object) -> float:
+    try:
+        seconds = float(value)
+    except (TypeError, ValueError) as exc:
+        raise NativeRunServiceError("native_run_poll_interval_invalid", "Native Run poll interval is invalid.") from exc
+    if seconds < 0.1 or seconds > 60:
+        raise NativeRunServiceError("native_run_poll_interval_invalid", "Native Run poll interval must be between 0.1 and 60 seconds.")
+    return seconds
+
+
+def _child_report_summary(report: Mapping[str, object]) -> dict[str, object]:
+    summary: dict[str, object] = {
+        "ok": bool(report.get("ok", False)),
+        "operation": _safe_text(report.get("operation"), fallback="unknown"),
+        "backend_status_code": report.get("backend_status_code") if isinstance(report.get("backend_status_code"), int) else None,
+        "token_printed": False,
+        "provider_key_printed": False,
+        "local_path_printed": False,
+    }
+    run = report.get("run") if isinstance(report.get("run"), Mapping) else {}
+    if run:
+        summary["run_id"] = _safe_text(run.get("run_id"), fallback=None)
+        summary["status"] = _safe_text(run.get("status"), fallback=None)
+    result = report.get("result") if isinstance(report.get("result"), Mapping) else {}
+    if result:
+        summary["result_summary"] = _safe_text(result.get("result_summary"), fallback=None)
+    error = report.get("error") if isinstance(report.get("error"), Mapping) else {}
+    if error:
+        summary["error"] = {
+            "code": _safe_text(error.get("code"), fallback="error"),
+            "status_code": error.get("status_code") if isinstance(error.get("status_code"), int) else None,
+            "token_printed": False,
+            "provider_key_printed": False,
+            "local_path_printed": False,
+        }
+    return summary
 
 
 def _safe_project_id(value: object) -> str:

@@ -15,6 +15,7 @@ from yonerai_cli.services.native_run_service import (
     build_native_run_result_report,
     build_native_run_status_report,
     build_native_run_submit_report,
+    build_native_run_wait_report,
     build_worker_status_report,
     load_config_for_native_run,
 )
@@ -67,6 +68,22 @@ def add_native_run_parsers(
     result = run_subcommands.add_parser("result", help="Show staging Native Run result summary if available.")
     result.add_argument("run_id", help="Run id returned by `yonerai run submit`.")
     _add_common_options(result, lang_choices=lang_choices, color_choices=color_choices)
+
+    wait = run_subcommands.add_parser("wait", help="Poll staging Native Run status until terminal or timeout.")
+    wait.add_argument("run_id", help="Run id returned by `yonerai run submit`.")
+    wait.add_argument(
+        "--wait-timeout-seconds",
+        type=float,
+        default=120.0,
+        help="Total wait timeout. Use 0 for a single status check. Default: 120.",
+    )
+    wait.add_argument(
+        "--poll-interval-seconds",
+        type=float,
+        default=2.0,
+        help="Seconds between polls. Default: 2.",
+    )
+    _add_common_options(wait, lang_choices=lang_choices, color_choices=color_choices)
 
     cancel = run_subcommands.add_parser("cancel", help="Cancel a queued/claimed staging Native Run.")
     cancel.add_argument("run_id", help="Run id returned by `yonerai run submit`.")
@@ -176,6 +193,13 @@ def build_native_run_report(args: argparse.Namespace) -> dict[str, Any]:
         return build_native_run_events_report(str(args.run_id), **common)
     if args.run_command == "result":
         return build_native_run_result_report(str(args.run_id), **common)
+    if args.run_command == "wait":
+        return build_native_run_wait_report(
+            str(args.run_id),
+            wait_timeout_seconds=float(getattr(args, "wait_timeout_seconds", 120.0)),
+            poll_interval_seconds=float(getattr(args, "poll_interval_seconds", 2.0)),
+            **common,
+        )
     if args.run_command == "cancel":
         return build_native_run_cancel_report(str(args.run_id), **common)
     raise NativeRunCommandError("unknown Native Run command")

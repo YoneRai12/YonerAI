@@ -634,6 +634,92 @@ def test_native_run_status_events_result_cancel(monkeypatch) -> None:
     assert cancel["run"]["status"] == "canceled"
 
 
+def test_native_run_wait_collects_terminal_result_and_events(monkeypatch) -> None:
+    from yonerai_cli.services.native_run_service import build_native_run_wait_report
+
+    _install_context(monkeypatch, _linked_context())
+    transport = FakeTransport()
+
+    report = build_native_run_wait_report(
+        "run_123",
+        config={},
+        env={},
+        claim_path=None,
+        transport=transport,
+        wait_timeout_seconds=0,
+        sleep=lambda _seconds: None,
+    )
+    serialized = json.dumps(report, sort_keys=True)
+
+    assert report["ok"] is True
+    assert report["operation"] == "native_run_wait"
+    assert report["completed"] is True
+    assert report["terminal_status"] == "completed"
+    assert report["poll_count"] == 1
+    assert report["event_count"] == 1
+    assert report["result"]["result_summary"] == "hello result"
+    assert "opaque-yonerai-session" not in serialized
+
+
+def test_native_run_wait_times_out_without_fetching_terminal_result(monkeypatch) -> None:
+    from yonerai_cli.services.native_run_service import build_native_run_wait_report
+
+    _install_context(monkeypatch, _linked_context())
+    calls: list[str] = []
+
+    def transport(
+        method: str,
+        url: str,
+        headers: dict[str, str],
+        body: dict[str, object] | None,
+        timeout_seconds: float,
+    ) -> tuple[int, dict[str, object], dict[str, str]]:
+        calls.append(url)
+        run = _run_payload(status="queued")
+        run["run_id"] = "run_wait_timeout"
+        return 200, {"run": run}, {"X-YonerAI-RateLimit-Remaining": "39"}
+
+    report = build_native_run_wait_report(
+        "run_wait_timeout",
+        config={},
+        env={},
+        claim_path=None,
+        transport=transport,
+        wait_timeout_seconds=0,
+        sleep=lambda _seconds: None,
+    )
+
+    assert report["ok"] is False
+    assert report["timed_out"] is True
+    assert report["error"]["code"] == "native_run_wait_timeout"
+    assert report["result"] is None
+    assert len(calls) == 1
+
+
+def test_native_run_wait_cli_wires_short_command(monkeypatch, capsys) -> None:
+    from yonerai_cli import cli
+    from yonerai_cli.commands import native_run as native_run_command
+
+    def fake_wait(*args, **kwargs):
+        return {
+            "schema_version": "yonerai-native-run-client/v0.1",
+            "ok": True,
+            "operation": "native_run_wait",
+            "requested_run_id": args[0],
+            "completed": True,
+            "terminal_status": "completed",
+            "token_printed": False,
+        }
+
+    monkeypatch.setattr(native_run_command, "build_native_run_wait_report", fake_wait)
+    rc = cli.main(["run", "wait", "run_123", "--wait-timeout-seconds", "0", "--json"])
+    output = json.loads(capsys.readouterr().out)
+
+    assert rc == 0
+    assert output["operation"] == "native_run_wait"
+    assert output["requested_run_id"] == "run_123"
+
+
 def test_worker_capability_and_module_reports(monkeypatch) -> None:
     from yonerai_cli.services.native_run_service import (
         build_capability_list_report,
