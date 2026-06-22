@@ -353,6 +353,35 @@ def test_native_run_submit_rejects_local_only_before_backend(monkeypatch) -> Non
     assert transport.calls == []
 
 
+def test_native_run_submit_uses_default_conversation_policy_store_for_local_only(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    from yonerai_cli.services.conversation_sync_policy_service import build_conversation_policy_set_report
+    from yonerai_cli.services.native_run_service import build_native_run_submit_report
+
+    config_path = tmp_path / "cli-config.json"
+    build_conversation_policy_set_report("local-conv-stored", "local_only", config_path=config_path)
+    _install_context(monkeypatch, _linked_context())
+    transport = FakeTransport()
+
+    report = build_native_run_submit_report(
+        "hello",
+        conversation_id="local-conv-stored",
+        config={},
+        env={},
+        claim_path=str(config_path),
+        transport=transport,
+    )
+
+    assert report["ok"] is False
+    assert report["error"]["code"] == "local_only_official_worker_rejected"
+    assert report["conversation_policy"]["sync_policy"] == "local_only"
+    assert report["conversation_policy"]["memory"]["reason"] == "local_only_memory_stays_local"
+    assert report["official_backend_called"] is False
+    assert transport.calls == []
+
+
 def test_native_run_output_shows_conversation_policy_and_memory_boundary(monkeypatch) -> None:
     from yonerai_cli.screens.native_run import format_native_run_compact, format_native_run_pretty
     from yonerai_cli.services.native_run_service import build_native_run_submit_report
@@ -403,6 +432,42 @@ def test_native_run_submit_sends_cloud_to_local_conversation_metadata(monkeypatc
     assert request_body is not None
     assert request_body["conversation"]["conversation_id"] == "cloud-conv-1"
     assert request_body["conversation"]["message_body_included"] is False
+    assert request_body["conversation"]["local_private_memory_included"] is False
+
+
+def test_native_run_submit_uses_default_conversation_policy_store_for_cloud_origin(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    from yonerai_cli.services.conversation_sync_policy_service import build_conversation_policy_set_report
+    from yonerai_cli.services.native_run_service import build_native_run_submit_report
+
+    config_path = tmp_path / "cli-config.json"
+    build_conversation_policy_set_report(
+        "cloud-conv-stored",
+        "cloud_to_local",
+        origin="cloud",
+        config_path=config_path,
+    )
+    _install_context(monkeypatch, _linked_context())
+    transport = FakeTransport()
+
+    report = build_native_run_submit_report(
+        "hello",
+        conversation_id="cloud-conv-stored",
+        config={},
+        env={},
+        claim_path=str(config_path),
+        transport=transport,
+    )
+
+    request_body = next(call[3] for call in transport.calls if call[1].endswith("/v1/runs"))
+    assert report["ok"] is True
+    assert report["conversation_policy"]["sync_policy"] == "cloud_to_local"
+    assert report["conversation_policy"]["memory"]["inherits_conversation_policy"] is True
+    assert request_body is not None
+    assert request_body["conversation_id"] == "cloud-conv-stored"
+    assert request_body["sync_policy"] == "cloud_to_local"
     assert request_body["conversation"]["local_private_memory_included"] is False
 
 

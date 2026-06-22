@@ -87,6 +87,7 @@ def build_native_run_submit_report(
         conversation_origin=conversation_origin,
         sync_policy=sync_policy,
         conversation_policy_store=conversation_policy_store,
+        config_path=claim_path,
     )
     if conversation_policy is not None:
         report["conversation_policy"] = conversation_policy
@@ -510,14 +511,18 @@ def _resolve_conversation_policy(
     conversation_origin: str | None,
     sync_policy: str | None,
     conversation_policy_store: str | None,
+    config_path: str | None,
 ) -> dict[str, object] | None:
     if not conversation_id and not sync_policy:
         return None
     safe_conversation_id = conversation_id or "native-run-inline"
     policy = sync_policy
     origin = conversation_origin
-    if policy is None and conversation_policy_store is not None:
-        stored = build_conversation_policy_list_report(store_path=conversation_policy_store)
+    if policy is None and conversation_id is not None:
+        stored = build_conversation_policy_list_report(
+            store_path=conversation_policy_store,
+            config_path=config_path,
+        )
         conversations = stored.get("conversations") if isinstance(stored.get("conversations"), list) else []
         for item in conversations:
             if not isinstance(item, Mapping):
