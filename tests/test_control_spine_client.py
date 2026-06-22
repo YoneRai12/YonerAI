@@ -412,7 +412,7 @@ def test_error_detail_rejects_bearer_secret_text(tmp_path: Path, monkeypatch) ->
 
 def test_whoami_accepts_contract_account_id_after_sanitizing(tmp_path: Path, monkeypatch) -> None:
     from yonerai_cli.services.control_spine_service import build_whoami_report
-    from yonerai_cli.services.staging_session_service import save_staging_session
+    from yonerai_cli.services.staging_session_service import load_staging_session_claim, save_staging_session
 
     config_path = tmp_path / "cli-config.json"
     session_value = "opaque-session-value-123456789"
@@ -453,9 +453,13 @@ def test_whoami_accepts_contract_account_id_after_sanitizing(tmp_path: Path, mon
     serialized = json.dumps(report, ensure_ascii=False, sort_keys=True)
 
     assert report["ok"] is True
+    assert report["account"]["account_id"] == raw_account_id
     assert report["account"]["account_ref"].startswith("staging-account-")
     assert report["account"]["email_redacted"] == "o***@example.test"
-    assert raw_account_id not in serialized
+    assert report["staging_session_claim_updated"] is True
+    assert report["staging_session_account_id"] == raw_account_id
+    updated_claim = load_staging_session_claim(config_path=str(config_path))
+    assert updated_claim["account_id"] == raw_account_id
     assert session_value not in serialized
     assert str(tmp_path) not in serialized
 
@@ -506,9 +510,9 @@ def test_whoami_uses_saved_staging_session_without_printing_it(tmp_path: Path, m
     serialized = json.dumps(report, ensure_ascii=False, sort_keys=True) + rendered
 
     assert report["ok"] is True
+    assert report["account"]["account_id"] == "acct_contract_safe_ref_123"
     assert report["account"]["email_redacted"] == "o***@example.test"
     assert str(report["account"]["account_ref"]).startswith("staging-account-")
-    assert "acct_contract_safe_ref_123" not in serialized
     assert session_value not in serialized
     assert "google-subject" not in serialized
     assert str(tmp_path) not in serialized

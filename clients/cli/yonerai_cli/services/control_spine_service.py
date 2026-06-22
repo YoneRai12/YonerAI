@@ -17,7 +17,11 @@ from yonerai_cli.auth_policy import (
 )
 from yonerai_cli.config import load_cli_config
 from yonerai_cli.services.auth_session_service import sanitize_staging_account
-from yonerai_cli.services.staging_session_service import load_staging_session_token
+from yonerai_cli.services.staging_session_service import (
+    StagingSessionStorageError,
+    load_staging_session_token,
+    update_staging_session_account,
+)
 
 
 CONTROL_SPINE_SCHEMA_VERSION = "yonerai-control-spine-client/v0.1"
@@ -267,6 +271,17 @@ def build_whoami_report(
     account_source = body.get("account") or body.get("identity") or body.get("profile") or body
     report["account"] = sanitize_staging_account(account_source if isinstance(account_source, Mapping) else {})
     report["account_linked"] = True
+    try:
+        updated_claim = update_staging_session_account(
+            account_source if isinstance(account_source, Mapping) else {},
+            config_path=claim_path,
+        )
+    except StagingSessionStorageError as exc:
+        report["staging_session_claim_updated"] = False
+        report["staging_session_update_error"] = exc.code
+    else:
+        report["staging_session_claim_updated"] = True
+        report["staging_session_account_id"] = updated_claim.get("account_id")
     return report
 
 
