@@ -124,3 +124,46 @@ scope: status.yonerai.com public status presentation only
 - phase: post-push-review-fix-before-second-push
 - quota: no explicit quota value exposed in this environment
 - decision: commit/push the two valid P2 fixes, then reread review/CI before merge.
+
+## 2026-06-23 Live public-safe ingestion checkpoint
+
+- last_scan_at: 2026-06-22T19:51:00Z
+- highest_seen_pr_number: 568
+- current_main_head: e7c27d6b
+- lane: StatusWEB public status presentation only.
+
+Fresh truth:
+
+- `status.yonerai.com` resolves through Cloudflare.
+- GitHub Pages is not configured for `YoneRai12/YonerAI`.
+- No repository GitHub Actions workflow currently deploys `status.yonerai.com`.
+- Live `/status-feed.json` is a same-origin static feed generated before this checkpoint and does not yet perform live ingestion.
+- Existing deploy path for the public domain is therefore an owner-only blocker before any public deployment.
+
+Review and CI intake:
+
+- PR #568 was opened, reviewed, fixed, re-read after final push, all threads resolved, CI passed, and squash-merged.
+- Valid findings fixed: quoted token-like metadata values, forward-slash Windows local paths, and Unix temp/workspace local paths in staging auth bridge public metadata.
+- Remaining open PRs were classified as outside this StatusWEB live-ingestion implementation unless they overlap a current P0/P1/security finding.
+
+Live ingestion implementation decision:
+
+- Implement scheduled/same-origin feed publication through `tools/sync-status-public-feed.mjs --input-url`.
+- Browser calls remain same-origin only.
+- Direct public deployment is not attempted because the existing status deployment path is not verified.
+
+PR #569 review intake:
+
+- Gemini high: valid-now. Fallback and not-modified public feed writes needed atomic replacement to avoid corrupting a public feed during interruption.
+- Gemini medium: valid-now. Upstream fetch needed an explicit timeout and Content-Length precheck before reading the body.
+- Gemini medium: valid-now. URL validation was duplicated and should be reused for maintainability.
+- Codex P1: valid-now. Schema-valid but malformed/unsafe upstream snapshots must still use LKG fallback instead of exiting without stale/degraded publication.
+- Codex P1: valid-now. Fallback must rewrite operational day-level states/colors, because the runtime derives current/category state from component day arrays.
+- AWS-AUTH-STATUS-READY intake: valid-now. Live AWS reports realtime sync as disabled/off; StatusWEB must render `realtime_sync` as disabled, not merely degraded, when the canonical component stage is disabled.
+- Codex P1: valid-now. Fetched snapshots must be projected to canonical public fields before caching in the StatusWEB workdir.
+- Codex P1: valid-now. Upstream ETags must be persisted only after feed validation and LKG update.
+- Codex P2/security: fixed now. `--input-url` is restricted to HTTPS approved staging status host input and unexpected redirects are rejected.
+- Codex P2/resource hardening: fixed now. Upstream response bodies are read with a streaming byte cap instead of only checking after full buffering.
+- AWS-AUTH-STATUS-READY: acknowledged for StatusWEB. Live staging snapshot maps `auth` to service-health-only staging status and `realtime_sync` stage `disabled` to feed state `disabled`.
+- Local evidence before final push: contract suite quick pass, live staging ingestion pass, public feed safety pass, stale LKG fallback pass, disallowed host/HTTP URL rejection pass, `git diff --check` pass, changed-file quality scan pass.
+- Codex P2 after final push: valid-now. `disabled` Japanese label placeholder was replaced with localized `\u7121\u52b9` output for public feed rendering.

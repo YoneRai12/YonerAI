@@ -24,6 +24,11 @@ const stateDefs = {
     color: "#f6bd3f",
     label: { ja: "性能低下", en: "Degraded" },
   },
+  disabled: {
+    severity: 38,
+    color: "#8f97a3",
+    label: { ja: "\u7121\u52b9", en: "Disabled" },
+  },
   partial_outage: {
     severity: 50,
     color: "#ff7a59",
@@ -228,15 +233,22 @@ function messageFor(component) {
   };
 }
 
+function componentState(component) {
+  if (component.id === "realtime_sync" && component.stage === "disabled") return "disabled";
+  if (component.availability === "disabled") return "disabled";
+  return component.health;
+}
+
 function componentToSource(snapshot, component) {
   const currentDate = dateFromTimestamp(snapshot.generated_at);
+  const state = componentState(component);
   return {
     id: component.id,
     name: componentName(component),
     fact: factFor(component),
     monitoring: monitoringFor(snapshot, component),
     claim: claimFor(component),
-    state: component.health,
+    state,
     default_state: "unknown",
     default_message: {
       ja: "履歴データはまだありません。",
@@ -244,7 +256,7 @@ function componentToSource(snapshot, component) {
     },
     days: {
       [currentDate]: {
-        state: component.health,
+        state,
         message: messageFor(component),
         ...(component.incident_ref ? { incident_id: component.incident_ref } : {}),
         source: "status-snapshot-v1",
