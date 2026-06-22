@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import hashlib
 import re
 from collections.abc import Iterable, Mapping
 from pathlib import Path
@@ -433,17 +432,6 @@ def _account_binding_matches(linked_account_id: str, candidate: object) -> bool:
     candidate_text = str(candidate or "").strip()
     if not candidate_text:
         return False
-    if candidate_text == linked_account_id:
-        return True
-    return _safe_account_ref(candidate_text) == linked_account_id
-
-
-def _safe_account_ref(value: object) -> str:
-    text = str(value or "").strip()
-    if not text:
-        return "linked-staging-account"
-    _assert_public_safe_text(text)
-    if re.fullmatch(r"staging-account-[a-f0-9]{16}", text):
-        return text
-    digest = hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
-    return f"staging-account-{digest}"
+    _assert_public_safe_text(candidate_text)
+    _assert_public_safe_text(linked_account_id)
+    return candidate_text == linked_account_id

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import io
 import sys
 from pathlib import Path
@@ -108,16 +107,18 @@ def test_account_mismatch_rejects_before_body_fetch() -> None:
     assert report["error"]["code"] == "sync_event_account_mismatch"
 
 
-def test_account_binding_accepts_contract_account_id_matching_public_ref() -> None:
-    from yonerai_cli.services.realtime_sync_event_service import validate_realtime_sync_event
+def test_account_binding_rejects_legacy_public_ref_for_canonical_account_id() -> None:
+    import pytest
+
+    from yonerai_cli.services.realtime_sync_event_service import RealtimeSyncEventError, validate_realtime_sync_event
 
     raw_account_id = "acct_contract_runtime_123"
-    public_ref = "staging-account-" + hashlib.sha256(raw_account_id.encode("utf-8")).hexdigest()[:16]
+    legacy_public_ref = "staging-account-84c212c254ae65ca"
 
-    report = validate_realtime_sync_event(_event(account_id=raw_account_id), linked_account_id=public_ref)
+    with pytest.raises(RealtimeSyncEventError) as excinfo:
+        validate_realtime_sync_event(_event(account_id=raw_account_id), linked_account_id=legacy_public_ref)
 
-    assert report["ok"] is True
-    assert report["body_fetch_allowed"] is True
+    assert excinfo.value.code == "sync_event_account_mismatch"
 
 
 def test_raw_body_projection_is_rejected() -> None:

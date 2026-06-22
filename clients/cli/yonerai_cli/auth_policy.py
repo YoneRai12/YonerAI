@@ -76,6 +76,7 @@ def build_google_auth_status(
     effective_state = session_state if session_state in {"linked", "pending", "expired", "revoked"} else claim_state
     effective_account = (
         {
+            "account_id": staging_session_claim.get("account_id"),
             "account_ref": staging_session_claim.get("account_id"),
             "display_name": staging_session_claim.get("display_name"),
             "email_redacted": staging_session_claim.get("redacted_email"),

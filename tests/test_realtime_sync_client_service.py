@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import hashlib
 import sys
 from pathlib import Path
 from typing import Mapping
@@ -30,7 +29,7 @@ def _save_session(tmp_path: Path) -> tuple[Path, dict[str, object]]:
     claim = save_staging_session(
         session_token="ystg_fixture_session_1234567890",
         origin=ORIGIN,
-        account={"account_ref": "public-sync-fixture-account", "email": "owner@example.com", "display_name": "Owner"},
+        account={"account_id": "acct_public_sync_fixture", "email": "owner@example.com", "display_name": "Owner"},
         expires_at="2099-06-20T00:00:00Z",
         config_path=config_path,
     )
@@ -613,18 +612,18 @@ def test_firebase_token_bridge_rejects_account_mismatch(tmp_path: Path) -> None:
     assert report["error"]["code"] == "firebase_token_account_mismatch"
 
 
-def test_firebase_token_bridge_accepts_contract_account_id_matching_saved_public_ref(tmp_path: Path) -> None:
+def test_firebase_token_bridge_rejects_legacy_public_ref_for_canonical_account_id(tmp_path: Path) -> None:
     from yonerai_cli.services.realtime_sync_client_service import build_realtime_sync_firebase_token_report
 
     raw_account_id = "acct_contract_runtime_123"
-    public_ref = "staging-account-" + hashlib.sha256(raw_account_id.encode("utf-8")).hexdigest()[:16]
     config_path, _claim = _save_session(tmp_path)
 
-    # Rewrite only the non-secret public account binding to match the live AWS contract shape:
-    # session claim stores a public-safe ref, while Firebase returns uid/account_id.
+    # Legacy Public builds stored a hashed account_ref. The current AWS contract
+    # requires exact canonical account_id matching, so this must force re-login
+    # rather than silently accepting a hash-derived alias.
     claim_path = config_path.with_name(f"{config_path.stem}.staging-session-claim.json")
     claim = json.loads(claim_path.read_text(encoding="utf-8"))
-    claim["account_id"] = public_ref
+    claim["account_id"] = "staging-account-84c212c254ae65ca"
     claim_path.write_text(json.dumps(claim, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
     def transport(
@@ -643,8 +642,8 @@ def test_firebase_token_bridge_accepts_contract_account_id_matching_saved_public
     )
     serialized = json.dumps(report, sort_keys=True)
 
-    assert report["ok"] is True
-    assert report["firebase_account_id_matches_session"] is True
+    assert report["ok"] is False
+    assert report["error"]["code"] == "canonical_account_id_required"
     assert "firebase_custom_token_fixture_value" not in serialized
     assert raw_account_id not in serialized
 
@@ -795,6 +794,52 @@ def test_listener_readiness_treats_401_as_live_route_with_session_blocker(tmp_pa
         "rerun yonerai sync listener readiness after login succeeds",
     )
     assert "ystg_fixture_session_1234567890" not in serialized
+
+
+def test_listener_readiness_rejects_legacy_public_ref_before_backend_call(tmp_path: Path) -> None:
+    from yonerai_cli.services.staging_session_service import load_staging_session_claim
+    from yonerai_cli.services.realtime_sync_client_service import build_realtime_sync_listener_readiness_report
+
+    config_path, _claim = _save_session(tmp_path)
+    claim = load_staging_session_claim(config_path=str(config_path))
+    claim["account_id"] = "staging-account-84c212c254ae65ca"
+    claim_path = config_path.with_name(f"{config_path.stem}.staging-session-claim.json")
+    claim_path.write_text(json.dumps(claim, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    called = False
+
+    def transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        nonlocal called
+        called = True
+        return 200, _firebase_token_payload("acct_contract_runtime_123"), RATE_HEADERS
+
+    report = build_realtime_sync_listener_readiness_report(
+        env={"YONERAI_STAGING_AUTH_ORIGIN": ORIGIN},
+        config_path=str(config_path),
+        transport=transport,
+    )
+    serialized = json.dumps(report, sort_keys=True)
+
+    assert called is False
+    assert report["ok"] is True
+    assert report["ready"] is False
+    assert report["official_backend_called"] is False
+    assert report["firebase_token_endpoint_checked"] is True
+    assert report["firebase_token_endpoint_live"] is False
+    assert report["next_blocker"] == "canonical_account_id_required"
+    assert report["required_next_actions"] == (
+        "run yonerai logout to clear the legacy staging account_ref session",
+        "run yonerai login to get a fresh opaque YonerAI staging session with canonical account_id",
+        "rerun yonerai sync listener readiness after login succeeds",
+    )
+    assert "ystg_fixture_session_1234567890" not in serialized
+    assert "acct_contract_runtime_123" not in serialized
+    assert str(tmp_path) not in serialized
 
 
 def test_listener_readiness_reports_503_as_private_runtime_blocker(tmp_path: Path) -> None:

@@ -120,7 +120,10 @@ def build_staging_session_claim(
         "origin": _safe_public_origin(origin, fallback="configured"),
         "issued_at": issued_at,
         "expires_at": _safe_public_text(expires_at, fallback=None),
-        "account_id": _safe_public_text(safe_account.get("account_ref"), fallback="linked-staging-account"),
+        "account_id": _safe_public_text(
+            safe_account.get("account_id") or safe_account.get("account_ref"),
+            fallback="linked-staging-account",
+        ),
         "redacted_email": _safe_public_text(safe_account.get("email_redacted"), fallback="not-linked"),
         "display_name": _safe_public_text(safe_account.get("display_name"), fallback="linked staging account"),
         "scopes": list(safe_scopes),

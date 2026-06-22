@@ -448,11 +448,8 @@ def test_google_login_staging_bridge_uses_returned_poll_url_without_printing_ver
         return (
             200,
             {
-                "account": {
-                    "account_ref": "acct_fixture",
-                    "display_name": "Fixture",
-                    "email_redacted": "f***@example.test",
-                },
+                "account_id": "acct_fixture",
+                "display_name": "Fixture",
                 "google_token_returned": False,
                 "refresh_token_returned": False,
             },
@@ -648,6 +645,20 @@ def test_staging_session_save_does_not_double_hash_public_account_ref(tmp_path: 
     )
 
     assert claim["account_id"] == public_ref
+
+
+def test_staging_session_preserves_canonical_account_id_for_realtime_sync(tmp_path: Path) -> None:
+    from yonerai_cli.services.staging_session_service import save_staging_session
+
+    canonical_account_id = "acct_contract_runtime_123"
+    claim = save_staging_session(
+        session_token="ystg_fixture_session_1234567890",
+        origin="https://api-staging.yonerai.com",
+        account={"account_id": canonical_account_id, "display_name": "Fixture"},
+        config_path=tmp_path / "cli-config.json",
+    )
+
+    assert claim["account_id"] == canonical_account_id
 
 
 def test_staging_bridge_rejects_sensitive_session_metadata_values(tmp_path: Path, monkeypatch) -> None:
@@ -1136,7 +1147,8 @@ def test_google_login_staging_waits_for_link_and_fetches_account_without_storing
             200,
             {
                 "ok": True,
-                "account": {"email": "owner@example.com", "display_name": "Owner"},
+                "account_id": "acct_owner_fixture",
+                "display_name": "Owner",
                 "google_token_returned": False,
                 "refresh_token_returned": False,
             },
@@ -1161,7 +1173,8 @@ def test_google_login_staging_waits_for_link_and_fetches_account_without_storing
     assert report["cli_bridge"]["staging_session_received"] is True
     assert report["cli_bridge"]["account_me"]["ok"] is True
     assert report["staging_linked_claim"]["auth_state"] == "linked"
-    assert report["staging_linked_claim"]["account"]["email_redacted"] == "o***@example.com"
+    assert report["staging_linked_claim"]["account"]["account_id"] == "acct_owner_fixture"
+    assert report["staging_linked_claim"]["account"]["email_redacted"] == "not-linked"
     assert report["staging_linked_claim"]["storage"]["google_token_stored"] is False
     assert report["staging_linked_claim"]["storage"]["refresh_token_stored"] is False
     assert report["staging_linked_claim"]["storage"]["staging_session_token_stored"] is False

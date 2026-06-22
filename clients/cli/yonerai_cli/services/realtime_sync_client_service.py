@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import importlib.util
-import hashlib
 import json
 import os
 import re
@@ -40,6 +39,7 @@ READINESS_NON_BLOCKING_ERROR_CODES = {
     "staging_origin_not_configured",
     "staging_auth_required",
     "staging_session_required",
+    "canonical_account_id_required",
     "staging_sync_unreachable",
     "firebase_token_request_failed",
 }
@@ -701,6 +701,13 @@ def build_realtime_sync_listener_readiness_report(
                 "run yonerai login to get a fresh opaque YonerAI staging session",
                 "rerun yonerai sync listener readiness after login succeeds",
             )
+        elif code == "canonical_account_id_required":
+            report["next_blocker"] = "canonical_account_id_required"
+            report["required_next_actions"] = (
+                "run yonerai logout to clear the legacy staging account_ref session",
+                "run yonerai login to get a fresh opaque YonerAI staging session with canonical account_id",
+                "rerun yonerai sync listener readiness after login succeeds",
+            )
         else:
             report["next_blocker"] = code
             report["required_next_actions"] = ("repair staging origin/login/session and rerun readiness",)
@@ -1348,6 +1355,11 @@ def _linked_account_id(context: Mapping[str, Any]) -> str:
     account_id = str(claim.get("account_id") or "").strip()
     if not account_id or account_id == "not-linked":
         raise RealtimeSyncClientError("staging_account_missing", "Linked staging account id is unavailable.")
+    if re.fullmatch(r"staging-account-[a-f0-9]{16}", account_id):
+        raise RealtimeSyncClientError(
+            "canonical_account_id_required",
+            "Realtime sync requires a fresh YonerAI staging session with canonical account_id.",
+        )
     return account_id
 
 
@@ -1355,19 +1367,9 @@ def _account_binding_matches(linked_account_id: str, candidate: object) -> bool:
     candidate_text = str(candidate or "").strip()
     if not candidate_text:
         return False
-    if candidate_text == linked_account_id:
-        return True
-    return _safe_account_ref(candidate_text) == linked_account_id
-
-
-def _safe_account_ref(value: object) -> str:
-    text = str(value or "").strip()
-    if not text or _account_binding_text_rejected(text):
-        return "linked-staging-account"
-    if re.fullmatch(r"staging-account-[a-f0-9]{16}", text):
-        return text
-    digest = hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
-    return f"staging-account-{digest}"
+    if _account_binding_text_rejected(candidate_text) or _account_binding_text_rejected(linked_account_id):
+        return False
+    return candidate_text == linked_account_id
 
 
 def _account_binding_text_rejected(text: str) -> bool:

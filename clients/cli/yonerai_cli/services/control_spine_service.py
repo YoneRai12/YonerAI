@@ -65,7 +65,6 @@ PUBLIC_PAYLOAD_FORBIDDEN_MARKERS = (
     "arn:",
     "internal_hostname",
     "worker_identity",
-    "account_id",
     "169.254.169.254",
 )
 
