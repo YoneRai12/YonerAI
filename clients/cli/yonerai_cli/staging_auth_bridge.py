@@ -41,6 +41,23 @@ _FORBIDDEN_QUERY_PARAM_KEYS = _FORBIDDEN_TOKEN_KEYS | {
     "secret",
 }
 _POLL_URL_ALLOWED_QUERY_KEYS = frozenset({"poll_verifier"})
+_FORBIDDEN_PUBLIC_SCALAR_VALUE_RE = re.compile(
+    r"(?i)(?:^|[^A-Za-z0-9])"
+    r"(?:"
+    r"staging[_-]session[_-](?:token|claim)"
+    r"|google[_-]access[_-]token"
+    r"|google[_-]id[_-]token"
+    r"|session[_-]token"
+    r"|access[_-]token"
+    r"|id[_-]token"
+    r"|refresh[_-]token"
+    r"|authorization[_-]code"
+    r"|auth[_-]code"
+    r"|client[_-]secret"
+    r"|api[_-]key"
+    r")\s*[:=]"
+)
+_LOCAL_PATH_VALUE_RE = re.compile(r"([A-Za-z]:\\|\\\\|/Users/|/home/|/root/)", re.IGNORECASE)
 
 JsonTransport = Callable[[str, str, Mapping[str, object] | None, float], tuple[int, Mapping[str, object]]]
 HeaderJsonTransport = Callable[
@@ -513,7 +530,18 @@ def _body_without_allowed_opaque_session(body: Mapping[str, object]) -> Mapping[
 
 
 def _safe_optional_public_scalar(value: object, field_name: str) -> object:
-    if value is None or isinstance(value, str | int | float | bool):
+    if value is None or isinstance(value, int | float | bool):
+        return value
+    if isinstance(value, str):
+        if (
+            any(ord(char) < 32 or ord(char) == 127 for char in value)
+            or _FORBIDDEN_PUBLIC_SCALAR_VALUE_RE.search(value)
+            or _LOCAL_PATH_VALUE_RE.search(value)
+        ):
+            raise StagingAuthBridgeError(
+                f"staging_bridge_{field_name}_invalid",
+                "Staging CLI bridge returned an invalid public field.",
+            )
         return value
     raise StagingAuthBridgeError(
         f"staging_bridge_{field_name}_invalid",

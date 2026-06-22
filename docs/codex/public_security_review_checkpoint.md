@@ -232,3 +232,28 @@ Checked in this checkpoint:
 | --- | --- | --- | --- | --- |
 | #564 Gemini quota comment | stale / non-actionable | The only initial PR comment is a Gemini quota warning, not a code or security finding | `review-intake-required` failed closed until classification; product checks pending | Apply `intake-reviewed` after classification and reread comments/checks after CI and before merge. |
 | #564 implementation | valid-now | Codex P2 review on the initial PR commit correctly noted the post-merge follow-up entry still said pending validation | Local `git diff --check` and `ci_quality_scans.py --changed` passed; checkpoint now records completed local validation explicitly | Keep PR scoped to sanitizing merged PR #563 public checkpoint wording and recording completed validation evidence. |
+
+## 2026-06-23 Live Status Ingestion Gate / PR #565 Security Intake
+
+- last_scan_at: 2026-06-22T19:35:00Z
+- highest_seen_pr_number: 567
+- current_main_head: 698ad1e9
+- branch: codex/status-live-ingestion-20260623
+- lane: Public security gate before StatusWEB live ingestion
+
+Checked in this checkpoint:
+
+- Current dirty workspace was not adopted; an isolated worktree was created from `origin/main`.
+- Open PRs #567, #566, #565, #548, #547, #545, #544, #523, #521, dependency PRs, and stale owner/deploy lanes.
+- PR review submissions, inline review threads, PR comments, issue comments, and CI rollups available from GitHub API.
+- status.yonerai.com live host and current same-origin status static assets.
+- Live AWS staging `/v1/status` schema/cache headers and public projection boundary.
+
+| PR / issue / notice | classification | review/comment state | CI / evidence state | decision |
+| --- | --- | --- | --- | --- |
+| #565 | valid-now P1/security | Codex P1 says underscored token metadata markers can pass in session metadata values; Gemini medium says local-path scalar scan should be case-insensitive | Reproduced on current main: `session.type` / `session.token_field` values containing token-like markers were accepted and returned in public report metadata | Fix current main before StatusWEB live ingestion by rejecting token-like public scalar values and adding regression coverage. |
+| #567 | deferred-with-tracked-issue | Gemini no-comment review; review-intake-required failing until classification | Non-status CLI test PR; not a P0/P1/security blocker for this lane | Do not merge or reimplement here. |
+| #566 | deferred-with-tracked-issue | Gemini no-comment security review; review-intake-required failing until classification | Auth/security-adjacent but not the current live-ingestion blocker after main validation | Do not merge stale branch blindly; preserve any still-valid finding only after current-main reproduction. |
+| #548 and dependency PRs | deferred-with-tracked-issue | Dependabot lanes | Some stale/failed checks on old branches | Track separately; dependency work must not starve StatusWEB live ingestion. |
+| #545/#544 | deferred-with-tracked-issue / duplicate UX | Theme alias review comments remain open | UX/correctness, not current P0/P1/security | Track separately; not blocking this lane. |
+| #552 | valid-now coordination source | Public/AWS/YonerAIWEB status and sync notices checked | Current issue state says sync/firestore remains staging/disabled or short-TTL-gated; no production claim | Status page may render staging/preview truth only, with no account/token/internal detail. |
