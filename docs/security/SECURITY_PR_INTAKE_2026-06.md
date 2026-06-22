@@ -105,6 +105,7 @@ the current security intake branch instead of merging several stale PR branches:
 | Source | Finding | Severity | Current disposition |
 | --- | --- | --- | --- |
 | #565 Codex review | Session metadata values such as `staging_session_token=...`, `session_token=...`, or `google_access_token=...` could pass as public metadata even though key scanning blocked only field names. | P1/security/privacy | Reproduced on current main and fixed in `codex/status-live-ingestion-20260623` by rejecting token-like public scalar values before report rendering. |
+| #568 Gemini review | Quoted token-like scalar keys and `C:/...` local-path strings needed explicit coverage before merge. | P1/P2 security/privacy hardening | Fixed in the same PR with broader scalar-value regex coverage and regression cases. |
 | #565 Gemini review | Local path metadata matching should be case-insensitive. | P2/privacy | Folded into the same public scalar rejection path without changing allowed opaque session fields. |
 
 This follow-up is a gate before StatusWEB live ingestion. It does not implement

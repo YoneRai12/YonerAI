@@ -238,6 +238,13 @@ Checked in this checkpoint:
 - last_scan_at: 2026-06-22T19:35:00Z
 - highest_seen_pr_number: 567
 - current_main_head: 698ad1e9
+
+### PR #568 final-push review intake
+
+| Source | Classification | Finding | Decision |
+| --- | --- | --- | --- |
+| #568 Gemini high review | valid-now | Quoted token-like scalar keys, such as JSON-shaped metadata values, were not covered by the first regex. | Fixed in the same PR by accepting optional quote characters around the forbidden public key and adding quoted regression cases. |
+| #568 Gemini medium review | valid-now | Windows absolute paths written with forward slashes were not covered by the first local-path value regex. | Fixed in the same PR by accepting either slash form after the drive letter and adding a regression case. |
 - branch: codex/status-live-ingestion-20260623
 - lane: Public security gate before StatusWEB live ingestion
 

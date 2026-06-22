@@ -43,6 +43,7 @@ _FORBIDDEN_QUERY_PARAM_KEYS = _FORBIDDEN_TOKEN_KEYS | {
 _POLL_URL_ALLOWED_QUERY_KEYS = frozenset({"poll_verifier"})
 _FORBIDDEN_PUBLIC_SCALAR_VALUE_RE = re.compile(
     r"(?i)(?:^|[^A-Za-z0-9])"
+    r"['\"]?"
     r"(?:"
     r"staging[_-]session[_-](?:token|claim)"
     r"|google[_-]access[_-]token"
@@ -55,9 +56,9 @@ _FORBIDDEN_PUBLIC_SCALAR_VALUE_RE = re.compile(
     r"|auth[_-]code"
     r"|client[_-]secret"
     r"|api[_-]key"
-    r")\s*[:=]"
+    r")['\"]?\s*[:=]"
 )
-_LOCAL_PATH_VALUE_RE = re.compile(r"([A-Za-z]:\\|\\\\|/Users/|/home/|/root/)", re.IGNORECASE)
+_LOCAL_PATH_VALUE_RE = re.compile(r"([A-Za-z]:[/\\]|\\\\|/Users/|/home/|/root/)", re.IGNORECASE)
 
 JsonTransport = Callable[[str, str, Mapping[str, object] | None, float], tuple[int, Mapping[str, object]]]
 HeaderJsonTransport = Callable[
