@@ -27,7 +27,7 @@ const stateDefs = {
   disabled: {
     severity: 38,
     color: "#8f97a3",
-    label: { ja: "??", en: "Disabled" },
+    label: { ja: "\u7121\u52b9", en: "Disabled" },
   },
   partial_outage: {
     severity: 50,

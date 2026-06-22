@@ -166,3 +166,4 @@ PR #569 review intake:
 - Codex P2/resource hardening: fixed now. Upstream response bodies are read with a streaming byte cap instead of only checking after full buffering.
 - AWS-AUTH-STATUS-READY: acknowledged for StatusWEB. Live staging snapshot maps `auth` to service-health-only staging status and `realtime_sync` stage `disabled` to feed state `disabled`.
 - Local evidence before final push: contract suite quick pass, live staging ingestion pass, public feed safety pass, stale LKG fallback pass, disallowed host/HTTP URL rejection pass, `git diff --check` pass, changed-file quality scan pass.
+- Codex P2 after final push: valid-now. `disabled` Japanese label placeholder was replaced with localized `\u7121\u52b9` output for public feed rendering.
