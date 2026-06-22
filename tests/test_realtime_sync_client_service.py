@@ -1238,3 +1238,27 @@ def test_listener_readiness_cli_reports_not_ready_without_nonzero_exit(tmp_path:
     assert report["ready"] is False
     assert report["next_blocker"] == "staging_origin_not_configured"
     assert str(tmp_path) not in output
+
+
+def test_listener_readiness_pretty_shows_japanese_relogin_summary() -> None:
+    from yonerai_cli.commands.sync import format_sync_pretty_v2
+
+    output = format_sync_pretty_v2(
+        {
+            "operation": "realtime_sync_listener_readiness",
+            "ok": True,
+            "ready": False,
+            "next_blocker": "canonical_account_id_required",
+            "required_next_actions": (
+                "run yonerai logout to clear the legacy staging account_ref session",
+                "run yonerai login to get a fresh opaque YonerAI staging session with canonical account_id",
+            ),
+        },
+        lang="ja",
+        color="never",
+    )
+
+    assert "要約" in output
+    assert "同期リスナーはまだ使えません" in output
+    assert "保存済みログインが古い account_ref 形式です" in output
+    assert "yonerai logout の後に yonerai login" in output

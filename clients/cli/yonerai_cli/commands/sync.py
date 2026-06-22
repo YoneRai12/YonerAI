@@ -706,7 +706,11 @@ def format_sync_pretty_v2(report: dict[str, Any], *, lang: str = "ja", color: Co
         CliRow(f"next_{idx}", item, "warn") for idx, item in enumerate(report.get("required_next_actions", []), start=1)
     )
 
-    sections = [CliSection("Status", tuple(rows))]
+    sections = []
+    summary = _sync_summary_rows(report, lang=lang)
+    if summary:
+        sections.append(CliSection("要約" if lang == "ja" else "Summary", summary))
+    sections.append(CliSection("Status", tuple(rows)))
     if cloud_rows:
         sections.append(CliSection("Cloud conversations", cloud_rows))
     if cloud_detail_rows:
@@ -734,6 +738,39 @@ def format_sync_pretty_v2(report: dict[str, Any], *, lang: str = "ja", color: Co
             )
         )
     return render_report(title, tuple(sections), color=color)
+
+
+def _sync_summary_rows(report: dict[str, Any], *, lang: str) -> tuple[CliRow, ...]:
+    if report.get("operation") != "realtime_sync_listener_readiness":
+        return ()
+    next_blocker = str(report.get("next_blocker") or "")
+    if lang != "ja":
+        if next_blocker == "canonical_account_id_required":
+            return (
+                CliRow("state", "not ready", "warn"),
+                CliRow("reason", "The saved staging login is from the older account_ref contract.", "warn"),
+                CliRow("next", "Run yonerai logout, then yonerai login, then rerun sync listener readiness.", "warn"),
+            )
+        return ()
+    if next_blocker == "canonical_account_id_required":
+        return (
+            CliRow("状態", "同期リスナーはまだ使えません", "warn"),
+            CliRow("理由", "保存済みログインが古い account_ref 形式です", "warn"),
+            CliRow("次にやること", "yonerai logout の後に yonerai login を実行してください", "warn"),
+        )
+    if next_blocker == "firestore_sync_disabled_until_live_e2e_and_owner_flip":
+        return (
+            CliRow("状態", "同期リスナーの認証準備は進んでいます", "ok"),
+            CliRow("理由", "Firestore 同期は owner が有効化するまで無効です", "warn"),
+            CliRow("次にやること", "Web-to-CLI E2E 後に owner が同期フラグを有効化します", "warn"),
+        )
+    if next_blocker == "staging_session_required":
+        return (
+            CliRow("状態", "同期リスナーはまだ使えません", "warn"),
+            CliRow("理由", "保存済み staging session が AWS に拒否されました", "warn"),
+            CliRow("次にやること", "yonerai logout の後に yonerai login を実行してください", "warn"),
+        )
+    return ()
 
 
 def _event_payload_from_args(args: argparse.Namespace) -> dict[str, object]:
