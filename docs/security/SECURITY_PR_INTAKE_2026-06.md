@@ -99,3 +99,16 @@ the current security intake branch instead of merging several stale PR branches:
 | #559 merged review | Manual --poll-request-id could report linked browser state without a CLI bearer session while returning ok: true because failure was gated on wait_linked. | P2/security/correctness | Fixed in follow-up branch by propagating linked-without-CLI-session metadata from manual polls and failing closed as staging_cli_session_unavailable. |
 | #559 merged review | Empty/non-empty opaque session candidate mismatch, placeholder origin schema mismatch, and session handler argument order comments remained unresolved. | valid-but-already-fixed | Current main already contains the fixes and regression coverage; threads will be resolved with evidence. |
 | #560 merged review | Local LLM display readability comments remained unresolved after merge. | valid-but-already-fixed | Current main contains the requested mapping/conditional-expression cleanup and tests; threads will be resolved with evidence. |
+
+## 2026-06-23 Current-Main PR #565 Security Follow-up
+
+| Source | Finding | Severity | Current disposition |
+| --- | --- | --- | --- |
+| #565 Codex review | Session metadata values such as `staging_session_token=...`, `session_token=...`, or `google_access_token=...` could pass as public metadata even though key scanning blocked only field names. | P1/security/privacy | Reproduced on current main and fixed in `codex/status-live-ingestion-20260623` by rejecting token-like public scalar values before report rendering. |
+| #568 Gemini review | Quoted token-like scalar keys and `C:/...` local-path strings needed explicit coverage before merge. | P1/P2 security/privacy hardening | Fixed in the same PR with broader scalar-value regex coverage and regression cases. |
+| #568 Codex review | Temp, var, and workspace absolute paths could still pass as public staging bridge metadata values. | P1/security/privacy | Fixed in the same PR by rejecting common Unix temp/workspace absolute path prefixes and adding regression cases. |
+| #565 Gemini review | Local path metadata matching should be case-insensitive. | P2/privacy | Folded into the same public scalar rejection path without changing allowed opaque session fields. |
+
+This follow-up is a gate before StatusWEB live ingestion. It does not implement
+production login, production sync, Web chat, Firestore listener, provider
+consent/control, quota mutation, approval control, or production deploy.

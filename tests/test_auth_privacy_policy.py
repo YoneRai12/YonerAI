@@ -1818,6 +1818,55 @@ def test_google_login_staging_bridge_fails_closed_on_nested_token_return(tmp_pat
     assert str(tmp_path) not in serialized
 
 
+@pytest.mark.parametrize(
+    "metadata_value",
+    [
+        "staging_session_token=redacted",
+        "session_token=redacted",
+        "google_access_token=redacted",
+        '"session_token": "redacted"',
+        "'session_token': 'redacted'",
+        "local_path=C:/Users/example/status.json",
+        "local_path=/tmp/status.json",
+        "local_path=/var/tmp/status.json",
+        "local_path=/workspace/status.json",
+    ],
+)
+def test_google_login_staging_bridge_rejects_token_named_session_metadata_values(
+    metadata_value: str,
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from yonerai_cli.auth_policy import build_google_login_staging
+
+    def transport(method: str, url: str, body: object, timeout: float) -> tuple[int, dict[str, object]]:
+        return (
+            200,
+            {
+                "status": "pending",
+                "request_id": "cli_fixture_request",
+                "session": {
+                    "type": metadata_value,
+                    "token_field": metadata_value,
+                    "token_returned": False,
+                },
+                "google_token_returned": False,
+                "refresh_token_returned": False,
+            },
+        )
+
+    monkeypatch.setenv("YONERAI_CLI_CONFIG_PATH", str(tmp_path / "cli-config.json"))
+    monkeypatch.setenv("YONERAI_STAGING_AUTH_ORIGIN", "https://api-staging.yonerai.com")
+
+    report = build_google_login_staging(poll_request_id="cli_fixture_request", transport=transport)
+    serialized = json.dumps(report, sort_keys=True)
+
+    assert report["ok"] is False
+    assert report["error"]["code"] == "staging_bridge_session_type_invalid"
+    assert metadata_value not in serialized
+    assert str(tmp_path) not in serialized
+
+
 def test_google_login_staging_bridge_rejects_cross_origin_paths(tmp_path: Path, monkeypatch) -> None:
     from yonerai_cli.auth_policy import build_google_login_staging
 
