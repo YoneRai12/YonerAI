@@ -1,0 +1,312 @@
+{
+  "contract_schema_version": "yonerai.realtime_sync.v1",
+  "fixtures": [
+    {
+      "event": {
+        "account_id": "acct_public_001",
+        "audit_ref": {
+          "audit_id": "aud_public_001",
+          "kind": "metadata_only"
+        },
+        "body_ref": {
+          "body_included": false,
+          "href": "/v1/conversations/conv_public_001/messages/msg_public_001",
+          "kind": "aws_message_body"
+        },
+        "conversation_id": "conv_public_001",
+        "created_at": "2026-06-20T00:00:00Z",
+        "cursor": "cursor_public_001",
+        "event_id": "evt_public_001",
+        "event_type": "message_created",
+        "idempotency_key": "sync_public_001",
+        "message_id": "msg_public_001",
+        "origin": "web",
+        "projection_version": 1,
+        "provider_consent_ref": {
+          "conversation_id": "conv_public_001",
+          "state": "off"
+        },
+        "reason": "cloud conversation selected by linked account",
+        "schema_version": "yonerai.realtime_sync.v1",
+        "sequence": 1,
+        "sync_policy": "cloud_to_local"
+      },
+      "expected": "accept",
+      "linked_account_id": "acct_public_001",
+      "name": "valid-cloud-to-local"
+    },
+    {
+      "event": {
+        "account_id": "acct_public_001",
+        "audit_ref": {
+          "audit_id": "aud_public_002",
+          "kind": "metadata_only"
+        },
+        "body_ref": {
+          "body_included": false,
+          "href": "/v1/conversations/conv_public_001/messages/msg_public_002",
+          "kind": "aws_message_body"
+        },
+        "conversation_id": "conv_public_001",
+        "created_at": "2026-06-20T00:01:00Z",
+        "cursor": "cursor_public_002",
+        "event_id": "evt_public_002",
+        "event_type": "message_created",
+        "idempotency_key": "sync_public_002",
+        "message_body": "must not be projected through Firestore",
+        "message_id": "msg_public_002",
+        "origin": "web",
+        "projection_version": 1,
+        "provider_consent_ref": {
+          "conversation_id": "conv_public_001",
+          "state": "off"
+        },
+        "schema_version": "yonerai.realtime_sync.v1",
+        "sequence": 2,
+        "sync_policy": "cloud_to_local"
+      },
+      "expected": "reject",
+      "linked_account_id": "acct_public_001",
+      "name": "forbidden-body-present"
+    },
+    {
+      "event": {
+        "account_id": "acct_public_001",
+        "body_ref": {
+          "body_included": false,
+          "href": "/v1/conversations/conv_public_001/messages/msg_public_003",
+          "kind": "aws_message_body"
+        },
+        "conversation_id": "conv_public_001",
+        "created_at": "2026-06-20T00:02:00Z",
+        "cursor": "cursor_public_003",
+        "event_id": "evt_public_003",
+        "event_type": "message_created",
+        "idempotency_key": "sync_public_003",
+        "message_id": "msg_public_003",
+        "origin": "web",
+        "projection_version": 1,
+        "provider_consent_ref": {
+          "conversation_id": "conv_public_001",
+          "state": "off"
+        },
+        "reason": "accessToken must not appear in projection",
+        "schema_version": "yonerai.realtime_sync.v1",
+        "sequence": 3,
+        "sync_policy": "cloud_to_local"
+      },
+      "expected": "reject",
+      "linked_account_id": "acct_public_001",
+      "name": "forbidden-token-like-value"
+    },
+    {
+      "event": {
+        "account_id": "acct_public_001",
+        "body_ref": {
+          "body_included": false,
+          "href": "/v1/conversations/conv_public_001/messages/msg_public_004",
+          "kind": "aws_message_body"
+        },
+        "conversation_id": "conv_public_001",
+        "created_at": "2026-06-20T00:03:00Z",
+        "cursor": "cursor_public_004",
+        "event_id": "evt_public_004",
+        "event_type": "message_created",
+        "idempotency_key": "sync_public_004",
+        "message_id": "msg_public_004",
+        "origin": "web",
+        "projection_version": 1,
+        "provider_consent_ref": {
+          "conversation_id": "conv_public_001",
+          "state": "off"
+        },
+        "reason": "C:\\Users\\owner\\private.txt",
+        "schema_version": "yonerai.realtime_sync.v1",
+        "sequence": 4,
+        "sync_policy": "cloud_to_local"
+      },
+      "expected": "reject",
+      "linked_account_id": "acct_public_001",
+      "name": "forbidden-local-path"
+    },
+    {
+      "event": {
+        "account_id": "acct_public_001",
+        "body_ref": {
+          "body_included": false,
+          "href": "/v1/conversations/conv_public_001/messages/msg_public_005",
+          "kind": "aws_message_body"
+        },
+        "conversation_id": "conv_public_001",
+        "created_at": "2026-06-20T00:04:00Z",
+        "cursor": "cursor_public_005",
+        "event_id": "evt_public_005",
+        "event_type": "message_created",
+        "idempotency_key": "sync_public_005",
+        "message_id": "msg_public_005",
+        "origin": "web",
+        "projection_version": 1,
+        "provider_consent_ref": {
+          "conversation_id": "conv_public_001",
+          "state": "off"
+        },
+        "reason": "http://10.0.0.5/runbook",
+        "schema_version": "yonerai.realtime_sync.v1",
+        "sequence": 5,
+        "sync_policy": "cloud_to_local"
+      },
+      "expected": "reject",
+      "linked_account_id": "acct_public_001",
+      "name": "forbidden-internal-endpoint"
+    },
+    {
+      "event": {
+        "account_id": "acct_public_001",
+        "body_ref": {
+          "body_included": false,
+          "href": "/v1/conversations/../admin",
+          "kind": "aws_message_body"
+        },
+        "conversation_id": "conv_public_001",
+        "created_at": "2026-06-20T00:05:00Z",
+        "cursor": "cursor_public_006",
+        "event_id": "evt_public_006",
+        "event_type": "message_created",
+        "idempotency_key": "sync_public_006",
+        "message_id": "msg_public_006",
+        "origin": "web",
+        "projection_version": 1,
+        "provider_consent_ref": {
+          "conversation_id": "conv_public_001",
+          "state": "off"
+        },
+        "schema_version": "yonerai.realtime_sync.v1",
+        "sequence": 6,
+        "sync_policy": "cloud_to_local"
+      },
+      "expected": "reject",
+      "linked_account_id": "acct_public_001",
+      "name": "forbidden-body-ref-traversal"
+    },
+    {
+      "event": {
+        "account_id": "acct_public_001",
+        "body_ref": {
+          "body_included": false,
+          "href": "/v1/conversations/conv_public_001/messages/msg_public_007?debug=1",
+          "kind": "aws_message_body"
+        },
+        "conversation_id": "conv_public_001",
+        "created_at": "2026-06-20T00:06:00Z",
+        "cursor": "cursor_public_007",
+        "event_id": "evt_public_007",
+        "event_type": "message_created",
+        "idempotency_key": "sync_public_007",
+        "message_id": "msg_public_007",
+        "origin": "web",
+        "projection_version": 1,
+        "provider_consent_ref": {
+          "conversation_id": "conv_public_001",
+          "state": "off"
+        },
+        "schema_version": "yonerai.realtime_sync.v1",
+        "sequence": 7,
+        "sync_policy": "cloud_to_local"
+      },
+      "expected": "reject",
+      "linked_account_id": "acct_public_001",
+      "name": "forbidden-body-ref-query"
+    },
+    {
+      "event": {
+        "account_id": "acct_other",
+        "body_ref": {
+          "body_included": false,
+          "href": "/v1/conversations/conv_public_001/messages/msg_public_008",
+          "kind": "aws_message_body"
+        },
+        "conversation_id": "conv_public_001",
+        "created_at": "2026-06-20T00:07:00Z",
+        "cursor": "cursor_public_008",
+        "event_id": "evt_public_008",
+        "event_type": "message_created",
+        "idempotency_key": "sync_public_008",
+        "message_id": "msg_public_008",
+        "origin": "web",
+        "projection_version": 1,
+        "provider_consent_ref": {
+          "conversation_id": "conv_public_001",
+          "state": "off"
+        },
+        "schema_version": "yonerai.realtime_sync.v1",
+        "sequence": 8,
+        "sync_policy": "cloud_to_local"
+      },
+      "expected": "reject",
+      "linked_account_id": "acct_public_001",
+      "name": "forbidden-account-mismatch"
+    },
+    {
+      "event": {
+        "account_id": "acct_public_001",
+        "body_ref": {
+          "body_included": false,
+          "href": "/v1/conversations/conv_public_001/messages/msg_public_009",
+          "kind": "aws_message_body"
+        },
+        "conversation_id": "conv_public_001",
+        "created_at": "2026-06-20T00:08:00Z",
+        "cursor": "cursor_public_009",
+        "event_id": "evt_public_009",
+        "event_type": "message_created",
+        "idempotency_key": "sync_public_009",
+        "message_id": "msg_public_009",
+        "origin": "web",
+        "projection_version": 1,
+        "provider_consent_ref": {
+          "conversation_id": "conv_public_001",
+          "state": "on"
+        },
+        "schema_version": "yonerai.realtime_sync.v1",
+        "sequence": 9,
+        "sync_policy": "cloud_to_local"
+      },
+      "expected": "reject",
+      "linked_account_id": "acct_public_001",
+      "name": "forbidden-provider-sharing-default-on"
+    },
+    {
+      "event": {
+        "account_id": "acct_public_001",
+        "body_ref": {
+          "body_included": false,
+          "href": "/v1/conversations/conv_public_001/messages/msg_public_010",
+          "kind": "aws_message_body"
+        },
+        "conversation_id": "conv_public_001",
+        "created_at": "2026-06-20T00:09:00Z",
+        "cursor": "cursor_public_010",
+        "event_id": "evt_public_010",
+        "event_type": "message_created",
+        "idempotency_key": "sync_public_010",
+        "message_id": "msg_public_010",
+        "origin": "web",
+        "private_fields": {
+          "raw_audit": "not public"
+        },
+        "projection_version": 1,
+        "provider_consent_ref": {
+          "conversation_id": "conv_public_001",
+          "state": "off"
+        },
+        "schema_version": "yonerai.realtime_sync.v1",
+        "sequence": 10,
+        "sync_policy": "cloud_to_local"
+      },
+      "expected": "reject",
+      "linked_account_id": "acct_public_001",
+      "name": "forbidden-unknown-private-fields"
+    }
+  ],
+  "schema_version": "yonerai.realtime_sync.v1.golden-fixtures/v0.1"
+}

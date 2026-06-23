@@ -16,8 +16,9 @@ _TOKEN_KEY_RE = re.compile(
     r"(^|[_\-.:\s])(access_token|id_token|refresh_token|token|secret|authorization|credential|password|auth_code|code)($|[_\-.:\s])",
     re.IGNORECASE,
 )
-_LOCAL_PATH_RE = re.compile(r"([A-Za-z]:\\|\\\\|/Users/|/home/|/root/)")
+_LOCAL_PATH_RE = re.compile(r"([A-Za-z]:\\|\\\\|/Users/|/home/|/root/)", re.IGNORECASE)
 _SAFE_TEXT_RE = re.compile(r"^[A-Za-z0-9_.:@+\-*(),!\[\]&\s]{0,160}$")
+_PUBLIC_ACCOUNT_REF_RE = re.compile(r"^staging-account-[a-f0-9]{16}$")
 
 
 def default_staging_auth_claim_path(config_path: str | Path | None = None) -> Path:
@@ -35,6 +36,7 @@ def empty_staging_auth_claim() -> dict[str, object]:
         "linked_at": None,
         "expires_at": None,
         "account": {
+            "account_id": "not-linked",
             "account_ref": "not-linked",
             "display_name": "not-linked",
             "email_redacted": "not-linked",
@@ -100,9 +102,13 @@ def build_staging_auth_claim(
 def sanitize_staging_account(account: Mapping[str, object]) -> dict[str, object]:
     raw_email = _first_text(account, ("email_redacted", "display_email_redacted", "email"))
     raw_name = _first_text(account, ("display_name", "name", "login", "account_name"))
-    raw_ref = _first_text(account, ("account_ref", "subject_ref", "account_id", "sub", "id", "user_id"))
+    raw_account_id = _first_text(account, ("account_id",))
+    raw_ref = _first_text(account, ("account_ref", "subject_ref", "sub", "id", "user_id"))
+    account_id = _safe_account_id(raw_account_id)
+    account_ref = _safe_account_ref(raw_ref or account_id or raw_email or raw_name)
     return {
-        "account_ref": _safe_account_ref(raw_ref or raw_email or raw_name),
+        "account_id": account_id or account_ref,
+        "account_ref": account_ref,
         "display_name": _safe_public_text(raw_name, fallback="linked staging account"),
         "email_redacted": _redact_email(raw_email),
         "raw_email_stored": False,
@@ -128,6 +134,7 @@ def validate_staging_auth_claim(claim: Mapping[str, object]) -> dict[str, object
         "linked_at": _safe_public_text(claim.get("linked_at"), fallback=None),
         "expires_at": _safe_public_text(claim.get("expires_at"), fallback=None),
         "account": {
+            "account_id": _safe_account_id(account.get("account_id")) or _safe_account_ref(account.get("account_ref")),
             "account_ref": _safe_account_ref(account.get("account_ref")),
             "display_name": _safe_public_text(account.get("display_name"), fallback="linked staging account"),
             "email_redacted": _redact_email(account.get("email_redacted")),
@@ -203,8 +210,17 @@ def _safe_account_ref(value: object) -> str:
     text = _safe_public_text(value, fallback="linked-staging-account")
     if text in {"not-linked", "linked-staging-account"}:
         return text
+    if isinstance(text, str) and _PUBLIC_ACCOUNT_REF_RE.fullmatch(text):
+        return text
     digest = hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
     return f"staging-account-{digest}"
+
+
+def _safe_account_id(value: object) -> str | None:
+    text = _safe_public_text(value, fallback=None)
+    if text is None or text in {"not-linked", "linked-staging-account"}:
+        return None
+    return text
 
 
 def _safe_public_text(value: object, *, fallback: str | None) -> str | None:

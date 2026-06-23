@@ -120,7 +120,10 @@ def build_staging_session_claim(
         "origin": _safe_public_origin(origin, fallback="configured"),
         "issued_at": issued_at,
         "expires_at": _safe_public_text(expires_at, fallback=None),
-        "account_id": _safe_public_text(safe_account.get("account_ref"), fallback="linked-staging-account"),
+        "account_id": _safe_public_text(
+            safe_account.get("account_id") or safe_account.get("account_ref"),
+            fallback="linked-staging-account",
+        ),
         "redacted_email": _safe_public_text(safe_account.get("email_redacted"), fallback="not-linked"),
         "display_name": _safe_public_text(safe_account.get("display_name"), fallback="linked staging account"),
         "scopes": list(safe_scopes),
@@ -279,6 +282,51 @@ def load_staging_session_token(config_path: str | Path | None = None) -> tuple[s
             continue
         return token, claim
     return None, claim
+
+
+def update_staging_session_account(
+    account: Mapping[str, object],
+    *,
+    config_path: str | Path | None = None,
+) -> dict[str, object]:
+    safe_account = sanitize_staging_account(account)
+    account_id = _safe_public_text(safe_account.get("account_id"), fallback=None)
+    if not account_id or account_id == "not-linked":
+        raise StagingSessionStorageError("staging_session_account_missing", "Staging account id is unavailable.")
+
+    memory_key = _memory_key(config_path)
+    memory = _MEMORY_SESSIONS.get(memory_key)
+    if memory is not None:
+        token, claim = memory
+        updated = dict(validate_staging_session_claim(claim))
+        updated.update(
+            {
+                "account_id": account_id,
+                "redacted_email": _safe_public_text(safe_account.get("email_redacted"), fallback="not-linked"),
+                "display_name": _safe_public_text(safe_account.get("display_name"), fallback="linked staging account"),
+            }
+        )
+        validated = validate_staging_session_claim(updated)
+        _MEMORY_SESSIONS[memory_key] = (token, validated)
+        return validated
+
+    claim, claim_path = _load_staging_session_claim_with_path(config_path)
+    if claim.get("auth_state") != "linked" or claim_path is None:
+        raise StagingSessionStorageError("staging_session_claim_missing", "Linked staging session claim is unavailable.")
+    updated = dict(claim)
+    updated.update(
+        {
+            "account_id": account_id,
+            "redacted_email": _safe_public_text(safe_account.get("email_redacted"), fallback="not-linked"),
+            "display_name": _safe_public_text(safe_account.get("display_name"), fallback="linked staging account"),
+        }
+    )
+    validated = validate_staging_session_claim(updated)
+    try:
+        claim_path.write_text(json.dumps(validated, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    except OSError as exc:
+        raise StagingSessionStorageError("staging_session_claim_update_failed", "Staging session claim could not be updated.") from exc
+    return validated
 
 
 def clear_staging_session(config_path: str | Path | None = None) -> dict[str, object]:

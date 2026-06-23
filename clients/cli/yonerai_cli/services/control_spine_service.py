@@ -17,7 +17,11 @@ from yonerai_cli.auth_policy import (
 )
 from yonerai_cli.config import load_cli_config
 from yonerai_cli.services.auth_session_service import sanitize_staging_account
-from yonerai_cli.services.staging_session_service import load_staging_session_token
+from yonerai_cli.services.staging_session_service import (
+    StagingSessionStorageError,
+    load_staging_session_token,
+    update_staging_session_account,
+)
 
 
 CONTROL_SPINE_SCHEMA_VERSION = "yonerai-control-spine-client/v0.1"
@@ -65,7 +69,6 @@ PUBLIC_PAYLOAD_FORBIDDEN_MARKERS = (
     "arn:",
     "internal_hostname",
     "worker_identity",
-    "account_id",
     "169.254.169.254",
 )
 
@@ -266,8 +269,19 @@ def build_whoami_report(
         return report
     body = result.get("body") if isinstance(result.get("body"), Mapping) else {}
     account_source = body.get("account") or body.get("identity") or body.get("profile") or body
-    report["account"] = sanitize_staging_account(account_source if isinstance(account_source, Mapping) else {})
+    report["account"] = _public_account_identity(account_source if isinstance(account_source, Mapping) else {})
     report["account_linked"] = True
+    try:
+        updated_claim = update_staging_session_account(
+            account_source if isinstance(account_source, Mapping) else {},
+            config_path=claim_path,
+        )
+    except StagingSessionStorageError as exc:
+        report["staging_session_claim_updated"] = False
+        report["staging_session_update_error"] = exc.code
+    else:
+        report["staging_session_claim_updated"] = True
+        report["staging_session_account_id"] = updated_claim.get("account_id")
     return report
 
 
@@ -812,8 +826,119 @@ def _public_account_payload(payload: Mapping[str, object]) -> Mapping[str, objec
 def _public_payload_for_path(path: str, payload: Mapping[str, object]) -> Mapping[str, object]:
     if path in {WHOAMI_PATH, ACCOUNT_ME_PATH}:
         return _public_account_payload(payload)
+    if path == STATUS_PATH:
+        return _public_status_payload(payload)
+    if path == HEALTH_PATH:
+        return _public_health_payload(payload)
     if path != RATE_LIMIT_PATH:
         return payload
+    return _public_rate_limit_payload(payload)
+
+
+def _public_status_payload(payload: Mapping[str, object]) -> Mapping[str, object]:
+    allowed_top_level = {
+        "schema_version",
+        "contract_version",
+        "status",
+        "overall",
+        "overall_status",
+        "generated_at",
+        "snapshot_id",
+        "stale_after_seconds",
+        "components",
+        "incidents",
+        "releases",
+        "install_channel",
+        "control_spine",
+        "provider_gateway",
+        "native_run",
+    }
+    private_known_drop = {"auth", "cost_guard", "staging_deploy", "status_snapshot"}
+    unknown = {
+        key: value
+        for key, value in payload.items()
+        if key not in allowed_top_level and key not in private_known_drop
+    }
+    if unknown:
+        _assert_public_safe_payload(unknown)
+
+    components = payload.get("components") if isinstance(payload.get("components"), list) else []
+    incidents = payload.get("incidents") if isinstance(payload.get("incidents"), list) else []
+    releases = payload.get("releases") if isinstance(payload.get("releases"), list) else []
+    return {
+        "schema_version": _safe_text(payload.get("schema_version"), fallback="unknown"),
+        "contract_version": _safe_text(payload.get("contract_version"), fallback="unknown"),
+        "status": _safe_text(payload.get("status"), fallback="unknown"),
+        "overall": _safe_text(payload.get("overall"), fallback=_safe_text(payload.get("overall_status"), fallback="unknown")),
+        "overall_status": _safe_text(payload.get("overall_status"), fallback=_safe_text(payload.get("overall"), fallback="unknown")),
+        "generated_at": _safe_text(payload.get("generated_at"), fallback=None),
+        "snapshot_id": _safe_text(payload.get("snapshot_id"), fallback=None),
+        "stale_after_seconds": (
+            payload.get("stale_after_seconds")
+            if isinstance(payload.get("stale_after_seconds"), int)
+            else None
+        ),
+        "components": [_public_status_component(item) for item in components if isinstance(item, Mapping)],
+        "incidents": [_public_status_incident(item) for item in incidents if isinstance(item, Mapping)],
+        "releases": [_public_release(item) for item in releases if isinstance(item, Mapping)],
+        "install_channel": _safe_text(payload.get("install_channel"), fallback="unknown"),
+        "control_spine": _public_control_spine(payload.get("control_spine") if isinstance(payload.get("control_spine"), Mapping) else {}),
+        "provider_gateway": _public_provider_gateway(payload.get("provider_gateway") if isinstance(payload.get("provider_gateway"), Mapping) else {}),
+        "native_run": _public_native_run(payload.get("native_run") if isinstance(payload.get("native_run"), Mapping) else {}),
+    }
+
+
+def _public_account_identity(account: Mapping[str, object]) -> dict[str, object]:
+    safe_account = sanitize_staging_account(account)
+    return {
+        "account_id": _safe_text(safe_account.get("account_id"), fallback="not-linked"),
+        "display_name": _safe_text(safe_account.get("display_name"), fallback="linked staging account"),
+        "email_redacted": _safe_text(safe_account.get("email_redacted"), fallback="not-linked"),
+        "raw_email_stored": False,
+        "raw_subject_stored": False,
+    }
+
+
+def _public_health_payload(payload: Mapping[str, object]) -> Mapping[str, object]:
+    allowed_top_level = {
+        "schema_version",
+        "contract_version",
+        "status",
+        "api_version",
+        "min_cli_version",
+        "stage",
+        "generated_at",
+        "status_snapshot",
+        "provider_gateway",
+        "control_spine",
+        "rate_limit",
+    }
+    private_known_drop = {"cost_guard", "staging_deploy", "auth"}
+    unknown = {
+        key: value
+        for key, value in payload.items()
+        if key not in allowed_top_level and key not in private_known_drop
+    }
+    if unknown:
+        _assert_public_safe_payload(unknown)
+    return {
+        "schema_version": _safe_text(payload.get("schema_version"), fallback="unknown"),
+        "contract_version": _safe_text(payload.get("contract_version"), fallback="unknown"),
+        "status": _safe_text(payload.get("status"), fallback="unknown"),
+        "api_version": _safe_text(payload.get("api_version"), fallback=None),
+        "min_cli_version": _safe_text(payload.get("min_cli_version"), fallback=None),
+        "stage": _safe_text(payload.get("stage"), fallback="staging"),
+        "generated_at": _safe_text(payload.get("generated_at"), fallback=None),
+        "status_snapshot": _public_status_snapshot(
+            payload.get("status_snapshot") if isinstance(payload.get("status_snapshot"), Mapping) else {}
+        ),
+        "provider_gateway": _public_provider_gateway(payload.get("provider_gateway") if isinstance(payload.get("provider_gateway"), Mapping) else {}),
+        "control_spine": _public_control_spine(payload.get("control_spine") if isinstance(payload.get("control_spine"), Mapping) else {}),
+        "rate_limit": _public_rate_limit_summary(payload.get("rate_limit") if isinstance(payload.get("rate_limit"), Mapping) else {}),
+    }
+
+
+def _public_rate_limit_payload(payload: Mapping[str, object]) -> Mapping[str, object]:
     allowed_top_level = {
         "allowed",
         "scope",
@@ -825,8 +950,10 @@ def _public_payload_for_path(path: str, payload: Mapping[str, object]) -> Mappin
         "conversation_sync",
         "shared_traffic",
         "control_spine",
+        "provider_gateway",
+        "provider",
     }
-    private_known_drop = {"cost_guard"}
+    private_known_drop = {"cost_guard", "staging_deploy", "auth"}
     unknown = {
         key: value
         for key, value in payload.items()
@@ -885,6 +1012,137 @@ def _public_payload_for_path(path: str, payload: Mapping[str, object]) -> Mappin
         "conversation_sync": public_conversation_sync,
         "shared_traffic": _safe_text(payload.get("shared_traffic"), fallback="off"),
         "control_spine": public_control,
+        "provider_gateway": _public_provider_gateway(payload.get("provider_gateway") if isinstance(payload.get("provider_gateway"), Mapping) else {}),
+        "provider": _public_provider_gateway(payload.get("provider") if isinstance(payload.get("provider"), Mapping) else {}),
+    }
+
+
+def _public_status_component(component: Mapping[str, object]) -> dict[str, object]:
+    return {
+        "id": _safe_text(component.get("id"), fallback="component"),
+        "health": _safe_text(component.get("health") or component.get("status"), fallback="unknown"),
+        "availability": _safe_text(component.get("availability"), fallback="unknown"),
+        "stage": _safe_text(component.get("stage"), fallback="staging"),
+        "message": _safe_text(component.get("message") or component.get("summary"), fallback=""),
+        "updated_at": _safe_text(component.get("updated_at"), fallback=None),
+        "stale": bool(component.get("stale", False)),
+        "incident_ref": _safe_text(component.get("incident_ref"), fallback=None),
+    }
+
+
+def _public_status_incident(incident: Mapping[str, object]) -> dict[str, object]:
+    return {
+        "incident_id": _safe_text(incident.get("incident_id") or incident.get("id"), fallback="incident-redacted"),
+        "severity": _safe_text(incident.get("severity"), fallback="unknown"),
+        "status": _safe_text(incident.get("status"), fallback="unknown"),
+        "user_message_ja": _safe_text(incident.get("user_message_ja"), fallback=""),
+        "user_message_en": _safe_text(incident.get("user_message_en"), fallback=""),
+        "next_action": _safe_text(incident.get("next_action"), fallback=""),
+        "docs_url": _safe_text(incident.get("docs_url"), fallback=None),
+    }
+
+
+def _public_release(release: Mapping[str, object]) -> dict[str, object]:
+    return {
+        "version": _safe_text(release.get("version") or release.get("tag"), fallback="unknown"),
+        "channel": _safe_text(release.get("channel"), fallback="unknown"),
+        "published_at": _safe_text(release.get("published_at"), fallback=None),
+    }
+
+
+def _public_status_snapshot(snapshot: Mapping[str, object]) -> dict[str, object]:
+    return {
+        "schema_version": _safe_text(snapshot.get("schema_version"), fallback="unknown"),
+        "snapshot_id": _safe_text(snapshot.get("snapshot_id"), fallback=None),
+        "overall": _safe_text(snapshot.get("overall"), fallback="unknown"),
+        "generated_at": _safe_text(snapshot.get("generated_at"), fallback=None),
+        "stale_after_seconds": (
+            snapshot.get("stale_after_seconds")
+            if isinstance(snapshot.get("stale_after_seconds"), int)
+            else None
+        ),
+    }
+
+
+def _public_control_spine(control: Mapping[str, object]) -> dict[str, object]:
+    raw_scopes = control.get("scopes") if isinstance(control.get("scopes"), list) else []
+    return {
+        "contract_version": _safe_text(control.get("contract_version"), fallback="unknown"),
+        "status": _safe_text(control.get("status"), fallback="unknown"),
+        "mode": _safe_text(control.get("mode"), fallback="staging"),
+        "sessions": _safe_text(control.get("sessions"), fallback="unknown"),
+        "revoke": _safe_text(control.get("revoke"), fallback="unknown"),
+        "projects": _safe_text(control.get("projects"), fallback="unknown"),
+        "audit": _safe_text(control.get("audit"), fallback="unknown"),
+        "admin_scope": _safe_text(control.get("admin_scope"), fallback="disabled_by_default"),
+        "shared_traffic": _safe_text(control.get("shared_traffic"), fallback="off"),
+        "scopes": [
+            {
+                "name": _safe_scope(item.get("name")) if isinstance(item, Mapping) else "scope:redacted",
+                "enabled_by_default": bool(item.get("enabled_by_default")) if isinstance(item, Mapping) else False,
+                "summary": _safe_text(item.get("summary"), fallback="") if isinstance(item, Mapping) else "",
+            }
+            for item in raw_scopes
+        ],
+    }
+
+
+def _public_provider_gateway(provider: Mapping[str, object]) -> dict[str, object]:
+    model_policy = provider.get("model_policy") if isinstance(provider.get("model_policy"), Mapping) else {}
+    context_packaging = provider.get("context_packaging") if isinstance(provider.get("context_packaging"), Mapping) else {}
+    quota = provider.get("quota") if isinstance(provider.get("quota"), Mapping) else {}
+    return {
+        "enabled": bool(provider.get("enabled", False)),
+        "stage": _safe_text(provider.get("stage"), fallback="staging"),
+        "provider_id": _safe_text(provider.get("provider_id"), fallback="unknown"),
+        "traffic_default": _safe_text(provider.get("traffic_default"), fallback="off"),
+        "default_consent_state": _safe_text(provider.get("default_consent_state"), fallback="none"),
+        "kill_switch": bool(provider.get("kill_switch", False)),
+        "production_deployment_allowed": bool(provider.get("production_deployment_allowed", False)),
+        "model_policy": {
+            "allowlist_configured": bool(model_policy.get("allowlist_configured", False)),
+            "model_configured": bool(provider.get("model_configured", model_policy.get("model_configured", False))),
+            "selected_model_hint": _safe_text(model_policy.get("selected_model_hint"), fallback="unknown"),
+            "tools_enabled": bool(model_policy.get("tools_enabled", False)),
+            "web_search_enabled": bool(model_policy.get("web_search_enabled", False)),
+            "file_inputs_enabled": bool(model_policy.get("file_inputs_enabled", False)),
+            "code_interpreter_enabled": bool(model_policy.get("code_interpreter_enabled", False)),
+        },
+        "context_packaging": {
+            "metadata_manifest_first": bool(context_packaging.get("metadata_manifest_first", False)),
+            "whole_history_by_default": bool(context_packaging.get("whole_history_by_default", False)),
+            "max_messages": context_packaging.get("max_messages") if isinstance(context_packaging.get("max_messages"), int) else None,
+        },
+        "quota": _public_rate_limit_summary(quota),
+        "sensitive_values_exposed": False,
+    }
+
+
+def _public_native_run(native_run: Mapping[str, object]) -> dict[str, object]:
+    return {
+        "contract_version": _safe_text(native_run.get("contract_version"), fallback="unknown"),
+        "status": _safe_text(native_run.get("status"), fallback="unknown"),
+        "queue_backend": _safe_text(native_run.get("queue_backend"), fallback="unknown"),
+        "worker_delivery": _safe_text(native_run.get("worker_delivery"), fallback="outbound_polling_only"),
+        "raw_local_content_included": bool(native_run.get("raw_local_content_included", False)),
+        "provider_execution_in_aws": bool(native_run.get("provider_execution_in_aws", False)),
+        "provider_gateway": _public_provider_gateway(
+            native_run.get("provider_gateway") if isinstance(native_run.get("provider_gateway"), Mapping) else {}
+        ),
+    }
+
+
+def _public_rate_limit_summary(rate_limit: Mapping[str, object]) -> dict[str, object]:
+    return {
+        "scope": _safe_text(rate_limit.get("scope"), fallback="unknown"),
+        "allowed": bool(rate_limit.get("allowed", False)),
+        "quota_exceeded": bool(rate_limit.get("quota_exceeded", False)),
+        "fallback_reason": _safe_text(rate_limit.get("fallback_reason"), fallback="unknown"),
+        "retry_after_seconds": (
+            rate_limit.get("retry_after_seconds")
+            if isinstance(rate_limit.get("retry_after_seconds"), int)
+            else None
+        ),
     }
 
 

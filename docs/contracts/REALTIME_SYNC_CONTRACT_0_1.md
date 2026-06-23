@@ -1,6 +1,6 @@
 # [SYNC-PROPOSAL-V1] YonerAI Realtime Sync Contract 0.1
 
-Status: proposal for issue #552 ACK
+Status: accepted in issue #552 after AWS and YonerAIWEB ACK
 Owner: Public YonerAI contract lane
 Schema version: `yonerai.realtime_sync.v1`
 Date: 2026-06-20
@@ -198,18 +198,114 @@ If the CLI session is expired, revoked, schema-mismatched, origin-mismatched, or
 missing, the CLI must show a controlled login/repair message and avoid body
 fetch.
 
+## Firebase Read-Auth Bridge
+
+Status: Public/YonerAIWEB ACK accepted; live staging endpoint proof and
+Web-to-CLI E2E remain pending.
+
+The Firestore SDK listener needs a read-auth bridge because the CLI must not use
+Google tokens directly and must not store Google or refresh tokens. The proposed
+staging bridge is:
+
+- `POST /v1/sync/firebase-token`
+- authenticated only by the AWS-issued opaque YonerAI staging session
+- returns a short-lived Firebase custom token for Firestore metadata reads
+- does not return Google access tokens, Google ID tokens, refresh tokens,
+  OAuth auth codes, provider keys, or production login state
+
+Accepted response metadata:
+
+- `firebase_auth_contract_version=yonerai.firebase.custom_token.v1`
+- `token_type=firebase_custom_token`
+- `uid` and `account_id` equal the opaque YonerAI account id
+- `expires_in_seconds` is positive and no more than 900
+- `firestore.sync_enabled=false` until live Web-to-CLI E2E is proven and the
+  owner explicitly flips the staging flag
+- `firestore.sync_event_path_template=/accounts/{account_id}/sync_events/{event_id}`
+
+The public Firebase client configuration is fetched separately:
+
+- `GET /v1/sync/firebase-config`
+- `config_contract_version=yonerai.firebase.public_config.v1`
+- the response may include public-only compatibility metadata such as
+  `contract_version`, `client_auth_contract_version`, `client_profile`,
+  `client`, `restrictions`, and `stage`; clients must not treat those fields as
+  authority for body, sync policy, provider policy, approval, status, or audit
+- `ready=false` means Public clients must not start the Firestore listener
+- `sync_enabled=false` and `sync_mode=off` may be top-level or under
+  `firestore`; this remains the expected state until live Web-to-CLI E2E is
+  proven and the owner flips the staging flag
+- `firebase.api_key` is public Firebase client configuration only, not a server
+  secret, provider key, Google token, refresh token, or auth code
+- clients may use the public API key only for Firebase client sign-in exchange
+  and must not print, persist, commit, or expose it in JSON diagnostics
+- `firebase.auth_domain`, `firebase.project_id`, `firebase.database_id`, app
+  identifiers, and sender/storage identifiers are public Firebase client
+  metadata only and must not be logged as private runtime inventory
+- the endpoint must not return service-account keys, Google/provider tokens,
+  auth codes, internal endpoints, account-scoped data, message body, raw prompt,
+  raw audit detail, or private paths
+- `firestore.sync_event_path_template` must remain
+  `/accounts/{account_id}/sync_events/{event_id}`
+- `firestore.body_endpoint_template`, when present, must be an AWS official API
+  relative path for conversation message body fetch and must not contain query
+  strings, traversal, credentials, or absolute/internal endpoints
+- Firestore config must remain body-free and client writes to sync policy,
+  provider policy, approval, status, and audit projections stay denied
+
+Public CLI reporting rules:
+
+- may report that a Firebase custom token was received
+- must not print or persist the Firebase custom token value
+- must fail closed if the account binding, path template, boundary flags, or
+  expiry are invalid
+- must fail closed if the response contains Google/provider/token/private path
+  material outside the explicit false boundary flags
+- may expose `yonerai sync listener readiness` as a safe diagnostic. The command
+  may report a non-ready state such as a 404 endpoint without failing the CLI,
+  but token/private payload or contract mismatch must still fail closed.
+- must not treat receipt of `firebase_custom_token` alone as proof that the
+  Firestore SDK listener is ready. Public must also have a reviewed client
+  dependency and a ready public-safe Firebase client sign-in exchange/config
+  before starting a live SDK listener.
+- Public CLI should prefer `GET /v1/sync/firebase-config` for public client
+  config. `YONERAI_FIREBASE_CLIENT_API_KEY` may remain an explicit local
+  closed-alpha fallback, but the value must not be printed, persisted into the
+  YonerAI config, committed, or treated as a provider/server credential.
+- If `/v1/sync/firebase-config` is live but `ready=false`, readiness must stay
+  false even when the Firebase read-auth bridge is healthy.
+
 ## Security Fixtures
 
-AWS and Web ACK must include fixtures for:
+The canonical shared golden fixture bytes live at:
+
+- `docs/contracts/fixtures/realtime-sync-v1/golden.fixture.json`
+
+AWS, Public, and YonerAIWEB must use identical bytes for this golden fixture
+set. A lane-specific validator may add additional local regression fixtures, but
+it must not reinterpret the shared golden fixtures. If a lane disagrees with the
+expected accept/reject result, fix that lane's validator or request a new
+contract version. Do not mutate the fixture ad hoc in only one lane.
+
+The golden fixture set covers:
 
 - valid cloud-to-local `message_created`
-- valid local-only CLI-origin event that does not project body
+- forbidden body projection
+- forbidden token-like value
+- forbidden local path
+- forbidden internal endpoint
+- forbidden body-ref traversal/query
+- forbidden account mismatch
+- forbidden provider-sharing default-on
+- forbidden unknown/private fields
+
+Additional implementation regression fixtures should also cover:
+
+- valid local-only CLI-origin event that does not fetch body
 - duplicate event/idempotency key ignored
 - reordered event handling
 - stale projection pause
-- account mismatch rejected
 - local-to-cloud without explicit approval rejected
-- provider-sharing default off
 - forbidden raw body rejected
 - forbidden raw audit rejected
 - forbidden token-like field rejected

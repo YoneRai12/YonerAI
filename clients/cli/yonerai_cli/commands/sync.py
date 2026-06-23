@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
+import json
 import os
 from typing import Any, Callable
 
@@ -14,6 +15,20 @@ from yonerai_cli.services.conversation_sync_policy_service import (
     build_conversation_policy_pause_report,
     build_conversation_policy_set_report,
     build_conversation_policy_status_report,
+)
+from yonerai_cli.services.realtime_sync_event_service import (
+    SYNC_EVENT_FIXTURES,
+    build_realtime_sync_event_fixture,
+    build_realtime_sync_event_validation_report,
+)
+from yonerai_cli.services.realtime_sync_client_service import (
+    build_realtime_sync_firestore_poll_report,
+    build_realtime_sync_firebase_config_report,
+    build_realtime_sync_firebase_token_report,
+    build_realtime_sync_listener_readiness_report,
+    build_realtime_sync_listener_fixture_report,
+    build_realtime_sync_listener_once_report,
+    build_realtime_sync_listener_poll_report,
 )
 from yonerai_cli.services.staging_sync_service import (
     StagingSyncServiceError,
@@ -189,6 +204,120 @@ def add_sync_parser(
         pretty_help="Print readable dry-run approval.",
     )
 
+    event = sync_subcommands.add_parser("event", help="Validate realtime sync metadata events without enabling a listener.")
+    event_subcommands = event.add_subparsers(dest="sync_event_command", required=True)
+    event_validate = event_subcommands.add_parser("validate", help="Validate a body-free SyncEvent fixture or JSON payload.")
+    source = event_validate.add_mutually_exclusive_group()
+    source.add_argument("--event-json", help="Inline JSON SyncEvent payload. No file is read.")
+    source.add_argument(
+        "--fixture",
+        choices=tuple(sorted(SYNC_EVENT_FIXTURES)),
+        default="valid",
+        help="Safe built-in SyncEvent fixture. Default: valid.",
+    )
+    event_validate.add_argument("--linked-account-id", default="acct_public_001", help="Expected opaque linked account id.")
+    event_validate.add_argument("--seen-event-id", action="append", default=[], help="Previously accepted event_id.")
+    event_validate.add_argument("--seen-idempotency-key", action="append", default=[], help="Previously accepted idempotency_key.")
+    _add_output_and_locale(
+        event_validate,
+        lang_choices=lang_choices,
+        color_choices=color_choices,
+        pretty_help="Print readable SyncEvent validation.",
+    )
+
+    listener = sync_subcommands.add_parser("listener", help="Consume realtime sync metadata events without Firestore body fallback.")
+    listener_subcommands = listener.add_subparsers(dest="sync_listener_command", required=True)
+    listener_once = listener_subcommands.add_parser(
+        "once",
+        help="Read one account-scoped Firestore SyncEvent and fetch AWS body only when allowed.",
+    )
+    listener_source = listener_once.add_mutually_exclusive_group()
+    listener_source.add_argument("--event-json", help="Inline JSON SyncEvent payload. No file is read.")
+    listener_source.add_argument(
+        "--fixture",
+        choices=tuple(sorted(SYNC_EVENT_FIXTURES)),
+        help="Safe built-in SyncEvent fixture. If omitted, once reads Firestore metadata.",
+    )
+    listener_once.add_argument("--limit", type=int, default=1, help="Maximum Firestore events to request. Default: 1.")
+    listener_once.add_argument("--config-path", help="Optional local CLI config path.")
+    listener_once.add_argument("--state", help="Optional local cursor state path.")
+    listener_once.add_argument("--timeout-seconds", type=float, default=10.0, help="Staging API timeout. Default: 10.")
+    _add_output_and_locale(
+        listener_once,
+        lang_choices=lang_choices,
+        color_choices=color_choices,
+        pretty_help="Print readable realtime sync listener result.",
+    )
+    listener_poll = listener_subcommands.add_parser(
+        "poll",
+        help="Poll an account-scoped body-free realtime sync metadata feed.",
+    )
+    listener_poll.add_argument("--config-path", help="Optional local CLI config path.")
+    listener_poll.add_argument("--state", help="Optional local cursor state path.")
+    listener_poll.add_argument("--timeout-seconds", type=float, default=10.0, help="Staging API timeout. Default: 10.")
+    listener_poll.add_argument(
+        "--source-path",
+        default="/v1/conversations/events",
+        help="Allowed metadata event source path. Default: /v1/conversations/events.",
+    )
+    listener_poll.add_argument("--limit", type=int, default=10, help="Maximum events to request. Default: 10.")
+    _add_output_and_locale(
+        listener_poll,
+        lang_choices=lang_choices,
+        color_choices=color_choices,
+        pretty_help="Print readable realtime sync listener poll result.",
+    )
+    listener_firestore = listener_subcommands.add_parser(
+        "firestore-poll",
+        help="Poll Firestore body-free SyncEvents, then fetch message bodies only from AWS.",
+    )
+    listener_firestore.add_argument("--config-path", help="Optional local CLI config path.")
+    listener_firestore.add_argument("--state", help="Optional local cursor state path.")
+    listener_firestore.add_argument("--timeout-seconds", type=float, default=10.0, help="Staging API timeout. Default: 10.")
+    listener_firestore.add_argument("--limit", type=int, default=10, help="Maximum events to request. Default: 10.")
+    _add_output_and_locale(
+        listener_firestore,
+        lang_choices=lang_choices,
+        color_choices=color_choices,
+        pretty_help="Print readable Firestore realtime sync listener result.",
+    )
+    listener_firebase = listener_subcommands.add_parser(
+        "firebase-token",
+        help="Validate the staging Firebase custom-token bridge for Firestore metadata reads.",
+    )
+    listener_firebase.add_argument("--config-path", help="Optional local CLI config path.")
+    listener_firebase.add_argument("--timeout-seconds", type=float, default=10.0, help="Staging API timeout. Default: 10.")
+    _add_output_and_locale(
+        listener_firebase,
+        lang_choices=lang_choices,
+        color_choices=color_choices,
+        pretty_help="Print readable Firebase read-auth bridge status.",
+    )
+    listener_firebase_config = listener_subcommands.add_parser(
+        "firebase-config",
+        help="Validate the staging public Firebase client config without printing config values.",
+    )
+    listener_firebase_config.add_argument("--config-path", help="Optional local CLI config path.")
+    listener_firebase_config.add_argument("--timeout-seconds", type=float, default=10.0, help="Staging API timeout. Default: 10.")
+    _add_output_and_locale(
+        listener_firebase_config,
+        lang_choices=lang_choices,
+        color_choices=color_choices,
+        pretty_help="Print readable Firebase public config status.",
+    )
+    listener_readiness = listener_subcommands.add_parser(
+        "readiness",
+        help="Show whether realtime sync listener prerequisites are ready without starting Firestore.",
+    )
+    listener_readiness.add_argument("--config-path", help="Optional local CLI config path.")
+    listener_readiness.add_argument("--timeout-seconds", type=float, default=10.0, help="Staging API timeout. Default: 10.")
+    _add_output_and_locale(
+        listener_readiness,
+        lang_choices=lang_choices,
+        color_choices=color_choices,
+        pretty_help="Print readable realtime sync listener readiness.",
+    )
+
     api_contract = sync_subcommands.add_parser("api-contract", help="Show official API fixture contract.")
     _add_output_and_locale(
         api_contract,
@@ -314,6 +443,86 @@ def build_sync_report(args: argparse.Namespace, *, prepare_import_paths: Callabl
                 selected=selected,
                 explicit_approval=bool(getattr(args, "explicit_approval", False)),
             )
+        if args.sync_command == "event" and args.sync_event_command == "validate":
+            event = _event_payload_from_args(args)
+            report = build_realtime_sync_event_validation_report(
+                event,
+                linked_account_id=str(getattr(args, "linked_account_id", "") or ""),
+                seen_event_ids=tuple(getattr(args, "seen_event_id", []) or ()),
+                seen_idempotency_keys=tuple(getattr(args, "seen_idempotency_key", []) or ()),
+            )
+            report["operation"] = "realtime_sync_event_validate"
+            report["listener_enabled"] = False
+            report["firestore_enabled"] = False
+            report["aws_body_fetch_performed"] = False
+            report["fixture"] = getattr(args, "fixture", None)
+            return report
+        if args.sync_command == "listener" and args.sync_listener_command == "once":
+            event_json = getattr(args, "event_json", None)
+            kwargs = {
+                "config": _load_config(args),
+                "env": os.environ,
+                "config_path": getattr(args, "config_path", None),
+                "state_path": getattr(args, "state", None),
+                "timeout_seconds": float(getattr(args, "timeout_seconds", 10.0)),
+            }
+            if event_json:
+                event = _event_payload_from_args(args)
+                return build_realtime_sync_listener_once_report(event=event, **kwargs)
+            fixture = getattr(args, "fixture", None)
+            if fixture:
+                return build_realtime_sync_listener_fixture_report(
+                    fixture=str(fixture),
+                    **kwargs,
+                )
+            return build_realtime_sync_firestore_poll_report(
+                config=_load_config(args),
+                env=os.environ,
+                config_path=getattr(args, "config_path", None),
+                state_path=getattr(args, "state", None),
+                timeout_seconds=float(getattr(args, "timeout_seconds", 10.0)),
+                limit=max(1, min(int(getattr(args, "limit", 1)), 1)),
+            )
+        if args.sync_command == "listener" and args.sync_listener_command == "poll":
+            return build_realtime_sync_listener_poll_report(
+                config=_load_config(args),
+                env=os.environ,
+                config_path=getattr(args, "config_path", None),
+                state_path=getattr(args, "state", None),
+                timeout_seconds=float(getattr(args, "timeout_seconds", 10.0)),
+                source_path=str(getattr(args, "source_path", "/v1/conversations/events") or "/v1/conversations/events"),
+                limit=int(getattr(args, "limit", 10)),
+            )
+        if args.sync_command == "listener" and args.sync_listener_command == "firestore-poll":
+            return build_realtime_sync_firestore_poll_report(
+                config=_load_config(args),
+                env=os.environ,
+                config_path=getattr(args, "config_path", None),
+                state_path=getattr(args, "state", None),
+                timeout_seconds=float(getattr(args, "timeout_seconds", 10.0)),
+                limit=int(getattr(args, "limit", 10)),
+            )
+        if args.sync_command == "listener" and args.sync_listener_command == "firebase-token":
+            return build_realtime_sync_firebase_token_report(
+                config=_load_config(args),
+                env=os.environ,
+                config_path=getattr(args, "config_path", None),
+                timeout_seconds=float(getattr(args, "timeout_seconds", 10.0)),
+            )
+        if args.sync_command == "listener" and args.sync_listener_command == "firebase-config":
+            return build_realtime_sync_firebase_config_report(
+                config=_load_config(args),
+                env=os.environ,
+                config_path=getattr(args, "config_path", None),
+                timeout_seconds=float(getattr(args, "timeout_seconds", 10.0)),
+            )
+        if args.sync_command == "listener" and args.sync_listener_command == "readiness":
+            return build_realtime_sync_listener_readiness_report(
+                config=_load_config(args),
+                env=os.environ,
+                config_path=getattr(args, "config_path", None),
+                timeout_seconds=float(getattr(args, "timeout_seconds", 10.0)),
+            )
         if args.sync_command == "api-contract":
             return builders()["api"]()
         if args.sync_command == "rate-limit":
@@ -416,6 +625,79 @@ def format_sync_pretty_v2(report: dict[str, Any], *, lang: str = "ja", color: Co
         "official_backend_called",
         "backend_status_code",
         "conversation_count",
+        "event_type",
+        "origin",
+        "sync_policy",
+        "body_fetch_allowed",
+        "body_fetch_reason",
+        "listener_enabled",
+        "ready",
+        "firestore_enabled",
+        "firestore_sdk_connected",
+        "firestore_read_auth_bridge_ready",
+        "firestore_sdk_dependency_available",
+        "firestore_client_sign_in_config_present",
+        "firestore_sdk_listener_ready",
+        "firestore_body_fallback_allowed",
+        "aws_body_fetch_performed",
+        "body_received_from_aws",
+        "message_body_from_firestore",
+        "raw_prompt_from_firestore",
+        "raw_audit_from_firestore",
+        "event_source_kind",
+        "event_source_path",
+        "event_source_cursor",
+        "event_source_query_included",
+        "events_received",
+        "events_processed",
+        "events_rejected",
+        "feed_next_cursor",
+        "feed_has_more",
+        "metadata_event_to_aws_body_fetch_completed",
+        "live_web_to_cli_e2e_proven",
+        "next_blocker",
+        "firebase_token_endpoint",
+        "firebase_token_endpoint_checked",
+        "firebase_token_endpoint_live",
+        "firebase_token_endpoint_status_code",
+        "firebase_config_endpoint",
+        "firebase_config_endpoint_checked",
+        "firebase_config_endpoint_live",
+        "firebase_config_endpoint_status_code",
+        "firebase_config_contract_version",
+        "firebase_public_config_ready",
+        "firebase_public_api_key_received",
+        "firebase_public_api_key_printed",
+        "firebase_public_api_key_persisted",
+        "firebase_auth_contract_version",
+        "firebase_custom_token_received",
+        "firebase_custom_token_printed",
+        "firebase_custom_token_persisted",
+        "firebase_token_type",
+        "firebase_uid_matches_account",
+        "firebase_account_id_matches_session",
+        "firebase_expires_at",
+        "firebase_expires_in_seconds",
+        "firebase_claims_yonerai_staging",
+        "firebase_claims_session_ref_present",
+        "firebase_claims_session_expires_at_present",
+        "firebase_revocation_mode",
+        "firebase_revocation_immediate",
+        "firebase_revocation_max_delay_seconds",
+        "firebase_read_revocation_semantics",
+        "firebase_external_alpha_requires_session_projection",
+        "firestore_project_id",
+        "firestore_database_id",
+        "firestore_sync_enabled",
+        "firestore_sync_event_path_template",
+        "firestore_account_data_binding_required",
+        "client_policy_write_performed",
+        "client_approval_write_performed",
+        "cursor_saved",
+        "reconnect_supported",
+        "next_reconnect_cursor",
+        "duplicate_event",
+        "duplicate_idempotency_key",
     ):
         if key in report:
             status = "ok"
@@ -466,8 +748,15 @@ def format_sync_pretty_v2(report: dict[str, Any], *, lang: str = "ja", color: Co
     actions = tuple(
         CliRow(f"action_{idx}", item, "ok") for idx, item in enumerate(report.get("actions_not_performed", []), start=1)
     )
+    next_actions = tuple(
+        CliRow(f"next_{idx}", item, "warn") for idx, item in enumerate(report.get("required_next_actions", []), start=1)
+    )
 
-    sections = [CliSection("Status", tuple(rows))]
+    sections = []
+    summary = _sync_summary_rows(report, lang=lang)
+    if summary:
+        sections.append(CliSection("要約" if lang == "ja" else "Summary", summary))
+    sections.append(CliSection("Status", tuple(rows)))
     if cloud_rows:
         sections.append(CliSection("Cloud conversations", cloud_rows))
     if cloud_detail_rows:
@@ -480,7 +769,147 @@ def format_sync_pretty_v2(report: dict[str, Any], *, lang: str = "ja", color: Co
         sections.append(CliSection("Conversation policy boundary", policy_detail_rows))
     if actions:
         sections.append(CliSection("Non-actions", actions))
+    if next_actions:
+        sections.append(CliSection("Next actions", next_actions))
+    message = report.get("message") if isinstance(report.get("message"), dict) else {}
+    if message:
+        sections.append(
+            CliSection(
+                "AWS message",
+                tuple(
+                    CliRow(key, message.get(key), "ok")
+                    for key in ("conversation_id", "message_id", "display_text", "body_from_firestore", "body_stored_in_cursor")
+                    if key in message
+                ),
+            )
+        )
     return render_report(title, tuple(sections), color=color)
+
+
+def _sync_summary_rows(report: dict[str, Any], *, lang: str) -> tuple[CliRow, ...]:
+    if report.get("operation") != "realtime_sync_listener_readiness":
+        return ()
+    next_blocker = str(report.get("next_blocker") or "")
+    if not next_blocker:
+        return ()
+    if lang != "ja":
+        english_blockers: dict[str, tuple[str, str, str]] = {
+            "canonical_account_id_required": (
+                "not ready",
+                "The saved staging login is from the older account_ref contract.",
+                "Run yonerai logout, then yonerai login, then rerun sync listener readiness.",
+            ),
+            "firebase_public_config_not_ready": (
+                "not ready",
+                "The staging Firebase public client config is not ready yet.",
+                "Wait for AWS to publish a ready public config, then rerun sync listener readiness.",
+            ),
+            "firebase_public_config_unavailable": (
+                "not ready",
+                "The staging Firebase public config endpoint could not be checked safely.",
+                "Retry later or check the staging API status before starting the listener.",
+            ),
+            "firebase_token_contract_or_safety_violation": (
+                "not ready",
+                "The Firebase token endpoint returned an unsafe or unsupported contract.",
+                "Do not start the listener; wait for the staging contract to be fixed.",
+            ),
+            "firestore_client_sign_in_config_missing": (
+                "not ready",
+                "The local Firebase client sign-in config is missing.",
+                "Use the staging public config endpoint when it is ready; do not paste secrets.",
+            ),
+            "firestore_sync_disabled_until_live_e2e_and_owner_flip": (
+                "auth ready, sync disabled",
+                "Firestore sync stays disabled until live Web-to-CLI E2E is proven and the owner enables it.",
+                "Do not claim client-ready; wait for the owner-controlled sync flag.",
+            ),
+            "opaque_staging_session_required": (
+                "not ready",
+                "The saved login does not contain a safe opaque YonerAI staging session.",
+                "Run yonerai logout, then yonerai login, then rerun sync listener readiness.",
+            ),
+            "owner_gcp_token_signing_permission_required": (
+                "not ready",
+                "The staging backend still needs owner-side Firebase token-signing permission.",
+                "Ask the owner to complete the minimal GCP permission step, then retry.",
+            ),
+            "private_aws_firebase_token_endpoint_not_live": (
+                "not ready",
+                "The private AWS Firebase token endpoint is not live on staging.",
+                "Wait for AWS to send the Firebase client-auth ready notice.",
+            ),
+            "private_aws_firebase_token_endpoint_unavailable": (
+                "not ready",
+                "The private AWS Firebase token endpoint is temporarily unavailable.",
+                "Retry after the staging API recovers; do not start the listener.",
+            ),
+            "staging_login_required": (
+                "not ready",
+                "A staging login is required before realtime sync can read account-scoped events.",
+                "Run yonerai login, then rerun sync listener readiness.",
+            ),
+            "staging_origin_not_configured": (
+                "not ready",
+                "The staging API origin is not configured.",
+                "Set YONERAI_STAGING_AUTH_ORIGIN=https://api-staging.yonerai.com and retry.",
+            ),
+            "staging_session_required": (
+                "not ready",
+                "The saved staging session was rejected by AWS.",
+                "Run yonerai logout, then yonerai login, then rerun sync listener readiness.",
+            ),
+            "staging_sync_unreachable": (
+                "not ready",
+                "The staging sync endpoint could not be reached.",
+                "Retry after checking staging API status; do not start the listener.",
+            ),
+        }
+        state, reason, next_action = english_blockers.get(
+            next_blocker,
+            (
+                "not ready",
+                f"Realtime sync is blocked by {next_blocker}.",
+                "Check sync listener readiness again after the blocker is resolved.",
+            ),
+        )
+        return (
+            CliRow("state", state, "warn"),
+            CliRow("reason", reason, "warn"),
+            CliRow("next", next_action, "warn"),
+        )
+    if next_blocker == "canonical_account_id_required":
+        return (
+            CliRow("状態", "同期リスナーはまだ使えません", "warn"),
+            CliRow("理由", "保存済みログインが古い account_ref 形式です", "warn"),
+            CliRow("次にやること", "yonerai logout の後に yonerai login を実行してください", "warn"),
+        )
+    if next_blocker == "firestore_sync_disabled_until_live_e2e_and_owner_flip":
+        return (
+            CliRow("状態", "同期リスナーの認証準備は進んでいます", "ok"),
+            CliRow("理由", "Firestore 同期は owner が有効化するまで無効です", "warn"),
+            CliRow("次にやること", "Web-to-CLI E2E 後に owner が同期フラグを有効化します", "warn"),
+        )
+    if next_blocker == "staging_session_required":
+        return (
+            CliRow("状態", "同期リスナーはまだ使えません", "warn"),
+            CliRow("理由", "保存済み staging session が AWS に拒否されました", "warn"),
+            CliRow("次にやること", "yonerai logout の後に yonerai login を実行してください", "warn"),
+        )
+    return ()
+
+
+def _event_payload_from_args(args: argparse.Namespace) -> dict[str, object]:
+    event_json = getattr(args, "event_json", None)
+    if event_json:
+        try:
+            value = json.loads(str(event_json))
+        except json.JSONDecodeError as exc:
+            raise SyncCommandError("sync event validate received invalid JSON.", exit_code=1) from exc
+        if not isinstance(value, dict):
+            raise SyncCommandError("sync event validate requires a JSON object.", exit_code=1)
+        return value
+    return build_realtime_sync_event_fixture(str(getattr(args, "fixture", "valid") or "valid"))
 
 
 def _policy_status(item: dict[str, Any]) -> str:
