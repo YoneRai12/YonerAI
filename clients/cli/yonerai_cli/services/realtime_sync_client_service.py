@@ -38,6 +38,7 @@ FIRESTORE_SYNC_EVENT_PATH_TEMPLATE = "/accounts/{account_id}/sync_events/{event_
 FIREBASE_CLIENT_API_KEY_ENV = "YONERAI_FIREBASE_CLIENT_API_KEY"
 IDENTITY_TOOLKIT_SIGN_IN_ORIGIN = "https://identitytoolkit.googleapis.com"
 FIRESTORE_REST_ORIGIN = "https://firestore.googleapis.com"
+PLACEHOLDER_ACCOUNT_IDS = {"not-linked", "linked-staging-account", "linked staging account"}
 READINESS_NON_BLOCKING_ERROR_CODES = {
     "staging_origin_not_configured",
     "staging_auth_required",
@@ -1724,7 +1725,7 @@ def _linked_account_id(context: Mapping[str, Any]) -> str:
     account_id = str(claim.get("account_id") or "").strip()
     if not account_id or account_id == "not-linked":
         raise RealtimeSyncClientError("staging_account_missing", "Linked staging account id is unavailable.")
-    if re.fullmatch(r"staging-account-[a-f0-9]{16}", account_id):
+    if account_id in PLACEHOLDER_ACCOUNT_IDS or re.fullmatch(r"staging-account-[a-f0-9]{16}", account_id):
         raise RealtimeSyncClientError(
             "canonical_account_id_required",
             "Realtime sync requires a fresh YonerAI staging session with canonical account_id.",

@@ -636,3 +636,41 @@ Validation so far:
 Current blocker:
 
 - AWS firebase-config is still not client-ready; no `[PUBLIC-SYNC-CLIENT-READY]` claim and no release/tag from this follow-up.
+
+## 2026-06-23 PR #572 Post-Merge Review Follow-Up
+
+- last_scan_at: 2026-06-23T16:05:28+09:00
+- highest_seen_pr_number: 572
+- current_main_head: a9da7ec
+- follow-up branch: `codex/post-572-review-fix`
+- lane: Public closed-alpha Firebase client and realtime sync listener
+
+Checked in this checkpoint:
+
+- PR #572 review submissions, inline comments, and conversation comments after merge.
+- Current open PR list for overlap with the realtime sync/auth lane.
+- Current-main implementation of staging account claim sanitization and realtime sync account binding.
+
+| PR / issue / notice | classification | review/comment state | CI / evidence state | decision |
+| --- | --- | --- | --- | --- |
+| #572 P2 placeholder account id | valid-now | Codex review found that a rejected non-opaque `account_id` such as `google-oauth2\|...` could stop fallback evaluation and persist `linked-staging-account` as a dummy linked account. | Follow-up fix tries safe account-ref candidates in order and treats `linked-staging-account` as requiring a fresh canonical account id before realtime sync readiness. Regression tests cover rejected upstream account ids and placeholder rejection before backend calls. | Fix in a narrow follow-up PR before any client-ready or sync E2E claim. |
+| #573 Gemini/Codex space-separated placeholder reviews | valid-but-already-fixed | Gemini correctly noted that `linked staging account` is also a placeholder. Codex separately noted placeholder-only claims must not be hashed into concrete-looking `staging-account-<hash>` references. | Follow-up update treats both `linked-staging-account` and `linked staging account` as placeholders in auth claim sanitization and realtime sync readiness. Regression tests cover both spellings and the placeholder-only display-label case. | Keep in #573 before merge and rerun intake/Quality Wall. |
+| AWS firebase-config readiness notice | valid-but-not-client-ready | Private AWS reported `/v1/sync/firebase-config ready=true`, but explicitly requested `[PUBLIC-SYNC-CLIENT-READY]` only after Public CLI listener and authenticated AWS body-fetch evidence. | This branch does not implement the listener path or live Web-to-CLI E2E. | Record the blocker update, but do not claim client-ready and do not release. |
+
+Validation:
+
+- `python -m pytest tests/test_auth_privacy_policy.py::test_staging_auth_claim_does_not_collapse_rejected_account_id_to_placeholder tests/test_auth_privacy_policy.py::test_staging_auth_claim_hashes_non_opaque_account_id_values tests/test_realtime_sync_client_service.py::test_listener_readiness_rejects_placeholder_account_id_before_backend_call tests/test_realtime_sync_client_service.py::test_listener_readiness_rejects_legacy_public_ref_before_backend_call -q` => `4 passed`.
+- `python -m pytest tests/test_auth_privacy_policy.py tests/test_control_spine_client.py tests/test_realtime_sync_client_service.py tests/test_realtime_sync_event_service.py -q` => `187 passed`.
+- `python -m pytest tests/test_cli_runtime_shell_v020.py tests/test_auth_privacy_policy.py -q` => `101 passed`.
+- `python -m pytest tests/test_cli_interactive_v030.py tests/test_cli_command_display_modes.py tests/test_cli_output_formatting.py -q -k "not install_like_entry_point_starts_yonerai"` => `94 passed, 1 deselected`.
+- `python -m pytest tests/test_ci_quality_scans.py tests/test_core_api_access_security.py tests/test_cloudflare_auth_security.py tests/test_web_auth_loopback_security.py tests/test_redaction_security.py tests/test_agent_trace_security.py tests/test_mcp_runtime_deny_policy.py tests/test_mcp_client_fail_open.py tests/test_tools_mcp_safe_subset_contract.py tests/test_policy_engine.py tests/test_workspace_file_capability.py tests/test_cli_output_formatting.py -q` => `69 passed`.
+- `python -m pytest tests/test_verify_version.py tests/test_release_workflow_prerelease.py tests/test_release_gate.py tests/test_current_truth_anchor.py tests/test_quality_wall_workflow.py -q` => `45 passed`.
+- `python -m ruff check clients/cli/yonerai_cli/services/auth_session_service.py clients/cli/yonerai_cli/services/realtime_sync_client_service.py tests/test_auth_privacy_policy.py tests/test_realtime_sync_client_service.py` => pass.
+- `python -m compileall -q clients/cli/yonerai_cli core/src/ora_core scripts` => pass.
+- `git diff --check` => pass.
+- `python scripts/ci_quality_scans.py --changed` => pass.
+
+Current blocker:
+
+- `[PUBLIC-SYNC-CLIENT-READY]` remains false until Public CLI listener + authenticated AWS body fetch are implemented and live Web-to-CLI E2E is proven.
+- No release/tag is allowed from this follow-up.

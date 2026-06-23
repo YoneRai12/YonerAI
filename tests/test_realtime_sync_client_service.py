@@ -1125,6 +1125,52 @@ def test_listener_readiness_rejects_legacy_public_ref_before_backend_call(tmp_pa
     assert str(tmp_path) not in serialized
 
 
+def test_listener_readiness_rejects_placeholder_account_id_before_backend_call(tmp_path: Path) -> None:
+    from yonerai_cli.services.staging_session_service import load_staging_session_claim
+    from yonerai_cli.services.realtime_sync_client_service import build_realtime_sync_listener_readiness_report
+
+    for placeholder in ("linked-staging-account", "linked staging account"):
+        config_path, _claim = _save_session(tmp_path / placeholder.replace(" ", "-"))
+        claim = load_staging_session_claim(config_path=str(config_path))
+        claim["account_id"] = placeholder
+        claim_path = config_path.with_name(f"{config_path.stem}.staging-session-claim.json")
+        claim_path.write_text(json.dumps(claim, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        called = False
+
+        def transport(
+            method: str,
+            url: str,
+            headers: Mapping[str, str],
+            body: Mapping[str, object] | None,
+            timeout: float,
+        ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+            nonlocal called
+            called = True
+            return 200, _firebase_token_payload("acct_contract_runtime_123"), RATE_HEADERS
+
+        report = build_realtime_sync_listener_readiness_report(
+            env={"YONERAI_STAGING_AUTH_ORIGIN": ORIGIN},
+            config_path=str(config_path),
+            transport=transport,
+        )
+        serialized = json.dumps(report, sort_keys=True)
+
+        assert called is False
+        assert report["ok"] is True
+        assert report["ready"] is False
+        assert report["official_backend_called"] is False
+        assert report["firebase_token_endpoint_checked"] is True
+        assert report["firebase_token_endpoint_live"] is False
+        assert report["next_blocker"] == "canonical_account_id_required"
+        assert report["required_next_actions"] == (
+            "run yonerai logout to clear the legacy staging account_ref session",
+            "run yonerai login to get a fresh opaque YonerAI staging session with canonical account_id",
+            "rerun yonerai sync listener readiness after login succeeds",
+        )
+        assert "acct_contract_runtime_123" not in serialized
+        assert str(tmp_path) not in serialized
+
+
 def test_listener_readiness_reports_503_as_private_runtime_blocker(tmp_path: Path) -> None:
     from yonerai_cli.services.realtime_sync_client_service import build_realtime_sync_listener_readiness_report
 
