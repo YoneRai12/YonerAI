@@ -559,3 +559,37 @@ Validation:
 Current blocker:
 
 - `[PUBLIC-SYNC-CLIENT-READY]` is still false because staging Firebase public config is not ready and live Web-to-CLI E2E has not run.
+
+## 2026-06-23 PR #571 Post-Push Review Intake
+
+- last_scan_at: 2026-06-23T15:30:00+09:00
+- highest_seen_pr_number: 571
+- current_main_head: 59786e8
+- active PR: #571
+- lane: Public closed-alpha Firebase client and realtime sync listener
+
+Checked in this checkpoint:
+
+- PR #571 review submissions, inline review comments, PR comments, status check rollup, and changed files after the latest push.
+- PR #570 closure state as superseded by #571.
+- Open PR list for overlap with the realtime sync client lane.
+
+| PR / issue / notice | classification | review/comment state | CI / evidence state | decision |
+| --- | --- | --- | --- | --- |
+| #571 Gemini CRLF review | valid-now | AWS body text sanitizer allowed `\n` and `\t` but rejected normal Windows `\r\n` line endings. | Fixed by allowing `\r` alongside `\n` and `\t`; added `test_listener_accepts_windows_crlf_in_aws_body`. | Keep the fix in #571 before merge. |
+| #570 | duplicate / replaced | Closed with replacement evidence. | #571 is current-main based and contains only the relevant realtime sync/auth-session/account-id compatibility scope. | Do not merge #570. |
+| #565 / #566 | valid-but-covered | Findings remain valid historically but are covered by current-main + #571 tests. | #571 preserves token/private metadata/local path rejection and `token_returned=true` fail-closed behavior. | Keep #571 as canonical; stale PR branches remain superseded. |
+
+Validation after CRLF fix:
+
+- `python -m pytest tests\test_realtime_sync_client_service.py -q` => `40 passed`.
+- Broader targeted suite for auth, realtime sync, Control Spine, Native Run, conversation sync, and command display => `227 passed`.
+- `python -m ruff check clients\cli\yonerai_cli\services\realtime_sync_client_service.py tests\test_realtime_sync_client_service.py` => pass.
+- `python -m compileall -q clients\cli\yonerai_cli\services\realtime_sync_client_service.py tests\test_realtime_sync_client_service.py` => pass.
+- `git diff --check` => pass.
+- `python scripts\ci_quality_scans.py --changed` => pass.
+
+Current blocker:
+
+- `[PUBLIC-SYNC-CLIENT-READY]` remains false until AWS firebase-config is ready and live Web-to-CLI E2E is proven.
+- No release/tag is allowed from this checkpoint.
