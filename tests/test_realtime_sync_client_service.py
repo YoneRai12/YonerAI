@@ -137,6 +137,46 @@ def test_listener_fetches_aws_body_only_after_valid_metadata_event(tmp_path: Pat
     assert str(tmp_path) not in serialized
 
 
+def test_listener_accepts_windows_crlf_in_aws_body(tmp_path: Path) -> None:
+    from yonerai_cli.services.realtime_sync_client_service import build_realtime_sync_listener_once_report
+
+    config_path, claim = _save_session(tmp_path)
+    event = _event_for_account(claim["account_id"])
+
+    def transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        return (
+            200,
+            {
+                "message": {
+                    "conversation_id": "conv_public_001",
+                    "message_id": "msg_public_001",
+                    "body": "hello from web\r\nsecond line",
+                    "body_safety": "public_safe_test_fixture",
+                }
+            },
+            RATE_HEADERS,
+        )
+
+    report = build_realtime_sync_listener_once_report(
+        event=event,
+        env={"YONERAI_STAGING_AUTH_ORIGIN": ORIGIN},
+        config_path=str(config_path),
+        state_path=tmp_path / "sync-state.json",
+        transport=transport,
+    )
+
+    assert report["ok"] is True
+    assert report["aws_body_fetch_performed"] is True
+    assert report["message"]["display_text"] == "hello from web\r\nsecond line"
+    assert report["message"]["body_from_firestore"] is False
+
+
 def test_listener_deduplicates_event_before_second_body_fetch(tmp_path: Path) -> None:
     from yonerai_cli.services.realtime_sync_client_service import build_realtime_sync_listener_once_report
 

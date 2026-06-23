@@ -1698,7 +1698,7 @@ def _safe_message_text(value: object, *, fallback: object) -> str | None:
     lowered = text.lower()
     if any(marker in lowered for marker in FORBIDDEN_BODY_MARKERS):
         raise RealtimeSyncClientError("sync_aws_body_private_payload_rejected", "AWS body response contained private data.")
-    if any(ord(char) < 32 and char not in "\n\t" for char in text):
+    if any(ord(char) < 32 and char not in "\r\n\t" for char in text):
         raise RealtimeSyncClientError("sync_aws_body_invalid", "AWS body response is invalid.")
     return text[:2000]
 
