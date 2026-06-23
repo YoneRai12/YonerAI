@@ -455,12 +455,18 @@ def build_realtime_sync_firestore_poll_report(
         account_id = _safe_message_text(firebase_payload.get("account_id"), fallback=None)
         if not _account_binding_matches(str(account_id), local_id):
             raise RealtimeSyncClientError("firebase_sign_in_account_mismatch", "Firebase sign-in account binding does not match.")
+        state_file = Path(state_path).expanduser() if state_path is not None else default_realtime_sync_state_path(config_path)
+        state = _load_state(state_file)
+        latest_cursor = _latest_account_cursor(state, str(account_id))
+        report["event_source_cursor"] = latest_cursor
+        report["event_source_query_included"] = latest_cursor is not None
         events = _read_firestore_sync_events(
             id_token=id_token,
             account_id=str(account_id),
             project_id=str(firebase_summary["firestore_project_id"]),
             database_id=str(firebase_summary["firestore_database_id"]),
             limit=limit,
+            cursor=latest_cursor,
             transport=firebase_rest_transport,
             timeout_seconds=timeout_seconds,
         )
@@ -470,7 +476,6 @@ def build_realtime_sync_firestore_poll_report(
         return report
     report["firestore_rest_connected"] = True
     report["events_received"] = len(events)
-    state_file = Path(state_path).expanduser() if state_path is not None else default_realtime_sync_state_path(config_path)
     for event in events:
         child = build_realtime_sync_listener_once_report(
             event=event,
@@ -1068,6 +1073,7 @@ def _read_firestore_sync_events(
     project_id: str,
     database_id: str,
     limit: int,
+    cursor: str | None,
     transport: HeaderJsonTransport | None,
     timeout_seconds: float,
 ) -> list[Mapping[str, object]]:
@@ -1077,10 +1083,11 @@ def _read_firestore_sync_events(
     safe_account = _safe_firestore_path_segment(account_id)
     safe_project = _safe_firestore_path_segment(project_id)
     safe_database = _safe_firestore_path_segment(database_id, allow_default=True)
-    path = (
-        f"/v1/projects/{safe_project}/databases/{safe_database}/documents/accounts/{safe_account}/sync_events?"
-        + urlencode({"pageSize": str(safe_limit), "orderBy": "created_at"})
-    )
+    query: dict[str, str] = {"pageSize": str(safe_limit), "orderBy": "created_at"}
+    safe_cursor = _safe_firestore_cursor(cursor)
+    if safe_cursor is not None:
+        query["pageToken"] = safe_cursor
+    path = f"/v1/projects/{safe_project}/databases/{safe_database}/documents/accounts/{safe_account}/sync_events?" + urlencode(query)
     status_code, payload, _headers = _request_json(
         "GET",
         FIRESTORE_REST_ORIGIN,
@@ -1095,6 +1102,15 @@ def _read_firestore_sync_events(
     if status_code >= 400:
         raise RealtimeSyncClientError("firestore_sync_event_read_failed", "Firestore metadata read failed.", status_code=status_code)
     return _sanitize_firestore_documents(payload, linked_account_id=account_id)
+
+
+def _safe_firestore_cursor(value: object) -> str | None:
+    text = _safe_message_text(value, fallback=None)
+    if text is None:
+        return None
+    if len(text) > 512 or any(ord(char) < 32 or ord(char) == 127 for char in text):
+        raise RealtimeSyncClientError("firestore_cursor_invalid", "Firestore cursor metadata is invalid.")
+    return text
 
 
 def _safe_firestore_path_segment(value: object, *, allow_default: bool = False) -> str:

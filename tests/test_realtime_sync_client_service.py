@@ -1371,6 +1371,93 @@ def test_firestore_poll_reads_metadata_then_fetches_body_from_aws_only(tmp_path:
     assert str(tmp_path) not in serialized
 
 
+def test_firestore_poll_resumes_after_saved_cursor(tmp_path: Path) -> None:
+    from yonerai_cli.services.realtime_sync_client_service import build_realtime_sync_firestore_poll_report
+
+    config_path, claim = _save_session(tmp_path)
+    state_path = tmp_path / "sync-state.json"
+    state_path.write_text(
+        json.dumps(
+            {
+                "schema_version": "yonerai.realtime-sync-state/v0.1",
+                "accounts": {
+                    claim["account_id"]: {
+                        "conversations": {
+                            "conv_public_001": {
+                                "cursor": "cursor_public_001",
+                                "last_event_id": "evt_public_001",
+                                "event_ids": ["evt_public_001"],
+                                "idempotency_keys": ["sync_public_001"],
+                            }
+                        }
+                    }
+                },
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    event = _event_for_account(
+        claim["account_id"],
+        event_id="evt_public_002",
+        message_id="msg_public_002",
+        cursor="cursor_public_002",
+        idempotency_key="sync_public_002",
+        body_ref={
+            "kind": "aws_message_body",
+            "href": "/v1/conversations/conv_public_001/messages/msg_public_002",
+            "body_included": False,
+        },
+    )
+    firebase_payload = _firebase_token_payload(claim["account_id"])
+    firestore = dict(firebase_payload["firestore"])  # type: ignore[arg-type]
+    firestore["sync_enabled"] = True
+    firebase_payload["firestore"] = firestore
+    firestore_urls: list[str] = []
+
+    def official_transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        if url == f"{ORIGIN}/v1/sync/firebase-token":
+            return 200, firebase_payload, RATE_HEADERS
+        assert url == f"{ORIGIN}/v1/conversations/conv_public_001/messages/msg_public_002"
+        return 200, {"message": {"conversation_id": "conv_public_001", "message_id": "msg_public_002", "body": "resumed message"}}, RATE_HEADERS
+
+    def firebase_transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        if url.startswith("https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?"):
+            return 200, {"idToken": "firebase_id_token_fixture", "expiresIn": "3600", "localId": claim["account_id"]}, {}
+        firestore_urls.append(url)
+        assert "pageToken=cursor_public_001" in url
+        return 200, {"documents": [_firestore_document(event)]}, {}
+
+    report = build_realtime_sync_firestore_poll_report(
+        env={
+            "YONERAI_STAGING_AUTH_ORIGIN": ORIGIN,
+            "YONERAI_FIREBASE_CLIENT_API_KEY": "public-client-key-fixture",
+        },
+        config_path=str(config_path),
+        state_path=state_path,
+        transport=official_transport,
+        firebase_rest_transport=firebase_transport,
+    )
+
+    assert report["ok"] is True
+    assert report["event_source_cursor"] == "cursor_public_001"
+    assert report["event_source_query_included"] is True
+    assert report["messages"][0]["display_text"] == "resumed message"
+    assert len(firestore_urls) == 1
+
+
 def test_firestore_poll_does_not_start_when_sync_flag_is_disabled(tmp_path: Path) -> None:
     from yonerai_cli.services.realtime_sync_client_service import build_realtime_sync_firestore_poll_report
 

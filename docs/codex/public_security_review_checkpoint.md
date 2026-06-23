@@ -577,13 +577,14 @@ Checked in this checkpoint:
 | PR / issue / notice | classification | review/comment state | CI / evidence state | decision |
 | --- | --- | --- | --- | --- |
 | #571 Gemini CRLF review | valid-now | AWS body text sanitizer allowed `\n` and `\t` but rejected normal Windows `\r\n` line endings. | Fixed by allowing `\r` alongside `\n` and `\t`; added `test_listener_accepts_windows_crlf_in_aws_body`. | Keep the fix in #571 before merge. |
+| #571 Codex Firestore cursor review | valid-now | Firestore REST polling did not send the saved cursor, so a full first page could starve newer events. | Fixed by loading the saved account cursor before the Firestore read and passing it as `pageToken`; added `test_firestore_poll_resumes_after_saved_cursor`. | Keep the fix in #571 before merge. |
 | #570 | duplicate / replaced | Closed with replacement evidence. | #571 is current-main based and contains only the relevant realtime sync/auth-session/account-id compatibility scope. | Do not merge #570. |
 | #565 / #566 | valid-but-covered | Findings remain valid historically but are covered by current-main + #571 tests. | #571 preserves token/private metadata/local path rejection and `token_returned=true` fail-closed behavior. | Keep #571 as canonical; stale PR branches remain superseded. |
 
 Validation after CRLF fix:
 
-- `python -m pytest tests\test_realtime_sync_client_service.py -q` => `40 passed`.
-- Broader targeted suite for auth, realtime sync, Control Spine, Native Run, conversation sync, and command display => `227 passed`.
+- `python -m pytest tests\test_realtime_sync_client_service.py -q` => `41 passed`.
+- Broader targeted suite for auth, realtime sync, Control Spine, Native Run, conversation sync, and command display => `228 passed`.
 - `python -m ruff check clients\cli\yonerai_cli\services\realtime_sync_client_service.py tests\test_realtime_sync_client_service.py` => pass.
 - `python -m compileall -q clients\cli\yonerai_cli\services\realtime_sync_client_service.py tests\test_realtime_sync_client_service.py` => pass.
 - `git diff --check` => pass.
