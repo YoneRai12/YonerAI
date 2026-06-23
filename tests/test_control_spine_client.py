@@ -164,6 +164,130 @@ def test_rate_limit_drops_known_private_operational_metadata(tmp_path: Path, mon
     assert agent_scope["requires_threat_model"] is True
 
 
+def test_status_sanitizes_known_staging_operational_metadata(tmp_path: Path, monkeypatch) -> None:
+    from yonerai_cli.services.control_spine_service import build_control_spine_status_report
+
+    monkeypatch.setenv("YONERAI_STAGING_AUTH_ORIGIN", "https://api-staging.yonerai.com")
+
+    provider_gateway = {
+        "enabled": True,
+        "stage": "staging",
+        "provider_id": "openai_shared",
+        "traffic_default": "off",
+        "default_consent_state": "none",
+        "kill_switch": False,
+        "model_policy": {
+            "allowlist_configured": True,
+            "selected_model_hint": "gpt-4.1-nano",
+            "tools_enabled": False,
+            "web_search_enabled": False,
+            "file_inputs_enabled": False,
+            "code_interpreter_enabled": False,
+        },
+        "cost_policy": {
+            "daily_token_cap": 2000,
+            "max_input_tokens": 512,
+            "max_output_tokens": 96,
+        },
+        "secret_values_exposed": False,
+    }
+
+    def transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, dict[str, object], dict[str, str]]:
+        if url.endswith("/v1/status"):
+            return (
+                200,
+                {
+                    "schema_version": "yonerai.status.v1",
+                    "overall": "degraded",
+                    "components": [
+                        {
+                            "id": "provider_gateway",
+                            "health": "available",
+                            "availability": "available",
+                            "message": "staging provider metadata only",
+                        }
+                    ],
+                    "provider_gateway": provider_gateway,
+                    "auth": {
+                        "staging_oauth": {
+                            "client_secret_rotation_required": True,
+                            "secret_values_exposed": False,
+                            "refresh_token_storage_enabled": False,
+                        }
+                    },
+                    "cost_guard": {
+                        "secrets_lifecycle": {
+                            "google_client_secret": {"storage": "aws_secrets_manager_reference_only"}
+                        }
+                    },
+                    "staging_deploy": {
+                        "required_inputs": ["firebase_wif_config_secret_name"],
+                        "secrets_logged": False,
+                    },
+                },
+                {"X-YonerAI-RateLimit-Scope": "staging"},
+            )
+        if url.endswith("/v1/health"):
+            return (
+                200,
+                {
+                    "status": "ok",
+                    "api_version": "yonerai.official.api.v1.skeleton",
+                    "min_cli_version": "0.20.0",
+                    "provider_gateway": provider_gateway,
+                    "cost_guard": {
+                        "provider_cost_guard": {"hard_application_token_budget": True},
+                    },
+                },
+                {"X-YonerAI-RateLimit-Scope": "staging"},
+            )
+        if url.endswith("/v1/rate-limit"):
+            return (
+                200,
+                {
+                    "allowed": True,
+                    "scope": "staging",
+                    "quota_exceeded": False,
+                    "provider_gateway": provider_gateway,
+                    "cost_guard": {
+                        "secrets_lifecycle": {
+                            "google_client_secret": {"runtime_pickup": "secrets_manager"}
+                        }
+                    },
+                },
+                {"X-YonerAI-RateLimit-Scope": "staging"},
+            )
+        raise AssertionError(url)
+
+    report = build_control_spine_status_report(
+        config={},
+        env={"YONERAI_STAGING_AUTH_ORIGIN": "https://api-staging.yonerai.com"},
+        claim_path=str(tmp_path / "cli-config.json"),
+        transport=transport,
+        timeout_seconds=3.0,
+    )
+    serialized = json.dumps(report, ensure_ascii=False, sort_keys=True)
+
+    assert report["backend_status"]["ok"] is True
+    assert report["health"]["ok"] is True
+    assert report["rate_limit"]["ok"] is True
+    assert report["backend_status"]["body"]["provider_gateway"]["enabled"] is True
+    assert report["rate_limit"]["body"]["provider_gateway"]["model_policy"]["selected_model_hint"] == "gpt-4.1-nano"
+    assert "google_client_secret" not in serialized
+    assert "firebase_wif_config_secret_name" not in serialized
+    assert "secret_values_exposed" not in serialized
+    assert "daily_token_cap" not in serialized
+    assert "max_input_tokens" not in serialized
+    assert "hard_application_token_budget" not in serialized
+    assert str(tmp_path) not in serialized
+
+
 def test_rate_limit_public_sanitizer_handles_null_and_bad_scope_shapes(tmp_path: Path, monkeypatch) -> None:
     from yonerai_cli.services.control_spine_service import build_control_spine_rate_limit_report
 
@@ -412,7 +536,7 @@ def test_error_detail_rejects_bearer_secret_text(tmp_path: Path, monkeypatch) ->
 
 def test_whoami_accepts_contract_account_id_after_sanitizing(tmp_path: Path, monkeypatch) -> None:
     from yonerai_cli.services.control_spine_service import build_whoami_report
-    from yonerai_cli.services.staging_session_service import save_staging_session
+    from yonerai_cli.services.staging_session_service import load_staging_session_claim, save_staging_session
 
     config_path = tmp_path / "cli-config.json"
     session_value = "opaque-session-value-123456789"
@@ -453,9 +577,14 @@ def test_whoami_accepts_contract_account_id_after_sanitizing(tmp_path: Path, mon
     serialized = json.dumps(report, ensure_ascii=False, sort_keys=True)
 
     assert report["ok"] is True
-    assert report["account"]["account_ref"].startswith("staging-account-")
+    assert report["account"]["account_id"] == raw_account_id
+    assert "account_ref" not in report["account"]
     assert report["account"]["email_redacted"] == "o***@example.test"
-    assert raw_account_id not in serialized
+    assert report["staging_session_claim_updated"] is True
+    assert report["staging_session_account_id"] == raw_account_id
+    updated_claim = load_staging_session_claim(config_path=str(config_path))
+    assert updated_claim["account_id"] == raw_account_id
+    assert "account_ref" not in serialized
     assert session_value not in serialized
     assert str(tmp_path) not in serialized
 
@@ -506,9 +635,10 @@ def test_whoami_uses_saved_staging_session_without_printing_it(tmp_path: Path, m
     serialized = json.dumps(report, ensure_ascii=False, sort_keys=True) + rendered
 
     assert report["ok"] is True
+    assert report["account"]["account_id"] == "acct_contract_safe_ref_123"
     assert report["account"]["email_redacted"] == "o***@example.test"
-    assert str(report["account"]["account_ref"]).startswith("staging-account-")
-    assert "acct_contract_safe_ref_123" not in serialized
+    assert "account_ref" not in report["account"]
+    assert "account_ref" not in serialized
     assert session_value not in serialized
     assert "google-subject" not in serialized
     assert str(tmp_path) not in serialized

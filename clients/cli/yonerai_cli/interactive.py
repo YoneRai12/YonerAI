@@ -155,6 +155,7 @@ class InteractiveCallbacks:
     ping_status: Callable[[str], dict[str, Any]] | None = None
     rate_limit_status: Callable[[str], dict[str, Any]] | None = None
     sync_status: Callable[[str], dict[str, Any]] | None = None
+    sync_action: Callable[[list[str], str], dict[str, Any]] | None = None
     whoami: Callable[[str], dict[str, Any]] | None = None
     project_status: Callable[[str], dict[str, Any]] | None = None
     session_status: Callable[[str], dict[str, Any]] | None = None
@@ -1431,6 +1432,19 @@ def _handle_slash_command(
         if callbacks.sync_status is None:
             _write(output_stream, _format_sync_unavailable(lang))
             return {}
+        if args:
+            if callbacks.sync_action is None:
+                _write(output_stream, _format_sync_unavailable(lang))
+                return {}
+            _write(
+                output_stream,
+                _format_sync_action_report(
+                    callbacks.sync_action(args, lang),
+                    lang=lang,
+                    color=options.color,
+                ),
+            )
+            return {}
         _present_screen(
             output_stream,
             _format_sync_status(callbacks.sync_status(lang), lang=lang),
@@ -2349,6 +2363,12 @@ def _handle_memory_action(
         report = callbacks.memory_action("sync-preview", [direction], lang, default_scope)
         return _format_memory_action_report(report, lang=lang)
     return _memory_action_help(lang)
+
+
+def _format_sync_action_report(report: dict[str, Any], *, lang: str, color: str) -> str:
+    from yonerai_cli.commands.sync import format_sync_pretty_v2
+
+    return format_sync_pretty_v2(report, lang=lang, color=color)
 
 
 def _canonical_memory_action(value: str) -> str:

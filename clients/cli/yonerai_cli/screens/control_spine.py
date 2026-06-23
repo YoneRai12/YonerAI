@@ -287,7 +287,7 @@ def format_control_spine_pretty(report: dict[str, Any], *, lang: str = "ja", col
             CliSection(
                 _label("アカウント", "Account", lang),
                 (
-                    CliRow("account_ref", account.get("account_ref"), "ok"),
+                    CliRow("account_id", account.get("account_id"), "ok"),
                     CliRow("display_name", account.get("display_name"), "ok"),
                     CliRow("email", account.get("email_redacted"), "ok"),
                     CliRow("raw_email_stored", account.get("raw_email_stored"), "fail" if account.get("raw_email_stored") else "ok"),

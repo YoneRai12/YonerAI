@@ -76,6 +76,7 @@ def build_google_auth_status(
     effective_state = session_state if session_state in {"linked", "pending", "expired", "revoked"} else claim_state
     effective_account = (
         {
+            "account_id": staging_session_claim.get("account_id"),
             "account_ref": staging_session_claim.get("account_id"),
             "display_name": staging_session_claim.get("display_name"),
             "email_redacted": staging_session_claim.get("redacted_email"),
@@ -85,6 +86,9 @@ def build_google_auth_status(
         if effective_state in {"linked", "pending", "expired", "revoked"} and session_state in {"linked", "pending", "expired", "revoked"}
         else staging_claim.get("account")
     )
+    displayed_staging_claim = dict(staging_claim) if isinstance(staging_claim, Mapping) else {}
+    if isinstance(effective_account, Mapping) and session_state in {"linked", "pending", "expired", "revoked"}:
+        displayed_staging_claim["account"] = dict(effective_account)
     error = None
     if not (configured or staging_ready):
         error = _google_auth_unconfigured_error(
@@ -97,7 +101,7 @@ def build_google_auth_status(
         "configured": configured,
         "staging_login_available": bool(staging["configured"]),
         "staging": staging,
-        "staging_session": staging_claim,
+        "staging_session": displayed_staging_claim,
         "staging_session_claim": staging_session_claim,
         "staging_auth_state": effective_state,
         "staging_account": effective_account,
