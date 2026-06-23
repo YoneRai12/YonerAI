@@ -192,6 +192,7 @@ def _interactive_callbacks(config_path: str | None = None):
             lang, config_path=config_path
         ),
         sync_status=lambda lang: _interactive_sync_status(lang, config_path=config_path),
+        sync_action=lambda values, lang: interactive_service.build_interactive_sync_action(values, lang=lang),
         whoami=lambda lang: control_spine_callbacks.interactive_whoami(lang, config_path=config_path),
         project_status=lambda lang: control_spine_callbacks.interactive_project_status(lang, config_path=config_path),
         session_status=lambda lang: control_spine_callbacks.interactive_session_status(lang, config_path=config_path),

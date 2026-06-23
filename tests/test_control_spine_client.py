@@ -1037,6 +1037,17 @@ def test_interactive_callbacks_honor_custom_config_path(tmp_path: Path, monkeypa
     assert seen["config_path"] == str(tmp_path / "custom-config.json")
 
 
+def test_interactive_callbacks_wire_sync_action(tmp_path: Path) -> None:
+    from yonerai_cli import cli
+
+    callbacks = cli._interactive_callbacks(str(tmp_path / "custom-config.json"))
+
+    assert callbacks.sync_action is not None
+    report = callbacks.sync_action(["event", "validate", "valid"], "en")
+    assert report["operation"] == "realtime_sync_event_validate"
+    assert report["fixture"] == "valid"
+
+
 def test_interactive_ping_does_not_inject_staging_origin_when_env_is_missing(tmp_path: Path, monkeypatch) -> None:
     from yonerai_cli.services import control_spine_callbacks
 

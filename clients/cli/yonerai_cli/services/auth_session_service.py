@@ -19,6 +19,7 @@ _TOKEN_KEY_RE = re.compile(
 _LOCAL_PATH_RE = re.compile(r"([A-Za-z]:\\|\\\\|/Users/|/home/|/root/)", re.IGNORECASE)
 _SAFE_TEXT_RE = re.compile(r"^[A-Za-z0-9_.:@+\-*(),!\[\]&\s]{0,160}$")
 _PUBLIC_ACCOUNT_REF_RE = re.compile(r"^staging-account-[a-f0-9]{16}$")
+_OPAQUE_ACCOUNT_ID_RE = re.compile(r"^acct_[A-Za-z0-9_]{3,96}$")
 
 
 def default_staging_auth_claim_path(config_path: str | Path | None = None) -> Path:
@@ -105,7 +106,7 @@ def sanitize_staging_account(account: Mapping[str, object]) -> dict[str, object]
     raw_account_id = _first_text(account, ("account_id",))
     raw_ref = _first_text(account, ("account_ref", "subject_ref", "sub", "id", "user_id"))
     account_id = _safe_account_id(raw_account_id)
-    account_ref = _safe_account_ref(raw_ref or account_id or raw_email or raw_name)
+    account_ref = _safe_account_ref(raw_ref or raw_account_id or raw_email or raw_name)
     return {
         "account_id": account_id or account_ref,
         "account_ref": account_ref,
@@ -134,7 +135,8 @@ def validate_staging_auth_claim(claim: Mapping[str, object]) -> dict[str, object
         "linked_at": _safe_public_text(claim.get("linked_at"), fallback=None),
         "expires_at": _safe_public_text(claim.get("expires_at"), fallback=None),
         "account": {
-            "account_id": _safe_account_id(account.get("account_id")) or _safe_account_ref(account.get("account_ref")),
+            "account_id": _safe_account_id(account.get("account_id"))
+            or _safe_account_ref(account.get("account_ref") or account.get("account_id")),
             "account_ref": _safe_account_ref(account.get("account_ref")),
             "display_name": _safe_public_text(account.get("display_name"), fallback="linked staging account"),
             "email_redacted": _redact_email(account.get("email_redacted")),
@@ -220,7 +222,9 @@ def _safe_account_id(value: object) -> str | None:
     text = _safe_public_text(value, fallback=None)
     if text is None or text in {"not-linked", "linked-staging-account"}:
         return None
-    return text
+    if _OPAQUE_ACCOUNT_ID_RE.fullmatch(text):
+        return text
+    return None
 
 
 def _safe_public_text(value: object, *, fallback: str | None) -> str | None:

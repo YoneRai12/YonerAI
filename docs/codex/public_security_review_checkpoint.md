@@ -594,3 +594,45 @@ Current blocker:
 
 - `[PUBLIC-SYNC-CLIENT-READY]` remains false until AWS firebase-config is ready and live Web-to-CLI E2E is proven.
 - No release/tag is allowed from this checkpoint.
+
+## 2026-06-23 PR #571 Post-Merge Review Follow-Up
+
+- last_scan_at: 2026-06-23T15:50:26+09:00
+- highest_seen_pr_number: 571
+- current_main_head: a4752e4
+- follow-up branch: `codex/post-571-review-fixes`
+- lane: Public closed-alpha Firebase client and realtime sync listener
+
+Checked in this checkpoint:
+
+- PR #570 inline review comments and closure state.
+- PR #571 inline review comments after merge.
+- #565/#566 closure comments and current-main coverage.
+- Current open PR list for overlap with the realtime sync/auth lane.
+
+| PR / issue / notice | classification | review/comment state | CI / evidence state | decision |
+| --- | --- | --- | --- | --- |
+| #570 English sync blocker display | valid-but-already-fixed | Gemini correctly noted that English readiness summaries covered fewer blockers than Japanese. | Current main has English rows for canonical account, Firebase config, token contract, sync-disabled, owner permission, staging login/session/origin, and unreachable blockers in `commands/sync.py`. | No #570 merge. Keep #571/current-main implementation. |
+| #570 `auth_policy.py` Mapping check | valid-but-already-fixed | Gemini correctly noted `dict(staging_claim)` needed a Mapping guard. | Current main uses `dict(staging_claim) if isinstance(staging_claim, Mapping) else {}`. | No further action. |
+| #571 P1 non-opaque account IDs | valid-now | Codex review found `account_id` could preserve raw identifiers such as emails or Google subject-like values while claiming raw identifiers were not stored. | Follow-up fix accepts only `acct_...` opaque IDs as canonical account IDs; other safe text is hashed into `staging-account-<hash>`. Regression: `test_staging_auth_claim_hashes_non_opaque_account_id_values`. | Fix before any further sync/client-ready claim. |
+| #571 P2 interactive sync action callback | valid-now | Codex review found normal packaged interactive callbacks did not wire `sync_action`, making `/sync event validate ...` unreachable outside tests. | Follow-up fix wires `sync_action` through `_interactive_callbacks`. Regression: `test_interactive_callbacks_wire_sync_action`. | Fix in same follow-up because scope is small and directly tied to #571. |
+| #565 / #566 | valid-but-covered | Stale PRs remain superseded; findings are current-main covered. | Current main and this follow-up retain metadata/token/local-path rejection and `token_returned=true` fail-closed tests. | Do not merge old dirty branches. |
+
+Validation so far:
+
+- `python -m pytest tests/test_auth_privacy_policy.py::test_staging_auth_claim_hashes_non_opaque_account_id_values tests/test_auth_privacy_policy.py::test_staging_auth_claim_storage_redacts_and_rejects_secret_material tests/test_auth_privacy_policy.py::test_staging_session_preserves_canonical_account_id_for_realtime_sync tests/test_control_spine_client.py::test_interactive_callbacks_wire_sync_action tests/test_realtime_sync_event_service.py::test_interactive_sync_event_validate_uses_same_safe_boundary -q` => `5 passed`.
+- `python -m pytest tests/test_auth_privacy_policy.py tests/test_control_spine_client.py tests/test_realtime_sync_client_service.py tests/test_realtime_sync_event_service.py -q` => `185 passed`.
+- `python -m pytest tests/test_cli_runtime_shell_v020.py tests/test_auth_privacy_policy.py -q` => `100 passed`.
+- `python -m pytest tests/test_cli_interactive_v030.py tests/test_cli_command_display_modes.py tests/test_cli_output_formatting.py -q -k "not install_like_entry_point_starts_yonerai"` => `94 passed, 1 deselected`.
+- `python -m pytest tests/test_ci_quality_scans.py tests/test_core_api_access_security.py tests/test_cloudflare_auth_security.py tests/test_web_auth_loopback_security.py tests/test_redaction_security.py tests/test_agent_trace_security.py tests/test_mcp_runtime_deny_policy.py tests/test_mcp_client_fail_open.py tests/test_tools_mcp_safe_subset_contract.py tests/test_policy_engine.py tests/test_workspace_file_capability.py tests/test_cli_output_formatting.py -q` => `69 passed`.
+- `python -m pytest tests/test_verify_version.py tests/test_release_workflow_prerelease.py tests/test_release_gate.py tests/test_current_truth_anchor.py tests/test_quality_wall_workflow.py -q` => `45 passed`.
+- `python -m pytest tests/test_realtime_sync_client_service.py tests/test_realtime_sync_event_service.py -q` => `57 passed`.
+- `python -m ruff check clients/cli/yonerai_cli/cli.py clients/cli/yonerai_cli/services/auth_session_service.py tests/test_auth_privacy_policy.py tests/test_control_spine_client.py` => pass.
+- `python -m compileall -q clients/cli/yonerai_cli core/src/ora_core scripts` => pass.
+- `git diff --check` => pass.
+- `python scripts/ci_quality_scans.py --changed` => pass.
+- `python -m pytest -q` is not a Quality Wall command and failed during collection on local optional dependencies (`discord`, `PIL`) and an existing non-lane import issue; use GitHub Quality Wall as the release/merge gate for this follow-up.
+
+Current blocker:
+
+- AWS firebase-config is still not client-ready; no `[PUBLIC-SYNC-CLIENT-READY]` claim and no release/tag from this follow-up.
