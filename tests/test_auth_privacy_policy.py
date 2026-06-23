@@ -1617,6 +1617,46 @@ def test_staging_auth_claim_hashes_non_opaque_account_id_values(tmp_path: Path) 
     assert saved["account"]["raw_subject_stored"] is False
 
 
+def test_staging_auth_claim_does_not_collapse_rejected_account_id_to_placeholder(tmp_path: Path) -> None:
+    from yonerai_cli.services.auth_session_service import (
+        build_staging_auth_claim,
+        save_staging_auth_claim,
+    )
+
+    config_path = tmp_path / "cli-config.json"
+    raw_account_id = "google-oauth2|1234567890"
+    raw_email = "owner@example.com"
+    claim = build_staging_auth_claim(
+        origin="https://api-staging.yonerai.com",
+        account={"account_id": raw_account_id, "email": raw_email, "display_name": "Fixture"},
+    )
+    saved = save_staging_auth_claim(claim, config_path=config_path)
+    serialized = json.dumps(saved, sort_keys=True)
+
+    assert saved["account"]["account_id"].startswith("staging-account-")
+    assert saved["account"]["account_id"] != "linked-staging-account"
+    assert saved["account"]["account_ref"] == saved["account"]["account_id"]
+    assert raw_account_id not in serialized
+    assert raw_email not in serialized
+    assert saved["account"]["raw_email_stored"] is False
+    assert saved["account"]["raw_subject_stored"] is False
+
+
+def test_staging_auth_claim_skips_display_placeholder_when_no_safe_ref_exists(tmp_path: Path) -> None:
+    from yonerai_cli.services.auth_session_service import build_staging_auth_claim
+
+    raw_account_id = "google-oauth2|1234567890"
+    claim = build_staging_auth_claim(
+        origin="https://api-staging.yonerai.com",
+        account={"account_id": raw_account_id, "display_name": "linked staging account"},
+    )
+    serialized = json.dumps(claim, sort_keys=True)
+
+    assert claim["account"]["account_id"] == "linked-staging-account"
+    assert claim["account"]["account_ref"] == "linked-staging-account"
+    assert raw_account_id not in serialized
+
+
 def test_staging_claim_save_failure_is_controlled_and_redacted(tmp_path: Path, monkeypatch) -> None:
     from yonerai_cli.commands.auth import _persist_staging_claim_if_linked
 
