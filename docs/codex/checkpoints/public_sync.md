@@ -1,9 +1,9 @@
 # Public Sync Checkpoint
 
 - last_scan_at: 2026-06-25 JST
-- current HEAD: `1c6fcf9`
-- branch: `codex/firestore-cost-guard-sync-smoke`
-- PR: not opened yet
+- current HEAD: `4fae1b5`
+- branch: `codex/fix-staging-login-canonical-account`
+- PR: #575 merged; #576 open for login canonical account fix
 
 ## Current Goal
 
@@ -13,7 +13,7 @@ sync-off gate.
 
 ## Completed Evidence
 
-- Public main and origin/main are `1c6fcf9`.
+- Public main and origin/main are `c6fbadd` after PR #575 merge.
 - Latest stable release observed: `v0.8.1`.
 - Latest prerelease observed: `v0.22.0-alpha.1`.
 - PR #571, #572, and #573 are merged into current main.
@@ -49,6 +49,19 @@ sync-off gate.
   processing.
 - PR #575 Gemini cleanup on unused usage-policy parameter was valid-now and
   fixed locally.
+- PR #575 merged as `c6fbadd`.
+- Live staging smoke after #575 found a Public-side blocker: `login` saved a
+  non-canonical hashed account reference when `/v1/account/me` returned
+  canonical `account_id` at the top level plus a nested display `account`
+  object. `whoami` repaired the claim, but sync readiness should not require
+  a separate whoami repair step.
+- The follow-up branch preserves the top-level canonical account id while still
+  rejecting token-like/private fields.
+- PR #576 Gemini/Codex review on nested non-canonical `account.account_id` was
+  valid-now. The helper now always prioritizes the top-level canonical
+  `account_id`; the regression fixture includes a legacy nested account id.
+- PR #576 normal CI and Quality Wall checks passed on `4fae1b5`; review-intake
+  still needs the final post-push classification label.
 
 ## Validation
 
@@ -66,11 +79,16 @@ sync-off gate.
   - result: passed
 - changed/untracked secret and local-path scan
   - result: no live secret, account identifier, private path, raw body, or token value found
+- `python -m pytest tests\test_auth_privacy_policy.py::test_staging_login_preserves_top_level_account_id_from_account_me tests\test_auth_privacy_policy.py::test_staging_login_token_custody_scans_filesystem_config_and_ledger tests\test_realtime_sync_client_service.py -q`
+  - result: 48 passed
+- `python -m ruff check clients\cli\yonerai_cli\staging_auth_bridge.py tests\test_auth_privacy_policy.py`
+  - result: passed
 
 ## Exact Blocker
 
 - `[PUBLIC-SYNC-SMOKE-PREPARED]` has not been sent yet.
-- The focused Public PR is not opened, merged, or CI-verified yet.
+- Follow-up canonical account-id PR is not merged yet.
+- PR #576 review-intake label gate is still open after the final push.
 - Staging currently reports `firestore_sync_enabled=false` and
   `sync_mode=off`, so Public must not attach a live listener or claim
   Web-to-CLI E2E.
@@ -78,11 +96,12 @@ sync-off gate.
 ## Exact Next Command
 
 ```powershell
-python -m pytest tests\test_realtime_sync_client_service.py tests\test_realtime_sync_event_service.py tests\test_official_sync_cli.py tests\test_conversation_sync_policy.py tests\test_native_run_client.py tests\test_control_spine_client.py -q
+gh issue edit 576 --add-label intake-reviewed --remove-label needs-intake
 ```
 
-Then open the focused PR, read all review/comments after push, and merge only
-when CI is green.
+Then verify #576 checks again, merge only when CI is green, rerun live staging
+sync-off smoke from current main, and send
+`[PUBLIC-SYNC-SMOKE-PREPARED]` if the blocker is resolved.
 
 ## Peer Tags Received/Sent
 
