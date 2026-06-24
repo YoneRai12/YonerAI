@@ -288,8 +288,7 @@ def fetch_staging_account_me(
         timeout_seconds,
     )
     _assert_no_token_return(body)
-    account_source = body.get("account") or body.get("identity") or body.get("profile") or body
-    account = sanitize_staging_account(account_source if isinstance(account_source, Mapping) else {})
+    account = sanitize_staging_account(_account_source_with_canonical_id(body))
     return {
         "status_code": status_code,
         "ok": 200 <= status_code < 300,
@@ -332,7 +331,7 @@ def _safe_poll_report(safe_request_id: str, body: Mapping[str, object]) -> dict[
         raise StagingAuthBridgeError("staging_bridge_token_return_forbidden", "Staging CLI bridge attempted to return tokens.")
     cli_session_available = bool(session_token)
     account_source = body.get("account") or body.get("identity") or body.get("profile")
-    account = sanitize_staging_account(account_source if isinstance(account_source, Mapping) else {})
+    account = sanitize_staging_account(_account_source_with_canonical_id(body)) if account_source else None
     return {
         "status": status,
         "linked": linked,
@@ -380,6 +379,16 @@ def _session_token_from_body(body: Mapping[str, object]) -> str | None:
     if any(value != first for value in normalized):
         raise StagingAuthBridgeError("staging_session_claim_invalid", "Staging session claim is invalid.")
     return first
+
+
+def _account_source_with_canonical_id(body: Mapping[str, object]) -> Mapping[str, object]:
+    account_source = body.get("account") or body.get("identity") or body.get("profile") or body
+    if not isinstance(account_source, Mapping):
+        return {}
+    merged = dict(account_source)
+    if body.get("account_id") is not None:
+        merged["account_id"] = body.get("account_id")
+    return merged
 
 
 def _safe_session_metadata(session: Mapping[str, object]) -> dict[str, object]:
