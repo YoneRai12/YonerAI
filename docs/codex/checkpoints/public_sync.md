@@ -1,9 +1,9 @@
 # Public Sync Checkpoint
 
 - last_scan_at: 2026-06-25 JST
-- current HEAD: `6ecbfd0`
-- branch: `codex/public-sync-firebase-token-exchange`
-- PR: pending
+- current HEAD: `fec9b77`
+- branch: `main`
+- PR: #578 merged
 
 ## Current Goal
 
@@ -12,7 +12,7 @@ after the focused Public PR is merged and live staging proves the sync-off gate.
 
 ## Completed Evidence
 
-- Public main and origin/main are `6ecbfd0` after PR #577 merge.
+- Public main and origin/main are `fec9b77` after PR #578 merge.
 - Latest stable release observed: `v0.8.1`.
 - Latest prerelease observed: `v0.22.0-alpha.1`.
 - No `v0.23.0-alpha.1` release exists.
@@ -89,7 +89,7 @@ after the focused Public PR is merged and live staging proves the sync-off gate.
 
 ## Exact Blocker
 
-- `[PUBLIC-SYNC-SMOKE-PREPARED]` has not been sent yet in this branch.
+- `[PUBLIC-SYNC-SMOKE-PREPARED]` has not been sent yet after PR #578 merge.
 - `[YONERAIWEB-SYNC-SMOKE-PREPARED]` is still missing from issue #552.
 - `[OWNER-SYNC-SMOKE-APPROVED]` is still missing from issue #552.
 - Staging currently reports `firestore_sync_enabled=false` and
@@ -97,13 +97,13 @@ after the focused Public PR is merged and live staging proves the sync-off gate.
 
 ## Exact Next Command
 
-After this branch is pushed, reviewed, green, and merged:
+After the final issue scan confirms no newer blocker:
 
 ```powershell
 @'
 [PUBLIC-SYNC-SMOKE-PREPARED]
 
-Public main HEAD: <merged-main-head>
+Public main HEAD: fec9b77
 Contract: yonerai.realtime_sync.v1
 Firebase config contract: yonerai.firebase.public_config.v1
 Firebase auth contract: yonerai.firebase.custom_token.v1
