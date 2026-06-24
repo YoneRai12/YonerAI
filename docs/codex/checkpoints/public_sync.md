@@ -1,9 +1,9 @@
 # Public Sync Checkpoint
 
 - last_scan_at: 2026-06-25 JST
-- current HEAD: `4fae1b5`
-- branch: `codex/fix-staging-login-canonical-account`
-- PR: #575 merged; #576 open for login canonical account fix
+- current HEAD: `b25b5c3`
+- branch: `main`
+- PR: #575 merged; #576 merged
 
 ## Current Goal
 
@@ -62,6 +62,18 @@ sync-off gate.
   `account_id`; the regression fixture includes a legacy nested account id.
 - PR #576 normal CI and Quality Wall checks passed on `4fae1b5`; review-intake
   still needs the final post-push classification label.
+- PR #576 merged as `b25b5c3`.
+- Live staging sync smoke after #576:
+  - logout/login/whoami: passed without printing account identifiers
+  - Firebase public config: `firebase_public_config_ready=true`
+  - Firebase custom-token endpoint: 200
+  - Firestore usage policy: `yonerai.firestore_usage_policy.v1`
+  - limits accepted: initial 20, absolute 50, reconnect cooldown 30 seconds,
+    max CLI listeners 1
+  - Firestore sync gate: `firestore_sync_enabled=false`, `sync_mode=off`
+  - Firestore read/body fetch: not performed
+  - Firebase custom token exchange: blocked by Identity Toolkit
+    `CONFIGURATION_NOT_FOUND`
 
 ## Validation
 
@@ -87,8 +99,8 @@ sync-off gate.
 ## Exact Blocker
 
 - `[PUBLIC-SYNC-SMOKE-PREPARED]` has not been sent yet.
-- Follow-up canonical account-id PR is not merged yet.
-- PR #576 review-intake label gate is still open after the final push.
+- `[PUBLIC-SYNC-SMOKE-PREPARED]` is blocked because Firebase custom-token
+  exchange returns `CONFIGURATION_NOT_FOUND`.
 - Staging currently reports `firestore_sync_enabled=false` and
   `sync_mode=off`, so Public must not attach a live listener or claim
   Web-to-CLI E2E.
@@ -96,12 +108,24 @@ sync-off gate.
 ## Exact Next Command
 
 ```powershell
-gh issue edit 576 --add-label intake-reviewed --remove-label needs-intake
+@'
+[PUBLIC-SYNC-SMOKE-BLOCKED]
+
+Public sync smoke is blocked at Firebase custom-token exchange:
+- firebase config ready: true
+- custom-token endpoint: 200
+- usage policy: yonerai.firestore_usage_policy.v1
+- Firestore sync: off
+- Identity Toolkit exchange: 400 CONFIGURATION_NOT_FOUND
+
+Private AWS/GCP must align the staging Firebase Auth / Identity Toolkit
+configuration before Public can emit [PUBLIC-SYNC-SMOKE-PREPARED].
+'@ | gh issue comment 552 --body-file -
 ```
 
-Then verify #576 checks again, merge only when CI is green, rerun live staging
-sync-off smoke from current main, and send
-`[PUBLIC-SYNC-SMOKE-PREPARED]` if the blocker is resolved.
+After AWS reports the exchange blocker fixed, rerun live staging sync-off smoke
+from current main and send `[PUBLIC-SYNC-SMOKE-PREPARED]` only if token exchange
+passes without printing or persisting credentials.
 
 ## Peer Tags Received/Sent
 
