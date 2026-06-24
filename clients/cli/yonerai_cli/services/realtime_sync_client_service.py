@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import base64
+import binascii
 import importlib.util
 import json
 import os
@@ -1149,8 +1151,10 @@ def _exchange_firebase_custom_token(
     if set(payload) - allowed:
         raise RealtimeSyncClientError("firebase_sign_in_private_fields", "Firebase sign-in response contained non-public fields.")
     id_token = payload.get("idToken")
-    local_id = _safe_message_text(payload.get("localId"), fallback=None)
-    if not isinstance(id_token, str) or not id_token.strip() or not local_id:
+    if not isinstance(id_token, str) or not id_token.strip():
+        raise RealtimeSyncClientError("firebase_sign_in_invalid", "Firebase sign-in response is invalid.")
+    local_id = _safe_message_text(payload.get("localId"), fallback=None) or _firebase_id_token_uid(id_token)
+    if not local_id:
         raise RealtimeSyncClientError("firebase_sign_in_invalid", "Firebase sign-in response is invalid.")
     expires_in = payload.get("expiresIn")
     if expires_in is not None:
@@ -1160,6 +1164,26 @@ def _exchange_firebase_custom_token(
         except ValueError as exc:
             raise RealtimeSyncClientError("firebase_sign_in_invalid", "Firebase sign-in response is invalid.") from exc
     return id_token, local_id
+
+
+def _firebase_id_token_uid(id_token: str) -> str | None:
+    parts = id_token.split(".")
+    if len(parts) < 2:
+        return None
+    payload = parts[1]
+    padding = "=" * (-len(payload) % 4)
+    try:
+        decoded = base64.urlsafe_b64decode((payload + padding).encode("ascii"))
+        data = json.loads(decoded.decode("utf-8"))
+    except (binascii.Error, ValueError, UnicodeDecodeError):
+        return None
+    if not isinstance(data, Mapping):
+        return None
+    for key in ("sub", "user_id"):
+        uid = _safe_message_text(data.get(key), fallback=None)
+        if uid:
+            return uid
+    return None
 
 
 def _read_firestore_sync_events(

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import json
 import sys
 from pathlib import Path
@@ -676,6 +677,46 @@ def _firestore_value(value: object) -> dict[str, object]:
 
 def _firestore_document(event: Mapping[str, object]) -> dict[str, object]:
     return {"name": "projects/redacted/databases/(default)/documents/accounts/redacted/sync_events/redacted", "fields": {key: _firestore_value(value) for key, value in event.items()}}
+
+
+def _jwt_with_uid(uid: str) -> str:
+    header = base64.urlsafe_b64encode(json.dumps({"alg": "none"}).encode("utf-8")).decode("ascii").rstrip("=")
+    payload = base64.urlsafe_b64encode(json.dumps({"sub": uid, "user_id": uid}).encode("utf-8")).decode("ascii").rstrip("=")
+    return f"{header}.{payload}.signature"
+
+
+def test_firebase_custom_token_exchange_accepts_uid_from_id_token_payload() -> None:
+    from yonerai_cli.services.realtime_sync_client_service import _exchange_firebase_custom_token
+
+    expected_uid = "acct_public_sync_fixture"
+
+    def transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        assert method == "POST"
+        assert "accounts:signInWithCustomToken" in url
+        assert body == {"token": "firebase_custom_token_fixture_value", "returnSecureToken": True}
+        return 200, {
+            "kind": "identitytoolkit#VerifyCustomTokenResponse",
+            "idToken": _jwt_with_uid(expected_uid),
+            "refreshToken": "discarded-refresh-token-fixture",
+            "expiresIn": "900",
+            "isNewUser": False,
+        }, {}
+
+    id_token, local_id = _exchange_firebase_custom_token(
+        "firebase_custom_token_fixture_value",
+        "firebase-client-key-fixture",
+        transport=transport,
+        timeout_seconds=10.0,
+    )
+
+    assert id_token
+    assert local_id == expected_uid
 
 
 def test_firebase_token_bridge_accepts_safe_contract_without_printing_token(tmp_path: Path) -> None:
