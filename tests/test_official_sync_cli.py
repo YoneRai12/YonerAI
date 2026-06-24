@@ -154,10 +154,14 @@ def test_sync_api_contract_and_rate_limit_are_exposed_as_fixtures(capsys) -> Non
     assert rate_report["quota_exceeded_response"]["status"] == 429
 
 
-def test_api_status_contract_and_rate_limit_commands_are_fixture_only(capsys) -> None:
+def test_api_status_contract_and_rate_limit_commands_are_fixture_only(tmp_path: Path, monkeypatch, capsys) -> None:
     from yonerai_cli import cli
 
-    assert cli.main(["api", "status", "--json"]) == 0
+    monkeypatch.delenv("YONERAI_STAGING_AUTH_ORIGIN", raising=False)
+    monkeypatch.delenv("YONERAI_OFFICIAL_API_STAGING_ORIGIN", raising=False)
+    config_path = tmp_path / "isolated-config.json"
+
+    assert cli.main(["api", "status", "--json", "--config-path", str(config_path)]) == 0
     status_report = json.loads(capsys.readouterr().out)
     serialized_status = json.dumps(status_report, sort_keys=True)
     assert status_report["official_api_configured"] is False
@@ -175,7 +179,7 @@ def test_api_status_contract_and_rate_limit_commands_are_fixture_only(capsys) ->
     assert len(api_report["endpoints"]) == 10
     assert all(endpoint["fixture_support"] == "contract_only" for endpoint in api_report["endpoints"])
 
-    assert cli.main(["api", "rate-limit", "--json"]) == 0
+    assert cli.main(["api", "rate-limit", "--json", "--config-path", str(config_path)]) == 0
     rate_report = json.loads(capsys.readouterr().out)
     assert "Retry-After" in rate_report["headers"]
     assert rate_report["shared_traffic"]["openai_shared_traffic_enabled"] is False
