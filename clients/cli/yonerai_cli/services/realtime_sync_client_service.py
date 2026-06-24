@@ -5,6 +5,7 @@ import json
 import os
 import re
 from collections.abc import Mapping
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote, urlencode
@@ -33,6 +34,11 @@ FIREBASE_TOKEN_PATH = "/v1/sync/firebase-token"
 FIREBASE_CONFIG_PATH = "/v1/sync/firebase-config"
 FIREBASE_AUTH_CONTRACT_VERSION = "yonerai.firebase.custom_token.v1"
 FIREBASE_CONFIG_CONTRACT_VERSION = "yonerai.firebase.public_config.v1"
+FIRESTORE_USAGE_POLICY_VERSION = "yonerai.firestore_usage_policy.v1"
+FIRESTORE_INITIAL_QUERY_LIMIT_MAX = 20
+FIRESTORE_ABSOLUTE_QUERY_LIMIT_MAX = 50
+FIRESTORE_RECONNECT_COOLDOWN_SECONDS_MIN = 30
+FIRESTORE_CLI_MAX_LISTENERS_PER_ACCOUNT = 1
 FIREBASE_PUBLIC_CLIENT_KEY_FIELD = "api" + "_key"
 FIRESTORE_SYNC_EVENT_PATH_TEMPLATE = "/accounts/{account_id}/sync_events/{event_id}"
 FIREBASE_CLIENT_API_KEY_ENV = "YONERAI_FIREBASE_CLIENT_API_KEY"
@@ -397,6 +403,14 @@ def build_realtime_sync_firestore_poll_report(
             "events_processed": 0,
             "events_rejected": 0,
             "messages": [],
+            "firestore_usage_policy_present": False,
+            "firestore_usage_policy_accepted": False,
+            "firestore_usage_policy_version": FIRESTORE_USAGE_POLICY_VERSION,
+            "firestore_requested_limit": limit,
+            "firestore_effective_query_limit": None,
+            "firestore_reconnect_cooldown_seconds": None,
+            "firestore_reconnect_cooldown_remaining_seconds": 0,
+            "firestore_projection_write_allowed": None,
             "metadata_event_to_aws_body_fetch_completed": False,
             "live_web_to_cli_e2e_proven": False,
         }
@@ -433,7 +447,52 @@ def build_realtime_sync_firestore_poll_report(
     report["firebase_custom_token_printed"] = False
     report["firebase_custom_token_persisted"] = False
     report["official_backend_called"] = True
-    if firebase_summary.get("firestore_sync_enabled") is not True:
+    try:
+        firebase_config = build_realtime_sync_firebase_config_report(
+            config=config,
+            env=env,
+            config_path=config_path,
+            transport=transport,
+            timeout_seconds=timeout_seconds,
+        )
+    except RealtimeSyncClientError as exc:
+        report["ok"] = False
+        report["error"] = exc.to_safe_error()
+        return report
+    for key in (
+        "firestore_usage_policy_present",
+        "firestore_usage_policy_accepted",
+        "firestore_usage_policy_version",
+        "firestore_sync_enabled",
+        "firestore_sync_mode",
+        "firestore_initial_query_limit",
+        "firestore_absolute_query_limit",
+        "firestore_reconnect_cooldown_seconds",
+        "firestore_max_cli_listeners_per_account",
+        "firestore_query_account_rooted",
+        "firestore_offset_forbidden",
+        "firestore_collection_group_query_allowed",
+        "firestore_client_writes_allowed",
+        "firestore_body_fetch_source",
+        "firestore_projection_write_allowed",
+    ):
+        if key in firebase_config:
+            report[key] = firebase_config[key]
+    if firebase_config.get("ok") is not True:
+        report["ok"] = False
+        report["error"] = firebase_config.get("error") if isinstance(firebase_config.get("error"), dict) else _safe_error(
+            "firebase_config_request_failed",
+            "Firebase public config request failed.",
+        )
+        return report
+    if firebase_config.get("firestore_usage_policy_accepted") is not True:
+        report["ok"] = False
+        report["error"] = _safe_error(
+            "firestore_usage_policy_not_accepted",
+            "Firestore listener cost guard policy is not accepted.",
+        )
+        return report
+    if firebase_summary.get("firestore_sync_enabled") is not True or firebase_config.get("firestore_sync_enabled") is not True:
         report["ok"] = False
         report["error"] = _safe_error(
             "firestore_sync_disabled_until_live_e2e_and_owner_flip",
@@ -458,15 +517,25 @@ def build_realtime_sync_firestore_poll_report(
             raise RealtimeSyncClientError("firebase_sign_in_account_mismatch", "Firebase sign-in account binding does not match.")
         state_file = Path(state_path).expanduser() if state_path is not None else default_realtime_sync_state_path(config_path)
         state = _load_state(state_file)
+        cooldown_seconds = int(report.get("firestore_reconnect_cooldown_seconds") or FIRESTORE_RECONNECT_COOLDOWN_SECONDS_MIN)
+        remaining = _firestore_poll_cooldown_remaining_seconds(state, str(account_id), cooldown_seconds)
+        report["firestore_reconnect_cooldown_remaining_seconds"] = remaining
+        if remaining > 0:
+            raise RealtimeSyncClientError(
+                "firestore_reconnect_cooldown_active",
+                "Firestore listener cooldown is still active.",
+            )
         latest_cursor = _latest_account_cursor(state, str(account_id))
         report["event_source_cursor"] = latest_cursor
         report["event_source_query_included"] = latest_cursor is not None
+        effective_limit = min(max(1, int(limit)), int(report.get("firestore_initial_query_limit") or FIRESTORE_INITIAL_QUERY_LIMIT_MAX))
+        report["firestore_effective_query_limit"] = effective_limit
         events = _read_firestore_sync_events(
             id_token=id_token,
             account_id=str(account_id),
             project_id=str(firebase_summary["firestore_project_id"]),
             database_id=str(firebase_summary["firestore_database_id"]),
-            limit=limit,
+            limit=effective_limit,
             cursor=latest_cursor,
             transport=firebase_rest_transport,
             timeout_seconds=timeout_seconds,
@@ -506,6 +575,7 @@ def build_realtime_sync_firestore_poll_report(
         isinstance(item, Mapping) and item.get("aws_body_fetch_performed") is True for item in report.get("event_results", [])
     )
     report["metadata_event_to_aws_body_fetch_completed"] = bool(report["messages"]) and bool(report["events_processed"])
+    _record_firestore_poll(state_file, str(account_id))
     return report
 
 
@@ -610,6 +680,9 @@ def build_realtime_sync_firebase_config_report(
             "firebase_public_api_key_persisted": False,
             "firestore_client_sign_in_config_present": _firestore_client_sign_in_config_present(env),
             "firestore_client_sign_in_config_source": "env" if _firestore_client_sign_in_config_present(env) else "none",
+            "firestore_usage_policy_present": False,
+            "firestore_usage_policy_accepted": False,
+            "firestore_usage_policy_version": FIRESTORE_USAGE_POLICY_VERSION,
             "ready": False,
         }
     )
@@ -683,6 +756,9 @@ def build_realtime_sync_listener_readiness_report(
             "firestore_client_sign_in_config_present": _firestore_client_sign_in_config_present(env),
             "firestore_sdk_listener_ready": False,
             "firestore_sync_enabled": False,
+            "firestore_usage_policy_present": False,
+            "firestore_usage_policy_accepted": False,
+            "firestore_usage_policy_version": FIRESTORE_USAGE_POLICY_VERSION,
             "live_web_to_cli_e2e_proven": False,
             "next_blocker": None,
             "required_next_actions": (),
@@ -755,6 +831,19 @@ def build_realtime_sync_listener_readiness_report(
             firebase_config.get("firestore_client_sign_in_config_present", False)
         )
         report["firestore_client_sign_in_config_source"] = firebase_config.get("firestore_client_sign_in_config_source")
+        report["firestore_usage_policy_present"] = bool(firebase_config.get("firestore_usage_policy_present", False))
+        report["firestore_usage_policy_accepted"] = bool(firebase_config.get("firestore_usage_policy_accepted", False))
+        report["firestore_usage_policy_version"] = firebase_config.get("firestore_usage_policy_version")
+        report["firestore_initial_query_limit"] = firebase_config.get("firestore_initial_query_limit")
+        report["firestore_absolute_query_limit"] = firebase_config.get("firestore_absolute_query_limit")
+        report["firestore_reconnect_cooldown_seconds"] = firebase_config.get("firestore_reconnect_cooldown_seconds")
+        report["firestore_max_cli_listeners_per_account"] = firebase_config.get("firestore_max_cli_listeners_per_account")
+        report["firestore_query_account_rooted"] = firebase_config.get("firestore_query_account_rooted")
+        report["firestore_offset_forbidden"] = firebase_config.get("firestore_offset_forbidden")
+        report["firestore_collection_group_query_allowed"] = firebase_config.get("firestore_collection_group_query_allowed")
+        report["firestore_client_writes_allowed"] = firebase_config.get("firestore_client_writes_allowed")
+        report["firestore_body_fetch_source"] = firebase_config.get("firestore_body_fetch_source")
+        report["firestore_projection_write_allowed"] = firebase_config.get("firestore_projection_write_allowed")
         if firebase_config.get("ok") is not True:
             report["next_blocker"] = "firebase_public_config_unavailable"
             report["firebase_config_error"] = firebase_config.get("error")
@@ -767,6 +856,12 @@ def build_realtime_sync_listener_readiness_report(
             report["required_next_actions"] = (
                 "Private AWS must configure the staging public Firebase client config",
                 "keep YONERAI_FIRESTORE_SYNC_ENABLED=false until Web-to-CLI E2E is proven",
+            )
+        elif report["firestore_usage_policy_accepted"] is not True:
+            report["next_blocker"] = "firestore_usage_policy_not_accepted"
+            report["required_next_actions"] = (
+                "wait for AWS to publish yonerai.firestore_usage_policy.v1 in firebase-config",
+                "do not start the Firestore listener without the versioned cost guard",
             )
         elif report["firestore_sync_enabled"] is not True:
             report["next_blocker"] = "firestore_sync_disabled_until_live_e2e_and_owner_flip"
@@ -1274,6 +1369,7 @@ def _sanitize_firebase_config_payload(
         "sync_mode",
         "firebase",
         "firestore",
+        "usage_policy",
         "reason",
         "next_action",
         "owner_action_required",
@@ -1292,7 +1388,10 @@ def _sanitize_firebase_config_payload(
         raise RealtimeSyncClientError("firebase_config_invalid", "Firebase public config sync mode is invalid.")
     firebase = payload.get("firebase") if isinstance(payload.get("firebase"), Mapping) else {}
     client_sign_in_key = _sanitize_firebase_public_config(firebase)
+    effective_sync_enabled = bool(sync_enabled and sync_mode != "off")
     firestore_summary = _sanitize_firestore_public_config(firestore, sync_enabled=sync_enabled)
+    usage_policy = payload.get("usage_policy") if isinstance(payload.get("usage_policy"), Mapping) else None
+    usage_summary = _sanitize_firestore_usage_policy(usage_policy)
     env_has_config = _firestore_client_sign_in_config_present(env)
     source = "staging_api" if client_sign_in_key else "env" if env_has_config else "none"
     return (
@@ -1304,12 +1403,14 @@ def _sanitize_firebase_config_payload(
             "firebase_public_api_key_persisted": False,
             "firestore_client_sign_in_config_present": bool(client_sign_in_key or env_has_config),
             "firestore_client_sign_in_config_source": source,
-            "firestore_sync_enabled": sync_enabled,
+            "firestore_sync_enabled": effective_sync_enabled,
+            "firestore_backend_sync_enabled": sync_enabled,
             "firestore_sync_mode": sync_mode,
             "firebase_config_reason": _safe_message_text(payload.get("reason"), fallback=None),
             "firebase_config_next_action": _safe_message_text(payload.get("next_action"), fallback=None),
             "firebase_config_owner_action_required": _safe_message_text(payload.get("owner_action_required"), fallback=None),
             **firestore_summary,
+            **usage_summary,
         },
         client_sign_in_key,
     )
@@ -1385,6 +1486,116 @@ def _sanitize_firestore_public_config(firestore: Mapping[str, object], *, sync_e
         "firestore_body_fallback_allowed": False,
         "firestore_body_free_projection_only": True,
     }
+
+
+def _sanitize_firestore_usage_policy(policy: Mapping[str, object] | None) -> dict[str, object]:
+    if policy is None:
+        return {
+            "firestore_usage_policy_present": False,
+            "firestore_usage_policy_accepted": False,
+            "firestore_usage_policy_version": FIRESTORE_USAGE_POLICY_VERSION,
+            "firestore_initial_query_limit": None,
+            "firestore_absolute_query_limit": None,
+            "firestore_reconnect_cooldown_seconds": None,
+            "firestore_max_cli_listeners_per_account": None,
+            "firestore_query_account_rooted": False,
+            "firestore_offset_forbidden": False,
+            "firestore_collection_group_query_allowed": None,
+            "firestore_client_writes_allowed": None,
+            "firestore_body_fetch_source": None,
+            "firestore_projection_write_allowed": None,
+        }
+    allowed = {
+        "policy_version",
+        "sync_mode",
+        "account_admission_state",
+        "initial_query_limit",
+        "absolute_query_limit",
+        "reconnect_cooldown_seconds",
+        "max_web_listeners_per_account",
+        "max_cli_listeners_per_account",
+        "custom_token_ttl_seconds",
+        "token_issuance_allowed",
+        "projection_write_allowed",
+        "kill_switch",
+        "client_requirements",
+        "reason_code",
+    }
+    if set(policy) - allowed:
+        raise RealtimeSyncClientError("firestore_usage_policy_private_fields", "Firestore usage policy contained non-public fields.")
+    if policy.get("policy_version") != FIRESTORE_USAGE_POLICY_VERSION:
+        raise RealtimeSyncClientError("firestore_usage_policy_contract_mismatch", "Firestore usage policy version is not accepted.")
+    sync_mode = _safe_message_text(policy.get("sync_mode"), fallback="off")
+    if sync_mode not in {"off", "preview", "staging"}:
+        raise RealtimeSyncClientError("firestore_usage_policy_invalid", "Firestore usage policy sync mode is invalid.")
+    projection_write_allowed = policy.get("projection_write_allowed")
+    if not isinstance(projection_write_allowed, bool):
+        raise RealtimeSyncClientError("firestore_usage_policy_invalid", "Firestore projection write policy is invalid.")
+    if sync_mode == "off" and projection_write_allowed is not False:
+        raise RealtimeSyncClientError("firestore_usage_policy_invalid", "Firestore projection writes must stay disabled while sync mode is off.")
+    initial_limit = _positive_int(policy.get("initial_query_limit"), "firestore_usage_policy_invalid")
+    absolute_limit = _positive_int(policy.get("absolute_query_limit"), "firestore_usage_policy_invalid")
+    reconnect_cooldown = _positive_int(policy.get("reconnect_cooldown_seconds"), "firestore_usage_policy_invalid")
+    max_cli_listeners = _positive_int(policy.get("max_cli_listeners_per_account"), "firestore_usage_policy_invalid")
+    if initial_limit > FIRESTORE_INITIAL_QUERY_LIMIT_MAX:
+        raise RealtimeSyncClientError("firestore_usage_policy_too_permissive", "Firestore initial query limit is too high.")
+    if absolute_limit > FIRESTORE_ABSOLUTE_QUERY_LIMIT_MAX:
+        raise RealtimeSyncClientError("firestore_usage_policy_too_permissive", "Firestore absolute query limit is too high.")
+    if reconnect_cooldown < FIRESTORE_RECONNECT_COOLDOWN_SECONDS_MIN:
+        raise RealtimeSyncClientError("firestore_usage_policy_too_permissive", "Firestore reconnect cooldown is too short.")
+    if max_cli_listeners > FIRESTORE_CLI_MAX_LISTENERS_PER_ACCOUNT:
+        raise RealtimeSyncClientError("firestore_usage_policy_too_permissive", "Firestore CLI listener limit is too high.")
+    requirements = policy.get("client_requirements") if isinstance(policy.get("client_requirements"), Mapping) else {}
+    requirement_allowed = {
+        "account_rooted_listener_only",
+        "cursor_required_after_initial_page",
+        "offset_forbidden",
+        "collection_group_query_allowed",
+        "client_writes_allowed",
+        "body_fetch_source",
+    }
+    if set(requirements) - requirement_allowed:
+        raise RealtimeSyncClientError("firestore_usage_policy_private_fields", "Firestore usage policy requirements contained non-public fields.")
+    if requirements.get("account_rooted_listener_only") is not True:
+        raise RealtimeSyncClientError("firestore_usage_policy_invalid", "Firestore listener must remain account-rooted.")
+    if requirements.get("cursor_required_after_initial_page") is not True:
+        raise RealtimeSyncClientError("firestore_usage_policy_invalid", "Firestore cursor requirement is missing.")
+    if requirements.get("offset_forbidden") is not True:
+        raise RealtimeSyncClientError("firestore_usage_policy_invalid", "Firestore offset must remain forbidden.")
+    if requirements.get("collection_group_query_allowed") is not False:
+        raise RealtimeSyncClientError("firestore_usage_policy_invalid", "Firestore collection group queries must stay disabled.")
+    if requirements.get("client_writes_allowed") is not False:
+        raise RealtimeSyncClientError("firestore_usage_policy_invalid", "Firestore client writes must stay disabled.")
+    body_fetch_source = _safe_message_text(requirements.get("body_fetch_source"), fallback=None)
+    if body_fetch_source != "aws_only":
+        raise RealtimeSyncClientError("firestore_usage_policy_invalid", "Firestore policy must require AWS-only body fetch.")
+    return {
+        "firestore_usage_policy_present": True,
+        "firestore_usage_policy_accepted": True,
+        "firestore_usage_policy_version": FIRESTORE_USAGE_POLICY_VERSION,
+        "firestore_initial_query_limit": initial_limit,
+        "firestore_absolute_query_limit": absolute_limit,
+        "firestore_reconnect_cooldown_seconds": reconnect_cooldown,
+        "firestore_max_cli_listeners_per_account": max_cli_listeners,
+        "firestore_query_account_rooted": True,
+        "firestore_offset_forbidden": True,
+        "firestore_collection_group_query_allowed": False,
+        "firestore_client_writes_allowed": False,
+        "firestore_body_fetch_source": "aws_only",
+        "firestore_projection_write_allowed": projection_write_allowed,
+    }
+
+
+def _positive_int(value: object, code: str) -> int:
+    if isinstance(value, bool):
+        raise RealtimeSyncClientError(code, "Expected a positive integer.")
+    try:
+        integer = int(str(value))
+    except (TypeError, ValueError) as exc:
+        raise RealtimeSyncClientError(code, "Expected a positive integer.") from exc
+    if integer <= 0:
+        raise RealtimeSyncClientError(code, "Expected a positive integer.")
+    return integer
 
 
 def _assert_firebase_config_payload_safe(payload: object) -> None:
@@ -1789,7 +2000,31 @@ def _record_state(state: dict[str, Any], validation: Mapping[str, object]) -> No
     conversation["idempotency_keys"] = _append_limited(conversation.get("idempotency_keys"), validation.get("idempotency_key"))
 
 
-def _conversation_state(state: Mapping[str, Any], account_id: str, conversation_id: str) -> dict[str, Any]:
+def _record_firestore_poll(path: Path, account_id: str) -> None:
+    state = _load_state(path)
+    account = _account_state(state, account_id)
+    account["last_firestore_poll_at"] = datetime.now(UTC).isoformat()
+    _save_state(path, state)
+
+
+def _firestore_poll_cooldown_remaining_seconds(state: Mapping[str, Any], account_id: str, cooldown_seconds: int) -> int:
+    accounts = state.get("accounts") if isinstance(state.get("accounts"), Mapping) else {}
+    account = accounts.get(account_id) if isinstance(accounts.get(account_id), Mapping) else {}
+    raw = account.get("last_firestore_poll_at")
+    if not isinstance(raw, str) or not raw:
+        return 0
+    try:
+        previous = datetime.fromisoformat(raw)
+    except ValueError:
+        return 0
+    if previous.tzinfo is None:
+        previous = previous.replace(tzinfo=UTC)
+    elapsed = (datetime.now(UTC) - previous.astimezone(UTC)).total_seconds()
+    remaining = cooldown_seconds - int(elapsed)
+    return remaining if remaining > 0 else 0
+
+
+def _account_state(state: Mapping[str, Any], account_id: str) -> dict[str, Any]:
     mutable = state if isinstance(state, dict) else {}
     accounts = mutable.setdefault("accounts", {})
     if not isinstance(accounts, dict):
@@ -1799,6 +2034,14 @@ def _conversation_state(state: Mapping[str, Any], account_id: str, conversation_
     if not isinstance(account, dict):
         accounts[account_id] = {"conversations": {}}
         account = accounts[account_id]
+    conversations = account.setdefault("conversations", {})
+    if not isinstance(conversations, dict):
+        account["conversations"] = {}
+    return account
+
+
+def _conversation_state(state: Mapping[str, Any], account_id: str, conversation_id: str) -> dict[str, Any]:
+    account = _account_state(state, account_id)
     conversations = account.setdefault("conversations", {})
     if not isinstance(conversations, dict):
         account["conversations"] = {}
