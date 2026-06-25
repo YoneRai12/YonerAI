@@ -674,3 +674,38 @@ Current blocker:
 
 - `[PUBLIC-SYNC-CLIENT-READY]` remains false until Public CLI listener + authenticated AWS body fetch are implemented and live Web-to-CLI E2E is proven.
 - No release/tag is allowed from this follow-up.
+
+## 2026-06-25 PR #580 Security Review Intake
+
+- last_scan_at: 2026-06-25T20:51:55+09:00
+- highest_seen_pr_number: 580
+- current_main_head: 1c21850
+- active_branch: `codex/public-sync-auth-readiness-followup`
+- active_PR: #580
+- lane: Public closed-alpha login/readiness safety follow-up
+
+Checked in this checkpoint:
+
+- Open PR list through #580.
+- PR #580 review submissions, conversation comments, check rollup, and changed files after the initial push.
+- `review-intake-required` run logs for PR #580.
+- Issue #552 latest update timestamp and the Private AWS shared-traffic-default-off impact notice.
+
+| PR / issue / notice | classification | review/comment state | CI / evidence state | decision |
+| --- | --- | --- | --- | --- |
+| #580 Gemini review: non-TTY login hang | valid-now | Gemini correctly noted that making short `yonerai login` always wait/open browser can hang CI or non-interactive processes. | Fixed by restoring TTY gating for implicit browser-open and wait behavior while keeping interactive `yonerai login` as the owner flow. Regression tests cover interactive and non-TTY defaults. | Keep fix in #580 and rerun Quality Wall. |
+| #580 Gemini review: misleading endpoint flags | valid-now | Gemini correctly noted readiness could mark Firebase token endpoint as checked/live when canonical account validation failed before any backend call. | Fixed by leaving endpoint checked/status fields unset when `_linked_account_id` fails before network I/O. Regression tests cover legacy and placeholder account IDs. | Keep fix in #580 and rerun Quality Wall. |
+| #580 Gemini review: duplicate Firebase token request | valid-now | Gemini correctly noted readiness minted Firebase read-auth twice: once for readiness summary and again for token exchange. | Fixed by requesting the Firebase custom token once in readiness and reusing the sanitized payload for the Firebase sign-in exchange. Regression test asserts the token endpoint is called once. | Keep fix in #580 and rerun Quality Wall. |
+| #580 `review-intake-required` | valid-now process gate | Gate failed by design after synchronize/review activity and requires maintainer intake classification. | This checkpoint records classification before applying `intake-reviewed`. Product checks were already green before the follow-up push. | After final review scan and validation, add `intake-reviewed` for the current head. |
+| AWS `[AWS-SHARED-TRAFFIC-STATUS-DEFAULT-OFF]` notice | valid-but-already-compatible | Private AWS says shared traffic fields are consistently off and provider_gateway remains the availability surface. | Public CLI already treats shared traffic as off/default-disabled and does not enable production/provider traffic from status. | Record ACK on issue #552; no Public code change required from this notice. |
+| #574 / #567 / #548 / #547 / #545 / #544 and older open PRs | deferred-with-tracked-issue / duplicate / stale | Open PR list was refreshed; no current P0/P1/security blocker overlapping #580 was found. | Older PRs remain behind/dirty or separate dependency/UX/docs lanes. | Keep tracked in `docs/tasks/DEFERRED.md`; do not starve the sync/auth security lane. |
+
+Validation in progress:
+
+- Targeted review regression subset => `10 passed`.
+- Broader auth/realtime sync validation, ruff, compileall, diff check, and changed-file quality scan still required before final push.
+
+Current blocker:
+
+- #580 cannot be merged until the follow-up push, post-push review reread, `intake-reviewed` label, and required CI pass.
+- `[PUBLIC-SYNC-CLIENT-READY]` remains false; live Web-to-CLI E2E is not proven and sync remains off.

@@ -1,144 +1,124 @@
 # Public Sync Checkpoint
 
 - last_scan_at: 2026-06-25 JST
-- current HEAD: `fec9b77`
+- current HEAD: `1c218503f8cf60d347728303294f860957c279b9`
 - branch: `main`
-- PR: #578 merged
+- PR: none for the current local follow-up patch
 
 ## Current Goal
 
-Integrate the Firestore cost guard client and emit `[PUBLIC-SYNC-SMOKE-PREPARED]`
-after the focused Public PR is merged and live staging proves the sync-off gate.
+Revalidate the closed-alpha Firebase client-auth path after the owner refreshed
+the interactive staging browser login, then keep Public at the expected
+sync-off smoke-prepared boundary. Do not claim client-ready or live Web-to-CLI
+E2E while staging sync remains off.
 
-## Completed Evidence
+## Fresh Truth
 
-- Public main and origin/main are `fec9b77` after PR #578 merge.
-- Latest stable release observed: `v0.8.1`.
-- Latest prerelease observed: `v0.22.0-alpha.1`.
-- No `v0.23.0-alpha.1` release exists.
-- PR #571, #572, #573, #575, #576, and #577 are merged into current main.
-- Issue #552 includes:
-  - `[AWS-E2E-SUPPORT-READY]`
-  - `[AWS-FIRESTORE-COST-GUARD-READY]`
-  - `[AWS-AUTH-POLL-COMPAT-READY]`
-  - `[AWS-OFF-MODE-GUARD-READY]`
+- Public `main` and `origin/main` both point at `1c218503f8cf60d347728303294f860957c279b9`.
+- Latest merged Public PR inspected: #579.
 - Open PR scan:
-  - #574 is docs-only and nonblocking for this sync lane.
-  - #567 is a display-test PR and nonblocking for this sync lane.
-  - dependency, theme, old Web, old license, and old branding PRs are
-    nonblocking unless they become current P0/P1/security findings.
-- PR #565/#566-equivalent security findings remain covered by current-main
-  session-token, Firebase-token, and forbidden-field regression tests.
+  - #574 is docs-only AI assistant guidance; its process-path review is
+    nonblocking for this sync lane.
+  - #567 is a display-test PR; nonblocking for this sync lane.
+  - older dependency/theme/docs/Web/license PRs are deferred or stale and do
+    not represent a current P0/P1/security blocker for the sync lane.
+- Issue #552 includes `[AWS-FIREBASE-AUTH-EXCHANGE-READY]` after the owner
+  completed the interactive Public CLI browser login.
+- Issue #552 still shows sync disabled/off and does not contain
+  `[PUBLIC-SYNC-CLIENT-READY]` or `[WEB-TO-CLI-E2E-PASSED]`.
 
-## Public Implementation State
+## Local Public Fix In Progress
 
-- Public validates `yonerai.firestore_usage_policy.v1` and fails closed on:
-  - initial query limit above 20
-  - absolute list limit above 50
-  - reconnect cooldown below 30 seconds
-  - more than one CLI listener per account
-  - non-account-rooted listener requirements
-  - offset or collection-group query allowance
-  - client writes
-  - non-AWS body fetch source
-  - projection writes while `sync_mode=off`
-- Public treats `sync_mode=off` as a hard stop even if backend sync wiring is
-  otherwise present.
-- Firebase custom-token exchange now accepts the standard Identity Toolkit
-  response where `localId` is absent, deriving the UID from the Firebase ID token
-  payload in process memory only and comparing it to the canonical account scope.
-- Firebase custom token, Firebase ID token, Firebase refresh token, Google token,
-  auth code, provider key, account id, raw body, raw audit, and private path are
-  not printed or persisted by the smoke path.
+- `yonerai login` now uses the normal owner flow by default:
+  bridge login, browser open, and wait-for-linked are enabled for the short
+  command without requiring expert flags.
+- `yonerai login --json` remains machine-oriented and does not implicitly open
+  the browser.
+- `build_realtime_sync_listener_readiness_report(...)` now performs the
+  Firebase custom-token exchange readiness check and reports only boolean
+  safety outcomes.
+- The reported AWS/Public review blocker
+  `NameError: linked_account_id is not defined` is fixed locally and covered by
+  tests.
+- Early canonical-account rejection still avoids backend calls and preserves the
+  existing safe report shape.
 
-## Live Staging Smoke
+## Live Staging Evidence
 
-- `logout -> login -> whoami`: passed before this checkpoint update.
-- Staging opaque YonerAI session: accepted.
-- Canonical account binding: present; value not printed.
-- `GET /v1/sync/firebase-config`: ready public config observed.
-- `POST /v1/sync/firebase-token`: 200.
-- Firebase custom-token exchange: passed after Firebase Anonymous auth was
-  enabled and Public accepted the no-`localId` Identity Toolkit response shape.
-- Firebase ID token: process memory only; not persisted.
-- Firebase refresh token: discarded.
-- Firestore usage policy: `yonerai.firestore_usage_policy.v1`.
-- Cost guard accepted:
-  - initial limit 20
-  - absolute limit 50
+- Earlier `yonerai sync listener readiness --json` against staging returned after
+  the owner refreshed the interactive login:
+  - `ok=true`
+  - `ready=false`
+  - `auth_state=linked`
+  - opaque staging session available
+  - Firebase public config ready
+  - Firebase custom-token endpoint 200
+  - Firebase custom-token exchange attempted and passed
+  - Firebase ID token received but not printed or persisted
+  - Firebase refresh token discarded and not persisted
+  - usage policy accepted: `yonerai.firestore_usage_policy.v1`
+  - initial query limit 20
+  - absolute query limit 50
   - reconnect cooldown 30 seconds
   - max CLI listeners per account 1
-- Sync remains off as expected:
   - `firestore_sync_enabled=false`
+  - blocker: `firestore_sync_disabled_until_live_e2e_and_owner_flip`
+- `yonerai sync listener firestore-poll --json` stops at:
+  - `firestore_sync_disabled_until_live_e2e_and_owner_flip`
   - `sync_mode=off`
-- `yonerai sync listener firestore-poll --json` stops with
-  `firestore_sync_disabled_until_live_e2e_and_owner_flip` before Firestore read
-  or AWS body fetch.
+  - `projection_write_allowed=false`
+  - no Firestore body fallback
+  - no AWS body fetch before a validated body-free event
+- Latest local recheck after the browser-control attempt shows the API bearer
+  session is no longer available locally:
+  - readiness stops at `opaque_staging_session_required`
+  - `whoami` stops at the controlled staging-auth-required boundary
+  - next required action remains the normal interactive `yonerai login` flow
 
 ## Validation
 
-- `python -m pytest tests\test_realtime_sync_client_service.py::test_firebase_custom_token_exchange_accepts_uid_from_id_token_payload -q`
-  - result: 1 passed
-- `python -m ruff check clients\cli\yonerai_cli\services\realtime_sync_client_service.py tests\test_realtime_sync_client_service.py`
+- `python -m pytest tests\test_realtime_sync_client_service.py tests\test_realtime_sync_event_service.py tests\test_official_sync_cli.py tests\test_auth_privacy_policy.py -q`
+  - result: 170 passed
+- `python -m ruff check clients\cli\yonerai_cli\services\realtime_sync_client_service.py clients\cli\yonerai_cli\commands\sync.py clients\cli\yonerai_cli\commands\auth.py tests\test_realtime_sync_client_service.py tests\test_auth_privacy_policy.py`
   - result: passed
-- Live staging redacted smoke:
-  - result: token exchange passed, config ready, usage policy accepted, sync-off
-    gate reached
-- Live `yonerai sync listener firestore-poll --json`:
-  - result: controlled off-mode stop before Firestore read/body fetch
+- `python -m compileall -q clients\cli\yonerai_cli tests`
+  - result: passed
+- `git diff --check`
+  - result: passed
+- `python scripts\ci_quality_scans.py --changed`
+  - result: passed
 
 ## Exact Blocker
 
-- `[PUBLIC-SYNC-SMOKE-PREPARED]` has not been sent yet after PR #578 merge.
+- The current local fix is not yet in a PR or merged to Public main.
+- The currently installed local session is not bearer-capable; a fresh
+  interactive staging login is required before any further live auth smoke.
 - `[YONERAIWEB-SYNC-SMOKE-PREPARED]` is still missing from issue #552.
 - `[OWNER-SYNC-SMOKE-APPROVED]` is still missing from issue #552.
-- Staging currently reports `firestore_sync_enabled=false` and
-  `sync_mode=off`, so Public must not claim live Web-to-CLI E2E.
+- Staging remains `firestore_sync_enabled=false` and `sync_mode=off`, so Public
+  must not claim live Web-to-CLI E2E.
 
 ## Exact Next Command
 
-After the final issue scan confirms no newer blocker:
+If the owner wants this local follow-up persisted to Public main, create a
+focused branch/PR for:
 
 ```powershell
-@'
-[PUBLIC-SYNC-SMOKE-PREPARED]
-
-Public main HEAD: fec9b77
-Contract: yonerai.realtime_sync.v1
-Firebase config contract: yonerai.firebase.public_config.v1
-Firebase auth contract: yonerai.firebase.custom_token.v1
-Usage policy: yonerai.firestore_usage_policy.v1
-
-Evidence:
-- staging opaque YonerAI session accepted
-- config ready=true
-- Firebase custom-token endpoint 200
-- Firebase custom-token exchange passed
-- Firebase ID token process-memory only
-- Firebase refresh token discarded
-- listener mode=one-shot/firestore metadata poll
-- initial limit 20, absolute limit 50, reconnect cooldown 30 seconds
-- sync remains off: firestore_sync_enabled=false, sync_mode=off
-- current blocker=sync off until owner-approved live E2E smoke
-
-Safety:
-- no token value, account id, raw body, raw audit, provider key, private path, or
-  production claim is included
-- no Firestore body fallback
-- no AWS body fetch before a validated body-free event
-
-This is not [PUBLIC-SYNC-CLIENT-READY].
-'@ | gh issue comment 552 --body-file -
+git switch -c codex/public-sync-auth-readiness-followup
+git add clients/cli/yonerai_cli/commands/auth.py clients/cli/yonerai_cli/commands/sync.py clients/cli/yonerai_cli/services/realtime_sync_client_service.py tests/test_auth_privacy_policy.py tests/test_realtime_sync_client_service.py docs/codex/checkpoints/public_sync.md
+git commit -m "fix: Public同期ログインとFirebase準備確認を補強"
 ```
 
 ## Peer Tags Received/Sent
 
-- received: `[AWS-E2E-SUPPORT-READY]`
 - received: `[AWS-FIRESTORE-COST-GUARD-READY]`
 - received: `[AWS-AUTH-POLL-COMPAT-READY]`
 - received: `[AWS-OFF-MODE-GUARD-READY]`
-- sent earlier: `[PUBLIC-SYNC-CLIENT-BLOCKED]`
-- not sent yet: `[PUBLIC-SYNC-SMOKE-PREPARED]`
+- received: `[AWS-FIREBASE-AUTH-EXCHANGE-READY]`
+- received: `[PUBLIC-REVIEW-BLOCKER]`
+- sent: `[REVIEW-BLOCKER-RESOLVED]` for the local follow-up fix; the fix is not
+  merged to Public main yet
+- sent earlier: `[PUBLIC-SYNC-SMOKE-PREPARED]`
 - not sent: `[PUBLIC-SYNC-CLIENT-READY]`
 - not sent: `[WEB-TO-CLI-E2E-PASSED]`
 
