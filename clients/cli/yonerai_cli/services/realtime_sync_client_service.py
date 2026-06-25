@@ -434,22 +434,6 @@ def build_realtime_sync_firestore_poll_report(
         return report
     try:
         linked_account_id = _linked_account_id(context)
-        firebase_payload, firebase_headers = _request_firebase_token_payload(
-            context,
-            transport=transport,
-            timeout_seconds=timeout_seconds,
-        )
-        firebase_summary = _sanitize_firebase_token_payload(firebase_payload, linked_account_id=linked_account_id)
-    except RealtimeSyncClientError as exc:
-        report["ok"] = False
-        report["error"] = exc.to_safe_error()
-        return report
-    report.update(firebase_summary)
-    report["rate_limit_headers_present"] = _rate_limit_headers_present(firebase_headers)
-    report["firebase_custom_token_printed"] = False
-    report["firebase_custom_token_persisted"] = False
-    report["official_backend_called"] = True
-    try:
         firebase_config = build_realtime_sync_firebase_config_report(
             config=config,
             env=env,
@@ -494,7 +478,30 @@ def build_realtime_sync_firestore_poll_report(
             "Firestore listener cost guard policy is not accepted.",
         )
         return report
-    if firebase_summary.get("firestore_sync_enabled") is not True or firebase_config.get("firestore_sync_enabled") is not True:
+    if firebase_config.get("firestore_sync_enabled") is not True:
+        report["ok"] = False
+        report["error"] = _safe_error(
+            "firestore_sync_disabled_until_live_e2e_and_owner_flip",
+            "Firestore realtime sync is still disabled by staging policy.",
+        )
+        return report
+    try:
+        firebase_payload, firebase_headers = _request_firebase_token_payload(
+            context,
+            transport=transport,
+            timeout_seconds=timeout_seconds,
+        )
+        firebase_summary = _sanitize_firebase_token_payload(firebase_payload, linked_account_id=linked_account_id)
+    except RealtimeSyncClientError as exc:
+        report["ok"] = False
+        report["error"] = exc.to_safe_error()
+        return report
+    report.update(firebase_summary)
+    report["rate_limit_headers_present"] = _rate_limit_headers_present(firebase_headers)
+    report["firebase_custom_token_printed"] = False
+    report["firebase_custom_token_persisted"] = False
+    report["official_backend_called"] = True
+    if firebase_summary.get("firestore_sync_enabled") is not True:
         report["ok"] = False
         report["error"] = _safe_error(
             "firestore_sync_disabled_until_live_e2e_and_owner_flip",
@@ -625,6 +632,42 @@ def build_realtime_sync_firebase_token_report(
         return report
     try:
         linked_account_id = _linked_account_id(context)
+        firebase_config = build_realtime_sync_firebase_config_report(
+            config=config,
+            env=env,
+            config_path=config_path,
+            transport=transport,
+            timeout_seconds=timeout_seconds,
+        )
+    except RealtimeSyncClientError as exc:
+        report["ok"] = False
+        report["error"] = exc.to_safe_error()
+        return report
+    for key in (
+        "firestore_usage_policy_present",
+        "firestore_usage_policy_accepted",
+        "firestore_usage_policy_version",
+        "firestore_sync_enabled",
+        "firestore_sync_mode",
+        "firestore_projection_write_allowed",
+    ):
+        if key in firebase_config:
+            report[key] = firebase_config[key]
+    if firebase_config.get("ok") is not True:
+        report["ok"] = False
+        report["error"] = firebase_config.get("error") if isinstance(firebase_config.get("error"), dict) else _safe_error(
+            "firebase_config_request_failed",
+            "Firebase public config request failed.",
+        )
+        return report
+    if firebase_config.get("firestore_usage_policy_accepted") is not True:
+        report["ok"] = False
+        report["error"] = _safe_error(
+            "firestore_usage_policy_not_accepted",
+            "Firestore listener cost guard policy is not accepted.",
+        )
+        return report
+    try:
         status_code, payload, headers = _request_firebase_token_raw(
             context,
             transport=transport,
@@ -799,6 +842,69 @@ def build_realtime_sync_listener_readiness_report(
         )
         return report
 
+    firebase_config = build_realtime_sync_firebase_config_report(
+        config=config,
+        env=env,
+        config_path=config_path,
+        transport=transport,
+        timeout_seconds=timeout_seconds,
+    )
+    report["firebase_config_endpoint_checked"] = bool(firebase_config.get("firebase_config_endpoint_checked", False))
+    report["firebase_config_endpoint_status_code"] = firebase_config.get("firebase_config_endpoint_status_code")
+    report["firebase_config_endpoint_live"] = bool(firebase_config.get("firebase_config_endpoint_live", False))
+    report["firebase_public_config_ready"] = bool(firebase_config.get("firebase_public_config_ready", False))
+    report["firebase_public_api_key_received"] = bool(firebase_config.get("firebase_public_api_key_received", False))
+    report["firebase_public_api_key_printed"] = False
+    report["firebase_public_api_key_persisted"] = False
+    report["firestore_client_sign_in_config_present"] = bool(
+        firebase_config.get("firestore_client_sign_in_config_present", False)
+    )
+    report["firestore_client_sign_in_config_source"] = firebase_config.get("firestore_client_sign_in_config_source")
+    report["firestore_usage_policy_present"] = bool(firebase_config.get("firestore_usage_policy_present", False))
+    report["firestore_usage_policy_accepted"] = bool(firebase_config.get("firestore_usage_policy_accepted", False))
+    report["firestore_usage_policy_version"] = firebase_config.get("firestore_usage_policy_version")
+    report["firestore_initial_query_limit"] = firebase_config.get("firestore_initial_query_limit")
+    report["firestore_absolute_query_limit"] = firebase_config.get("firestore_absolute_query_limit")
+    report["firestore_reconnect_cooldown_seconds"] = firebase_config.get("firestore_reconnect_cooldown_seconds")
+    report["firestore_max_cli_listeners_per_account"] = firebase_config.get("firestore_max_cli_listeners_per_account")
+    report["firestore_query_account_rooted"] = firebase_config.get("firestore_query_account_rooted")
+    report["firestore_offset_forbidden"] = firebase_config.get("firestore_offset_forbidden")
+    report["firestore_collection_group_query_allowed"] = firebase_config.get("firestore_collection_group_query_allowed")
+    report["firestore_client_writes_allowed"] = firebase_config.get("firestore_client_writes_allowed")
+    report["firestore_body_fetch_source"] = firebase_config.get("firestore_body_fetch_source")
+    report["firestore_projection_write_allowed"] = firebase_config.get("firestore_projection_write_allowed")
+    if firebase_config.get("ok") is not True:
+        config_error = firebase_config.get("error") if isinstance(firebase_config.get("error"), Mapping) else None
+        error_code = config_error.get("code") if isinstance(config_error, Mapping) else None
+        report["firebase_config_error"] = dict(config_error) if isinstance(config_error, Mapping) else config_error
+        if isinstance(error_code, str) and error_code.startswith("firestore_usage_policy_"):
+            report["next_blocker"] = error_code
+            report["required_next_actions"] = (
+                "wait for AWS to publish an accepted yonerai.firestore_usage_policy.v1 in firebase-config",
+                "do not request Firebase custom tokens until the versioned cost guard allows issuance",
+            )
+        else:
+            report["next_blocker"] = "firebase_public_config_unavailable"
+            report["required_next_actions"] = (
+                "wait for Private AWS to repair GET /v1/sync/firebase-config",
+                "do not enable realtime sync until the public Firebase config is ready",
+            )
+        return report
+    elif report["firebase_public_config_ready"] is not True:
+        report["next_blocker"] = "firebase_public_config_not_ready"
+        report["required_next_actions"] = (
+            "Private AWS must configure the staging public Firebase client config",
+            "keep YONERAI_FIRESTORE_SYNC_ENABLED=false until Web-to-CLI E2E is proven",
+        )
+        return report
+    elif report["firestore_usage_policy_accepted"] is not True:
+        report["next_blocker"] = "firestore_usage_policy_not_accepted"
+        report["required_next_actions"] = (
+            "wait for AWS to publish yonerai.firestore_usage_policy.v1 in firebase-config",
+            "do not start the Firestore listener without the versioned cost guard",
+        )
+        return report
+
     firebase_error: dict[str, object] | None = None
     firebase_payload: Mapping[str, object] | None = None
     firebase_summary: dict[str, object] = {}
@@ -860,79 +966,25 @@ def build_realtime_sync_listener_readiness_report(
         report["firebase_external_alpha_requires_session_projection"] = firebase_summary.get(
             "firebase_external_alpha_requires_session_projection"
         )
-        firebase_config = build_realtime_sync_firebase_config_report(
-            config=config,
-            env=env,
-            config_path=config_path,
-            transport=transport,
-            timeout_seconds=timeout_seconds,
-        )
-        report["firebase_config_endpoint_checked"] = bool(firebase_config.get("firebase_config_endpoint_checked", False))
-        report["firebase_config_endpoint_status_code"] = firebase_config.get("firebase_config_endpoint_status_code")
-        report["firebase_config_endpoint_live"] = bool(firebase_config.get("firebase_config_endpoint_live", False))
-        report["firebase_public_config_ready"] = bool(firebase_config.get("firebase_public_config_ready", False))
-        report["firebase_public_api_key_received"] = bool(firebase_config.get("firebase_public_api_key_received", False))
-        report["firebase_public_api_key_printed"] = False
-        report["firebase_public_api_key_persisted"] = False
-        report["firestore_client_sign_in_config_present"] = bool(
-            firebase_config.get("firestore_client_sign_in_config_present", False)
-        )
-        report["firestore_client_sign_in_config_source"] = firebase_config.get("firestore_client_sign_in_config_source")
-        report["firestore_usage_policy_present"] = bool(firebase_config.get("firestore_usage_policy_present", False))
-        report["firestore_usage_policy_accepted"] = bool(firebase_config.get("firestore_usage_policy_accepted", False))
-        report["firestore_usage_policy_version"] = firebase_config.get("firestore_usage_policy_version")
-        report["firestore_initial_query_limit"] = firebase_config.get("firestore_initial_query_limit")
-        report["firestore_absolute_query_limit"] = firebase_config.get("firestore_absolute_query_limit")
-        report["firestore_reconnect_cooldown_seconds"] = firebase_config.get("firestore_reconnect_cooldown_seconds")
-        report["firestore_max_cli_listeners_per_account"] = firebase_config.get("firestore_max_cli_listeners_per_account")
-        report["firestore_query_account_rooted"] = firebase_config.get("firestore_query_account_rooted")
-        report["firestore_offset_forbidden"] = firebase_config.get("firestore_offset_forbidden")
-        report["firestore_collection_group_query_allowed"] = firebase_config.get("firestore_collection_group_query_allowed")
-        report["firestore_client_writes_allowed"] = firebase_config.get("firestore_client_writes_allowed")
-        report["firestore_body_fetch_source"] = firebase_config.get("firestore_body_fetch_source")
-        report["firestore_projection_write_allowed"] = firebase_config.get("firestore_projection_write_allowed")
-        if firebase_config.get("ok") is not True:
-            report["next_blocker"] = "firebase_public_config_unavailable"
-            report["firebase_config_error"] = firebase_config.get("error")
+        try:
+            exchange_summary = _exchange_firebase_read_auth_for_readiness(
+                firebase_payload or {},
+                context,
+                linked_account_id,
+                env=env,
+                transport=transport,
+                firebase_rest_transport=firebase_rest_transport,
+                timeout_seconds=timeout_seconds,
+            )
+            report.update(exchange_summary)
+        except RealtimeSyncClientError as exc:
+            report["next_blocker"] = "firebase_custom_token_exchange_failed"
+            report["firebase_sign_in_error"] = exc.to_safe_error()
             report["required_next_actions"] = (
-                "wait for Private AWS to repair GET /v1/sync/firebase-config",
-                "do not enable realtime sync until the public Firebase config is ready",
+                "keep realtime sync off",
+                "repair staging Firebase client auth exchange before starting the listener",
             )
             return report
-        elif report["firebase_public_config_ready"] is not True:
-            report["next_blocker"] = "firebase_public_config_not_ready"
-            report["required_next_actions"] = (
-                "Private AWS must configure the staging public Firebase client config",
-                "keep YONERAI_FIRESTORE_SYNC_ENABLED=false until Web-to-CLI E2E is proven",
-            )
-            return report
-        elif report["firestore_usage_policy_accepted"] is not True:
-            report["next_blocker"] = "firestore_usage_policy_not_accepted"
-            report["required_next_actions"] = (
-                "wait for AWS to publish yonerai.firestore_usage_policy.v1 in firebase-config",
-                "do not start the Firestore listener without the versioned cost guard",
-            )
-            return report
-        else:
-            try:
-                exchange_summary = _exchange_firebase_read_auth_for_readiness(
-                    firebase_payload or {},
-                    context,
-                    linked_account_id,
-                    env=env,
-                    transport=transport,
-                    firebase_rest_transport=firebase_rest_transport,
-                    timeout_seconds=timeout_seconds,
-                )
-                report.update(exchange_summary)
-            except RealtimeSyncClientError as exc:
-                report["next_blocker"] = "firebase_custom_token_exchange_failed"
-                report["firebase_sign_in_error"] = exc.to_safe_error()
-                report["required_next_actions"] = (
-                    "keep realtime sync off",
-                    "repair staging Firebase client auth exchange before starting the listener",
-                )
-                return report
         if report["firestore_sync_enabled"] is not True:
             report["next_blocker"] = "firestore_sync_disabled_until_live_e2e_and_owner_flip"
             report["required_next_actions"] = (
@@ -1666,6 +1718,16 @@ def _sanitize_firestore_usage_policy(policy: Mapping[str, object] | None) -> dic
     sync_mode = _safe_message_text(policy.get("sync_mode"), fallback="off")
     if sync_mode not in {"off", "preview", "staging"}:
         raise RealtimeSyncClientError("firestore_usage_policy_invalid", "Firestore usage policy sync mode is invalid.")
+    kill_switch = policy.get("kill_switch")
+    if not isinstance(kill_switch, bool):
+        raise RealtimeSyncClientError("firestore_usage_policy_invalid", "Firestore kill switch policy is invalid.")
+    if kill_switch is True:
+        raise RealtimeSyncClientError("firestore_usage_policy_kill_switch_active", "Firestore usage policy kill switch is active.")
+    token_issuance_allowed = policy.get("token_issuance_allowed")
+    if not isinstance(token_issuance_allowed, bool):
+        raise RealtimeSyncClientError("firestore_usage_policy_invalid", "Firestore token issuance policy is invalid.")
+    if token_issuance_allowed is not True:
+        raise RealtimeSyncClientError("firestore_usage_policy_token_issuance_disabled", "Firestore custom token issuance is disabled by policy.")
     projection_write_allowed = policy.get("projection_write_allowed")
     if not isinstance(projection_write_allowed, bool):
         raise RealtimeSyncClientError("firestore_usage_policy_invalid", "Firestore projection write policy is invalid.")
