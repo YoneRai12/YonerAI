@@ -733,6 +733,10 @@ def test_firebase_token_bridge_accepts_safe_contract_without_printing_token(tmp_
         timeout: float,
     ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
         calls.append((method, url, body))
+        if url == f"{ORIGIN}/v1/sync/firebase-config":
+            assert method == "GET"
+            assert body is None
+            return 200, _firebase_config_payload(), RATE_HEADERS
         assert method == "POST"
         assert url == f"{ORIGIN}/v1/sync/firebase-token"
         assert headers["Authorization"].startswith("Bearer ")
@@ -766,7 +770,42 @@ def test_firebase_token_bridge_accepts_safe_contract_without_printing_token(tmp_
     assert "firebase_custom_token_fixture_value" not in serialized
     assert "ystg_fixture_session_1234567890" not in serialized
     assert str(tmp_path) not in serialized
-    assert calls == [("POST", f"{ORIGIN}/v1/sync/firebase-token", {"purpose": "realtime_sync_metadata_read"})]
+    assert calls == [
+        ("GET", f"{ORIGIN}/v1/sync/firebase-config", None),
+        ("POST", f"{ORIGIN}/v1/sync/firebase-token", {"purpose": "realtime_sync_metadata_read"}),
+    ]
+
+
+def test_firebase_token_bridge_checks_policy_before_requesting_custom_token(tmp_path: Path) -> None:
+    from yonerai_cli.services.realtime_sync_client_service import build_realtime_sync_firebase_token_report
+
+    config_path, _claim = _save_session(tmp_path)
+    calls: list[tuple[str, str]] = []
+
+    def transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        calls.append((method, url))
+        assert headers["Authorization"].startswith("Bearer ")
+        if url == f"{ORIGIN}/v1/sync/firebase-config":
+            payload = _firebase_config_sync_enabled_payload()
+            payload["usage_policy"] = _firestore_usage_policy_payload(sync_mode="staging", token_issuance_allowed=False)
+            return 200, payload, RATE_HEADERS
+        raise AssertionError("Firebase custom token endpoint must not be called after token issuance is disabled")
+
+    report = build_realtime_sync_firebase_token_report(
+        env={"YONERAI_STAGING_AUTH_ORIGIN": ORIGIN},
+        config_path=str(config_path),
+        transport=transport,
+    )
+
+    assert report["ok"] is False
+    assert report["error"]["code"] == "firestore_usage_policy_token_issuance_disabled"
+    assert calls == [("GET", f"{ORIGIN}/v1/sync/firebase-config")]
 
 
 def test_firebase_config_bridge_reports_not_ready_without_printing_config(tmp_path: Path) -> None:
@@ -931,6 +970,42 @@ def test_firebase_config_bridge_rejects_usage_policy_token_issuance_disabled(tmp
     assert report["error"]["code"] == "firestore_usage_policy_token_issuance_disabled"
 
 
+def test_firestore_poll_checks_token_policy_before_requesting_custom_token(tmp_path: Path) -> None:
+    from yonerai_cli.services.realtime_sync_client_service import build_realtime_sync_firestore_poll_report
+
+    config_path, _claim = _save_session(tmp_path)
+    official_calls: list[tuple[str, str]] = []
+
+    def transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        official_calls.append((method, url))
+        assert headers["Authorization"].startswith("Bearer ")
+        if url == f"{ORIGIN}/v1/sync/firebase-config":
+            payload = _firebase_config_sync_enabled_payload()
+            payload["usage_policy"] = _firestore_usage_policy_payload(sync_mode="staging", token_issuance_allowed=False)
+            return 200, payload, RATE_HEADERS
+        raise AssertionError("Firebase custom token endpoint must not be called after token issuance is disabled")
+
+    report = build_realtime_sync_firestore_poll_report(
+        env={
+            "YONERAI_STAGING_AUTH_ORIGIN": ORIGIN,
+            "YONERAI_FIREBASE_CLIENT_API_KEY": "public-client-key-fixture",
+        },
+        config_path=str(config_path),
+        state_path=tmp_path / "sync-state.json",
+        transport=transport,
+    )
+
+    assert report["ok"] is False
+    assert report["error"]["code"] == "firestore_usage_policy_token_issuance_disabled"
+    assert official_calls == [("GET", f"{ORIGIN}/v1/sync/firebase-config")]
+
+
 def test_firebase_config_bridge_rejects_projection_writes_while_off(tmp_path: Path) -> None:
     from yonerai_cli.services.realtime_sync_client_service import build_realtime_sync_firebase_config_report
 
@@ -995,6 +1070,8 @@ def test_firebase_token_bridge_rejects_private_token_fields(tmp_path: Path) -> N
         body: Mapping[str, object] | None,
         timeout: float,
     ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        if url == f"{ORIGIN}/v1/sync/firebase-config":
+            return 200, _firebase_config_payload(), RATE_HEADERS
         payload = _firebase_token_payload(claim["account_id"], google_access_token="must-not-return")
         return 200, payload, RATE_HEADERS
 
@@ -1027,6 +1104,8 @@ def test_firebase_token_bridge_rejects_legacy_session_ref_claim(tmp_path: Path) 
         body: Mapping[str, object] | None,
         timeout: float,
     ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        if url == f"{ORIGIN}/v1/sync/firebase-config":
+            return 200, _firebase_config_payload(), RATE_HEADERS
         return 200, payload, RATE_HEADERS
 
     report = build_realtime_sync_firebase_token_report(
@@ -1057,6 +1136,8 @@ def test_firebase_token_bridge_rejects_immediate_revocation_claim(tmp_path: Path
         body: Mapping[str, object] | None,
         timeout: float,
     ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        if url == f"{ORIGIN}/v1/sync/firebase-config":
+            return 200, _firebase_config_payload(), RATE_HEADERS
         return 200, payload, RATE_HEADERS
 
     report = build_realtime_sync_firebase_token_report(
@@ -1085,6 +1166,8 @@ def test_firebase_token_bridge_rejects_revocation_delay_above_closed_alpha_limit
         body: Mapping[str, object] | None,
         timeout: float,
     ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        if url == f"{ORIGIN}/v1/sync/firebase-config":
+            return 200, _firebase_config_payload(), RATE_HEADERS
         return 200, payload, RATE_HEADERS
 
     report = build_realtime_sync_firebase_token_report(
@@ -1109,6 +1192,8 @@ def test_firebase_token_bridge_rejects_account_mismatch(tmp_path: Path) -> None:
         body: Mapping[str, object] | None,
         timeout: float,
     ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        if url == f"{ORIGIN}/v1/sync/firebase-config":
+            return 200, _firebase_config_payload(), RATE_HEADERS
         return 200, _firebase_token_payload("different-account"), RATE_HEADERS
 
     report = build_realtime_sync_firebase_token_report(
@@ -1173,6 +1258,8 @@ def test_firebase_token_bridge_accepts_owner_enabled_sync_flag(tmp_path: Path) -
         body: Mapping[str, object] | None,
         timeout: float,
     ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        if url == f"{ORIGIN}/v1/sync/firebase-config":
+            return 200, _firebase_config_sync_enabled_payload(), RATE_HEADERS
         return 200, payload, RATE_HEADERS
 
     report = build_realtime_sync_firebase_token_report(
@@ -1205,6 +1292,8 @@ def test_firebase_token_bridge_requires_body_free_projection_flag(tmp_path: Path
         body: Mapping[str, object] | None,
         timeout: float,
     ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        if url == f"{ORIGIN}/v1/sync/firebase-config":
+            return 200, _firebase_config_payload(), RATE_HEADERS
         return 200, payload, RATE_HEADERS
 
     report = build_realtime_sync_firebase_token_report(
@@ -1241,6 +1330,7 @@ def test_listener_readiness_reports_404_as_not_ready_without_leak(tmp_path: Path
     from yonerai_cli.services.realtime_sync_client_service import build_realtime_sync_listener_readiness_report
 
     config_path, _claim = _save_session(tmp_path)
+    calls: list[tuple[str, str]] = []
 
     def transport(
         method: str,
@@ -1249,6 +1339,10 @@ def test_listener_readiness_reports_404_as_not_ready_without_leak(tmp_path: Path
         body: Mapping[str, object] | None,
         timeout: float,
     ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        calls.append((method, url))
+        if url == f"{ORIGIN}/v1/sync/firebase-config":
+            assert method == "GET"
+            return 200, _firebase_config_payload(), RATE_HEADERS
         assert method == "POST"
         assert url == f"{ORIGIN}/v1/sync/firebase-token"
         return 404, {"detail": {"code": "not_found"}}, RATE_HEADERS
@@ -1266,6 +1360,7 @@ def test_listener_readiness_reports_404_as_not_ready_without_leak(tmp_path: Path
     assert report["firebase_token_endpoint_live"] is False
     assert report["firebase_token_endpoint_status_code"] == 404
     assert report["next_blocker"] == "private_aws_firebase_token_endpoint_not_live"
+    assert calls == [("GET", f"{ORIGIN}/v1/sync/firebase-config"), ("POST", f"{ORIGIN}/v1/sync/firebase-token")]
     assert "ystg_fixture_session_1234567890" not in serialized
     assert "Authorization" not in serialized
     assert str(tmp_path) not in serialized
@@ -1283,6 +1378,8 @@ def test_listener_readiness_treats_401_as_live_route_with_session_blocker(tmp_pa
         body: Mapping[str, object] | None,
         timeout: float,
     ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        if url == f"{ORIGIN}/v1/sync/firebase-config":
+            return 200, _firebase_config_payload(), RATE_HEADERS
         return 401, {"detail": {"code": "unknown_staging_session"}}, RATE_HEADERS
 
     report = build_realtime_sync_listener_readiness_report(
@@ -1411,6 +1508,8 @@ def test_listener_readiness_reports_503_as_private_runtime_blocker(tmp_path: Pat
         body: Mapping[str, object] | None,
         timeout: float,
     ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        if url == f"{ORIGIN}/v1/sync/firebase-config":
+            return 200, _firebase_config_payload(), RATE_HEADERS
         return 503, {"detail": {"code": "firebase_not_configured"}}, RATE_HEADERS
 
     report = build_realtime_sync_listener_readiness_report(
@@ -1442,6 +1541,8 @@ def test_listener_readiness_reports_unreachable_as_transient_blocker(tmp_path: P
         body: Mapping[str, object] | None,
         timeout: float,
     ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        if url == f"{ORIGIN}/v1/sync/firebase-config":
+            return 200, _firebase_config_payload(), RATE_HEADERS
         raise StagingSyncServiceError("staging_sync_unreachable", "Staging sync source is unreachable.")
 
     report = build_realtime_sync_listener_readiness_report(
@@ -1459,6 +1560,45 @@ def test_listener_readiness_reports_unreachable_as_transient_blocker(tmp_path: P
     assert "ystg_fixture_session_1234567890" not in serialized
 
 
+def test_listener_readiness_checks_policy_before_requesting_custom_token(tmp_path: Path) -> None:
+    from yonerai_cli.services.realtime_sync_client_service import build_realtime_sync_listener_readiness_report
+
+    config_path, _claim = _save_session(tmp_path)
+    official_calls: list[tuple[str, str]] = []
+
+    def transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        official_calls.append((method, url))
+        assert headers["Authorization"].startswith("Bearer ")
+        if url == f"{ORIGIN}/v1/sync/firebase-config":
+            payload = _firebase_config_sync_enabled_payload()
+            payload["usage_policy"] = _firestore_usage_policy_payload(sync_mode="staging", token_issuance_allowed=False)
+            return 200, payload, RATE_HEADERS
+        raise AssertionError("Firebase custom token endpoint must not be called after token issuance is disabled")
+
+    report = build_realtime_sync_listener_readiness_report(
+        env={"YONERAI_STAGING_AUTH_ORIGIN": ORIGIN},
+        config_path=str(config_path),
+        transport=transport,
+    )
+    serialized = json.dumps(report, sort_keys=True)
+
+    assert report["ok"] is True
+    assert report["ready"] is False
+    assert report["next_blocker"] == "firestore_usage_policy_token_issuance_disabled"
+    assert report["firebase_config_error"]["code"] == "firestore_usage_policy_token_issuance_disabled"
+    assert report["firebase_token_endpoint_checked"] is False
+    assert report["official_backend_called"] is False
+    assert official_calls == [("GET", f"{ORIGIN}/v1/sync/firebase-config")]
+    assert "firebase_custom_token_fixture_value" not in serialized
+    assert str(tmp_path) not in serialized
+
+
 def test_listener_readiness_reports_owner_token_signing_permission_blocker(tmp_path: Path) -> None:
     from yonerai_cli.services.realtime_sync_client_service import (
         build_realtime_sync_firebase_token_report,
@@ -1474,6 +1614,8 @@ def test_listener_readiness_reports_owner_token_signing_permission_blocker(tmp_p
         body: Mapping[str, object] | None,
         timeout: float,
     ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        if url == f"{ORIGIN}/v1/sync/firebase-config":
+            return 200, _firebase_config_payload(), RATE_HEADERS
         return (
             503,
             {
@@ -1530,17 +1672,29 @@ def test_listener_readiness_accepts_live_read_auth_but_keeps_sync_disabled(tmp_p
         if url == f"{ORIGIN}/v1/sync/firebase-token":
             return 200, _firebase_token_payload(claim["account_id"]), RATE_HEADERS
         assert url == f"{ORIGIN}/v1/sync/firebase-config"
-        return 200, _firebase_config_payload(
-            ready=False,
-            firebase={},
-            firestore={},
-            owner_action_required="configure_public_firebase_client",
-        ), RATE_HEADERS
+        return 200, _firebase_config_payload(sync_enabled=False), RATE_HEADERS
+
+    def firebase_transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        assert method == "POST"
+        assert url.startswith("https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?")
+        assert body == {"token": "firebase_custom_token_fixture_value", "returnSecureToken": True}
+        assert not headers
+        return 200, {"idToken": _jwt_with_uid(claim["account_id"]), "expiresIn": "900"}, {}
 
     report = build_realtime_sync_listener_readiness_report(
-        env={"YONERAI_STAGING_AUTH_ORIGIN": ORIGIN},
+        env={
+            "YONERAI_STAGING_AUTH_ORIGIN": ORIGIN,
+            "YONERAI_FIREBASE_CLIENT_API_KEY": "public-client-key-fixture",
+        },
         config_path=str(config_path),
         transport=transport,
+        firebase_rest_transport=firebase_transport,
     )
     serialized = json.dumps(report, sort_keys=True)
 
@@ -1558,13 +1712,13 @@ def test_listener_readiness_accepts_live_read_auth_but_keeps_sync_disabled(tmp_p
     assert report["firebase_revocation_max_delay_seconds"] == 900
     assert report["firebase_external_alpha_requires_session_projection"] is True
     assert isinstance(report["firestore_sdk_dependency_available"], bool)
-    assert report["firestore_client_sign_in_config_present"] is False
+    assert report["firestore_client_sign_in_config_present"] is True
     assert report["firebase_config_endpoint_live"] is True
-    assert report["firebase_public_config_ready"] is False
-    assert report["firebase_public_api_key_received"] is False
+    assert report["firebase_public_config_ready"] is True
+    assert report["firebase_public_api_key_received"] is True
     assert report["firestore_sync_enabled"] is False
     assert report["firestore_sdk_listener_ready"] is False
-    assert report["next_blocker"] == "firebase_public_config_not_ready"
+    assert report["next_blocker"] == "firestore_sync_disabled_until_live_e2e_and_owner_flip"
     assert "firebase_custom_token_fixture_value" not in serialized
     assert "account_ref" not in serialized
     assert claim["account_id"] not in serialized
@@ -1639,8 +1793,8 @@ def test_firestore_poll_reads_metadata_then_fetches_body_from_aws_only(tmp_path:
     assert report["messages"][0]["body_from_firestore"] is False
     assert report["metadata_event_to_aws_body_fetch_completed"] is True
     assert official_calls == [
-        ("POST", f"{ORIGIN}/v1/sync/firebase-token"),
         ("GET", f"{ORIGIN}/v1/sync/firebase-config"),
+        ("POST", f"{ORIGIN}/v1/sync/firebase-token"),
         ("GET", f"{ORIGIN}/v1/conversations/conv_public_001/messages/msg_public_001"),
     ]
     assert len(firebase_calls) == 2
@@ -1821,6 +1975,7 @@ def test_firestore_poll_does_not_start_when_sync_flag_is_disabled(tmp_path: Path
     from yonerai_cli.services.realtime_sync_client_service import build_realtime_sync_firestore_poll_report
 
     config_path, claim = _save_session(tmp_path)
+    official_calls: list[tuple[str, str]] = []
 
     def official_transport(
         method: str,
@@ -1829,6 +1984,7 @@ def test_firestore_poll_does_not_start_when_sync_flag_is_disabled(tmp_path: Path
         body: Mapping[str, object] | None,
         timeout: float,
     ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        official_calls.append((method, url))
         if url == f"{ORIGIN}/v1/sync/firebase-token":
             return 200, _firebase_token_payload(claim["account_id"]), RATE_HEADERS
         assert url == f"{ORIGIN}/v1/sync/firebase-config"
@@ -1852,6 +2008,7 @@ def test_firestore_poll_does_not_start_when_sync_flag_is_disabled(tmp_path: Path
     assert report["ok"] is False
     assert report["error"]["code"] == "firestore_sync_disabled_until_live_e2e_and_owner_flip"
     assert report["firestore_rest_connected"] is False
+    assert official_calls == [("GET", f"{ORIGIN}/v1/sync/firebase-config")]
     assert "firebase_custom_token_fixture_value" not in serialized
     assert "public-client-key-fixture" not in serialized
     assert str(tmp_path) not in serialized
@@ -1908,7 +2065,7 @@ def test_firestore_poll_rejects_body_projection_before_aws_fetch(tmp_path: Path)
 
     assert report["ok"] is False
     assert report["error"]["code"] == "firestore_sync_event_rejected"
-    assert official_calls == [f"{ORIGIN}/v1/sync/firebase-token", f"{ORIGIN}/v1/sync/firebase-config"]
+    assert official_calls == [f"{ORIGIN}/v1/sync/firebase-config", f"{ORIGIN}/v1/sync/firebase-token"]
     assert "body must not be projected" not in serialized
     assert "firebase_id_token_fixture" not in serialized
     assert str(tmp_path) not in serialized
@@ -1999,6 +2156,8 @@ def test_listener_readiness_fails_closed_on_private_firebase_payload(tmp_path: P
         body: Mapping[str, object] | None,
         timeout: float,
     ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        if url == f"{ORIGIN}/v1/sync/firebase-config":
+            return 200, _firebase_config_payload(), RATE_HEADERS
         return 200, _firebase_token_payload(claim["account_id"], google_access_token="must-not-return"), RATE_HEADERS
 
     report = build_realtime_sync_listener_readiness_report(
