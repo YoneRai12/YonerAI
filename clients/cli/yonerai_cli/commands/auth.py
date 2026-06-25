@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import os
-import sys
 from collections.abc import Callable, Mapping
 from typing import Any
 
@@ -420,7 +419,6 @@ def build_staging_login_report(
 def handle_login_alias_command(args: argparse.Namespace, *, print_json: Callable[[dict[str, Any]], None]) -> int:
     if not getattr(args, "staging", True):
         raise AuthCommandError("public CLI login is staging-only in this build.")
-    interactive_tty = bool(sys.stdin.isatty() and sys.stdout.isatty())
     explicit_flow_flags = (
         bool(getattr(args, "bridge", False))
         or bool(getattr(args, "open_browser", False))
@@ -428,8 +426,8 @@ def handle_login_alias_command(args: argparse.Namespace, *, print_json: Callable
     )
     implicit_user_login = not bool(getattr(args, "json", False)) and not explicit_flow_flags
     bridge = bool(getattr(args, "bridge", False) or implicit_user_login)
-    open_browser = bool(getattr(args, "open_browser", False) or (implicit_user_login and interactive_tty))
-    wait_linked = bool(getattr(args, "wait_linked", False) or (implicit_user_login and interactive_tty))
+    open_browser = bool(getattr(args, "open_browser", False) or implicit_user_login)
+    wait_linked = bool(getattr(args, "wait_linked", False) or implicit_user_login)
     if open_browser and not bridge:
         raise AuthCommandError("--open-browser requires --bridge.")
     if wait_linked and not bridge:

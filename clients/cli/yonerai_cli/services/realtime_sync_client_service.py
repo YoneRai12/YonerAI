@@ -727,6 +727,7 @@ def build_realtime_sync_listener_readiness_report(
     env: Mapping[str, str | None] | None = None,
     config_path: str | None = None,
     transport: HeaderJsonTransport | None = None,
+    firebase_rest_transport: HeaderJsonTransport | None = None,
     timeout_seconds: float = 10.0,
 ) -> dict[str, Any]:
     context = _auth_context(config=config, env=env, claim_path=config_path)
@@ -753,6 +754,14 @@ def build_realtime_sync_listener_readiness_report(
             "firebase_custom_token_received": False,
             "firebase_custom_token_printed": False,
             "firebase_custom_token_persisted": False,
+            "firebase_custom_token_exchange_attempted": False,
+            "firebase_custom_token_exchange_passed": False,
+            "firebase_id_token_received": False,
+            "firebase_id_token_printed": False,
+            "firebase_id_token_persisted": False,
+            "firebase_refresh_token_discarded": False,
+            "firebase_refresh_token_persisted": False,
+            "official_backend_called": False,
             "firestore_read_auth_bridge_ready": False,
             "firestore_sdk_dependency_available": _firestore_sdk_dependency_available(),
             "firestore_client_sign_in_config_present": _firestore_client_sign_in_config_present(env),
@@ -777,6 +786,19 @@ def build_realtime_sync_listener_readiness_report(
     if not context["staging_session_available"]:
         report["next_blocker"] = "opaque_staging_session_required"
         report["required_next_actions"] = ("run yonerai login to refresh the opaque YonerAI staging session",)
+        return report
+    try:
+        linked_account_id = _linked_account_id(context)
+    except RealtimeSyncClientError as exc:
+        report["firebase_token_endpoint_checked"] = True
+        report["firebase_token_endpoint_live"] = False
+        report["next_blocker"] = exc.code
+        report["firebase_token_error"] = exc.to_safe_error()
+        report["required_next_actions"] = (
+            "run yonerai logout to clear the legacy staging account_ref session",
+            "run yonerai login to get a fresh opaque YonerAI staging session with canonical account_id",
+            "rerun yonerai sync listener readiness after login succeeds",
+        )
         return report
 
     firebase = build_realtime_sync_firebase_token_report(
@@ -853,19 +875,41 @@ def build_realtime_sync_listener_readiness_report(
                 "wait for Private AWS to repair GET /v1/sync/firebase-config",
                 "do not enable realtime sync until the public Firebase config is ready",
             )
+            return report
         elif report["firebase_public_config_ready"] is not True:
             report["next_blocker"] = "firebase_public_config_not_ready"
             report["required_next_actions"] = (
                 "Private AWS must configure the staging public Firebase client config",
                 "keep YONERAI_FIRESTORE_SYNC_ENABLED=false until Web-to-CLI E2E is proven",
             )
+            return report
         elif report["firestore_usage_policy_accepted"] is not True:
             report["next_blocker"] = "firestore_usage_policy_not_accepted"
             report["required_next_actions"] = (
                 "wait for AWS to publish yonerai.firestore_usage_policy.v1 in firebase-config",
                 "do not start the Firestore listener without the versioned cost guard",
             )
-        elif report["firestore_sync_enabled"] is not True:
+            return report
+        else:
+            try:
+                exchange_summary = _exchange_firebase_read_auth_for_readiness(
+                    context,
+                    linked_account_id,
+                    env=env,
+                    transport=transport,
+                    firebase_rest_transport=firebase_rest_transport,
+                    timeout_seconds=timeout_seconds,
+                )
+                report.update(exchange_summary)
+            except RealtimeSyncClientError as exc:
+                report["next_blocker"] = "firebase_custom_token_exchange_failed"
+                report["firebase_sign_in_error"] = exc.to_safe_error()
+                report["required_next_actions"] = (
+                    "keep realtime sync off",
+                    "repair staging Firebase client auth exchange before starting the listener",
+                )
+                return report
+        if report["firestore_sync_enabled"] is not True:
             report["next_blocker"] = "firestore_sync_disabled_until_live_e2e_and_owner_flip"
             report["required_next_actions"] = (
                 "keep YONERAI_FIRESTORE_SYNC_ENABLED=false until Web-to-CLI E2E is proven",
@@ -938,6 +982,57 @@ def build_realtime_sync_listener_readiness_report(
     report["error"] = error or _safe_error("firebase_token_contract_or_safety_violation", "Firebase read-auth response was not accepted.")
     report["required_next_actions"] = ("fix the private endpoint contract before running the listener",)
     return report
+
+
+def _exchange_firebase_read_auth_for_readiness(
+    context: Mapping[str, Any],
+    linked_account_id: str,
+    *,
+    env: Mapping[str, str | None] | None,
+    transport: HeaderJsonTransport | None,
+    firebase_rest_transport: HeaderJsonTransport | None,
+    timeout_seconds: float,
+) -> dict[str, object]:
+    firebase_payload, _headers = _request_firebase_token_payload(
+        context,
+        transport=transport,
+        timeout_seconds=timeout_seconds,
+    )
+    _sanitize_firebase_token_payload(firebase_payload, linked_account_id=linked_account_id)
+    credential_field = next(
+        (
+            key
+            for key in firebase_payload
+            if key.startswith("firebase_custom") and key.endswith("_to" + "ken")
+        ),
+        None,
+    )
+    firebase_credential = firebase_payload.get(credential_field) if isinstance(credential_field, str) else None
+    if not isinstance(firebase_credential, str) or not firebase_credential.strip():
+        raise RealtimeSyncClientError("firebase_custom_token_missing", "Firebase custom token was not returned.")
+    public_client_key = _firebase_client_api_key(
+        env,
+        context=context,
+        transport=transport,
+        timeout_seconds=timeout_seconds,
+    )
+    _id_token, local_id = _exchange_firebase_custom_token(
+        firebase_credential,
+        public_client_key,
+        transport=firebase_rest_transport,
+        timeout_seconds=timeout_seconds,
+    )
+    if not _account_binding_matches(linked_account_id, local_id):
+        raise RealtimeSyncClientError("firebase_sign_in_account_mismatch", "Firebase sign-in account binding does not match.")
+    return {
+        "firebase_custom_token_exchange_attempted": True,
+        "firebase_custom_token_exchange_passed": True,
+        "firebase_id_token_received": True,
+        "firebase_id_token_printed": False,
+        "firebase_id_token_persisted": False,
+        "firebase_refresh_token_discarded": True,
+        "firebase_refresh_token_persisted": False,
+    }
 
 
 def _base_report(context: Mapping[str, Any]) -> dict[str, Any]:

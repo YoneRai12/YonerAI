@@ -265,7 +265,7 @@ def test_login_alias_malformed_config_is_controlled_error(tmp_path: Path, monkey
     assert str(tmp_path) not in output.err
 
 
-def test_login_alias_short_default_uses_cli_bridge_without_tty_wait(tmp_path: Path, monkeypatch, capsys) -> None:
+def test_login_alias_short_default_opens_browser_and_waits_for_link(tmp_path: Path, monkeypatch, capsys) -> None:
     from yonerai_cli.commands import auth as auth_command
 
     captured: dict[str, object] = {}
@@ -308,8 +308,8 @@ def test_login_alias_short_default_uses_cli_bridge_without_tty_wait(tmp_path: Pa
     output = capsys.readouterr().out
 
     assert captured["bridge"] is True
-    assert captured["open_browser"] is False
-    assert captured["wait_linked"] is False
+    assert captured["open_browser"] is True
+    assert captured["wait_linked"] is True
     assert captured["config_path"] == str(tmp_path / "cli-config.json")
     assert "bridge login ready" in output
 

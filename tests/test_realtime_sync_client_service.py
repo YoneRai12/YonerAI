@@ -1877,6 +1877,27 @@ def test_listener_readiness_reports_client_sign_in_config_without_printing_value
         assert url == f"{ORIGIN}/v1/sync/firebase-config"
         return 200, _firebase_config_payload(ready=True, sync_enabled=False, firebase={}), RATE_HEADERS
 
+    def firebase_transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        assert method == "POST"
+        assert url.startswith("https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?")
+        assert body == {"token": "firebase_custom_token_fixture_value", "returnSecureToken": True}
+        assert not headers
+        return (
+            200,
+            {
+                "idToken": _jwt_with_uid(claim["account_id"]),
+                "refreshToken": "refresh_token_fixture_should_not_leak",
+                "expiresIn": "900",
+            },
+            {},
+        )
+
     report = build_realtime_sync_listener_readiness_report(
         env={
             "YONERAI_STAGING_AUTH_ORIGIN": ORIGIN,
@@ -1884,6 +1905,7 @@ def test_listener_readiness_reports_client_sign_in_config_without_printing_value
         },
         config_path=str(config_path),
         transport=transport,
+        firebase_rest_transport=firebase_transport,
     )
     serialized = json.dumps(report, sort_keys=True)
 
@@ -1892,11 +1914,19 @@ def test_listener_readiness_reports_client_sign_in_config_without_printing_value
     assert report["firestore_read_auth_bridge_ready"] is True
     assert report["firestore_client_sign_in_config_present"] is True
     assert report["firestore_client_sign_in_config_source"] == "env"
+    assert report["firebase_custom_token_exchange_attempted"] is True
+    assert report["firebase_custom_token_exchange_passed"] is True
+    assert report["firebase_id_token_received"] is True
+    assert report["firebase_id_token_printed"] is False
+    assert report["firebase_id_token_persisted"] is False
+    assert report["firebase_refresh_token_discarded"] is True
+    assert report["firebase_refresh_token_persisted"] is False
     assert report["firebase_public_api_key_received"] is False
     assert report["firestore_sdk_listener_ready"] is False
     assert report["next_blocker"] == "firestore_sync_disabled_until_live_e2e_and_owner_flip"
     assert "public-firebase-client-config-fixture" not in serialized
     assert "firebase_custom_token_fixture_value" not in serialized
+    assert "refresh_token_fixture_should_not_leak" not in serialized
     assert str(tmp_path) not in serialized
 
 
