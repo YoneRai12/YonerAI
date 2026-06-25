@@ -265,7 +265,7 @@ def test_login_alias_malformed_config_is_controlled_error(tmp_path: Path, monkey
     assert str(tmp_path) not in output.err
 
 
-def test_login_alias_short_default_opens_browser_and_waits_for_link(tmp_path: Path, monkeypatch, capsys) -> None:
+def test_login_alias_short_default_interactive_opens_browser_and_waits_for_link(tmp_path: Path, monkeypatch, capsys) -> None:
     from yonerai_cli.commands import auth as auth_command
 
     captured: dict[str, object] = {}
@@ -290,6 +290,7 @@ def test_login_alias_short_default_opens_browser_and_waits_for_link(tmp_path: Pa
 
     monkeypatch.setattr(auth_command, "build_staging_login_report", fake_build_staging_login_report)
     monkeypatch.setattr(auth_command, "format_login_flow_compact", lambda report, *, lang: "bridge login ready")
+    monkeypatch.setattr(auth_command, "_login_alias_interactive_tty", lambda: True)
 
     args = SimpleNamespace(
         staging=True,
@@ -310,6 +311,56 @@ def test_login_alias_short_default_opens_browser_and_waits_for_link(tmp_path: Pa
     assert captured["bridge"] is True
     assert captured["open_browser"] is True
     assert captured["wait_linked"] is True
+    assert captured["config_path"] == str(tmp_path / "cli-config.json")
+    assert "bridge login ready" in output
+
+
+def test_login_alias_short_default_non_tty_does_not_wait_for_link(tmp_path: Path, monkeypatch, capsys) -> None:
+    from yonerai_cli.commands import auth as auth_command
+
+    captured: dict[str, object] = {}
+
+    def fake_build_staging_login_report(config_path: str | None, **kwargs: object) -> dict[str, object]:
+        captured["config_path"] = config_path
+        captured.update(kwargs)
+        return {
+            "ok": True,
+            "operation": "google_login_staging",
+            "configured": True,
+            "authorization_url": "https://api-staging.yonerai.com/auth/google/start?cli_request_id=cli_fixture",
+            "cli_bridge": {
+                "network_called": True,
+                "request_id": "cli_fixture",
+                "browser_start_url": "https://api-staging.yonerai.com/auth/google/start?cli_request_id=cli_fixture",
+            },
+            "staging_linked": False,
+            "staging_session_token_stored": False,
+            "next_safe_command": "yonerai login",
+        }
+
+    monkeypatch.setattr(auth_command, "build_staging_login_report", fake_build_staging_login_report)
+    monkeypatch.setattr(auth_command, "format_login_flow_compact", lambda report, *, lang: "bridge login ready")
+    monkeypatch.setattr(auth_command, "_login_alias_interactive_tty", lambda: False)
+
+    args = SimpleNamespace(
+        staging=True,
+        json=False,
+        bridge=False,
+        open_browser=False,
+        wait_linked=False,
+        config_path=str(tmp_path / "cli-config.json"),
+        lang="ja",
+        timeout_seconds=10.0,
+        max_wait_seconds=120.0,
+        poll_interval_seconds=2.0,
+    )
+
+    assert auth_command.handle_login_alias_command(args, print_json=lambda report: None) == 0
+    output = capsys.readouterr().out
+
+    assert captured["bridge"] is True
+    assert captured["open_browser"] is False
+    assert captured["wait_linked"] is False
     assert captured["config_path"] == str(tmp_path / "cli-config.json")
     assert "bridge login ready" in output
 

@@ -790,8 +790,6 @@ def build_realtime_sync_listener_readiness_report(
     try:
         linked_account_id = _linked_account_id(context)
     except RealtimeSyncClientError as exc:
-        report["firebase_token_endpoint_checked"] = True
-        report["firebase_token_endpoint_live"] = False
         report["next_blocker"] = exc.code
         report["firebase_token_error"] = exc.to_safe_error()
         report["required_next_actions"] = (
@@ -801,40 +799,65 @@ def build_realtime_sync_listener_readiness_report(
         )
         return report
 
-    firebase = build_realtime_sync_firebase_token_report(
-        config=config,
-        env=env,
-        config_path=config_path,
-        transport=transport,
-        timeout_seconds=timeout_seconds,
-    )
+    firebase_error: dict[str, object] | None = None
+    firebase_payload: Mapping[str, object] | None = None
+    firebase_summary: dict[str, object] = {}
+    firebase_headers: Mapping[str, str] = {}
+    status_code: int | None = None
+    try:
+        status_code, firebase_payload, firebase_headers = _request_firebase_token_raw(
+            context,
+            transport=transport,
+            timeout_seconds=timeout_seconds,
+        )
+    except RealtimeSyncClientError as exc:
+        status_code = exc.status_code
+        firebase_error = exc.to_safe_error()
     report["firebase_token_endpoint_checked"] = True
-    report["firebase_token_endpoint_status_code"] = firebase.get("backend_status_code")
-    report["firebase_token_endpoint_live"] = _endpoint_status_indicates_route_live(firebase.get("backend_status_code"))
-    report["firebase_custom_token_received"] = bool(firebase.get("firebase_custom_token_received", False))
-    report["firebase_custom_token_printed"] = False
-    report["firebase_custom_token_persisted"] = False
-    report["rate_limit_headers_present"] = firebase.get("rate_limit_headers_present", ())
-    report["official_backend_called"] = bool(firebase.get("official_backend_called", False))
-    report["backend_status_code"] = firebase.get("backend_status_code")
+    report["firebase_token_endpoint_status_code"] = status_code
+    report["firebase_token_endpoint_live"] = _endpoint_status_indicates_route_live(status_code)
+    report["rate_limit_headers_present"] = _rate_limit_headers_present(firebase_headers)
+    report["official_backend_called"] = True
+    report["backend_status_code"] = status_code
+    if firebase_error is None:
+        if status_code in {401, 403}:
+            firebase_error = _safe_error(
+                "staging_session_required",
+                "The saved YonerAI staging session was not accepted by the Firebase read-auth endpoint.",
+                status_code=status_code,
+            )
+        elif isinstance(status_code, int) and status_code >= 400:
+            firebase_error = _firebase_token_request_error(firebase_payload or {}, status_code=status_code)
+        elif firebase_payload is None:
+            firebase_error = _safe_error("firebase_token_request_failed", "Firebase read-auth request failed.")
+        else:
+            try:
+                firebase_summary = _sanitize_firebase_token_payload(firebase_payload, linked_account_id=linked_account_id)
+            except RealtimeSyncClientError as exc:
+                report["ok"] = False
+                report["next_blocker"] = "firebase_token_contract_or_safety_violation"
+                report["error"] = exc.to_safe_error()
+                report["required_next_actions"] = ("fix the private endpoint contract before running the listener",)
+                return report
+            report.update(firebase_summary)
 
-    if firebase.get("ok") is True:
+    if firebase_error is None:
         report["firebase_token_endpoint_live"] = True
         report["firestore_read_auth_bridge_ready"] = True
-        report["firestore_sync_enabled"] = bool(firebase.get("firestore_sync_enabled", False))
+        report["firestore_sync_enabled"] = bool(firebase_summary.get("firestore_sync_enabled", False))
         report["firestore_sdk_dependency_available"] = _firestore_sdk_dependency_available()
         report["firestore_client_sign_in_config_present"] = _firestore_client_sign_in_config_present(env)
-        report["firestore_project_id"] = firebase.get("firestore_project_id")
-        report["firestore_database_id"] = firebase.get("firestore_database_id")
-        report["firestore_sync_event_path_template"] = firebase.get("firestore_sync_event_path_template")
-        report["firestore_account_data_binding_required"] = firebase.get("firestore_account_data_binding_required")
-        report["firebase_uid_matches_account"] = firebase.get("firebase_uid_matches_account")
-        report["firebase_account_id_matches_session"] = firebase.get("firebase_account_id_matches_session")
-        report["firebase_revocation_mode"] = firebase.get("firebase_revocation_mode")
-        report["firebase_revocation_immediate"] = firebase.get("firebase_revocation_immediate")
-        report["firebase_revocation_max_delay_seconds"] = firebase.get("firebase_revocation_max_delay_seconds")
-        report["firebase_read_revocation_semantics"] = firebase.get("firebase_read_revocation_semantics")
-        report["firebase_external_alpha_requires_session_projection"] = firebase.get(
+        report["firestore_project_id"] = firebase_summary.get("firestore_project_id")
+        report["firestore_database_id"] = firebase_summary.get("firestore_database_id")
+        report["firestore_sync_event_path_template"] = firebase_summary.get("firestore_sync_event_path_template")
+        report["firestore_account_data_binding_required"] = firebase_summary.get("firestore_account_data_binding_required")
+        report["firebase_uid_matches_account"] = firebase_summary.get("firebase_uid_matches_account")
+        report["firebase_account_id_matches_session"] = firebase_summary.get("firebase_account_id_matches_session")
+        report["firebase_revocation_mode"] = firebase_summary.get("firebase_revocation_mode")
+        report["firebase_revocation_immediate"] = firebase_summary.get("firebase_revocation_immediate")
+        report["firebase_revocation_max_delay_seconds"] = firebase_summary.get("firebase_revocation_max_delay_seconds")
+        report["firebase_read_revocation_semantics"] = firebase_summary.get("firebase_read_revocation_semantics")
+        report["firebase_external_alpha_requires_session_projection"] = firebase_summary.get(
             "firebase_external_alpha_requires_session_projection"
         )
         firebase_config = build_realtime_sync_firebase_config_report(
@@ -893,6 +916,7 @@ def build_realtime_sync_listener_readiness_report(
         else:
             try:
                 exchange_summary = _exchange_firebase_read_auth_for_readiness(
+                    firebase_payload or {},
                     context,
                     linked_account_id,
                     env=env,
@@ -929,12 +953,11 @@ def build_realtime_sync_listener_readiness_report(
             report["required_next_actions"] = ()
         return report
 
-    error = firebase.get("error") if isinstance(firebase.get("error"), Mapping) else {}
+    error = firebase_error if isinstance(firebase_error, Mapping) else {}
     code = str(error.get("code") or "firebase_token_request_failed")
     report["firebase_token_error"] = dict(error)
     if code in READINESS_NON_BLOCKING_ERROR_CODES:
         if code == "firebase_token_request_failed":
-            status_code = firebase.get("backend_status_code")
             if status_code == 404:
                 report["next_blocker"] = "private_aws_firebase_token_endpoint_not_live"
                 report["required_next_actions"] = (
@@ -985,6 +1008,7 @@ def build_realtime_sync_listener_readiness_report(
 
 
 def _exchange_firebase_read_auth_for_readiness(
+    firebase_payload: Mapping[str, object],
     context: Mapping[str, Any],
     linked_account_id: str,
     *,
@@ -993,11 +1017,6 @@ def _exchange_firebase_read_auth_for_readiness(
     firebase_rest_transport: HeaderJsonTransport | None,
     timeout_seconds: float,
 ) -> dict[str, object]:
-    firebase_payload, _headers = _request_firebase_token_payload(
-        context,
-        transport=transport,
-        timeout_seconds=timeout_seconds,
-    )
     _sanitize_firebase_token_payload(firebase_payload, linked_account_id=linked_account_id)
     credential_field = next(
         (

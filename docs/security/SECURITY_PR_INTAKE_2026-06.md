@@ -112,3 +112,14 @@ the current security intake branch instead of merging several stale PR branches:
 This follow-up is a gate before StatusWEB live ingestion. It does not implement
 production login, production sync, Web chat, Firestore listener, provider
 consent/control, quota mutation, approval control, or production deploy.
+
+## 2026-06-25 PR #580 Public Sync/Auth Safety Intake
+
+| Source | Finding | Severity | Current disposition |
+| --- | --- | --- | --- |
+| #580 Gemini review | Short `yonerai login` could implicitly open a browser and wait even when stdin/stdout are non-TTY, creating a CI/non-interactive hang risk. | P2/security/correctness | Fixed in PR #580 by using the short browser+wait flow only for interactive TTY sessions, while non-TTY keeps a safe bridge URL/report path. Regression tests cover both modes. |
+| #580 Gemini review | Realtime sync readiness could set Firebase token endpoint checked/live-like fields when canonical account validation failed before the backend call. | P2/security/correctness | Fixed in PR #580 so pre-network account-id failures keep endpoint checked/status unset and tell the user to re-login. Regression tests cover legacy `account_ref` and placeholder account IDs. |
+| #580 Gemini review | Realtime sync readiness could request the Firebase custom token twice, once for summary and again for exchange. | P2/security/privacy | Fixed in PR #580 by reusing one sanitized Firebase token payload for the exchange path. Regression test asserts one mint endpoint call and no token/refresh value leaks. |
+| Private AWS shared-traffic default-off notice | AWS staging now exposes shared-traffic status as consistently off across status/health/rate-limit surfaces. | contract/security | Public lane records compatibility: shared traffic remains off/default-disabled and provider_gateway remains the only availability surface. No code change required in this PR. |
+
+Non-blocking open PRs remain tracked in `docs/tasks/DEFERRED.md`; no current P0/P1/security finding from those PRs overlaps the PR #580 auth/sync-readiness surface.
