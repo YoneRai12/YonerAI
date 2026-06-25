@@ -879,6 +879,58 @@ def test_firebase_config_bridge_rejects_permissive_usage_policy(tmp_path: Path) 
     assert report["error"]["code"] == "firestore_usage_policy_too_permissive"
 
 
+def test_firebase_config_bridge_rejects_usage_policy_kill_switch(tmp_path: Path) -> None:
+    from yonerai_cli.services.realtime_sync_client_service import build_realtime_sync_firebase_config_report
+
+    config_path, _claim = _save_session(tmp_path)
+
+    def transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        payload = _firebase_config_sync_enabled_payload()
+        payload["usage_policy"] = _firestore_usage_policy_payload(sync_mode="staging", kill_switch=True)
+        return 200, payload, RATE_HEADERS
+
+    report = build_realtime_sync_firebase_config_report(
+        env={"YONERAI_STAGING_AUTH_ORIGIN": ORIGIN},
+        config_path=str(config_path),
+        transport=transport,
+    )
+
+    assert report["ok"] is False
+    assert report["error"]["code"] == "firestore_usage_policy_kill_switch_active"
+
+
+def test_firebase_config_bridge_rejects_usage_policy_token_issuance_disabled(tmp_path: Path) -> None:
+    from yonerai_cli.services.realtime_sync_client_service import build_realtime_sync_firebase_config_report
+
+    config_path, _claim = _save_session(tmp_path)
+
+    def transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        payload = _firebase_config_sync_enabled_payload()
+        payload["usage_policy"] = _firestore_usage_policy_payload(sync_mode="staging", token_issuance_allowed=False)
+        return 200, payload, RATE_HEADERS
+
+    report = build_realtime_sync_firebase_config_report(
+        env={"YONERAI_STAGING_AUTH_ORIGIN": ORIGIN},
+        config_path=str(config_path),
+        transport=transport,
+    )
+
+    assert report["ok"] is False
+    assert report["error"]["code"] == "firestore_usage_policy_token_issuance_disabled"
+
+
 def test_firebase_config_bridge_rejects_projection_writes_while_off(tmp_path: Path) -> None:
     from yonerai_cli.services.realtime_sync_client_service import build_realtime_sync_firebase_config_report
 

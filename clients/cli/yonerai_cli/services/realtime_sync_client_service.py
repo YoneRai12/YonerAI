@@ -1666,6 +1666,16 @@ def _sanitize_firestore_usage_policy(policy: Mapping[str, object] | None) -> dic
     sync_mode = _safe_message_text(policy.get("sync_mode"), fallback="off")
     if sync_mode not in {"off", "preview", "staging"}:
         raise RealtimeSyncClientError("firestore_usage_policy_invalid", "Firestore usage policy sync mode is invalid.")
+    kill_switch = policy.get("kill_switch")
+    if not isinstance(kill_switch, bool):
+        raise RealtimeSyncClientError("firestore_usage_policy_invalid", "Firestore kill switch policy is invalid.")
+    if kill_switch is True:
+        raise RealtimeSyncClientError("firestore_usage_policy_kill_switch_active", "Firestore usage policy kill switch is active.")
+    token_issuance_allowed = policy.get("token_issuance_allowed")
+    if not isinstance(token_issuance_allowed, bool):
+        raise RealtimeSyncClientError("firestore_usage_policy_invalid", "Firestore token issuance policy is invalid.")
+    if token_issuance_allowed is not True:
+        raise RealtimeSyncClientError("firestore_usage_policy_token_issuance_disabled", "Firestore custom token issuance is disabled by policy.")
     projection_write_allowed = policy.get("projection_write_allowed")
     if not isinstance(projection_write_allowed, bool):
         raise RealtimeSyncClientError("firestore_usage_policy_invalid", "Firestore projection write policy is invalid.")
