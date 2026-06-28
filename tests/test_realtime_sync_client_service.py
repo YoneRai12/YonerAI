@@ -1946,6 +1946,156 @@ def test_firestore_poll_reads_metadata_then_fetches_body_from_aws_only(tmp_path:
     assert str(tmp_path) not in serialized
 
 
+def test_firestore_poll_reports_sanitized_read_error_diagnostic(tmp_path: Path) -> None:
+    from yonerai_cli.services.realtime_sync_client_service import build_realtime_sync_firestore_poll_report
+
+    config_path, claim = _save_session(tmp_path)
+    firebase_payload = _firebase_token_payload(claim["account_id"])
+    firestore = dict(firebase_payload["firestore"])  # type: ignore[arg-type]
+    firestore["sync_enabled"] = True
+    firebase_payload["firestore"] = firestore
+
+    def official_transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        assert headers["Authorization"].startswith("Bearer ")
+        if url == f"{ORIGIN}/v1/sync/firebase-token":
+            return 200, firebase_payload, RATE_HEADERS
+        if url == f"{ORIGIN}/v1/sync/firebase-config":
+            return 200, _firebase_config_allowlist_payload(), RATE_HEADERS
+        raise AssertionError("AWS body fetch must not run after Firestore read failure")
+
+    def firebase_transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        if url.startswith("https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?"):
+            return 200, {"idToken": "firebase_id_token_fixture", "refreshToken": "discarded", "expiresIn": "3600", "localId": claim["account_id"]}, {}
+        assert url.startswith("https://firestore.googleapis.com/v1/projects/yonerai-platform-stg-2026/databases/")
+        return (
+            400,
+            {
+                "error": {
+                    "code": 400,
+                    "status": "FAILED_PRECONDITION",
+                    "message": "index missing for account acct_public_sync_fixture; create at https://console.firebase.google.com/private",
+                    "details": [{"@type": "type.googleapis.com/google.rpc.BadRequest", "fieldViolations": [{"field": "accounts/acct_public_sync_fixture"}]}],
+                }
+            },
+            {},
+        )
+
+    report = build_realtime_sync_firestore_poll_report(
+        env={
+            "YONERAI_STAGING_AUTH_ORIGIN": ORIGIN,
+            "YONERAI_FIREBASE_CLIENT_API_KEY": "public-client-key-fixture",
+        },
+        config_path=str(config_path),
+        state_path=tmp_path / "sync-state.json",
+        transport=official_transport,
+        firebase_rest_transport=firebase_transport,
+    )
+    serialized = json.dumps(report, sort_keys=True)
+    diagnostic = report["error"]["diagnostic"]
+
+    assert report["ok"] is False
+    assert report["error"]["code"] == "firestore_sync_event_read_failed"
+    assert report["error"]["status_code"] == 400
+    assert diagnostic["request_kind"] == "firestore_documents_list"
+    assert diagnostic["collection"] == "sync_events"
+    assert diagnostic["account_rooted"] is True
+    assert diagnostic["collection_group_query"] is False
+    assert diagnostic["offset_used"] is False
+    assert diagnostic["firestore_error_code"] == 400
+    assert diagnostic["firestore_error_status"] == "FAILED_PRECONDITION"
+    assert diagnostic["firestore_error_detail_types"] == ["type.googleapis.com/google.rpc.BadRequest"]
+    assert diagnostic["raw_firestore_message_included"] is False
+    assert diagnostic["raw_firestore_path_included"] is False
+    assert "console.firebase.google.com" not in serialized
+    assert "acct_public_sync_fixture" not in serialized
+    assert "firebase_custom_token_fixture_value" not in serialized
+    assert "firebase_id_token_fixture" not in serialized
+    assert "public-client-key-fixture" not in serialized
+    assert str(tmp_path) not in serialized
+
+
+def test_firestore_poll_diagnostic_rejects_private_detail_type_markers(tmp_path: Path) -> None:
+    from yonerai_cli.services.realtime_sync_client_service import build_realtime_sync_firestore_poll_report
+
+    config_path, claim = _save_session(tmp_path)
+    firebase_payload = _firebase_token_payload(claim["account_id"])
+    firestore = dict(firebase_payload["firestore"])  # type: ignore[arg-type]
+    firestore["sync_enabled"] = True
+    firebase_payload["firestore"] = firestore
+
+    def official_transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        if url == f"{ORIGIN}/v1/sync/firebase-token":
+            return 200, firebase_payload, RATE_HEADERS
+        if url == f"{ORIGIN}/v1/sync/firebase-config":
+            return 200, _firebase_config_allowlist_payload(), RATE_HEADERS
+        raise AssertionError("AWS body fetch must not run after Firestore read failure")
+
+    def firebase_transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        if url.startswith("https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?"):
+            return 200, {"idToken": "firebase_id_token_fixture", "refreshToken": "discarded", "expiresIn": "3600", "localId": claim["account_id"]}, {}
+        return (
+            400,
+            {
+                "error": {
+                    "code": 400,
+                    "status": "FAILED_PRECONDITION",
+                    "message": "private path must not leak",
+                    "details": [
+                        {"@type": "type.googleapis.com/google.rpc.BadRequest"},
+                        {"@type": "access_token"},
+                        {"@type": "/home/alice/private"},
+                    ],
+                }
+            },
+            {},
+        )
+
+    report = build_realtime_sync_firestore_poll_report(
+        env={
+            "YONERAI_STAGING_AUTH_ORIGIN": ORIGIN,
+            "YONERAI_FIREBASE_CLIENT_API_KEY": "public-client-key-fixture",
+        },
+        config_path=str(config_path),
+        state_path=tmp_path / "sync-state.json",
+        transport=official_transport,
+        firebase_rest_transport=firebase_transport,
+    )
+    serialized = json.dumps(report, sort_keys=True)
+    diagnostic = report["error"]["diagnostic"]
+
+    assert report["ok"] is False
+    assert diagnostic["firestore_error_detail_types"] == ["type.googleapis.com/google.rpc.BadRequest"]
+    assert "access_token" not in serialized
+    assert "/home/alice/private" not in serialized
+    assert "private path must not leak" not in serialized
+    assert "firebase_id_token_fixture" not in serialized
+    assert str(tmp_path) not in serialized
+
+
 def test_firestore_poll_caps_limit_and_enforces_reconnect_cooldown(tmp_path: Path) -> None:
     from yonerai_cli.services.realtime_sync_client_service import build_realtime_sync_firestore_poll_report
 
