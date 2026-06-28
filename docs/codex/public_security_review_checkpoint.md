@@ -626,7 +626,7 @@ Validation so far:
 - `python -m pytest tests/test_cli_interactive_v030.py tests/test_cli_command_display_modes.py tests/test_cli_output_formatting.py -q -k "not install_like_entry_point_starts_yonerai"` => `94 passed, 1 deselected`.
 - `python -m pytest tests/test_ci_quality_scans.py tests/test_core_api_access_security.py tests/test_cloudflare_auth_security.py tests/test_web_auth_loopback_security.py tests/test_redaction_security.py tests/test_agent_trace_security.py tests/test_mcp_runtime_deny_policy.py tests/test_mcp_client_fail_open.py tests/test_tools_mcp_safe_subset_contract.py tests/test_policy_engine.py tests/test_workspace_file_capability.py tests/test_cli_output_formatting.py -q` => `69 passed`.
 - `python -m pytest tests/test_verify_version.py tests/test_release_workflow_prerelease.py tests/test_release_gate.py tests/test_current_truth_anchor.py tests/test_quality_wall_workflow.py -q` => `45 passed`.
-- `python -m pytest tests/test_realtime_sync_client_service.py tests/test_realtime_sync_event_service.py -q` => `57 passed`.
+- Historical local run of `python -m pytest tests/test_realtime_sync_client_service.py tests/test_realtime_sync_event_service.py -q` was recorded in this older checkpoint, but it is not current merge-gate evidence; use the latest GitHub Quality Wall for current gate status.
 - `python -m ruff check clients/cli/yonerai_cli/cli.py clients/cli/yonerai_cli/services/auth_session_service.py tests/test_auth_privacy_policy.py tests/test_control_spine_client.py` => pass.
 - `python -m compileall -q clients/cli/yonerai_cli core/src/ora_core scripts` => pass.
 - `git diff --check` => pass.
@@ -709,3 +709,52 @@ Current blocker:
 
 - #580 cannot be merged until the follow-up push, post-push review reread, `intake-reviewed` label, and required CI pass.
 - `[PUBLIC-SYNC-CLIENT-READY]` remains false; live Web-to-CLI E2E is not proven and sync remains off.
+
+## 2026-06-28 Post-#585 Public Review/Security Intake
+
+- last_scan_at: 2026-06-28T14:21:09+09:00
+- highest_seen_pr_number: 586
+- current_main_head: 8c6b068
+- lane: Public realtime sync / PR security intake
+
+Checked in this checkpoint:
+
+- Current `main`/`origin/main` after PR #584 and #585.
+- All currently open PRs through #586 and older dependency/doc/UX PRs.
+- Open PR review submissions, conversation comments, and keyword hits for
+  P0/P1/security/token/secret/blocker-style findings.
+- Issue #552 latest coordination tags after
+  `[PUBLIC-ALLOWLIST-SMOKE-MODE-READY]`.
+
+| PR / issue / notice | classification | review/comment state | CI / evidence state | decision |
+| --- | --- | --- | --- | --- |
+| #584 post-merge Codex P1 `ready=false` allowlist gate | valid-now, fixed | Codex correctly noted that `sync_enabled=true` and `sync_mode=allowlist` must not let Public CLI proceed if Firebase public config `ready=false`. | PR #585 is merged to main. `firestore_sync_enabled` now requires `ready=true`; regression tests cover config report and listener/poll stop before Firebase token exchange, Firestore reads, or AWS body fetch. | Closed by #585. |
+| #585 `review-intake-required` | valid-but-already-fixed process gate | Gemini review had no additional comments. PR intake comment was posted and `intake-reviewed` label was applied. | Latest intake gate passed before merge; Quality Wall/core checks passed. | Merged as `8c6b068`. |
+| #586 checkpoint review intake | valid-now, fixed in PR | Gemini medium path portability comment was fixed with forward slashes. Codex P1 evidence-integrity comments were treated as gate-integrity findings. The checkpoint no longer relies on local targeted pytest output as the merge gate; current GitHub CI/Quality Wall remains the required authority for this docs-only PR. Codex P2 requested #586 itself be recorded in this checkpoint; this row and the updated `highest_seen_pr_number` address it. | Connector reviews reported inconsistent temporary-SHA failures for the targeted pytest command, so this checkpoint does not record that command as cleared by local output. Latest GitHub CI/Quality Wall plus `review-intake-required` must pass before merge. | Keep PR scoped to checkpoint/docs only; merge only after latest review-intake and CI pass. |
+| #574 CLAUDE.md security keyword hit | deferred-with-tracked-issue / nonblocking docs | Review comment is about missing `docs/process/` path prefixes in a docs-only assistant guide. The keyword hit is from security-boundary wording, not a current vulnerability. | PR is behind and outside realtime sync/security lane. | Track as docs cleanup; not P0/P1/security. |
+| #545 theme config keyword hit | deferred-with-tracked-issue / nonblocking UX | Existing intake comment classifies it as P2/UX: use `theme_from_input` for aliases. | PR is behind and outside realtime sync/security lane. | Keep deferred; not sync/security blocking. |
+| #567 / #547 / #523 / #413-#410 / #156 / #151-#145 / #134 / #121 / #111 / #108 / #107 / #81 / #79 / #34 / #26 / #18 / #7 / #6 | stale / dependency / docs / UX / separate lane | Cross-PR review scan found no current P0/P1/security finding affecting Public main or the sync receiver lane. Many are behind or dirty. | No evidence that these unblock or block current Web-to-CLI sync owner smoke. | Do not merge during sync lane; keep deferred unless a fresh security finding appears. |
+| issue #552 `[PUBLIC-ALLOWLIST-SMOKE-MODE-READY]` | valid current coordination state | Public posted main evidence after #584/#585. Latest effective state still lacks a fresh post-fix `[AWS-OWNER-SYNC-SMOKE-READY]`. | Staging remains no-release/no-production-claim from Public side. | Wait for fresh AWS owner smoke ready before running `yonerai sync listener once`. |
+
+Validation:
+
+- Targeted #585 validation:
+  - Codex connector reviews reported inconsistent failures for `python -m pytest tests/test_realtime_sync_client_service.py tests/test_realtime_sync_event_service.py -q` on temporary SHAs.
+  - To avoid overstating evidence, this checkpoint does not treat local output from that command as the merge gate.
+  - Current GitHub CI/Quality Wall and `review-intake-required` are the required gate evidence for #586.
+  - Latest GitHub CI/Quality Wall and `review-intake-required` must pass before merge.
+  - `python -m ruff check clients/cli/yonerai_cli/services/realtime_sync_client_service.py tests/test_realtime_sync_client_service.py` => passed.
+  - `python -m compileall -q clients/cli/yonerai_cli/services/realtime_sync_client_service.py tests/test_realtime_sync_client_service.py` => passed.
+  - `git diff --check` => passed.
+  - `python scripts/ci_quality_scans.py --changed` => passed.
+- GitHub PR #585:
+  - core/Quality Wall checks passed.
+  - latest `review-intake-required` passed after intake.
+
+Current blocker:
+
+- No current Public P0/P1/security finding is known after #585.
+- A fresh post-fix `[AWS-OWNER-SYNC-SMOKE-READY]` is still required before the
+  Public CLI receiver smoke can run.
+- `[PUBLIC-SYNC-CLIENT-READY]` and `[WEB-TO-CLI-E2E-PASSED]` are not emitted.
+- No release/tag is allowed from this checkpoint.
