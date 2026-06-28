@@ -178,6 +178,219 @@ def test_listener_accepts_windows_crlf_in_aws_body(tmp_path: Path) -> None:
     assert report["message"]["body_from_firestore"] is False
 
 
+def test_listener_accepts_live_aws_body_metadata_shape(tmp_path: Path) -> None:
+    from yonerai_cli.services.realtime_sync_client_service import build_realtime_sync_listener_once_report
+
+    config_path, claim = _save_session(tmp_path)
+    event = _event_for_account(claim["account_id"])
+
+    def transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        return (
+            200,
+            {
+                "account_id": claim["account_id"],
+                "body_authority": "aws",
+                "body_text": "hello from web",
+                "contract_version": "yonerai.message_body.v1",
+                "conversation_id": "conv_public_001",
+                "created_at": "2026-06-28T00:00:00Z",
+                "credentials_included": False,
+                "message_body_in_firestore": False,
+                "message_id": "msg_public_001",
+                "private_path_included": False,
+                "provider_traffic_started": False,
+                "role": "user",
+            },
+            RATE_HEADERS,
+        )
+
+    report = build_realtime_sync_listener_once_report(
+        event=event,
+        env={"YONERAI_STAGING_AUTH_ORIGIN": ORIGIN},
+        config_path=str(config_path),
+        state_path=tmp_path / "sync-state.json",
+        transport=transport,
+    )
+    serialized = json.dumps(report, sort_keys=True)
+
+    assert report["ok"] is True
+    assert report["aws_body_fetch_performed"] is True
+    assert report["body_received_from_aws"] is True
+    assert report["message"]["display_text"] == "hello from web"
+    assert report["message"]["body_from_firestore"] is False
+    assert "ystg_fixture_session_1234567890" not in serialized
+    assert str(tmp_path) not in serialized
+
+
+def test_listener_rejects_aws_body_if_firestore_body_flag_is_true(tmp_path: Path) -> None:
+    from yonerai_cli.services.realtime_sync_client_service import build_realtime_sync_listener_once_report
+
+    config_path, claim = _save_session(tmp_path)
+    event = _event_for_account(claim["account_id"])
+
+    def transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        return (
+            200,
+            {
+                "account_id": claim["account_id"],
+                "conversation_id": "conv_public_001",
+                "message_id": "msg_public_001",
+                "body_text": "hello from web",
+                "message_body_in_firestore": True,
+                "credentials_included": False,
+                "private_path_included": False,
+            },
+            RATE_HEADERS,
+        )
+
+    report = build_realtime_sync_listener_once_report(
+        event=event,
+        env={"YONERAI_STAGING_AUTH_ORIGIN": ORIGIN},
+        config_path=str(config_path),
+        state_path=tmp_path / "sync-state.json",
+        transport=transport,
+    )
+
+    assert report["ok"] is False
+    assert report["error"]["code"] == "sync_aws_body_private_payload_rejected"
+    assert report["message_body_from_firestore"] is False
+
+
+def test_listener_rejects_aws_body_text_without_aws_authority(tmp_path: Path) -> None:
+    from yonerai_cli.services.realtime_sync_client_service import build_realtime_sync_listener_once_report
+
+    config_path, claim = _save_session(tmp_path)
+    event = _event_for_account(claim["account_id"])
+
+    def transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        return (
+            200,
+            {
+                "account_id": claim["account_id"],
+                "body_authority": "firestore",
+                "body_text": "hello from web",
+                "contract_version": "yonerai.message_body.v1",
+                "conversation_id": "conv_public_001",
+                "credentials_included": False,
+                "message_body_in_firestore": False,
+                "message_id": "msg_public_001",
+                "private_path_included": False,
+            },
+            RATE_HEADERS,
+        )
+
+    report = build_realtime_sync_listener_once_report(
+        event=event,
+        env={"YONERAI_STAGING_AUTH_ORIGIN": ORIGIN},
+        config_path=str(config_path),
+        state_path=tmp_path / "sync-state.json",
+        transport=transport,
+    )
+
+    assert report["ok"] is False
+    assert report["error"]["code"] == "sync_aws_body_authority_invalid"
+
+
+def test_listener_rejects_aws_body_text_unknown_contract(tmp_path: Path) -> None:
+    from yonerai_cli.services.realtime_sync_client_service import build_realtime_sync_listener_once_report
+
+    config_path, claim = _save_session(tmp_path)
+    event = _event_for_account(claim["account_id"])
+
+    def transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        return (
+            200,
+            {
+                "account_id": claim["account_id"],
+                "body_authority": "aws",
+                "body_text": "hello from web",
+                "contract_version": "yonerai.unknown_body.v9",
+                "conversation_id": "conv_public_001",
+                "credentials_included": False,
+                "message_body_in_firestore": False,
+                "message_id": "msg_public_001",
+                "private_path_included": False,
+            },
+            RATE_HEADERS,
+        )
+
+    report = build_realtime_sync_listener_once_report(
+        event=event,
+        env={"YONERAI_STAGING_AUTH_ORIGIN": ORIGIN},
+        config_path=str(config_path),
+        state_path=tmp_path / "sync-state.json",
+        transport=transport,
+    )
+
+    assert report["ok"] is False
+    assert report["error"]["code"] == "sync_aws_body_contract_mismatch"
+
+
+def test_listener_rejects_aws_body_account_mismatch(tmp_path: Path) -> None:
+    from yonerai_cli.services.realtime_sync_client_service import build_realtime_sync_listener_once_report
+
+    config_path, claim = _save_session(tmp_path)
+    event = _event_for_account(claim["account_id"])
+
+    def transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        return (
+            200,
+            {
+                "account_id": "acct_other_public_fixture",
+                "body_authority": "aws",
+                "conversation_id": "conv_public_001",
+                "contract_version": "yonerai.message_body.v1",
+                "message_id": "msg_public_001",
+                "body_text": "hello from web",
+                "message_body_in_firestore": False,
+                "credentials_included": False,
+                "private_path_included": False,
+            },
+            RATE_HEADERS,
+        )
+
+    report = build_realtime_sync_listener_once_report(
+        event=event,
+        env={"YONERAI_STAGING_AUTH_ORIGIN": ORIGIN},
+        config_path=str(config_path),
+        state_path=tmp_path / "sync-state.json",
+        transport=transport,
+    )
+
+    assert report["ok"] is False
+    assert report["error"]["code"] == "sync_aws_body_ref_mismatch"
+
+
 def test_listener_deduplicates_event_before_second_body_fetch(tmp_path: Path) -> None:
     from yonerai_cli.services.realtime_sync_client_service import build_realtime_sync_listener_once_report
 

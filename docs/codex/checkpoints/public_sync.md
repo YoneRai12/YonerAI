@@ -173,3 +173,41 @@ python -m ruff check clients\cli\yonerai_cli\services\realtime_sync_client_servi
   - not sent: `[PUBLIC-SYNC-CLIENT-READY]`
 - Non-claims: no release/tag, no production sync/login/deploy, no token/account
   identifier/raw body/private path/provider key.
+
+## 2026-06-28 Public Sync AWS Body Shape Follow-up
+
+- Current branch: `codex/public-sync-aws-body-shape`.
+- Base HEAD: `5f2ae44a31d37770e34bf984b302ee60f1876d0b`.
+- Trigger: owner-only staging smoke reached Public CLI Firestore body-free event
+  receive and authenticated AWS body fetch, then stopped at
+  `sync_aws_body_private_fields`.
+- Current blocker:
+  - AWS rolled back the owner-only smoke window.
+  - Public must merge the AWS body response shape compatibility fix before a
+    fresh owner approval/window.
+- Fix in progress:
+  - Public now accepts the live AWS top-level body metadata shape with
+    `body_text` while keeping Firestore body/private credential/path flags
+    fail-closed.
+  - `body_text` requires `body_authority=aws` and
+    `contract_version=yonerai.message_body.v1`.
+  - `account_id` in the body response is checked against the validated
+    SyncEvent account binding and is not printed.
+  - Unknown body fields still fail closed.
+- Local evidence:
+  - `python -m pytest tests\test_realtime_sync_client_service.py tests\test_realtime_sync_event_service.py tests\test_official_sync_cli.py -q`
+  - result: 88 passed
+  - `python -m ruff check clients\cli\yonerai_cli\services\realtime_sync_client_service.py tests\test_realtime_sync_client_service.py`
+  - result: passed
+  - `python -m compileall -q clients\cli\yonerai_cli\services\realtime_sync_client_service.py tests\test_realtime_sync_client_service.py`
+  - result: passed
+  - `git diff --check`
+  - result: passed with existing line-ending normalization warnings only
+- Peer tags:
+  - received: `[AWS-OWNER-SYNC-SMOKE-READY]`
+  - received: `[OWNER-SYNC-SMOKE-APPROVED]`
+  - received: `[AWS-OWNER-SYNC-SMOKE-BLOCKED]`
+  - not sent: `[PUBLIC-SYNC-CLIENT-READY]`
+  - not sent: `[WEB-TO-CLI-E2E-PASSED]`
+- Non-claims: no release/tag, no production sync/login/deploy, no token/account
+  identifier/raw body/private path/provider key recorded here.

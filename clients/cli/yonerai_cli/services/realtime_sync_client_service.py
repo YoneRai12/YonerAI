@@ -36,6 +36,8 @@ FIREBASE_TOKEN_PATH = "/v1/sync/firebase-token"
 FIREBASE_CONFIG_PATH = "/v1/sync/firebase-config"
 FIREBASE_AUTH_CONTRACT_VERSION = "yonerai.firebase.custom_token.v1"
 FIREBASE_CONFIG_CONTRACT_VERSION = "yonerai.firebase.public_config.v1"
+AWS_MESSAGE_BODY_AUTHORITY = "aws"
+AWS_MESSAGE_BODY_CONTRACT_VERSION = "yonerai.message_body.v1"
 FIRESTORE_USAGE_POLICY_VERSION = "yonerai.firestore_usage_policy.v1"
 FIRESTORE_INITIAL_QUERY_LIMIT_MAX = 20
 FIRESTORE_ABSOLUTE_QUERY_LIMIT_MAX = 50
@@ -2083,6 +2085,7 @@ def _sanitize_aws_message_payload(payload: Mapping[str, object], validation: Map
         "conversation_id",
         "message_id",
         "body",
+        "body_text",
         "text",
         "content",
         "redacted_preview",
@@ -2092,16 +2095,34 @@ def _sanitize_aws_message_payload(payload: Mapping[str, object], validation: Map
         "body_safety",
         "message_body_included",
         "body_included",
+        "account_id",
+        "body_authority",
+        "contract_version",
+        "credentials_included",
+        "message_body_in_firestore",
+        "private_path_included",
+        "provider_traffic_started",
+        "role",
     }
     extra = set(message) - allowed
     if extra:
         raise RealtimeSyncClientError("sync_aws_body_private_fields", "AWS body response contained non-public fields.")
+    for flag in ("credentials_included", "message_body_in_firestore", "private_path_included"):
+        _assert_aws_body_false_flag(message, flag)
+    _assert_aws_body_optional_bool(message, "provider_traffic_started")
+    if "body_text" in message:
+        _assert_aws_body_text_authority(message)
+    if "account_id" in message:
+        account_id = _safe_message_text(message.get("account_id"), fallback=None)
+        if account_id != validation.get("account_id"):
+            raise RealtimeSyncClientError("sync_aws_body_ref_mismatch", "AWS body response did not match the SyncEvent ref.")
     conversation_id = _safe_message_text(message.get("conversation_id"), fallback=validation.get("conversation_id"))
     message_id = _safe_message_text(message.get("message_id"), fallback=validation.get("message_id"))
     if conversation_id != validation.get("conversation_id") or message_id != validation.get("message_id"):
         raise RealtimeSyncClientError("sync_aws_body_ref_mismatch", "AWS body response did not match the SyncEvent ref.")
     display_text = (
         _safe_message_text(message.get("body"), fallback=None)
+        or _safe_message_text(message.get("body_text"), fallback=None)
         or _safe_message_text(message.get("text"), fallback=None)
         or _safe_message_text(message.get("content"), fallback=None)
         or _safe_message_text(message.get("redacted_preview"), fallback=None)
@@ -2117,6 +2138,25 @@ def _sanitize_aws_message_payload(payload: Mapping[str, object], validation: Map
         "raw_audit_included": False,
         "provider_output_included": False,
     }
+
+
+def _assert_aws_body_text_authority(payload: Mapping[str, object]) -> None:
+    authority = _safe_message_text(payload.get("body_authority"), fallback=None)
+    contract_version = _safe_message_text(payload.get("contract_version"), fallback=None)
+    if authority != AWS_MESSAGE_BODY_AUTHORITY:
+        raise RealtimeSyncClientError("sync_aws_body_authority_invalid", "AWS body response authority is invalid.")
+    if contract_version != AWS_MESSAGE_BODY_CONTRACT_VERSION:
+        raise RealtimeSyncClientError("sync_aws_body_contract_mismatch", "AWS body response contract is not supported.")
+
+
+def _assert_aws_body_false_flag(payload: Mapping[str, object], key: str) -> None:
+    if key in payload and payload[key] is not False:
+        raise RealtimeSyncClientError("sync_aws_body_private_payload_rejected", "AWS body response contained private data.")
+
+
+def _assert_aws_body_optional_bool(payload: Mapping[str, object], key: str) -> None:
+    if key in payload and not isinstance(payload[key], bool):
+        raise RealtimeSyncClientError("sync_aws_body_invalid", "AWS body response is invalid.")
 
 
 def _assert_body_payload_safe(payload: object) -> None:

@@ -758,3 +758,41 @@ Current blocker:
   Public CLI receiver smoke can run.
 - `[PUBLIC-SYNC-CLIENT-READY]` and `[WEB-TO-CLI-E2E-PASSED]` are not emitted.
 - No release/tag is allowed from this checkpoint.
+
+## 2026-06-28 PR #587 Public Sync AWS Body Shape Intake
+
+- last_scan_at: 2026-06-28T21:22:00+09:00
+- highest_seen_pr_number: 587
+- current_branch: `codex/public-sync-aws-body-shape`
+- active_PR: #587
+- lane: Public realtime sync owner-only receiver blocker
+
+Checked in this checkpoint:
+
+- Current open PR list through #587.
+- PR #587 review submissions, conversation comments, check rollup, and
+  `review-intake-required` logs.
+- Issue #552 latest owner-only sync smoke notices and rollback notice.
+
+| Source | Finding | Severity | Current disposition |
+| --- | --- | --- | --- |
+| issue #552 / AWS rollback | Public CLI received a body-free Firestore event and reached authenticated AWS body fetch, then rejected the current AWS body response shape as `sync_aws_body_private_fields`. | P1 sync blocker | Fixed in PR #587 by accepting the safe top-level AWS body metadata shape and `body_text`, while keeping unknown fields and unsafe flags fail-closed. |
+| PR #587 Gemini review | Helper functions could avoid redundant mapping lookups. | P3 readability | Fixed in PR #587 by using direct membership checks before the final push. |
+| PR #587 Codex review | New `body_text` response shape allowed `body_authority` and `contract_version` without validating them, so a Firestore or unknown body contract could be reported as AWS body. | P1 sync/security boundary | Fixed in PR #587 by requiring `body_authority=aws` and `contract_version=yonerai.message_body.v1` for `body_text` responses. |
+| PR #587 `review-intake-required` | New PR/review activity correctly invalidated intake. | process gate | This checkpoint classifies the current findings before applying `intake-reviewed`. |
+
+Validation:
+
+- `python -m pytest tests\test_realtime_sync_client_service.py tests\test_realtime_sync_event_service.py tests\test_official_sync_cli.py -q` => `88 passed`.
+- `python -m ruff check clients\cli\yonerai_cli\services\realtime_sync_client_service.py tests\test_realtime_sync_client_service.py` => passed.
+- `python -m compileall -q clients\cli\yonerai_cli\services\realtime_sync_client_service.py tests\test_realtime_sync_client_service.py` => passed.
+- `git diff --check` => passed with line-ending normalization warnings only.
+- `python scripts\ci_quality_scans.py --changed` => passed.
+
+Current blocker:
+
+- PR #587 is not merged to Public main yet.
+- AWS rolled back the owner-only smoke window; a fresh owner approval/window is
+  required after the Public fix is merged.
+- `[PUBLIC-SYNC-CLIENT-READY]` and `[WEB-TO-CLI-E2E-PASSED]` are not emitted.
+- No release/tag is allowed from this PR.
