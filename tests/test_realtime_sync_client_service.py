@@ -692,6 +692,49 @@ def _firestore_document(event: Mapping[str, object]) -> dict[str, object]:
     return {"name": "projects/redacted/databases/(default)/documents/accounts/redacted/sync_events/redacted", "fields": {key: _firestore_value(value) for key, value in event.items()}}
 
 
+def _firestore_run_query_payload(event: Mapping[str, object]) -> list[Mapping[str, object]]:
+    return [{"document": _firestore_document(event), "readTime": "2026-06-28T00:00:00Z", "transaction": "read_transaction_fixture"}]
+
+
+def _assert_safe_firestore_structured_query(
+    *,
+    method: str,
+    url: str,
+    body: Mapping[str, object] | None,
+    account_id: object,
+    limit: int = 10,
+) -> None:
+    assert method == "POST"
+    assert url == "https://firestore.googleapis.com/v1/projects/yonerai-platform-stg-2026/databases/(default)/documents/accounts/acct_public_sync_fixture:runQuery"
+    assert body is not None
+    query = body["structuredQuery"]
+    assert isinstance(query, Mapping)
+    assert query["from"] == [{"collectionId": "sync_events", "allDescendants": False}]
+    assert query["orderBy"] == [{"field": {"fieldPath": "created_at"}, "direction": "ASCENDING"}]
+    assert query["limit"] == limit
+    assert "offset" not in query
+    where = query["where"]
+    assert isinstance(where, Mapping)
+    composite = where["compositeFilter"]
+    assert isinstance(composite, Mapping)
+    filters = composite["filters"]
+    assert isinstance(filters, list)
+    assert {
+        "fieldFilter": {
+            "field": {"fieldPath": "account_id"},
+            "op": "EQUAL",
+            "value": {"stringValue": account_id},
+        }
+    } in filters
+    assert {
+        "fieldFilter": {
+            "field": {"fieldPath": "body_ref.body_included"},
+            "op": "EQUAL",
+            "value": {"booleanValue": False},
+        }
+    } in filters
+
+
 def _jwt_with_uid(uid: str) -> str:
     header = base64.urlsafe_b64encode(json.dumps({"alg": "none"}).encode("utf-8")).decode("ascii").rstrip("=")
     payload = base64.urlsafe_b64encode(json.dumps({"sub": uid, "user_id": uid}).encode("utf-8")).decode("ascii").rstrip("=")
@@ -1895,14 +1938,14 @@ def test_firestore_poll_reads_metadata_then_fetches_body_from_aws_only(tmp_path:
         headers: Mapping[str, str],
         body: Mapping[str, object] | None,
         timeout: float,
-    ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+    ) -> tuple[int, object, Mapping[str, str]]:
         firebase_calls.append((method, url))
         if url.startswith("https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?"):
             assert body == {"token": "firebase_custom_token_fixture_value", "returnSecureToken": True}
             return 200, {"idToken": "firebase_id_token_fixture", "refreshToken": "discarded", "expiresIn": "3600", "localId": claim["account_id"]}, {}
-        assert url.startswith("https://firestore.googleapis.com/v1/projects/yonerai-platform-stg-2026/databases/")
+        _assert_safe_firestore_structured_query(method=method, url=url, body=body, account_id=claim["account_id"])
         assert headers["Authorization"] == "Bearer firebase_id_token_fixture"
-        return 200, {"documents": [_firestore_document(event)]}, {}
+        return 200, _firestore_run_query_payload(event), {}
 
     state_path = tmp_path / "sync-state.json"
     report = build_realtime_sync_firestore_poll_report(
@@ -2008,11 +2051,13 @@ def test_firestore_poll_reports_sanitized_read_error_diagnostic(tmp_path: Path) 
     assert report["ok"] is False
     assert report["error"]["code"] == "firestore_sync_event_read_failed"
     assert report["error"]["status_code"] == 400
-    assert diagnostic["request_kind"] == "firestore_documents_list"
+    assert diagnostic["request_kind"] == "firestore_structured_query"
     assert diagnostic["collection"] == "sync_events"
     assert diagnostic["account_rooted"] is True
     assert diagnostic["collection_group_query"] is False
     assert diagnostic["offset_used"] is False
+    assert diagnostic["account_filter_included"] is True
+    assert diagnostic["body_free_filter_included"] is True
     assert diagnostic["firestore_error_code"] == 400
     assert diagnostic["firestore_error_status"] == "FAILED_PRECONDITION"
     assert diagnostic["firestore_error_detail_types"] == ["type.googleapis.com/google.rpc.BadRequest"]
@@ -2105,7 +2150,7 @@ def test_firestore_poll_caps_limit_and_enforces_reconnect_cooldown(tmp_path: Pat
     firestore = dict(firebase_payload["firestore"])  # type: ignore[arg-type]
     firestore["sync_enabled"] = True
     firebase_payload["firestore"] = firestore
-    firestore_urls: list[str] = []
+    firestore_requests: list[tuple[str, str, Mapping[str, object] | None]] = []
 
     def official_transport(
         method: str,
@@ -2126,11 +2171,12 @@ def test_firestore_poll_caps_limit_and_enforces_reconnect_cooldown(tmp_path: Pat
         headers: Mapping[str, str],
         body: Mapping[str, object] | None,
         timeout: float,
-    ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+    ) -> tuple[int, object, Mapping[str, str]]:
         if url.startswith("https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?"):
             return 200, {"idToken": "firebase_id_token_fixture", "expiresIn": "3600", "localId": claim["account_id"]}, {}
-        firestore_urls.append(url)
-        return 200, {"documents": [_firestore_document(event)]}, {}
+        firestore_requests.append((method, url, body))
+        _assert_safe_firestore_structured_query(method=method, url=url, body=body, account_id=claim["account_id"], limit=20)
+        return 200, _firestore_run_query_payload(event), {}
 
     state_path = tmp_path / "sync-state.json"
     first = build_realtime_sync_firestore_poll_report(
@@ -2160,11 +2206,11 @@ def test_firestore_poll_caps_limit_and_enforces_reconnect_cooldown(tmp_path: Pat
     assert first["ok"] is True
     assert first["firestore_requested_limit"] == 99
     assert first["firestore_effective_query_limit"] == 20
-    assert "pageSize=20" in firestore_urls[0]
+    assert firestore_requests[0][2]["structuredQuery"]["limit"] == 20  # type: ignore[index]
     assert second["ok"] is False
     assert second["error"]["code"] == "firestore_reconnect_cooldown_active"
     assert second["firestore_reconnect_cooldown_remaining_seconds"] > 0
-    assert len(firestore_urls) == 1
+    assert len(firestore_requests) == 1
     assert "firebase_id_token_fixture" not in serialized
     assert str(tmp_path) not in serialized
 
@@ -2211,7 +2257,7 @@ def test_firestore_poll_resumes_after_saved_cursor(tmp_path: Path) -> None:
     firestore = dict(firebase_payload["firestore"])  # type: ignore[arg-type]
     firestore["sync_enabled"] = True
     firebase_payload["firestore"] = firestore
-    firestore_urls: list[str] = []
+    firestore_requests: list[tuple[str, str, Mapping[str, object] | None]] = []
 
     def official_transport(
         method: str,
@@ -2233,12 +2279,13 @@ def test_firestore_poll_resumes_after_saved_cursor(tmp_path: Path) -> None:
         headers: Mapping[str, str],
         body: Mapping[str, object] | None,
         timeout: float,
-    ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+    ) -> tuple[int, object, Mapping[str, str]]:
         if url.startswith("https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?"):
             return 200, {"idToken": "firebase_id_token_fixture", "expiresIn": "3600", "localId": claim["account_id"]}, {}
-        firestore_urls.append(url)
-        assert "pageToken=cursor_public_001" in url
-        return 200, {"documents": [_firestore_document(event)]}, {}
+        firestore_requests.append((method, url, body))
+        _assert_safe_firestore_structured_query(method=method, url=url, body=body, account_id=claim["account_id"])
+        assert "pageToken" not in url
+        return 200, _firestore_run_query_payload(event), {}
 
     report = build_realtime_sync_firestore_poll_report(
         env={
@@ -2255,7 +2302,7 @@ def test_firestore_poll_resumes_after_saved_cursor(tmp_path: Path) -> None:
     assert report["event_source_cursor"] == "cursor_public_001"
     assert report["event_source_query_included"] is True
     assert report["messages"][0]["display_text"] == "resumed message"
-    assert len(firestore_urls) == 1
+    assert len(firestore_requests) == 1
 
 
 def test_firestore_poll_does_not_start_when_sync_flag_is_disabled(tmp_path: Path) -> None:
@@ -2379,10 +2426,11 @@ def test_firestore_poll_rejects_body_projection_before_aws_fetch(tmp_path: Path)
         headers: Mapping[str, str],
         body: Mapping[str, object] | None,
         timeout: float,
-    ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+    ) -> tuple[int, object, Mapping[str, str]]:
         if url.startswith("https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?"):
             return 200, {"idToken": "firebase_id_token_fixture", "expiresIn": "3600", "localId": claim["account_id"]}, {}
-        return 200, {"documents": [_firestore_document(event)]}, {}
+        _assert_safe_firestore_structured_query(method=method, url=url, body=body, account_id=claim["account_id"])
+        return 200, _firestore_run_query_payload(event), {}
 
     report = build_realtime_sync_firestore_poll_report(
         env={
@@ -2400,6 +2448,113 @@ def test_firestore_poll_rejects_body_projection_before_aws_fetch(tmp_path: Path)
     assert report["error"]["code"] == "firestore_sync_event_rejected"
     assert official_calls == [f"{ORIGIN}/v1/sync/firebase-config", f"{ORIGIN}/v1/sync/firebase-token"]
     assert "body must not be projected" not in serialized
+    assert "firebase_id_token_fixture" not in serialized
+    assert str(tmp_path) not in serialized
+
+
+def test_firestore_poll_rejects_legacy_documents_list_response(tmp_path: Path) -> None:
+    from yonerai_cli.services.realtime_sync_client_service import build_realtime_sync_firestore_poll_report
+
+    config_path, claim = _save_session(tmp_path)
+    event = _event_for_account(claim["account_id"])
+    firebase_payload = _firebase_token_payload(claim["account_id"])
+    firestore = dict(firebase_payload["firestore"])  # type: ignore[arg-type]
+    firestore["sync_enabled"] = True
+    firebase_payload["firestore"] = firestore
+
+    def official_transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        if url == f"{ORIGIN}/v1/sync/firebase-token":
+            return 200, firebase_payload, RATE_HEADERS
+        if url == f"{ORIGIN}/v1/sync/firebase-config":
+            return 200, _firebase_config_sync_enabled_payload(), RATE_HEADERS
+        raise AssertionError("AWS body fetch must not run for legacy Firestore list response")
+
+    def firebase_transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, object, Mapping[str, str]]:
+        if url.startswith("https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?"):
+            return 200, {"idToken": "firebase_id_token_fixture", "expiresIn": "3600", "localId": claim["account_id"]}, {}
+        _assert_safe_firestore_structured_query(method=method, url=url, body=body, account_id=claim["account_id"])
+        return 200, {"documents": [_firestore_document(event)]}, {}
+
+    report = build_realtime_sync_firestore_poll_report(
+        env={
+            "YONERAI_STAGING_AUTH_ORIGIN": ORIGIN,
+            "YONERAI_FIREBASE_CLIENT_API_KEY": "public-client-key-fixture",
+        },
+        config_path=str(config_path),
+        state_path=tmp_path / "sync-state.json",
+        transport=official_transport,
+        firebase_rest_transport=firebase_transport,
+    )
+    serialized = json.dumps(report, sort_keys=True)
+
+    assert report["ok"] is False
+    assert report["error"]["code"] == "firestore_response_invalid"
+    assert "firebase_id_token_fixture" not in serialized
+    assert str(tmp_path) not in serialized
+
+
+def test_firestore_poll_rejects_wrong_account_event_before_aws_fetch(tmp_path: Path) -> None:
+    from yonerai_cli.services.realtime_sync_client_service import build_realtime_sync_firestore_poll_report
+
+    config_path, claim = _save_session(tmp_path)
+    event = _event_for_account("acct_other_public_fixture")
+    firebase_payload = _firebase_token_payload(claim["account_id"])
+    firestore = dict(firebase_payload["firestore"])  # type: ignore[arg-type]
+    firestore["sync_enabled"] = True
+    firebase_payload["firestore"] = firestore
+
+    def official_transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        if url == f"{ORIGIN}/v1/sync/firebase-token":
+            return 200, firebase_payload, RATE_HEADERS
+        if url == f"{ORIGIN}/v1/sync/firebase-config":
+            return 200, _firebase_config_sync_enabled_payload(), RATE_HEADERS
+        raise AssertionError("AWS body fetch must not run for wrong-account Firestore event")
+
+    def firebase_transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, object, Mapping[str, str]]:
+        if url.startswith("https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?"):
+            return 200, {"idToken": "firebase_id_token_fixture", "expiresIn": "3600", "localId": claim["account_id"]}, {}
+        _assert_safe_firestore_structured_query(method=method, url=url, body=body, account_id=claim["account_id"])
+        return 200, _firestore_run_query_payload(event), {}
+
+    report = build_realtime_sync_firestore_poll_report(
+        env={
+            "YONERAI_STAGING_AUTH_ORIGIN": ORIGIN,
+            "YONERAI_FIREBASE_CLIENT_API_KEY": "public-client-key-fixture",
+        },
+        config_path=str(config_path),
+        state_path=tmp_path / "sync-state.json",
+        transport=official_transport,
+        firebase_rest_transport=firebase_transport,
+    )
+    serialized = json.dumps(report, sort_keys=True)
+
+    assert report["ok"] is False
+    assert report["error"]["code"] == "firestore_sync_event_rejected"
+    assert "acct_other_public_fixture" not in serialized
     assert "firebase_id_token_fixture" not in serialized
     assert str(tmp_path) not in serialized
 

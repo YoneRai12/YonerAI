@@ -1379,20 +1379,19 @@ def _read_firestore_sync_events(
     if not id_token.strip():
         raise RealtimeSyncClientError("firebase_id_token_missing", "Firebase ID token is unavailable.")
     safe_limit = max(1, min(int(limit), 50))
+    safe_account_value = _safe_firestore_account_value(account_id)
     safe_account = _safe_firestore_path_segment(account_id)
     safe_project = _safe_firestore_path_segment(project_id)
     safe_database = _safe_firestore_path_segment(database_id, allow_default=True)
-    query: dict[str, str] = {"pageSize": str(safe_limit), "orderBy": "created_at"}
     safe_cursor = _safe_firestore_cursor(cursor)
-    if safe_cursor is not None:
-        query["pageToken"] = safe_cursor
-    path = f"/v1/projects/{safe_project}/databases/{safe_database}/documents/accounts/{safe_account}/sync_events?" + urlencode(query)
+    body = _firestore_sync_events_structured_query_body(account_id=safe_account_value, limit=safe_limit)
+    path = f"/v1/projects/{safe_project}/databases/{safe_database}/documents/accounts/{safe_account}:runQuery"
     status_code, payload, _headers = _request_json(
-        "GET",
+        "POST",
         FIRESTORE_REST_ORIGIN,
         path,
         {"Authorization": f"Bearer {id_token}"},
-        None,
+        body,
         transport=transport,
         timeout_seconds=timeout_seconds,
     )
@@ -1410,16 +1409,49 @@ def _read_firestore_sync_events(
             status_code=status_code,
             safe_details=_safe_firestore_read_diagnostic(payload, limit=safe_limit, cursor=safe_cursor),
         )
-    return _sanitize_firestore_documents(payload, linked_account_id=account_id)
+    return _sanitize_firestore_run_query_response(payload, linked_account_id=account_id)
 
 
-def _safe_firestore_read_diagnostic(payload: Mapping[str, object], *, limit: int, cursor: str | None) -> dict[str, object]:
+def _firestore_sync_events_structured_query_body(*, account_id: str, limit: int) -> dict[str, object]:
+    return {
+        "structuredQuery": {
+            "from": [{"collectionId": "sync_events", "allDescendants": False}],
+            "where": {
+                "compositeFilter": {
+                    "op": "AND",
+                    "filters": [
+                        {
+                            "fieldFilter": {
+                                "field": {"fieldPath": "account_id"},
+                                "op": "EQUAL",
+                                "value": {"stringValue": account_id},
+                            }
+                        },
+                        {
+                            "fieldFilter": {
+                                "field": {"fieldPath": "body_ref.body_included"},
+                                "op": "EQUAL",
+                                "value": {"booleanValue": False},
+                            }
+                        },
+                    ],
+                }
+            },
+            "orderBy": [{"field": {"fieldPath": "created_at"}, "direction": "ASCENDING"}],
+            "limit": limit,
+        }
+    }
+
+
+def _safe_firestore_read_diagnostic(payload: object, *, limit: int, cursor: str | None) -> dict[str, object]:
     diagnostic: dict[str, object] = {
-        "request_kind": "firestore_documents_list",
+        "request_kind": "firestore_structured_query",
         "collection": "sync_events",
         "account_rooted": True,
         "collection_group_query": False,
         "offset_used": False,
+        "account_filter_included": True,
+        "body_free_filter_included": True,
         "order_by": "created_at",
         "limit": max(1, min(int(limit), FIRESTORE_ABSOLUTE_QUERY_LIMIT_MAX)),
         "cursor_present": cursor is not None,
@@ -1473,6 +1505,13 @@ def _safe_firestore_cursor(value: object) -> str | None:
     return text
 
 
+def _safe_firestore_account_value(value: object) -> str:
+    text = _safe_message_text(value, fallback=None)
+    if not text or not re.fullmatch(r"[A-Za-z0-9_.:-]{1,160}", text):
+        raise RealtimeSyncClientError("firestore_path_invalid", "Firestore path metadata is invalid.")
+    return text
+
+
 def _safe_firestore_path_segment(value: object, *, allow_default: bool = False) -> str:
     text = _safe_message_text(value, fallback=None)
     if not text:
@@ -1482,6 +1521,25 @@ def _safe_firestore_path_segment(value: object, *, allow_default: bool = False) 
     if not re.fullmatch(r"[A-Za-z0-9_.:-]{1,160}", text):
         raise RealtimeSyncClientError("firestore_path_invalid", "Firestore path metadata is invalid.")
     return quote(text, safe="")
+
+
+def _sanitize_firestore_run_query_response(payload: object, *, linked_account_id: str) -> list[Mapping[str, object]]:
+    if not isinstance(payload, list):
+        raise RealtimeSyncClientError("firestore_response_invalid", "Firestore response is invalid.")
+    documents: list[Mapping[str, object]] = []
+    for result in payload[:50]:
+        if not isinstance(result, Mapping):
+            raise RealtimeSyncClientError("firestore_response_invalid", "Firestore response is invalid.")
+        allowed = {"document", "readTime", "done", "skippedResults", "transaction"}
+        if set(result) - allowed:
+            raise RealtimeSyncClientError("firestore_private_fields", "Firestore response contained non-public fields.")
+        document = result.get("document")
+        if document is None:
+            continue
+        if not isinstance(document, Mapping):
+            raise RealtimeSyncClientError("firestore_response_invalid", "Firestore response is invalid.")
+        documents.append(document)
+    return _sanitize_firestore_documents({"documents": documents}, linked_account_id=linked_account_id)
 
 
 def _sanitize_firestore_documents(payload: Mapping[str, object], *, linked_account_id: str) -> list[Mapping[str, object]]:
