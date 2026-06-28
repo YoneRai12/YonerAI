@@ -138,3 +138,38 @@ git commit -m "fix: Public同期ログインとFirebase準備確認を補強"
 - Current blocker: issue #552 latest effective state is `[AWS-PUBLIC-ALLOWLIST-BLOCKER]`; `[PUBLIC-SYNC-CLIENT-READY]` and `[WEB-TO-CLI-E2E-PASSED]` are not emitted.
 - Next required action after merge: post `[PUBLIC-ALLOWLIST-SMOKE-MODE-READY]` to issue #552 with public-safe CI/review evidence, then wait for fresh owner approval and fresh `[AWS-OWNER-SYNC-SMOKE-READY]`.
 - Non-claims: no production deploy/login/sync, no release/tag, no token/account/body/private path/provider key.
+
+## 2026-06-28 Public Sync Ready Gate Follow-up
+
+- Current branch: `codex/public-sync-ready-gates-allowlist`.
+- Base HEAD: `98365e6` (`fix: owner allowlist同期smokeモードを受け入れる (#584)`).
+- Review source: merged PR #584 follow-up Codex P1 review.
+- Valid finding:
+  - `sync_enabled=true`, `sync_mode=allowlist`, and `ready=false` must not let
+    the CLI proceed to Firebase token exchange, Firestore reads, or AWS body
+    fetch.
+  - The listener must treat `ready=false` as a hard stop even in owner-only
+    allowlist smoke mode.
+- Fix in progress:
+  - `firestore_sync_enabled` now requires Firebase public config `ready=true`.
+  - Added config-report and listener-poll regression tests for
+    allowlist/`ready=false`.
+- Local evidence:
+  - `python -m pytest tests\test_realtime_sync_client_service.py tests\test_realtime_sync_event_service.py -q`
+  - result: 73 passed
+- Exact blocker:
+  - This follow-up is not merged to Public main yet.
+  - Do not post `[PUBLIC-ALLOWLIST-SMOKE-MODE-READY]` until the follow-up PR is
+    reviewed, CI-green, and merged.
+- Next command:
+
+```powershell
+python -m ruff check clients\cli\yonerai_cli\services\realtime_sync_client_service.py tests\test_realtime_sync_client_service.py
+```
+
+- Peer tags:
+  - received: `[AWS-PUBLIC-ALLOWLIST-BLOCKER]`
+  - not sent: `[PUBLIC-ALLOWLIST-SMOKE-MODE-READY]`
+  - not sent: `[PUBLIC-SYNC-CLIENT-READY]`
+- Non-claims: no release/tag, no production sync/login/deploy, no token/account
+  identifier/raw body/private path/provider key.
