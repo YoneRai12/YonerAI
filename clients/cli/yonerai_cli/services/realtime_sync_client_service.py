@@ -41,6 +41,7 @@ FIRESTORE_INITIAL_QUERY_LIMIT_MAX = 20
 FIRESTORE_ABSOLUTE_QUERY_LIMIT_MAX = 50
 FIRESTORE_RECONNECT_COOLDOWN_SECONDS_MIN = 30
 FIRESTORE_CLI_MAX_LISTENERS_PER_ACCOUNT = 1
+FIRESTORE_SYNC_MODES = {"off", "preview", "staging", "allowlist"}
 FIREBASE_PUBLIC_CLIENT_KEY_FIELD = "api" + "_key"
 FIRESTORE_SYNC_EVENT_PATH_TEMPLATE = "/accounts/{account_id}/sync_events/{event_id}"
 FIREBASE_CLIENT_API_KEY_ENV = "YONERAI_FIREBASE_CLIENT_API_KEY"
@@ -1574,7 +1575,7 @@ def _sanitize_firebase_config_payload(
     sync_mode = _safe_message_text(payload.get("sync_mode", firestore.get("sync_mode")), fallback="off")
     if not isinstance(ready, bool) or not isinstance(sync_enabled, bool):
         raise RealtimeSyncClientError("firebase_config_invalid", "Firebase public config readiness fields are invalid.")
-    if sync_mode not in {"off", "preview", "staging"}:
+    if sync_mode not in FIRESTORE_SYNC_MODES:
         raise RealtimeSyncClientError("firebase_config_invalid", "Firebase public config sync mode is invalid.")
     firebase = payload.get("firebase") if isinstance(payload.get("firebase"), Mapping) else {}
     client_sign_in_key = _sanitize_firebase_public_config(firebase)
@@ -1716,9 +1717,17 @@ def _sanitize_firestore_usage_policy(policy: Mapping[str, object] | None) -> dic
     if policy.get("policy_version") != FIRESTORE_USAGE_POLICY_VERSION:
         raise RealtimeSyncClientError("firestore_usage_policy_contract_mismatch", "Firestore usage policy version is not accepted.")
     sync_mode = _safe_message_text(policy.get("sync_mode"), fallback="off")
-    if sync_mode not in {"off", "preview", "staging"}:
+    if sync_mode not in FIRESTORE_SYNC_MODES:
         raise RealtimeSyncClientError("firestore_usage_policy_invalid", "Firestore usage policy sync mode is invalid.")
     kill_switch = policy.get("kill_switch")
+    if isinstance(kill_switch, Mapping):
+        unknown_kill_switch_fields = kill_switch.keys() - {"tripped", "reason"}
+        if unknown_kill_switch_fields:
+            raise RealtimeSyncClientError("firestore_usage_policy_private_fields", "Firestore kill switch policy contained non-public fields.")
+        kill_switch_tripped = kill_switch.get("tripped")
+        if not isinstance(kill_switch_tripped, bool):
+            raise RealtimeSyncClientError("firestore_usage_policy_invalid", "Firestore kill switch policy is invalid.")
+        kill_switch = kill_switch_tripped
     if not isinstance(kill_switch, bool):
         raise RealtimeSyncClientError("firestore_usage_policy_invalid", "Firestore kill switch policy is invalid.")
     if kill_switch is True:

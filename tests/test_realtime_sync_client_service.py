@@ -661,6 +661,19 @@ def _firebase_config_sync_enabled_payload() -> dict[str, object]:
     return payload
 
 
+def _firebase_config_allowlist_payload() -> dict[str, object]:
+    payload = _firebase_config_payload(
+        sync_enabled=True,
+        sync_mode="allowlist",
+        usage_policy=_firestore_usage_policy_payload(sync_mode="allowlist"),
+    )
+    firestore = dict(payload["firestore"])  # type: ignore[arg-type]
+    firestore["sync_enabled"] = True
+    firestore["sync_mode"] = "allowlist"
+    payload["firestore"] = firestore
+    return payload
+
+
 def _firestore_value(value: object) -> dict[str, object]:
     if isinstance(value, bool):
         return {"booleanValue": value}
@@ -894,6 +907,40 @@ def test_firebase_config_bridge_treats_sync_mode_off_as_hard_stop(tmp_path: Path
     assert report["firestore_usage_policy_accepted"] is True
 
 
+def test_firebase_config_bridge_accepts_owner_allowlist_sync_mode(tmp_path: Path) -> None:
+    from yonerai_cli.services.realtime_sync_client_service import build_realtime_sync_firebase_config_report
+
+    config_path, _claim = _save_session(tmp_path)
+
+    def transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        return 200, _firebase_config_allowlist_payload(), RATE_HEADERS
+
+    report = build_realtime_sync_firebase_config_report(
+        env={"YONERAI_STAGING_AUTH_ORIGIN": ORIGIN},
+        config_path=str(config_path),
+        transport=transport,
+    )
+
+    assert report["ok"] is True
+    assert report["firebase_public_config_ready"] is True
+    assert report["firestore_sync_mode"] == "allowlist"
+    assert report["firestore_sync_enabled"] is True
+    assert report["firestore_usage_policy_accepted"] is True
+    assert report["firestore_initial_query_limit"] == 20
+    assert report["firestore_absolute_query_limit"] == 50
+    assert report["firestore_reconnect_cooldown_seconds"] == 30
+    assert report["firestore_max_cli_listeners_per_account"] == 1
+    assert report["firestore_offset_forbidden"] is True
+    assert report["firestore_collection_group_query_allowed"] is False
+    assert report["firestore_body_fetch_source"] == "aws_only"
+
+
 def test_firebase_config_bridge_rejects_permissive_usage_policy(tmp_path: Path) -> None:
     from yonerai_cli.services.realtime_sync_client_service import build_realtime_sync_firebase_config_report
 
@@ -932,6 +979,65 @@ def test_firebase_config_bridge_rejects_usage_policy_kill_switch(tmp_path: Path)
     ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
         payload = _firebase_config_sync_enabled_payload()
         payload["usage_policy"] = _firestore_usage_policy_payload(sync_mode="staging", kill_switch=True)
+        return 200, payload, RATE_HEADERS
+
+    report = build_realtime_sync_firebase_config_report(
+        env={"YONERAI_STAGING_AUTH_ORIGIN": ORIGIN},
+        config_path=str(config_path),
+        transport=transport,
+    )
+
+    assert report["ok"] is False
+    assert report["error"]["code"] == "firestore_usage_policy_kill_switch_active"
+
+
+def test_firebase_config_bridge_accepts_object_kill_switch_when_not_tripped(tmp_path: Path) -> None:
+    from yonerai_cli.services.realtime_sync_client_service import build_realtime_sync_firebase_config_report
+
+    config_path, _claim = _save_session(tmp_path)
+
+    def transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        payload = _firebase_config_payload(
+            usage_policy=_firestore_usage_policy_payload(
+                kill_switch={"tripped": False, "reason": "sync_mode_off"},
+            )
+        )
+        return 200, payload, RATE_HEADERS
+
+    report = build_realtime_sync_firebase_config_report(
+        env={"YONERAI_STAGING_AUTH_ORIGIN": ORIGIN},
+        config_path=str(config_path),
+        transport=transport,
+    )
+
+    assert report["ok"] is True
+    assert report["firestore_usage_policy_accepted"] is True
+    assert report["firestore_sync_mode"] == "off"
+
+
+def test_firebase_config_bridge_rejects_object_kill_switch_when_tripped(tmp_path: Path) -> None:
+    from yonerai_cli.services.realtime_sync_client_service import build_realtime_sync_firebase_config_report
+
+    config_path, _claim = _save_session(tmp_path)
+
+    def transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        payload = _firebase_config_sync_enabled_payload()
+        payload["usage_policy"] = _firestore_usage_policy_payload(
+            sync_mode="staging",
+            kill_switch={"tripped": True, "reason": "owner_smoke_disabled"},
+        )
         return 200, payload, RATE_HEADERS
 
     report = build_realtime_sync_firebase_config_report(
@@ -1259,7 +1365,7 @@ def test_firebase_token_bridge_accepts_owner_enabled_sync_flag(tmp_path: Path) -
         timeout: float,
     ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
         if url == f"{ORIGIN}/v1/sync/firebase-config":
-            return 200, _firebase_config_sync_enabled_payload(), RATE_HEADERS
+            return 200, _firebase_config_allowlist_payload(), RATE_HEADERS
         return 200, payload, RATE_HEADERS
 
     report = build_realtime_sync_firebase_token_report(
@@ -1749,7 +1855,7 @@ def test_firestore_poll_reads_metadata_then_fetches_body_from_aws_only(tmp_path:
         if url == f"{ORIGIN}/v1/sync/firebase-token":
             return 200, firebase_payload, RATE_HEADERS
         if url == f"{ORIGIN}/v1/sync/firebase-config":
-            return 200, _firebase_config_sync_enabled_payload(), RATE_HEADERS
+            return 200, _firebase_config_allowlist_payload(), RATE_HEADERS
         assert url == f"{ORIGIN}/v1/conversations/conv_public_001/messages/msg_public_001"
         return 200, {"message": {"conversation_id": "conv_public_001", "message_id": "msg_public_001", "body": "hello via firestore"}}, RATE_HEADERS
 
@@ -1785,6 +1891,7 @@ def test_firestore_poll_reads_metadata_then_fetches_body_from_aws_only(tmp_path:
 
     assert report["ok"] is True
     assert report["operation"] == "realtime_sync_firestore_poll"
+    assert report["firestore_sync_mode"] == "allowlist"
     assert report["firestore_rest_connected"] is True
     assert report["firestore_event_source_body_free"] is True
     assert report["events_received"] == 1

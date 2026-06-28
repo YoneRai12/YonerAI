@@ -130,3 +130,11 @@ git commit -m "fix: Public同期ログインとFirebase準備確認を補強"
 - No token value, account identifier, raw body, private path, provider key, or
   internal runtime detail is recorded here.
 - `reference_clawdbot` and `src/cogs/ora.py` were not touched.
+
+## 2026-06-28 Public Sync Allowlist Smoke Pointer
+
+- Detailed checkpoint log moved to `docs/changelog/checkpoints/public-sync-allowlist-smoke-2026-06-28.md`.
+- Current PR: #584 (`codex/public-sync-allowlist-smoke-compat`).
+- Current blocker: issue #552 latest effective state is `[AWS-PUBLIC-ALLOWLIST-BLOCKER]`; `[PUBLIC-SYNC-CLIENT-READY]` and `[WEB-TO-CLI-E2E-PASSED]` are not emitted.
+- Next required action after merge: post `[PUBLIC-ALLOWLIST-SMOKE-MODE-READY]` to issue #552 with public-safe CI/review evidence, then wait for fresh owner approval and fresh `[AWS-OWNER-SYNC-SMOKE-READY]`.
+- Non-claims: no production deploy/login/sync, no release/tag, no token/account/body/private path/provider key.
