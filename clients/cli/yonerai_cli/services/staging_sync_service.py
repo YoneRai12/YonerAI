@@ -19,9 +19,11 @@ CONVERSATION_PATH_TEMPLATE = "/v1/conversations/{conversation_id}"
 SYNC_PREVIEW_PATH = "/v1/sync/preview"
 SYNC_DIRECTIONS = {"cloud-to-local": "cloud_to_local", "local-to-cloud": "local_to_cloud"}
 
+JsonPayload = Mapping[str, object] | list[object]
+
 HeaderJsonTransport = Callable[
     [str, str, Mapping[str, str], Mapping[str, object] | None, float],
-    tuple[int, Mapping[str, object], Mapping[str, str]],
+    tuple[int, JsonPayload, Mapping[str, str]],
 ]
 
 
@@ -437,7 +439,7 @@ def _request_json(
     *,
     transport: HeaderJsonTransport | None,
     timeout_seconds: float,
-) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+) -> tuple[int, JsonPayload, Mapping[str, str]]:
     url = f"{origin}{path}"
     caller = transport or _default_header_json_transport
     status_code, payload, response_headers = caller(method, url, dict(headers), body, timeout_seconds)
@@ -457,7 +459,7 @@ def _default_header_json_transport(
     headers: Mapping[str, str],
     body: Mapping[str, object] | None,
     timeout_seconds: float,
-) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+) -> tuple[int, JsonPayload, Mapping[str, str]]:
     data = None if body is None else json.dumps(dict(body)).encode("utf-8")
     request = Request(url, data=data, method=method.upper())
     request.add_header("Accept", "application/json")
@@ -483,12 +485,12 @@ def _default_header_json_transport(
         raise StagingSyncServiceError("staging_sync_unreachable", "Staging sync source is unreachable.") from exc
 
 
-def _read_json_body(raw: bytes) -> Mapping[str, object]:
+def _read_json_body(raw: bytes) -> JsonPayload:
     try:
         value = json.loads(raw.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise StagingSyncServiceError("staging_sync_invalid_json", "Staging sync source returned invalid JSON.") from exc
-    if not isinstance(value, dict):
+    if not isinstance(value, (dict, list)):
         raise StagingSyncServiceError("staging_sync_invalid_json", "Staging sync source returned invalid JSON.")
     return value
 
