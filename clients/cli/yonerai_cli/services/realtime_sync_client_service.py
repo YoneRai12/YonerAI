@@ -47,6 +47,7 @@ FIRESTORE_SYNC_EVENT_PATH_TEMPLATE = "/accounts/{account_id}/sync_events/{event_
 FIREBASE_CLIENT_API_KEY_ENV = "YONERAI_FIREBASE_CLIENT_API_KEY"
 IDENTITY_TOOLKIT_SIGN_IN_ORIGIN = "https://identitytoolkit.googleapis.com"
 FIRESTORE_REST_ORIGIN = "https://firestore.googleapis.com"
+SAFE_FIRESTORE_ERROR_DETAIL_TYPE_PREFIX = "type.googleapis.com/google.rpc."
 PLACEHOLDER_ACCOUNT_IDS = {"not-linked", "linked-staging-account", "linked staging account"}
 READINESS_NON_BLOCKING_ERROR_CODES = {
     "staging_origin_not_configured",
@@ -93,14 +94,22 @@ FORBIDDEN_BODY_MARKERS = (
 
 
 class RealtimeSyncClientError(ValueError):
-    def __init__(self, code: str, message: str, *, status_code: int | None = None) -> None:
+    def __init__(
+        self,
+        code: str,
+        message: str,
+        *,
+        status_code: int | None = None,
+        safe_details: Mapping[str, object] | None = None,
+    ) -> None:
         super().__init__(code)
         self.code = code
         self.message = message
         self.status_code = status_code
+        self.safe_details = dict(safe_details or {})
 
     def to_safe_error(self) -> dict[str, object]:
-        return {
+        error: dict[str, object] = {
             "code": self.code,
             "message": self.message,
             "status_code": self.status_code,
@@ -109,6 +118,9 @@ class RealtimeSyncClientError(ValueError):
             "raw_body_printed": False,
             "private_runtime_detail_printed": False,
         }
+        if self.safe_details:
+            error["diagnostic"] = self.safe_details
+        return error
 
 
 def default_realtime_sync_state_path(config_path: str | Path | None = None) -> Path:
@@ -1385,10 +1397,71 @@ def _read_firestore_sync_events(
         timeout_seconds=timeout_seconds,
     )
     if status_code in {401, 403}:
-        raise RealtimeSyncClientError("firestore_read_auth_rejected", "Firestore metadata read was rejected.", status_code=status_code)
+        raise RealtimeSyncClientError(
+            "firestore_read_auth_rejected",
+            "Firestore metadata read was rejected.",
+            status_code=status_code,
+            safe_details=_safe_firestore_read_diagnostic(payload, limit=safe_limit, cursor=safe_cursor),
+        )
     if status_code >= 400:
-        raise RealtimeSyncClientError("firestore_sync_event_read_failed", "Firestore metadata read failed.", status_code=status_code)
+        raise RealtimeSyncClientError(
+            "firestore_sync_event_read_failed",
+            "Firestore metadata read failed.",
+            status_code=status_code,
+            safe_details=_safe_firestore_read_diagnostic(payload, limit=safe_limit, cursor=safe_cursor),
+        )
     return _sanitize_firestore_documents(payload, linked_account_id=account_id)
+
+
+def _safe_firestore_read_diagnostic(payload: Mapping[str, object], *, limit: int, cursor: str | None) -> dict[str, object]:
+    diagnostic: dict[str, object] = {
+        "request_kind": "firestore_documents_list",
+        "collection": "sync_events",
+        "account_rooted": True,
+        "collection_group_query": False,
+        "offset_used": False,
+        "order_by": "created_at",
+        "limit": max(1, min(int(limit), FIRESTORE_ABSOLUTE_QUERY_LIMIT_MAX)),
+        "cursor_present": cursor is not None,
+        "raw_firestore_message_included": False,
+        "raw_firestore_path_included": False,
+    }
+    error = payload.get("error") if isinstance(payload, Mapping) else None
+    if isinstance(error, Mapping):
+        raw_code = error.get("code")
+        if isinstance(raw_code, int):
+            diagnostic["firestore_error_code"] = raw_code
+        raw_status = error.get("status")
+        if isinstance(raw_status, str) and re.fullmatch(r"[A-Z_]{1,64}", raw_status):
+            diagnostic["firestore_error_status"] = raw_status
+        details = error.get("details")
+        if isinstance(details, list):
+            diagnostic["firestore_error_details_count"] = min(len(details), 20)
+            detail_types: list[str] = []
+            for detail in details[:20]:
+                if not isinstance(detail, Mapping):
+                    continue
+                safe_type = _safe_firestore_error_detail_type(detail.get("@type"))
+                if safe_type:
+                    detail_types.append(safe_type)
+            if detail_types:
+                diagnostic["firestore_error_detail_types"] = detail_types
+    return diagnostic
+
+
+def _safe_firestore_error_detail_type(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    lowered = text.lower()
+    if any(marker in lowered for marker in FORBIDDEN_BODY_MARKERS):
+        return None
+    if not text.startswith(SAFE_FIRESTORE_ERROR_DETAIL_TYPE_PREFIX):
+        return None
+    suffix = text.removeprefix(SAFE_FIRESTORE_ERROR_DETAIL_TYPE_PREFIX)
+    if not re.fullmatch(r"[A-Za-z][A-Za-z0-9.]{0,96}", suffix):
+        return None
+    return text
 
 
 def _safe_firestore_cursor(value: object) -> str | None:
