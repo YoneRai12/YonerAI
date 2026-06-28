@@ -1579,7 +1579,7 @@ def _sanitize_firebase_config_payload(
         raise RealtimeSyncClientError("firebase_config_invalid", "Firebase public config sync mode is invalid.")
     firebase = payload.get("firebase") if isinstance(payload.get("firebase"), Mapping) else {}
     client_sign_in_key = _sanitize_firebase_public_config(firebase)
-    effective_sync_enabled = bool(sync_enabled and sync_mode != "off")
+    effective_sync_enabled = bool(ready and sync_enabled and sync_mode != "off")
     firestore_summary = _sanitize_firestore_public_config(firestore, sync_enabled=sync_enabled)
     usage_policy = payload.get("usage_policy") if isinstance(payload.get("usage_policy"), Mapping) else None
     usage_summary = _sanitize_firestore_usage_policy(usage_policy)

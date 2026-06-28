@@ -941,6 +941,36 @@ def test_firebase_config_bridge_accepts_owner_allowlist_sync_mode(tmp_path: Path
     assert report["firestore_body_fetch_source"] == "aws_only"
 
 
+def test_firebase_config_bridge_keeps_allowlist_disabled_when_not_ready(tmp_path: Path) -> None:
+    from yonerai_cli.services.realtime_sync_client_service import build_realtime_sync_firebase_config_report
+
+    config_path, _claim = _save_session(tmp_path)
+
+    def transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        payload = _firebase_config_allowlist_payload()
+        payload["ready"] = False
+        return 200, payload, RATE_HEADERS
+
+    report = build_realtime_sync_firebase_config_report(
+        env={"YONERAI_STAGING_AUTH_ORIGIN": ORIGIN},
+        config_path=str(config_path),
+        transport=transport,
+    )
+
+    assert report["ok"] is True
+    assert report["firebase_public_config_ready"] is False
+    assert report["firestore_backend_sync_enabled"] is True
+    assert report["firestore_sync_mode"] == "allowlist"
+    assert report["firestore_sync_enabled"] is False
+    assert report["ready"] is False
+
+
 def test_firebase_config_bridge_rejects_permissive_usage_policy(tmp_path: Path) -> None:
     from yonerai_cli.services.realtime_sync_client_service import build_realtime_sync_firebase_config_report
 
@@ -2114,6 +2144,52 @@ def test_firestore_poll_does_not_start_when_sync_flag_is_disabled(tmp_path: Path
 
     assert report["ok"] is False
     assert report["error"]["code"] == "firestore_sync_disabled_until_live_e2e_and_owner_flip"
+    assert report["firestore_rest_connected"] is False
+    assert official_calls == [("GET", f"{ORIGIN}/v1/sync/firebase-config")]
+    assert "firebase_custom_token_fixture_value" not in serialized
+    assert "public-client-key-fixture" not in serialized
+    assert str(tmp_path) not in serialized
+
+
+def test_firestore_poll_does_not_start_when_allowlist_config_is_not_ready(tmp_path: Path) -> None:
+    from yonerai_cli.services.realtime_sync_client_service import build_realtime_sync_firestore_poll_report
+
+    config_path, _claim = _save_session(tmp_path)
+    official_calls: list[tuple[str, str]] = []
+
+    def official_transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        official_calls.append((method, url))
+        assert headers["Authorization"].startswith("Bearer ")
+        assert url == f"{ORIGIN}/v1/sync/firebase-config"
+        payload = _firebase_config_allowlist_payload()
+        payload["ready"] = False
+        return 200, payload, RATE_HEADERS
+
+    def firebase_transport(*_args: object) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        raise AssertionError("Firestore must not be contacted when Firebase config ready=false")
+
+    report = build_realtime_sync_firestore_poll_report(
+        env={
+            "YONERAI_STAGING_AUTH_ORIGIN": ORIGIN,
+            "YONERAI_FIREBASE_CLIENT_API_KEY": "public-client-key-fixture",
+        },
+        config_path=str(config_path),
+        state_path=tmp_path / "sync-state.json",
+        transport=official_transport,
+        firebase_rest_transport=firebase_transport,
+    )
+    serialized = json.dumps(report, sort_keys=True)
+
+    assert report["ok"] is False
+    assert report["error"]["code"] == "firestore_sync_disabled_until_live_e2e_and_owner_flip"
+    assert report["firestore_sync_mode"] == "allowlist"
+    assert report["firestore_sync_enabled"] is False
     assert report["firestore_rest_connected"] is False
     assert official_calls == [("GET", f"{ORIGIN}/v1/sync/firebase-config")]
     assert "firebase_custom_token_fixture_value" not in serialized
