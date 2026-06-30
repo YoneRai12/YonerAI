@@ -619,7 +619,7 @@ def test_cli_update_short_stable_and_alpha_select_expected_channels(capsys) -> N
     alpha = json.loads(capsys.readouterr().out)
     assert alpha["schema_version"] == "yonerai-update-check/v0.1"
     assert alpha["channel"] == "alpha"
-    assert alpha["latest_manifest_version"] == "0.22.0-alpha.1"
+    assert alpha["latest_manifest_version"] == "0.23.0-alpha.1"
     assert alpha["download_performed"] is False
     assert alpha["install_performed"] is False
 
@@ -627,7 +627,7 @@ def test_cli_update_short_stable_and_alpha_select_expected_channels(capsys) -> N
     beta = json.loads(capsys.readouterr().out)
     assert beta["schema_version"] == "yonerai-update-check/v0.1"
     assert beta["channel"] == "alpha"
-    assert beta["latest_manifest_version"] == "0.22.0-alpha.1"
+    assert beta["latest_manifest_version"] == "0.23.0-alpha.1"
     assert beta["download_performed"] is False
     assert beta["install_performed"] is False
 
@@ -639,7 +639,7 @@ def test_cli_update_short_japanese_beta_alias_selects_prerelease_channel(capsys)
     assert cli.main(["update", "ベータ版", "--json"]) == 0
     output = json.loads(capsys.readouterr().out)
     assert output["channel"] == "alpha"
-    assert output["latest_manifest_version"] == "0.22.0-alpha.1"
+    assert output["latest_manifest_version"] == "0.23.0-alpha.1"
 
     assert cli.main(["update", "アルファ版", "--json"]) == 0
     compat = json.loads(capsys.readouterr().out)
