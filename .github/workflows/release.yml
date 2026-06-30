@@ -113,11 +113,17 @@ jobs:
           PY
 
       - name: Run Release Gate
+        env:
+          GH_TOKEN: ${{ secrets.YONERAI_RELEASE_GATE_TOKEN || github.token }}
         run: |
           python scripts/release_gate.py \
             --tag "${GITHUB_REF_NAME}" \
             --artifact "${PRODUCT_NAME}-${ORA_VERSION}.zip" \
             --github-prerelease "${ORA_PRERELEASE}"
+          python scripts/yonerai_release_gate.py \
+            --release-issue 592 \
+            --release-notes "docs/releases/${ORA_VERSION}.md" \
+            --fail-on-blockers
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
