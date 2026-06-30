@@ -2378,10 +2378,12 @@ def _record_state(state: dict[str, Any], validation: Mapping[str, object], *, bo
     account_id = str(validation.get("account_id") or "")
     conversation_id = str(validation.get("conversation_id") or "")
     conversation = _conversation_state(state, account_id, conversation_id)
-    conversation["cursor"] = validation.get("cursor")
-    conversation["last_event_id"] = validation.get("event_id")
-    conversation["event_ids"] = _append_limited(conversation.get("event_ids"), validation.get("event_id"))
-    conversation["idempotency_keys"] = _append_limited(conversation.get("idempotency_keys"), validation.get("idempotency_key"))
+    duplicate = bool(validation.get("duplicate_event") or validation.get("duplicate_idempotency_key"))
+    if not duplicate:
+        conversation["cursor"] = validation.get("cursor")
+        conversation["last_event_id"] = validation.get("event_id")
+        conversation["event_ids"] = _append_limited(conversation.get("event_ids"), validation.get("event_id"))
+        conversation["idempotency_keys"] = _append_limited(conversation.get("idempotency_keys"), validation.get("idempotency_key"))
     if body_fetch_completed:
         conversation["body_fetched_event_ids"] = _append_limited(
             conversation.get("body_fetched_event_ids"),
