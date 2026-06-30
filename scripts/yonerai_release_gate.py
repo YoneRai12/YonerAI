@@ -47,6 +47,24 @@ BLOCKER_LABELS = {
     "security",
 }
 
+PUBLIC_RELEASE_BLOCKING_SEVERITIES = {"p0", "p1", "security"}
+PUBLIC_RELEASE_CHECKLIST_MARKERS = (
+    "public main",
+    "public release",
+    "release note",
+    "tag/release",
+)
+NON_PUBLIC_RELEASE_CHECKLIST_MARKERS = (
+    "aws ",
+    "aws-",
+    "yoneraiweb",
+    "oracle",
+    "cross-repo",
+    "phase b",
+    "private repo",
+    "private repository",
+)
+
 OVERCLAIM_PATTERNS = (
     "production ready",
     "production-ready",
@@ -85,6 +103,40 @@ class Blocker:
             "reason": self.reason,
             "url": self.url,
         }
+
+
+def public_release_checklist_markers() -> tuple[str, ...]:
+    try:
+        version = (Path(__file__).resolve().parents[1] / "VERSION").read_text(encoding="utf-8").strip()
+    except OSError:
+        version = ""
+    if not version:
+        return PUBLIC_RELEASE_CHECKLIST_MARKERS
+    return (*PUBLIC_RELEASE_CHECKLIST_MARKERS, f"v{version} tag")
+
+
+def blocks_public_release(blocker: Blocker, public_repo: str) -> bool:
+    if blocker.severity not in PUBLIC_RELEASE_BLOCKING_SEVERITIES:
+        return False
+    if blocker.repo != public_repo:
+        return False
+    if blocker.kind == "release_checklist":
+        lowered = blocker.reason.lower()
+        if any(marker in lowered for marker in NON_PUBLIC_RELEASE_CHECKLIST_MARKERS):
+            return False
+        if any(marker in lowered for marker in public_release_checklist_markers()):
+            return True
+    return True
+
+
+def blocks_phase_b(blocker: Blocker) -> bool:
+    return blocker.severity in PUBLIC_RELEASE_BLOCKING_SEVERITIES
+
+
+def _blocker_report(blocker: Blocker, public_repo: str) -> dict[str, Any]:
+    payload = blocker.as_dict()
+    payload["blocks_public_release"] = blocks_public_release(blocker, public_repo)
+    return payload
 
 
 def _run_gh(args: list[str]) -> tuple[int, str, str]:
@@ -453,12 +505,13 @@ def build_report(
     blockers.extend(check_agents_presence([public_repo, aws_repo, web_repo]))
     blockers.extend(check_release_notes(release_notes))
 
-    release_go = not any(blocker.severity in {"p0", "p1", "security"} for blocker in blockers)
+    release_go = not any(blocks_public_release(blocker, public_repo) for blocker in blockers)
+    safe_to_start_phase_b = not any(blocks_phase_b(blocker) for blocker in blockers)
     return {
         "release_go": release_go,
-        "safe_to_start_phase_b": release_go,
+        "safe_to_start_phase_b": safe_to_start_phase_b,
         "release_gate_issue": None if issue is None else {"number": issue.get("number"), "url": issue.get("url")},
-        "blockers": [blocker.as_dict() for blocker in blockers],
+        "blockers": [_blocker_report(blocker, public_repo) for blocker in blockers],
     }
 
 
@@ -489,7 +542,7 @@ def main(argv: list[str] | None = None) -> int:
             ],
         }
     print(json.dumps(report, ensure_ascii=True, indent=2, sort_keys=True))
-    if args.fail_on_blockers and report.get("blockers"):
+    if args.fail_on_blockers and not report.get("release_go"):
         return 1
     return 0
 

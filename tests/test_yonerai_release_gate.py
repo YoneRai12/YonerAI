@@ -3,7 +3,16 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from scripts import yonerai_release_gate as gate
-from scripts.yonerai_release_gate import check_issue_552, issue_comment_tags, latest_tag, scan_overclaim_text, standalone_tag
+from scripts.yonerai_release_gate import (
+    Blocker,
+    build_report,
+    blocks_public_release,
+    check_issue_552,
+    issue_comment_tags,
+    latest_tag,
+    scan_overclaim_text,
+    standalone_tag,
+)
 
 
 def test_standalone_tag_accepts_first_line_tag() -> None:
@@ -132,6 +141,98 @@ def test_check_issue_552_does_not_invalidate_e2e_for_phase_b_blocker(monkeypatch
     blockers = check_issue_552("repo")
 
     assert not any(blocker.kind == "stale_e2e" for blocker in blockers)
+
+
+def test_public_release_go_ignores_non_public_repo_blockers(monkeypatch) -> None:
+    def fake_check_open_prs(repo: str) -> list[Blocker]:
+        if repo == gate.PUBLIC_REPO:
+            return []
+        return [Blocker(repo, "open_pr_label", "p1", "private release gate remains open", f"https://example.invalid/{repo}")]
+
+    monkeypatch.setattr(gate, "check_issue_552", lambda _repo: [])
+    monkeypatch.setattr(gate, "check_release_issue", lambda _repo, _issue: ([], {"number": 592, "url": "issue"}))
+    monkeypatch.setattr(gate, "check_open_prs", fake_check_open_prs)
+    monkeypatch.setattr(gate, "check_pr150", lambda _repo: [Blocker(_repo, "aws_pr_150", "p1", "not merged", "pr")])
+    monkeypatch.setattr(gate, "check_agents_presence", lambda _repos: [])
+    monkeypatch.setattr(gate, "check_release_notes", lambda _path: [])
+
+    report = build_report()
+
+    assert report["release_go"] is True
+    assert report["safe_to_start_phase_b"] is False
+    assert report["blockers"]
+    assert all(item["blocks_public_release"] is False for item in report["blockers"])
+
+
+def test_public_release_go_blocks_public_repo_blockers(monkeypatch) -> None:
+    monkeypatch.setattr(gate, "check_issue_552", lambda _repo: [])
+    monkeypatch.setattr(
+        gate,
+        "check_release_issue",
+        lambda repo, _issue: ([Blocker(repo, "release_checklist", "p1", "Public release notes unchecked", "issue")], {}),
+    )
+    monkeypatch.setattr(gate, "check_open_prs", lambda _repo: [])
+    monkeypatch.setattr(gate, "check_pr150", lambda _repo: [])
+    monkeypatch.setattr(gate, "check_agents_presence", lambda _repos: [])
+    monkeypatch.setattr(gate, "check_release_notes", lambda _path: [])
+
+    report = build_report()
+
+    assert report["release_go"] is False
+    assert report["safe_to_start_phase_b"] is False
+    assert report["blockers"][0]["blocks_public_release"] is True
+
+
+def test_release_checklist_classifies_cross_repo_items_as_non_public_release_blockers() -> None:
+    aws_item = Blocker(
+        gate.PUBLIC_REPO,
+        "release_checklist",
+        "p1",
+        "unchecked release gate item: - [ ] AWS PR #150 merged to main",
+        "issue",
+    )
+    web_item = Blocker(
+        gate.PUBLIC_REPO,
+        "release_checklist",
+        "p1",
+        "unchecked release gate item: - [ ] YonerAIWEB governance cleanup remains tracked",
+        "issue",
+    )
+    phase_b_item = Blocker(
+        gate.PUBLIC_REPO,
+        "release_checklist",
+        "p1",
+        "unchecked release gate item: - [ ] Phase B issue opened only after release",
+        "issue",
+    )
+    oracle_item = Blocker(
+        gate.PUBLIC_REPO,
+        "release_checklist",
+        "p1",
+        "unchecked release gate item: - [ ] Oracle DB migration completed",
+        "issue",
+    )
+    aws_release_note_item = Blocker(
+        gate.PUBLIC_REPO,
+        "release_checklist",
+        "p1",
+        "unchecked release gate item: - [ ] AWS release notes checked for no overclaim",
+        "issue",
+    )
+    public_item = Blocker(
+        gate.PUBLIC_REPO,
+        "release_checklist",
+        "p1",
+        "unchecked release gate item: - [ ] Release notes checked for no overclaim",
+        "issue",
+    )
+
+    assert blocks_public_release(aws_item, gate.PUBLIC_REPO) is False
+    assert blocks_public_release(web_item, gate.PUBLIC_REPO) is False
+    assert blocks_public_release(phase_b_item, gate.PUBLIC_REPO) is False
+    assert blocks_public_release(oracle_item, gate.PUBLIC_REPO) is False
+    assert blocks_public_release(aws_release_note_item, gate.PUBLIC_REPO) is False
+    assert blocks_public_release(public_item, gate.PUBLIC_REPO) is True
 
 
 def test_scan_overclaim_text_blocks_positive_claims() -> None:
