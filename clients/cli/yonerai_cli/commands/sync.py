@@ -723,6 +723,7 @@ def format_sync_pretty_v2(report: dict[str, Any], *, lang: str = "ja", color: Co
         "next_reconnect_cursor",
         "duplicate_event",
         "duplicate_idempotency_key",
+        "duplicate_body_fetch_retry",
     ):
         if key in report:
             status = "ok"

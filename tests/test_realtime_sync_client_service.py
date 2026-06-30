@@ -231,6 +231,88 @@ def test_listener_deduplicates_event_before_second_body_fetch(tmp_path: Path) ->
     assert calls == 1
 
 
+def test_listener_retries_duplicate_event_when_body_fetch_was_not_completed(tmp_path: Path) -> None:
+    from yonerai_cli.services.realtime_sync_client_service import build_realtime_sync_listener_once_report
+
+    config_path, claim = _save_session(tmp_path)
+    event = _event_for_account(claim["account_id"])
+    state_path = tmp_path / "sync-state.json"
+    state_path.write_text(
+        json.dumps(
+            {
+                "schema_version": "yonerai.realtime-sync-state/v0.1",
+                "accounts": {
+                    claim["account_id"]: {
+                        "conversations": {
+                            "conv_public_001": {
+                                "cursor": "cursor_public_001",
+                                "last_event_id": "evt_public_001",
+                                "event_ids": ["evt_public_001"],
+                                "idempotency_keys": ["sync_public_001"],
+                            }
+                        }
+                    }
+                },
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    calls = 0
+
+    def transport(
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: Mapping[str, object] | None,
+        timeout: float,
+    ) -> tuple[int, Mapping[str, object], Mapping[str, str]]:
+        nonlocal calls
+        calls += 1
+        assert method == "GET"
+        assert url == f"{ORIGIN}/v1/conversations/conv_public_001/messages/msg_public_001"
+        return (
+            200,
+            {
+                "message": {
+                    "conversation_id": "conv_public_001",
+                    "message_id": "msg_public_001",
+                    "body": "hello from retry",
+                    "body_safety": "public_safe_test_fixture",
+                }
+            },
+            RATE_HEADERS,
+        )
+
+    report = build_realtime_sync_listener_once_report(
+        event=event,
+        env={"YONERAI_STAGING_AUTH_ORIGIN": ORIGIN},
+        config_path=str(config_path),
+        state_path=state_path,
+        transport=transport,
+    )
+    serialized = json.dumps(report, sort_keys=True)
+    saved_state = json.loads(state_path.read_text(encoding="utf-8"))
+    conversation_state = saved_state["accounts"][claim["account_id"]]["conversations"]["conv_public_001"]
+
+    assert report["ok"] is True
+    assert report["duplicate_event"] is True
+    assert report["duplicate_idempotency_key"] is True
+    assert report["duplicate_body_fetch_retry"] is True
+    assert report["body_fetch_allowed"] is True
+    assert report["body_fetch_reason"] == "duplicate_event_body_fetch_retry"
+    assert report["aws_body_fetch_performed"] is True
+    assert report["body_received_from_aws"] is True
+    assert report["message"]["display_text"] == "hello from retry"
+    assert report["cursor_saved"] is True
+    assert conversation_state["body_fetched_event_ids"] == ["evt_public_001"]
+    assert conversation_state["body_fetched_idempotency_keys"] == ["sync_public_001"]
+    assert calls == 1
+    assert "ystg_fixture_session_1234567890" not in serialized
+    assert "Authorization" not in serialized
+    assert str(tmp_path) not in serialized
+
+
 def test_listener_local_only_event_never_fetches_aws_body(tmp_path: Path) -> None:
     from yonerai_cli.services.realtime_sync_client_service import build_realtime_sync_listener_once_report
 
