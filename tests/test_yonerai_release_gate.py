@@ -164,6 +164,68 @@ def test_public_release_go_ignores_non_public_repo_blockers(monkeypatch) -> None
     assert all(item["blocks_public_release"] is False for item in report["blockers"])
 
 
+def test_public_release_go_ignores_private_repo_access_failure(monkeypatch) -> None:
+    def fake_check_open_prs(repo: str) -> list[Blocker]:
+        if repo == gate.AWS_REPO:
+            raise RuntimeError("GraphQL: Could not resolve to a Repository with the name 'YoneRai12/YonerAI-oracle-control-plane'.")
+        return []
+
+    monkeypatch.setattr(gate, "check_issue_552", lambda _repo: [])
+    monkeypatch.setattr(gate, "check_release_issue", lambda _repo, _issue: ([], {"number": 592, "url": "issue"}))
+    monkeypatch.setattr(gate, "check_open_prs", fake_check_open_prs)
+    monkeypatch.setattr(gate, "check_pr150", lambda _repo: [])
+    monkeypatch.setattr(gate, "check_agents_presence", lambda _repos: [])
+    monkeypatch.setattr(gate, "check_release_notes", lambda _path: [])
+
+    report = build_report()
+
+    assert report["release_go"] is True
+    assert report["safe_to_start_phase_b"] is False
+    assert report["blockers"] == [
+        {
+            "blocks_public_release": False,
+            "kind": "github_access",
+            "reason": "GraphQL: Could not resolve to a Repository with the name 'YoneRai12/YonerAI-oracle-control-plane'.",
+            "repo": gate.AWS_REPO,
+            "severity": "p1",
+            "url": f"https://github.com/{gate.AWS_REPO}",
+        }
+    ]
+
+
+def test_public_release_go_blocks_public_repo_access_failure(monkeypatch) -> None:
+    monkeypatch.setattr(gate, "check_issue_552", lambda _repo: [])
+    monkeypatch.setattr(gate, "check_release_issue", lambda _repo, _issue: ([], {"number": 592, "url": "issue"}))
+    monkeypatch.setattr(gate, "check_open_prs", lambda repo: (_ for _ in ()).throw(RuntimeError("public repo unavailable")) if repo == gate.PUBLIC_REPO else [])
+    monkeypatch.setattr(gate, "check_pr150", lambda _repo: [])
+    monkeypatch.setattr(gate, "check_agents_presence", lambda _repos: [])
+    monkeypatch.setattr(gate, "check_release_notes", lambda _path: [])
+
+    report = build_report()
+
+    assert report["release_go"] is False
+    assert report["blockers"][0]["blocks_public_release"] is True
+    assert report["blockers"][0]["repo"] == gate.PUBLIC_REPO
+
+
+def test_public_release_go_blocks_release_issue_access_failure(monkeypatch) -> None:
+    monkeypatch.setattr(gate, "check_issue_552", lambda _repo: [])
+    monkeypatch.setattr(gate, "check_release_issue", lambda _repo, _issue: (_ for _ in ()).throw(RuntimeError("release issue unavailable")))
+    monkeypatch.setattr(gate, "check_open_prs", lambda _repo: [])
+    monkeypatch.setattr(gate, "check_pr150", lambda _repo: [])
+    monkeypatch.setattr(gate, "check_agents_presence", lambda _repos: [])
+    monkeypatch.setattr(gate, "check_release_notes", lambda _path: [])
+
+    report = build_report()
+
+    assert report["release_go"] is False
+    assert report["release_gate_issue"] is None
+    assert report["blockers"][0]["blocks_public_release"] is True
+    assert report["blockers"][0]["kind"] == "github_access"
+    assert report["blockers"][0]["reason"] == "release issue unavailable"
+    assert report["blockers"][0]["repo"] == gate.PUBLIC_REPO
+
+
 def test_public_release_go_blocks_public_repo_blockers(monkeypatch) -> None:
     monkeypatch.setattr(gate, "check_issue_552", lambda _repo: [])
     monkeypatch.setattr(
