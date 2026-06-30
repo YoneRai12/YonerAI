@@ -165,7 +165,7 @@ def test_chat_script_accepts_japanese_local_llm_slash_command(tmp_path: Path, mo
     assert "ローカルLLM" in output
     assert "Ollama" in output
     assert "LM Studio" in output
-    assert "やること: Ollama か LM Studio を起動して /ローカルLLM" in output
+    assert "次: Ollama か LM Studio を起動して /ローカルLLM" in output
     assert "個別案内: /ローカルLLM ollama / lmstudio" in output
     assert "不明なコマンド" not in output
     assert str(tmp_path) not in output
