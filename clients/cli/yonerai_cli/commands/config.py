@@ -14,6 +14,7 @@ class ConfigCommandError(Exception):
 CONFIG_KEY_CHOICES = (
     "language",
     "lang",
+    "theme",
     "command_display",
     "command_display_mode",
     "command_aliases",
@@ -109,6 +110,7 @@ def format_config_pretty(report: dict[str, Any], *, lang: str = "ja", color: Col
         boundary_title = "Boundary"
     rows = (
         CliRow("language", config.get("language") or "ja", "ok"),
+        CliRow("theme", config.get("theme") or "auto", "ok"),
         CliRow("command_display", config.get("command_display_mode") or "ja_only", "ok"),
         CliRow("provider", config.get("provider_preference"), "ok"),
         CliRow("model", config.get("model_preference"), "ok"),

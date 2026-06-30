@@ -8,6 +8,7 @@ command, and that themes never alter JSON/behavior boundaries.
 from __future__ import annotations
 
 import io
+import json
 import sys
 from pathlib import Path
 from typing import Any
@@ -21,7 +22,15 @@ for path in (CLIENTS_CLI, CORE_SRC):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
-from yonerai_cli.config import DEFAULT_CONFIG, ConfigError, THEMES, save_cli_config, validate_cli_config
+from yonerai_cli.config import (
+    DEFAULT_CONFIG,
+    THEMES,
+    ConfigError,
+    save_cli_config,
+    set_cli_config_value,
+    validate_cli_config,
+)
+from yonerai_cli.commands.config import CONFIG_KEY_CHOICES
 from yonerai_cli.startup_home import render_startup_home_header
 from yonerai_cli.tui.renderer import render_panel, render_text_block
 from yonerai_cli.tui.themes import normalize_theme, theme_from_input, theme_palette, theme_uses_truecolor
@@ -57,6 +66,26 @@ def test_invalid_theme_rejected() -> None:
     cfg["theme"] = "neon"
     with pytest.raises(ConfigError):
         validate_cli_config(cfg)
+
+
+def test_config_setter_persists_theme(tmp_path: Path) -> None:
+    config_path = tmp_path / "config.json"
+
+    updated = set_cli_config_value("theme", "DARK", config_path)
+
+    assert updated["theme"] == "dark"
+    assert json.loads(config_path.read_text(encoding="utf-8"))["theme"] == "dark"
+
+
+def test_config_setter_rejects_invalid_theme(tmp_path: Path) -> None:
+    config_path = tmp_path / "config.json"
+
+    with pytest.raises(ConfigError, match="theme must be auto, dark, light, or mono"):
+        set_cli_config_value("theme", "neon", config_path)
+
+
+def test_config_command_choices_include_theme() -> None:
+    assert "theme" in CONFIG_KEY_CHOICES
 
 
 # --- palette / rendering ---
