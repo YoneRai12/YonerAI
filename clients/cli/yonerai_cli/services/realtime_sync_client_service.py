@@ -171,6 +171,21 @@ def build_realtime_sync_listener_once_report(
         seen_event_ids=seen["event_ids"],
         seen_idempotency_keys=seen["idempotency_keys"],
     )
+    duplicate_body_fetch_retry = False
+    if validation.get("ok") and _duplicate_needs_body_fetch_retry(validation, seen):
+        first_pass_validation = build_realtime_sync_event_validation_report(
+            event,
+            linked_account_id=linked_account_id,
+        )
+        if first_pass_validation.get("ok") and first_pass_validation.get("body_fetch_allowed"):
+            validation = dict(validation)
+            validation["body_fetch_allowed"] = True
+            validation["body_fetch_reason"] = (
+                "duplicate_event_body_fetch_retry"
+                if validation.get("duplicate_event")
+                else "duplicate_idempotency_body_fetch_retry"
+            )
+            duplicate_body_fetch_retry = True
     report["validation"] = _public_validation(validation)
     report.update(
         {
@@ -184,6 +199,7 @@ def build_realtime_sync_listener_once_report(
             "body_fetch_reason": validation.get("body_fetch_reason"),
             "duplicate_event": bool(validation.get("duplicate_event", False)),
             "duplicate_idempotency_key": bool(validation.get("duplicate_idempotency_key", False)),
+            "duplicate_body_fetch_retry": duplicate_body_fetch_retry,
         }
     )
     if not validation.get("ok"):
@@ -205,8 +221,15 @@ def build_realtime_sync_listener_once_report(
             report["error"] = fetched.get("error")
             return report
 
-    if not report["duplicate_event"] and not report["duplicate_idempotency_key"]:
-        _record_state(state, validation)
+    should_record_state = (not report["duplicate_event"] and not report["duplicate_idempotency_key"]) or bool(
+        report.get("aws_body_fetch_performed") and report.get("body_received_from_aws")
+    )
+    if should_record_state:
+        _record_state(
+            state,
+            validation,
+            body_fetch_completed=bool(report.get("aws_body_fetch_performed") and report.get("body_received_from_aws")),
+        )
         try:
             _save_state(state_file, state)
             report["cursor_saved"] = True
@@ -2134,6 +2157,7 @@ def _public_child_listener_result(report: Mapping[str, Any]) -> dict[str, object
         "cursor_saved",
         "duplicate_event",
         "duplicate_idempotency_key",
+        "duplicate_body_fetch_retry",
         "error",
     )
     return {key: report.get(key) for key in keys if key in report}
@@ -2327,10 +2351,30 @@ def _seen_for_event(state: Mapping[str, Any], account_id: str, event: Mapping[st
     return {
         "event_ids": tuple(str(item) for item in conversation.get("event_ids", []) if isinstance(item, str)),
         "idempotency_keys": tuple(str(item) for item in conversation.get("idempotency_keys", []) if isinstance(item, str)),
+        "body_fetched_event_ids": tuple(
+            str(item) for item in conversation.get("body_fetched_event_ids", []) if isinstance(item, str)
+        ),
+        "body_fetched_idempotency_keys": tuple(
+            str(item) for item in conversation.get("body_fetched_idempotency_keys", []) if isinstance(item, str)
+        ),
     }
 
 
-def _record_state(state: dict[str, Any], validation: Mapping[str, object]) -> None:
+def _duplicate_needs_body_fetch_retry(validation: Mapping[str, object], seen: Mapping[str, tuple[str, ...]]) -> bool:
+    if not (validation.get("duplicate_event") or validation.get("duplicate_idempotency_key")):
+        return False
+    event_id = validation.get("event_id")
+    idempotency_key = validation.get("idempotency_key")
+    body_fetched_event_ids = seen.get("body_fetched_event_ids", ())
+    body_fetched_idempotency_keys = seen.get("body_fetched_idempotency_keys", ())
+    if isinstance(event_id, str) and event_id in body_fetched_event_ids:
+        return False
+    if isinstance(idempotency_key, str) and idempotency_key in body_fetched_idempotency_keys:
+        return False
+    return True
+
+
+def _record_state(state: dict[str, Any], validation: Mapping[str, object], *, body_fetch_completed: bool = False) -> None:
     account_id = str(validation.get("account_id") or "")
     conversation_id = str(validation.get("conversation_id") or "")
     conversation = _conversation_state(state, account_id, conversation_id)
@@ -2338,6 +2382,15 @@ def _record_state(state: dict[str, Any], validation: Mapping[str, object]) -> No
     conversation["last_event_id"] = validation.get("event_id")
     conversation["event_ids"] = _append_limited(conversation.get("event_ids"), validation.get("event_id"))
     conversation["idempotency_keys"] = _append_limited(conversation.get("idempotency_keys"), validation.get("idempotency_key"))
+    if body_fetch_completed:
+        conversation["body_fetched_event_ids"] = _append_limited(
+            conversation.get("body_fetched_event_ids"),
+            validation.get("event_id"),
+        )
+        conversation["body_fetched_idempotency_keys"] = _append_limited(
+            conversation.get("body_fetched_idempotency_keys"),
+            validation.get("idempotency_key"),
+        )
 
 
 def _record_firestore_poll(path: Path, account_id: str) -> None:
@@ -2388,10 +2441,24 @@ def _conversation_state(state: Mapping[str, Any], account_id: str, conversation_
         conversations = account["conversations"]
     conversation = conversations.setdefault(
         conversation_id,
-        {"cursor": None, "last_event_id": None, "event_ids": [], "idempotency_keys": []},
+        {
+            "cursor": None,
+            "last_event_id": None,
+            "event_ids": [],
+            "idempotency_keys": [],
+            "body_fetched_event_ids": [],
+            "body_fetched_idempotency_keys": [],
+        },
     )
     if not isinstance(conversation, dict):
-        conversations[conversation_id] = {"cursor": None, "last_event_id": None, "event_ids": [], "idempotency_keys": []}
+        conversations[conversation_id] = {
+            "cursor": None,
+            "last_event_id": None,
+            "event_ids": [],
+            "idempotency_keys": [],
+            "body_fetched_event_ids": [],
+            "body_fetched_idempotency_keys": [],
+        }
         conversation = conversations[conversation_id]
     return conversation
 
