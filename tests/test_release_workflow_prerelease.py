@@ -28,6 +28,10 @@ def test_release_workflow_keeps_release_notes_and_version_guards() -> None:
     assert '--tag "${GITHUB_REF_NAME}"' in workflow
     assert '--artifact "${PRODUCT_NAME}-${ORA_VERSION}.zip"' in workflow
     assert '--github-prerelease "${ORA_PRERELEASE}"' in workflow
+    assert 'python scripts/yonerai_release_gate.py \\' in workflow
+    assert "--release-issue 592" in workflow
+    assert '--release-notes "docs/releases/${ORA_VERSION}.md"' in workflow
+    assert "--fail-on-blockers" in workflow
 
 
 def test_release_workflow_fetches_tags_before_current_truth_archive() -> None:

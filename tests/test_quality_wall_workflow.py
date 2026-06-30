@@ -50,6 +50,7 @@ def test_release_gate_workflow_does_not_publish() -> None:
     assert "python scripts/create_release.py \"${VERSION}\"" in workflow
     assert '--artifact "${PRODUCT_NAME}-${VERSION}.zip"' in workflow
     assert "git diff --name-only \"${RELEASE_DIFF_RANGE}\"" in workflow
+    assert "python scripts/yonerai_release_gate.py --release-issue 592" in workflow
     assert (
         "grep -E '^(VERSION|PRODUCT_NAME|releases/manifest\\.v[^/]+\\.json|docs/releases/[^/]+\\.md)$'"
         in workflow
