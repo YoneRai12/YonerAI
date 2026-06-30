@@ -486,6 +486,13 @@ def check_release_notes(path: Path | None) -> list[Blocker]:
     return blockers
 
 
+def _extend_or_github_access(blockers: list[Blocker], repo: str, collect: Any) -> None:
+    try:
+        blockers.extend(collect())
+    except RuntimeError as exc:
+        blockers.append(Blocker(repo, "github_access", "p1", str(exc), f"https://github.com/{repo}"))
+
+
 def build_report(
     *,
     public_repo: str = PUBLIC_REPO,
@@ -495,13 +502,17 @@ def build_report(
     release_notes: Path | None = None,
 ) -> dict[str, Any]:
     blockers: list[Blocker] = []
-    blockers.extend(check_issue_552(public_repo))
-    release_issue_blockers, issue = check_release_issue(public_repo, release_issue)
-    blockers.extend(release_issue_blockers)
-    blockers.extend(check_open_prs(public_repo))
-    blockers.extend(check_open_prs(aws_repo))
-    blockers.extend(check_open_prs(web_repo))
-    blockers.extend(check_pr150(aws_repo))
+    _extend_or_github_access(blockers, public_repo, lambda: check_issue_552(public_repo))
+    try:
+        release_issue_blockers, issue = check_release_issue(public_repo, release_issue)
+        blockers.extend(release_issue_blockers)
+    except RuntimeError as exc:
+        issue = None
+        blockers.append(Blocker(public_repo, "github_access", "p1", str(exc), f"https://github.com/{public_repo}"))
+    _extend_or_github_access(blockers, public_repo, lambda: check_open_prs(public_repo))
+    _extend_or_github_access(blockers, aws_repo, lambda: check_open_prs(aws_repo))
+    _extend_or_github_access(blockers, web_repo, lambda: check_open_prs(web_repo))
+    _extend_or_github_access(blockers, aws_repo, lambda: check_pr150(aws_repo))
     blockers.extend(check_agents_presence([public_repo, aws_repo, web_repo]))
     blockers.extend(check_release_notes(release_notes))
 
@@ -534,12 +545,11 @@ def main(argv: list[str] | None = None) -> int:
             release_notes=args.release_notes,
         )
     except RuntimeError as exc:
+        blocker = Blocker(PUBLIC_REPO, "github_access", "p1", str(exc), "")
         report = {
             "release_go": False,
             "safe_to_start_phase_b": False,
-            "blockers": [
-                Blocker(PUBLIC_REPO, "github_access", "p1", str(exc), "").as_dict(),
-            ],
+            "blockers": [_blocker_report(blocker, PUBLIC_REPO)],
         }
     print(json.dumps(report, ensure_ascii=True, indent=2, sort_keys=True))
     if args.fail_on_blockers and not report.get("release_go"):

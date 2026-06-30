@@ -56,8 +56,8 @@
       "os": "any",
       "arch": "any",
       "url": "https://github.com/YoneRai12/YonerAI/releases/download/v0.23.0-alpha.1/YonerAI-0.23.0-alpha.1.zip",
-      "sha256": "d56b6b135263dea9a8913725ea1ac6d7ae950c753c59d04b50dff762a79c9631",
-      "size_bytes": 18743696,
+      "sha256": "0887f36077bcdf1b42cdbfcf17bc5d23612db5e0f2a92327cd2307c7e0d372d1",
+      "size_bytes": 18747437,
       "signature": {
         "status": "placeholder_non_production",
         "algorithm": "none",
