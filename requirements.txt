@@ -4,7 +4,7 @@
 discord.py>=2.3,<3.0
 python-dotenv
 aiohttp>=3.8,<4.0
-aiosqlite>=0.19,<1.0
+aiosqlite>=0.22.1,<1.0
 requests
 httpx
 aiofiles
