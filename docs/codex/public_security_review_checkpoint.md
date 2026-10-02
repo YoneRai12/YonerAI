@@ -595,6 +595,25 @@ Current blocker:
 - `[PUBLIC-SYNC-CLIENT-READY]` remains false until AWS firebase-config is ready and live Web-to-CLI E2E is proven.
 - No release/tag is allowed from this checkpoint.
 
+## 2026-10-02 PR #134 画像生成とCIの再受入
+
+観測時刻: 2026-10-02 10:28 JST。対象は既存PR #134、base `6e387dfa4dcedcf848111ecef9ac14692651ac57`。画像生成修正のheadは `3191bb09865e8fbf4edbd29ca15714dc2ea61c24`、CI補修のcommitは `9ea9b0b8b034ce637316da69a6358996f752b1ea`。以前のsync laneでの保留を、Ownerが指定した今回の画像生成修正laneへ引き継ぐ。
+
+PR本文、review submissions、未解決inline thread、conversation、現在headの全checkを取得した。本文にlinked issueはない。3191bb0に対する自動Code Reviewは完了し、新しいinline findingはない。Code Reviewの完了を継続security scanの合格として扱わない。
+
+| 対象 | 分類 | 根拠と対応 | 現在の判断 |
+| --- | --- | --- | --- |
+| Auto styleの二重defer | valid-now、修正済み | 応答済みinteractionは再deferしない。実button callbackの回帰試験でAutoはdefer 1回、通常styleもdefer 1回。 | 3191bb0を維持する。 |
+| Geminiの古いinteractionへの編集指摘 | valid-now、修正済み | 共通生成とAuto styleの編集は、その操作で渡されたinteractionへ統一した。古いinteractionを使用すると失敗するfixtureで2経路を検証した。 | 対応commitのGitHub読戻し後にthreadを解決する。 |
+| core-testのgreenlet不足 | valid-now、CI基盤で修正済み | base/headでrequirementsとworkflowは同一。現在のSQLAlchemy解決ではasync依存が不足した。sqlalchemyのasyncio extraを直接宣言した。 | fresh環境のcompile/importはPASS。新headのGitHub checkを待つ。 |
+| core-unit/provider-boundaryのhttpx不足 | valid-now、CI基盤で修正済み | base/headの関連blobは同一。新OpenAI依存はhttpx2を導入し、直接importするhttpxが不足した。httpxを直接宣言した。 | fresh環境でcore-unit 69 PASS/2 skip、provider-boundary 66 PASS/2 skip。skip条件は既存のまま。GitHub checkを待つ。 |
+| security-staticの差分選択 | valid-now、CI基盤で修正済み | 旧headの失敗はPR外で同一blobのANSI定数5件と意図的fixture2件を検出した。選択rangeの旧ログがなく、正確なfallback原因は未確認。Actionsでは実base/headの検証済みSHAと差分方式を明示し、取得失敗を拒否する。 | 範囲・commit不在・注入文字・divergent PRの反例試験を追加。scanner/workflow 27 PASS、7変更pathの明示scan PASS。 |
+| review-intake-required | valid-now、手続きgate | synchronize後は再分類まで失敗する契約。自動ラベル操作も失敗したがAPI詳細が抑止され原因は未確認。 | この台帳と新headのreview/checkを確認してからmaintainerのintake-reviewedを付与する。 |
+
+画像生成回帰2件は、repository rootとCI相当のcore作業directoryの双方でPASS。既存core-test jobにも同じ2件を追加した。fresh Python 3.11環境でpip check、ruff、compile、YAML parse、diff check、秘密・公開path検査がPASS。秘密の除外規則、全件scan、テストの既存skip条件は変更していない。
+
+3191bb0のGitHub結果は成功10件、失敗5件。上記のCI補修はローカルで検証済みだが、GitHub上の新headが成功したとはまだ記録しない。required checksとconversation resolutionが揃うまでmergeを保留する。live Discord、release、tag、deploymentはこのlaneの検証・操作に含めない。
+
 ## 2026-06-23 PR #571 Post-Merge Review Follow-Up
 
 - last_scan_at: 2026-06-23T15:50:26+09:00
