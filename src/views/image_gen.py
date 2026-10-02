@@ -29,7 +29,7 @@ class StyleSelectView(View):
         # Disable buttons
         for child in self.children:
             child.disabled = True
-        await self.original_interaction.edit_original_response(view=self)
+        await interaction.edit_original_response(view=self)
 
         # Apply Style Modifiers
         final_prompt = self.prompt
@@ -139,7 +139,7 @@ class StyleSelectView(View):
         # Disable buttons temporarily
         for child in self.children:
             child.disabled = True
-        await self.original_interaction.edit_original_response(view=self)
+        await interaction.edit_original_response(view=self)
 
         determined_style = "real"  # Fallback
 
