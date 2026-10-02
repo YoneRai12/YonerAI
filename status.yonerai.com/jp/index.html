@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="ja" data-status-runtime="loading">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Cache-Control" content="no-store" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>YonerAI Status</title>
+    <meta
+      name="description"
+      content="YonerAI Status shows the current preparation state for YonerAI services. Monitoring is not operating yet."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="YonerAI Status" />
+    <meta property="og:title" content="YonerAI Status" />
+    <meta
+      property="og:description"
+      content="Current preparation status for YonerAI services. Uptime, incidents, and live checks are not being collected yet."
+    />
+    <meta property="og:url" content="https://status.yonerai.com/" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="YonerAI Status" />
+    <meta
+      name="twitter:description"
+      content="Current preparation status for YonerAI services. Monitoring is not operating yet."
+    />
+    <link rel="stylesheet" href="../styles.css?v=20260618-mobile-touch-contract" />
+    <link rel="stylesheet" href="../runtime-status.css?v=20260601-public-feed-label-fix" />
+  </head>
+  <body>
+    <div class="page">
+      <header class="header">
+        <a class="brand" href="/" aria-label="YonerAI Status">
+          <span class="brand-text">YonerAI Status</span>
+        </a>
+        <div class="header-actions">
+          <button class="subscribe" id="subscribeButton" type="button">
+            Subscribe to updates
+          </button>
+          <button class="theme-toggle" id="themeToggle" type="button" aria-label="Toggle theme" aria-pressed="false">
+            <span class="theme-toggle-track" aria-hidden="true"><span class="theme-toggle-knob"></span></span>
+            <span class="theme-toggle-text" id="themeToggleText">Light</span>
+          </button>
+        </div>
+      </header>
+
+      <main id="mainContent">
+        <section class="notice" id="noticePanel" aria-labelledby="noticeTitle">
+          <div class="notice-head">
+            <span class="notice-icon" aria-hidden="true"></span>
+            <h1 id="noticeTitle">Preparing status monitoring</h1>
+          </div>
+          <p id="noticeCopy">
+            YonerAI status monitoring is not operating yet. All components are shown in gray because uptime, incidents, and live checks are not being collected.
+          </p>
+        </section>
+
+        <section class="status-card" id="statusCard" aria-labelledby="systemStatusTitle">
+          <div class="status-card-head">
+            <div class="title-row">
+              <h2 id="systemStatusTitle">System status</h2>
+              <button class="range-button" id="rangePrev" type="button" aria-label="Previous range"></button>
+              <span class="range-label" id="rangeLabel">Feb 2026 - May 2026</span>
+              <button class="range-button next" id="rangeNext" type="button" aria-label="Next range"></button>
+            </div>
+            <p>
+              <span id="pastDaysLabel">Past 90 days.</span>
+              <button class="text-link" id="historyHint" type="button">No uptime history exists yet.</button>
+            </p>
+          </div>
+
+          <div class="category-list" id="categoryList" aria-label="YonerAI status categories"></div>
+        </section>
+
+        <div class="history-action" id="historyAction">
+          <button class="history-button" id="historyButton" type="button">
+            <span class="calendar-icon" aria-hidden="true"></span>
+            <span id="historyButtonText">View history</span>
+          </button>
+        </div>
+
+        <section class="incidents" id="incidentsSection" aria-labelledby="incidentsTitle">
+          <h2 id="incidentsTitle">Past incidents</h2>
+          <article class="incident-empty">
+            <time id="incidentTime">Before operations</time>
+            <h3 id="incidentTitle">No public incident history</h3>
+            <p id="incidentCopy">
+              YonerAI has not started public status operations, so there are no factual incidents or resolutions to report.
+            </p>
+          </article>
+        </section>
+      </main>
+
+      <footer class="footer">
+        <p id="footerPowered">Powered by YonerAI</p>
+        <p id="footerCopy">
+          Availability metrics are not collected yet. All categories stay gray until real monitoring is connected.
+        </p>
+      </footer>
+    </div>
+
+    <div class="tooltip" id="barTooltip" role="tooltip" hidden></div>
+
+    <template id="categoryTemplate">
+      <article class="category">
+        <button class="category-summary" type="button">
+          <span class="summary-main">
+            <span class="status-dot" aria-hidden="true"></span>
+            <span class="category-name"></span>
+            <span class="info-dot" aria-hidden="true">i</span>
+            <span class="category-count"></span>
+            <span class="caret" aria-hidden="true"></span>
+          </span>
+          <span class="category-state"></span>
+        </button>
+        <div class="bars category-bars" aria-label="90 day status history"></div>
+        <div class="bar-scale" aria-hidden="true">
+          <span class="scale-start"></span>
+          <span class="scale-uptime"></span>
+          <span class="scale-end"></span>
+        </div>
+        <div class="children" aria-hidden="true"><div class="disclosure-clip"><div class="children-content"></div></div></div>
+      </article>
+    </template>
+
+    <template id="childTemplate">
+      <article class="child">
+        <button class="child-summary" type="button">
+          <span class="summary-main">
+            <span class="status-dot small" aria-hidden="true"></span>
+            <span class="child-name"></span>
+            <span class="info-dot" aria-hidden="true">i</span>
+            <span class="caret" aria-hidden="true"></span>
+          </span>
+          <span class="category-state"></span>
+        </button>
+        <div class="bars child-bars" aria-label="90 day status history"></div>
+        <div class="child-detail" aria-hidden="true"><div class="disclosure-clip"><div class="detail-card"><dl>
+            <div>
+              <dt class="detail-current-label"></dt>
+              <dd class="fact"></dd>
+            </div>
+            <div>
+              <dt class="detail-monitoring-label"></dt>
+              <dd class="detail-monitoring-value"></dd>
+            </div>
+            <div>
+              <dt class="detail-claim-label"></dt>
+              <dd class="detail-claim-value"></dd>
+            </div>
+          </dl></div></div></div></article>
+    </template>
+
+            <script>
+(() => {
+  const path = window.location.pathname.toLowerCase();
+  const params = new URLSearchParams(window.location.search);
+  const requested = (params.get("lang") || "").toLowerCase();
+  const languages = Array.isArray(navigator.languages) && navigator.languages.length ? navigator.languages : [navigator.language || ""];
+  let locale = "en";
+  if (path === "/jp" || path.startsWith("/jp/")) locale = "ja";
+  else if (path === "/en" || path.startsWith("/en/")) locale = "en";
+  else if (requested === "ja" || requested === "jp") locale = "ja";
+  else if (requested === "en") locale = "en";
+  else if (languages.some((language) => String(language).toLowerCase().startsWith("ja"))) locale = "ja";
+  document.documentElement.lang = locale;
+  window.YONERAI_STATUS_LOCALE = locale;
+  window.YONERAI_STATUS_LEGACY_INLINE_DISABLED = true;
+})();
+</script>
+    <script src="/mock-status-adapter.js?v=20260601-runtime-feed-contract-stable"></script>
+    <script>
+      (() => {
+        const runtimeReady = () => document.documentElement.dataset.statusRuntime === "feed" && document.querySelectorAll("#categoryList > article.category").length > 0;
+        const retryRuntime = () => {
+          if (runtimeReady()) return;
+          const retry = document.createElement("script");
+          retry.src = "/mock-status-adapter.js?v=20260601-runtime-feed-contract-stable&retry=" + Date.now();
+          retry.async = false;
+          retry.onload = () => {
+            window.setTimeout(() => {
+              if (!runtimeReady()) document.documentElement.setAttribute("data-feed-error", "runtime-retry-empty");
+            }, 250);
+          };
+          retry.onerror = () => document.documentElement.setAttribute("data-feed-error", "runtime-retry-load-failed");
+          document.body.appendChild(retry);
+        };
+        window.setTimeout(retryRuntime, 1800);
+        window.addEventListener("pageshow", () => window.setTimeout(retryRuntime, 400));
+      })();
+    </script>
+  </body>
+</html>

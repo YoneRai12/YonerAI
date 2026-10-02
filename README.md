@@ -1,365 +1,819 @@
-<div align="center">
+﻿# YonerAI
 
-# YonerAI
-### **The Artificial Lifeform AI System (Node + Clients + Relay + Core)**
+> [!WARNING]
+> **Do not treat this README as the single source of truth for the current prerelease state.**
+> YonerAI is moving quickly, so this README can lag behind active releases and commits.  
+> Check [Alpha releases](https://github.com/YoneRai12/YonerAI/releases) and [latest commits](https://github.com/YoneRai12/YonerAI/commits/main) for the newest implementation status.
 
-![YonerAI Banner](docs/images/yonerai_banner.svg)
+Provider-independent AI execution foundation for keeping one reliable AI experience across official, local, and self-hosted runtimes.
 
-[![Release](https://img.shields.io/github/v/release/YoneRai12/YonerAI?style=for-the-badge&logo=github&color=blue)](https://github.com/YoneRai12/YonerAI/releases)
-[![Build and Test](https://github.com/YoneRai12/YonerAI/actions/workflows/test.yml/badge.svg?style=for-the-badge)](https://github.com/YoneRai12/YonerAI/actions/workflows/test.yml)
-[![Discord](https://img.shields.io/badge/Discord-Join-7289DA?style=for-the-badge&logo=discord)](https://discord.gg/YoneRai12)
-[![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
+[Japanese README](README_JP.md) | [Current phase](docs/CURRENT_PHASE_CONTEXT.md) | [Contracts](docs/contracts) | [Root file / PR traceability](docs/repo/FILE_PR_TRACEABILITY_MATRIX_CURRENT.md) | [Latest checkpoint archive](docs/releases/v2026.5.21.5-implementation-continuation-checkpoint.md)
 
-[**[Manual]**](docs/USER_GUIDE.md) | [**[Env Templates]**](docs/ENV_FILES.md) | [**[Release Notes]**](docs/RELEASE_NOTES.md) | [**[Web Chat]**](http://localhost:3000) | [**[Dashboard]**](http://localhost:3333)
+## What YonerAI Is
 
----
+YonerAI is a long-lived AI runtime foundation. Its purpose is to keep the same user-facing experience and the same contract boundaries even when the active model provider, UI surface, local runtime, or self-hosted profile changes.
 
-[**English**](README.md) | [日本語](README_JP.md)
+It is not just a Discord bot and not just a model router. Discord, Web, relay, API, CLI, native Japanese CLI, SNS distribution, and self-evolution are separate product lanes with different risk profiles and approval requirements.
 
-</div>
+This public README describes the public contract surface. It does not publish internal operations detail, credentials, live routes, or host-specific facts.
 
----
+## License and distribution
 
-## What Is YonerAI?
+YonerAI is source-available and noncommercial by default. It is not OSI open
+source.
 
-YonerAI is a local-first AI system designed to live on your own machine first.
-At its core, YonerAI is a **Node-style runtime** that can combine:
+- Code: PolyForm Noncommercial License 1.0.0.
+- Documentation and assets: CC BY-NC-ND 4.0 unless a file says otherwise.
+- YonerAI name, logo, product identity, domains, and brand assets: All Rights
+  Reserved.
+- Commercial use requires a separate commercial license from YoneRai12.
 
-- Discord as a daily interface
-- local/admin web UIs
-- tool / skill execution with risk scoring + approvals
-- an optional Core process for deeper routing / reasoning
-- relay-compatible networking for hybrid or remote-assisted setups
+See [LICENSE](LICENSE), [LICENSE_JP.md](LICENSE_JP.md), [NOTICE](NOTICE), and
+[License policy](docs/legal/LICENSE_POLICY.md).
 
-This public repository is the **distributable YonerAI side**: the part that should be able to run on a user's PC, be extended locally, and remain useful without private production infrastructure.
+## Install and start YonerAI
 
-Note: many internal paths/env vars still use legacy `ORA_*` prefixes for compatibility. Product/release branding is controlled by `PRODUCT_NAME`.
+This is the local CLI runtime path, not full YonerAI cloud production. The
+latest stable CLI Local Runtime is `v0.8.1`. Stable is the default channel.
+The beta/prerelease line remains explicit and compatibility-mapped to existing
+prerelease manifests. After install, `yonerai` launches the interactive CLI and
+plain text talks to the safe local runtime without remembering flags.
 
-### Scope Of This Public Repo
+### Quick install
 
-What this repo is for:
+```powershell
+irm https://install.yonerai.com | iex
+```
 
-- a local-first AI node you can run on Windows
-- a Discord-centric personal/operator workflow
-- local tool and skill execution
-- web/admin surfaces for setup and daily use
-- hybrid-ready relay/core patterns you can adapt later
+Quick install downloads a static Cloudflare wrapper from `install.yonerai.com`.
+That wrapper downloads `install.ps1` and `install.ps1.sha256` from the currently
+embedded trusted stable release tag, checks the sidecar against the embedded
+SHA256, and runs the bootstrap only after the downloaded script hash matches. It
+does not call the GitHub API from the user's terminal, fetch ZIPs, manifests, or
+sidecar hashes from `yonerai.com`, mutate PATH by default, edit the registry,
+install services, request admin rights, store provider keys, or enable
+production cloud behavior.
 
-What this repo is **not** trying to be on its own:
+Do not pipe `releases/latest/download/install.ps1` directly into
+`Invoke-Expression`; the short command goes through the trust-mapped wrapper.
 
-- the private commercial platform
-- the official `yonerai.com` operations layer
-- billing / production moderation / internal admin stacks
-- private production secrets, runbooks, or internal-only services
+### Verified install
 
-In other words: this repo is the public YonerAI foundation you can run, inspect, and extend. The heavier private operations side is intentionally separate.
+Use this when you want to verify the bootstrap script hash before execution.
+It downloads `install.ps1` and `install.ps1.sha256` from the current trusted
+stable release tag and checks the sidecar against the embedded SHA256 before
+execution. It fails closed if the sidecar is missing, malformed, not trusted, or
+mismatched.
 
-### Current Status Of The Split
+```powershell
+$ErrorActionPreference = "Stop"
+$base = "https://github.com/YoneRai12/YonerAI/releases/download/v0.8.1"
+$expected = "a52c3f918bd45e7fe87b7a396c80b879ede4bccdf16a7efdf05320388eaa9fea"
+$tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("yonerai-bootstrap-" + [guid]::NewGuid().ToString("N"))
+New-Item -ItemType Directory -Path $tmp | Out-Null
+try {
+  $script = Join-Path $tmp "install.ps1"
+  $sidecar = Join-Path $tmp "install.ps1.sha256"
+  irm "$base/install.ps1" -OutFile $script
+  irm "$base/install.ps1.sha256" -OutFile $sidecar
+  $sidecarExpected = ((Get-Content -LiteralPath $sidecar -Raw) -split '\s+')[0].ToLowerInvariant()
+  if ($sidecarExpected -notmatch "^[a-f0-9]{64}$") { throw "install.ps1 sidecar SHA256 is invalid" }
+  if ($sidecarExpected -ne $expected) { throw "install.ps1 sidecar does not match trusted digest" }
+  $actual = (Get-FileHash -LiteralPath $script -Algorithm SHA256).Hash.ToLowerInvariant()
+  if ($actual -ne $expected) { throw "install.ps1 hash mismatch" }
+  $scriptText = Get-Content -LiteralPath $script -Raw
+  if ($scriptText -notmatch "Invoke-VerifiedLocalBootstrap" -or $scriptText -match "install.ps1 is still plan-only") {
+    throw "install.ps1 is not an executable bootstrap. Refusing to launch."
+  }
+  & (Get-Process -Id $PID).Path -NoProfile -ExecutionPolicy Bypass -File $script -Execute -Launch
+} finally {
+  if (Test-Path -LiteralPath $tmp) { Remove-Item -LiteralPath $tmp -Recurse -Force }
+}
+```
 
-The long-term direction is a clearer split between:
+Explicit beta/prerelease one-command remote execution is not advertised. Use
+the manual ZIP flow for explicit release selection.
 
-- the public distributable YonerAI node side
-- the private VPS / commercial / official web side
+### If you downloaded the GitHub Release ZIP
 
-That separation is still being formalized. Because of that, this repo currently still contains some broader shared foundation code and docs, especially around hybrid deployment and future-facing architecture.
+Download `YonerAI-0.8.1.zip` from the
+[v0.8.1 release](https://github.com/YoneRai12/YonerAI/releases/tag/v0.8.1),
+extract it, then run PowerShell inside the extracted folder. The extracted
+folder name can vary; change the `cd` command to match the folder you see.
 
-### What You Can Do With YonerAI
+```powershell
+cd "$HOME\Downloads\YonerAI-0.8.1"
+python --version
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -U pip
+python -m pip install -r core/requirements.txt httpx
+python -m pip install -e clients/cli
+yonerai
+```
 
-With the current public repo, you can:
+If the extracted archive or checkout contains `install-local.ps1`, you can use
+the local bootstrap helper instead of typing the virtual-environment steps by
+hand:
 
-- run YonerAI locally as a Discord bot
-- start a local setup/admin API
-- use web chat and dashboard UIs
-- route requests through local and/or cloud model backends
-- execute tools behind approvals and audit logging
-- extend the system with built-in tools, local skills, or MCP servers
-- prepare for hybrid mode where a VPS acts as a control plane and your PC remains the worker
+```powershell
+# Show the plan only. Nothing is installed.
+.\install-local.ps1
 
-### Runtime Components
+# Create .venv, install the local CLI package, then start YonerAI.
+.\install-local.ps1 -Execute -Launch
+```
 
-- Bot process (Discord): `python main.py`
-- Admin server (FastAPI): `uvicorn src.web.app:app --host 0.0.0.0 --port 8000`
-- Core (optional): `python -m ora_core.main`
-- Web Chat UI (Next.js): `clients/web/`
-- Dashboard UI (Next.js): `ora-ui/`
-- Relay pieces for pairing / proxy style flows: `src/relay/`
+`install.ps1` is also included as the GitHub Release bootstrap. Without
+`-Execute`, it prints the plan and performs no install:
 
-### Repository Layout
+```powershell
+.\install.ps1
+```
 
-- `src/`
-  - bot runtime, web API, relay, tools, skills, approvals, audit, utilities
-- `core/`
-  - optional Core API and reasoning/routing logic
-- `clients/web/`
-  - public-facing chat UI
-- `ora-ui/`
-  - dashboard / operator UI
-- `docs/`
-  - architecture notes, deployment guides, diagrams, extension docs
-- `tools/`
-  - helper projects and external tool integrations
+If PowerShell blocks local scripts, run the same helper without changing the
+machine-wide execution policy:
 
-### Deployment Modes
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\install-local.ps1 -Execute -Launch
+```
 
-You can think about this repo in three practical modes:
+The helper is local-first: plan mode is the default, it refuses virtual
+environment paths outside the extracted YonerAI folder, and it does not mutate
+PATH, edit the registry, install services, request admin privileges, or run
+`irm ... | iex`. With `-Execute`, `pip` may fetch Python dependencies unless
+they are already cached.
 
-1. **Local-only**
-   - Run the bot and optional UIs on your own PC.
-2. **Local + Core**
-   - Add the optional Core process for more explicit routing / reasoning separation.
-3. **Hybrid**
-   - Run a VPS control plane later while keeping your own PC as the high-trust worker.
+Use Python 3.11 or newer. If `python --version` does not work, install Python
+first or use the launcher command that exists on your machine.
 
-### Deep Docs
+After `yonerai` opens, choose `日本語` or `English`, then type a normal
+message. You can open settings with `/設定` or `/settings`, check safety with
+`/安全`, see auth/privacy state with `/認証` and `/プライバシー`, see history
+with `/履歴`, and exit with `/終了` or `/quit`.
 
-If you want the deeper docs:
-- `docs/USER_GUIDE.md`
-- `docs/SYSTEM_ARCHITECTURE.md`
-- `docs/VPS_DEPLOYMENT.md` (run the always-on control plane on a VPS; hybrid mode)
-- `docs/DOMAIN_ROUTES.md` (recommended `yonerai.com` subdomains and API path design)
-- `docs/PLATFORM_PLAN.md` (product direction: Node + Clients + Relay + Cloud)
-- `docs/PLATFORM_REVIEW_AND_RISKS.md` (devil's advocate review / risks)
-- `ORA_SYSTEM_SPEC.md`
-- `AGENTS.md` (Codex/agent workspace instructions for this repo)
+If `yonerai` is not found, activate the virtual environment again:
+`.\.venv\Scripts\Activate.ps1`. This path does not mutate PATH permanently,
+does not run `irm ... | iex`, does not download or execute a remote installer,
+and does not enable live providers by default.
 
----
-
-## Quickstart (Windows)
-
-Prereqs:
-- Python 3.11
-- Node.js (for `clients/web`, `ora-ui`, and some skills)
-- FFmpeg on `PATH` (voice/music and some media skills)
-
-### 1) Bot
 ```powershell
 python -m venv .venv
 .venv\Scripts\Activate.ps1
-pip install -U pip
-pip install -r requirements.txt
-Copy-Item .env.example .env
-python main.py
+python -m pip install -U pip
+python -m pip install -r core/requirements.txt httpx
+python -m pip install -e clients/cli
+yonerai
 ```
 
-Minimum required env var: `DISCORD_BOT_TOKEN`.
+After install, `yonerai` starts the interactive app when stdin is a TTY.
+Type a normal message first. The default mock provider answers offline with no
+API key or setup. `yonerai chat` remains an explicit alias. For CI, pipes, and
+scripted input, use `yonerai chat --script` or `yonerai ask --auto`.
 
-### 2) Admin Server (optional)
+### In-app commands
+
+Normal users should not need to memorize long shell flags such as
+`--bridge --open-browser --wait-linked`. Open `yonerai`, type `/`, and choose a
+command. Japanese mode shows Japanese commands first while English aliases such
+as `/login` and `/local-llm` still work. Tab and arrow-key selection are
+available when `prompt_toolkit` is active; otherwise YonerAI falls back to the
+plain line-by-line mode used by CI.
+
+```text
+/ログイン      open Google alpha/staging login
+/更新          choose stable/beta update; apply only after explicit confirmation
+/ローカルLLM   detect Ollama / LM Studio and show setup guidance
+/設定          language, display, provider, safety, memory, update settings
+/認証          auth state, shared traffic off, private upload disabled
+/同期          cloud-to-local preview; local-to-cloud requires approval
+/記憶          add/list/forget local memory and preview sync
+/履歴          redacted run history
+/API           staging API status
+/レート        rate-limit status
+/終了          quit
+```
+
+Short shell commands are still available for advanced users and CI, but the
+normal path is the in-app `/ログイン`, `/更新`, and `/ローカルLLM` flow.
+
 ```powershell
+yonerai
+yonerai chat
+yonerai ask --auto "hello"
+yonerai update
+yonerai update stable
+yonerai update beta
+yonerai login
+yonerai auth status --pretty --lang ja
+yonerai sync status --pretty --lang ja
+yonerai sync preview --direction cloud-to-local --json
+yonerai sync approve --dry-run --direction local-to-cloud --json
+yonerai privacy status --pretty --lang ja
+yonerai config set model llama3.1 --pretty --lang ja
+yonerai providers --pretty --lang ja
+```
+
+Inside the app, `/更新` shows stable and beta choices first. Applying an update
+requires explicit confirmation such as `/更新 適用 安定版 確認` or
+`/更新 適用 ベータ版 確認`. There is no silent update, forced update, PATH
+mutation, remote script execution, or admin requirement.
+
+## Quickstart: Public Demo
+
+After clone, the fastest public-safe way to see the current YonerAI slice is the credential-free demo command. It runs in-process and does not require a Core API server, Discord token, Oracle access, provider API key, Google login, deployment, or persistent memory.
+
+```powershell
+python -m venv .venv
 .venv\Scripts\Activate.ps1
-uvicorn src.web.app:app --reload --host 0.0.0.0 --port 8000
+python -m pip install -U pip
+python -m pip install -r core/requirements.txt httpx
+python -m pip install -e clients/cli
+yonerai
+yonerai chat
+yonerai config show --pretty --lang ja
+yonerai start --guided --lang ja
+yonerai start --guided --json
+yonerai providers --pretty --lang ja
+yonerai ask "hello" --auto --pretty --lang ja
+yonerai demo --pretty
+yonerai demo --json
+yonerai doctor --pretty
+yonerai doctor --pretty --lang ja
+yonerai status --pretty
+yonerai manifest verify releases/manifest.v0.8.1.json --pretty
+yonerai install plan --manifest releases/manifest.v0.8.1.json --pretty
+yonerai update check --manifest releases/manifest.v0.8.1.json --pretty
+yonerai update plan --manifest releases/manifest.v0.8.1.json --pretty
+yonerai plan "summarize public docs" --json
+yonerai ask "summarize public docs" --provider mock --json
+yonerai hybrid run --pretty
+yonerai hybrid run --json
+yonerai search mock "YonerAI alpha2" --json
+yonerai ops plan git-status --json
+yonerai install plan --manifest releases/manifest.v0.8.1.json --json
 ```
 
-### 3) Web UIs (optional)
-```powershell
-cd clients\web
-npm install
-npm run dev
+## First 5 minutes
+
+`yonerai` opens the local interactive terminal when stdin is a TTY.
+Use `yonerai chat` for the same screen explicitly. The interactive shell is a
+terminal app with plain fallback, not a full-screen GUI: type a message to run
+the same safe `ask --auto` path, or use slash commands.
+
+```text
+/settings        show language/provider/safety settings
+/providers       show mock/local/API provider readiness without printing keys
+/safety          show network/tool/file/provider boundaries
+/tasks           show current and recent task progress
+/agents          show the planned planner/researcher/reviewer roles
+/runs            list redacted local run history
+/show <run_id>   show one redacted run
+/local-llm       show loopback-only local LLM setup guidance
+/auth            show Google OAuth dry-run contract status
+/sync            show cloud/local sync boundary
+/privacy         show OpenAI shared-traffic and private-content policy
+/update          check local manifest update status
+/update-notice on|off toggle startup update notice setting
+/language ja|en  change UI language
+/provider auto|mock|local|openai-compatible|anthropic|gemini
+/ledger on|off   toggle redacted local run ledger
+/live on|off     toggle explicit live/local execution permission
+/network on|off  toggle explicit network permission
+/select <n> <v>  change a numbered setting from the settings screen
+/quit            exit
 ```
 
+On first interactive launch, YonerAI asks for Japanese or English and stores
+only non-secret local preferences. Non-TTY use, for example pipes or CI, does
+not hang; it prints fallback instructions. Use `yonerai chat --script` when you
+intentionally want to feed scripted input.
+
+In Japanese mode, the primary slash commands are Japanese (`/設定`, `/タスク`,
+`/ローカルLLM`, `/安全`, `/履歴`, `/認証`, `/プライバシー`, `/更新`). English
+aliases such as `/settings`, `/auth`, and `/tasks` remain available for
+compatibility.
+
+`yonerai start --guided` is the guided path for a first local run. It is written
+for people who want copyable next actions, not for people already familiar with
+the internals.
+
 ```powershell
-cd ora-ui
-npm install
-npm run dev
+yonerai start --guided --lang ja
+yonerai chat
+yonerai config set language ja
+yonerai config show --pretty --lang ja
+yonerai start --guided --json
+yonerai demo --pretty
+yonerai doctor --pretty --lang ja
+yonerai ask "hello" --provider mock --json
+yonerai hybrid run --pretty
+yonerai ask "use this selected sample file" --file sample.txt --workspace .yonerai-sample-workspace --provider mock --json
+yonerai ask "hello" --provider mock --json --ledger .yonerai-runs.jsonl
+yonerai runs list --ledger .yonerai-runs.jsonl --pretty --lang ja
 ```
 
-### 4) Core (optional)
+If you already have a local LLM server on loopback, for example Ollama on
+`127.0.0.1:11434` or an LM Studio / OpenAI-compatible server on
+`127.0.0.1:1234`, `yonerai start --guided` checks only local metadata endpoints.
+It does not send a prompt to the model. If a loopback endpoint is detected, the
+guided output prints the exact environment variables to set before you choose
+the local provider path. After you intentionally enable local execution, you can
+try:
+
 ```powershell
-$env:PYTHONPATH = "core\src"
+$env:ORA_LOCAL_LLM_ENABLED = "1"
+$env:ORA_LOCAL_LLM_PROVIDER = "ollama"
+$env:ORA_LOCAL_LLM_BASE_URL = "http://127.0.0.1:11434"
+$env:ORA_LOCAL_LLM_MODEL = "llama3.2"
+yonerai ask "hello" --provider local --live --json
+```
+
+For LM Studio or another OpenAI-compatible local server, keep the endpoint on
+loopback and use:
+
+```powershell
+$env:ORA_LOCAL_LLM_ENABLED = "1"
+$env:ORA_LOCAL_LLM_PROVIDER = "openai_compatible_local"
+$env:ORA_LOCAL_LLM_BASE_URL = "http://127.0.0.1:1234/v1"
+$env:ORA_LOCAL_LLM_MODEL = "local-model"
+yonerai ask "hello" --provider local --live --json
+```
+
+What this first path explains:
+
+- `yonerai` / `yonerai chat` starts a Japanese-first interactive shell with
+  chat, provider status, safety settings, and run history slash commands.
+- `yonerai config show/set` stores only local non-secret preferences such as
+  language, provider preference, approval mode, and file-access mode.
+- `yonerai start --guided --lang ja` prints a mock-first path, Local LLM status,
+  workspace file guard example, ledger example, and current limitations.
+- `yonerai providers --pretty --lang ja` shows which provider paths are usable
+  now, which require explicit `--live`, and which setup step is missing.
+- `yonerai ask "hello" --auto --pretty --lang ja` classifies the task, chooses a
+  safe route, shows the selected provider, and explains whether a ledger was
+  written.
+- `yonerai demo --pretty` shows the current public-safe local slice without credentials.
+- `yonerai doctor --pretty --lang ja` checks local setup without installing or
+  mutating PATH.
+- `yonerai hybrid run --pretty` runs a local-dev Hybrid slice: route preview,
+  verified test Local Node session, in-memory relay transport, mock provider
+  execution, redacted ledger events, and an Oracle stub request/result envelope.
+- Local LLM detection is loopback-only and metadata-only.
+- Mock `ask` returns a public-safe `run_id`.
+- `--ledger <local.jsonl>` is optional and writes redacted local-only run
+  history.
+- `yonerai runs list/show --pretty --lang ja` reads only the explicitly selected
+  local ledger path or `YONERAI_RUN_LEDGER_PATH`; it does not upload history.
+- Workspace file support is a Workspace File Access Guard: it reads only an
+  explicitly selected UTF-8 text file inside an explicit workspace allowlist.
+  The sample command expects you to create `.yonerai-sample-workspace/sample.txt`
+  yourself; `yonerai start --guided` does not create files, read files, or write
+  a ledger.
+
+Still not included: production readiness, Official Managed Cloud runtime,
+production Oracle, live Discord restoration, arbitrary shell execution,
+arbitrary local file access, folder crawling, PDF/image parsing, automatic file
+summarization, production installer, npm/winget distribution, Google login,
+production DB behavior, complete persistent memory, or a solved
+`src/cogs/ora.py`.
+
+## What you can try in v0.1.0-alpha.2
+
+v0.1.0-alpha.2 is a local public alpha slice, not a finished YonerAI product.
+You can try these surfaces without provider credentials, Discord tokens,
+production services, or live network calls:
+
+- Mock provider execution: `yonerai ask "summarize public docs" --provider mock --json`
+- Run trace preview/history surface: mock `ask` returns a public-safe `run_id`.
+- Workspace File Access Guard: `yonerai ask "use this selected file" --file <path> --workspace <dir> --provider mock --json`
+- Mock search: `yonerai search mock "YonerAI alpha2" --json`
+- SafeShell plan: `yonerai ops plan git-status --json`
+- Local memory: `yonerai memory add "local note" --store <local.jsonl> --confirm-local --json`
+- Synthetic Discord boundary: `yonerai discord synthetic "hello" --json`
+- Status fixture: `yonerai status --source fixture --json`
+- Installer dry-run planning: `yonerai install plan --manifest releases/manifest.example.json --json`
+
+External provider adapters and local LLM execution exist behind explicit opt-in
+gates. External providers require `--live` and provider-specific environment
+flags; local LLM endpoints must be loopback-only.
+
+Not included in alpha2: production readiness, Official Managed Cloud runtime,
+production Oracle control-plane behavior, live Discord restoration, live web
+search by default, arbitrary shell execution, arbitrary file access,
+installer-ready distribution, npm/winget packages, production signing/trust
+material, Google login, production DB behavior, complete persistent memory, or a
+claim that `src/cogs/ora.py` is solved.
+
+`yonerai quickstart` is an alias for the same demo.
+
+The JSON output uses the stable `yonerai-public-demo/v1` contract with
+`schema_version: "1.0"` so CI, docs, and release checks can assert the same
+public demo shape.
+
+`yonerai doctor` and `yonerai status` are offline, non-mutating diagnostics for
+the public demo and installer-readiness surface. `--lang ja` changes only the
+human-readable output; JSON remains English-keyed and stable for tests and CI.
+Pretty diagnostics also support `--color auto|never|always`; JSON output never
+includes terminal color codes.
+`yonerai manifest verify <path>` validates a local release manifest only. It
+does not download artifacts, execute installers, mutate PATH, or connect to live
+services.
+
+The demo shows one visible vertical slice:
+
+- public Core health, offline mock message, and run contract
+- public mode boundary: Self-host local surface, Hybrid Local Node contract/dev simulator, Managed Cloud external contract-only
+- route preview for public, private/local, and dangerous work
+- test-only Local Node signed manifest, enrollment/session, signed envelope, replay rejection, and approval gate
+- managed download guard accepting managed file URLs and rejecting arbitrary unsafe URLs
+- synthetic proposal-only self-evolution scorecard and approval draft
+- alpha2 capability boundaries for opt-in providers, loopback local LLM, Workspace File Access Guard, mock search, SafeShell planning, explicit local memory, synthetic Discord, status contracts, and installer dry-run planning
+- explicit limitations: no production Oracle, live Discord restoration, default/cloud memory, Google login, official cloud runtime in this repo, default live provider generation, arbitrary shell, arbitrary file access, or deploy
+
+## Current Checkpoint
+
+The active design anchor is v7.7:
+
+- provider independence
+- the same experience across official, local, and self-hosted directions
+- self-evolution as approval-gated product intelligence
+- contract-first public boundaries
+- public/private/control-plane separation by contract, not by leaking internal operations detail
+
+The latest runnable semantic pre-release note is `docs/releases/0.1.0-alpha.2.md`. The latest historical checkpoint note is `v2026.5.21.5`, which records layer upload hardening, the first behavior-preserving `src/cogs/ora.py` pure-helper extraction, ORA/YonerAI naming compatibility policy, and a three-mode docs-only capability acceptance harness extension. The alpha2 note is a public alpha capability slice; the checkpoint archive note is not a production release.
+
+Future internal checkpoint logs belong under `docs/changelog/checkpoints/`, not GitHub Releases. GitHub Releases are reserved for runnable public milestones such as semantic pre-releases.
+
+Older date-suffix GitHub Releases remain historical artifacts. Do not delete, retag, or treat them as evidence of production readiness.
+
+This repository does not claim shipping completeness, production readiness, official cloud completion, live operations completion, or full product completion.
+
+Pass 2 remains stopped / not landed. `src/cogs/ora.py` remains unresolved private/runtime/control-plane boundary residue and is not treated as a narrow public patch target.
+
+## Current MVP Capability
+
+The current public MVP is a credential-free local Core API health smoke plus message contracts for mock/offline and loopback-only local LLM conversation. It is not a ChatGPT-like finished product.
+
+What works today:
+
+- clone the public repository
+- install dependencies
+- start the local Core API
+- call `GET /health` and receive `{"ok": true}`
+- call `POST /v1/public/messages` and receive a deterministic offline mock reply
+- send follow-up public messages with `session_id` / `conversation_id` and receive non-persistent turn metadata
+- call `POST /api/v1/agent/run` for a local in-memory run smoke contract and read `events_url` / `results_url`
+- install `clients/cli` locally and run `yonerai health`, `yonerai message --mode mock "hello"`, and `yonerai run --mode mock "hello"` against loopback Core
+- run `yonerai demo --pretty` or `yonerai demo --json` to see the public demo slice without credentials or a running Core API process
+- run `yonerai doctor --pretty`, `yonerai doctor --pretty --lang ja`, and `yonerai status --pretty` for offline public-demo diagnostics
+- run `yonerai manifest verify releases/manifest.example.json --pretty` for local manifest contract verification without downloading or installing anything
+- run `yonerai plan "task"` and `yonerai ask "task" --provider mock` for public-safe planning and mock provider execution
+- run `yonerai ask "use this selected file" --file <path> --workspace <dir> --provider mock` for explicit workspace-only text file access guard behavior
+- run `yonerai hybrid run --pretty` for a local-dev Hybrid execution slice that
+  keeps execution in process/loopback-only, records redacted run events, and
+  demonstrates Oracle stub envelopes without production Oracle or official cloud
+  runtime
+- run `yonerai search mock "query"` for deterministic mock search fixtures
+- run `yonerai ops plan git-status` for SafeShell diagnostic planning without arbitrary shell execution
+- run `yonerai memory add/list/delete/export --store <local.jsonl>` for explicit opt-in local-only memory records
+- run `yonerai discord synthetic "message"` for synthetic Discord gateway boundary checks
+- run `yonerai status --source fixture` for official/status contract fixtures with no production service call
+- run `yonerai install plan --manifest releases/manifest.example.json` for safe local installer dry-run planning
+- run `yonerai install plan-windows` as the Windows-specific dry-run planning alias
+- call `POST /v1/public/messages` with `mode: "local"` to reach a loopback-only local LLM runtime
+- choose `local_provider: "ollama"` or `local_provider: "openai_compatible_local"` for supported local server styles
+- open `clients/web` locally as a temporary Web Chat MVP / smoke-demo surface
+- from `clients/web`, send `mock` / `offline` messages through that endpoint
+- from `clients/web`, select local Ollama or OpenAI-compatible local mode when the Core API and local model server are already running on loopback
+
+Not included yet: final Web product UI, Google login, conversation history sync, complete persistent natural memory, live web search, live Discord chat restoration, default live external provider generation, official cloud runtime, deployment, arbitrary shell execution, arbitrary local file access, installer-ready distribution, or full product completion. The public session scaffold is in-memory metadata only; explicit local memory v0.1 is local-only and opt-in, not cloud memory or cross-device history.
+
+See [Current MVP Capability Matrix](docs/CURRENT_MVP_CAPABILITY_MATRIX.md) for the user-facing capability table.
+
+## Product Modes
+
+YonerAI is designed around three high-level ways to use the same contract-first foundation:
+
+- Full Private Self-Host: the public repository can support the local/self-hosted public MVP surface, with the operator responsible for the runtime boundary.
+- Official Hybrid Private: the public repository can support Local Node contracts, signed-contract tests, and a non-production local-dev simulator; official cloud coordination remains external/private.
+- Official Managed Cloud: a product mode whose runtime and control plane are official/private infrastructure, not implemented or runnable in this public repository.
+
+These are product modes, not a repository map. Public docs should describe the contract and user experience, not private operational detail.
+
+## What Is Included In This Public Repo
+
+The public surface is for reviewable contracts, public-safe runtime abstractions, capability boundaries, connector patterns, client-facing documentation, and regression tests.
+
+This repository intentionally includes the Full Private Self-Host public/local surface and the Official Hybrid Private Local Node contract/dev-simulator surface. It does not include the Official Managed Cloud runtime, production Oracle/control plane, production trust store, production signing keys, live Discord gateway, Google login, persistent memory, deployment system, real official-cloud telemetry, or production self-evolution.
+
+Self-evolution code in this repository is synthetic and proposal-only. It may score and draft safe improvement proposals from synthetic events, but it does not observe real official-cloud user behavior, ingest support email, open issues or pull requests, merge, deploy, or apply patches.
+
+Private runtime behavior, operator-only workflows, live routes, deployment truth, raw production inventory, credentials, and host-specific control-plane details do not belong in public-facing documentation.
+
+Cross-boundary interaction should happen through explicit contracts such as APIs, events, files, auth claims, capability manifests, protocols, and schemas.
+
+Raw chain-of-thought must not cross public chat, API, SSE, log, documentation, or trace surfaces. Public traces should expose only safe summaries, labels, details, and already-public sources.
+
+Useful starting points:
+
+- [Current phase context](docs/CURRENT_PHASE_CONTEXT.md)
+- [Codex / contributor workflow](docs/process/YONERAI_CODEX_WORKFLOW.md)
+- [Release governance](docs/process/YONERAI_RELEASE_GOVERNANCE.md)
+- [Current MVP Capability Matrix](docs/CURRENT_MVP_CAPABILITY_MATRIX.md)
+- [Public file index](docs/repo/PUBLIC_FILE_INDEX.md)
+- [Cross-repo same-experience matrix](docs/contracts/CROSS_REPO_SAME_EXPERIENCE_MATRIX_2026_05_20.md)
+- [Official Cloud Control Plane MVP contract](docs/contracts/OFFICIAL_CLOUD_CONTROL_PLANE_MVP_2026_05_20.md)
+- Feature inventory and releaseability map under `docs/capabilities/`
+- [External Agent API](docs/contracts/external-agent-api.md)
+- [SSE Run Events](docs/contracts/sse-run-events.md)
+- [Native Japanese CLI contract](docs/contracts/native-japanese-cli-contract-0.1.md)
+- [Web surface capability manifest](docs/contracts/web-surface-capability-manifest-0.1.md)
+- [Capability / Extension Boundary 0.1](docs/contracts/capability-extension-boundary-0.1.md)
+- [Tools/MCP Safe Subset 0.1](docs/contracts/tools-mcp-safe-subset-0.1.md)
+- [Large codebase feature inventory](docs/architecture/LARGE_CODEBASE_FEATURE_INVENTORY_2026_05_21.md)
+- [v7.7 integration map](docs/architecture/V7_7_INTEGRATION_MAP_2026_05_21.md)
+- [Growth/SNS claim guardrails](docs/growth/CLAIM_GUARDRAILS_2026_05_20.md)
+- [Growth/SNS demo plan](docs/growth/DEMO_PLAN_2026_05_20.md)
+- [Growth/SNS FAQ](docs/growth/FAQ_2026_05_20.md)
+- [v2026.5.21.5 Implementation continuation checkpoint note](docs/releases/v2026.5.21.5-implementation-continuation-checkpoint.md)
+- [v2026.5.21.4 Implementation guardrail compression checkpoint note](docs/releases/v2026.5.21.4-implementation-guardrail-compression-checkpoint.md)
+- [v2026.5.21.3 Clean continuation security and Discord preflight checkpoint note](docs/releases/v2026.5.21.3-clean-continuation-security-discord-preflight-checkpoint.md)
+- [v2026.5.21.2 Final public presentation checkpoint note](docs/releases/v2026.5.21.2-final-public-presentation-checkpoint.md)
+- [v2026.5.21.1 Public repository hardening checkpoint note](docs/releases/v2026.5.21.1-public-repository-hardening-checkpoint.md)
+- [v2026.5.20.14 Tools/MCP safe subset contract checkpoint note](docs/releases/v2026.5.20.14-tools-mcp-safe-subset-contract-checkpoint.md)
+- [v2026.5.20.13 Capability / Extension Boundary checkpoint note](docs/releases/v2026.5.20.13-capability-extension-boundary-checkpoint.md)
+- [v2026.5.20.12 Local LLM error reporting hardening checkpoint note](docs/releases/v2026.5.20.12-local-llm-error-reporting-hardening-checkpoint.md)
+- [v2026.5.20.11 Growth/SNS claim guardrails checkpoint note](docs/releases/v2026.5.20.11-growth-sns-claim-guardrails-checkpoint.md)
+- [v2026.5.20.10 Web surface capability manifest checkpoint note](docs/releases/v2026.5.20.10-web-surface-capability-manifest-checkpoint.md)
+- [v2026.5.20.9 Native Japanese CLI contract checkpoint note](docs/releases/v2026.5.20.9-native-japanese-cli-contract-checkpoint.md)
+- [v2026.5.20.8 Surface CLI smoke checkpoint note](docs/releases/v2026.5.20.8-surface-cli-smoke-checkpoint.md)
+- [v2026.5.20.7 Surface API run contract checkpoint note](docs/releases/v2026.5.20.7-surface-api-run-contract-checkpoint.md)
+- [v2026.5.20.6 Hybrid envelope policy semantics checkpoint note](docs/releases/v2026.5.20.6-hybrid-envelope-policy-semantics-checkpoint.md)
+- [Surface/repo strategy checkpoint](docs/strategy/SURFACE_REPO_STRATEGY_2026_05_20.md)
+- [Open PR triage checkpoint](docs/maintenance/OPEN_PR_TRIAGE_2026_05_20.md)
+- [Root surface policy](docs/repo/ROOT_SURFACE_POLICY.md)
+- [Release date hygiene policy](docs/repo/RELEASE_DATE_HYGIENE_POLICY.md)
+- [Public presentation policy](docs/repo/PUBLIC_PRESENTATION_POLICY.md)
+- [Zero-trust practicality matrix](docs/security/ZERO_TRUST_PRACTICALITY_MATRIX.md)
+- [v2026.5.20.1 Official Cloud Control Plane MVP planning checkpoint](docs/releases/v2026.5.20.1-official-cloud-control-plane-mvp-planning-checkpoint.md)
+- [v2026.5.20 Web UI mock-chat checkpoint note](docs/releases/v2026.5.20-web-ui-mock-chat-security-checkpoint.md)
+- [v2026.5.20 Local LLM conversation checkpoint note](docs/releases/v2026.5.20-local-llm-conversation-mvp-checkpoint.md)
+- [Dependabot triage 2026-05-20](docs/security/DEPENDABOT_TRIAGE_2026_05_20.md)
+- Security and backlog triage docs under `docs/security/` and `docs/maintenance/`
+- [Latest traceability matrix](docs/TRACEABILITY_MATRIX_0_19.md)
+
+## Product Surface Lanes
+
+YonerAI keeps these lanes separate:
+
+- API: contract authority
+- CLI: command authority
+- native Japanese CLI: ambiguous-command confirmation and explanation responsibility
+- Web: product surface
+- SNS: distribution lane, not a core blocker
+- self-evolution: product intelligence and proposal scoring, not unapproved code mutation
+- private runtime / control plane: execution authority, supervision, and operator-only behavior
+
+Combining these lanes into one implementation batch is not a shortcut to public-core readiness.
+
+## What Is Not Included / Not Claimed
+
+This public checkpoint does not include or claim:
+
+- production readiness
+- shipping completeness
+- official cloud completion
+- live operations completion
+- full product completion
+- `src/cogs/ora.py` implementation
+- runtime split implementation
+- full API / CLI / native Japanese CLI / Web / SNS product implementation
+- full dependency vulnerability remediation
+- runtime hardcoded path cleanup
+- git history rewrite
+- signed production release
+- deployment
+- Official Managed Cloud runtime or control plane
+- production Oracle
+- production trust store or production signing keys
+- real official-cloud telemetry or analytics
+- autonomous self-evolution deployment
+
+## Local Development
+
+Use the smallest profile that matches the area you are reviewing.
+
+### Verified public runnable MVP path
+
+The current public runnable MVP path is the local Core API smoke path plus credential-free mock/offline messaging and an optional loopback-only local LLM mode. It does not require Discord credentials, a cloud model provider API key, a private repository, VPS access, deployment, or a release tag.
+
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+python -m pip install -U pip
+pip install -r requirements.txt
+$env:PYTHONPATH = "$PWD;$PWD\core\src"
+$env:ORA_ALLOW_MISSING_SECRETS = "1"
+python scripts/init_core_db.py
+pytest tests/test_public_runnable_smoke.py tests/test_runtime_env_loader.py -q
+python scripts/dev/public_mvp_smoke.py
+```
+
+Then start the local Core API and check health from another shell:
+
+```powershell
+$env:PYTHONPATH = "$PWD;$PWD\core\src"
+$env:ORA_ALLOW_MISSING_SECRETS = "1"
 python -m ora_core.main
 ```
 
-Notes:
-- `start_all.bat` is a convenience launcher, but it contains machine-specific paths. Treat it as an example to adapt.
-
----
-
-## Configuration (.env)
-
-Start from `.env.example`.
-
-Required:
-- `DISCORD_BOT_TOKEN`
-
-### Web Setup UI (Optional)
-
-If you don't want to edit `.env` directly, you can configure secrets + URLs via the local Setup page:
-
-1. Start the Admin server:
-   - `uvicorn src.web.app:app --reload --host 127.0.0.1 --port 8000`
-2. Open:
-   - `http://127.0.0.1:8000/setup`
-
-This writes to profile-scoped `secrets/` + `state/settings_override.json` (so you avoid committing `.env`).
-
-Recommended:
-- `DISCORD_APP_ID` (Application ID)
-- `ORA_DEV_GUILD_ID` (dev guild sync is immediate; global sync can take up to ~1 hour)
-- `ADMIN_USER_ID` (owner/creator identity)
-
-### External API Path (Token Protected)
-
-Use these stable paths for external automation/integration:
-
-- `POST /api/v1/agent/run`
-- `GET /api/v1/agent/runs/{run_id}/events`
-- `POST /api/v1/agent/runs/{run_id}/results`
-
-Authentication:
-- Set `ORA_WEB_API_TOKEN`
-- Send `Authorization: Bearer <token>` (or `x-ora-token`)
-
-Example:
-```bash
-curl -X POST "https://admin.yourdomain.com/api/v1/agent/run" \
-  -H "Authorization: Bearer $ORA_WEB_API_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"prompt":"Summarize latest status","user_id":"api-client-1"}'
-```
-
-Feature toggles you likely care about:
-- `OPENAI_API_KEY` (cloud models)
-- `LLM_BASE_URL`, `LLM_MODEL` (local gateway)
-- `ORA_PUBLIC_TOOLS`, `ORA_SUBADMIN_TOOLS` (tool allowlists)
-- `ORA_APPROVAL_TIMEOUT_SEC` and audit retention settings (approvals + audit logs)
-
----
-
-## Skills (Local Tools)
-
-YonerAI supports two local mechanisms that are both executed through the same ToolHandler boundary:
-
-- Static tool registry: `src/cogs/tools/registry.py`
-  - Built-in tools with an implementation path like `src.cogs.tools.web_tools:navigate`.
-- Dynamic skills: `src/skills/<skill_name>/`
-  - Self-describing skills in the "Clawdbot pattern": `SKILL.md` + `tool.py` (+ optional `schema.json`).
-  - Loaded by `src/skills/loader.py` and executed by `src/cogs/tools/tool_handler.py`.
-
-Skill folder shape:
-- `src/skills/<name>/SKILL.md` (usage + requirements)
-- `src/skills/<name>/tool.py`
-  - `async def execute(args: dict, message: discord.Message, bot: Any = None) -> Any`
-  - optional `TOOL_SCHEMA = {name, description, parameters, tags}`
-
-Example skill:
-- `src/skills/remotion_create_video/` (requires Node deps in `tools/remotion/`)
-
-### Remotion (Video Rendering)
-
-Skill: `remotion_create_video`
-
-Setup (one-time):
 ```powershell
-cd tools/remotion
+Invoke-WebRequest -UseBasicParsing http://127.0.0.1:8001/health
+```
+
+```powershell
+Invoke-RestMethod -Method Post `
+  -Uri http://127.0.0.1:8001/v1/public/messages `
+  -ContentType "application/json" `
+  -Body '{"message":"hello","mode":"mock"}'
+```
+
+To group follow-up messages in one temporary public session, pass the returned `session_id` back on the next request:
+
+```powershell
+Invoke-RestMethod -Method Post `
+  -Uri http://127.0.0.1:8001/v1/public/messages `
+  -ContentType "application/json" `
+  -Body '{"message":"follow up","mode":"mock","session_id":"session-smoke","conversation_id":"public-smoke"}'
+```
+
+If you have a local Ollama-compatible runtime listening on loopback, try local mode:
+
+```powershell
+$env:ORA_LOCAL_LLM_PROVIDER = "ollama"
+$env:ORA_LOCAL_LLM_BASE_URL = "http://127.0.0.1:11434"
+$env:ORA_LOCAL_LLM_MODEL = "llama3.2"
+Invoke-RestMethod -Method Post `
+  -Uri http://127.0.0.1:8001/v1/public/messages `
+  -ContentType "application/json" `
+  -Body '{"message":"hello","mode":"local"}'
+```
+
+For an OpenAI-compatible local server such as LM Studio, llama.cpp / llama-cpp-python server, text-generation-webui with OpenAI API enabled, or LocalAI, keep the server on loopback and select the compatible provider:
+
+```powershell
+$env:ORA_LOCAL_LLM_PROVIDER = "openai_compatible_local"
+$env:ORA_LOCAL_LLM_BASE_URL = "http://127.0.0.1:1234/v1"
+$env:ORA_LOCAL_LLM_MODEL = "local-model"
+Invoke-RestMethod -Method Post `
+  -Uri http://127.0.0.1:8001/v1/public/messages `
+  -ContentType "application/json" `
+  -Body '{"message":"hello","mode":"local","local_provider":"openai_compatible_local","model":"local-model"}'
+```
+
+Expected health body:
+
+```json
+{"ok": true}
+```
+
+Expected public message response includes:
+
+```json
+{
+  "ok": true,
+  "mode": "mock",
+  "session_id": "session-smoke",
+  "turn_index": 1,
+  "history_count": 1,
+  "memory_persisted": false,
+  "provider": "offline-mock",
+  "requires_approval": false
+}
+```
+
+Expected local LLM response includes:
+
+```json
+{
+  "ok": true,
+  "mode": "local",
+  "provider": "local-ollama",
+  "requires_approval": false
+}
+```
+
+For OpenAI-compatible local mode, `provider` is `local-openai-compatible`.
+
+Local mode is loopback-only. The configured local LLM URL must be `localhost`, `127.0.0.1`, or `::1`; arbitrary remote URLs, LAN hosts, external provider APIs, tunnels, embedded credentials, query strings, fragments, and control-plane endpoints are rejected by default. Model availability depends on the local server. YonerAI passes the requested local model name through; it does not hardcode model families.
+
+This message endpoint does not persist memory, run tools, complete the Web/Discord chat product, or call external OpenAI, Anthropic, Gemini, web search, SNS, or Discord services. Session metadata is kept in the running Core API process only and is cleared on process restart.
+
+To try the temporary local CLI smoke surface, install the CLI package locally and keep the Core API running on loopback:
+
+```powershell
+python -m pip install -e clients/cli
+yonerai demo --pretty
+yonerai doctor --pretty
+yonerai doctor --pretty --lang ja
+yonerai status --pretty
+yonerai manifest verify releases/manifest.example.json --pretty
+yonerai health
+yonerai message --mode mock "hello"
+yonerai run --mode mock "hello"
+```
+
+The CLI defaults to `http://127.0.0.1:8001`, rejects remote API origins, and does not add deploy, shell execution, persistent memory, Google login, external provider live generation, or production packaging.
+The demo, doctor, status, and manifest verification paths are offline/local-only
+and do not require a running Core API process.
+
+To try the temporary Web Chat MVP, keep the Core API running on port `8001`, then start the web client from another shell:
+
+```powershell
+cd clients\web
 npm ci
+npm run dev
 ```
 
-Notes:
-- Requires Node.js + `npx` on `PATH`.
-- Optional env vars: `ORA_REMOTION_PROJECT_DIR`, `ORA_REMOTION_ENTRY`, `ORA_REMOTION_RENDER_TIMEOUT_SEC`.
+Open `http://127.0.0.1:3000` and send a short message. The page posts to `/api/public/messages`, which is rewritten locally to `/v1/public/messages`. The page can use mock/offline mode, local Ollama mode, or OpenAI-compatible local mode. It does not expose arbitrary provider URLs; local provider base URLs stay under Core API loopback validation. This remains a temporary smoke/demo surface, not the final product UI foundation.
 
----
+If another local process already occupies Core API port `8001`, start the current Core API on a different loopback port and set `YONERAI_CORE_API_ORIGIN` before running `npm run dev`. That rewrite origin is loopback-only and rejects remote hosts.
 
-## MCP (Model Context Protocol) Tool Servers
+Do not commit `.env` or local secret files. Treat `.env.example` as a placeholder template, not production truth. Copying `.env.example` to `.env` is optional for local experiments, but the public smoke path above intentionally runs without real secrets.
 
-MCP support is **disabled by default**. When enabled, YonerAI connects to configured MCP servers via stdio and registers each remote tool as a local tool:
+Additional public-safe contract smoke:
 
-- Tool name format: `mcp__<server>__<tool>`
-- Loader: `src/cogs/mcp.py`
-- Transport: `src/utils/mcp_client.py` (minimal MCP-over-stdio client)
-
-Enable MCP:
-```ini
-ORA_MCP_ENABLED=1
-# JSON array of servers
-# Each entry supports: name, command, cwd, env, allowed_tools, allow_dangerous_tools
-ORA_MCP_SERVERS_JSON=[{"name":"artist","command":"python scripts/mock_mcp_artist.py","allowed_tools":["generate_artwork"]}]
+```powershell
+pytest tests/test_distribution_node_mvp.py -q
+pytest tests/test_public_core_message_mvp.py tests/test_ora_import_map.py -q
 ```
 
-Alternatively, configure `mcp_servers` in `config.yaml` (same object shape) instead of `ORA_MCP_SERVERS_JSON`.
+Optional local web/API runtime:
 
-Hardening knobs:
-- `ORA_MCP_DENY_TOOL_PATTERNS` (default denies common destructive/execution-ish names)
-- `ORA_MCP_ALLOW_DANGEROUS=0` (keep deny patterns enforced)
-
----
-
-## Safety (Risk Scoring, Approvals, Audit)
-
-- Risk scoring: `src/utils/risk_scoring.py`
-- Approvals gate: `src/cogs/tools/tool_handler.py` (risk-based approval before execution)
-- Audit DB: `ora_bot.db` (retention controlled by `.env` variables like `ORA_AUDIT_RETENTION_DAYS`)
-
----
-
-## Current System Flow (Hub + Spoke)
-
-YonerAI currently runs as a hub/spoke agent pipeline:
-- `ChatHandler` (Discord/Web thin client) builds context, attachments, and a filtered tool list.
-- `Core API` owns the reasoning loop and emits tool calls.
-- The bot executes tools locally and submits results back to Core.
-
-If you want to add features (tools/skills/MCP) without breaking the core loop, see: `docs/EXTENSIONS.md`.
-
-### End-to-End Request Path (Sequence)
-<img alt="End-to-End Request Path (Sequence)" src="docs/diagrams/e2e_request_path_sequence_en.png#gh-light-mode-only" width="1100">
-<img alt="End-to-End Request Path (Sequence)" src="docs/diagrams/e2e_request_path_sequence_en_dark.png#gh-dark-mode-only" width="1100">
-
-Mermaid source: `docs/diagrams/e2e_request_path_sequence_en.mmd` (light), `docs/diagrams/e2e_request_path_sequence_en_dark.mmd` (dark)
-
----
-
-### Relay Pairing + Proxy Path (Sequence)
-<img alt="Relay Pairing + Proxy Path (Sequence)" src="docs/diagrams/relay_pairing_and_proxy_en.png#gh-light-mode-only" width="1100">
-<img alt="Relay Pairing + Proxy Path (Sequence)" src="docs/diagrams/relay_pairing_and_proxy_en_dark.png#gh-dark-mode-only" width="1100">
-
-Mermaid source: `docs/diagrams/relay_pairing_and_proxy_en.mmd` (light), `docs/diagrams/relay_pairing_and_proxy_en_dark.mmd` (dark)
-
----
-
-### Tool Policy + Approvals Gate (Flow)
-<img alt="Tool Policy + Approvals Gate (Flow)" src="docs/diagrams/tool_policy_and_approvals_flow_en.png#gh-light-mode-only" width="1100">
-<img alt="Tool Policy + Approvals Gate (Flow)" src="docs/diagrams/tool_policy_and_approvals_flow_en_dark.png#gh-dark-mode-only" width="1100">
-
-Mermaid source: `docs/diagrams/tool_policy_and_approvals_flow_en.mmd` (light), `docs/diagrams/tool_policy_and_approvals_flow_en_dark.mmd` (dark)
-
-## Dev Checks (Same As CI)
-
-```bash
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\\Scripts\\activate
-pip install -U pip
-pip install -r requirements.txt
-pip install ruff mypy pytest pytest-asyncio
-
-ruff check .
-mypy src/ --ignore-missing-imports
-python -m compileall src/
-pytest
+```powershell
+.venv\Scripts\Activate.ps1
+uvicorn src.web.app:app --reload --host 127.0.0.1 --port 8000
 ```
 
----
+Optional web client:
 
-## Release/Tag Rules
-
-1. Update `VERSION` using SemVer (`X.Y.Z`).
-2. Update changelog entries.
-3. Create a git tag as `vX.Y.Z` and push it.
-
-```bash
-python scripts/verify_version.py --tag v5.1.8
-git tag v5.1.8
-git push origin v5.1.8
+```powershell
+cd clients\web
+npm ci
+npm run dev
 ```
 
----
+Discord adapter work requires local Discord credentials and belongs behind local/private profile boundaries. It is not required to inspect the public core.
 
-## Contributing
+VPS, tunnel, official route, and deployment flows are not part of this public runnable MVP. Those belong in private/runtime/control-plane lanes.
 
-- No hardcoded API keys.
-- Keep tool schemas accurate (skills + MCP tools rely on schemas/tags for routing and risk scoring).
+## Public Safety
 
----
+Do not commit:
 
-## License
+- real `.env` files or secret backups
+- credentials, service-account files, tokens, private keys, or tunnel secrets
+- local SQLite databases, WAL/SHM files, logs, caches, generated audio, or local state
+- raw production inventory, live route maps, operational ledgers, break-glass details, or control-plane DDL
+- private renderer truth or host-specific operational exactness
+- local absolute paths or user-machine paths in public docs
 
-MIT. See `LICENSE`.
+If a required detail is not public-safe, add a placeholder, contract, public-safe summary, or TODO instead of publishing private material.
+
+## Checks
+
+Run targeted checks for the area you change. For docs-only hygiene changes, minimum validation is:
+
+```powershell
+git diff --check
+git status --short --branch
+```
+
+Broader test, lint, and CI commands depend on the lane. Passing docs checks does not mean production readiness.
+
+For the public runnable MVP, the verified minimum checks are:
+
+```powershell
+git diff --check
+pytest tests/test_public_mvp_smoke_script.py -q
+pytest tests/test_public_runnable_smoke.py tests/test_runtime_env_loader.py -q
+pytest tests/test_distribution_node_mvp.py -q
+pytest tests/test_public_core_message_mvp.py tests/test_ora_import_map.py -q
+cd clients\web; npm ci; npm run lint; npm run build; npm audit --omit=dev
+```
+
+## Release Notes
+
+- [v2026.5.20.6 Hybrid envelope policy semantics checkpoint](docs/releases/v2026.5.20.6-hybrid-envelope-policy-semantics-checkpoint.md)
+- [v2026.5.20.5 Public surface and release hygiene checkpoint](docs/releases/v2026.5.20.5-public-surface-release-hygiene-checkpoint.md)
+- [v2026.5.20.4 Hybrid Connector Fixture and Memory Policy checkpoint](docs/releases/v2026.5.20.4-hybrid-connector-fixture-memory-policy-checkpoint.md)
+- [v2026.5.20.3 Hybrid Signed Envelope Donation Policy checkpoint](docs/releases/v2026.5.20.3-hybrid-signed-envelope-donation-policy-checkpoint.md)
+- [v2026.5.20.2 Conversation Session Scaffold checkpoint](docs/releases/v2026.5.20.2-conversation-session-scaffold-checkpoint.md)
+- [v2026.5.20.1 Official Cloud Control Plane MVP planning checkpoint](docs/releases/v2026.5.20.1-official-cloud-control-plane-mvp-planning-checkpoint.md)
+- [v2026.5.20 Web UI mock-chat security checkpoint](docs/releases/v2026.5.20-web-ui-mock-chat-security-checkpoint.md)
+- [v2026.5.20 public core message MVP checkpoint](docs/releases/v2026.5.20-public-core-message-mvp-checkpoint.md)
+- [v2026.5.19 public runnable MVP checkpoint](docs/releases/v2026.5.19-public-runnable-mvp-checkpoint.md)
+- [v2026.5.18 public progress checkpoint](docs/releases/v2026.5.18-public-progress-checkpoint.md)
+- [Release notes index](docs/RELEASE_NOTES.md)
+- [Current phase context](docs/CURRENT_PHASE_CONTEXT.md)

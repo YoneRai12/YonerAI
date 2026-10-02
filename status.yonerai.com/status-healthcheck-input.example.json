@@ -1,0 +1,140 @@
+{
+  "schema_version": "yonerai.status.healthcheck.v1",
+  "generated_at": "2026-06-18T00:00:00+09:00",
+  "locale_default": "ja",
+  "range": {
+    "start": "2026-06-18",
+    "days": 90
+  },
+  "contract_note": {
+    "ja": "これはhealthcheck collectorの入力例です。実際のYonerAI監視データではありません。",
+    "en": "This is an input example for the healthcheck collector. It is not real YonerAI monitoring data."
+  },
+  "states": {
+    "operational": {
+      "color": "#26c6a3",
+      "label": {
+        "ja": "稼働中",
+        "en": "Operational"
+      }
+    },
+    "degraded": {
+      "color": "#ffbf2f",
+      "label": {
+        "ja": "性能低下",
+        "en": "Degraded"
+      }
+    },
+    "maintenance": {
+      "color": "#ff8a34",
+      "label": {
+        "ja": "メンテナンス",
+        "en": "Maintenance"
+      }
+    },
+    "major_outage": {
+      "color": "#ef4e45",
+      "label": {
+        "ja": "重大障害",
+        "en": "Major outage"
+      }
+    },
+    "not_started": {
+      "color": "#aeb6c2",
+      "label": {
+        "ja": "準備中",
+        "en": "Not started"
+      }
+    }
+  },
+  "categories": [
+    {
+      "id": "core-api",
+      "name": {
+        "ja": "コアAPI",
+        "en": "Core API"
+      },
+      "components": [
+        {
+          "id": "yonerai-api",
+          "name": {
+            "ja": "YonerAI API",
+            "en": "YonerAI API"
+          },
+          "fact": {
+            "ja": "YonerAI APIのhealthcheck結果から生成する想定のコンポーネントです。",
+            "en": "Component intended to be generated from YonerAI API healthcheck results."
+          },
+          "monitoring": {
+            "ja": "healthcheck collector",
+            "en": "healthcheck collector"
+          },
+          "claim": {
+            "ja": "実データ接続までは本番稼働を主張しません",
+            "en": "No production operation claim until real data is connected"
+          },
+          "default_state": "not_started",
+          "checks": [
+            {
+              "type": "static",
+              "state": "operational",
+              "label": "example-yai-api-ok",
+              "message": {
+                "ja": "サンプルではAPI healthcheckを正常として扱います。",
+                "en": "The sample treats the API healthcheck as healthy."
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "infrastructure",
+      "name": {
+        "ja": "インフラ",
+        "en": "Infrastructure"
+      },
+      "components": [
+        {
+          "id": "aws-staging",
+          "name": {
+            "ja": "AWS staging",
+            "en": "AWS staging"
+          },
+          "fact": {
+            "ja": "AWS CloudWatchなどの集計結果から生成する想定のコンポーネントです。",
+            "en": "Component intended to be generated from aggregated AWS CloudWatch-style results."
+          },
+          "monitoring": {
+            "ja": "aws metric input",
+            "en": "aws metric input"
+          },
+          "claim": {
+            "ja": "stagingは公開本番ステータス対象ではありません",
+            "en": "Staging is not a public production status target"
+          },
+          "default_state": "not_started",
+          "checks": [
+            {
+              "type": "aws_metric",
+              "label": "lambda-errors",
+              "namespace": "AWS/Lambda",
+              "metric_name": "Errors",
+              "statistic": "Sum",
+              "period_seconds": 300,
+              "value": 0,
+              "comparison": "<=",
+              "threshold": 0,
+              "degraded_threshold": 1,
+              "major_threshold": 5,
+              "message": {
+                "ja": "サンプルではLambda Errorsが0のため正常として扱います。",
+                "en": "The sample treats Lambda Errors as healthy because the value is 0."
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

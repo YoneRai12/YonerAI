@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://status.yonerai.com/status-aws-metrics.schema.json",
+  "title": "YonerAI Status AWS metrics input v1",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "schema_version": {
+      "const": "yonerai.status.aws-metrics.v1"
+    },
+    "generated_at": {
+      "type": "string"
+    },
+    "source": {
+      "type": "string"
+    },
+    "metrics": {
+      "oneOf": [
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/metric"
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number"
+          }
+        }
+      ]
+    },
+    "MetricDataResults": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/metricDataResult"
+      }
+    },
+    "Datapoints": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/datapoint"
+      }
+    }
+  },
+  "$defs": {
+    "metric": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "value"
+      ],
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "namespace": {
+          "type": "string"
+        },
+        "metric_name": {
+          "type": "string"
+        },
+        "statistic": {
+          "type": "string"
+        },
+        "value": {
+          "type": "number"
+        }
+      }
+    },
+    "metricDataResult": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "Id": {
+          "type": "string"
+        },
+        "Label": {
+          "type": "string"
+        },
+        "Values": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "Timestamps": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "datapoint": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "Timestamp": {
+          "type": "string"
+        },
+        "Sum": {
+          "type": "number"
+        },
+        "Average": {
+          "type": "number"
+        },
+        "Maximum": {
+          "type": "number"
+        },
+        "Minimum": {
+          "type": "number"
+        },
+        "SampleCount": {
+          "type": "number"
+        }
+      }
+    }
+  }
+}

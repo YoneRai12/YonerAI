@@ -1,363 +1,474 @@
-<div align="center">
+﻿# YonerAI
 
-# YonerAI
-### **The Artificial Lifeform AI System（Node + Clients + Relay + Core）**
+YonerAI は、公式・ローカル・self-hosted の実行環境が変わっても、同じ利用体験と同じ境界を保つための provider-independent AI execution foundation です。
 
-![YonerAI Banner](docs/images/yonerai_banner.svg)
+[English README](README.md) | [Current phase](docs/CURRENT_PHASE_CONTEXT.md) | [Contracts](docs/contracts) | [Codex / contributor workflow](docs/process/YONERAI_CODEX_WORKFLOW.md) | [Release governance](docs/process/YONERAI_RELEASE_GOVERNANCE.md)
 
-[![Release](https://img.shields.io/github/v/release/YoneRai12/YonerAI?style=for-the-badge&logo=github&color=blue)](https://github.com/YoneRai12/YonerAI/releases)
-[![Build and Test](https://github.com/YoneRai12/YonerAI/actions/workflows/test.yml/badge.svg?style=for-the-badge)](https://github.com/YoneRai12/YonerAI/actions/workflows/test.yml)
-[![Discord](https://img.shields.io/badge/Discord-Join-7289DA?style=for-the-badge&logo=discord)](https://discord.gg/YoneRai12)
-[![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
+## ライセンスと配布
 
-[**[Manual]**](docs/USER_GUIDE.md) | [**[Env Templates]**](docs/ENV_FILES.md) | [**[Release Notes]**](docs/RELEASE_NOTES.md) | [**[Web Chat]**](http://localhost:3000) | [**[Dashboard]**](http://localhost:3333)
+YonerAI は source-available / noncommercial を既定とします。OSI open source
+ではありません。
 
----
+- コード: PolyForm Noncommercial License 1.0.0。
+- ドキュメントとアセット: 各ファイルで別途指定がない限り CC BY-NC-ND 4.0。
+- YonerAI の名称、ロゴ、プロダクト識別子、ドメイン、ブランドアセット: All Rights Reserved。
+- 商用利用には YoneRai12 からの別途商用ライセンスが必要です。
 
-[English](README.md) | [**日本語**](README_JP.md)
+[LICENSE](LICENSE)、[LICENSE_JP.md](LICENSE_JP.md)、[NOTICE](NOTICE)、
+[License policy](docs/legal/LICENSE_POLICY.md) を確認してください。
 
-</div>
+この public repository は public contract surface を説明します。内部運用の詳細、credential、live route、host 固有の事実は公開しません。
 
----
+## YonerAI とは
 
-## YonerAI とは？
+YonerAI は単なる Discord bot でも、単なる model router でもありません。API、CLI、Web、Discord gateway、relay、native Japanese CLI、SNS distribution、self-evolution は別々の product lane であり、それぞれ risk profile と approval requirement が違います。
 
-YonerAI は、まず自分のPCで動くことを前提にした、ローカルファーストのAIシステムです。
-中心にあるのは **Node 的な実行基盤** で、次を組み合わせられます。
+この public repo で確認できる中核は、公開可能な core contract、self-host/local surface、Hybrid Local Node contract/dev simulator、proposal-only self-evolution です。
 
-- Discord を日常の操作面にする
-- ローカル / 管理用 Web UI を持つ
-- tool / skill 実行を危険度スコアリング + 承認付きで扱う
-- 任意の Core プロセスで推論 / ルーティングを分離する
-- relay 互換の通信で hybrid 構成へ広げる
+## Install and start YonerAI
 
-この公開 repo は、**配布できる YonerAI 側** を主語にしています。
-つまり、ユーザーのPCで動かし、公開できる範囲で拡張でき、private な本番運用基盤がなくても価値がある部分です。
+これは YonerAI CLI Local Runtime のインストール手順です。full YonerAI cloud
+production ではありません。最新安定版は `v0.8.1` です。安定版が既定で、
+ベータ版は明示的に選ぶ導線だけにしています。install 後は `yonerai` だけで
+対話 CLI が起動し、普通の文章を入力すると安全なローカル既定で返答します。
 
-注: 内部のパスや環境変数には、互換のため legacy な `ORA_*` 接頭辞が残っています。プロダクト/リリースの名称は `PRODUCT_NAME` で管理します。
+### Quick install
 
-### この公開 repo の守備範囲
+```powershell
+irm https://install.yonerai.com | iex
+```
 
-この repo が担うもの:
+Quick install は `install.yonerai.com` の静的Cloudflare wrapperを取得します。
+そのwrapperが GitHub Release asset の latest `install.ps1` と `install.ps1.sha256`
+を取得し、script hash が一致した場合だけ bootstrap を実行します。その後
+`install.ps1` が release manifest、channel、versioned artifact name、release ZIP
+の SHA256 を確認してから install-like step に進みます。`yonerai.com` から
+ZIP/manifest/sidecar hash を取得しません。PATH 変更、registry 変更、service install、
+admin 要求、provider key 保存、本番 cloud 有効化も既定では行いません。
 
-- Windows 上で動かせるローカルAI Node
-- Discord 中心の personal / operator 的な使い方
-- ローカル tool / skill 実行
-- セットアップ / 日常利用のための Web / Admin 面
-- 後から hybrid へ伸ばせる relay / core の土台
+GitHub Release fallback:
 
-この repo 単体では担わないもの:
+```powershell
+iex "& { $(irm https://github.com/YoneRai12/YonerAI/releases/latest/download/install.ps1) } -Execute -Launch"
+```
 
-- private 側の商業プラットフォーム
-- `yonerai.com` の公式運用面
-- 課金、production moderation、内部 admin 基盤
-- 本番 secret、内部 runbook、内部専用サービス
+### Verified install
 
-つまり、この repo は **公開できる YonerAI の土台** です。
-重い運用面や private な商業面は、意図的に別系統として考えます。
+実行前に bootstrap script の hash を確認したい場合はこちらを使います。GitHub
+Releases から `install.ps1` と `install.ps1.sha256` を取得し、sidecar SHA256 を
+確認します。sidecar がない、壊れている、hash が一致しない場合は失敗して止まります。
 
-### 分離の現在地
+```powershell
+$ErrorActionPreference = "Stop"
+$base = "https://github.com/YoneRai12/YonerAI/releases/latest/download"
+$tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("yonerai-bootstrap-" + [guid]::NewGuid().ToString("N"))
+New-Item -ItemType Directory -Path $tmp | Out-Null
+try {
+  $script = Join-Path $tmp "install.ps1"
+  $sidecar = Join-Path $tmp "install.ps1.sha256"
+  irm "$base/install.ps1" -OutFile $script
+  irm "$base/install.ps1.sha256" -OutFile $sidecar
+  $expected = ((Get-Content -LiteralPath $sidecar -Raw) -split '\s+')[0].ToLowerInvariant()
+  if ($expected -notmatch "^[a-f0-9]{64}$") { throw "install.ps1 sidecar SHA256 is invalid" }
+  $actual = (Get-FileHash -LiteralPath $script -Algorithm SHA256).Hash.ToLowerInvariant()
+  if ($actual -ne $expected) { throw "install.ps1 hash mismatch" }
+  $scriptText = Get-Content -LiteralPath $script -Raw
+  if ($scriptText -notmatch "Invoke-VerifiedLocalBootstrap" -or $scriptText -match "install.ps1 is still plan-only") {
+    throw "install.ps1 is not an executable bootstrap. Refusing to launch."
+  }
+  & powershell -NoProfile -ExecutionPolicy Bypass -File $script -Execute -Launch
+} finally {
+  if (Test-Path -LiteralPath $tmp) { Remove-Item -LiteralPath $tmp -Recurse -Force }
+}
+```
 
-長期的には、
+### GitHub Release の ZIP を解凍したあと
 
-- public 側の配布できる YonerAI Node
-- private 側の VPS / 商業 / 公式Web
+GitHub Release の `YonerAI-0.8.1.zip` をダウンロードして ZIP を展開したら、
+PowerShell で展開後のフォルダへ移動してから以下を実行します。フォルダ名は環境に
+よって違うので、`cd` は実際の展開先に合わせてください。
 
-をもっと明確に分ける方向です。
+```powershell
+cd "$HOME\Downloads\YonerAI-0.8.1"
+python --version
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -U pip
+python -m pip install -r core/requirements.txt httpx
+python -m pip install -e clients/cli
+yonerai
+```
 
-ただし、その分離はまだ進行中です。
-そのため現在の repo には、hybrid 構成や将来のアーキテクチャに関する共通基盤コードや docs も一部同居しています。
+展開したアーカイブまたは checkout に `install-local.ps1` が入っている場合は、
+仮想環境の手順を手で全部打たずに、ローカルbootstrap helperを使えます。
 
-### この repo でできること
+```powershell
+# 計画だけ表示します。インストールはしません。
+.\install-local.ps1
 
-現在の公開 repo では、次ができます。
+# .venv を作り、ローカルCLI packageを入れて、YonerAIを起動します。
+.\install-local.ps1 -Execute -Launch
+```
 
-- YonerAI をローカル Discord Bot として動かす
-- ローカルの setup / admin API を起動する
-- Web Chat と Dashboard UI を使う
-- ローカル / クラウドモデルを切り替えて使う
-- approval / audit 付きで tool を実行する
-- built-in tools、local skills、MCP サーバーで拡張する
-- 将来的に VPS を control plane にした hybrid 構成へ伸ばす
+`install.ps1` は GitHub Release bootstrap です。`-Execute` を付けない場合は
+計画だけを表示し、install は行いません。
 
-### ランタイム構成
+```powershell
+.\install.ps1
+```
 
-- Bot（Discord）: `python main.py`
-- Admin Server（FastAPI）: `uvicorn src.web.app:app --host 0.0.0.0 --port 8000`
-- Core（任意）: `python -m ora_core.main`
-- Web Chat UI（Next.js）: `clients/web/`
-- Dashboard UI（Next.js）: `ora-ui/`
-- Relay 系: `src/relay/`
+PowerShell がローカル script 実行を止める場合は、PC全体の実行ポリシーを変えずに
+次の形で実行できます。
 
-### リポジトリ構成
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\install-local.ps1 -Execute -Launch
+```
 
-- `src/`
-  - bot runtime、web API、relay、tools、skills、approval、audit、utils
-- `core/`
-  - 任意の Core API、推論 / ルーティング本体
-- `clients/web/`
-  - 公開向けの chat UI
-- `ora-ui/`
-  - dashboard / operator UI
-- `docs/`
-  - アーキテクチャ、デプロイ、図、拡張ガイド
-- `tools/`
-  - 補助プロジェクトや外部ツール連携
+この helper はローカル優先です。既定は計画表示だけで、仮想環境の場所が展開した
+YonerAIフォルダの外に出る指定は拒否します。PATH変更、registry変更、service install、
+admin要求、`irm ... | iex` は行いません。`-Execute` を付けた場合だけ、`pip` が
+未cacheのPython依存packageを取得する可能性があります。
 
-### 想定する動かし方
+Python は 3.11 以上を使ってください。`python --version` が動かない場合は、
+先に Python を入れるか、自分のPCで使える Python 起動コマンドに置き換えてください。
 
-この repo は実務上、次の 3 モードで考えると分かりやすいです。
+`yonerai` が起動したら、最初に `日本語` / `English` を選びます。その後は
+普通の文章を入力すればチャットできます。設定は `/設定`、安全設定の確認は
+`/安全`、認証は `/認証`、同期境界は `/同期`、共有状態は `/プライバシー`、履歴は `/履歴`、
+終了は `/終了` です。日本語設定でも `/settings`、`/safety`、`/auth`、
+`/sync`、`/privacy`、`/runs`、`/quit` のような英語コマンドも使えます。
 
-1. **ローカル単体**
-   - Bot と必要な UI を自分のPCで動かす
-2. **ローカル + Core**
-   - optional Core を足して、推論 / ルーティングを分離する
-3. **Hybrid**
-   - 後から VPS 側に control plane を置き、自分のPCを high-trust worker にする
+`yonerai` が見つからない場合は、仮想環境が有効になっていない可能性があります。
+もう一度 `.\.venv\Scripts\Activate.ps1` を実行してから `yonerai` を実行して
+ください。この手順は本番クラウドインストーラーではありません。PATH を恒久変更せず、
+`irm ... | iex` も実行せず、リモートスクリプトのダウンロードや実行も行いません。
 
-### 深掘りドキュメント
+これは YonerAI CLI Local Runtime をこの checkout から local install する手順です。
+production cloud installer ではありません。PATH 変更や remote script 実行は行いません。
 
-詳しい資料:
-- `docs/USER_GUIDE.md`
-- `docs/SYSTEM_ARCHITECTURE.md`
-- `docs/VPS_DEPLOYMENT.md`（VPS常時稼働の構成ガイド）
-- `docs/DOMAIN_ROUTES.md`（`yonerai.com` のサブドメイン設計とAPIパス設計）
-- `docs/PLATFORM_PLAN.md`（方向性: Node + Clients + Relay + Cloud）
-- `docs/PLATFORM_REVIEW_AND_RISKS.md`（Devil's Advocate レビュー/リスク）
-- `ORA_SYSTEM_SPEC.md`
-- `AGENTS.md`（Codex/エージェント用のワークスペース指示）
-
----
-
-## クイックスタート（Windows）
-
-前提:
-- Python 3.11
-- Node.js（`clients/web` と `ora-ui`、一部スキルで使用）
-- FFmpeg を `PATH` に追加（音声/音楽、一部メディア系スキル）
-
-### 1) Bot
 ```powershell
 python -m venv .venv
-.venv\Scripts\Activate.ps1
-pip install -U pip
-pip install -r requirements.txt
-Copy-Item .env.example .env
-python main.py
+.\.venv\Scripts\Activate.ps1
+python -m pip install -U pip
+python -m pip install -r core/requirements.txt httpx
+python -m pip install -e clients/cli
+yonerai
 ```
 
-最小必須の環境変数は `DISCORD_BOT_TOKEN` です。
+install 後は `yonerai` だけで対話アプリが起動します。まずは普通の文章を
+そのまま入力してください。初期状態ではモックAIで応答するため、APIキーなし・
+ネットワークなしでも最初の会話ができます。
 
-### 2) Admin Server（任意）
-```powershell
-.venv\Scripts\Activate.ps1
-uvicorn src.web.app:app --reload --host 0.0.0.0 --port 8000
+### 対話アプリで使う短いコマンド
+
+通常ユーザーは `yonerai login` や長い `--bridge --open-browser ...` を
+覚える必要はありません。`yonerai` を開いたあと、入力欄で `/` を押すと候補が
+出ます。日本語モードでも `/login` や `/local-llm` など英語 alias は使えます。
+対応端末では Tab / 矢印キーで候補を選べます。非対応端末やCIでは1行入力に
+戻ります。
+
+```text
+/ログイン      Google α/staging ログインを開く
+/更新          安定版/ベータ版を選んで確認、明示確認後だけ適用
+/ローカルLLM   Ollama / LM Studio を自動検出して設定案内
+/設定          言語、表示方式、提供元、安全、記憶、更新を変更
+/認証          ログイン状態、共有オフ、private upload無効を確認
+/同期          cloud→local preview / local→cloud は承認必須
+/記憶          ローカル記憶を追加、一覧、忘却、同期preview
+/履歴          redacted run history
+/API           staging API状態
+/レート        rate-limit状態
+/終了          終了
 ```
 
-### 3) Web UI（任意）
-```powershell
-cd clients\web
-npm install
-npm run dev
-```
+PowerShell から直接実行する短いコマンドも残していますが、通常は対話アプリ内の
+`/ログイン`、`/更新`、`/ローカルLLM` を使ってください。次は上級者/CI向けです。
 
 ```powershell
-cd ora-ui
-npm install
-npm run dev
+yonerai
+yonerai chat
+yonerai ask --auto "hello"
+yonerai update
+yonerai update stable
+yonerai update beta
+yonerai login
+yonerai auth status --pretty --lang ja
+yonerai sync status --pretty --lang ja
+yonerai sync preview --direction cloud-to-local --json
+yonerai sync approve --dry-run --direction local-to-cloud --json
+yonerai privacy status --pretty --lang ja
+yonerai config set model llama3.1 --pretty --lang ja
+yonerai providers --pretty --lang ja
 ```
 
-### 4) Core（任意）
+対話アプリ内の `/更新` はまず安定版とベータ版の選択肢を表示します。
+適用は `/更新 適用 安定版 確認` または `/更新 適用 ベータ版 確認` のように
+明示した時だけです。download、install、PATH変更、remote code実行、forced
+update、silent auto-apply、admin要求は行いません。
+
+## Quickstart: public demo
+
+clone 後に現在の public-safe slice を見る最短手順は、credential-free の demo command です。Core API server の常時起動、Discord token、Oracle access、provider API key、Google login、deployment、persistent memory は不要です。
+
 ```powershell
-$env:PYTHONPATH = "core\src"
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -U pip
+python -m pip install -r core/requirements.txt httpx
+python -m pip install -e clients/cli
+yonerai
+yonerai chat
+yonerai config show --pretty --lang ja
+yonerai start --guided --lang ja
+yonerai start --guided --json
+yonerai demo --pretty
+yonerai demo --json
+yonerai doctor --pretty --lang ja
+yonerai status --pretty --lang ja
+yonerai manifest verify releases/manifest.v0.8.1.json --pretty --lang ja
+yonerai install plan --manifest releases/manifest.v0.8.1.json --pretty
+yonerai update check --manifest releases/manifest.v0.8.1.json --pretty
+yonerai update plan --manifest releases/manifest.v0.8.1.json --pretty
+```
+
+`yonerai quickstart` は `yonerai demo` の alias です。
+
+## 最初の5分
+
+`yonerai` は local interactive terminal を起動します。明示したい場合は
+`yonerai chat` を使います。これは full-screen GUI ではなく、通常入力にも
+fallbackできる安全な対話 shell です。文章を入力すると `ask --auto` と同じ安全
+経路で実行し、slash command で設定や履歴を見られます。
+
+```text
+/設定                 設定を見る
+/提供元               プロバイダー（AI接続先）の状態を見る。キーは表示しません
+/安全                 ネットワーク（外部通信）/ツール（操作機能）/ファイルアクセス（ファイル読み取り）の境界を見る
+/タスク               現在/最近のタスク進行を見る
+/エージェント         計画係 / 調査係 / レビュー係などの担当計画を見る
+/履歴                 実行履歴（redacted local run history）を見る
+/表示 <実行ID>        1件の実行を見る
+/ローカルLLM          PC内モデルの接続方法を見る
+/認証                 Google OAuth のドライラン状態を見る。本番ログインはしません
+/同期                 cloudからlocalへの選択同期とlocalからcloudへの明示承認境界を見る
+/プライバシー         OpenAI共有トラフィックと非公開/ローカル内容の共有境界を見る
+/更新                 安定版/ベータ版の更新確認を選ぶ
+/更新通知 オン|オフ   起動時の更新案内設定を変更
+/言語 日本語|英語     表示言語を変更
+/提供元選択 自動|モック|ローカル|オープンAI互換|アンソロピック|ジェミニ
+/承認 確認|拒否       危険操作の扱いを変更
+/ファイル ワークスペース内のみ|無効
+/履歴記録 オン|オフ    秘匿済みローカル履歴の記録を変更
+/ライブ接続 オン|オフ 外部/ローカル実行の明示許可を変更
+/ネットワーク オン|オフ 外部通信の明示許可を変更
+/選択 <番号> <値>      設定画面の番号で変更
+/終了                 終了
+```
+
+日本語モードでも `/settings`、`/providers`、`/safety`、`/auth`、`/privacy`、`/tasks`、`/runs`、`/local-llm`、
+`/provider mock`、`/quit` のような英語 slash command は互換 alias として使えます。ただし、画面に
+出す説明は日本語優先です。
+
+初回の対話起動では、日本語 / English を選びます。保存するのは language、
+provider preference、approval mode、file access mode などの非secret設定
+だけです。pipe や CI のような non-TTY ではハングせず、使い方だけを表示し
+ます。script入力を意図する場合は `yonerai chat --script` を使います。
+
+`yonerai start --guided` は、YonerAI を初めて触る人のための案内 command です。内部 label を並べるのではなく、次に何を実行すればよいかを表示します。
+
+```powershell
+yonerai
+yonerai chat
+yonerai config set language ja
+yonerai config show --pretty --lang ja
+yonerai start --guided --lang ja
+yonerai start --guided --json
+yonerai demo --pretty
+yonerai doctor --pretty --lang ja
+yonerai ask "hello" --provider mock --json
+yonerai hybrid run --pretty
+yonerai hybrid run --json
+yonerai ask "use this selected sample file" --file sample.txt --workspace .yonerai-sample-workspace --provider mock --json
+yonerai ask "hello" --provider mock --json --ledger .yonerai-runs.jsonl
+yonerai runs list --ledger .yonerai-runs.jsonl --json
+```
+
+この流れで分かること:
+
+- `yonerai` / `yonerai chat` は、日本語優先の対話 shell を起動します。chat、
+  provider状態、safety設定、run historyをslash commandで確認できます。
+- `yonerai config show/set` は、secretを保存せず、local preferenceだけを
+  扱います。
+- `yonerai start --guided --lang ja` は、mock provider で安全に試す手順、local LLM の状態、ワークスペース内ファイルアクセス制御の例、ledger の例、現在の制限を表示します。
+- `yonerai demo --pretty` は、現在の公開安全なローカルsliceを credential なしで表示します。
+- `yonerai doctor --pretty --lang ja` は、ローカル setup、manifest、provider setup、安全境界を確認します。
+- `yonerai start --guided --lang ja` は、Ollama / LM Studio 風の local LLM endpoint を loopback の metadata 確認だけで検出します。
+- mock `ask` は public-safe な `run_id` を返します。
+- `--ledger <local.jsonl>` を付けた場合だけ、redacted な local-only run history を書きます。
+- Workspace file support は「ワークスペース内ファイルアクセス制御」です。明示した workspace の中にある、明示した UTF-8 text file だけを読みます。
+  サンプルコマンドは `.yonerai-sample-workspace/sample.txt` を自分で用意してから実行する前提です。`yonerai start --guided` 自体はファイル作成、ファイル読み取り、ledger 書き込みを行いません。
+
+Local LLM server がすでに loopback で動いている場合だけ、明示的に有効化してから local provider を試せます。
+
+Ollama 例:
+
+```powershell
+$env:ORA_LOCAL_LLM_ENABLED = "1"
+$env:ORA_LOCAL_LLM_PROVIDER = "ollama"
+$env:ORA_LOCAL_LLM_BASE_URL = "http://127.0.0.1:11434"
+$env:ORA_LOCAL_LLM_MODEL = "llama3.2"
+yonerai ask "hello" --provider local --live --json
+```
+
+LM Studio / OpenAI-compatible local server 例:
+
+```powershell
+$env:ORA_LOCAL_LLM_ENABLED = "1"
+$env:ORA_LOCAL_LLM_PROVIDER = "openai_compatible_local"
+$env:ORA_LOCAL_LLM_BASE_URL = "http://127.0.0.1:1234/v1"
+$env:ORA_LOCAL_LLM_MODEL = "local-model"
+yonerai ask "hello" --provider local --live --json
+```
+
+Local LLM は loopback-only です。`localhost`、`127.0.0.1`、`::1` 以外の endpoint、LAN host、tunnel、credential 入り URL、query string、fragment は拒否します。`yonerai start` は prompt を model に送りません。
+
+## v0.1.0-alpha.2 で試せること
+
+v0.1.0-alpha.2 は local public alpha slice です。完成品の YonerAI ではありません。provider credential、Discord token、production service、live network call なしで、次を試せます。
+
+- Mock provider execution: `yonerai ask "summarize public docs" --provider mock --json`
+- Run ID: mock `ask` は public-safe な `run_id` を返します。
+- Workspace File Access Guard: `yonerai ask "use this selected file" --file <path> --workspace <dir> --provider mock --json`
+- Mock search: `yonerai search mock "YonerAI alpha2" --json`
+- SafeShell plan: `yonerai ops plan git-status --json`
+- Local memory: `yonerai memory add "local note" --store <local.jsonl> --confirm-local --json`
+- Synthetic Discord boundary: `yonerai discord synthetic "hello" --json`
+- Status fixture: `yonerai status --source fixture --json`
+- Installer dry-run planning: `yonerai install plan-windows --json`
+- Local manifest verify: `yonerai manifest verify releases/manifest.example.json --json`
+
+External provider adapter と local LLM execution はありますが、明示 opt-in が必要です。External provider は `--live` と provider-specific environment flag が必要です。Local LLM endpoint は loopback-only で、remote URL は拒否します。
+
+## まだ claim してはいけないこと
+
+- production-ready YonerAI runtime
+- Official Managed Cloud runtime
+- production Oracle control-plane implementation
+- live Discord restoration
+- live web search by default
+- arbitrary shell execution
+- arbitrary local file access
+- folder crawling
+- PDF / image parsing
+- automatic file summarization
+- installer-ready distribution
+- npm / winget distribution
+- production signing key / production trust store
+- Google login / production DB / telemetry ingestion
+- complete persistent memory
+- `src/cogs/ora.py` solved
+
+## CLI 診断
+
+`yonerai doctor` と `yonerai status` はオフラインで動く non-mutating diagnostic command です。公開デモの実行可否、Python/CLI の状態、manifest 例、redaction self-check、MCP deny-policy self-check、provider setup を確認します。デモ実行、PATH 変更、インストール、リモートコードのダウンロード、live service 接続は行いません。
+
+`--lang ja` は human-readable な pretty output だけを日本語化します。`--json` のキーは CI / 自動テスト向けに英語のまま安定させます。
+
+`yonerai manifest verify releases/manifest.example.json --pretty --lang ja` はローカルの release manifest を検証するだけです。Artifact のダウンロード、installer 実行、PATH 変更、winget/npm publish は行いません。現在の example manifest は contract-valid ですが、non-production signature placeholder を使うため install-ready ではありません。
+
+## 今動くもの
+
+現在の public MVP は、credential-free local Core API health smoke、offline/mock message contract、loopback-only local LLM conversation contract、public demo command、first-run guide です。完成済みの ChatGPT-like product ではありません。
+
+確認できること:
+
+- public repository を clone する
+- `yonerai start --guided --lang ja` を実行する
+- `yonerai demo --pretty` / `yonerai demo --json` を実行する
+- `yonerai doctor --pretty --lang ja` を実行する
+- `yonerai ask "hello" --provider mock --json` で credential-free ask を試す
+- local Core API を起動して `GET /health` で `{"ok": true}` を受け取る
+- `POST /v1/public/messages` で deterministic offline mock reply を受け取る
+- `POST /api/v1/agent/run` で local in-memory run smoke contract を確認する
+- loopback-only の local LLM server がある場合だけ、`--provider local --live` で local runtime を試す
+- `clients/web` を temporary Web Chat MVP / smoke-demo surface として local で開く
+
+含まれないもの:
+
+- Official Managed Cloud runtime / control plane
+- production Oracle
+- production trust store / production signing keys
+- live Discord gateway
+- Google login
+- persistent natural memory / cross-device history
+- real official-cloud telemetry / analytics
+- external provider live generation by default
+- deployment system
+- production readiness / full product completion
+
+## 3つの product mode
+
+YonerAI は同じ contract-first foundation を次の 3 つの利用形態で扱う設計です。
+
+- Full Private Self-Host: public repo は local/self-hosted public MVP surface を持ち、operator が runtime boundary に責任を持ちます。
+- Official Hybrid Private: public repo は Local Node contract、signed-contract test、non-production local-dev simulator を持ちます。Official cloud coordination は external/private です。
+- Official Managed Cloud: product mode として存在しますが、runtime と control plane は official/private infrastructure であり、この public repo には実装されず runnable として扱いません。
+
+これは repository map ではなく product mode の説明です。public docs は private operational detail ではなく、contract と user experience を説明します。
+
+## Public repo の境界
+
+この repository に含めるもの:
+
+- review 可能な public-safe contract
+- public-safe runtime abstraction
+- capability boundary と connector pattern
+- client-facing docs
+- regression tests
+- Full Private Self-Host の public/local surface
+- Official Hybrid Private の Local Node contract/dev simulator surface
+
+この repository に含めないもの:
+
+- official/private runtime behavior
+- operator-only workflow
+- live route / deployment truth / raw production inventory
+- credential / host-specific control-plane detail
+- production Oracle / production trust material
+- live Discord token or connection
+- Google login / persistent memory / deploy
+
+Cross-boundary interaction は API、event、file、auth claim、capability manifest、protocol、schema など、明示的な contract 経由だけで行います。
+
+Raw chain-of-thought は public chat、API、SSE、log、documentation、trace surface に出しません。public trace で扱うのは safe summary、label、detail、すでに public-safe な source だけです。
+
+## Local development
+
+public demo:
+
+```powershell
+python -m pip install -r core/requirements.txt httpx
+python -m pip install -e clients/cli
+yonerai start --guided --lang ja
+yonerai demo --pretty
+```
+
+credential-free public smoke:
+
+```powershell
+$env:PYTHONPATH = "$PWD;$PWD\core\src"
+$env:ORA_ALLOW_MISSING_SECRETS = "1"
+python scripts/dev/public_mvp_smoke.py
+```
+
+local Core API:
+
+```powershell
+$env:PYTHONPATH = "$PWD;$PWD\core\src"
+$env:ORA_ALLOW_MISSING_SECRETS = "1"
 python -m ora_core.main
 ```
 
-補足:
-- `start_all.bat` は便利ですが、PC固有のパスが含まれています。参考として自環境向けに調整してください。
+## Status
 
----
-
-## 設定（.env）
-
-`.env.example` を元に `.env` を作成します。
-
-必須:
-- `DISCORD_BOT_TOKEN`
-
-### WebセットアップUI（任意）
-
-`.env` を直接編集したくない場合、ブラウザから secrets とURLを設定できます:
-
-1. Adminサーバ起動:
-   - `uvicorn src.web.app:app --reload --host 127.0.0.1 --port 8000`
-2. ブラウザで開く:
-   - `http://127.0.0.1:8000/setup`
-
-このUIは profile別の `secrets/` と `state/settings_override.json` に保存します（`.env` をコミットしないため）。
-
-推奨:
-- `DISCORD_APP_ID`（Application ID）
-- `ORA_DEV_GUILD_ID`（開発ギルド同期は即時、グローバル同期は最大で約1時間かかる場合あり）
-- `ADMIN_USER_ID`（オーナー/作成者ID）
-
-### 外部連携APIパス（トークン必須）
-
-外部サービス連携で使う安定パス:
-
-- `POST /api/v1/agent/run`
-- `GET /api/v1/agent/runs/{run_id}/events`
-- `POST /api/v1/agent/runs/{run_id}/results`
-
-認証:
-- `ORA_WEB_API_TOKEN` を設定
-- `Authorization: Bearer <token>`（または `x-ora-token`）を送信
-
-例:
-```bash
-curl -X POST "https://admin.yourdomain.com/api/v1/agent/run" \
-  -H "Authorization: Bearer $ORA_WEB_API_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"prompt":"最新ステータスを要約して","user_id":"api-client-1"}'
-```
-
-よく触る項目:
-- `OPENAI_API_KEY`（クラウドモデル）
-- `LLM_BASE_URL`, `LLM_MODEL`（ローカル推論ゲートウェイ）
-- `ORA_PUBLIC_TOOLS`, `ORA_SUBADMIN_TOOLS`（ツールの許可リスト）
-- `ORA_APPROVAL_TIMEOUT_SEC` と監査ログ保持設定（承認 + audit）
-
----
-
-## Skills（ローカルツール）
-
-YonerAI には2系統のローカルツールがあります（どちらも ToolHandler 境界で実行されます）。
-
-- 静的ツールレジストリ: `src/cogs/tools/registry.py`
-  - 既存ツール（schema + 実装パス）を定義します。
-- 動的スキル: `src/skills/<skill_name>/`
-  - "Clawdbot pattern" 形式: `SKILL.md` + `tool.py`（+ 任意で `schema.json`）
-  - `src/skills/loader.py` がロードし、`src/cogs/tools/tool_handler.py` が実行します。
-
-スキルの基本構造:
-- `src/skills/<name>/SKILL.md`（使い方 + 前提）
-- `src/skills/<name>/tool.py`
-  - `async def execute(args: dict, message: discord.Message, bot: Any = None) -> Any`
-  - 任意: `TOOL_SCHEMA = {name, description, parameters, tags}`
-
-例:
-- `src/skills/remotion_create_video/`（`tools/remotion/` の Node 依存が必要）
-
-### Remotion（動画レンダリング）
-
-スキル: `remotion_create_video`
-
-初回セットアップ:
-```powershell
-cd tools/remotion
-npm ci
-```
-
-メモ:
-- Node.js と `npx` が必要です。
-- 任意の環境変数: `ORA_REMOTION_PROJECT_DIR`, `ORA_REMOTION_ENTRY`, `ORA_REMOTION_RENDER_TIMEOUT_SEC`
-
----
-
-## MCP（Model Context Protocol）ツールサーバー
-
-MCP は **デフォルト無効** です。有効化すると、YonerAI は stdio 経由で外部 MCP サーバーに接続し、リモートツールをローカルツールとして登録します。
-
-- ツール名: `mcp__<server>__<tool>`
-- ローダー: `src/cogs/mcp.py`
-- 通信: `src/utils/mcp_client.py`（最小実装の MCP-over-stdio クライアント）
-
-有効化例:
-```ini
-ORA_MCP_ENABLED=1
-# servers は JSON 配列
-# 各要素: name, command, cwd, env, allowed_tools, allow_dangerous_tools
-ORA_MCP_SERVERS_JSON=[{"name":"artist","command":"python scripts/mock_mcp_artist.py","allowed_tools":["generate_artwork"]}]
-```
-
-`ORA_MCP_SERVERS_JSON` の代わりに、`config.yaml` の `mcp_servers`（同じオブジェクト形状）でも設定できます。
-
-安全側の設定:
-- `ORA_MCP_DENY_TOOL_PATTERNS`（危険そうな名前をデフォルト拒否）
-- `ORA_MCP_ALLOW_DANGEROUS=0`（拒否を強制）
-
----
-
-## 安全性（Risk, Approvals, Audit）
-
-- Risk scoring: `src/utils/risk_scoring.py`
-- 承認ゲート: `src/cogs/tools/tool_handler.py`
-- 監査DB: `ora_bot.db`（`.env` の `ORA_AUDIT_RETENTION_DAYS` などで保持設定）
-
----
-
-## 現在のシステムフロー（Hub + Spoke）
-
-YonerAI は hub/spoke 構成で動作します:
-- `ChatHandler` が入力と文脈を整形し、ツール露出を絞る
-- `Core API` が推論ループを主導し tool_call を発行
-- Bot 側がツール実行し、結果を Core に返却
-
-機能追加（tools/skills/MCP）を安全に増やすガイド: `docs/EXTENSIONS.md`
-
-### End-to-End フロー（シーケンス）
-<img alt="End-to-End フロー（シーケンス）" src="docs/diagrams/e2e_request_path_sequence_jp.png#gh-light-mode-only" width="1100">
-<img alt="End-to-End フロー（シーケンス）" src="docs/diagrams/e2e_request_path_sequence_jp_dark.png#gh-dark-mode-only" width="1100">
-
-Mermaid source: `docs/diagrams/e2e_request_path_sequence_jp.mmd` (light), `docs/diagrams/e2e_request_path_sequence_jp_dark.mmd` (dark)
-
----
-
-### Relay ペアリング + Proxy 経路（シーケンス）
-<img alt="Relay ペアリング + Proxy 経路（シーケンス）" src="docs/diagrams/relay_pairing_and_proxy_jp.png#gh-light-mode-only" width="1100">
-<img alt="Relay ペアリング + Proxy 経路（シーケンス）" src="docs/diagrams/relay_pairing_and_proxy_jp_dark.png#gh-dark-mode-only" width="1100">
-
-Mermaid source: `docs/diagrams/relay_pairing_and_proxy_jp.mmd` (light), `docs/diagrams/relay_pairing_and_proxy_jp_dark.mmd` (dark)
-
----
-
-### ツールポリシー + 承認ゲート（フロー）
-<img alt="ツールポリシー + 承認ゲート（フロー）" src="docs/diagrams/tool_policy_and_approvals_flow_jp.png#gh-light-mode-only" width="1100">
-<img alt="ツールポリシー + 承認ゲート（フロー）" src="docs/diagrams/tool_policy_and_approvals_flow_jp_dark.png#gh-dark-mode-only" width="1100">
-
-Mermaid source: `docs/diagrams/tool_policy_and_approvals_flow_jp.mmd` (light), `docs/diagrams/tool_policy_and_approvals_flow_jp_dark.mmd` (dark)
-
-## 開発用チェック（CI相当）
-
-```bash
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\\Scripts\\activate
-pip install -U pip
-pip install -r requirements.txt
-pip install ruff mypy pytest pytest-asyncio
-
-ruff check .
-mypy src/ --ignore-missing-imports
-python -m compileall src/
-pytest
-```
-
----
-
-## リリース運用
-
-1. `VERSION` を SemVer（`X.Y.Z`）で更新
-2. Changelog 更新
-3. `vX.Y.Z` タグを作成して push
-
-```bash
-python scripts/verify_version.py --tag v5.1.8
-git tag v5.1.8
-git push origin v5.1.8
-```
-
----
-
-## ライセンス
-
-MIT。`LICENSE` を参照。
+この README は public-facing な境界説明です。現在の public repo は Official Managed Cloud を runnable として提供しません。`src/cogs/ora.py` はまだ unresolved boundary residue であり、この demo や first-run guide によって解決済みとは主張しません。`reference_clawdbot` は public release train の対象外です。

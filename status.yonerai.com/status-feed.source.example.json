@@ -1,0 +1,488 @@
+{
+  "schema_version": "yonerai.status.source.v1",
+  "generated_at": "2026-06-01T00:00:00+09:00",
+  "locale_default": "ja",
+  "range": {
+    "start": "2026-05-25",
+    "days": 7
+  },
+  "contract_note": {
+    "ja": "これはfeed builder用のsource例です。本番監視データではありません。",
+    "en": "This is a source example for the feed builder. It is not production monitoring data."
+  },
+  "states": {
+    "operational": {
+      "color": "#26c6a3",
+      "label": {
+        "ja": "稼働中",
+        "en": "Operational"
+      }
+    },
+    "degraded": {
+      "color": "#ffbf2f",
+      "label": {
+        "ja": "性能低下",
+        "en": "Degraded"
+      }
+    },
+    "maintenance": {
+      "color": "#ff8a34",
+      "label": {
+        "ja": "メンテナンス",
+        "en": "Maintenance"
+      }
+    },
+    "major_outage": {
+      "color": "#ef4e45",
+      "label": {
+        "ja": "重大障害",
+        "en": "Major outage"
+      }
+    },
+    "not_started": {
+      "color": "#aeb6c2",
+      "label": {
+        "ja": "準備中",
+        "en": "Not started"
+      }
+    }
+  },
+  "categories": [
+    {
+      "id": "public-surfaces",
+      "name": {
+        "ja": "公開サーフェス",
+        "en": "Public surfaces"
+      },
+      "children": [
+        {
+          "id": "website",
+          "name": {
+            "ja": "Website",
+            "en": "Website"
+          },
+          "fact": {
+            "ja": "これはfeed sourceから生成されるcomponentです。",
+            "en": "This component is generated from a feed source."
+          },
+          "monitoring": {
+            "ja": "接続テスト",
+            "en": "Connection test"
+          },
+          "claim": {
+            "ja": "本番運用は未主張",
+            "en": "No production operation claim"
+          },
+          "default_state": "operational",
+          "default_message": {
+            "ja": "source default stateから生成されました。",
+            "en": "Generated from the source default state."
+          },
+          "days": {
+            "2026-05-27": {
+              "state": "degraded",
+              "incident_id": "source-example-degraded",
+              "message": {
+                "ja": "sourceの日別overrideから性能低下を表示しています。",
+                "en": "Showing degraded status from a daily source override."
+              },
+              "detail": {
+                "summary": {
+                  "ja": [
+                    "この詳細はsourceの日別overrideから生成されています。",
+                    "UIを直接編集せずに、バー色と詳細文章を変えられます。"
+                  ],
+                  "en": [
+                    "This detail is generated from a daily source override.",
+                    "Bar color and detail copy can change without editing the UI."
+                  ]
+                }
+              }
+            },
+            "2026-05-29": {
+              "state": "major_outage",
+              "incident_id": "source-example-major",
+              "message": {
+                "ja": "sourceの日別overrideから重大障害を表示しています。",
+                "en": "Showing major outage from a daily source override."
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "core-apis",
+      "name": {
+        "ja": "コアAPI",
+        "en": "Core APIs"
+      },
+      "children": [
+        {
+          "id": "api",
+          "name": {
+            "ja": "API",
+            "en": "API"
+          },
+          "fact": {
+            "ja": "API componentのsource例です。",
+            "en": "Source example for an API component."
+          },
+          "monitoring": {
+            "ja": "接続テスト",
+            "en": "Connection test"
+          },
+          "claim": {
+            "ja": "本番運用は未主張",
+            "en": "No production operation claim"
+          },
+          "default_state": "not_started",
+          "default_message": {
+            "ja": "まだ公開監視は接続されていません。",
+            "en": "Public monitoring is not connected yet."
+          },
+          "days": {
+            "2026-05-30": {
+              "state": "maintenance",
+              "incident_id": "source-example-maintenance",
+              "message": {
+                "ja": "sourceの日別overrideからメンテナンスを表示しています。",
+                "en": "Showing maintenance from a daily source override."
+              }
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "incidents": [
+    {
+      "id": "source-example-degraded",
+      "state": "degraded",
+      "status": "resolved",
+      "date": "2026-05-27",
+      "title": {
+        "ja": "source例: Website 性能低下",
+        "en": "Source example: Website degraded"
+      },
+      "meta": [
+        {
+          "ja": "Resolved",
+          "en": "Resolved"
+        },
+        {
+          "ja": "Degraded",
+          "en": "Degraded"
+        },
+        {
+          "ja": "Display test",
+          "en": "Display test"
+        }
+      ],
+      "summary": {
+        "ja": [
+          "これはsourceから生成したfeedに接続するための性能低下例です。",
+          "実際のYonerAI監視データではありません。"
+        ],
+        "en": [
+          "This is a degraded incident example for a feed generated from source data.",
+          "It is not real YonerAI monitoring data."
+        ]
+      },
+      "footer": {
+        "ja": "2026年5月27日 ・ すべての更新を見る",
+        "en": "2026-05-27 ・ View all updates"
+      },
+      "affected": {
+        "name": {
+          "ja": "Website",
+          "en": "Website"
+        },
+        "count": {
+          "ja": "1件の影響コンポーネント",
+          "en": "1 affected component"
+        },
+        "window": {
+          "start_label": "2026年5月27日 08:05",
+          "end_label": "08:40"
+        },
+        "segments": [
+          {
+            "state": "operational",
+            "percent": 15,
+            "tooltip": {
+              "ja": "正常区間",
+              "en": "Operational window"
+            }
+          },
+          {
+            "state": "degraded",
+            "percent": 70,
+            "tooltip": {
+              "ja": "性能低下: 08:05 -> 08:40",
+              "en": "Degraded: 08:05 -> 08:40"
+            }
+          },
+          {
+            "state": "operational",
+            "percent": 15,
+            "tooltip": {
+              "ja": "復旧済み区間",
+              "en": "Recovered window"
+            }
+          }
+        ],
+        "components": [
+          {
+            "category_id": "public-surfaces",
+            "component_id": "website",
+            "name": {
+              "ja": "Website",
+              "en": "Website"
+            },
+            "state": "degraded",
+            "date": "2026-05-27",
+            "end_date": "2026-05-27"
+          }
+        ]
+      },
+      "updates": [
+        {
+          "status": "resolved",
+          "label": {
+            "ja": "解決済み",
+            "en": "Resolved"
+          },
+          "body": {
+            "ja": [
+              "source例の性能低下は解決済みとしてマークされました。"
+            ],
+            "en": [
+              "The source example degraded incident was marked as resolved."
+            ]
+          },
+          "utc": "2026-05-27 11:44 UTC",
+          "jst": "2026-05-27 20:44 JST"
+        }
+      ]
+    },
+    {
+      "id": "source-example-major",
+      "state": "major_outage",
+      "status": "resolved",
+      "date": "2026-05-29",
+      "title": {
+        "ja": "source例: Website 重大障害",
+        "en": "Source example: Website major outage"
+      },
+      "meta": [
+        {
+          "ja": "Resolved",
+          "en": "Resolved"
+        },
+        {
+          "ja": "Major outage",
+          "en": "Major outage"
+        },
+        {
+          "ja": "Display test",
+          "en": "Display test"
+        }
+      ],
+      "summary": {
+        "ja": [
+          "これはsourceから生成したfeedに接続するための重大障害例です。",
+          "実際のYonerAI監視データではありません。"
+        ],
+        "en": [
+          "This is an incident example for a feed generated from source data.",
+          "It is not real YonerAI monitoring data."
+        ]
+      },
+      "footer": {
+        "ja": "2026年5月29日 ・ すべての更新を見る",
+        "en": "2026-05-29 ・ View all updates"
+      },
+      "affected": {
+        "name": {
+          "ja": "Website",
+          "en": "Website"
+        },
+        "count": {
+          "ja": "1件の影響コンポーネント",
+          "en": "1 affected component"
+        },
+        "window": {
+          "start_label": "2026年5月29日 08:05",
+          "end_label": "08:40"
+        },
+        "segments": [
+          {
+            "state": "operational",
+            "percent": 10,
+            "tooltip": {
+              "ja": "正常区間",
+              "en": "Operational window"
+            }
+          },
+          {
+            "state": "major_outage",
+            "percent": 80,
+            "tooltip": {
+              "ja": "重大障害: 08:05 -> 08:40",
+              "en": "Major outage: 08:05 -> 08:40"
+            }
+          },
+          {
+            "state": "operational",
+            "percent": 10,
+            "tooltip": {
+              "ja": "復旧済み区間",
+              "en": "Recovered window"
+            }
+          }
+        ],
+        "components": [
+          {
+            "category_id": "public-surfaces",
+            "component_id": "website",
+            "name": {
+              "ja": "Website",
+              "en": "Website"
+            },
+            "state": "major_outage",
+            "date": "2026-05-29",
+            "end_date": "2026-05-29"
+          }
+        ]
+      },
+      "updates": [
+        {
+          "status": "resolved",
+          "label": {
+            "ja": "解決済み",
+            "en": "Resolved"
+          },
+          "body": {
+            "ja": [
+              "source例の障害は解決済みとしてマークされました。"
+            ],
+            "en": [
+              "The source example issue was marked as resolved."
+            ]
+          },
+          "utc": "2026-05-29 11:44 UTC",
+          "jst": "2026-05-29 20:44 JST"
+        }
+      ]
+    },
+    {
+      "id": "source-example-maintenance",
+      "state": "maintenance",
+      "status": "resolved",
+      "date": "2026-05-30",
+      "title": {
+        "ja": "source例: API メンテナンス",
+        "en": "Source example: API maintenance"
+      },
+      "meta": [
+        {
+          "ja": "Resolved",
+          "en": "Resolved"
+        },
+        {
+          "ja": "Maintenance",
+          "en": "Maintenance"
+        },
+        {
+          "ja": "Display test",
+          "en": "Display test"
+        }
+      ],
+      "summary": {
+        "ja": [
+          "これはsourceから生成したfeedに接続するためのメンテナンス例です。"
+        ],
+        "en": [
+          "This is a maintenance example for a feed generated from source data."
+        ]
+      },
+      "footer": {
+        "ja": "2026年5月30日 ・ すべての更新を見る",
+        "en": "2026-05-30 ・ View all updates"
+      },
+      "affected": {
+        "name": {
+          "ja": "API",
+          "en": "API"
+        },
+        "count": {
+          "ja": "1件の影響コンポーネント",
+          "en": "1 affected component"
+        },
+        "window": {
+          "start_label": "2026年5月30日 09:00",
+          "end_label": "10:00"
+        },
+        "segments": [
+          {
+            "state": "operational",
+            "percent": 20,
+            "tooltip": {
+              "ja": "正常区間",
+              "en": "Operational window"
+            }
+          },
+          {
+            "state": "maintenance",
+            "percent": 60,
+            "tooltip": {
+              "ja": "メンテナンス: 09:00 -> 10:00",
+              "en": "Maintenance: 09:00 -> 10:00"
+            }
+          },
+          {
+            "state": "operational",
+            "percent": 20,
+            "tooltip": {
+              "ja": "完了後区間",
+              "en": "After maintenance"
+            }
+          }
+        ],
+        "components": [
+          {
+            "category_id": "core-apis",
+            "component_id": "api",
+            "name": {
+              "ja": "API",
+              "en": "API"
+            },
+            "state": "maintenance",
+            "date": "2026-05-30",
+            "end_date": "2026-05-30"
+          }
+        ]
+      },
+      "updates": [
+        {
+          "status": "completed",
+          "label": {
+            "ja": "完了",
+            "en": "Completed"
+          },
+          "body": {
+            "ja": [
+              "source例のメンテナンスは完了としてマークされました。"
+            ],
+            "en": [
+              "The source example maintenance was marked as completed."
+            ]
+          },
+          "utc": "2026-05-30 01:00 UTC",
+          "jst": "2026-05-30 10:00 JST"
+        }
+      ]
+    }
+  ]
+}

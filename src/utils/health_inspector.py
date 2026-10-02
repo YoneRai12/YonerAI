@@ -84,7 +84,7 @@ class HealthInspector:
         full_report = "\n".join(report_lines)
         return {"ok": results["overall"], "report": full_report, "details": results}
 
-    async def check_memory_health(self) -> (bool, str):
+    async def check_memory_health(self) -> tuple[bool, str]:
         """
         Checks for stuck 'Processing' states and directory access.
         """

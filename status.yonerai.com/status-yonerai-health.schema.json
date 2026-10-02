@@ -1,0 +1,123 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://status.yonerai.com/status-yonerai-health.schema.json",
+  "title": "YonerAI Status YonerAI health summary v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "yonerai.status.yonerai-health.v1"
+    },
+    "generated_at": {
+      "type": "string"
+    },
+    "source": {
+      "type": "string"
+    },
+    "components": {
+      "oneOf": [
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/componentHealth"
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/componentHealth"
+          }
+        }
+      ]
+    },
+    "statuses": {
+      "type": "object",
+      "additionalProperties": {
+        "oneOf": [
+          {
+            "type": "string"
+          },
+          {
+            "$ref": "#/$defs/componentHealth"
+          }
+        ]
+      }
+    },
+    "incidents": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    }
+  },
+  "$defs": {
+    "localizedText": {
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "object",
+          "additionalProperties": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "componentHealth": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "category_id": {
+          "type": "string"
+        },
+        "component_id": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "health": {
+          "type": "string"
+        },
+        "message": {
+          "$ref": "#/$defs/localizedText"
+        },
+        "checked_at": {
+          "type": "string"
+        },
+        "latency_ms": {
+          "type": "number"
+        },
+        "status_code": {
+          "type": "number"
+        },
+        "version": {
+          "type": "string"
+        },
+        "region": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

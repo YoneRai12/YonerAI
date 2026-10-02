@@ -1,0 +1,19 @@
+{
+  "enforced_in_public_repo": false,
+  "headers": {
+    "Retry-After": "required on 429 quota_exceeded responses",
+    "X-YonerAI-RateLimit-Bucket": "status, anonymous, authenticated, user_quota, device_quota, provider_quota, cloud_contract, oracle_queue, or abuse",
+    "X-YonerAI-RateLimit-Limit": "quota limit for the active bucket",
+    "X-YonerAI-RateLimit-Remaining": "remaining quota for the active bucket",
+    "X-YonerAI-RateLimit-Reset": "unix timestamp or RFC3339 reset time"
+  },
+  "ok": true,
+  "policy_state": "contract_only",
+  "quota_exceeded_response": {
+    "code": "quota_exceeded",
+    "local_fallback": "cached_status_or_local_fixture",
+    "retry_after_required": true,
+    "status": 429
+  },
+  "schema_version": "yonerai-status-api/v0.1"
+}

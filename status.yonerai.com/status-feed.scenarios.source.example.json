@@ -1,0 +1,364 @@
+{
+  "schema_version": "yonerai.status.source.v1",
+  "generated_at": "2026-06-01T00:00:00+09:00",
+  "locale_default": "ja",
+  "range": {
+    "start": "2026-05-25",
+    "days": 7
+  },
+  "contract_note": {
+    "ja": "これはsourceからfeedを生成してUIを切り替えるための表示テストです。実際のYonerAI監視データではありません。",
+    "en": "This is display-test source data for generating a feed-driven UI. It is not real YonerAI monitoring data."
+  },
+  "states": {
+    "operational": {
+      "color": "#26c6a3",
+      "label": {
+        "ja": "稼働中",
+        "en": "Operational"
+      }
+    },
+    "degraded": {
+      "color": "#ffbf2f",
+      "label": {
+        "ja": "性能低下",
+        "en": "Degraded"
+      }
+    },
+    "maintenance": {
+      "color": "#ff8a34",
+      "label": {
+        "ja": "メンテナンス",
+        "en": "Maintenance"
+      }
+    },
+    "major_outage": {
+      "color": "#ef4e45",
+      "label": {
+        "ja": "重大障害",
+        "en": "Major outage"
+      }
+    },
+    "not_started": {
+      "color": "#aeb6c2",
+      "label": {
+        "ja": "準備中",
+        "en": "Preparing"
+      }
+    }
+  },
+  "categories": [
+    {
+      "id": "status-bar-test",
+      "name": {
+        "ja": "Statusバー表示テスト",
+        "en": "Status bar display test"
+      },
+      "children": [
+        {
+          "id": "runtime-service",
+          "name": {
+            "ja": "ランタイムサービス",
+            "en": "Runtime service"
+          },
+          "fact": {
+            "ja": "これはsourceから生成されるコンポーネントです。DOMを直接編集していません。",
+            "en": "This component is generated from source data. The DOM is not edited by hand."
+          },
+          "monitoring": {
+            "ja": "mock feed connected",
+            "en": "mock feed connected"
+          },
+          "claim": {
+            "ja": "表示テスト。本番監視ではありません。",
+            "en": "Display test. Not production monitoring."
+          },
+          "default_state": "operational",
+          "default_message": {
+            "ja": "source default_stateから生成された稼働中バーです。",
+            "en": "Operational bar generated from source default_state."
+          },
+          "days": {
+            "2026-05-26": {
+              "state": "degraded",
+              "message": {
+                "ja": "sourceの日別overrideから性能低下を表示しています。",
+                "en": "Showing degraded status from a source daily override."
+              },
+              "detail": {
+                "summary": {
+                  "ja": [
+                    "この詳細はsourceのdays overrideから生成されます。",
+                    "UIを直接編集せず、バー色と詳細文言を変えられます。"
+                  ],
+                  "en": [
+                    "This detail is generated from a source days override.",
+                    "Bar color and detail copy can change without editing the UI."
+                  ]
+                }
+              }
+            },
+            "2026-05-27": {
+              "state": "major_outage",
+              "incident_id": "source-scenario-runtime-major",
+              "message": {
+                "ja": "sourceの日別overrideから重大障害を表示しています。",
+                "en": "Showing major outage from a source daily override."
+              },
+              "detail": {
+                "summary": {
+                  "ja": [
+                    "このバーはsourceから生成された障害詳細とupdates timelineへ接続します。",
+                    "実際のYonerAI監視データではありません。"
+                  ],
+                  "en": [
+                    "This bar links to an incident detail and updates timeline generated from source data.",
+                    "It is not real YonerAI monitoring data."
+                  ]
+                }
+              }
+            },
+            "2026-05-28": {
+              "state": "maintenance",
+              "incident_id": "source-scenario-runtime-maintenance",
+              "message": {
+                "ja": "sourceの日別overrideからメンテナンスを表示しています。",
+                "en": "Showing maintenance from a source daily override."
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "core-apis",
+      "name": {
+        "ja": "コアAPI",
+        "en": "Core APIs"
+      },
+      "children": [
+        {
+          "id": "external-api",
+          "name": {
+            "ja": "External API",
+            "en": "External API"
+          },
+          "fact": {
+            "ja": "実監視が接続されるまで、準備中として表示する想定のコンポーネントです。",
+            "en": "This component is expected to remain preparing until real monitoring is connected."
+          },
+          "monitoring": {
+            "ja": "未接続",
+            "en": "Not connected"
+          },
+          "claim": {
+            "ja": "本番運用は未主張",
+            "en": "No production operation claim"
+          },
+          "default_state": "not_started",
+          "default_message": {
+            "ja": "実監視が接続されるまで準備中として扱います。",
+            "en": "Treat as preparing until real monitoring is connected."
+          }
+        }
+      ]
+    }
+  ],
+  "incidents": [
+    {
+      "id": "source-scenario-runtime-major",
+      "state": "major_outage",
+      "status": "resolved",
+      "date": "2026-05-27",
+      "title": {
+        "ja": "source表示テスト: ランタイムサービス停止",
+        "en": "Source display test: Runtime service outage"
+      },
+      "meta": [
+        {
+          "ja": "Resolved",
+          "en": "Resolved"
+        },
+        {
+          "ja": "Major outage",
+          "en": "Major outage"
+        },
+        {
+          "ja": "Display test",
+          "en": "Display test"
+        }
+      ],
+      "summary": {
+        "ja": [
+          "これはsourceから生成したfeedに接続する障害詳細の表示テストです。",
+          "対象コンポーネント、影響ウィンドウ、updates timelineはsource/feed経由で描画されます。"
+        ],
+        "en": [
+          "This is display-test data for an incident detail generated through source-to-feed conversion.",
+          "Affected components, affected window, and updates timeline are rendered through source/feed data."
+        ]
+      },
+      "footer": {
+        "ja": "2026年5月27日 ・ すべての更新を見る",
+        "en": "2026-05-27 ・ View all updates"
+      },
+      "affected": {
+        "window": {
+          "start_label": "2026年5月27日 08:05",
+          "end_label": "08:40"
+        },
+        "segments": [
+          {
+            "state": "operational",
+            "percent": 10,
+            "tooltip": {
+              "ja": "正常区間",
+              "en": "Operational window"
+            }
+          },
+          {
+            "state": "major_outage",
+            "percent": 80,
+            "tooltip": {
+              "ja": "重大障害: 08:05 -> 08:40",
+              "en": "Major outage: 08:05 -> 08:40"
+            }
+          },
+          {
+            "state": "operational",
+            "percent": 10,
+            "tooltip": {
+              "ja": "復旧後区間",
+              "en": "Recovered window"
+            }
+          }
+        ]
+      },
+      "updates": [
+        {
+          "status": "resolved",
+          "label": {
+            "ja": "解決済み",
+            "en": "Resolved"
+          },
+          "body": {
+            "ja": [
+              "source表示テストの問題は解決済みとしてマークされました。"
+            ],
+            "en": [
+              "The source display-test issue was marked as resolved."
+            ]
+          },
+          "utc": "2026-05-27 11:44 UTC",
+          "jst": "2026-05-27 20:44 JST"
+        },
+        {
+          "status": "monitoring",
+          "label": {
+            "ja": "監視中",
+            "en": "Monitoring"
+          },
+          "body": {
+            "ja": [
+              "修正パッチを適用し、対象コンポーネントの状態を監視している想定の表示です。",
+              "これはUI確認用の文言であり、実際の運用事実ではありません。"
+            ],
+            "en": [
+              "A fix is shown as applied and the target component is being monitored.",
+              "This is UI test copy, not an operational fact."
+            ]
+          },
+          "utc": "2026-05-27 11:26 UTC",
+          "jst": "2026-05-27 20:26 JST"
+        }
+      ]
+    },
+    {
+      "id": "source-scenario-runtime-maintenance",
+      "state": "maintenance",
+      "status": "resolved",
+      "date": "2026-05-28",
+      "title": {
+        "ja": "source表示テスト: メンテナンス",
+        "en": "Source display test: Maintenance"
+      },
+      "meta": [
+        {
+          "ja": "Resolved",
+          "en": "Resolved"
+        },
+        {
+          "ja": "Maintenance",
+          "en": "Maintenance"
+        },
+        {
+          "ja": "Display test",
+          "en": "Display test"
+        }
+      ],
+      "summary": {
+        "ja": [
+          "これはsourceから生成したfeedに接続するメンテナンス詳細の表示テストです。"
+        ],
+        "en": [
+          "This is display-test data for a maintenance detail generated through source-to-feed conversion."
+        ]
+      },
+      "footer": {
+        "ja": "2026年5月28日 ・ すべての更新を見る",
+        "en": "2026-05-28 ・ View all updates"
+      },
+      "affected": {
+        "window": {
+          "start_label": "2026年5月28日 09:00",
+          "end_label": "10:00"
+        },
+        "segments": [
+          {
+            "state": "operational",
+            "percent": 20,
+            "tooltip": {
+              "ja": "正常区間",
+              "en": "Operational window"
+            }
+          },
+          {
+            "state": "maintenance",
+            "percent": 60,
+            "tooltip": {
+              "ja": "メンテナンス: 09:00 -> 10:00",
+              "en": "Maintenance: 09:00 -> 10:00"
+            }
+          },
+          {
+            "state": "operational",
+            "percent": 20,
+            "tooltip": {
+              "ja": "完了後区間",
+              "en": "After maintenance"
+            }
+          }
+        ]
+      },
+      "updates": [
+        {
+          "status": "completed",
+          "label": {
+            "ja": "完了",
+            "en": "Completed"
+          },
+          "body": {
+            "ja": [
+              "メンテナンス表示テストは完了としてマークされました。"
+            ],
+            "en": [
+              "The maintenance display test was marked as completed."
+            ]
+          },
+          "utc": "2026-05-28 01:00 UTC",
+          "jst": "2026-05-28 10:00 JST"
+        }
+      ]
+    }
+  ]
+}

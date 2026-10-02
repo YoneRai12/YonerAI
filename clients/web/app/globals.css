@@ -2,18 +2,13 @@
 
 @theme {
   --color-background: #212121;
-  /* ChatGPT-like dark background */
   --color-foreground: #ececec;
 
   --color-sidebar: #171717;
-  /* Sidebar Darker */
   --color-input: #2f2f2f;
-  /* Input Area */
 
   --color-primary: #10a37f;
-  /* OpenAI Green (or ORA Blue?) Let's stick to neutral/brand */
   --color-brand: #3b82f6;
-  /* ORA Blue */
 
   --font-sans: 'Inter', system-ui, sans-serif;
 }

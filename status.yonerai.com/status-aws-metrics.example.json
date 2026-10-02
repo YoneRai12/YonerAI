@@ -1,0 +1,28 @@
+{
+  "schema_version": "yonerai.status.aws-metrics.v1",
+  "generated_at": "2026-06-18T00:00:00+09:00",
+  "source": "example only",
+  "metrics": [
+    {
+      "label": "lambda-errors",
+      "namespace": "AWS/Lambda",
+      "metric_name": "Errors",
+      "statistic": "Sum",
+      "value": 0
+    },
+    {
+      "label": "lambda-concurrency",
+      "namespace": "AWS/Lambda",
+      "metric_name": "ConcurrentExecutions",
+      "statistic": "Maximum",
+      "value": 0
+    },
+    {
+      "label": "rds-connections",
+      "namespace": "AWS/RDS",
+      "metric_name": "DatabaseConnections",
+      "statistic": "Average",
+      "value": 0
+    }
+  ]
+}

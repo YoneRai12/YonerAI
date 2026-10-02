@@ -1,0 +1,129 @@
+{
+  "schema_version": "yonerai.status.runtime-api.v1",
+  "runtime_global": "window.YonerAIStatusRuntime",
+  "compatibility_globals": [
+    "window.YonerAIStatus",
+    "window.yoneraiStatusApplyFeed",
+    "window.yoneraiStatusSetFeed",
+    "window.yoneraiStatusTrySetFeed",
+    "window.yoneraiStatusReload",
+    "window.yoneraiStatusRefresh",
+    "window.yoneraiStatusGetState",
+    "window.yoneraiStatusGetFeed"
+  ],
+  "accepted_feed_schema": "yonerai.status.feed.v1",
+  "accepted_source_schemas": [
+    "yonerai.status.healthcheck.v1",
+    "yonerai.status.monitor.v1",
+    "yonerai.status.source.v1",
+    "yonerai.status.feed.v1"
+  ],
+  "public_methods": {
+    "applyFeed(feed, options)": {
+      "purpose": "Render a validated feed and throw on invalid input.",
+      "input": "yonerai.status.feed.v1",
+      "returns": "runtime state object or throws"
+    },
+    "setFeed(feed, options)": {
+      "purpose": "Render a validated feed and throw on invalid input.",
+      "input": "yonerai.status.feed.v1",
+      "returns": "runtime state object or throws"
+    },
+    "trySetFeed(feed, options)": {
+      "purpose": "Attempt feed render without throwing.",
+      "input": "yonerai.status.feed.v1",
+      "returns": "{ ok: true, state } or { ok: false, error }"
+    },
+    "reload()": {
+      "purpose": "Fetch and render the configured public feed endpoint.",
+      "returns": "Promise-like runtime refresh result"
+    },
+    "refresh()": {
+      "purpose": "Refresh the runtime feed from configured endpoint or mock input.",
+      "returns": "Promise-like runtime refresh result"
+    },
+    "connectEvents()": {
+      "purpose": "Connect the EventSource status-feed/events stream when configured.",
+      "returns": "void"
+    },
+    "disconnectEvents()": {
+      "purpose": "Disconnect the EventSource stream.",
+      "returns": "void"
+    },
+    "validateFeed(feed)": {
+      "purpose": "Validate feed shape before rendering.",
+      "input": "yonerai.status.feed.v1",
+      "returns": "validation result"
+    },
+    "syncRoute()": {
+      "purpose": "Synchronize selected bar or incident panel with location.hash.",
+      "returns": "void"
+    },
+    "clearInteractionState()": {
+      "purpose": "Clear hover, touch pin, selected, tooltip, and transient interaction state.",
+      "returns": "void"
+    },
+    "rerender()": {
+      "purpose": "Re-render the current feed without changing the feed source.",
+      "returns": "void"
+    },
+    "getState()": {
+      "purpose": "Expose runtime diagnostics without leaking secrets.",
+      "returns": "object"
+    },
+    "getFeed()": {
+      "purpose": "Return the current public feed object.",
+      "returns": "yonerai.status.feed.v1"
+    },
+    "destroy()": {
+      "purpose": "Abort listeners, timers, EventSource, and animation frames.",
+      "returns": "void"
+    }
+  },
+  "browser_events": {
+    "yonerai-status-feed:update": {
+      "direction": "input",
+      "detail": {
+        "feed": "yonerai.status.feed.v1",
+        "source": "optional string",
+        "options": "optional object"
+      },
+      "behavior": "Calls trySetFeed(detail.feed, detail.options)."
+    },
+    "yonerai-status:set-feed": {
+      "direction": "input",
+      "detail": {
+        "feed": "yonerai.status.feed.v1",
+        "source": "optional string",
+        "options": "optional object"
+      },
+      "behavior": "Compatibility alias for yonerai-status-feed:update."
+    },
+    "yonerai-status-feed:refresh": {
+      "direction": "input",
+      "detail": "none",
+      "behavior": "Calls refresh()."
+    },
+    "yonerai-status-runtime-ready": {
+      "direction": "output",
+      "detail": "none",
+      "behavior": "Emitted after the runtime globals are installed."
+    }
+  },
+  "route_contract": {
+    "status_bar_detail": "#status/{category_id}/{component_id}/{date}/{state}",
+    "category_bar_detail": "#status/{category_id}/__category__/{date}/{state}",
+    "incident_detail": "#incident/{incident_id}",
+    "legacy_status_test": "#status-test-{index}-{state}",
+    "legacy_incident_test": "#incident-test-{index}-{state}"
+  },
+  "invariants": [
+    "Do not write status DOM directly from AWS, YonerAI API, cron, or admin tooling.",
+    "Only yonerai.status.feed.v1 reaches the browser renderer.",
+    "healthcheck, monitor, and source inputs must be converted before runtime rendering.",
+    "Invalid feed updates must not leave stale selected highlights, duplicate panels, or duplicate tooltip nodes.",
+    "Feed updates must preserve hover, touch, animation, and selected-state contracts unless clearInteractionState() is explicitly called.",
+    "Secrets and raw internal endpoint inventories must never be included in public feed JSON.",
+    "Public status claims must be represented as feed data and must not imply production operation before live monitoring is connected."
+  ]
+}

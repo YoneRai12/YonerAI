@@ -1,0 +1,490 @@
+{
+  "actions_not_performed": [
+    "no production AWS request",
+    "no production Oracle call",
+    "no official cloud runtime execution",
+    "no live Discord call",
+    "no production Google login",
+    "no private runtime inventory output",
+    "no provider key output",
+    "no OpenAI shared traffic",
+    "no private/local content upload",
+    "no forced update",
+    "no auto install"
+  ],
+  "base_path": "/v1",
+  "component_ids": [
+    "cli_release",
+    "install",
+    "update",
+    "official_api",
+    "oracle",
+    "google_auth",
+    "shared_traffic",
+    "memory_sync",
+    "self_evolution",
+    "discord",
+    "provider_runtime",
+    "hybrid_node"
+  ],
+  "endpoints": [
+    {
+      "auth": "anonymous_allowed",
+      "error_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "request_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "retry_after": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "retry_after"
+            ],
+            "type": "object"
+          },
+          "ok": {
+            "const": false
+          }
+        },
+        "required": [
+          "ok",
+          "error"
+        ],
+        "type": "object"
+      },
+      "fixture_available": true,
+      "implemented_in_public_repo": false,
+      "method": "GET",
+      "path": "/v1/status",
+      "privacy_boundary": {
+        "arn_allowed": false,
+        "aws_account_ids_allowed": false,
+        "local_absolute_paths_allowed": false,
+        "private_ip_allowed": false,
+        "private_runtime_details_allowed": false,
+        "provider_keys_allowed": false,
+        "raw_endpoint_allowed": false
+      },
+      "rate_limit": {
+        "bucket": "status",
+        "headers": {
+          "Retry-After": "required on 429 quota_exceeded responses",
+          "X-YonerAI-RateLimit-Bucket": "status, anonymous, authenticated, user_quota, device_quota, provider_quota, cloud_contract, oracle_queue, or abuse",
+          "X-YonerAI-RateLimit-Limit": "quota limit for the active bucket",
+          "X-YonerAI-RateLimit-Remaining": "remaining quota for the active bucket",
+          "X-YonerAI-RateLimit-Reset": "unix timestamp or RFC3339 reset time"
+        },
+        "quota_exceeded_status": 429
+      },
+      "response_schema": {
+        "schema_ref": "status-api-0.1/status.response.schema.json"
+      },
+      "summary": "read overall YonerAI public status"
+    },
+    {
+      "auth": "anonymous_allowed",
+      "error_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "request_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "retry_after": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "retry_after"
+            ],
+            "type": "object"
+          },
+          "ok": {
+            "const": false
+          }
+        },
+        "required": [
+          "ok",
+          "error"
+        ],
+        "type": "object"
+      },
+      "fixture_available": true,
+      "implemented_in_public_repo": false,
+      "method": "GET",
+      "path": "/v1/status/components",
+      "privacy_boundary": {
+        "arn_allowed": false,
+        "aws_account_ids_allowed": false,
+        "local_absolute_paths_allowed": false,
+        "private_ip_allowed": false,
+        "private_runtime_details_allowed": false,
+        "provider_keys_allowed": false,
+        "raw_endpoint_allowed": false
+      },
+      "rate_limit": {
+        "bucket": "status",
+        "headers": {
+          "Retry-After": "required on 429 quota_exceeded responses",
+          "X-YonerAI-RateLimit-Bucket": "status, anonymous, authenticated, user_quota, device_quota, provider_quota, cloud_contract, oracle_queue, or abuse",
+          "X-YonerAI-RateLimit-Limit": "quota limit for the active bucket",
+          "X-YonerAI-RateLimit-Remaining": "remaining quota for the active bucket",
+          "X-YonerAI-RateLimit-Reset": "unix timestamp or RFC3339 reset time"
+        },
+        "quota_exceeded_status": 429
+      },
+      "response_schema": {
+        "schema_ref": "status-api-0.1/components.response.schema.json"
+      },
+      "summary": "list status components"
+    },
+    {
+      "auth": "anonymous_allowed",
+      "error_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "request_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "retry_after": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "retry_after"
+            ],
+            "type": "object"
+          },
+          "ok": {
+            "const": false
+          }
+        },
+        "required": [
+          "ok",
+          "error"
+        ],
+        "type": "object"
+      },
+      "fixture_available": true,
+      "implemented_in_public_repo": false,
+      "method": "GET",
+      "path": "/v1/status/incidents",
+      "privacy_boundary": {
+        "arn_allowed": false,
+        "aws_account_ids_allowed": false,
+        "local_absolute_paths_allowed": false,
+        "private_ip_allowed": false,
+        "private_runtime_details_allowed": false,
+        "provider_keys_allowed": false,
+        "raw_endpoint_allowed": false
+      },
+      "rate_limit": {
+        "bucket": "status",
+        "headers": {
+          "Retry-After": "required on 429 quota_exceeded responses",
+          "X-YonerAI-RateLimit-Bucket": "status, anonymous, authenticated, user_quota, device_quota, provider_quota, cloud_contract, oracle_queue, or abuse",
+          "X-YonerAI-RateLimit-Limit": "quota limit for the active bucket",
+          "X-YonerAI-RateLimit-Remaining": "remaining quota for the active bucket",
+          "X-YonerAI-RateLimit-Reset": "unix timestamp or RFC3339 reset time"
+        },
+        "quota_exceeded_status": 429
+      },
+      "response_schema": {
+        "schema_ref": "status-api-0.1/incidents.response.schema.json"
+      },
+      "summary": "list public incidents"
+    },
+    {
+      "auth": "anonymous_allowed",
+      "error_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "request_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "retry_after": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "retry_after"
+            ],
+            "type": "object"
+          },
+          "ok": {
+            "const": false
+          }
+        },
+        "required": [
+          "ok",
+          "error"
+        ],
+        "type": "object"
+      },
+      "fixture_available": true,
+      "implemented_in_public_repo": false,
+      "method": "GET",
+      "path": "/v1/releases",
+      "privacy_boundary": {
+        "arn_allowed": false,
+        "aws_account_ids_allowed": false,
+        "local_absolute_paths_allowed": false,
+        "private_ip_allowed": false,
+        "private_runtime_details_allowed": false,
+        "provider_keys_allowed": false,
+        "raw_endpoint_allowed": false
+      },
+      "rate_limit": {
+        "bucket": "status",
+        "headers": {
+          "Retry-After": "required on 429 quota_exceeded responses",
+          "X-YonerAI-RateLimit-Bucket": "status, anonymous, authenticated, user_quota, device_quota, provider_quota, cloud_contract, oracle_queue, or abuse",
+          "X-YonerAI-RateLimit-Limit": "quota limit for the active bucket",
+          "X-YonerAI-RateLimit-Remaining": "remaining quota for the active bucket",
+          "X-YonerAI-RateLimit-Reset": "unix timestamp or RFC3339 reset time"
+        },
+        "quota_exceeded_status": 429
+      },
+      "response_schema": {
+        "schema_ref": "status-api-0.1/releases.response.schema.json"
+      },
+      "summary": "read latest stable and alpha release state"
+    },
+    {
+      "auth": "anonymous_allowed",
+      "error_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "request_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "retry_after": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "retry_after"
+            ],
+            "type": "object"
+          },
+          "ok": {
+            "const": false
+          }
+        },
+        "required": [
+          "ok",
+          "error"
+        ],
+        "type": "object"
+      },
+      "fixture_available": true,
+      "implemented_in_public_repo": false,
+      "method": "GET",
+      "path": "/v1/install",
+      "privacy_boundary": {
+        "arn_allowed": false,
+        "aws_account_ids_allowed": false,
+        "local_absolute_paths_allowed": false,
+        "private_ip_allowed": false,
+        "private_runtime_details_allowed": false,
+        "provider_keys_allowed": false,
+        "raw_endpoint_allowed": false
+      },
+      "rate_limit": {
+        "bucket": "status",
+        "headers": {
+          "Retry-After": "required on 429 quota_exceeded responses",
+          "X-YonerAI-RateLimit-Bucket": "status, anonymous, authenticated, user_quota, device_quota, provider_quota, cloud_contract, oracle_queue, or abuse",
+          "X-YonerAI-RateLimit-Limit": "quota limit for the active bucket",
+          "X-YonerAI-RateLimit-Remaining": "remaining quota for the active bucket",
+          "X-YonerAI-RateLimit-Reset": "unix timestamp or RFC3339 reset time"
+        },
+        "quota_exceeded_status": 429
+      },
+      "response_schema": {
+        "schema_ref": "status-api-0.1/install.response.schema.json"
+      },
+      "summary": "read install command and trust boundary"
+    },
+    {
+      "auth": "anonymous_allowed",
+      "error_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "request_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "retry_after": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "retry_after"
+            ],
+            "type": "object"
+          },
+          "ok": {
+            "const": false
+          }
+        },
+        "required": [
+          "ok",
+          "error"
+        ],
+        "type": "object"
+      },
+      "fixture_available": true,
+      "implemented_in_public_repo": false,
+      "method": "GET",
+      "path": "/v1/rate-limit",
+      "privacy_boundary": {
+        "arn_allowed": false,
+        "aws_account_ids_allowed": false,
+        "local_absolute_paths_allowed": false,
+        "private_ip_allowed": false,
+        "private_runtime_details_allowed": false,
+        "provider_keys_allowed": false,
+        "raw_endpoint_allowed": false
+      },
+      "rate_limit": {
+        "bucket": "status",
+        "headers": {
+          "Retry-After": "required on 429 quota_exceeded responses",
+          "X-YonerAI-RateLimit-Bucket": "status, anonymous, authenticated, user_quota, device_quota, provider_quota, cloud_contract, oracle_queue, or abuse",
+          "X-YonerAI-RateLimit-Limit": "quota limit for the active bucket",
+          "X-YonerAI-RateLimit-Remaining": "remaining quota for the active bucket",
+          "X-YonerAI-RateLimit-Reset": "unix timestamp or RFC3339 reset time"
+        },
+        "quota_exceeded_status": 429
+      },
+      "response_schema": {
+        "schema_ref": "status-api-0.1/rate-limit.response.schema.json"
+      },
+      "summary": "read status API rate-limit headers"
+    }
+  ],
+  "ok": true,
+  "privacy_rules": [
+    "status fixtures must not include private runtime inventory",
+    "status fixtures must not include AWS account IDs, ARNs, private IPs, tokens, or raw endpoints",
+    "status.yonerai.com may consume status-feed JSON, but production monitoring remains a private/AWS lane",
+    "public repo status URL fetch is opt-in and allowlisted only"
+  ],
+  "production_backend_included": false,
+  "public_repo_mode": "fixture_only",
+  "schema_version": "yonerai-status-api-contract/v0.1",
+  "status_enum": [
+    "operational",
+    "degraded",
+    "partial_outage",
+    "major_outage",
+    "maintenance",
+    "contract_only",
+    "not_production"
+  ],
+  "status_feed_schema_version": "yonerai.status.feed.v1"
+}

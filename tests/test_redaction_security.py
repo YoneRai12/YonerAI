@@ -15,3 +15,13 @@ def test_redact_text_keeps_url_without_query() -> None:
     raw = "https://example.com/path only"
     out = redact_text(raw)
     assert out == raw
+
+
+def test_redact_text_redacts_discord_webhooks() -> None:
+    webhook_id = "1234567890"
+    webhook_secret = "abcdefghijklmnopqrstuvwxyz"
+    raw = f"send https://discord.com/api/webhooks/{webhook_id}/{webhook_secret} now"
+    out = redact_text(raw)
+    assert "discord.com/api/webhooks" not in out
+    assert "1234567890" not in out
+    assert out == "send [REDACTED] now"

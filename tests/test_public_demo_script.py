@@ -1,0 +1,323 @@
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+
+
+def _load_public_demo():
+    repo_root = Path(__file__).resolve().parents[1]
+    core_src = repo_root / "core" / "src"
+    for path in (repo_root, core_src):
+        text = str(path)
+        if text not in sys.path:
+            sys.path.insert(0, text)
+
+    from scripts.dev import public_demo
+
+    return public_demo
+
+
+def test_public_demo_json_shape_and_boundaries(capsys) -> None:
+    public_demo = _load_public_demo()
+
+    assert public_demo.main(["--json"]) == 0
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["ok"] is True
+    assert output["contract"] == "yonerai-public-demo/v1"
+    assert output["schema_version"] == "1.0"
+    assert output["cli_entrypoint"] == "yonerai demo"
+    assert output["quickstart_alias"] == "yonerai quickstart"
+    assert [section["name"] for section in output["sections"]] == [
+        "public_core",
+        "mode_boundary",
+        "route_preview",
+        "provider_planner",
+        "execution_spine",
+        "hybrid_trust",
+        "managed_download",
+        "self_evolution",
+        "limitations",
+    ]
+    assert output["credentials_required"] is False
+    assert output["network_required"] is False
+    assert output["oracle_required"] is False
+    assert output["live_discord_required"] is False
+    assert output["persistent_memory_required"] is False
+    assert output["google_login_required"] is False
+    assert output["deploy_required"] is False
+    assert output["official_cloud_runtime_included"] is False
+    assert output["production_trust_material"] is False
+    assert "session_id" not in json.dumps(output).lower()
+    self_evolution = next(section for section in output["sections"] if section["name"] == "self_evolution")
+    memory_fixture = next(
+        check for check in self_evolution["checks"] if check["name"] == "memory_candidate_fixture_quarantined"
+    )
+    assert memory_fixture["donation_action"] == "quarantine"
+    assert memory_fixture["trusted"] is False
+    assert memory_fixture["approval_required"] is True
+    assert memory_fixture["memory_status"] == "quarantined"
+    assert memory_fixture["memory_persisted"] is False
+    provider_planner = next(section for section in output["sections"] if section["name"] == "provider_planner")
+    registry = next(check for check in provider_planner["checks"] if check["name"] == "provider_registry")
+    external = next(check for check in provider_planner["checks"] if check["name"] == "external_provider_availability")
+    provider_setup = next(check for check in provider_planner["checks"] if check["name"] == "provider_setup_blockers")
+    provider_e2e = next(check for check in provider_planner["checks"] if check["name"] == "provider_runtime_e2e_fixtures")
+    search = next(check for check in provider_planner["checks"] if check["name"] == "mock_web_search")
+    live_search = next(check for check in provider_planner["checks"] if check["name"] == "live_search_boundary")
+    dangerous = next(check for check in provider_planner["checks"] if check["name"] == "dangerous_shell_plan")
+    download = next(check for check in provider_planner["checks"] if check["name"] == "download_guard_plan")
+    assert registry["provider"] == "mock"
+    assert registry["live_call_performed"] is False
+    assert external["live_call_performed"] is False
+    assert provider_setup["local_loopback_only"] is True
+    assert provider_setup["openai_compatible_live_ready"] is False
+    assert "YONERAI_OPENAI_COMPATIBLE_BASE_URL" in provider_setup["openai_compatible_blockers"]
+    assert provider_setup["network_probe_performed"] is False
+    assert provider_e2e["openai_compatible"] == "local_mock_http_server_tested"
+    assert provider_e2e["local_llm"] == "loopback_mock_http_server_tested"
+    assert provider_e2e["run_ledger"] == "redacted_success_and_error_paths_tested"
+    assert provider_e2e["external_network_call_performed"] is False
+    assert search["network_performed"] is False
+    assert live_search["adapter"] == "live"
+    assert live_search["reason"] == "live_search_not_implemented"
+    assert live_search["network_performed"] is False
+    assert live_search["requires_explicit_live_provider"] is True
+    assert "no network request" in live_search["actions_not_performed"]
+    assert dangerous["approval_required"] is True
+    assert download["network_performed"] is False
+    execution_spine = next(section for section in output["sections"] if section["name"] == "execution_spine")
+    mock_execution = next(check for check in execution_spine["checks"] if check["name"] == "mock_provider_execution")
+    workspace_file = next(
+        check for check in execution_spine["checks"] if check["name"] == "workspace_file_provider_execution"
+    )
+    legacy = next(check for check in execution_spine["checks"] if check["name"] == "legacy_ora_text_normalizer")
+    tool_boundaries = next(check for check in execution_spine["checks"] if check["name"] == "search_tool_boundaries")
+    memory = next(check for check in execution_spine["checks"] if check["name"] == "local_memory_opt_in")
+    assert mock_execution["run_status"] == "completed"
+    assert mock_execution["raw_prompt_persisted"] is False
+    assert workspace_file["provider"] == "mock"
+    assert workspace_file["model"] == "mock-workspace-file-access-guard"
+    assert workspace_file["run_status"] == "completed"
+    assert workspace_file["ledger_file_backed"] is True
+    assert workspace_file["workspace_file_access_event"] is True
+    assert workspace_file["raw_content_persisted"] is False
+    assert workspace_file["raw_prompt_persisted"] is False
+    assert workspace_file["live_call_performed"] is False
+    assert legacy["execution_spine_connected"] is True
+    assert legacy["broad_ora_refactor"] is False
+    assert tool_boundaries["live_tool_execution"] is False
+    assert tool_boundaries["ora_tool_schema_boundary"] == "ok"
+    assert tool_boundaries["ora_guardrail_response_interpreter"] == "ok"
+    assert tool_boundaries["ora_message_format_helper"] == "ok"
+    assert tool_boundaries["guardrail_provider_call_performed"] is False
+    assert memory["cloud_synced"] is False
+    assert memory["raw_prompt_persisted"] is False
+    hybrid_trust = next(section for section in output["sections"] if section["name"] == "hybrid_trust")
+    wire_conformance = next(
+        check for check in hybrid_trust["checks"] if check["name"] == "hybrid_wire_contract_conformance"
+    )
+    node_relay = next(check for check in hybrid_trust["checks"] if check["name"] == "hybrid_node_relay_contract")
+    relay_status = next(check for check in hybrid_trust["checks"] if check["name"] == "relay_local_dev_status")
+    oracle_stub = next(check for check in hybrid_trust["checks"] if check["name"] == "oracle_stub_execution")
+    discord = next(check for check in hybrid_trust["checks"] if check["name"] == "synthetic_discord_gateway")
+    assert wire_conformance["schema_version"] == "yonerai-hybrid-wire-contract/v0.3"
+    assert wire_conformance["session_token_hash_only"] is True
+    assert wire_conformance["message_body_persisted"] is False
+    assert wire_conformance["audit_event_schema"] == "hybrid-wire-audit/v0.3"
+    assert wire_conformance["trust_state_count"] >= 7
+    assert wire_conformance["node_posture_state_count"] == 5
+    assert wire_conformance["node_posture_states"] == [
+        "VERIFIED",
+        "LIMITED",
+        "RECOVERY",
+        "QUARANTINED",
+        "REVOKED",
+    ]
+    assert wire_conformance["extension_boundary_count"] == 4
+    assert set(wire_conformance["extension_boundary_statuses"]) == {
+        "accepted_for_review",
+        "denied",
+        "policy_drift",
+    }
+    assert wire_conformance["route_preview_fixture_supported"] is True
+    assert wire_conformance["orchestration_response_schema"] == "OfficialOrchestrationStubResponse"
+    assert wire_conformance["orchestration_public_execution"] is False
+    assert wire_conformance["route_orchestration_alignment"] == "ok"
+    assert wire_conformance["official_cloud_runtime_implemented"] is False
+    assert wire_conformance["network_required"] is False
+    route_preview = next(section for section in output["sections"] if section["name"] == "route_preview")
+    public_reasoning = next(check for check in route_preview["checks"] if check["name"] == "public_reasoning_task")
+    assert public_reasoning["route"] == "cloud_contract_candidate"
+    assert public_reasoning["route_strategy"] == "cloud_contract_candidate"
+    assert public_reasoning["private_file_content_sent_to_cloud"] is False
+    assert node_relay["schema_version"] == "yonerai-hybrid-node-relay-contract/v0.1"
+    assert node_relay["official_cloud_runtime_implemented"] is False
+    assert node_relay["production_oracle_used"] is False
+    assert node_relay["message_body_persisted"] is False
+    assert relay_status["schema_version"] == "yonerai-relay-status/v0.1"
+    assert relay_status["process_started"] is False
+    assert relay_status["public_exposure_allowed"] is False
+    assert relay_status["message_body_persisted"] is False
+    assert oracle_stub["schema_version"] == "yonerai-oracle-stub/v0.1"
+    assert oracle_stub["route_strategy"] == "cloud_contract_candidate"
+    assert oracle_stub["request_schema"] == "OracleStubRequest"
+    assert oracle_stub["response_schema"] == "OracleStubResponse"
+    assert oracle_stub["response_status"] == "completed"
+    assert oracle_stub["private_candidate_denied"] is True
+    assert oracle_stub["network_required"] is False
+    assert oracle_stub["provider_call_performed"] is False
+    assert oracle_stub["production_oracle_used"] is False
+    assert oracle_stub["official_cloud_runtime_implemented"] is False
+    assert oracle_stub["raw_prompt_included"] is False
+    assert oracle_stub["private_file_content_included"] is False
+    assert discord["live_discord"] is False
+    assert discord["token_required"] is False
+    assert discord["final_once"] is True
+    managed = next(section for section in output["sections"] if section["name"] == "managed_download")
+    official_status = next(check for check in managed["checks"] if check["name"] == "official_status_contract")
+    installer = next(check for check in managed["checks"] if check["name"] == "windows_install_dry_run")
+    assert official_status["official_cloud_runtime_included"] is False
+    assert official_status["oracle_control_plane_production_ready"] is False
+    assert installer["dry_run"] is True
+    assert installer["install_performed"] is False
+    assert installer["path_mutation"] is False
+
+
+def test_public_demo_pretty_output_contains_key_sections(capsys) -> None:
+    public_demo = _load_public_demo()
+
+    assert public_demo.main(["--pretty"]) == 0
+
+    output = capsys.readouterr().out
+    assert "YonerAI public demo" in output
+    assert "YonerAI CLI:" in output
+    assert "command: yonerai demo --pretty" in output
+    assert "json: yonerai demo --json" in output
+    assert "quickstart_alias: yonerai quickstart" in output
+    assert "Schema: 1.0" in output
+    assert "Demo Experience:" in output
+    assert "Managed Cloud external contract-only" in output
+    assert "public_core: ok" in output
+    assert "mode_boundary: ok" in output
+    assert "route_preview: ok" in output
+    assert "provider_planner: ok" in output
+    assert "execution_spine: ok" in output
+    assert "hybrid_trust: ok" in output
+    assert "managed_download: ok" in output
+    assert "self_evolution: ok" in output
+    assert "limitations: ok" in output
+    assert "official_cloud_runtime_included: false" in output
+    assert "deploy_required: false" in output
+    assert "managed_download_guard" in output
+    assert "mock_provider_response" in output
+    assert "task_category=summarize_public" in output
+    assert "live_call_performed=false" in output
+    assert "mock_provider_execution" in output
+    assert "legacy_ora_text_normalizer" in output
+    assert "raw_prompt_persisted=false" in output
+    assert "github_write_allowed=false" in output
+    assert "memory_candidate_fixture_quarantined" in output
+    assert "donation_action=quarantine" in output
+    assert "memory_status=quarantined" in output
+    assert "external_provider_availability" in output
+    assert "provider_setup_blockers" in output
+    assert "provider_runtime_e2e_fixtures" in output
+    assert "local_mock_http_server_tested" in output
+    assert "loopback_mock_http_server_tested" in output
+    assert "local_loopback_only=true" in output
+    assert "openai_compatible_live_ready=false" in output
+    assert "hybrid_wire_contract_conformance" in output
+    assert "oracle_stub_execution" in output
+    assert "private_candidate_denied=true" in output
+    assert "trust_state_count=7" in output
+    assert "mock_web_search" in output
+    assert "live_search_boundary" in output
+    assert "reason=live_search_not_implemented" in output
+    assert "local_memory_opt_in" in output
+    assert "workspace_file_provider_execution" in output
+    assert "model=mock-workspace-file-access-guard" in output
+    assert "workspace_file_access_event=true" in output
+    assert "synthetic_discord_gateway" in output
+    assert "live_discord=false" in output
+    assert "official_status_contract" in output
+    assert "windows_install_dry_run" in output
+    assert "dry_run=true" in output
+
+
+def test_public_demo_run_event_lookup_handles_missing_event() -> None:
+    public_demo = _load_public_demo()
+
+    assert public_demo._find_run_event(None, "workspace_file_access") is None
+    assert public_demo._find_run_event([], "workspace_file_access") is None
+    assert public_demo._find_run_event({"events": [{"name": "other", "status": "ok"}]}, "workspace_file_access") is None
+    assert public_demo._find_run_event({"events": "not-a-list"}, "workspace_file_access") is None
+    assert public_demo._find_run_event({"events": [{"name": "workspace_file_access", "status": "ok"}]}, "workspace_file_access") == {
+        "name": "workspace_file_access",
+        "status": "ok",
+    }
+
+
+def test_public_demo_uses_managed_download_guard(monkeypatch) -> None:
+    public_demo = _load_public_demo()
+    from ora_core.brain.process import MainProcess
+
+    calls: list[str] = []
+
+    def fake_coerce_download_link(self, *, url, label=None, file_id=None):
+        del self, label, file_id
+        calls.append(url)
+        if str(url).startswith("/v1/files/"):
+            return {"url": url}
+        return None
+
+    monkeypatch.setattr(MainProcess, "_coerce_download_link", fake_coerce_download_link)
+
+    checks = public_demo._managed_download_checks()
+
+    assert calls == ["/v1/files/public-demo/download", "https://example.com/not-managed.bin"]
+    assert checks[0]["name"] == "managed_url_accepted"
+    assert checks[0]["guard"] == "managed_download_guard"
+    assert checks[1]["name"] == "unsafe_url_rejected"
+    assert checks[1]["guard"] == "managed_download_guard"
+
+
+def test_public_demo_failure_output_redacts_local_paths(monkeypatch, capsys) -> None:
+    public_demo = _load_public_demo()
+    sample_path = chr(67) + ":" + "\\LocalDemo\\fixture.txt"
+
+    def fail_public_core():
+        raise AssertionError(f"failed at {sample_path}")
+
+    monkeypatch.setattr(public_demo, "_public_core_checks", fail_public_core)
+
+    assert public_demo.main(["--json"]) == 1
+
+    captured = capsys.readouterr()
+    output = json.loads(captured.out)
+    assert output["ok"] is False
+    assert output["error"] == "YonerAI public demo failed"
+    assert sample_path not in captured.out
+    assert "Traceback" not in captured.out
+    assert "Traceback" not in captured.err
+
+
+def test_public_demo_restores_provider_env_keys(monkeypatch) -> None:
+    public_demo = _load_public_demo()
+    keys = {
+        "YONERAI_OPENAI_COMPATIBLE_API_KEY": "demo-openai-compatible-key",
+        "YONERAI_OPENAI_COMPATIBLE_BASE_URL": "http://127.0.0.1:11434/v1",
+        "YONERAI_OPENAI_COMPATIBLE_LIVE": "1",
+        "YONERAI_OPENAI_COMPATIBLE_MODEL": "demo-model",
+        "YONERAI_ANTHROPIC_API_KEY": "demo-anthropic-key",
+        "YONERAI_GEMINI_API_KEY": "demo-gemini-key",
+    }
+    for key, value in keys.items():
+        monkeypatch.setenv(key, value)
+
+    result = public_demo.run_demo()
+
+    assert result["ok"] is True
+    for key, value in keys.items():
+        assert public_demo.os.environ.get(key) == value

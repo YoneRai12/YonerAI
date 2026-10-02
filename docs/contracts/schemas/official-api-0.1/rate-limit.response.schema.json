@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://yonerai.com/contracts/official-api-0.1/rate-limit.response.schema.json",
+  "title": "YonerAI Official API rate-limit response 0.1",
+  "type": "object",
+  "required": ["ok", "policy_state", "quotas", "headers", "local_fallback"],
+  "properties": {
+    "ok": {"type": "boolean"},
+    "policy_state": {"const": "contract_only"},
+    "quotas": {"type": "object"},
+    "headers": {"type": "object"},
+    "local_fallback": {"const": "local_mock_or_loopback_provider"}
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,873 @@
+{
+  "actions_not_performed": [
+    "no production AWS request",
+    "no production Google login",
+    "no live OAuth token exchange",
+    "no production Oracle call",
+    "no official cloud runtime execution",
+    "no private/local content upload",
+    "no provider key upload",
+    "no OpenAI shared traffic",
+    "no telemetry ingestion"
+  ],
+  "auth": {
+    "google_pkce_loopback_required": true,
+    "minimal_scopes": [
+      "openid",
+      "email",
+      "profile"
+    ],
+    "production_login_enabled_in_public_repo": false,
+    "refresh_token_plaintext_allowed": false
+  },
+  "base_path": "/v1",
+  "endpoints": [
+    {
+      "auth": "anonymous_allowed",
+      "error_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "request_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "retry_after": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "retry_after"
+            ],
+            "type": "object"
+          },
+          "ok": {
+            "const": false
+          }
+        },
+        "required": [
+          "ok",
+          "error"
+        ],
+        "type": "object"
+      },
+      "fixture_available": true,
+      "fixture_support": "contract_only",
+      "implemented_in_public_repo": false,
+      "method": "GET",
+      "path": "/v1/status",
+      "privacy_boundary": {
+        "local_absolute_paths_allowed": false,
+        "local_memory_allowed": false,
+        "local_node_payload_allowed": false,
+        "openai_shared_traffic_allowed": false,
+        "private_file_content_allowed": false,
+        "provider_keys_allowed": false,
+        "raw_prompt_allowed": false
+      },
+      "rate_limit": {
+        "bucket": "anonymous",
+        "headers": {
+          "Retry-After": "required on 429 quota_exceeded responses",
+          "X-YonerAI-RateLimit-Bucket": "anonymous, authenticated, user_quota, device_quota, provider_quota, cloud_contract, oracle_queue, or abuse",
+          "X-YonerAI-RateLimit-Limit": "quota limit for the active bucket",
+          "X-YonerAI-RateLimit-Remaining": "remaining quota for the active bucket",
+          "X-YonerAI-RateLimit-Reset": "unix timestamp or RFC3339 reset time"
+        },
+        "quota_exceeded_status": 429
+      },
+      "request_schema": {
+        "required": false,
+        "schema_ref": null
+      },
+      "response_schema": {
+        "schema_ref": "official-api-0.1/status.response.schema.json"
+      },
+      "summary": "read official service status"
+    },
+    {
+      "auth": "account_required",
+      "error_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "request_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "retry_after": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "retry_after"
+            ],
+            "type": "object"
+          },
+          "ok": {
+            "const": false
+          }
+        },
+        "required": [
+          "ok",
+          "error"
+        ],
+        "type": "object"
+      },
+      "fixture_available": true,
+      "fixture_support": "contract_only",
+      "implemented_in_public_repo": false,
+      "method": "GET",
+      "path": "/v1/account/me",
+      "privacy_boundary": {
+        "local_absolute_paths_allowed": false,
+        "local_memory_allowed": false,
+        "local_node_payload_allowed": false,
+        "openai_shared_traffic_allowed": false,
+        "private_file_content_allowed": false,
+        "provider_keys_allowed": false,
+        "raw_prompt_allowed": false
+      },
+      "rate_limit": {
+        "bucket": "authenticated",
+        "headers": {
+          "Retry-After": "required on 429 quota_exceeded responses",
+          "X-YonerAI-RateLimit-Bucket": "anonymous, authenticated, user_quota, device_quota, provider_quota, cloud_contract, oracle_queue, or abuse",
+          "X-YonerAI-RateLimit-Limit": "quota limit for the active bucket",
+          "X-YonerAI-RateLimit-Remaining": "remaining quota for the active bucket",
+          "X-YonerAI-RateLimit-Reset": "unix timestamp or RFC3339 reset time"
+        },
+        "quota_exceeded_status": 429
+      },
+      "request_schema": {
+        "required": false,
+        "schema_ref": null
+      },
+      "response_schema": {
+        "schema_ref": "official-api-0.1/account-me.response.schema.json"
+      },
+      "summary": "return the linked account summary"
+    },
+    {
+      "auth": "account_or_device",
+      "error_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "request_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "retry_after": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "retry_after"
+            ],
+            "type": "object"
+          },
+          "ok": {
+            "const": false
+          }
+        },
+        "required": [
+          "ok",
+          "error"
+        ],
+        "type": "object"
+      },
+      "fixture_available": true,
+      "fixture_support": "contract_only",
+      "implemented_in_public_repo": false,
+      "method": "GET",
+      "path": "/v1/rate-limit",
+      "privacy_boundary": {
+        "local_absolute_paths_allowed": false,
+        "local_memory_allowed": false,
+        "local_node_payload_allowed": false,
+        "openai_shared_traffic_allowed": false,
+        "private_file_content_allowed": false,
+        "provider_keys_allowed": false,
+        "raw_prompt_allowed": false
+      },
+      "rate_limit": {
+        "bucket": "authenticated",
+        "headers": {
+          "Retry-After": "required on 429 quota_exceeded responses",
+          "X-YonerAI-RateLimit-Bucket": "anonymous, authenticated, user_quota, device_quota, provider_quota, cloud_contract, oracle_queue, or abuse",
+          "X-YonerAI-RateLimit-Limit": "quota limit for the active bucket",
+          "X-YonerAI-RateLimit-Remaining": "remaining quota for the active bucket",
+          "X-YonerAI-RateLimit-Reset": "unix timestamp or RFC3339 reset time"
+        },
+        "quota_exceeded_status": 429
+      },
+      "request_schema": {
+        "required": false,
+        "schema_ref": null
+      },
+      "response_schema": {
+        "schema_ref": "official-api-0.1/rate-limit.response.schema.json"
+      },
+      "summary": "read quota and local fallback state"
+    },
+    {
+      "auth": "account_required",
+      "error_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "request_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "retry_after": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "retry_after"
+            ],
+            "type": "object"
+          },
+          "ok": {
+            "const": false
+          }
+        },
+        "required": [
+          "ok",
+          "error"
+        ],
+        "type": "object"
+      },
+      "fixture_available": true,
+      "fixture_support": "contract_only",
+      "implemented_in_public_repo": false,
+      "method": "GET",
+      "path": "/v1/conversations",
+      "privacy_boundary": {
+        "local_absolute_paths_allowed": false,
+        "local_memory_allowed": false,
+        "local_node_payload_allowed": false,
+        "openai_shared_traffic_allowed": false,
+        "private_file_content_allowed": false,
+        "provider_keys_allowed": false,
+        "raw_prompt_allowed": false
+      },
+      "rate_limit": {
+        "bucket": "user_quota",
+        "headers": {
+          "Retry-After": "required on 429 quota_exceeded responses",
+          "X-YonerAI-RateLimit-Bucket": "anonymous, authenticated, user_quota, device_quota, provider_quota, cloud_contract, oracle_queue, or abuse",
+          "X-YonerAI-RateLimit-Limit": "quota limit for the active bucket",
+          "X-YonerAI-RateLimit-Remaining": "remaining quota for the active bucket",
+          "X-YonerAI-RateLimit-Reset": "unix timestamp or RFC3339 reset time"
+        },
+        "quota_exceeded_status": 429
+      },
+      "request_schema": {
+        "required": false,
+        "schema_ref": null
+      },
+      "response_schema": {
+        "schema_ref": "official-api-0.1/conversations.response.schema.json"
+      },
+      "summary": "list user-selected cloud conversation refs"
+    },
+    {
+      "auth": "account_required",
+      "error_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "request_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "retry_after": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "retry_after"
+            ],
+            "type": "object"
+          },
+          "ok": {
+            "const": false
+          }
+        },
+        "required": [
+          "ok",
+          "error"
+        ],
+        "type": "object"
+      },
+      "fixture_available": true,
+      "fixture_support": "contract_only",
+      "implemented_in_public_repo": false,
+      "method": "POST",
+      "path": "/v1/sync/preview",
+      "privacy_boundary": {
+        "local_absolute_paths_allowed": false,
+        "local_memory_allowed": false,
+        "local_node_payload_allowed": false,
+        "openai_shared_traffic_allowed": false,
+        "private_file_content_allowed": false,
+        "provider_keys_allowed": false,
+        "raw_prompt_allowed": false
+      },
+      "rate_limit": {
+        "bucket": "cloud_contract",
+        "headers": {
+          "Retry-After": "required on 429 quota_exceeded responses",
+          "X-YonerAI-RateLimit-Bucket": "anonymous, authenticated, user_quota, device_quota, provider_quota, cloud_contract, oracle_queue, or abuse",
+          "X-YonerAI-RateLimit-Limit": "quota limit for the active bucket",
+          "X-YonerAI-RateLimit-Remaining": "remaining quota for the active bucket",
+          "X-YonerAI-RateLimit-Reset": "unix timestamp or RFC3339 reset time"
+        },
+        "quota_exceeded_status": 429
+      },
+      "request_schema": {
+        "required": true,
+        "schema_ref": "official-api-0.1/sync-preview.request.schema.json"
+      },
+      "response_schema": {
+        "schema_ref": "official-api-0.1/sync-preview.response.schema.json"
+      },
+      "summary": "preview sync decision and audit reason"
+    },
+    {
+      "auth": "account_required",
+      "error_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "request_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "retry_after": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "retry_after"
+            ],
+            "type": "object"
+          },
+          "ok": {
+            "const": false
+          }
+        },
+        "required": [
+          "ok",
+          "error"
+        ],
+        "type": "object"
+      },
+      "fixture_available": true,
+      "fixture_support": "contract_only",
+      "implemented_in_public_repo": false,
+      "method": "POST",
+      "path": "/v1/sync/approve",
+      "privacy_boundary": {
+        "local_absolute_paths_allowed": false,
+        "local_memory_allowed": false,
+        "local_node_payload_allowed": false,
+        "openai_shared_traffic_allowed": false,
+        "private_file_content_allowed": false,
+        "provider_keys_allowed": false,
+        "raw_prompt_allowed": false
+      },
+      "rate_limit": {
+        "bucket": "cloud_contract",
+        "headers": {
+          "Retry-After": "required on 429 quota_exceeded responses",
+          "X-YonerAI-RateLimit-Bucket": "anonymous, authenticated, user_quota, device_quota, provider_quota, cloud_contract, oracle_queue, or abuse",
+          "X-YonerAI-RateLimit-Limit": "quota limit for the active bucket",
+          "X-YonerAI-RateLimit-Remaining": "remaining quota for the active bucket",
+          "X-YonerAI-RateLimit-Reset": "unix timestamp or RFC3339 reset time"
+        },
+        "quota_exceeded_status": 429
+      },
+      "request_schema": {
+        "required": true,
+        "schema_ref": "official-api-0.1/sync-approve.request.schema.json"
+      },
+      "response_schema": {
+        "schema_ref": "official-api-0.1/sync-approve.response.schema.json"
+      },
+      "summary": "record explicit sync approval in official backend"
+    },
+    {
+      "auth": "account_required",
+      "error_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "request_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "retry_after": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "retry_after"
+            ],
+            "type": "object"
+          },
+          "ok": {
+            "const": false
+          }
+        },
+        "required": [
+          "ok",
+          "error"
+        ],
+        "type": "object"
+      },
+      "fixture_available": true,
+      "fixture_support": "contract_only",
+      "implemented_in_public_repo": false,
+      "method": "POST",
+      "path": "/v1/oracle/runs",
+      "privacy_boundary": {
+        "local_absolute_paths_allowed": false,
+        "local_memory_allowed": false,
+        "local_node_payload_allowed": false,
+        "openai_shared_traffic_allowed": false,
+        "private_file_content_allowed": false,
+        "provider_keys_allowed": false,
+        "raw_prompt_allowed": false
+      },
+      "rate_limit": {
+        "bucket": "oracle_queue",
+        "headers": {
+          "Retry-After": "required on 429 quota_exceeded responses",
+          "X-YonerAI-RateLimit-Bucket": "anonymous, authenticated, user_quota, device_quota, provider_quota, cloud_contract, oracle_queue, or abuse",
+          "X-YonerAI-RateLimit-Limit": "quota limit for the active bucket",
+          "X-YonerAI-RateLimit-Remaining": "remaining quota for the active bucket",
+          "X-YonerAI-RateLimit-Reset": "unix timestamp or RFC3339 reset time"
+        },
+        "quota_exceeded_status": 429
+      },
+      "request_schema": {
+        "required": true,
+        "schema_ref": "official-api-0.1/oracle-runs.request.schema.json"
+      },
+      "response_schema": {
+        "schema_ref": "official-api-0.1/oracle-runs.response.schema.json"
+      },
+      "summary": "enqueue official Oracle run request"
+    },
+    {
+      "auth": "account_required",
+      "error_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "request_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "retry_after": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "retry_after"
+            ],
+            "type": "object"
+          },
+          "ok": {
+            "const": false
+          }
+        },
+        "required": [
+          "ok",
+          "error"
+        ],
+        "type": "object"
+      },
+      "fixture_available": true,
+      "fixture_support": "contract_only",
+      "implemented_in_public_repo": false,
+      "method": "GET",
+      "path": "/v1/oracle/runs/{run_id}",
+      "privacy_boundary": {
+        "local_absolute_paths_allowed": false,
+        "local_memory_allowed": false,
+        "local_node_payload_allowed": false,
+        "openai_shared_traffic_allowed": false,
+        "private_file_content_allowed": false,
+        "provider_keys_allowed": false,
+        "raw_prompt_allowed": false
+      },
+      "rate_limit": {
+        "bucket": "oracle_queue",
+        "headers": {
+          "Retry-After": "required on 429 quota_exceeded responses",
+          "X-YonerAI-RateLimit-Bucket": "anonymous, authenticated, user_quota, device_quota, provider_quota, cloud_contract, oracle_queue, or abuse",
+          "X-YonerAI-RateLimit-Limit": "quota limit for the active bucket",
+          "X-YonerAI-RateLimit-Remaining": "remaining quota for the active bucket",
+          "X-YonerAI-RateLimit-Reset": "unix timestamp or RFC3339 reset time"
+        },
+        "quota_exceeded_status": 429
+      },
+      "request_schema": {
+        "required": false,
+        "schema_ref": null
+      },
+      "response_schema": {
+        "schema_ref": "official-api-0.1/oracle-run.response.schema.json"
+      },
+      "summary": "read official Oracle run result envelope"
+    },
+    {
+      "auth": "account_required",
+      "error_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "request_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "retry_after": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "retry_after"
+            ],
+            "type": "object"
+          },
+          "ok": {
+            "const": false
+          }
+        },
+        "required": [
+          "ok",
+          "error"
+        ],
+        "type": "object"
+      },
+      "fixture_available": true,
+      "fixture_support": "contract_only",
+      "implemented_in_public_repo": false,
+      "method": "POST",
+      "path": "/v1/evolve/proposals",
+      "privacy_boundary": {
+        "local_absolute_paths_allowed": false,
+        "local_memory_allowed": false,
+        "local_node_payload_allowed": false,
+        "openai_shared_traffic_allowed": false,
+        "private_file_content_allowed": false,
+        "provider_keys_allowed": false,
+        "raw_prompt_allowed": false
+      },
+      "rate_limit": {
+        "bucket": "user_quota",
+        "headers": {
+          "Retry-After": "required on 429 quota_exceeded responses",
+          "X-YonerAI-RateLimit-Bucket": "anonymous, authenticated, user_quota, device_quota, provider_quota, cloud_contract, oracle_queue, or abuse",
+          "X-YonerAI-RateLimit-Limit": "quota limit for the active bucket",
+          "X-YonerAI-RateLimit-Remaining": "remaining quota for the active bucket",
+          "X-YonerAI-RateLimit-Reset": "unix timestamp or RFC3339 reset time"
+        },
+        "quota_exceeded_status": 429
+      },
+      "request_schema": {
+        "required": true,
+        "schema_ref": "official-api-0.1/evolve-proposals.request.schema.json"
+      },
+      "response_schema": {
+        "schema_ref": "official-api-0.1/evolve-proposals.response.schema.json"
+      },
+      "summary": "submit low-resolution self-evolution proposal signals"
+    },
+    {
+      "auth": "account_required",
+      "error_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "request_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "retry_after": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "retry_after"
+            ],
+            "type": "object"
+          },
+          "ok": {
+            "const": false
+          }
+        },
+        "required": [
+          "ok",
+          "error"
+        ],
+        "type": "object"
+      },
+      "fixture_available": true,
+      "fixture_support": "contract_only",
+      "implemented_in_public_repo": false,
+      "method": "GET",
+      "path": "/v1/evolve/proposals",
+      "privacy_boundary": {
+        "local_absolute_paths_allowed": false,
+        "local_memory_allowed": false,
+        "local_node_payload_allowed": false,
+        "openai_shared_traffic_allowed": false,
+        "private_file_content_allowed": false,
+        "provider_keys_allowed": false,
+        "raw_prompt_allowed": false
+      },
+      "rate_limit": {
+        "bucket": "user_quota",
+        "headers": {
+          "Retry-After": "required on 429 quota_exceeded responses",
+          "X-YonerAI-RateLimit-Bucket": "anonymous, authenticated, user_quota, device_quota, provider_quota, cloud_contract, oracle_queue, or abuse",
+          "X-YonerAI-RateLimit-Limit": "quota limit for the active bucket",
+          "X-YonerAI-RateLimit-Remaining": "remaining quota for the active bucket",
+          "X-YonerAI-RateLimit-Reset": "unix timestamp or RFC3339 reset time"
+        },
+        "quota_exceeded_status": 429
+      },
+      "request_schema": {
+        "required": false,
+        "schema_ref": null
+      },
+      "response_schema": {
+        "schema_ref": "official-api-0.1/evolve-proposals.response.schema.json"
+      },
+      "summary": "list owner-reviewable self-evolution proposals"
+    }
+  ],
+  "error_schema": {
+    "additionalProperties": false,
+    "properties": {
+      "error": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "request_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "retry_after": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "retry_after"
+        ],
+        "type": "object"
+      },
+      "ok": {
+        "const": false
+      }
+    },
+    "required": [
+      "ok",
+      "error"
+    ],
+    "type": "object"
+  },
+  "ok": true,
+  "privacy_rules": [
+    "cloud-to-local sync requires linked account and user-selected cloud conversation",
+    "local-to-cloud sync is disabled by default",
+    "local-to-cloud sync requires explicit approval and audit reason",
+    "private file, local memory, local node payload, secrets, and provider keys are excluded by default",
+    "public fixtures must not contain raw user conversation bodies"
+  ],
+  "production_backend_included": false,
+  "public_repo_mode": "fixture_only",
+  "rate_limit_headers": {
+    "Retry-After": "required on 429 quota_exceeded responses",
+    "X-YonerAI-RateLimit-Bucket": "anonymous, authenticated, user_quota, device_quota, provider_quota, cloud_contract, oracle_queue, or abuse",
+    "X-YonerAI-RateLimit-Limit": "quota limit for the active bucket",
+    "X-YonerAI-RateLimit-Remaining": "remaining quota for the active bucket",
+    "X-YonerAI-RateLimit-Reset": "unix timestamp or RFC3339 reset time"
+  },
+  "schema_version": "yonerai-official-api-contract/v0.1",
+  "self_evolution_boundary": {
+    "auto_pr_merge_deploy_allowed": false,
+    "official_backend": "private_future_lane",
+    "pii_allowed_in_public_repo": false,
+    "public_repo": "proposal_only_synthetic_signals",
+    "raw_prompts_allowed_in_public_repo": false
+  }
+}

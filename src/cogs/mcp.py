@@ -8,6 +8,7 @@ from typing import Any, Dict, Optional
 
 from discord.ext import commands
 
+from src.cogs.mcp_policy import is_mcp_tool_denied, load_mcp_deny_patterns
 from src.cogs.tools.registry import get_tool_meta, register_tool, unregister_tools
 from src.utils.mcp_client import MCPStdioClient
 
@@ -49,24 +50,7 @@ def _load_mcp_servers_from_env() -> list[dict]:
 
 
 def _load_deny_patterns() -> list[str]:
-    raw = (os.getenv("ORA_MCP_DENY_TOOL_PATTERNS") or "").strip()
-    if not raw:
-        # Safe defaults: block obvious destructive / execution-ish tools unless explicitly allowed.
-        return [
-            "delete",
-            "remove",
-            "rm",
-            "wipe",
-            "format",
-            "reset",
-            "push",
-            "publish",
-            "deploy",
-            "shell",
-            "exec",
-            "run",
-        ]
-    return [p.strip().lower() for p in raw.split(",") if p.strip()]
+    return load_mcp_deny_patterns()
 
 
 def _load_mcp_servers_from_yaml() -> list[dict]:
@@ -169,8 +153,7 @@ class MCPCog(commands.Cog):
                 if allowed_set and remote_name not in allowed_set:
                     continue
                 # Deny obvious dangerous tools unless explicitly allowed.
-                low_remote = remote_name.lower()
-                if (not allow_dangerous) and any(p in low_remote for p in deny_patterns):
+                if is_mcp_tool_denied(remote_name, deny_patterns, allow_dangerous=allow_dangerous):
                     logger.info("MCP: skipping denied tool server=%s tool=%s", name, remote_name)
                     continue
 

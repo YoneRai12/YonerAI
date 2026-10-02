@@ -1,287 +1,452 @@
 "use client";
 
-import { useState } from "react";
-import { SendHorizontal, Paperclip, ChevronDown, ChevronRight, Check, Activity } from "lucide-react";
+import type { FormEvent, ReactNode } from "react";
+import { useMemo, useState } from "react";
+import {
+  Activity,
+  AlertCircle,
+  CheckCircle2,
+  Cpu,
+  SendHorizontal,
+  Server,
+  ShieldCheck,
+} from "lucide-react";
+
+type ChatMessage = {
+  role: "user" | "assistant";
+  content: string;
+  meta?: string;
+};
+
+type ChatMode = "mock" | "local-ollama" | "local-openai-compatible";
+
+type PublicMessageResponse = {
+  ok: boolean;
+  mode: string;
+  session_id: string;
+  conversation_id: string;
+  message_id: string;
+  turn_index: number;
+  history_count: number;
+  memory_persisted: boolean;
+  reply: string;
+  provider: string;
+  model?: string | null;
+  requires_approval: boolean;
+  contract_version: string;
+};
+
+type PublicMessageError = {
+  error?: string;
+  message?: string;
+  detail?: unknown;
+};
+
+type ModeOption = {
+  id: ChatMode;
+  label: string;
+  description: string;
+  requestMode: "mock" | "local";
+  localProvider?: "ollama" | "openai_compatible_local";
+  defaultModel?: string;
+};
+
+const DEFAULT_CONVERSATION_ID = "web-chat-mvp-smoke";
+
+const MODE_OPTIONS: ModeOption[] = [
+  {
+    id: "mock",
+    label: "Mock / offline",
+    description: "Deterministic contract response. No local model server needed.",
+    requestMode: "mock",
+  },
+  {
+    id: "local-ollama",
+    label: "Local Ollama",
+    description: "Loopback Ollama-compatible /api/chat through the Core API.",
+    requestMode: "local",
+    localProvider: "ollama",
+    defaultModel: "llama3.2",
+  },
+  {
+    id: "local-openai-compatible",
+    label: "OpenAI-compatible local",
+    description: "LM Studio, llama.cpp server, text-generation-webui, or LocalAI on loopback.",
+    requestMode: "local",
+    localProvider: "openai_compatible_local",
+    defaultModel: "local-model",
+  },
+];
+
+async function parsePublicMessageBody(res: Response): Promise<unknown> {
+  try {
+    return await res.json();
+  } catch {
+    if (!res.ok) {
+      throw new Error(`Core API returned ${res.status}.`);
+    }
+    throw new Error("Core API returned an invalid JSON response.");
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isPublicMessageResponse(value: unknown): value is PublicMessageResponse {
+  return (
+    isRecord(value) &&
+    value.ok === true &&
+    typeof value.reply === "string" &&
+    typeof value.provider === "string" &&
+    typeof value.mode === "string" &&
+    typeof value.session_id === "string" &&
+    typeof value.conversation_id === "string" &&
+    typeof value.message_id === "string" &&
+    typeof value.turn_index === "number" &&
+    typeof value.history_count === "number" &&
+    typeof value.memory_persisted === "boolean" &&
+    typeof value.contract_version === "string"
+  );
+}
+
+function detailToMessage(detail: unknown): string | undefined {
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    return detail
+      .map((entry) => (isRecord(entry) && typeof entry.msg === "string" ? entry.msg : undefined))
+      .find(Boolean);
+  }
+  if (isRecord(detail)) {
+    if (typeof detail.message === "string") return detail.message;
+    if (typeof detail.error === "string") return detail.error;
+  }
+  return undefined;
+}
+
+function toPublicMessageError(value: unknown): PublicMessageError {
+  if (!isRecord(value)) return {};
+  return {
+    error: typeof value.error === "string" ? value.error : undefined,
+    message: typeof value.message === "string" ? value.message : undefined,
+    detail: value.detail,
+  };
+}
+
+function toSafeErrorMessage(value: unknown, status: number): string {
+  const errorBody = toPublicMessageError(value);
+  return errorBody.message || detailToMessage(errorBody.detail) || errorBody.error || `Core API returned ${status}.`;
+}
+
+function buildRequestBody(mode: ModeOption, message: string, model: string, sessionId: string | null) {
+  const body: Record<string, string> = {
+    message,
+    conversation_id: DEFAULT_CONVERSATION_ID,
+    mode: mode.requestMode,
+  };
+  if (sessionId) {
+    body.session_id = sessionId;
+  }
+
+  if (mode.localProvider) {
+    body.local_provider = mode.localProvider;
+    const selectedModel = model.trim() || mode.defaultModel;
+    if (selectedModel) {
+      body.model = selectedModel;
+    }
+  }
+
+  return body;
+}
 
 export default function Home() {
-    const [messages, setMessages] = useState<{ role: string, content: string }[]>([]);
-    const [input, setInput] = useState("");
-    const [isLoading, setIsLoading] = useState(false);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [input, setInput] = useState("");
+  const [selectedMode, setSelectedMode] = useState<ChatMode>("mock");
+  const [model, setModel] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [lastError, setLastError] = useState<string | null>(null);
+  const [lastContract, setLastContract] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
 
-    const handleSend = async () => {
-        if (!input.trim()) return;
+  const mode = useMemo(
+    () => MODE_OPTIONS.find((option) => option.id === selectedMode) ?? MODE_OPTIONS[0],
+    [selectedMode],
+  );
+  const isLocalMode = Boolean(mode.localProvider);
 
-        const userMsg = input;
-        setMessages(prev => [...prev, { role: "user", content: userMsg }]);
-        setInput("");
-        setIsLoading(true);
+  const handleSend = async (event?: FormEvent<HTMLFormElement>) => {
+    event?.preventDefault();
+    const userMsg = input.trim();
+    if (!userMsg || isLoading) return;
 
-        // Initial placeholder for assistant
-        setMessages(prev => [...prev, { role: "assistant", content: "" }]);
+    setMessages((prev) => [
+      ...prev,
+      {
+        role: "user",
+        content: userMsg,
+        meta: mode.label,
+      },
+    ]);
+    setInput("");
+    setIsLoading(true);
+    setLastError(null);
+    setLastContract(null);
 
-        try {
-            const res = await fetch("/api/messages", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    content: userMsg,
-                    user_identity: { provider: "web", id: "web-guest", display_name: "Guest User" }
-                })
-            });
+    try {
+      const res = await fetch("/api/public/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(buildRequestBody(mode, userMsg, model, sessionId)),
+      });
 
-            if (!res.ok) throw new Error("API Error");
+      const body = await parsePublicMessageBody(res);
+      if (!res.ok) {
+        throw new Error(toSafeErrorMessage(body, res.status));
+      }
 
-            const data = await res.json();
-            const runId = data.run_id;
+      if (!isPublicMessageResponse(body)) {
+        throw new Error("Core API returned a malformed public message response.");
+      }
 
-            if (!runId) {
-                throw new Error("No Run ID returned");
-            }
+      const responseMeta = [
+        body.provider,
+        body.mode,
+        body.model,
+        `session:${body.session_id}`,
+        `turn:${body.turn_index}`,
+        body.message_id,
+      ]
+        .filter(Boolean)
+        .join(" / ");
 
-            // Start SSE Stream
-            console.log(`Listening to events for run: ${runId}`);
-            const evtSource = new EventSource(`/api/runs/${runId}/events`);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: body.reply,
+          meta: responseMeta,
+        },
+      ]);
+      setLastContract(body.contract_version);
+      setSessionId(body.session_id);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not reach the local public Core API.";
+      setLastError(message);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: "The local public Core API did not return a usable response.",
+          meta: message,
+        },
+      ]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-            evtSource.onmessage = (event) => {
-                try {
-                    // The stream yields { data: "JSON_STRING" }
-                    // We need to parse event.data first
-                    const payload = JSON.parse(event.data);
-                    // payload is { event: "delta", data: {...} }
-                    const type = payload.event;
-                    const innerData = payload.data; // { text: "..." }
-
-                    if (type === "delta") {
-                        const text = innerData.text || "";
-                        setMessages(prev => {
-                            const newArr = [...prev];
-                            const last = newArr[newArr.length - 1];
-                            if (last.role === "assistant") {
-                                last.content += text;
-                            }
-                            return newArr;
-                        });
-                    } else if (type === "final" || type === "error") {
-                        evtSource.close();
-                        setIsLoading(false);
-                    }
-                } catch (e) {
-                    console.error("SSE Parse Error", e);
-                }
-            };
-
-            evtSource.onerror = (err) => {
-                console.error("SSE Error", err);
-                evtSource.close();
-                setIsLoading(false);
-            };
-
-        } catch (e) {
-            console.error(e);
-            setMessages(prev => {
-                const newArr = [...prev];
-                // Remove empty placeholder if failed immediately
-                if (newArr.length > 0 && newArr[newArr.length - 1].content === "") {
-                    newArr[newArr.length - 1].content = "⚠️ Error: Could not connect to ORA Brain.";
-                }
-                return newArr;
-            });
-            setIsLoading(false);
-        }
-    };
-
-    return (
-        <div className="flex flex-col h-full w-full max-w-5xl mx-auto relative">
-
-            {/* Top Model Selector (Mock) */}
-            <div className="w-full flex items-center justify-between p-4 md:hidden">
-                <span className="font-bold text-gray-200">ORA Model</span>
-                <PlusIcon />
-            </div>
-
-            {/* Model Version Dropdown (Desktop) */}
-            <div className="hidden md:flex absolute top-0 left-0 w-full p-4 z-20 justify-start px-8">
-                <ModelSelector />
-            </div>
-
-
-            {/* Chat Area */}
-            <div className="flex-1 overflow-y-auto w-full max-w-3xl mx-auto p-4 scrollbar-hidden">
-                {messages.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-full text-center">
-                        <div className="mb-8 p-4 rounded-full bg-white/5 backdrop-blur-sm">
-                            <Activity className="w-10 h-10 text-white opacity-90" />
-                        </div>
-                        <h2 className="text-2xl font-semibold text-white/90 mb-12 tracking-tight">How can I help you today?</h2>
-
-                        {/* Suggestion Grid */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
-                            <SuggestionCard title="Write a Python script" desc="to automate detailed daily reports" onClick={() => setInput("Write a Python script to automate detailed daily reports")} />
-                            <SuggestionCard title="Explain quantum computing" desc="in simple terms" onClick={() => setInput("Explain quantum computing in simple terms")} />
-                            <SuggestionCard title="Draft an email" desc="requesting a deadline extension" onClick={() => setInput("Draft an email requesting a deadline extension")} />
-                            <SuggestionCard title="Brainstorm ideas" desc="for a cyberpunk novel setting" onClick={() => setInput("Brainstorm ideas for a cyberpunk novel setting")} />
-                        </div>
-                    </div>
-                ) : (
-                    <div className="space-y-6 pb-4">
-                        {messages.map((m, i) => (
-                            <div key={i} className={`flex gap-4 ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                                {m.role === 'assistant' && (
-                                    <div className="w-8 h-8 rounded-full bg-[#10a37f] flex items-center justify-center shrink-0 mt-1">
-                                        <Activity className="w-5 h-5 text-white" />
-                                    </div>
-                                )}
-                                <div className={`max-w-[80%] rounded-2xl p-4 text-sm leading-relaxed ${m.role === 'user' ? 'bg-[#2f2f2f] text-white' : 'text-gray-100'}`}>
-                                    <p className="whitespace-pre-wrap">{m.content}</p>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </div>
-
-            {/* Input Area */}
-            <div className="w-full p-6 pb-8 flex justify-center bg-transparent">
-                <div className="w-full max-w-3xl relative">
-                    <div className="flex items-center gap-3 bg-[#2f2f2f] p-2 pl-4 rounded-3xl transition-colors">
-                        <button className="p-2 text-gray-400 hover:text-white transition bg-transparent hover:bg-white/10 rounded-full shrink-0">
-                            <Paperclip className="w-5 h-5" />
-                        </button>
-                        <textarea
-                            value={input}
-                            onChange={(e) => setInput(e.target.value)}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter' && !e.shiftKey) {
-                                    e.preventDefault();
-                                    handleSend();
-                                }
-                            }}
-                            className="flex-1 bg-transparent border-0 focus:ring-0 text-white placeholder-gray-500 resize-none max-h-[200px] py-3 leading-relaxed text-[15px]"
-                            placeholder="Message ORA..."
-                            rows={1}
-                            style={{ minHeight: "44px" }}
-                        />
-                        <button
-                            onClick={handleSend}
-                            disabled={!input.trim() || isLoading}
-                            className="p-2 bg-white text-black rounded-full hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed shadow-sm shrink-0"
-                        >
-                            {isLoading ? (
-                                <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" />
-                            ) : (
-                                <SendHorizontal className="w-5 h-5" />
-                            )}
-                        </button>
-                    </div>
-                    <p className="text-center text-[11px] text-gray-500 mt-3 font-medium tracking-wide">
-                        ORA can make mistakes. Check important info.
-                    </p>
-                </div>
-            </div>
-
+  return (
+    <div className="mx-auto flex h-full w-full max-w-6xl flex-col">
+      <header className="border-b border-white/10 px-5 py-4 md:px-8">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#10a37f]">
+              Temporary Web Chat MVP
+            </p>
+            <h1 className="mt-1 text-xl font-semibold text-white">YonerAI local conversation smoke</h1>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-400">
+              This demo sends messages to the local Core API contract. It is not the final YonerAI product UI, not
+              production service, and not persistent memory.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2 text-xs">
+            <StatusPill icon={<CheckCircle2 className="h-3.5 w-3.5" />} label="mock/offline" />
+            <StatusPill icon={<Server className="h-3.5 w-3.5" />} label="loopback local LLM" />
+            <StatusPill icon={<ShieldCheck className="h-3.5 w-3.5" />} label="no provider key" />
+          </div>
         </div>
-    );
-}
+      </header>
 
-function SuggestionCard({ title, desc, onClick }: { title: string, desc: string, onClick?: () => void }) {
-    return (
-        <button onClick={onClick} className="text-left p-4 rounded-xl border border-white/10 hover:bg-white/5 transition group">
-            <p className="font-semibold text-gray-200 text-sm mb-1">{title}</p>
-            <p className="text-gray-500 text-xs group-hover:text-gray-400">{desc}</p>
-        </button>
-    )
-}
+      <section className="grid min-h-0 flex-1 gap-0 overflow-hidden lg:grid-cols-[minmax(0,1fr)_320px]">
+        <main className="min-h-0 overflow-y-auto px-5 py-6 md:px-8">
+          {messages.length === 0 ? (
+            <div className="flex min-h-full flex-col justify-center">
+              <div className="mb-8 flex h-14 w-14 items-center justify-center rounded-xl bg-white/5">
+                <Activity className="h-7 w-7 text-[#10a37f]" />
+              </div>
+              <h2 className="max-w-2xl text-3xl font-semibold leading-tight text-white md:text-4xl">
+                Send a local message through the public Core API.
+              </h2>
+              <p className="mt-4 max-w-2xl text-sm leading-6 text-gray-400">
+                Use mock/offline mode for deterministic smoke checks, or local mode when an Ollama-compatible or
+                OpenAI-compatible local server is already running on loopback. Session metadata is kept only in the
+                running Core API process.
+              </p>
 
-function ModelSelector() {
-    const [isOpen, setIsOpen] = useState(false);
-    const [selectedModel, setSelectedModel] = useState("GPT-4.5");
-    const [showSubmenu, setShowSubmenu] = useState(false);
+              <div className="mt-8 grid gap-3 md:grid-cols-3">
+                <SuggestionCard label="hello" onClick={() => setInput("hello")} />
+                <SuggestionCard label="check the local message contract" onClick={() => setInput("check the local message contract")} />
+                <SuggestionCard label="confirm no memory persistence" onClick={() => setInput("confirm no memory persistence")} />
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-5 pb-6">
+              {messages.map((message, index) => (
+                <MessageBubble key={`${message.role}-${index}`} message={message} />
+              ))}
+            </div>
+          )}
+        </main>
 
-    return (
-        <div className="relative group">
-            <button
-                onClick={() => setIsOpen(!isOpen)}
-                className="flex items-center gap-2 text-lg font-semibold text-gray-200 opacity-90 hover:bg-[#2f2f2f] px-3 py-2 rounded-lg transition"
-            >
-                {selectedModel} <ChevronDown className="w-4 h-4 opacity-50" />
-            </button>
+        <aside className="border-t border-white/10 bg-black/20 px-5 py-5 lg:border-l lg:border-t-0">
+          <div className="space-y-4">
+            <div>
+              <h2 className="text-sm font-semibold text-white">Mode</h2>
+              <div className="mt-3 space-y-2">
+                {MODE_OPTIONS.map((option) => (
+                  <ModeButton
+                    key={option.id}
+                    option={option}
+                    selected={selectedMode === option.id}
+                    onSelect={() => setSelectedMode(option.id)}
+                  />
+                ))}
+              </div>
+            </div>
 
-            {/* Main Dropdown */}
-            {isOpen && (
-                <div className="absolute top-full left-0 mt-2 w-64 bg-[#2f2f2f] border border-white/10 rounded-xl shadow-2xl p-1 z-30">
-                    <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                        Model
-                    </div>
+            <div>
+              <label htmlFor="model" className="text-sm font-semibold text-white">
+                Local model
+              </label>
+              <input
+                id="model"
+                value={model}
+                onChange={(event) => setModel(event.target.value)}
+                disabled={!isLocalMode}
+                className="mt-2 h-11 w-full rounded-md border border-white/10 bg-white/5 px-3 text-sm text-white outline-none transition placeholder:text-gray-500 focus:border-[#10a37f] disabled:cursor-not-allowed disabled:opacity-50"
+                placeholder={isLocalMode ? mode.defaultModel : "mock mode does not use a model"}
+              />
+              <p className="mt-2 text-xs leading-5 text-gray-500">
+                Base URL is configured on the Core API side and must stay loopback-only. This page does not accept
+                arbitrary provider URLs.
+              </p>
+            </div>
 
-                    <ModelOption
-                        label="GPT-4o"
-                        desc="Great for most tasks"
-                        active={selectedModel === "GPT-4o"}
-                        onClick={() => { setSelectedModel("GPT-4o"); setIsOpen(false); }}
-                    />
-                    <ModelOption
-                        label="GPT-5 (Preview)"
-                        desc="Reasoning & Deep Thought"
-                        active={selectedModel === "GPT-5 (Preview)"}
-                        onClick={() => { setSelectedModel("GPT-5 (Preview)"); setIsOpen(false); }}
-                    />
+            <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3 text-xs leading-5 text-gray-400">
+              <p className="font-semibold text-gray-200">Current request path</p>
+              <p className="mt-1">
+                <code className="rounded bg-white/10 px-1.5 py-0.5">/api/public/messages</code> rewrites locally to{" "}
+                <code className="rounded bg-white/10 px-1.5 py-0.5">/v1/public/messages</code>.
+              </p>
+              <p className="mt-2">
+                Session: <span className="text-gray-200">{sessionId ?? "created after first reply"}</span>
+              </p>
+            </div>
+          </div>
+        </aside>
+      </section>
 
-                    <div className="h-px bg-white/10 my-1" />
-
-                    {/* Submenu Trigger */}
-                    <div
-                        className="relative"
-                        onMouseEnter={() => setShowSubmenu(true)}
-                        onMouseLeave={() => setShowSubmenu(false)}
-                    >
-                        <button className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-[#424242] transition-colors text-left group/item">
-                            <span className="text-sm font-medium text-gray-200">Legacy Models</span>
-                            <ChevronRight className="w-4 h-4 text-gray-500" />
-                        </button>
-
-                        {/* Nested Submenu (Right side) */}
-                        {showSubmenu && (
-                            <div className="absolute top-0 left-full ml-2 w-56 bg-[#2f2f2f] border border-white/10 rounded-xl shadow-2xl p-1 z-40">
-                                <ModelOption
-                                    label="GPT-3.5 Turbo"
-                                    active={selectedModel === "GPT-3.5 Turbo"}
-                                    onClick={() => { setSelectedModel("GPT-3.5 Turbo"); setIsOpen(false); }}
-                                />
-                                <ModelOption
-                                    label="GPT-4 Legacy"
-                                    active={selectedModel === "GPT-4 Legacy"}
-                                    onClick={() => { setSelectedModel("GPT-4 Legacy"); setIsOpen(false); }}
-                                />
-                            </div>
-                        )}
-                    </div>
-
-                </div>
+      <footer className="border-t border-white/10 px-5 py-4 md:px-8">
+        {lastError && (
+          <div className="mb-3 flex items-start gap-2 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-100">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>{lastError}</span>
+          </div>
+        )}
+        {lastContract && (
+          <p className="mb-3 text-xs text-gray-400">
+            Contract: <span className="text-gray-200">{lastContract}</span>
+          </p>
+        )}
+        <form onSubmit={handleSend} className="flex items-end gap-3 rounded-xl bg-[#2f2f2f] p-3">
+          <textarea
+            value={input}
+            onChange={(event) => setInput(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                void handleSend();
+              }
+            }}
+            className="max-h-[180px] min-h-11 flex-1 bg-transparent px-2 py-3 text-[15px] leading-relaxed text-white outline-none placeholder:text-gray-500"
+            placeholder="Message the temporary local Web Chat MVP..."
+            rows={3}
+          />
+          <button
+            type="submit"
+            disabled={!input.trim() || isLoading}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-black transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+            aria-label="Send message"
+          >
+            {isLoading ? (
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-black border-t-transparent" />
+            ) : (
+              <SendHorizontal className="h-5 w-5" />
             )}
-        </div>
-    )
+          </button>
+        </form>
+        <p className="mt-3 text-center text-[11px] text-gray-500">
+          Temporary demo only: no login, no persistent memory, no Discord gateway, and no external provider call.
+        </p>
+      </footer>
+    </div>
+  );
 }
 
-function ModelOption({ label, desc, active, onClick }: { label: string, desc?: string, active?: boolean, onClick: () => void }) {
-    return (
-        <button
-            onClick={onClick}
-            className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-[#424242] transition-colors text-left group"
-        >
-            <div className="flex flex-col">
-                <span className="text-sm font-medium text-gray-200">{label}</span>
-                {desc && <span className="text-xs text-gray-500">{desc}</span>}
-            </div>
-            {active && <Check className="w-4 h-4 text-white" />}
-        </button>
-    )
+function StatusPill({ icon, label }: { icon: ReactNode; label: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-gray-200">
+      {icon}
+      {label}
+    </span>
+  );
 }
 
-function PlusIcon() {
-    return (
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-300">
-            <path d="M5 12h14"></path>
-            <path d="M12 5v14"></path>
-        </svg>
-    )
+function ModeButton({ option, selected, onSelect }: { option: ModeOption; selected: boolean; onSelect: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={`w-full rounded-lg border px-3 py-3 text-left transition ${
+        selected
+          ? "border-[#10a37f] bg-[#10a37f]/10 text-white"
+          : "border-white/10 bg-white/[0.03] text-gray-300 hover:bg-white/5"
+      }`}
+    >
+      <span className="flex items-center gap-2 text-sm font-medium">
+        {option.localProvider ? <Cpu className="h-4 w-4" /> : <ShieldCheck className="h-4 w-4" />}
+        {option.label}
+      </span>
+      <span className="mt-1 block text-xs leading-5 text-gray-500">{option.description}</span>
+    </button>
+  );
+}
+
+function SuggestionCard({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="rounded-lg border border-white/10 px-4 py-3 text-left text-sm text-gray-300 transition hover:bg-white/5 hover:text-white"
+    >
+      {label}
+    </button>
+  );
+}
+
+function MessageBubble({ message }: { message: ChatMessage }) {
+  const isUser = message.role === "user";
+  return (
+    <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
+      <div
+        className={`max-w-[82%] rounded-xl px-4 py-3 text-sm leading-6 ${
+          isUser ? "bg-white text-black" : "bg-white/5 text-gray-100"
+        }`}
+      >
+        <p className="whitespace-pre-wrap">{message.content}</p>
+        {message.meta && <p className={`mt-2 text-xs ${isUser ? "text-black/60" : "text-gray-500"}`}>{message.meta}</p>}
+      </div>
+    </div>
+  );
 }

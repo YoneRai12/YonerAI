@@ -64,7 +64,7 @@ export default function DashboardView({ guildId, guildName }: DashboardViewProps
                     <div className="flex items-center gap-2 mt-1">
                         <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
                         <p className="text-xs text-cyan-500/50 font-mono tracking-tighter">
-                            LINKED SYSTEM: {guildName.toUpperCase()} // ID: {guildId}
+                            LINKED SYSTEM: {guildName.toUpperCase()} / ID: {guildId}
                         </p>
                     </div>
                 </div>

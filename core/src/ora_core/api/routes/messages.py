@@ -1,12 +1,13 @@
 from typing import Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from ora_core.api.dependencies.auth import get_current_user
 from ora_core.api.schemas.messages import MessageRequest, MessageResponse
 from ora_core.brain.process import MainProcess
 from ora_core.database.models import User
 from ora_core.database.repo import Repository
 from ora_core.database.session import AsyncSessionLocal, get_db
+from ora_core.distribution.runtime import get_current_runtime
 from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
@@ -15,9 +16,11 @@ router = APIRouter()
 async def post_message(
     req: MessageRequest,
     background_tasks: BackgroundTasks,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     authenticated_user: Optional[User] = Depends(get_current_user)
 ):
+    get_current_runtime().require_capability("run.submit_messages")
     repo = Repository(db)
 
     # 1. User Resolution

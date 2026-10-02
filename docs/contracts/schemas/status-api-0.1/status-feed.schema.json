@@ -1,0 +1,38 @@
+{
+  "$id": "https://yonerai.com/contracts/status-api-0.1/status-feed.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "categories": {
+      "type": "array"
+    },
+    "generated_at": {
+      "type": "string"
+    },
+    "incidents": {
+      "type": "array"
+    },
+    "meta": {
+      "type": "object"
+    },
+    "range": {
+      "type": "object"
+    },
+    "schema_version": {
+      "const": "yonerai.status.feed.v1"
+    },
+    "states": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "schema_version",
+    "generated_at",
+    "meta",
+    "range",
+    "states",
+    "categories",
+    "incidents"
+  ],
+  "type": "object"
+}

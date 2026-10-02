@@ -1,0 +1,251 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://status.yonerai.com/contracts/status_snapshot.v1.schema.json",
+  "title": "YonerAI StatusSnapshot v1",
+  "description": "Public-safe AWS/Public YonerAI runtime snapshot consumed by StatusWEB before conversion to yonerai.status.feed.v1.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "snapshot_id",
+    "generated_at",
+    "stale_after_seconds",
+    "overall",
+    "components"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "schema_version": {
+      "const": "yonerai.status.v1"
+    },
+    "snapshot_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._:-]+$"
+    },
+    "generated_at": {
+      "type": "string",
+      "minLength": 1
+    },
+    "valid_until": {
+      "type": "string",
+      "minLength": 1
+    },
+    "stale_after_seconds": {
+      "type": "integer",
+      "minimum": 30,
+      "maximum": 86400
+    },
+    "overall": {
+      "$ref": "#/$defs/overall"
+    },
+    "components": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/component"
+      }
+    },
+    "incidents": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/incident"
+      },
+      "default": []
+    },
+    "extensions": {
+      "type": "object",
+      "description": "Forward-compatible public-safe metadata. Must not contain secrets, private URLs, account ids, internal hostnames, or worker identity."
+    }
+  },
+  "$defs": {
+    "health": {
+      "enum": [
+        "operational",
+        "degraded",
+        "partial_outage",
+        "major_outage",
+        "maintenance",
+        "offline",
+        "unknown"
+      ]
+    },
+    "availability": {
+      "enum": ["available", "limited", "unavailable"]
+    },
+    "stage": {
+      "enum": ["preview", "staging", "production", "disabled"]
+    },
+    "component_id": {
+      "enum": [
+        "api",
+        "auth",
+        "provider_gateway",
+        "official_execution_worker",
+        "run_queue",
+        "realtime_sync",
+        "web",
+        "audit",
+        "discord"
+      ]
+    },
+    "localized": {
+      "oneOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {
+            "oneOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "overall": {
+      "type": "object",
+      "required": ["health", "availability", "stage", "message"],
+      "additionalProperties": false,
+      "properties": {
+        "health": {
+          "$ref": "#/$defs/health"
+        },
+        "availability": {
+          "$ref": "#/$defs/availability"
+        },
+        "stage": {
+          "$ref": "#/$defs/stage"
+        },
+        "message": {
+          "$ref": "#/$defs/localized"
+        }
+      }
+    },
+    "component": {
+      "type": "object",
+      "required": ["id", "health", "availability", "stage", "message", "updated_at", "stale", "incident_ref"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/component_id"
+        },
+        "health": {
+          "$ref": "#/$defs/health"
+        },
+        "availability": {
+          "$ref": "#/$defs/availability"
+        },
+        "stage": {
+          "$ref": "#/$defs/stage"
+        },
+        "message": {
+          "$ref": "#/$defs/localized"
+        },
+        "updated_at": {
+          "type": "string",
+          "minLength": 1
+        },
+        "stale": {
+          "type": "boolean"
+        },
+        "incident_ref": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9._:-]+$"
+            }
+          ]
+        }
+      }
+    },
+    "incident": {
+      "type": "object",
+      "required": ["id", "status", "impact", "title", "summary", "updates"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._:-]+$"
+        },
+        "status": {
+          "enum": ["investigating", "identified", "monitoring", "resolved", "maintenance"]
+        },
+        "impact": {
+          "$ref": "#/$defs/health"
+        },
+        "started_at": {
+          "type": "string",
+          "minLength": 1
+        },
+        "resolved_at": {
+          "type": "string",
+          "minLength": 1
+        },
+        "component_ids": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/component_id"
+          }
+        },
+        "title": {
+          "$ref": "#/$defs/localized"
+        },
+        "summary": {
+          "$ref": "#/$defs/localized"
+        },
+        "updates": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/incident_update"
+          }
+        }
+      }
+    },
+    "incident_update": {
+      "type": "object",
+      "required": ["status", "at", "body"],
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "enum": ["investigating", "identified", "monitoring", "resolved", "maintenance"]
+        },
+        "at": {
+          "type": "string",
+          "minLength": 1
+        },
+        "label": {
+          "$ref": "#/$defs/localized"
+        },
+        "body": {
+          "$ref": "#/$defs/localized"
+        }
+      }
+    }
+  }
+}

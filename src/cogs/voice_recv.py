@@ -7,6 +7,7 @@ import discord
 import numpy as np
 from discord import app_commands
 from discord.ext import commands, voice_recv
+from src.utils.access_control import can_use_voice_listen
 
 logger = logging.getLogger(__name__)
 
@@ -102,10 +103,9 @@ class VoiceRecvCog(commands.Cog):
 
     @app_commands.command(name="listen", description="ボイスチャンネルで全員の声を聞き取ります。")
     async def listen(self, interaction: discord.Interaction):
-        # Admin check
-        # if self.bot.config.admin_user_id and interaction.user.id != self.bot.config.admin_user_id:
-        #     await interaction.response.send_message("この機能は管理者専用です。", ephemeral=True)
-        #     return
+        if not can_use_voice_listen(self.bot, getattr(interaction.user, "id", None)):
+            await interaction.response.send_message("この機能は管理者専用です。", ephemeral=True)
+            return
 
         if not interaction.user.voice:
             await interaction.response.send_message("ボイスチャンネルに参加してから実行してください。", ephemeral=True)

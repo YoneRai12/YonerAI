@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://yonerai.com/contracts/official-api-0.1/oracle-runs.request.schema.json",
+  "title": "YonerAI Official API oracle runs request 0.1",
+  "type": "object",
+  "required": ["task_class", "privacy_class", "args_hash"],
+  "properties": {
+    "task_class": {"type": "string"},
+    "privacy_class": {"const": "public"},
+    "args_hash": {"type": "string"},
+    "payload": {
+      "type": "object",
+      "description": "Optional public-safe envelope; raw prompts, private file content, local node payloads, provider keys, and local absolute paths are not valid official Oracle run payload fields.",
+      "properties": {
+        "low_resolution_summary": {"type": "string", "maxLength": 1024},
+        "summary_hash": {"type": "string", "pattern": "^[A-Za-z0-9_:.@/+\\-=]{8,256}$"},
+        "policy_ref": {"type": "string", "maxLength": 128}
+      },
+      "additionalProperties": false,
+      "minProperties": 1
+    }
+  },
+  "additionalProperties": false
+}

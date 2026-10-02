@@ -10,19 +10,68 @@ from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from ora_core.api.dependencies.auth import require_core_access
 from ora_core.api.routes.auth import router as auth_router
+from ora_core.api.routes.agent_runs import router as agent_runs_router
+from ora_core.api.routes.files import router as files_router
 from ora_core.api.routes.messages import router as messages_router
+from ora_core.api.routes.public_messages import router as public_messages_router
 from ora_core.api.routes.runs import router as runs_router
 from ora_core.api.routes.stats import router as stats_router
 import os
+import re
+
+from ora_core.distribution.runtime import build_runtime_from_env
+
+
+PRIVATE_ERROR_MARKERS = (
+    re.compile(r"[A-Za-z]:[\\/]+Users[\\/]+", re.IGNORECASE),
+    re.compile(r"(?:^|[\s\"'=])/(root|etc|home|users|var|tmp)/", re.IGNORECASE),
+    re.compile(
+        r"(api[_-]?key|access[_-]?token|refresh[_-]?token|discord[_-]?token|private[_-]?key|client[_-]?secret|google[_-]?client[_-]?secret|authorization)",
+        re.IGNORECASE,
+    ),
+    re.compile(r"sk-[A-Za-z0-9_-]{10,}"),
+    re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
+)
+
+
+def _safe_validation_message(value: object) -> str:
+    if not isinstance(value, str):
+        return "Request field failed validation."
+    cleaned = " ".join(value.split())
+    if not cleaned or any(pattern.search(cleaned) for pattern in PRIVATE_ERROR_MARKERS):
+        return "Request field failed validation."
+    return cleaned[:160]
+
+
+def _safe_validation_details(errors: list[dict]) -> list[dict]:
+    safe_details: list[dict] = []
+    for error in errors:
+        loc = error.get("loc", ())
+        safe_details.append(
+            {
+                "type": str(error.get("type") or "validation_error")[:80],
+                "loc": [str(part) for part in loc],
+                "msg": _safe_validation_message(error.get("msg")),
+            }
+        )
+    return safe_details
 
 
 def create_app():
     app = FastAPI(title="ORA Core", version="0.1")
+    app.state.distribution_runtime = build_runtime_from_env()
 
     @app.get("/health")
     async def health() -> dict:
         # Used by the Bot's ConnectionManager to decide API vs STANDALONE mode.
-        return {"ok": True}
+        distribution = getattr(app.state, "distribution_runtime", None)
+        payload = {"ok": True}
+        if getattr(distribution, "enabled", False) and getattr(distribution, "verification", None):
+            payload["distribution_node"] = {
+                "profile": distribution.verification.manifest.profile,
+                "verified_release": distribution.verification.manifest.version,
+            }
+        return payload
 
     # Load Config
     from src.config import Config
@@ -49,11 +98,11 @@ def create_app():
             content={
                 "error": "VALIDATION_ERROR",
                 "message": "Request schema is invalid. Please follow the Canonical Schema.",
-                "details": exc.errors(),
+                "details": _safe_validation_details(exc.errors()),
                 "manual": {
                     "example": {
                         "conversation_id": None,
-                        "user_identity": {"provider": "web", "id": "local-user-1", "display_name": "YoneRai12"},
+                        "user_identity": {"provider": "web", "id": "local-user-1", "display_name": "Local User"},
                         "content": "Hello",
                         "attachments": [],
                         "idempotency_key": "550e8400-e29b-41d4-a716-446655440000"
@@ -83,8 +132,11 @@ def create_app():
 
     protected_deps = [Depends(require_core_access)]
 
+    app.include_router(agent_runs_router, prefix="/api/v1/agent", dependencies=protected_deps)
     app.include_router(messages_router, prefix="/v1", dependencies=protected_deps)
+    app.include_router(public_messages_router, prefix="/v1")
     app.include_router(runs_router, prefix="/v1", dependencies=protected_deps)
+    app.include_router(files_router, prefix="/v1")
     app.include_router(auth_router, prefix="/v1/auth", dependencies=protected_deps) # Core generic auth routes (me, logout)
 
     # Conditional Auth Logic

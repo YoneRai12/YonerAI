@@ -1,0 +1,36 @@
+{
+  "$id": "https://yonerai.com/contracts/status-api-0.1/contract.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "component_ids": {
+      "minItems": 12,
+      "type": "array"
+    },
+    "endpoints": {
+      "minItems": 6,
+      "type": "array"
+    },
+    "ok": {
+      "const": true
+    },
+    "production_backend_included": {
+      "const": false
+    },
+    "schema_version": {
+      "const": "yonerai-status-api-contract/v0.1"
+    },
+    "status_enum": {
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "ok",
+    "endpoints",
+    "component_ids",
+    "status_enum",
+    "production_backend_included"
+  ],
+  "type": "object"
+}

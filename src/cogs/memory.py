@@ -2,7 +2,7 @@
 # CRITICAL PROTOCOL WARNING
 # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 # DO NOT MODIFY THE SCANNING/OPTIMIZATION LOGIC IN THIS FILE WITHOUT FIRST
-# READING: `ORA_OPTIMIZATION_MANIFEST.md`
+# READING: `docs/legacy/ORA_OPTIMIZATION_MANIFEST.md`
 #
 # THE LOGIC IS LOCKED BY USER DECREE:
 # 1. REAL-TIME: Immediate trigger on 5 messages (Buffer).

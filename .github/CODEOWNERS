@@ -1,0 +1,4 @@
+AGENTS.md @YoneRai12
+.github/workflows/* @YoneRai12
+clients/cli/yonerai_cli/services/realtime_sync_client_service.py @YoneRai12
+docs/contracts/ @YoneRai12

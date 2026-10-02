@@ -22,6 +22,7 @@ from discord import app_commands
 from discord.ext import commands, tasks
 
 from ..storage import Store
+from ..utils.access_control import can_use_say_command
 from ..utils.link_client import LinkClient
 
 logger = logging.getLogger(__name__)
@@ -89,17 +90,12 @@ class CoreCog(commands.Cog):
             await interaction.response.send_message("このコマンドはサーバー内でのみ使用できます。", ephemeral=True)
             return
 
-        # Admin check removed by user request
-        # if not interaction.user.guild_permissions.administrator:
-        #    raise app_commands.CheckFailure("管理者権限が必要です。")
+        if not can_use_say_command(self.bot, getattr(interaction.user, "id", None)):
+            await interaction.response.send_message("この機能は管理者専用です。", ephemeral=True)
+            return
 
-        # Special stealth mode for specific user
-        # Admin check
-        if interaction.user.id == self.bot.config.admin_user_id:
-            await interaction.channel.send(text)
-            await interaction.response.send_message("送信しました（匿名モード）", ephemeral=True)
-        else:
-            await interaction.response.send_message(text, ephemeral=ephemeral)
+        await interaction.response.send_message(text, ephemeral=ephemeral)
+        return
 
     @app_commands.command(name="link", description="ORAアカウントとWebダッシュボードを連携します。")
     async def link(self, interaction: discord.Interaction) -> None:

@@ -1,0 +1,364 @@
+{
+  "schema_version": "yonerai.status.feed.v1",
+  "generated_at": "2026-06-01T00:00:00+09:00",
+  "range": {
+    "start": "2026-05-25",
+    "days": 7,
+    "end": "2026-05-31"
+  },
+  "meta": {},
+  "states": {
+    "operational": {
+      "severity": 0,
+      "color": "#25c39a",
+      "label": {
+        "ja": "稼働中",
+        "en": "Operational"
+      }
+    },
+    "alpha_only": {
+      "severity": 10,
+      "color": "#a9b0ba",
+      "label": {
+        "ja": "alpha のみ",
+        "en": "Alpha only"
+      }
+    },
+    "not_started": {
+      "severity": 20,
+      "color": "#a9b0ba",
+      "label": {
+        "ja": "準備中",
+        "en": "Preparing"
+      }
+    },
+    "maintenance": {
+      "severity": 30,
+      "color": "#f97316",
+      "label": {
+        "ja": "メンテナンス",
+        "en": "Maintenance"
+      }
+    },
+    "degraded": {
+      "severity": 40,
+      "color": "#f6bd3f",
+      "label": {
+        "ja": "性能低下",
+        "en": "Degraded"
+      }
+    },
+    "partial_outage": {
+      "severity": 50,
+      "color": "#ff7a59",
+      "label": {
+        "ja": "一部障害",
+        "en": "Partial outage"
+      }
+    },
+    "major_outage": {
+      "severity": 60,
+      "color": "#ef5b4a",
+      "label": {
+        "ja": "重大障害",
+        "en": "Major outage"
+      }
+    },
+    "resolved": {
+      "severity": 0,
+      "color": "#25c39a",
+      "label": {
+        "ja": "解決済み",
+        "en": "Resolved"
+      }
+    },
+    "monitoring": {
+      "severity": 45,
+      "color": "#3a9dff",
+      "label": {
+        "ja": "監視中",
+        "en": "Monitoring"
+      }
+    },
+    "identified": {
+      "severity": 42,
+      "color": "#f6bd3f",
+      "label": {
+        "ja": "原因特定",
+        "en": "Identified"
+      }
+    },
+    "investigating": {
+      "severity": 48,
+      "color": "#ff6b6b",
+      "label": {
+        "ja": "調査中",
+        "en": "Investigating"
+      }
+    }
+  },
+  "categories": [
+    {
+      "id": "public-surfaces",
+      "name": {
+        "ja": "公開サーフェス",
+        "en": "Public surfaces"
+      },
+      "state": "operational",
+      "children": [
+        {
+          "id": "website",
+          "name": {
+            "ja": "Website",
+            "en": "Website"
+          },
+          "fact": {
+            "ja": "このコンポーネントはfeedから描画されます。",
+            "en": "This component is rendered from the feed."
+          },
+          "monitoring": {
+            "ja": "接続テスト",
+            "en": "Connection test"
+          },
+          "claim": {
+            "ja": "本番運用は未主張",
+            "en": "No production operation claim"
+          },
+          "state": "not_started",
+          "days": [
+            {
+              "date": "2026-05-25",
+              "state": "operational"
+            },
+            {
+              "date": "2026-05-26",
+              "state": "operational"
+            },
+            {
+              "date": "2026-05-27",
+              "state": "degraded",
+              "message": {
+                "ja": "表示テスト用の性能低下です。",
+                "en": "Display-test degraded state."
+              },
+              "incident_id": "example-incident-degraded"
+            },
+            {
+              "date": "2026-05-28",
+              "state": "operational"
+            },
+            {
+              "date": "2026-05-29",
+              "state": "major_outage",
+              "message": {
+                "ja": "表示テスト用の重大障害です。",
+                "en": "Display-test major outage."
+              },
+              "incident_id": "example-incident-major"
+            },
+            {
+              "date": "2026-05-30",
+              "state": "operational"
+            },
+            {
+              "date": "2026-05-31",
+              "state": "operational"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "incidents": [
+    {
+      "id": "example-incident-degraded",
+      "state": "degraded",
+      "status": "resolved",
+      "date": "2026-05-27",
+      "title": {
+        "ja": "表示例: Website 性能低下",
+        "en": "Example: Website degraded performance"
+      },
+      "meta": [
+        {
+          "ja": "Resolved",
+          "en": "Resolved"
+        },
+        {
+          "ja": "Degraded",
+          "en": "Degraded"
+        },
+        {
+          "ja": "Display test",
+          "en": "Display test"
+        }
+      ],
+      "summary": {
+        "ja": [
+          "これは性能低下時の詳細ページ型UIを確認するための表示テストです。",
+          "実際のYonerAI監視データではありません。"
+        ],
+        "en": [
+          "This is display-test data for a degraded-performance incident detail page.",
+          "It is not real YonerAI monitoring data."
+        ]
+      },
+      "footer": {
+        "ja": "2026年5月27日 ・ すべての更新を見る",
+        "en": "2026-05-27 ・ View all updates"
+      },
+      "affected": {
+        "category_id": "public-surfaces",
+        "component_id": "website",
+        "segments": [
+          {
+            "state": "operational",
+            "percent": 20
+          },
+          {
+            "state": "degraded",
+            "percent": 60
+          },
+          {
+            "state": "operational",
+            "percent": 20
+          }
+        ]
+      },
+      "updates": [
+        {
+          "status": "resolved",
+          "label": {
+            "ja": "解決済み",
+            "en": "Resolved"
+          },
+          "body": {
+            "ja": [
+              "表示テストの性能低下は解決済みとしてマークされました。"
+            ],
+            "en": [
+              "The display-test degraded state was marked as resolved."
+            ]
+          },
+          "utc": "2026-05-27 11:44 UTC",
+          "jst": "2026-05-27 20:44 JST",
+          "state": "resolved"
+        },
+        {
+          "status": "investigating",
+          "label": {
+            "ja": "調査中",
+            "en": "Investigating"
+          },
+          "body": {
+            "ja": [
+              "対象コンポーネントで応答劣化の表示テストを開始しました。"
+            ],
+            "en": [
+              "A response-degradation display test was started for the target component."
+            ]
+          },
+          "utc": "2026-05-27 10:39 UTC",
+          "jst": "2026-05-27 19:39 JST",
+          "state": "investigating"
+        }
+      ],
+      "impact": "degraded"
+    },
+    {
+      "id": "example-incident-major",
+      "state": "major_outage",
+      "status": "resolved",
+      "date": "2026-05-29",
+      "title": {
+        "ja": "表示例: Website 重大障害",
+        "en": "Example: Website major outage"
+      },
+      "meta": [
+        {
+          "ja": "Resolved",
+          "en": "Resolved"
+        },
+        {
+          "ja": "Major outage",
+          "en": "Major outage"
+        },
+        {
+          "ja": "Display test",
+          "en": "Display test"
+        }
+      ],
+      "summary": {
+        "ja": [
+          "これは障害詳細ページ型UIを確認するための表示テストです。",
+          "実際のYonerAI監視データではなく、feed連携確認用のサンプルです。"
+        ],
+        "en": [
+          "This is an example incident detail page.",
+          "It is sample data for feed integration checks."
+        ]
+      },
+      "footer": {
+        "ja": "2026年5月29日 ・ すべての更新を見る",
+        "en": "2026-05-29 ・ View all updates"
+      },
+      "affected": {
+        "category_id": "public-surfaces",
+        "component_id": "website",
+        "segments": [
+          {
+            "state": "operational",
+            "percent": 10
+          },
+          {
+            "state": "major_outage",
+            "percent": 80
+          },
+          {
+            "state": "operational",
+            "percent": 10
+          }
+        ]
+      },
+      "updates": [
+        {
+          "status": "resolved",
+          "label": {
+            "ja": "解決済み",
+            "en": "Resolved"
+          },
+          "body": {
+            "ja": [
+              "表示例の障害は解決済みとしてマークされました。"
+            ],
+            "en": [
+              "The example incident was marked as resolved."
+            ]
+          },
+          "utc": "2026-05-29 11:44 UTC",
+          "jst": "2026-05-29 20:44 JST",
+          "state": "resolved"
+        },
+        {
+          "status": "investigating",
+          "label": {
+            "ja": "調査中",
+            "en": "Investigating"
+          },
+          "body": {
+            "ja": [
+              "対象コンポーネントで異常なエラー増加を検知しました。"
+            ],
+            "en": [
+              "An abnormal error increase was detected on the target component."
+            ]
+          },
+          "utc": "2026-05-29 10:39 UTC",
+          "jst": "2026-05-29 19:39 JST",
+          "state": "investigating"
+        }
+      ],
+      "impact": "major_outage"
+    }
+  ]
+}

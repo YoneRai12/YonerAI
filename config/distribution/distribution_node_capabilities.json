@@ -1,0 +1,18 @@
+{
+  "schema_version": "yonerai-distribution-capabilities/v1",
+  "profile": "distribution_node_mvp",
+  "default_action": "deny",
+  "capabilities": {
+    "run.submit_messages": true,
+    "run.read_events": true,
+    "run.submit_continuation_results": true,
+    "files.issue_download_ticket": true,
+    "files.download": true,
+    "tools.echo_tool": false,
+    "tools.google_search": false,
+    "tools.arbitrary_shell": false,
+    "tools.arbitrary_sql": false,
+    "files.arbitrary_write": false,
+    "control_plane.high_risk": false
+  }
+}

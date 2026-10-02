@@ -1,0 +1,109 @@
+{
+  "schema_version": "yonerai.status.v1",
+  "snapshot_id": "snapshot_staging_offline_worker_20260618",
+  "generated_at": "2026-06-18T19:46:56Z",
+  "stale_after_seconds": 60,
+  "overall": {
+    "health": "partial_outage",
+    "availability": "limited",
+    "stage": "staging",
+    "message": "Staging runtime status only; production availability is not claimed."
+  },
+  "components": [
+    {
+      "id": "api",
+      "health": "operational",
+      "availability": "available",
+      "stage": "staging",
+      "message": "Staging API is reachable. Production is not claimed.",
+      "updated_at": "2026-06-18T19:46:56Z",
+      "stale": false,
+      "incident_ref": null
+    },
+    {
+      "id": "auth",
+      "health": "operational",
+      "availability": "available",
+      "stage": "staging",
+      "message": "Staging Google login/session boundary is available; production login is disabled.",
+      "updated_at": "2026-06-18T19:46:56Z",
+      "stale": false,
+      "incident_ref": null
+    },
+    {
+      "id": "provider_gateway",
+      "health": "operational",
+      "availability": "available",
+      "stage": "staging",
+      "message": "Owner-gated staging provider gateway is enabled; shared data requires explicit conversation consent.",
+      "updated_at": "2026-06-18T19:46:56Z",
+      "stale": false,
+      "incident_ref": null
+    },
+    {
+      "id": "official_execution_worker",
+      "health": "offline",
+      "availability": "unavailable",
+      "stage": "staging",
+      "message": "Worker availability is derived from cloud heartbeat freshness; self-report is advisory.",
+      "updated_at": "2026-06-18T16:07:50Z",
+      "stale": true,
+      "incident_ref": null
+    },
+    {
+      "id": "run_queue",
+      "health": "degraded",
+      "availability": "limited",
+      "stage": "staging",
+      "message": "Queued runs are waiting for an available execution path.",
+      "updated_at": "2026-06-18T19:46:56Z",
+      "stale": false,
+      "incident_ref": null
+    },
+    {
+      "id": "realtime_sync",
+      "health": "degraded",
+      "availability": "limited",
+      "stage": "preview",
+      "message": "Realtime sync mode is contract-limited; no production sync claim is made.",
+      "updated_at": "2026-06-18T19:46:56Z",
+      "stale": false,
+      "incident_ref": null
+    },
+    {
+      "id": "web",
+      "health": "degraded",
+      "availability": "limited",
+      "stage": "staging",
+      "message": "Status is staging-only; production web availability is not claimed.",
+      "updated_at": "2026-06-18T19:46:56Z",
+      "stale": false,
+      "incident_ref": null
+    },
+    {
+      "id": "audit",
+      "health": "operational",
+      "availability": "available",
+      "stage": "staging",
+      "message": "Audit status is metadata-only and does not expose raw events.",
+      "updated_at": "2026-06-18T19:46:56Z",
+      "stale": false,
+      "incident_ref": null
+    },
+    {
+      "id": "discord",
+      "health": "offline",
+      "availability": "unavailable",
+      "stage": "disabled",
+      "message": "Live Discord is not part of this staging runtime status.",
+      "updated_at": "2026-06-18T19:46:56Z",
+      "stale": false,
+      "incident_ref": null
+    }
+  ],
+  "cache_policy": {
+    "etag_supported": true,
+    "cache_control_max_age_must_be_below_stale_after_seconds": true
+  },
+  "private_runtime_details_included": false
+}

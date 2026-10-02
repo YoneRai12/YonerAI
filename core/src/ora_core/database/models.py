@@ -157,6 +157,44 @@ class ToolCall(Base):
     )
 
 
+class DistributionFile(Base):
+    __tablename__ = "distribution_files"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    owner_user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), index=True)
+    run_id: Mapped[Optional[str]] = mapped_column(String, ForeignKey("runs.id"), nullable=True, index=True)
+    tool_call_id: Mapped[Optional[str]] = mapped_column(String, ForeignKey("tool_calls.id"), nullable=True, index=True)
+    storage_path: Mapped[str] = mapped_column(String)
+    display_name: Mapped[str] = mapped_column(String)
+    media_type: Mapped[str] = mapped_column(String, default="application/octet-stream")
+    sha256: Mapped[str] = mapped_column(String(64))
+    size_bytes: Mapped[int] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class DistributionFileTicket(Base):
+    __tablename__ = "distribution_file_tickets"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    file_id: Mapped[str] = mapped_column(String, ForeignKey("distribution_files.id"), index=True)
+    owner_user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime)
+    consumed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class DistributionFileAudit(Base):
+    __tablename__ = "distribution_file_audit"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    file_id: Mapped[str] = mapped_column(String, ForeignKey("distribution_files.id"), index=True)
+    owner_user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), index=True)
+    action: Mapped[str] = mapped_column(String)
+    ticket_id: Mapped[Optional[str]] = mapped_column(String, ForeignKey("distribution_file_tickets.id"), nullable=True)
+    remote_address: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 class ResourceLock(Base):
     __tablename__ = "resource_locks"
 

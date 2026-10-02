@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://yonerai.com/contracts/official-api-0.1/conversations.response.schema.json",
+  "title": "YonerAI Official API conversations response 0.1",
+  "type": "object",
+  "required": ["ok", "conversations"],
+  "properties": {
+    "ok": {"type": "boolean"},
+    "conversations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["cloud_conversation_id", "title", "selected_by_user"],
+        "properties": {
+          "cloud_conversation_id": {"type": "string"},
+          "title": {"type": "string"},
+          "selected_by_user": {"type": "boolean"}
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

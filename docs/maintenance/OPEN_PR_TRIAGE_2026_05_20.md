@@ -1,0 +1,250 @@
+# Open PR Triage 2026-05-20
+
+Status: public-safe maintenance checkpoint from live GitHub state. This ledger classifies all open PRs observed during this run. It does not merge any PR and does not close any PR by itself.
+
+## Verification Snapshot
+
+- `origin/main`: `7acb471f5292905247a392856a7e3c3f7135fd3a`
+- Latest GitHub Release: `v2026.5.20.6`
+- Open PR count before this checkpoint: 40
+- Open PR count after this checkpoint: 40
+- Root verification: `debug_state.py`, `video_utils.py`, `run_dashboard_backend.py`, and `remove_legacy.ps1` are no longer root files; `config.yaml`, `start.sh`, `start_all.bat`, `start_vllm.bat`, `start_windows.bat`, compose files, and `main.py` remain in root.
+- Close decision: no PR met all safe-close rules during this 60-minute checkpoint.
+
+## 2026-05-20 Security PR Follow-Up
+
+- Follow-up branch: `codex/security-pr-backlog-resolution-pass`
+- Current replacement baseline: public `main` after PR #194, with prior PR #186 merged.
+- Target reviewed: PR #142 (`codex/fix-core-api-access-vulnerability`)
+- Classification update: `CLOSE_SUPERSEDED`
+- Close result: PR #142 closed unmerged with replacement evidence comment.
+- Open PR count after close: 39.
+- Replacement evidence:
+  - PR #186 merged the current-main Surface API access/security checkpoint.
+  - `tests/test_core_api_access_security.py` verifies sensitive Core routes carry `require_core_access`.
+  - Current main protects `/v1/messages`, `/v1/runs/{run_id}/events`, `/v1/runs/{run_id}/results`, `/v1/files/{file_id}/download-url`, auth, dashboard, stats, and memory routes.
+  - Current main intentionally leaves `/v1/files/download/{ticket}` outside the core token dependency because it is ticket-based access.
+  - `docs/releases/v2026.5.20.7-surface-api-run-contract-checkpoint.md` records this narrower replacement.
+- Risk decision: closing PR #142 is safer than merging it because #142 would reapply the stale broad `files_router` dependency model and conflict with the current ticket-download boundary.
+
+## 2026-05-21 PR Count Reconciliation
+
+- Follow-up branch: `codex/pr-backlog-reconciliation-pass`
+- Current replacement baseline: public `main` after PR #197.
+- GitHub source of truth: `gh pr list --state open --limit 100 --json number --jq length`
+- Open PR count before this reconciliation: 39.
+- Open PR count after this reconciliation: 36.
+- Confirmed closed / merged state:
+  - PR #142 remains `CLOSED` and unmerged as superseded by PR #186 and current-main tests.
+  - PR #195 remains `MERGED`; its public body was rewritten as clean UTF-8 English in the preceding hygiene pass.
+- PRs closed in this reconciliation:
+  - PR #67: closed as superseded by PR #186, current `require_core_access` wiring, and `tests/test_core_api_access_security.py`.
+  - PR #130: closed as a duplicate of PR #129; #129 remains open as the survivor for future current-main Discord/private-runtime security review.
+  - PR #136: closed as a duplicate of PR #135; #135 remains open as the survivor for future current-main Discord/private-runtime security review.
+- Dependabot alert check: `gh api "/repos/YoneRai12/YonerAI/dependabot/alerts?state=open&per_page=100" --jq length` returned `0`.
+- Dependency PR decision: left open because no dependency PR was proven superseded by a newer open PR during this pass; each still needs a dependency-specific validation lane.
+- Security PR decision: left non-duplicate security PRs open unless current main replacement evidence was strong enough to close safely.
+
+## 2026-05-21 Dependency PR Drain Pass
+
+- Follow-up branch: `codex/dependency-pr-drain-pass`
+- Current baseline: public `main` after the large-codebase feature inventory merge.
+- GitHub source of truth: `gh pr list --state open --limit 100 --json number,title,headRefName,mergeStateStatus,labels,url`
+- Open PR count before this dependency pass: 36.
+- Dependabot alert check: `gh api "/repos/YoneRai12/YonerAI/dependabot/alerts?state=open&per_page=100" --jq length` returned `0`.
+- Open dependency PRs observed: 16.
+- Dependency PRs closed in this pass: 3 (#117, #119, #127).
+- Open PR count after this dependency pass: 33.
+- Ledger: `docs/security/DEPENDENCY_PR_DRAIN_2026_05_21.md`
+
+Decision: #117, #119, and #127 were closed as superseded by the current `clients/web/package-lock.json` and a 0-alert Dependabot check. All other dependency PRs remain open because no remaining dependency PR was proven obsolete, duplicated by a newer PR, or superseded by a current-main manifest change.
+
+Next lane split:
+
+1. GitHub Actions workflow refresh: #156, #34, #7, #6.
+2. Web lockfile lane: #117, #119, and #127 are now closed as superseded; create a fresh lane only if new web alerts appear.
+3. Python runtime refresh: #146, #152, #18.
+4. Discord / crypto boundary refresh: #151, #145.
+5. Provider / media refresh: #150, #148, #147.
+6. Optional memory dependency refresh: #143 after memory-policy scope is explicit.
+
+## 2026-05-21 Public GitHub State Reconciliation
+
+- Follow-up branch: `codex/public-github-state-reconciliation`
+- Current baseline: public `main` after PR #203.
+- `origin/main`: `f636c482031021b9d21aeea1cdef1f0252e51ece`
+- GitHub source of truth: `gh pr list --state open --limit 100 --json number --jq length`
+- GitHub API open pull count: `43`
+- Public HTML pull-list check: `43 Open`
+- Latest GitHub Release: `v2026.5.20.6`
+- Ledger: `docs/maintenance/PUBLIC_GITHUB_STATE_RECONCILIATION_2026_05_21.md`
+
+Decision: open PR count increased from 33 to 43 because new security/runtime PRs #204 through #213 were opened after the prior dependency drain. This is not a regression in the prior close accounting; it is new incoming backlog.
+
+PR #195 and PR #203 current body scans found no four-question-mark mojibake sequence, no replacement characters, and no specified hidden/bidirectional Unicode controls. PR #203 had a post-merge Codex review note about documentation grouping consistency; this ledger keeps #117, #119, and #127 closed as superseded and routes future web dependency work to fresh lanes only if new alerts appear.
+
+## 2026-05-21 Security Runtime Replacement Pass
+
+- Follow-up branch: `codex/security-runtime-pr-validation-pass`
+- Current-main replacement PR: #216
+- Replacement merge commit: `f26211b89cfc30c182ea7d7c8e8435f8f67cd457`
+- GitHub source of truth after close pass: `gh pr list --state open --limit 100 --json number --jq length`
+- Open PR count before replacement close pass: 43.
+- Open PR count after replacement close pass: 36.
+- Ledger: `docs/maintenance/SECURITY_RUNTIME_PR_VALIDATION_2026_05_21.md`
+
+Decision: PR #216 landed the current-main v7.7-scoped replacements for the safe subset of the new security/runtime backlog. PRs #204, #208, #209, #210, #211, #212, and #213 were closed as superseded or duplicate with close comments citing #216, merge commit `f26211b89cfc30c182ea7d7c8e8435f8f67cd457`, and the relevant replacement tests.
+
+A subset of security PRs, including #205, #206, and #207, remains open for follow-up security review. Additional issue-class details are intentionally tracked outside this public ledger.
+
+## 2026-05-21 Current PR / Branch Reality Recheck
+
+- Follow-up branch: `codex/current-pr-branch-reality-ledger`
+- Current baseline: public `main` after PR #218.
+- `origin/main`: `e64299142bb68a731245b03678e8531dc18b36a9`
+- GitHub source of truth: `gh pr list --state open --limit 100 --json number --jq length`
+- Verified open PR count: 36.
+- Latest GitHub Release observed: `v2026.5.20.6`.
+- README markdown checkpoint link observed: `docs/releases/v2026.5.20.14-tools-mcp-safe-subset-contract-checkpoint.md`.
+- Ledger: `docs/maintenance/CURRENT_PR_BRANCH_REALITY_2026_05_21.md`
+
+Decision: the current open PR count is not treated as a standalone problem. The remaining count is explained by currently open security/runtime PRs, dependency PRs, and owner/product-boundary lanes. PRs #205, #206, and #207 remain open for fresh current-main security review. No PR is closed by this recheck.
+
+Root reality: `remove_legacy.ps1` is no longer root-visible after PR #218 and is present at `tools/maintenance/remove_legacy.ps1`. `config.yaml`, `main.py`, launch scripts, compose files, and `reference_clawdbot` remain root-visible and must stay governed by the root inventory and future reference-validated cleanup lanes.
+
+## Classification Rules Used
+
+| class | meaning |
+|---|---|
+| `KEEP_SECURITY_REVIEW` | Security-sensitive PR. Do not close or merge without a fresh threat review and current-main rework. |
+| `KEEP_CORRECTNESS_REVIEW` | Potential correctness/product value. Needs refresh and focused tests. |
+| `KEEP_DEPENDENCY_UPDATE` | Dependency/update PR. Needs dependency lane review and CI/security context. |
+| `CLOSE_SUPERSEDED` | Clearly replaced by landed work and safe to close with evidence. |
+| `CLOSE_DUPLICATE` | Clearly duplicate and safe to close. Security/legal duplicates were not closed because impact is uncertain. |
+| `CLOSE_STALE_UNSAFE` | Clearly stale and unsafe to merge. None closed without deeper owner review. |
+| `REPLACE_WITH_V7_7_LANE` | Old branch may contain ideas, but should be replaced by a fresh v7.7 lane rather than merged. |
+| `NEEDS_OWNER_DECISION` | Product/legal/repo-boundary judgment needed. |
+| `UNKNOWN_DO_NOT_TOUCH` | Not enough evidence to act safely. Avoided where possible. |
+
+## Open PR Ledger
+
+| PR | title | source / branch | age | state | merge status | class | v7.7 lane alignment | recommendation | evidence | risk / next step |
+|---|---|---|---:|---|---|---|---|---|---|---|
+| #156 | build(deps): bump softprops/action-gh-release from 1 to 3 | dependabot / `dependabot/github_actions/softprops/action-gh-release-3` | 19d | open | BEHIND | KEEP_DEPENDENCY_UPDATE | release hygiene | Keep for dependency lane | `.github/workflows/release.yml`, 1-line action bump | Rebase and validate release workflow before merge. |
+| #152 | build(deps): update numpy requirement | dependabot / `dependabot/pip/numpy-gte-2.4.4-and-lt-3.0` | 23d | open | BEHIND | KEEP_DEPENDENCY_UPDATE | core/runtime dependency | Keep for dependency lane | `requirements.txt`, major numpy range jump | High compatibility risk; run full numeric/media tests first. |
+| #151 | build(deps): update discord-py requirement | dependabot / `dependabot/pip/discord-py-gte-2.7.1-and-lt-3.0` | 23d | open | BEHIND | KEEP_DEPENDENCY_UPDATE | Discord/private runtime boundary | Keep for dependency lane | `requirements.txt`, Discord dependency | Do not merge into public checkpoint without Discord gateway boundary review. |
+| #150 | build(deps): update transformers requirement | dependabot / `dependabot/pip/transformers-gte-5.6.2` | 23d | open | BEHIND | KEEP_DEPENDENCY_UPDATE | model/provider dependency | Keep for dependency lane | `requirements.txt`, major transformers update | High provider/runtime compatibility risk. |
+| #148 | build(deps): update pytesseract requirement | dependabot / `dependabot/pip/pytesseract-gte-0.3.13-and-lt-1.0` | 23d | open | BEHIND | KEEP_DEPENDENCY_UPDATE | tool/media dependency | Keep for dependency lane | `requirements.txt`, 1-line bump | Needs targeted OCR/media smoke before merge. |
+| #147 | build(deps): update soundfile requirement | dependabot / `dependabot/pip/soundfile-gte-0.13.1` | 23d | open | BEHIND | KEEP_DEPENDENCY_UPDATE | media/runtime dependency | Keep for dependency lane | `requirements.txt`, 1-line bump | Needs audio smoke, not part of current public Core lane. |
+| #146 | build(deps): update aiohttp requirement | dependabot / `dependabot/pip/aiohttp-gte-3.13.5-and-lt-4.0` | 23d | open | BEHIND | KEEP_DEPENDENCY_UPDATE | API/web runtime dependency | Keep for dependency lane | `core/requirements.txt`, `requirements.txt` | Network stack dependency; run Core API tests before any merge. |
+| #145 | build(deps): update pynacl requirement | dependabot / `dependabot/pip/pynacl-gte-1.6.2-and-lt-2.0` | 23d | open | BEHIND | KEEP_DEPENDENCY_UPDATE | Discord/crypto dependency | Keep for dependency lane | `requirements.txt` | Boundary/security dependency; not a batch merge. |
+| #143 | build(deps): bump chromadb | dependabot / `dependabot/pip/chromadb-1.5.8` | 30d | open | BEHIND | KEEP_DEPENDENCY_UPDATE | optional memory lane | Keep for memory/dependency lane | `requirements-optional-memory.txt` | Memory is not complete; do not merge without memory policy decision. |
+| #142 | fix(core): restore require_core_access on main v1 routers | owner / `codex/fix-core-api-access-vulnerability` | 35d | closed | CLOSED_SUPERSEDED | CLOSE_SUPERSEDED | API security | Closed with evidence comment | Replaced by PR #186 plus `tests/test_core_api_access_security.py`; current main protects sensitive routes and intentionally keeps ticket download outside the core token dependency | Stale PR should not merge because it would restore a broad files-router dependency model that conflicts with the current ticket-based download boundary. |
+| #136 | security-sensitive PR (redacted) | owner / internal branch redacted | 42d | closed | CLOSED_DUPLICATE | CLOSE_DUPLICATE | security lane | Closed as duplicate | evidence redacted | Security details intentionally withheld from public docs. |
+| #135 | security-sensitive PR (redacted) | owner / internal branch redacted | 42d | open | BEHIND | KEEP_SECURITY_REVIEW | security lane | Keep under restricted review | evidence redacted | Security details intentionally withheld from public docs. |
+| #134 | prevent double interaction defer | owner / `codex/fix-double-defer-in-auto-style-generation` | 42d | open | BEHIND | KEEP_CORRECTNESS_REVIEW | image generation UX | Keep for correctness lane | `src/views/image_gen.py` | Old runtime surface; refresh and test before merge. |
+| #133 | security-sensitive PR (redacted) | owner / internal branch redacted | 42d | open | BEHIND | KEEP_SECURITY_REVIEW | security lane | Keep under restricted review | evidence redacted | Security details intentionally withheld from public docs. |
+| #132 | security-sensitive PR (redacted) | owner / internal branch redacted | 42d | open | BEHIND | KEEP_SECURITY_REVIEW | security lane | Keep under restricted review | evidence redacted | Security details intentionally withheld from public docs. |
+| #131 | security-sensitive PR (redacted) | owner / internal branch redacted | 42d | open | BEHIND | KEEP_SECURITY_REVIEW | security lane | Keep under restricted review | evidence redacted | Security details intentionally withheld from public docs. |
+| #130 | security-sensitive PR (redacted) | owner / internal branch redacted | 42d | closed | CLOSED_DUPLICATE | CLOSE_DUPLICATE | security lane | Closed as duplicate | evidence redacted | Security details intentionally withheld from public docs. |
+| #129 | security-sensitive PR (redacted) | owner / internal branch redacted | 42d | open | BEHIND | KEEP_SECURITY_REVIEW | security lane | Keep under restricted review | evidence redacted | Security details intentionally withheld from public docs. |
+| #128 | security-sensitive PR (redacted) | owner / internal branch redacted | 42d | open | BEHIND | KEEP_SECURITY_REVIEW | security lane | Keep under restricted review | evidence redacted | Security details intentionally withheld from public docs. |
+| #127 | lodash in `/clients/web` | dependabot / `dependabot/npm_and_yarn/clients/web/lodash-4.18.1` | 43d | closed | CLOSED_SUPERSEDED | CLOSE_SUPERSEDED | temporary Web Chat MVP | Closed with evidence comment | Current `clients/web/package-lock.json` no longer contains a `node_modules/lodash` package entry; Dependabot alerts are 0 | Recreate only if `lodash` reappears in the active web lockfile. |
+| #121 | restore managed-cloud mvp surface | owner / `codex/managed-cloud-mvp-phase1` | 49d | draft | DIRTY | REPLACE_WITH_V7_7_LANE | official cloud/Web | Replace, do not merge | 42 files, 13k additions, broad Web/runtime docs | Too broad and old; use v7.7 contract/control-plane lanes instead. |
+| #119 | picomatch in `/clients/web` | dependabot / `dependabot/npm_and_yarn/clients/web/multi-bf05dc1ecf` | 55d | closed | CLOSED_SUPERSEDED | CLOSE_SUPERSEDED | temporary Web Chat MVP | Closed with evidence comment | Current `clients/web/package-lock.json` contains `picomatch` 2.3.2 and nested `picomatch` 4.0.4; Dependabot alerts are 0 | Recreate only if a new web alert appears. |
+| #117 | flatted in `/clients/web` | dependabot / `dependabot/npm_and_yarn/clients/web/flatted-3.4.2` | 60d | closed | CLOSED_SUPERSEDED | CLOSE_SUPERSEDED | temporary Web Chat MVP | Closed with evidence comment | Current `clients/web/package-lock.json` contains `flatted` 3.4.2; Dependabot alerts are 0 | Recreate only if a new web alert appears. |
+| #111 | rename public-facing ORA branding | owner / `codex/public-ora-branding-cleanup` | 70d | open | DIRTY | REPLACE_WITH_V7_7_LANE | public presentation | Replace with current docs/root policy lane | touches env, workflows, clients, config, core | Much of presentation work superseded; broad dirty branch still may contain ideas. |
+| #108 | license/IP valuation report | owner / `codex/evaluate-intellectual-property-value-wmiu77` | 73d | open | DIRTY | NEEDS_OWNER_DECISION | legal/IP | Keep for owner decision | README/license/IP valuation docs | Legal/license change cannot be closed or merged by maintenance triage. |
+| #107 | license/IP valuation report | owner / `codex/evaluate-intellectual-property-value` | 73d | draft | DIRTY | NEEDS_OWNER_DECISION | legal/IP | Keep for owner decision | Similar to #108 | Possible duplicate, but legal decision belongs to owner. |
+| #82 | structured image overview output | owner / `codex/public-generic-image-structured-output` | 73d | open | BEHIND | KEEP_CORRECTNESS_REVIEW | multimodal contract | Keep, refresh later | Core brain/context tests | May hold useful contract behavior; needs current-main review. |
+| #81 | OpenAI CUA sidecar guide | owner / `feat/cua-sidecar-adoption` | 73d | open | DIRTY | NEEDS_OWNER_DECISION | Web/tools/provider-specific docs | Keep for owner decision or replace | Web CUA page and OpenAI guide | Provider-specific lane; avoid provider lock-in claim. |
+| #79 | broaden generic image explanations | owner / `codex/public-image-explanation-broad-summary` | 74d | open | CLEAN on non-main base | KEEP_CORRECTNESS_REVIEW | multimodal contract | Keep, rebase only if still needed | base is `codex/public-multimodal-followup-carryover` | Stacked PR; cannot merge to main as-is. |
+| #78 | preserve recent image context | owner / `codex/public-multimodal-followup-carryover` | 74d | open | DIRTY | KEEP_CORRECTNESS_REVIEW | multimodal continuity | Keep, refresh later | Core brain/context and tests | Dirty and old; evaluate after current conversation/session contracts. |
+| #74 | 3-mode node split migration ledger | owner / `codex/node-3mode-planning-ledger` | 74d | open | BEHIND | REPLACE_WITH_V7_7_LANE | repo split / same experience | Replace with current v7.7 docs | docs-only 3-mode migration ledger | Likely superseded by current contracts; keep until owner confirms. |
+| #67 | security-sensitive PR (redacted) | owner / internal branch redacted | 74d | closed | CLOSED_SUPERSEDED | CLOSE_SUPERSEDED | security lane | Closed with evidence comment | evidence redacted | Security details intentionally withheld from public docs. |
+| #60 | security-sensitive PR (redacted) | owner / internal branch redacted | 74d | open | DIRTY | KEEP_SECURITY_REVIEW | security lane | Keep under restricted review | evidence redacted | Security details intentionally withheld from public docs. |
+| #34 | git-auto-commit-action from 5 to 7 | dependabot / `dependabot/github_actions/stefanzweifel/git-auto-commit-action-7` | 80d | open | BEHIND | KEEP_DEPENDENCY_UPDATE | CI/release hygiene | Keep for dependency lane | `.github/workflows/diagrams.yml` | Action may affect automation; test workflow before merge. |
+| #32 | band1/band2 skeleton | owner / `feat/router-band1-band2-skeleton` | 81d | open | BEHIND | REPLACE_WITH_V7_7_LANE | routing/capability boundary | Replace with v7.7 capability boundary lane | route policy and chat handler files | Old runtime routing branch; do not merge into public Core without contract plan. |
+| #26 | Cloudflare DNS/tunnel + redirect policy template | owner / `feat/domain-cloudflare-plan` | 83d | open | BEHIND | NEEDS_OWNER_DECISION | deploy/domain docs | Keep for owner/control-plane decision | domain docs | Deployment/domain lane is outside current public checkpoint. |
+| #25 | route_band v1 + model_plan skeleton | owner / `feat/route-band-v1` | 83d | open | DIRTY | REPLACE_WITH_V7_7_LANE | routing/model planning | Replace, do not merge | touches `src/cogs/ora.py` and broad runtime files | Forbidden surface for this goal; create fresh contract lane instead. |
+| #18 | pycountry requirement | dependabot / `dependabot/pip/pycountry-gte-22.3-and-lt-27.0` | 86d | open | BEHIND | KEEP_DEPENDENCY_UPDATE | dependency hygiene | Keep for dependency lane | `requirements.txt` | Low-looking bump but stale; refresh before merge. |
+| #7 | setup-python from 4 to 6 | dependabot / `dependabot/github_actions/actions/setup-python-6` | 121d | open | BEHIND | KEEP_DEPENDENCY_UPDATE | CI hygiene | Keep for dependency lane | workflow files | Could be replaced by fresh Dependabot; verify before close. |
+| #6 | checkout from 4 to 6 | dependabot / `dependabot/github_actions/actions/checkout-6` | 121d | open | BEHIND | KEEP_DEPENDENCY_UPDATE | CI hygiene | Keep for dependency lane | workflow files | Could be replaced by fresh Dependabot; verify before close. |
+
+## PR Closure Follow-Up
+
+PR #142 is now safe to close as superseded by current main. Other stale security PRs remain open.
+
+Reason: all other apparent duplicates or stale branches either touch security-sensitive code, legal/license decisions, broad product surfaces, dependency state, or owner judgment. Closing them without deeper inspection would violate the safe-close rules.
+
+## Check Status Snapshot
+
+The following GitHub check rollups were read after the open PR list. A passing historical check does not make a stale/behind/dirty PR merge-ready; each PR still needs current-main validation before action.
+
+| PR | check status |
+|---|---|
+| #156 | `core-test=SUCCESS`; `build-and-test (3.11)=SUCCESS` |
+| #152 | `core-test=SUCCESS`; `build-and-test (3.11)=SUCCESS` |
+| #151 | `core-test=SUCCESS`; `build-and-test (3.11)=SUCCESS` |
+| #150 | `core-test=SUCCESS`; `build-and-test (3.11)=SUCCESS` |
+| #148 | `core-test=SUCCESS`; `build-and-test (3.11)=SUCCESS` |
+| #147 | `core-test=SUCCESS`; `build-and-test (3.11)=SUCCESS` |
+| #146 | `core-test=SUCCESS`; `build-and-test (3.11)=SUCCESS` |
+| #145 | `core-test=SUCCESS`; `build-and-test (3.11)=FAILURE` |
+| #143 | `core-test=SUCCESS`; `build-and-test (3.11)=SUCCESS` |
+| #142 | `core-test=SUCCESS`; `build-and-test (3.11)=SUCCESS` |
+| #136 | `core-test=SUCCESS`; `build-and-test (3.11)=SUCCESS` |
+| #135 | `core-test=SUCCESS`; `build-and-test (3.11)=SUCCESS` |
+| #134 | `core-test=SUCCESS`; `build-and-test (3.11)=SUCCESS` |
+| #133 | `core-test=SUCCESS`; `build-and-test (3.11)=SUCCESS` |
+| #132 | `core-test=SUCCESS`; `build-and-test (3.11)=SUCCESS` |
+| #131 | `core-test=SUCCESS`; `build-and-test (3.11)=SUCCESS` |
+| #130 | `core-test=SUCCESS`; `build-and-test (3.11)=SUCCESS` |
+| #129 | `core-test=SUCCESS`; `build-and-test (3.11)=SUCCESS` |
+| #128 | `core-test=SUCCESS`; `build-and-test (3.11)=SUCCESS` |
+| #127 | `core-test=SUCCESS`; `build-and-test (3.11)=SUCCESS` |
+| #121 | none reported |
+| #119 | `build-and-test (3.11)=SUCCESS` |
+| #117 | `build-and-test (3.11)=SUCCESS` |
+| #111 | `core-test=SUCCESS`; `build-and-test (3.11)=SUCCESS` |
+| #108 | `build-and-test (3.11)=SUCCESS` |
+| #107 | `build-and-test (3.11)=SUCCESS` |
+| #82 | `core-test=SUCCESS`; `build-and-test (3.11)=SUCCESS` |
+| #81 | none reported |
+| #79 | none reported |
+| #78 | `core-test=SUCCESS`; `build-and-test (3.11)=SUCCESS` |
+| #74 | `build-and-test (3.11)=SUCCESS` |
+| #67 | `core-test=SUCCESS`; `build-and-test (3.11)=SUCCESS` |
+| #60 | `build-and-test (3.11)=SUCCESS` |
+| #34 | `build-and-test (3.11)=SUCCESS` |
+| #32 | `build-and-test (3.11)=SUCCESS` |
+| #26 | `build-and-test (3.11)=SUCCESS` |
+| #25 | `core-test=SUCCESS`; `build-and-test (3.11)=SUCCESS` |
+| #18 | `build-and-test (3.11)=SUCCESS` |
+| #7 | `build-and-test (3.11)=FAILURE` |
+| #6 | `generate-diagrams=FAILURE`; `build-and-test (3.11)=FAILURE` |
+
+## Top 10 Next PR Decisions
+
+1. #205 / #206 / #207: complete follow-up security review in a restricted lane and land a current-main-safe replacement if still reproducible.
+2. Remaining open security PRs: prioritize by verified exploitability and boundary impact, then land minimal scoped replacements.
+3. Security-sensitive review item; details redacted in public docs.
+4. Security-sensitive review item; details redacted in public docs.
+5. Security-sensitive review item; details redacted in public docs.
+6. Security-sensitive review item; details redacted in public docs.
+7. Security-sensitive review item; details redacted in public docs.
+8. Security-sensitive review item; details redacted in public docs.
+9. Security-sensitive review item; details redacted in public docs.
+10. #156 / #7 / #6 / #34: refresh GitHub Actions dependency lane with workflow validation.
+
+## Next Safe Actions
+
+- Do not merge any open PR directly from this backlog.
+- For security PRs, create fresh current-main patches only after confirming the vulnerable surface still exists.
+- For dependency PRs, prefer fresh Dependabot/rebase lanes and run the relevant test/build matrix.
+- For broad product branches, replace with v7.7-scoped lanes instead of rebasing old work wholesale.
+- For legal/license/IP PRs, wait for owner decision.
+
+## Non-Claims
+
+This triage does not claim production readiness, full security remediation, official cloud completion, hybrid completion, final Web UI completion, persistent memory completion, Discord gateway completion, or `src/cogs/ora.py` resolution.

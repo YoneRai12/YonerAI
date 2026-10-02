@@ -1,0 +1,508 @@
+{
+  "schema_version": "yonerai.status.monitor.v1",
+  "generated_at": "2026-06-01T00:00:00+09:00",
+  "locale_default": "ja",
+  "range": {
+    "start": "2026-05-25",
+    "days": 7
+  },
+  "contract_note": {
+    "ja": "これは内部監視結果からstatus sourceを作るための表示テストです。本番監視データではありません。",
+    "en": "This is display-test data for generating a status source from internal monitor results. It is not production monitoring data."
+  },
+  "states": {
+    "operational": {
+      "color": "#26c6a3",
+      "label": {
+        "ja": "稼働中",
+        "en": "Operational"
+      }
+    },
+    "degraded": {
+      "color": "#ffbf2f",
+      "label": {
+        "ja": "性能低下",
+        "en": "Degraded"
+      }
+    },
+    "maintenance": {
+      "color": "#ff8a34",
+      "label": {
+        "ja": "メンテナンス",
+        "en": "Maintenance"
+      }
+    },
+    "major_outage": {
+      "color": "#ef4e45",
+      "label": {
+        "ja": "重大障害",
+        "en": "Major outage"
+      }
+    },
+    "not_started": {
+      "color": "#aeb6c2",
+      "label": {
+        "ja": "準備中",
+        "en": "Not started"
+      }
+    }
+  },
+  "categories": [
+    {
+      "id": "public-surfaces",
+      "name": {
+        "ja": "公開サーフェス",
+        "en": "Public surfaces"
+      },
+      "components": [
+        {
+          "id": "website",
+          "name": {
+            "ja": "Website",
+            "en": "Website"
+          },
+          "fact": {
+            "ja": "内部監視結果からsourceへ変換されるcomponent例です。",
+            "en": "Example component converted from internal monitor results."
+          },
+          "monitoring": {
+            "ja": "mock monitor",
+            "en": "mock monitor"
+          },
+          "claim": {
+            "ja": "本番運用は未主張",
+            "en": "No production operation claim"
+          },
+          "default_state": "operational",
+          "default_message": {
+            "ja": "内部監視結果では正常です。",
+            "en": "The internal monitor result is healthy."
+          },
+          "results": [
+            {
+              "date": "2026-05-27",
+              "state": "degraded",
+              "message": {
+                "ja": "応答時間がしきい値を超えた想定の監視結果です。",
+                "en": "Example monitor result where latency exceeded the threshold."
+              },
+              "detail": {
+                "summary": {
+                  "ja": [
+                    "この日のバーはmonitor resultのstateから生成されます。",
+                    "色はstates.degraded.colorから補完されます。"
+                  ],
+                  "en": [
+                    "This day bar is generated from monitor result state.",
+                    "The color is filled from states.degraded.color."
+                  ]
+                }
+              },
+              "incident_id": "monitor-example-degraded"
+            },
+            {
+              "date": "2026-05-29",
+              "state": "major_outage",
+              "message": {
+                "ja": "HTTP 5xxが増加した想定の監視結果です。",
+                "en": "Example monitor result where HTTP 5xx increased."
+              },
+              "incident_id": "monitor-example-major"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "core-apis",
+      "name": {
+        "ja": "コアAPI",
+        "en": "Core APIs"
+      },
+      "components": [
+        {
+          "id": "api",
+          "name": {
+            "ja": "API",
+            "en": "API"
+          },
+          "fact": {
+            "ja": "API componentの生成例です。",
+            "en": "Generated API component example."
+          },
+          "monitoring": {
+            "ja": "mock monitor",
+            "en": "mock monitor"
+          },
+          "claim": {
+            "ja": "本番運用は未主張",
+            "en": "No production operation claim"
+          },
+          "default_state": "not_started",
+          "default_message": {
+            "ja": "まだ公開監視は接続されていません。",
+            "en": "Public monitoring is not connected yet."
+          },
+          "results": [
+            {
+              "date": "2026-05-30",
+              "state": "maintenance",
+              "message": {
+                "ja": "メンテナンス表示の生成テストです。",
+                "en": "Generated maintenance display test."
+              },
+              "incident_id": "monitor-example-maintenance"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "incidents": [
+    {
+      "id": "monitor-example-degraded",
+      "state": "degraded",
+      "status": "resolved",
+      "date": "2026-05-27",
+      "title": {
+        "ja": "monitor例: Website 性能低下",
+        "en": "Monitor example: Website degraded"
+      },
+      "meta": [
+        {
+          "ja": "Resolved",
+          "en": "Resolved"
+        },
+        {
+          "ja": "Degraded",
+          "en": "Degraded"
+        },
+        {
+          "ja": "Display test",
+          "en": "Display test"
+        }
+      ],
+      "summary": {
+        "ja": [
+          "これは内部監視結果から生成される性能低下詳細の例です。",
+          "実際のYonerAI監視データではありません。"
+        ],
+        "en": [
+          "This is an example degraded incident detail generated from internal monitor results.",
+          "It is not real YonerAI monitoring data."
+        ]
+      },
+      "footer": {
+        "ja": "2026年5月27日 ・ すべての更新を見る",
+        "en": "2026-05-27 ・ View all updates"
+      },
+      "affected": {
+        "name": {
+          "ja": "Website",
+          "en": "Website"
+        },
+        "count": {
+          "ja": "1件の影響コンポーネント",
+          "en": "1 affected component"
+        },
+        "window": {
+          "start_label": "2026年5月27日 08:05",
+          "end_label": "08:40"
+        },
+        "segments": [
+          {
+            "state": "operational",
+            "percent": 15,
+            "tooltip": {
+              "ja": "正常区間",
+              "en": "Operational window"
+            }
+          },
+          {
+            "state": "degraded",
+            "percent": 70,
+            "tooltip": {
+              "ja": "性能低下: 08:05 -> 08:40",
+              "en": "Degraded: 08:05 -> 08:40"
+            }
+          },
+          {
+            "state": "operational",
+            "percent": 15,
+            "tooltip": {
+              "ja": "復旧済み区間",
+              "en": "Recovered window"
+            }
+          }
+        ],
+        "components": [
+          {
+            "category_id": "public-surfaces",
+            "component_id": "website",
+            "name": {
+              "ja": "Website",
+              "en": "Website"
+            },
+            "state": "degraded",
+            "date": "2026-05-27",
+            "end_date": "2026-05-27"
+          }
+        ]
+      },
+      "updates": [
+        {
+          "status": "resolved",
+          "label": {
+            "ja": "解決済み",
+            "en": "Resolved"
+          },
+          "body": {
+            "ja": [
+              "monitor例の性能低下は解決済みとしてマークされました。"
+            ],
+            "en": [
+              "The monitor example degraded incident was marked as resolved."
+            ]
+          },
+          "utc": "2026-05-27 11:44 UTC",
+          "jst": "2026-05-27 20:44 JST"
+        },
+        {
+          "status": "investigating",
+          "label": {
+            "ja": "調査中",
+            "en": "Investigating"
+          },
+          "body": {
+            "ja": [
+              "対象コンポーネントで応答劣化の表示テストを開始しました。"
+            ],
+            "en": [
+              "A response-degradation display test was started for the target component."
+            ]
+          },
+          "utc": "2026-05-27 10:39 UTC",
+          "jst": "2026-05-27 19:39 JST"
+        }
+      ]
+    },
+    {
+      "id": "monitor-example-major",
+      "state": "major_outage",
+      "status": "resolved",
+      "date": "2026-05-29",
+      "title": {
+        "ja": "monitor例: Website 重大障害",
+        "en": "Monitor example: Website major outage"
+      },
+      "meta": [
+        {
+          "ja": "Resolved",
+          "en": "Resolved"
+        },
+        {
+          "ja": "Major outage",
+          "en": "Major outage"
+        },
+        {
+          "ja": "Display test",
+          "en": "Display test"
+        }
+      ],
+      "summary": {
+        "ja": [
+          "これは内部監視結果から生成される重大障害詳細の例です。",
+          "実際のYonerAI監視データではありません。"
+        ],
+        "en": [
+          "This is an example incident detail generated from internal monitor results.",
+          "It is not real YonerAI monitoring data."
+        ]
+      },
+      "footer": {
+        "ja": "2026年5月29日 ・ すべての更新を見る",
+        "en": "2026-05-29 ・ View all updates"
+      },
+      "affected": {
+        "name": {
+          "ja": "Website",
+          "en": "Website"
+        },
+        "count": {
+          "ja": "1件の影響コンポーネント",
+          "en": "1 affected component"
+        },
+        "window": {
+          "start_label": "2026年5月29日 08:05",
+          "end_label": "08:40"
+        },
+        "segments": [
+          {
+            "state": "operational",
+            "percent": 10,
+            "tooltip": {
+              "ja": "正常区間",
+              "en": "Operational window"
+            }
+          },
+          {
+            "state": "major_outage",
+            "percent": 80,
+            "tooltip": {
+              "ja": "重大障害: 08:05 -> 08:40",
+              "en": "Major outage: 08:05 -> 08:40"
+            }
+          },
+          {
+            "state": "operational",
+            "percent": 10,
+            "tooltip": {
+              "ja": "復旧済み区間",
+              "en": "Recovered window"
+            }
+          }
+        ],
+        "components": [
+          {
+            "category_id": "public-surfaces",
+            "component_id": "website",
+            "name": {
+              "ja": "Website",
+              "en": "Website"
+            },
+            "state": "major_outage",
+            "date": "2026-05-29",
+            "end_date": "2026-05-29"
+          }
+        ]
+      },
+      "updates": [
+        {
+          "status": "resolved",
+          "label": {
+            "ja": "解決済み",
+            "en": "Resolved"
+          },
+          "body": {
+            "ja": [
+              "monitor例の障害は解決済みとしてマークされました。"
+            ],
+            "en": [
+              "The monitor example incident was marked as resolved."
+            ]
+          },
+          "utc": "2026-05-29 11:44 UTC",
+          "jst": "2026-05-29 20:44 JST"
+        }
+      ]
+    },
+    {
+      "id": "monitor-example-maintenance",
+      "state": "maintenance",
+      "status": "resolved",
+      "date": "2026-05-30",
+      "title": {
+        "ja": "monitor例: API メンテナンス",
+        "en": "Monitor example: API maintenance"
+      },
+      "meta": [
+        {
+          "ja": "Resolved",
+          "en": "Resolved"
+        },
+        {
+          "ja": "Maintenance",
+          "en": "Maintenance"
+        },
+        {
+          "ja": "Display test",
+          "en": "Display test"
+        }
+      ],
+      "summary": {
+        "ja": [
+          "これは内部監視結果から生成されるメンテナンス詳細の例です。"
+        ],
+        "en": [
+          "This is an example maintenance detail generated from internal monitor results."
+        ]
+      },
+      "footer": {
+        "ja": "2026年5月30日 ・ すべての更新を見る",
+        "en": "2026-05-30 ・ View all updates"
+      },
+      "affected": {
+        "name": {
+          "ja": "API",
+          "en": "API"
+        },
+        "count": {
+          "ja": "1件の影響コンポーネント",
+          "en": "1 affected component"
+        },
+        "window": {
+          "start_label": "2026年5月30日 09:00",
+          "end_label": "10:00"
+        },
+        "segments": [
+          {
+            "state": "operational",
+            "percent": 20,
+            "tooltip": {
+              "ja": "正常区間",
+              "en": "Operational window"
+            }
+          },
+          {
+            "state": "maintenance",
+            "percent": 60,
+            "tooltip": {
+              "ja": "メンテナンス: 09:00 -> 10:00",
+              "en": "Maintenance: 09:00 -> 10:00"
+            }
+          },
+          {
+            "state": "operational",
+            "percent": 20,
+            "tooltip": {
+              "ja": "完了後区間",
+              "en": "After maintenance"
+            }
+          }
+        ],
+        "components": [
+          {
+            "category_id": "core-apis",
+            "component_id": "api",
+            "name": {
+              "ja": "API",
+              "en": "API"
+            },
+            "state": "maintenance",
+            "date": "2026-05-30",
+            "end_date": "2026-05-30"
+          }
+        ]
+      },
+      "updates": [
+        {
+          "status": "completed",
+          "label": {
+            "ja": "完了",
+            "en": "Completed"
+          },
+          "body": {
+            "ja": [
+              "メンテナンス表示テストは完了としてマークされました。"
+            ],
+            "en": [
+              "The maintenance display test was marked as completed."
+            ]
+          },
+          "utc": "2026-05-30 01:00 UTC",
+          "jst": "2026-05-30 10:00 JST"
+        }
+      ]
+    }
+  ]
+}

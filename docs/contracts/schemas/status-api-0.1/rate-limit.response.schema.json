@@ -1,0 +1,46 @@
+{
+  "$id": "https://yonerai.com/contracts/status-api-0.1/rate-limit.response.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "actions_not_performed": {
+      "type": "array"
+    },
+    "components": {
+      "type": "array"
+    },
+    "incidents": {
+      "type": "array"
+    },
+    "install": {
+      "type": "object"
+    },
+    "ok": {
+      "const": true
+    },
+    "releases": {
+      "type": "object"
+    },
+    "schema_version": {
+      "const": "yonerai-status-api/v0.1"
+    },
+    "status": {
+      "enum": [
+        "operational",
+        "degraded",
+        "partial_outage",
+        "major_outage",
+        "maintenance",
+        "contract_only",
+        "not_production"
+      ]
+    }
+  },
+  "required": [
+    "schema_version",
+    "ok",
+    "headers",
+    "quota_exceeded_response"
+  ],
+  "type": "object"
+}

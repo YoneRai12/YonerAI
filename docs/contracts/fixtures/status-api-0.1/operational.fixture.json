@@ -1,0 +1,273 @@
+{
+  "actions_not_performed": [
+    "no production AWS request",
+    "no production Oracle call",
+    "no official cloud runtime execution",
+    "no live Discord call",
+    "no production Google login",
+    "no private runtime inventory output",
+    "no provider key output",
+    "no OpenAI shared traffic",
+    "no private/local content upload",
+    "no forced update",
+    "no auto install"
+  ],
+  "component_count": 12,
+  "components": [
+    {
+      "component_id": "cli_release",
+      "docs_url": "https://yonerai.com/install",
+      "name": "CLI release",
+      "next_action": "no action required",
+      "private_runtime_details_included": false,
+      "release_channel": "stable",
+      "source": {
+        "provider": "yonerai",
+        "public_safe": true,
+        "target": "public-status-contract",
+        "type": "fixture"
+      },
+      "status": "operational",
+      "user_message_en": "CLI Local Runtime public release state.",
+      "user_message_ja": "CLI Local Runtime の公開リリース情報です。"
+    },
+    {
+      "component_id": "install",
+      "docs_url": "https://yonerai.com/install",
+      "name": "Install",
+      "next_action": "irm https://install.yonerai.com | iex",
+      "private_runtime_details_included": false,
+      "release_channel": "stable",
+      "source": {
+        "provider": "yonerai",
+        "public_safe": true,
+        "target": "public-status-contract",
+        "type": "fixture"
+      },
+      "status": "operational",
+      "user_message_en": "Install path uses GitHub Release assets as source of truth.",
+      "user_message_ja": "GitHub Release assets を正本にした install 導線です。"
+    },
+    {
+      "component_id": "update",
+      "docs_url": "https://yonerai.com/install",
+      "name": "Update",
+      "next_action": "yonerai update check --pretty",
+      "private_runtime_details_included": false,
+      "release_channel": "stable",
+      "source": {
+        "provider": "yonerai",
+        "public_safe": true,
+        "target": "public-status-contract",
+        "type": "fixture"
+      },
+      "status": "operational",
+      "user_message_en": "Update check and plan path without auto-apply.",
+      "user_message_ja": "自動適用なしの update check / plan 導線です。"
+    },
+    {
+      "component_id": "official_api",
+      "docs_url": "https://yonerai.com/status",
+      "name": "Official API",
+      "next_action": "yonerai api status --pretty --lang ja",
+      "private_runtime_details_included": false,
+      "release_channel": "alpha",
+      "source": {
+        "provider": "yonerai",
+        "public_safe": true,
+        "target": "public-status-contract",
+        "type": "fixture"
+      },
+      "status": "contract_only",
+      "user_message_en": "Official API is contract/fixture only in the public repo.",
+      "user_message_ja": "公式APIは public repo では契約/fixture のみです。"
+    },
+    {
+      "component_id": "oracle",
+      "docs_url": "https://yonerai.com/status",
+      "name": "Oracle",
+      "next_action": "no action required",
+      "private_runtime_details_included": false,
+      "release_channel": "alpha",
+      "source": {
+        "provider": "yonerai",
+        "public_safe": true,
+        "target": "public-status-contract",
+        "type": "fixture"
+      },
+      "status": "not_production",
+      "user_message_en": "Production Oracle is not included in the public repo.",
+      "user_message_ja": "production Oracle は public repo に含みません。"
+    },
+    {
+      "component_id": "google_auth",
+      "docs_url": "https://yonerai.com/status",
+      "name": "Google auth",
+      "next_action": "yonerai auth google login --dry-run --pretty --lang ja",
+      "private_runtime_details_included": false,
+      "release_channel": "alpha",
+      "source": {
+        "provider": "yonerai",
+        "public_safe": true,
+        "target": "public-status-contract",
+        "type": "fixture"
+      },
+      "status": "contract_only",
+      "user_message_en": "Google auth is dry-run contract only.",
+      "user_message_ja": "Google auth は dry-run 契約のみです。"
+    },
+    {
+      "component_id": "shared_traffic",
+      "docs_url": "https://yonerai.com/status",
+      "name": "Shared traffic",
+      "next_action": "no action required",
+      "private_runtime_details_included": false,
+      "release_channel": "alpha",
+      "source": {
+        "provider": "yonerai",
+        "public_safe": true,
+        "target": "public-status-contract",
+        "type": "fixture"
+      },
+      "status": "not_production",
+      "user_message_en": "OpenAI shared traffic is off by default.",
+      "user_message_ja": "OpenAI shared traffic は既定で無効です。"
+    },
+    {
+      "component_id": "memory_sync",
+      "docs_url": "https://yonerai.com/status",
+      "name": "Memory sync",
+      "next_action": "yonerai memory sync preview --direction local-to-cloud --pretty",
+      "private_runtime_details_included": false,
+      "release_channel": "alpha",
+      "source": {
+        "provider": "yonerai",
+        "public_safe": true,
+        "target": "public-status-contract",
+        "type": "fixture"
+      },
+      "status": "contract_only",
+      "user_message_en": "Local-to-cloud memory sync is disabled by default.",
+      "user_message_ja": "local -> cloud memory sync は既定で無効です。"
+    },
+    {
+      "component_id": "self_evolution",
+      "docs_url": "https://yonerai.com/status",
+      "name": "Self-evolution",
+      "next_action": "no action required",
+      "private_runtime_details_included": false,
+      "release_channel": "alpha",
+      "source": {
+        "provider": "yonerai",
+        "public_safe": true,
+        "target": "public-status-contract",
+        "type": "fixture"
+      },
+      "status": "contract_only",
+      "user_message_en": "Public repo self-evolution is proposal-only.",
+      "user_message_ja": "public repo の self-evolution は proposal-only です。"
+    },
+    {
+      "component_id": "discord",
+      "docs_url": "https://yonerai.com/status",
+      "name": "Discord",
+      "next_action": "no action required",
+      "private_runtime_details_included": false,
+      "release_channel": "alpha",
+      "source": {
+        "provider": "yonerai",
+        "public_safe": true,
+        "target": "public-status-contract",
+        "type": "fixture"
+      },
+      "status": "not_production",
+      "user_message_en": "Live Discord is not restored.",
+      "user_message_ja": "live Discord は復元されていません。"
+    },
+    {
+      "component_id": "provider_runtime",
+      "docs_url": "https://yonerai.com/status",
+      "name": "Provider runtime",
+      "next_action": "no action required",
+      "private_runtime_details_included": false,
+      "release_channel": "alpha",
+      "source": {
+        "provider": "yonerai",
+        "public_safe": true,
+        "target": "public-status-contract",
+        "type": "fixture"
+      },
+      "status": "operational",
+      "user_message_en": "Public-safe mock/local/provider runtime boundary.",
+      "user_message_ja": "mock/local/provider runtime の公開安全境界です。"
+    },
+    {
+      "component_id": "hybrid_node",
+      "docs_url": "https://yonerai.com/status",
+      "name": "Hybrid node",
+      "next_action": "no action required",
+      "private_runtime_details_included": false,
+      "release_channel": "alpha",
+      "source": {
+        "provider": "yonerai",
+        "public_safe": true,
+        "target": "public-status-contract",
+        "type": "fixture"
+      },
+      "status": "contract_only",
+      "user_message_en": "Hybrid Node is a local-dev/fixture boundary.",
+      "user_message_ja": "Hybrid Node は local-dev / fixture 境界です。"
+    }
+  ],
+  "generated_at": "2026-06-02T00:00:00Z",
+  "incidents": [],
+  "install": {
+    "artifact_source": "GitHub Release assets",
+    "latest_stable": "v0.6.4",
+    "no_admin_required_by_default": true,
+    "no_path_mutation_by_default": true,
+    "no_production_installer_claim": true,
+    "no_registry_mutation": true,
+    "no_service_install": true,
+    "ok": true,
+    "quick_install_command": "irm https://install.yonerai.com | iex",
+    "release_channel": "stable",
+    "schema_version": "yonerai-status-api/v0.1",
+    "status": "operational",
+    "verified_install_command": "irm https://install.yonerai.com/verified | iex",
+    "yonerai_com_hosts_assets": false
+  },
+  "ok": true,
+  "private_runtime_details_included": false,
+  "production_backend_included": false,
+  "production_monitoring_connected": false,
+  "rate_limit": {
+    "Retry-After": "required on 429 quota_exceeded responses",
+    "X-YonerAI-RateLimit-Bucket": "status, anonymous, authenticated, user_quota, device_quota, provider_quota, cloud_contract, oracle_queue, or abuse",
+    "X-YonerAI-RateLimit-Limit": "quota limit for the active bucket",
+    "X-YonerAI-RateLimit-Remaining": "remaining quota for the active bucket",
+    "X-YonerAI-RateLimit-Reset": "unix timestamp or RFC3339 reset time"
+  },
+  "releases": {
+    "alpha_channel_status": "operational",
+    "auto_update_apply_enabled": false,
+    "docs_url": "https://yonerai.com/install",
+    "forced_update_enabled": false,
+    "latest_alpha": "v0.15.0-alpha.1",
+    "latest_stable": "v0.6.4",
+    "ok": true,
+    "release_channel": "stable",
+    "schema_version": "yonerai-status-api/v0.1",
+    "stable_channel_status": "operational",
+    "update_available": false
+  },
+  "schema_version": "yonerai-status-api/v0.1",
+  "source": {
+    "allow_network": false,
+    "kind": "fixture",
+    "network_fetch_performed": false
+  },
+  "status": "not_production",
+  "status_page_feed_schema_version": "yonerai.status.feed.v1",
+  "status_yonerai_com_ready": true
+}

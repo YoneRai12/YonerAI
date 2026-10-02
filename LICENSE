@@ -1,20 +1,46 @@
-# LICENSE
+# YonerAI License
 
-Copyright (c) 2026 YoneRai12
+Copyright (c) 2026 YoneRai12. All rights reserved except as expressly licensed
+below.
 
-This project is licensed under the **Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International (CC BY-NC-ND 4.0)**.
+YonerAI is source-available, not OSI open source.
 
----
+## Code
 
-### You are free to:
-* **Share** — copy and redistribute the material in any medium or format.
+Code in this repository is licensed under the PolyForm Noncommercial License
+1.0.0.
 
-### Under the following terms:
-* **Attribution** — You must give appropriate credit, provide a link to the license, and indicate if changes were made. You may do so in any reasonable manner, but not in any way that suggests the licensor endorses you or your use.
-* **NonCommercial** — You may not use the material for commercial purposes.
-* **NoDerivatives** — If you remix, transform, or build upon the material, you may not distribute the modified material.
-* **No additional restrictions** — You may not apply legal terms or technological measures that legally restrict others from doing anything the license permits.
+- Personal, research, evaluation, and other noncommercial use are allowed under
+  the PolyForm Noncommercial License 1.0.0.
+- Commercial use, hosted service use for business, resale, sublicensing, and
+  production business use require a separate commercial license from YoneRai12.
+- The official license text is published at:
+  https://polyformproject.org/licenses/noncommercial/1.0.0/
 
----
+## Documentation and Assets
 
-**Full License Text**: [https://creativecommons.org/licenses/by-nc-nd/4.0/legalcode](https://creativecommons.org/licenses/by-nc-nd/4.0/legalcode)
+Documentation, release notes, images, diagrams, screenshots, generated release
+cards, public copy, and other non-code assets are licensed under Creative
+Commons Attribution-NonCommercial-NoDerivatives 4.0 International unless a file
+states a stricter rule.
+
+The official license text is published at:
+https://creativecommons.org/licenses/by-nc-nd/4.0/legalcode
+
+## Brand
+
+The YonerAI name, logo, product identity, release names, domain names, and
+associated brand assets are All Rights Reserved. This license does not grant a
+trademark, service mark, domain, logo, or brand-use license.
+
+## Third-Party Dependencies
+
+Third-party dependencies keep their own licenses. Their license metadata may
+mention MIT, Apache, BSD, ISC, MPL, LGPL, Python, CC0, or other licenses. That
+metadata applies to those third-party packages, not to YonerAI itself.
+
+## Commercial Licensing
+
+For commercial licensing, partnership, or redistribution permission, contact
+the owner through the public repository owner channel. Do not treat public
+source availability as commercial permission.

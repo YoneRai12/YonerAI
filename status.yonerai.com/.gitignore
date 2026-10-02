@@ -1,0 +1,5 @@
+generated/
+qa-screenshots/
+node_modules/
+status-server-*.log
+*.tmp

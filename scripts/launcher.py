@@ -51,7 +51,7 @@ def create_backup():
             ROOT_DIR,
             backup_path,
             ignore=shutil.ignore_patterns(
-                "backups", "_sandbox", ".git", ".venv", "__pycache__", "ora-ui/node_modules", "data"
+                "backups", "_sandbox", ".git", ".venv", "__pycache__", "clients/web/node_modules", "data"
             ),
             dirs_exist_ok=True,
         )
@@ -80,7 +80,7 @@ def prepare_sandbox():
         shutil.copytree(
             ROOT_DIR,
             SANDBOX_DIR,
-            ignore=shutil.ignore_patterns("backups", "_sandbox", ".git", ".venv", "__pycache__", "ora-ui/node_modules"),
+            ignore=shutil.ignore_patterns("backups", "_sandbox", ".git", ".venv", "__pycache__", "clients/web/node_modules"),
             dirs_exist_ok=True,
         )
         logger.info("Sandbox prepared.")

@@ -1,0 +1,307 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://yonerai.com/contracts/official-api-contract-0.1.schema.json",
+  "title": "YonerAI Official API Contract Fixture 0.1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "ok",
+    "public_repo_mode",
+    "production_backend_included",
+    "base_path",
+    "auth",
+    "endpoints",
+    "rate_limit_headers",
+    "error_schema",
+    "privacy_rules",
+    "self_evolution_boundary",
+    "actions_not_performed"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "yonerai-official-api-contract/v0.1"
+    },
+    "ok": {
+      "const": true
+    },
+    "public_repo_mode": {
+      "const": "fixture_only"
+    },
+    "production_backend_included": {
+      "const": false
+    },
+    "base_path": {
+      "const": "/v1"
+    },
+    "auth": {
+      "type": "object",
+      "required": [
+        "google_pkce_loopback_required",
+        "minimal_scopes",
+        "refresh_token_plaintext_allowed",
+        "production_login_enabled_in_public_repo"
+      ],
+      "properties": {
+        "google_pkce_loopback_required": {
+          "const": true
+        },
+        "minimal_scopes": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "const": "openid"
+            },
+            {
+              "const": "email"
+            },
+            {
+              "const": "profile"
+            }
+          ],
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "refresh_token_plaintext_allowed": {
+          "const": false
+        },
+        "production_login_enabled_in_public_repo": {
+          "const": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "endpoints": {
+      "type": "array",
+      "minItems": 10,
+      "items": {
+        "type": "object",
+        "required": [
+          "method",
+          "path",
+          "summary",
+          "auth",
+          "request_schema",
+          "response_schema",
+          "error_schema",
+          "rate_limit",
+          "privacy_boundary",
+          "implemented_in_public_repo",
+          "fixture_available",
+          "fixture_support"
+        ],
+        "properties": {
+          "method": {
+            "enum": [
+              "GET",
+              "POST"
+            ]
+          },
+          "path": {
+            "type": "string",
+            "pattern": "^/v1/"
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 1
+          },
+          "auth": {
+            "type": "string",
+            "minLength": 1
+          },
+          "request_schema": {
+            "type": "object",
+            "required": [
+              "required",
+              "schema_ref"
+            ],
+            "properties": {
+              "required": {
+                "type": "boolean"
+              },
+              "schema_ref": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "additionalProperties": false
+          },
+          "response_schema": {
+            "type": "object",
+            "required": [
+              "schema_ref"
+            ],
+            "properties": {
+              "schema_ref": {
+                "type": "string",
+                "pattern": "^official-api-0\\.1/"
+              }
+            },
+            "additionalProperties": false
+          },
+          "error_schema": {
+            "type": "object"
+          },
+          "rate_limit": {
+            "type": "object",
+            "required": [
+              "bucket",
+              "headers",
+              "quota_exceeded_status"
+            ],
+            "properties": {
+              "bucket": {
+                "enum": [
+                  "anonymous",
+                  "authenticated",
+                  "user_quota",
+                  "device_quota",
+                  "provider_quota",
+                  "cloud_contract",
+                  "oracle_queue",
+                  "abuse"
+                ]
+              },
+              "headers": {
+                "$ref": "#/$defs/rate_limit_headers"
+              },
+              "quota_exceeded_status": {
+                "const": 429
+              }
+            },
+            "additionalProperties": false
+          },
+          "privacy_boundary": {
+            "$ref": "#/$defs/private_content_exclusion"
+          },
+          "implemented_in_public_repo": {
+            "const": false
+          },
+          "fixture_available": {
+            "const": true
+          },
+          "fixture_support": {
+            "const": "contract_only"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "rate_limit_headers": {
+      "$ref": "#/$defs/rate_limit_headers"
+    },
+    "error_schema": {
+      "type": "object",
+      "required": [
+        "type",
+        "required",
+        "properties"
+      ],
+      "properties": {
+        "type": {
+          "const": "object"
+        },
+        "required": {
+          "type": "array"
+        },
+        "properties": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": true
+    },
+    "privacy_rules": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "self_evolution_boundary": {
+      "type": "object",
+      "required": [
+        "public_repo",
+        "official_backend",
+        "raw_prompts_allowed_in_public_repo",
+        "pii_allowed_in_public_repo",
+        "auto_pr_merge_deploy_allowed"
+      ],
+      "properties": {
+        "public_repo": {
+          "const": "proposal_only_synthetic_signals"
+        },
+        "official_backend": {
+          "const": "private_future_lane"
+        },
+        "raw_prompts_allowed_in_public_repo": {
+          "const": false
+        },
+        "pii_allowed_in_public_repo": {
+          "const": false
+        },
+        "auto_pr_merge_deploy_allowed": {
+          "const": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "actions_not_performed": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "$defs": {
+    "rate_limit_headers": {
+      "type": "object",
+      "required": [
+        "Retry-After",
+        "X-YonerAI-RateLimit-Limit",
+        "X-YonerAI-RateLimit-Remaining",
+        "X-YonerAI-RateLimit-Reset",
+        "X-YonerAI-RateLimit-Bucket"
+      ],
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "private_content_exclusion": {
+      "type": "object",
+      "required": [
+        "raw_prompt_allowed",
+        "private_file_content_allowed",
+        "local_memory_allowed",
+        "local_node_payload_allowed",
+        "provider_keys_allowed",
+        "local_absolute_paths_allowed",
+        "openai_shared_traffic_allowed"
+      ],
+      "properties": {
+        "raw_prompt_allowed": {
+          "const": false
+        },
+        "private_file_content_allowed": {
+          "const": false
+        },
+        "local_memory_allowed": {
+          "const": false
+        },
+        "local_node_payload_allowed": {
+          "const": false
+        },
+        "provider_keys_allowed": {
+          "const": false
+        },
+        "local_absolute_paths_allowed": {
+          "const": false
+        },
+        "openai_shared_traffic_allowed": {
+          "const": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

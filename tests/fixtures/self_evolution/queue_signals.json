@@ -1,0 +1,24 @@
+{
+  "signals": [
+    {
+      "feature_id": "tui.slash_help",
+      "surface": "tui",
+      "mode": "local_cli",
+      "outcome": "confused",
+      "dropoff_stage": "settings",
+      "complaint_class": "confusing_copy",
+      "provider_class": "mock",
+      "latency_bucket": "lt_1s"
+    },
+    {
+      "feature_id": "privacy.shared_traffic_copy",
+      "surface": "privacy",
+      "mode": "official_bridge",
+      "outcome": "requested",
+      "dropoff_stage": "privacy",
+      "complaint_class": "missing_guidance",
+      "provider_class": "openai_compatible",
+      "latency_bucket": "none"
+    }
+  ]
+}

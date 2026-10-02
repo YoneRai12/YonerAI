@@ -28,7 +28,7 @@ _PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     # Google API keys.
     ("google_key", re.compile(r"\bAIzaSy[A-Za-z0-9_-]{20,}\b")),
     # Discord webhooks.
-    ("discord_webhook", re.compile(r"https?://(?:canary\\.|ptb\\.)?discord\\.com/api/webhooks/\\d+/[A-Za-z0-9_-]+")),
+    ("discord_webhook", re.compile(r"https?://(?:canary\.|ptb\.)?discord\.com/api/webhooks/\d+/[A-Za-z0-9_-]+")),
     # PEM private keys.
     ("private_key_block", re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----[\\s\\S]+?-----END [A-Z ]*PRIVATE KEY-----")),
 ]

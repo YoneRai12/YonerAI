@@ -12,11 +12,8 @@ from typing import Any, List, Mapping
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request, Response, WebSocket, WebSocketDisconnect, Depends, Header, Query
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
-from google.auth.transport import requests as g_requests
-from google.oauth2 import id_token
-from google_auth_oauthlib.flow import Flow
 from sse_starlette.sse import EventSourceResponse
 
 from src.config import COST_LIMITS
@@ -976,99 +973,61 @@ async def websocket_endpoint(websocket: WebSocket, token: str | None = Query(Non
         manager.disconnect(websocket)
 
 
-GOOGLE_CLIENT_SECRETS_FILE = "google_client_secrets.json"
-GOOGLE_SCOPES = ["openid", "https://www.googleapis.com/auth/drive.file", "email", "profile"]
-GOOGLE_REDIRECT_URI = "http://localhost:8000/api/auth/google/callback"  # Update with actual domain in prod
+GOOGLE_PUBLIC_AUTH_SCOPE_CONTRACT = ["openid", "email", "profile"]
+GOOGLE_PUBLIC_AUTH_ACTIONS_NOT_PERFORMED = [
+    "no live OAuth redirect",
+    "no Google token exchange",
+    "no credential storage",
+    "no refresh token storage",
+    "no Drive scope request",
+    "no production account link",
+]
 
 
-def build_flow(state: str | None = None) -> Flow:
-    return Flow.from_client_secrets_file(
-        GOOGLE_CLIENT_SECRETS_FILE,
-        scopes=GOOGLE_SCOPES,
-        redirect_uri=GOOGLE_REDIRECT_URI,
-        state=state,
-    )
+def _google_oauth_public_disabled_contract(route: str) -> dict[str, Any]:
+    return {
+        "schema_version": "yonerai-public-google-auth/v0.1",
+        "status": "disabled",
+        "route": route,
+        "reason": "production Google login is not implemented in the public repository",
+        "live_oauth_enabled": False,
+        "dry_run_contract_only": True,
+        "required_future_flow": {
+            "pkce_required": True,
+            "state_required": True,
+            "loopback_redirect_only": True,
+            "minimal_scopes": GOOGLE_PUBLIC_AUTH_SCOPE_CONTRACT,
+            "embedded_webview_allowed": False,
+            "token_printing_allowed": False,
+            "refresh_token_plaintext_storage_allowed": False,
+        },
+        "actions_not_performed": GOOGLE_PUBLIC_AUTH_ACTIONS_NOT_PERFORMED,
+    }
 
 
 @router.get("/auth/discord")
 async def auth_discord(request: Request, code: str | None = None, state: str | None = None):
-    # If no code, redirect to Google
-    if code is None:
-        discord_user_id = request.query_params.get("discord_user_id")
-        flow = build_flow(state=discord_user_id or "")
-        auth_url, _ = flow.authorization_url(prompt="consent", include_granted_scopes="true")
-        return RedirectResponse(auth_url)
-
-    # If code exists, handle Discord auth (not implemented yet per instructions)
-    return {"message": "Discord auth flow not fully implemented yet."}
+    return JSONResponse(
+        status_code=501,
+        content=_google_oauth_public_disabled_contract("/api/auth/discord"),
+    )
 
 
 @router.get("/auth/google/callback")
-async def auth_google_callback(request: Request, code: str, state: str | None = None):
-    # We need the store. Since we can't import from app easily due to circular deps,
-    # we will access it via the app instance attached to the request, or import it inside.
-    from src.web.app import get_store
-
-    store = get_store()
-
-    flow = build_flow(state=state)
-    flow.fetch_token(code=code)
-
-    creds = flow.credentials
-    request_adapter = g_requests.Request()
-    idinfo = id_token.verify_oauth2_token(
-        creds.id_token,
-        request_adapter,
-        flow.client_config["client_id"],
+async def auth_google_callback(request: Request, code: str | None = None, state: str | None = None):
+    return JSONResponse(
+        status_code=501,
+        content=_google_oauth_public_disabled_contract("/api/auth/google/callback"),
     )
-
-    google_sub = idinfo["sub"]
-    email = idinfo.get("email")
-
-    # Update DB
-    await store.upsert_google_user(google_sub=google_sub, email=email, credentials=creds)
-
-    # Link Discord User
-    discord_user_id = state
-    if discord_user_id:
-        # Validate discord_user_id is int-like
-        if discord_user_id.isdigit():
-            await store.link_discord_google(int(discord_user_id), google_sub)
-
-    return RedirectResponse(url="/linked")  # Redirect to a success page (to be created)
 
 
 @router.post("/auth/link-code")
 async def request_link_code(request: Request):
-    """Generate a temporary link code for a Discord user."""
-    try:
-        data = await request.json()
-        discord_user_id = data.get("user_id")
-        if not discord_user_id:
-            raise HTTPException(status_code=400, detail="Missing user_id")
-
-        store = get_store()
-        # Create a unique state/code
-        code = str(uuid.uuid4())
-
-        # Store it with expiration (e.g., 15 minutes)
-        await store.start_login_state(code, discord_user_id, ttl_sec=900)
-
-        # Return the auth URL that the user should visit
-        # In a real app, this might be a short link or just the code
-        # For ORA, we return the full URL to the web auth endpoint with state
-        auth_url = f"{GOOGLE_REDIRECT_URI}?state={code}"  # Wait, this is callback.
-        # We need to point to the start of the flow
-        # Actually, the user should visit /api/auth/discord?discord_user_id=...
-        # But we want to use the code as state.
-
-        # Let's construct the Google Auth URL directly or via our endpoint
-        flow = build_flow(state=code)
-        auth_url, _ = flow.authorization_url(prompt="consent", include_granted_scopes="true")
-
-        return {"url": auth_url, "code": code}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    """Return the public disabled contract for legacy account-link requests."""
+    return JSONResponse(
+        status_code=501,
+        content=_google_oauth_public_disabled_contract("/api/auth/link-code"),
+    )
 
 
 @router.post("/ocr")
@@ -1841,16 +1800,49 @@ async def get_dashboard_users(response: Response, _: None = Depends(require_web_
         return {"ok": False, "error": str(e)}
 
 
+def _safe_dashboard_user_profile_path(users_dir: Path, filename: str) -> Path:
+    users_root = users_dir.resolve(strict=False)
+    candidate = (users_root / filename).resolve(strict=False)
+    if candidate == users_root or users_root not in candidate.parents:
+        raise ValueError("Invalid user profile path")
+    return candidate
+
+
+def _dashboard_user_profile_dirs(memory_dir: Path) -> list[Path]:
+    if memory_dir.name.lower() == "users":
+        return [memory_dir]
+    return [memory_dir / "users", memory_dir]
+
+
+def _parse_dashboard_user_profile_id(user_id: str) -> tuple[str, str | None]:
+    parts = user_id.split("_")
+    if len(parts) == 2:
+        uid, gid = parts
+    elif len(parts) == 3 and parts[2] in {"public", "private"}:
+        uid, gid = parts[0], parts[1]
+    elif len(parts) == 1:
+        uid, gid = parts[0], None
+    else:
+        raise ValueError("Invalid user profile id")
+    if not uid.isdigit() or (gid is not None and not gid.isdigit()):
+        raise ValueError("Invalid user profile id")
+    return uid, gid
+
+
 @router.get("/dashboard/users/{user_id}")
 async def get_user_details(user_id: str, _: None = Depends(require_web_api)):
     """Get full details for a specific user (traits, history, context). Supports dual profiles."""
     import json
-    from pathlib import Path
 
-    MEMORY_DIR = Path("L:/ORA_Memory/users")
-    parts = user_id.split("_")
-    uid = parts[0]
-    gid = parts[1] if len(parts) > 1 else None
+    import aiofiles  # type: ignore
+
+    from src.config import MEMORY_DIR
+
+    profile_dirs = _dashboard_user_profile_dirs(Path(MEMORY_DIR))
+    try:
+        uid, gid = _parse_dashboard_user_profile_id(user_id)
+    except ValueError:
+        return {"ok": False, "error": "Invalid user profile id"}
 
     specific_data = None
     general_data = None
@@ -1859,23 +1851,27 @@ async def get_user_details(user_id: str, _: None = Depends(require_web_api)):
         # 1. Try Specific Profile
         if gid:
             # FIX: Check public/private suffixes matching memory.py
-            path_spec = MEMORY_DIR / f"{uid}_{gid}_public.json"
-            if not path_spec.exists():
-                path_spec = MEMORY_DIR / f"{uid}_{gid}_private.json"
-
-            # Legacy fallback
-            if not path_spec.exists():
-                path_spec = MEMORY_DIR / f"{uid}_{gid}.json"
-
-            if path_spec.exists():
-                with open(path_spec, "r", encoding="utf-8") as f:
-                    specific_data = json.load(f)
+            for users_dir in profile_dirs:
+                for filename in (
+                    f"{uid}_{gid}_public.json",
+                    f"{uid}_{gid}_private.json",
+                    f"{uid}_{gid}.json",
+                ):
+                    path_spec = _safe_dashboard_user_profile_path(users_dir, filename)
+                    if path_spec.exists():
+                        async with aiofiles.open(path_spec, "r", encoding="utf-8") as f:
+                            specific_data = json.loads(await f.read())
+                        break
+                if specific_data is not None:
+                    break
 
         # 2. Try General Profile
-        path_gen = MEMORY_DIR / f"{uid}.json"
-        if path_gen.exists():
-            with open(path_gen, "r", encoding="utf-8") as f:
-                general_data = json.load(f)
+        for users_dir in profile_dirs:
+            path_gen = _safe_dashboard_user_profile_path(users_dir, f"{uid}.json")
+            if path_gen.exists():
+                async with aiofiles.open(path_gen, "r", encoding="utf-8") as f:
+                    general_data = json.loads(await f.read())
+                break
 
         if not specific_data and not general_data:
             return {"ok": False, "error": "User profile not found"}
