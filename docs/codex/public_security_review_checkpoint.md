@@ -612,6 +612,24 @@ Current blocker:
 - `[PUBLIC-SYNC-CLIENT-READY]` remains false until AWS firebase-config is ready and live Web-to-CLI E2E is proven.
 - No release/tag is allowed from this checkpoint.
 
+## 2026-10-02 PR #134 画像生成の独立した再受入
+
+対象は既存PR #134。画像生成修正 `3191bb0` とinteraction回帰試験を維持し、CI基盤は独立PR #610へ分離した。#134のbaseは `codex/ci-dependency-diff-20261002-r1`、差分は画像生成、2件の回帰試験、その試験を実行するcore-test job、このintake記録の4ファイルに限定する。
+
+PR本文、reviews、inline threads、conversation、failed checksを確認した。本文にlinked issueはない。Code Review完了は継続security scanの合格として扱わない。
+
+| 対象・指摘 | 分類 | 採否と根拠 |
+| --- | --- | --- |
+| Auto styleの二重defer | valid-now、修正済み | 応答済みinteractionは再deferしない。実button callbackを通る回帰試験でAutoと通常styleがそれぞれdefer 1回。 |
+| Geminiの古いinteractionへの編集指摘 | valid-now、修正済み | 共通生成とAuto styleの編集を、その操作で渡されたinteractionへ統一。古いinteractionで必ず失敗するfixtureを使い2経路を確認した。 |
+| Codex P1: local fallback試験のCI環境漏れ | valid-now、#610へ移管して修正 | GitHub同条件の1 failed / 72 passedを再現し、修正後は同じ73件がPASS。CIのmissing-range拒否を維持。 |
+| Codex P1: CI・依存と画像生成のlane分離 | valid-now、分離を採用 | CI基盤をcurrent mainから独立PR #610へ移し、そのbranchを通常mergeで#134の前提へ接続する。履歴を書き換えず、#134の製品差分へCI基盤4ファイルを含めない。 |
+| review-intake-required | valid-now、手続きgate | 新headのreviewとchecksを再読し、分類したcheckpointが揃ってからmaintainer labelを適用する。 |
+
+画像生成回帰2件はrepository rootとcore作業directoryからPASSし、同じ2件をcore-test jobへ追加した。ruff、compile、YAML、diff、秘密・公開path・Unicode検査がPASS。#610の新GitHub headではsecurity-staticを含む13 product checksが成功し、build-and-testは進行中、intakeは未完。#134の新headのchecksは未観測であり、成功を先取りしない。
+
+#610を先に統合し、#134のbaseをmainへ戻して最終required checksとconversation resolutionを確認するまでmergeを保留する。live Discord、release、tag、deploymentは行わない。
+
 ## 2026-06-23 PR #571 Post-Merge Review Follow-Up
 
 - last_scan_at: 2026-06-23T15:50:26+09:00

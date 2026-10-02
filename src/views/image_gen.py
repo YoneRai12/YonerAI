@@ -23,12 +23,13 @@ class StyleSelectView(View):
         self.is_high_quality = is_high_quality
 
     async def start_generation(self, interaction: discord.Interaction, style: str):
-        await interaction.response.defer()
+        if not interaction.response.is_done():
+            await interaction.response.defer()
 
         # Disable buttons
         for child in self.children:
             child.disabled = True
-        await self.original_interaction.edit_original_response(view=self)
+        await interaction.edit_original_response(view=self)
 
         # Apply Style Modifiers
         final_prompt = self.prompt
@@ -138,7 +139,7 @@ class StyleSelectView(View):
         # Disable buttons temporarily
         for child in self.children:
             child.disabled = True
-        await self.original_interaction.edit_original_response(view=self)
+        await interaction.edit_original_response(view=self)
 
         determined_style = "real"  # Fallback
 
