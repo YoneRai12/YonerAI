@@ -612,24 +612,23 @@ Current blocker:
 - `[PUBLIC-SYNC-CLIENT-READY]` remains false until AWS firebase-config is ready and live Web-to-CLI E2E is proven.
 - No release/tag is allowed from this checkpoint.
 
-## 2026-10-02 PR #134 画像生成とCIの再受入
+## 2026-10-02 PR #134 画像生成の独立した再受入
 
-観測時刻: 2026-10-02 10:28 JST。対象は既存PR #134、base `6e387dfa4dcedcf848111ecef9ac14692651ac57`。画像生成修正のheadは `3191bb09865e8fbf4edbd29ca15714dc2ea61c24`、CI補修のcommitは `9ea9b0b8b034ce637316da69a6358996f752b1ea`。以前のsync laneでの保留を、Ownerが指定した今回の画像生成修正laneへ引き継ぐ。
+対象は既存PR #134。画像生成修正 `3191bb0` とinteraction回帰試験を維持し、CI基盤は独立PR #610へ分離した。#134のbaseは `codex/ci-dependency-diff-20261002-r1`、差分は画像生成、2件の回帰試験、その試験を実行するcore-test job、このintake記録の4ファイルに限定する。
 
-PR本文、review submissions、未解決inline thread、conversation、現在headの全checkを取得した。本文にlinked issueはない。3191bb0に対する自動Code Reviewは完了し、新しいinline findingはない。Code Reviewの完了を継続security scanの合格として扱わない。
+PR本文、reviews、inline threads、conversation、failed checksを確認した。本文にlinked issueはない。Code Review完了は継続security scanの合格として扱わない。
 
-| 対象 | 分類 | 根拠と対応 | 現在の判断 |
-| --- | --- | --- | --- |
-| Auto styleの二重defer | valid-now、修正済み | 応答済みinteractionは再deferしない。実button callbackの回帰試験でAutoはdefer 1回、通常styleもdefer 1回。 | 3191bb0を維持する。 |
-| Geminiの古いinteractionへの編集指摘 | valid-now、修正済み | 共通生成とAuto styleの編集は、その操作で渡されたinteractionへ統一した。古いinteractionを使用すると失敗するfixtureで2経路を検証した。 | 対応commitのGitHub読戻し後にthreadを解決する。 |
-| core-testのgreenlet不足 | valid-now、CI基盤で修正済み | base/headでrequirementsとworkflowは同一。現在のSQLAlchemy解決ではasync依存が不足した。sqlalchemyのasyncio extraを直接宣言した。 | fresh環境のcompile/importはPASS。新headのGitHub checkを待つ。 |
-| core-unit/provider-boundaryのhttpx不足 | valid-now、CI基盤で修正済み | base/headの関連blobは同一。新OpenAI依存はhttpx2を導入し、直接importするhttpxが不足した。httpxを直接宣言した。 | fresh環境でcore-unit 69 PASS/2 skip、provider-boundary 66 PASS/2 skip。skip条件は既存のまま。GitHub checkを待つ。 |
-| security-staticの差分選択 | valid-now、CI基盤で修正済み | 旧headの失敗はPR外で同一blobのANSI定数5件と意図的fixture2件を検出した。選択rangeの旧ログがなく、正確なfallback原因は未確認。Actionsでは実base/headの検証済みSHAと差分方式を明示し、取得失敗を拒否する。 | 範囲・commit不在・注入文字・divergent PRの反例試験を追加。scanner/workflow 27 PASS、7変更pathの明示scan PASS。 |
-| review-intake-required | valid-now、手続きgate | synchronize後は再分類まで失敗する契約。自動ラベル操作も失敗したがAPI詳細が抑止され原因は未確認。 | この台帳と新headのreview/checkを確認してからmaintainerのintake-reviewedを付与する。 |
+| 対象・指摘 | 分類 | 採否と根拠 |
+| --- | --- | --- |
+| Auto styleの二重defer | valid-now、修正済み | 応答済みinteractionは再deferしない。実button callbackを通る回帰試験でAutoと通常styleがそれぞれdefer 1回。 |
+| Geminiの古いinteractionへの編集指摘 | valid-now、修正済み | 共通生成とAuto styleの編集を、その操作で渡されたinteractionへ統一。古いinteractionで必ず失敗するfixtureを使い2経路を確認した。 |
+| Codex P1: local fallback試験のCI環境漏れ | valid-now、#610へ移管して修正 | GitHub同条件の1 failed / 72 passedを再現し、修正後は同じ73件がPASS。CIのmissing-range拒否を維持。 |
+| Codex P1: CI・依存と画像生成のlane分離 | valid-now、分離を採用 | CI基盤をcurrent mainから独立PR #610へ移し、そのbranchを通常mergeで#134の前提へ接続する。履歴を書き換えず、#134の製品差分へCI基盤4ファイルを含めない。 |
+| review-intake-required | valid-now、手続きgate | 新headのreviewとchecksを再読し、分類したcheckpointが揃ってからmaintainer labelを適用する。 |
 
-画像生成回帰2件は、repository rootとCI相当のcore作業directoryの双方でPASS。既存core-test jobにも同じ2件を追加した。fresh Python 3.11環境でpip check、ruff、compile、YAML parse、diff check、秘密・公開path検査がPASS。秘密の除外規則、全件scan、テストの既存skip条件は変更していない。
+画像生成回帰2件はrepository rootとcore作業directoryからPASSし、同じ2件をcore-test jobへ追加した。ruff、compile、YAML、diff、秘密・公開path・Unicode検査がPASS。#610の新GitHub headではsecurity-staticを含む13 product checksが成功し、build-and-testは進行中、intakeは未完。#134の新headのchecksは未観測であり、成功を先取りしない。
 
-3191bb0のGitHub結果は成功10件、失敗5件。上記のCI補修はローカルで検証済みだが、GitHub上の新headが成功したとはまだ記録しない。required checksとconversation resolutionが揃うまでmergeを保留する。live Discord、release、tag、deploymentはこのlaneの検証・操作に含めない。
+#610を先に統合し、#134のbaseをmainへ戻して最終required checksとconversation resolutionを確認するまでmergeを保留する。live Discord、release、tag、deploymentは行わない。
 
 ## 2026-06-23 PR #571 Post-Merge Review Follow-Up
 
