@@ -1,5 +1,22 @@
 # Public Security Review Checkpoint
 
+## 2026-10-02 CI基盤の独立した受入
+
+対象はcurrent main `6e387dfa4dcedcf848111ecef9ac14692651ac57` から分離した `codex/ci-dependency-diff-20261002-r1`。画像生成PR #134の依存解決と差分検査の失敗を、CI基盤の変更として独立して扱う。画像生成の製品変更と2件の回帰試験はこのbranchに含めない。
+
+| 対象・指摘 | 分類 | 根拠と採否 |
+| --- | --- | --- |
+| fresh Core jobのhttpx / greenlet欠落 | valid-now、補修候補を検証済み | 直接importするhttpxを直接依存にし、SQLAlchemyのasyncio extraを宣言する。fresh Python 3.11でpip check、core import、core-unit 69 passed / 2 skipped、provider-boundary 66 passed / 2 skippedを確認した。 |
+| Actions差分範囲の不明確さ | valid-now、補修候補を検証済み | eventのfull SHA、commit実在、PR three-dot / push two-dotを検証する。range欠落やgit失敗は拒否し、全件fallbackや検査除外で成功化しない。 |
+| #134 Codex P1: local fallback試験へのCI環境漏れ | valid-now、補修候補を検証済み | `GITHUB_ACTIONS=true`・range環境変数なしでGitHubと同じ1 failed / 72 passedを再現。local試験だけ環境を分離し、同じ対象73 passed、scanner 24 passed。CIのrange欠落拒否も確認した。 |
+| #134 Codex P1: lane分離 | valid-now、分離を採用 | Core依存と差分検査の4ファイルをcurrent main上の独立branchへ移す。画像生成PRはこのCI基盤PRを前提にし、製品差分を別にレビューする。 |
+
+上記はlocal検証である。#134のhead `50e69610` ではGitHub product checks 13件が成功し、security-staticは上記の試験1件で失敗した。独立branchのGitHub checksはまだ未観測であり、成功扱いにしない。required checksと新しいreview intakeが揃うまでmergeを保留する。
+
+この変更は依存のmajor pin、security検査の除外、live Discord、release、tag、deploymentを追加しない。
+
+## 2026-06-19 保存時のcheckpoint
+
 - last_scan_at: 2026-06-19T15:46:43Z
 - highest_seen_pr_number: 557
 - current_main_head: b745e304

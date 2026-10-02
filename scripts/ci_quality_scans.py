@@ -1,11 +1,9 @@
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import re
 import subprocess
-import sys
 from pathlib import Path
 
 
@@ -82,6 +80,15 @@ CONTROL_CHAR_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 TERMINAL_ESCAPE_PATTERNS = (
     re.compile(r"(?i)(?:\\x1b|\\u001b|\\u009b|\\033|\\e)\[[0-?]*[ -/]*[@-~]"),
 )
+FULL_COMMIT_SHA_RE = re.compile(r"[0-9a-fA-F]{40}")
+CI_DIFF_MODES = {
+    "two-dot": "..",
+    "three-dot": "...",
+}
+
+
+class ChangedFileSelectionError(RuntimeError):
+    """Raised when CI cannot prove the exact changed-file range."""
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -90,7 +97,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--all", action="store_true", help="Scan all tracked text files.")
     args = parser.parse_args(argv)
     repo_root = Path.cwd()
-    paths = _changed_files(repo_root) if args.changed or not args.all else _tracked_files(repo_root)
+    try:
+        paths = _changed_files(repo_root) if args.changed or not args.all else _tracked_files(repo_root)
+    except ChangedFileSelectionError as error:
+        print(f"[FAIL] ci quality changed-file selection failed: {error}")
+        return 1
     errors = scan_paths(repo_root, paths)
     if errors:
         print("[FAIL] ci quality scans found issues:")
@@ -147,9 +158,48 @@ def _scan_line(rel: str, index: int, line: str, errors: list[str]) -> None:
 
 
 def _changed_files(repo_root: Path) -> list[Path]:
-    pushed_paths = _github_push_changed_files(repo_root)
-    if pushed_paths:
-        return pushed_paths
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        return _github_actions_changed_files(repo_root)
+    return _local_changed_files(repo_root)
+
+
+def _github_actions_changed_files(repo_root: Path) -> list[Path]:
+    base = _validated_ci_sha("YONERAI_DIFF_BASE_SHA")
+    head = _validated_ci_sha("YONERAI_DIFF_HEAD_SHA")
+    mode = os.environ.get("YONERAI_DIFF_MODE", "")
+    separator = CI_DIFF_MODES.get(mode)
+    if separator is None:
+        raise ChangedFileSelectionError("YONERAI_DIFF_MODE must be 'two-dot' or 'three-dot'")
+
+    _require_commit(repo_root, base, "base")
+    _require_commit(repo_root, head, "head")
+    range_spec = f"{base}{separator}{head}"
+    result = _run_git(
+        ("git", "diff", "--name-only", "--diff-filter=ACMRT", "-z", range_spec),
+        repo_root,
+    )
+    if result.returncode != 0:
+        raise ChangedFileSelectionError("git diff failed for the validated CI range")
+
+    paths = [Path(name) for name in result.stdout.split("\0") if name]
+    print(f"[INFO] ci quality diff mode={mode} range={range_spec} path_count={len(paths)}")
+    return paths
+
+
+def _validated_ci_sha(env_name: str) -> str:
+    value = os.environ.get(env_name, "")
+    if FULL_COMMIT_SHA_RE.fullmatch(value) is None:
+        raise ChangedFileSelectionError(f"{env_name} must be a full 40-character commit SHA")
+    return value.lower()
+
+
+def _require_commit(repo_root: Path, sha: str, role: str) -> None:
+    result = _run_git(("git", "cat-file", "-e", f"{sha}^{{commit}}"), repo_root)
+    if result.returncode != 0:
+        raise ChangedFileSelectionError(f"validated {role} commit is unavailable in the checkout")
+
+
+def _local_changed_files(repo_root: Path) -> list[Path]:
     refs = (
         ("git", "diff", "--name-only", "--diff-filter=ACMRT", "origin/main...HEAD"),
         ("git", "diff", "--name-only", "--diff-filter=ACMRT"),
@@ -160,33 +210,6 @@ def _changed_files(repo_root: Path) -> list[Path]:
         if result.returncode == 0 and result.stdout.strip():
             return _with_untracked(repo_root, [Path(line.strip()) for line in result.stdout.splitlines() if line.strip()])
     return _tracked_files(repo_root)
-
-
-def _github_push_changed_files(repo_root: Path) -> list[Path]:
-    if os.environ.get("GITHUB_ACTIONS") != "true":
-        return []
-    before, after = _github_push_range()
-    if not before or not after or before == after or set(before) == {"0"}:
-        return []
-    result = _run_git(("git", "diff", "--name-only", "--diff-filter=ACMRT", f"{before}..{after}"), repo_root)
-    if result.returncode != 0 or not result.stdout.strip():
-        return []
-    return _with_untracked(repo_root, [Path(line.strip()) for line in result.stdout.splitlines() if line.strip()])
-
-
-def _github_push_range() -> tuple[str | None, str | None]:
-    before = os.environ.get("GITHUB_EVENT_BEFORE")
-    after = os.environ.get("GITHUB_SHA")
-    event_path = os.environ.get("GITHUB_EVENT_PATH")
-    if event_path:
-        try:
-            payload = json.loads(Path(event_path).read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            payload = {}
-        if isinstance(payload, dict):
-            before = str(payload.get("before") or before or "")
-            after = str(payload.get("after") or after or "")
-    return before, after
 
 
 def _tracked_files(repo_root: Path) -> list[Path]:
