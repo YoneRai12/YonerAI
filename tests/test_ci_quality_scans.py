@@ -259,6 +259,8 @@ def test_ci_quality_scan_allows_existing_shell_color_variables(tmp_path: Path) -
 
 
 def test_ci_quality_scan_git_fallback_handles_missing_git(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+
     def raise_os_error(*_args: object, **_kwargs: object) -> subprocess.CompletedProcess[str]:
         raise FileNotFoundError("git")
 
