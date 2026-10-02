@@ -1,7 +1,7 @@
 fastapi
 uvicorn[standard]
 pydantic
-sqlalchemy>=2.0
+sqlalchemy[asyncio]>=2.0
 alembic
 aiosqlite
 sse-starlette
@@ -12,6 +12,7 @@ cryptography
 
 # Shared runtime deps (imported by core brain + core<->bot bridge modules)
 aiohttp>=3.8,<4.0
+httpx
 aiofiles
 pytz
 openai

@@ -258,6 +258,10 @@ jobs:
           python -m pip install -r core/requirements.txt pytest pytest-asyncio ruff google-auth google-auth-oauthlib
           python -m pip install -e clients/cli
       - name: Formatting and static scans
+        env:
+          YONERAI_DIFF_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          YONERAI_DIFF_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          YONERAI_DIFF_MODE: ${{ github.event_name == 'pull_request' && 'three-dot' || 'two-dot' }}
         run: |
           git diff --check
           python scripts/ci_quality_scans.py --changed

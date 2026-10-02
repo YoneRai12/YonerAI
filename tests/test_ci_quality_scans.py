@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-import json
 import subprocess
 from pathlib import Path
+
+import pytest
 
 from scripts import ci_quality_scans
 
@@ -267,7 +268,7 @@ def test_ci_quality_scan_git_fallback_handles_missing_git(tmp_path: Path, monkey
     assert ci_quality_scans._tracked_files(tmp_path) == []
 
 
-def test_changed_files_uses_github_push_range_for_full_pushed_change_set(tmp_path: Path, monkeypatch) -> None:
+def test_changed_files_uses_explicit_github_push_range_for_full_change_set(tmp_path: Path, monkeypatch) -> None:
     _git(tmp_path, "init")
     _git(tmp_path, "config", "user.email", "test@example.invalid")
     _git(tmp_path, "config", "user.name", "YonerAI Test")
@@ -284,15 +285,94 @@ def test_changed_files_uses_github_push_range_for_full_pushed_change_set(tmp_pat
     _git(tmp_path, "commit", "-m", "second")
     after = _git(tmp_path, "rev-parse", "HEAD").stdout.strip()
 
-    event = tmp_path / "event.json"
-    event.write_text(json.dumps({"before": before, "after": after}), encoding="utf-8")
     monkeypatch.setenv("GITHUB_ACTIONS", "true")
-    monkeypatch.setenv("GITHUB_EVENT_PATH", str(event))
-    monkeypatch.setenv("GITHUB_SHA", after)
+    monkeypatch.setenv("YONERAI_DIFF_BASE_SHA", before)
+    monkeypatch.setenv("YONERAI_DIFF_HEAD_SHA", after)
+    monkeypatch.setenv("YONERAI_DIFF_MODE", "two-dot")
 
     paths = {path.as_posix() for path in ci_quality_scans._changed_files(tmp_path)}
 
     assert {"first.py", "second.py"}.issubset(paths)
+
+
+def test_changed_files_uses_explicit_pull_request_merge_base_range(tmp_path: Path, monkeypatch, capsys) -> None:
+    _git(tmp_path, "init", "-b", "main")
+    _git(tmp_path, "config", "user.email", "test@example.invalid")
+    _git(tmp_path, "config", "user.name", "YonerAI Test")
+    (tmp_path / "common.txt").write_text("common\n", encoding="utf-8")
+    _git(tmp_path, "add", "common.txt")
+    _git(tmp_path, "commit", "-m", "common")
+
+    _git(tmp_path, "checkout", "-b", "feature")
+    (tmp_path / "first.py").write_text("FIRST = 1\n", encoding="utf-8")
+    _git(tmp_path, "add", "first.py")
+    _git(tmp_path, "commit", "-m", "first")
+    (tmp_path / "second.py").write_text("SECOND = 2\n", encoding="utf-8")
+    _git(tmp_path, "add", "second.py")
+    _git(tmp_path, "commit", "-m", "second")
+    head = _git(tmp_path, "rev-parse", "HEAD").stdout.strip()
+
+    _git(tmp_path, "checkout", "main")
+    (tmp_path / "base-only.py").write_text("BASE_ONLY = 1\n", encoding="utf-8")
+    _git(tmp_path, "add", "base-only.py")
+    _git(tmp_path, "commit", "-m", "base advance")
+    base = _git(tmp_path, "rev-parse", "HEAD").stdout.strip()
+
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    monkeypatch.setenv("YONERAI_DIFF_BASE_SHA", base)
+    monkeypatch.setenv("YONERAI_DIFF_HEAD_SHA", head)
+    monkeypatch.setenv("YONERAI_DIFF_MODE", "three-dot")
+
+    paths = {path.as_posix() for path in ci_quality_scans._changed_files(tmp_path)}
+
+    assert {"first.py", "second.py"}.issubset(paths)
+    assert "base-only.py" not in paths
+    output = capsys.readouterr().out
+    assert f"range={base}...{head}" in output
+    assert "path_count=2" in output
+
+
+def test_changed_files_rejects_untrusted_sha_before_running_git(tmp_path: Path, monkeypatch) -> None:
+    def unexpected_git(*_args: object, **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        raise AssertionError("git must not run for an invalid SHA")
+
+    monkeypatch.setattr(ci_quality_scans, "_run_git", unexpected_git)
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    monkeypatch.setenv("YONERAI_DIFF_BASE_SHA", "a" * 40 + ";touch-pwned")
+    monkeypatch.setenv("YONERAI_DIFF_HEAD_SHA", "b" * 40)
+    monkeypatch.setenv("YONERAI_DIFF_MODE", "three-dot")
+
+    with pytest.raises(ci_quality_scans.ChangedFileSelectionError, match="full 40-character commit SHA"):
+        ci_quality_scans._changed_files(tmp_path)
+
+
+def test_changed_files_fails_closed_when_validated_commit_is_unavailable(tmp_path: Path, monkeypatch) -> None:
+    _git(tmp_path, "init")
+    _git(tmp_path, "config", "user.email", "test@example.invalid")
+    _git(tmp_path, "config", "user.name", "YonerAI Test")
+    (tmp_path / "base.txt").write_text("base\n", encoding="utf-8")
+    _git(tmp_path, "add", "base.txt")
+    _git(tmp_path, "commit", "-m", "base")
+    base = _git(tmp_path, "rev-parse", "HEAD").stdout.strip()
+
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    monkeypatch.setenv("YONERAI_DIFF_BASE_SHA", base)
+    monkeypatch.setenv("YONERAI_DIFF_HEAD_SHA", "f" * 40)
+    monkeypatch.setenv("YONERAI_DIFF_MODE", "three-dot")
+
+    with pytest.raises(ci_quality_scans.ChangedFileSelectionError, match="head commit is unavailable"):
+        ci_quality_scans._changed_files(tmp_path)
+
+
+def test_main_fails_closed_when_ci_range_configuration_is_missing(tmp_path: Path, monkeypatch, capsys) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    monkeypatch.delenv("YONERAI_DIFF_BASE_SHA", raising=False)
+    monkeypatch.delenv("YONERAI_DIFF_HEAD_SHA", raising=False)
+    monkeypatch.delenv("YONERAI_DIFF_MODE", raising=False)
+
+    assert ci_quality_scans.main(["--changed"]) == 1
+    assert "[FAIL] ci quality changed-file selection failed" in capsys.readouterr().out
 
 
 def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
