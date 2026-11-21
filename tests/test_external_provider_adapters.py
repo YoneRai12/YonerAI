@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sys
+import urllib.error
 from pathlib import Path
 
 import pytest
@@ -109,6 +110,107 @@ def test_gemini_adapter_requires_env_and_redacts_key() -> None:
     public = exc_info.value.to_public_dict()
     assert public["code"] == "live_provider_env_not_enabled"
     assert pseudo_key not in json.dumps(public)
+
+
+_GEMINI_SLOW_SERVER_SECONDS = 65.0
+
+
+def test_gemini_timeout_seconds_default_env_and_cap() -> None:
+    _prepare_core_path()
+    from ora_core.providers.gemini import (
+        DEFAULT_GEMINI_TIMEOUT_SECONDS,
+        MAX_GEMINI_TIMEOUT_SECONDS,
+        GeminiProviderAdapter,
+        _parse_timeout_seconds,
+    )
+
+    assert DEFAULT_GEMINI_TIMEOUT_SECONDS == 900.0
+    assert MAX_GEMINI_TIMEOUT_SECONDS == 900.0
+    assert _parse_timeout_seconds(None) == DEFAULT_GEMINI_TIMEOUT_SECONDS
+    assert _parse_timeout_seconds("") == DEFAULT_GEMINI_TIMEOUT_SECONDS
+    assert _parse_timeout_seconds("not-a-number") == DEFAULT_GEMINI_TIMEOUT_SECONDS
+    assert _parse_timeout_seconds("-1") == DEFAULT_GEMINI_TIMEOUT_SECONDS
+    assert _parse_timeout_seconds("120") == 120.0
+    assert _parse_timeout_seconds("1200") == MAX_GEMINI_TIMEOUT_SECONDS
+
+    adapter = GeminiProviderAdapter({"YONERAI_GEMINI_API_KEY": "redaction-fixture-key"})
+    assert adapter.config.timeout_seconds == DEFAULT_GEMINI_TIMEOUT_SECONDS
+    tuned = GeminiProviderAdapter(
+        {
+            "YONERAI_GEMINI_API_KEY": "redaction-fixture-key",
+            "YONERAI_GEMINI_TIMEOUT_SECONDS": "45",
+        }
+    )
+    assert tuned.config.timeout_seconds == 45.0
+
+
+def test_gemini_generate_times_out_when_configured_below_slow_server_delay(monkeypatch: pytest.MonkeyPatch) -> None:
+    _prepare_core_path()
+    from ora_core.providers import ProviderError, ProviderRequest
+    from ora_core.providers.gemini import GeminiProviderAdapter
+
+    def fake_urlopen(request: object, timeout: float) -> _FakeHTTPResponse:
+        if timeout < _GEMINI_SLOW_SERVER_SECONDS:
+            raise urllib.error.URLError("timed out")
+        return _FakeHTTPResponse(
+            {
+                "candidates": [
+                    {
+                        "finishReason": "STOP",
+                        "content": {"parts": [{"text": "gemini reply"}]},
+                    }
+                ]
+            }
+        )
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+    adapter = GeminiProviderAdapter(
+        {
+            "YONERAI_GEMINI_API_KEY": "redaction-fixture-key",
+            "YONERAI_GEMINI_LIVE": "1",
+            "YONERAI_GEMINI_BASE_URL": "https://generativelanguage.example.invalid/v1beta",
+            "YONERAI_GEMINI_TIMEOUT_SECONDS": "60",
+        }
+    )
+    with pytest.raises(ProviderError) as exc_info:
+        adapter.generate(ProviderRequest(prompt="hello"), allow_live_call=True)
+    assert exc_info.value.code == "provider_connection_error"
+
+
+def test_gemini_generate_waits_for_slow_server_with_default_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+    _prepare_core_path()
+    from ora_core.providers import ProviderRequest
+    from ora_core.providers.gemini import DEFAULT_GEMINI_TIMEOUT_SECONDS, GeminiProviderAdapter
+
+    seen: dict[str, object] = {}
+
+    def fake_urlopen(request: object, timeout: float) -> _FakeHTTPResponse:
+        seen["timeout"] = timeout
+        if timeout < _GEMINI_SLOW_SERVER_SECONDS:
+            raise urllib.error.URLError("timed out")
+        return _FakeHTTPResponse(
+            {
+                "candidates": [
+                    {
+                        "finishReason": "STOP",
+                        "content": {"parts": [{"text": "gemini slow reply"}]},
+                    }
+                ]
+            }
+        )
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+    adapter = GeminiProviderAdapter(
+        {
+            "YONERAI_GEMINI_API_KEY": "redaction-fixture-key",
+            "YONERAI_GEMINI_LIVE": "1",
+            "YONERAI_GEMINI_BASE_URL": "https://generativelanguage.example.invalid/v1beta",
+        }
+    )
+    response = adapter.generate(ProviderRequest(prompt="hello"), allow_live_call=True)
+
+    assert seen["timeout"] == DEFAULT_GEMINI_TIMEOUT_SECONDS
+    assert response.output_text == "gemini slow reply"
 
 
 def test_provider_setup_external_subagent_capability_requires_live_opt_in() -> None:
