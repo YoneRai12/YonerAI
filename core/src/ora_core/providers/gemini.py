@@ -26,6 +26,8 @@ GEMINI_ENV_KEYS = (
 )
 DEFAULT_GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
 DEFAULT_GEMINI_MODEL = "gemini-3.1-flash"
+DEFAULT_GEMINI_TIMEOUT_SECONDS = 900.0
+MAX_GEMINI_TIMEOUT_SECONDS = 900.0
 
 
 @dataclass(frozen=True)
@@ -159,10 +161,10 @@ def _parse_timeout_seconds(raw: str | None) -> float:
     try:
         value = float(str(raw or "").strip())
     except ValueError:
-        return 20.0
+        return DEFAULT_GEMINI_TIMEOUT_SECONDS
     if value <= 0:
-        return 20.0
-    return min(value, 60.0)
+        return DEFAULT_GEMINI_TIMEOUT_SECONDS
+    return min(value, MAX_GEMINI_TIMEOUT_SECONDS)
 
 
 def _generate_content_url(base_url: str, model: str) -> str:
