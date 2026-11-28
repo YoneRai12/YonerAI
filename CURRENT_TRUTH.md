@@ -7,11 +7,14 @@ details.
 
 - generated_date_utc: 2026-06-18
 - latest_stable_tag: v0.8.1
-- latest_prerelease_tag: v0.22.0-alpha.1
+- latest_prerelease_tag: v0.23.0-alpha.1
 - main_head_short: aabf709e
 - staging_api_base_host: api-staging.yonerai.com
 - status_snapshot_schema: yonerai.status.v1
 - official_api_contract_policy: yonerai-official-api-contract/v0.14
+
+The version fields track published CLI artifacts. The date and commit above
+identify the original generated snapshot, not the latest repository state.
 
 ## Open Production Blockers
 

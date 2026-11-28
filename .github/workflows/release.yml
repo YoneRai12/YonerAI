@@ -5,13 +5,15 @@ on:
     tags:
       - 'v*'
   schedule:
-    # Regenerate the public current-truth anchor weekly. This does not publish a release.
+    # Check the public CLI version fields weekly. This does not publish a release.
     - cron: '17 3 * * 1'
   workflow_dispatch:
 
 jobs:
   current-truth:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
         with:
@@ -21,6 +23,15 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: "3.11"
+
+      - name: Compare the checked-in CLI versions with published Releases
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/${GITHUB_REPOSITORY}/releases/latest" > "$RUNNER_TEMP/cli-latest.json"
+          gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/releases?per_page=100" > "$RUNNER_TEMP/cli-release-pages.json"
+          python scripts/generate_current_truth.py --check-published "$RUNNER_TEMP/cli-latest.json" "$RUNNER_TEMP/cli-release-pages.json"
 
       - name: Regenerate CURRENT_TRUTH.md
         run: |

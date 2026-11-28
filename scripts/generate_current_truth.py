@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import json
 import re
 import subprocess
 from pathlib import Path
@@ -77,6 +78,57 @@ def _is_current_cli_release_line(version: str) -> bool:
     return not version.startswith(LEGACY_RELEASE_PREFIXES)
 
 
+def published_cli_tags(stable: object, pages: object) -> tuple[str, str]:
+    """Use GitHub Releases, not bare tags, for the public version check."""
+    def match_release(row: object, prerelease: bool) -> str | None:
+        if not isinstance(row, dict):
+            return None
+        if row.get("draft") is not False or row.get("prerelease") is not prerelease:
+            return None
+        tag = row.get("tag_name")
+        match = SEMVER_TAG_RE.fullmatch(tag) if isinstance(tag, str) else None
+        if not match or not _is_current_cli_release_line(match.group("version")):
+            return None
+        if ("-" in tag) is not prerelease:
+            return None
+        assets = row.get("assets")
+        if not isinstance(assets, list) or not any(
+            isinstance(asset, dict)
+            and asset.get("name") == f"YonerAI-{tag[1:]}.zip"
+            and asset.get("state") == "uploaded"
+            for asset in assets
+        ):
+            return None
+        return tag
+
+    stable_tag = match_release(stable, False)
+    if not stable_tag or not isinstance(pages, list) or any(not isinstance(page, list) for page in pages):
+        raise ValueError("Published CLI release data unavailable or invalid")
+    candidates = []
+    for page in pages:
+        for row in page:
+            tag = match_release(row, True)
+            if tag:
+                when = row.get("published_at")
+                if not isinstance(when, str) or not when.endswith("Z"):
+                    raise ValueError("Published CLI prerelease is missing its publication time")
+                candidates.append((dt.datetime.fromisoformat(when), tag))
+    if not candidates:
+        raise ValueError("Published CLI prerelease with a ZIP was not found")
+    return stable_tag, max(candidates)[1]
+
+
+def compare_public_version_fields(current: str, expected: tuple[str, str]) -> list[str]:
+    changes = []
+    for field, tag in zip(("latest_stable_tag", "latest_prerelease_tag"), expected, strict=True):
+        matches = re.findall(rf"^- {field}: ([^\n]+)$", current, re.MULTILINE)
+        if len(matches) != 1:
+            raise ValueError(f"Expected exactly one {field} field")
+        if matches[0] != tag:
+            changes.append(f"{field}: {matches[0]} -> {tag}")
+    return changes
+
+
 def _main_head_short() -> str:
     for ref in ("origin/main", "public/main", "main", "HEAD"):
         value = _run_git(["rev-parse", "--short", ref])
@@ -132,9 +184,29 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Generate the public YonerAI CURRENT_TRUTH.md anchor.")
     parser.add_argument("--output", default="CURRENT_TRUTH.md")
     parser.add_argument("--date", help="Override generated_date_utc for deterministic tests.")
+    parser.add_argument(
+        "--check-published", nargs=2, type=Path, metavar=("LATEST_JSON", "PAGES_JSON"),
+        help="Check the stored version fields using GitHub /releases/latest and gh --paginate --slurp JSON",
+    )
     args = parser.parse_args(argv)
 
     output = ROOT / args.output
+    if args.check_published:
+        try:
+            stable, pages = (json.loads(path.read_text(encoding="utf-8")) for path in args.check_published)
+            expected = published_cli_tags(stable, pages)
+            changes = compare_public_version_fields(output.read_text(encoding="utf-8"), expected)
+        except (ValueError, OSError) as exc:
+            print(f"Unable to verify published CLI versions: {exc}")
+            return 2
+        if changes:
+            print("Public CLI version fields need review:")
+            for change in changes:
+                print(change)
+            return 1
+        print("Public CLI version fields match GitHub Releases.")
+        return 0
+
     output.write_text(build_current_truth(generated_date=args.date), encoding="utf-8", newline="\n")
     print(output.as_posix())
     return 0

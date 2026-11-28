@@ -112,3 +112,39 @@ def test_current_truth_prefers_origin_main_over_stale_public_remote(monkeypatch)
 
     assert "- main_head_short: 57eee92a" in text
     assert "69fb9768" not in text
+
+
+def _published(tag: str, at: str, *, prerelease: bool = True, draft: bool = False):
+    return {
+        "tag_name": tag,
+        "published_at": at,
+        "prerelease": prerelease,
+        "draft": draft,
+        "assets": [{"name": f"YonerAI-{tag[1:]}.zip", "state": "uploaded"}],
+    }
+
+
+def test_release_check_uses_published_cli_artifacts_without_writing(tmp_path):
+    import json
+
+    module = _load_current_truth_module()
+    stable = _published("v0.8.1", "2026-06-13T15:45:03Z", prerelease=False)
+    old = _published("v0.22.0-alpha.1", "2026-06-18T19:35:43Z")
+    latest = _published("v0.23.0-alpha.1", "2026-06-30T23:32:55Z")
+    draft = _published("v0.99.0-alpha.1", "2026-11-01T00:00:00Z", draft=True)
+    legacy = _published("v2026.11.1-alpha", "2026-11-01T00:00:00Z")
+    no_zip = dict(_published("v0.26.0-alpha.1", "2026-11-01T00:00:00Z"), assets=[])
+    stable_path, pages_path = tmp_path / "stable.json", tmp_path / "pages.json"
+    stable_path.write_text(json.dumps(stable))
+    pages_path.write_text(json.dumps([[draft, no_zip, legacy, old], [latest]]))
+    anchor = tmp_path / "anchor.md"
+    current = "- latest_stable_tag: v0.8.1\n- latest_prerelease_tag: v0.22.0-alpha.1\n"
+    anchor.write_text(current)
+    args = ["--output", str(anchor), "--check-published", str(stable_path), str(pages_path)]
+    assert module.main(args) == 1
+    assert anchor.read_text() == current
+    anchor.write_text(current.replace(old["tag_name"], latest["tag_name"]))
+    assert module.main(args) == 0
+    pages_path.write_text("{}")
+    assert module.main(args) == 2
+    assert latest["tag_name"] in anchor.read_text()
